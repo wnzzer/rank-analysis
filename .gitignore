@@ -1,0 +1,64 @@
+# Go 编译输出
+/bin/
+/obj/
+/pkg/
+
+# 二进制文件
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Go 临时文件
+*.log
+*.out
+
+# 依赖管理
+vendor/
+
+# IDE 和编辑器配置文件
+.vscode/
+.idea/
+*.iml
+
+# Node.js 项目依赖
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Electron 特定文件
+dist/
+out/
+*.asar
+
+# 操作系统生成的文件
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 临时文件
+*.tmp
+*.swp
+*.swo
+*.swn
+*.~undo-tree~
+*.un~
+~*
+
+# 特定文件
+.env
+.env.local
+.env.*.local
+
+# 打包结果
+/build/
+*.zip
+*.tar.gz
+
+# GoLand 和 JetBrains IDE 文件
+.idea/
+*.iml
+
+# MacOS 特定文件
+*.DS_Store
