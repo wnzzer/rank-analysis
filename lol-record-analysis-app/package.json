@@ -24,8 +24,8 @@
     "@electron-toolkit/preload": "^3.0.0",
     "@electron-toolkit/utils": "^3.0.0",
     "electron-updater": "^6.1.7",
-    "tdesign-icons-vue-next": "^0.3.3",
-    "tdesign-vue-next": "^1.10.4"
+    "pinia": "^2.3.0",
+    "vue-router": "^4.5.0"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config": "^1.0.2",
@@ -41,8 +41,10 @@
     "electron-vite": "^2.3.0",
     "eslint": "^8.57.0",
     "eslint-plugin-vue": "^9.26.0",
+    "naive-ui": "^2.40.3",
     "prettier": "^3.3.2",
     "typescript": "^5.5.2",
+    "vfonts": "^0.0.3",
     "vite": "^5.3.1",
     "vue": "^3.4.30",
     "vue-tsc": "^2.0.22"

@@ -4,8 +4,9 @@
     <meta charset="UTF-8" />
     <title>lol-rank-record-anlysis</title>
     <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
-    <meta http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https://cn.bing.com data:" />
+    <meta http-equiv="Content-Security-Policy" 
+    content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob:;">
+
 
   </head>
 
@@ -16,8 +17,5 @@
 </html>
 
 <style lang="css">
-body{
-  background-color: #242424;
-  color: #fcfbfb;
-}
+
 </style>

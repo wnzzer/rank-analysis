@@ -1,6 +1,7 @@
 
 import { createApp } from 'vue'
 import App from './App.vue'
-import TDesign from 'tdesign-vue-next';
 
-createApp(App).use(TDesign).mount('#app')
+import naive from 'naive-ui'
+
+createApp(App).use(naive).mount('#app')

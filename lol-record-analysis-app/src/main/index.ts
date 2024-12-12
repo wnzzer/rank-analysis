@@ -10,7 +10,13 @@ function createWindow(): void {
     width: 900,
     height: 670,
     show: false,
-    autoHideMenuBar: true,
+  autoHideMenuBar: true,
+  titleBarStyle: 'hidden',  // 隐藏原生标题栏
+  titleBarOverlay: {
+    color: 'rgba(0, 0, 0, 0)', // 透明标题栏
+    height: 35,                 // 设置标题栏高度
+    symbolColor: 'white',       // 标题栏按钮颜色
+  },
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
