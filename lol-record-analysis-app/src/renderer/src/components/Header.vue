@@ -1,8 +1,9 @@
 <template>
-    <n-flex justify="space-between" style="width: 100%;    pointer-events: auto;
-">
-        <div style="width: 33%; text-align: center;">左侧固定</div>
-        <div style="flex: 1; text-align: center;">
+    <n-flex justify="space-between" style="width: 100%; ">
+        <div style="width: 33%; text-align: left;">
+    <img src="../assets/logo.png" alt="Logo" style="margin-left: 10px;margin-top: 5px; height: 25px; display: inline-block;">
+</div>
+        <div style="flex: 1;width: 33%;; text-align: center;">
             <n-input class="input-lolid" type="text" size="tiny" placeholder="输入召唤师">
                 <template #suffix>
                     <!-- <n-icon :component="FlashOutline" /> -->

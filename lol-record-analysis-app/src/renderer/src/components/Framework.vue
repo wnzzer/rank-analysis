@@ -2,24 +2,23 @@
   <div full-container>
     <n-space vertical size="large" >
     <!-- 整体布局 -->
-    <n-layout style="height: 100%; flex-direction: column;">
+    <n-layout style="height: 100%; ">
       <!-- 顶部区域 -->
       <n-layout-header class="header" >
         <Header></Header>
       </n-layout-header>
-      <n-divider style="margin: 4px 0; line-height: 1px;" />
+      <n-divider style="margin: 1px 0; line-height: 1px;" />
       
       <!-- 中间部分：左侧导航 + 内容区域 -->
-      <n-layout has-sider style="flex: 1; display: flex;">
+      <n-layout has-sider  style="width: 100vh; ">
         <!-- 左侧导航 -->
-        <n-layout-sider style="width: 60px; padding: 16px; height: 100%;">
-          左
+        <n-layout-sider  collapse-mode="width" class="left"  style="width: 60px; height: 100vh; ">
+          <SideNavigation></SideNavigation>
         </n-layout-sider>
-        
+        <n-divider vertical style="margin: 0 1px; line-height: 1px; height: 100vh;" />
         <!-- 内容区域 -->
-        <n-layout-content style="padding: 24px; height: 100%;">
-          主内容区域
-        </n-layout-content>
+        <n-layout-content >
+          <p>内容区</p>        </n-layout-content>
       </n-layout>
     </n-layout>
   </n-space>
@@ -28,6 +27,8 @@
 
 <script lang="ts" setup>
 import Header from './Header.vue';
+import SideNavigation from './SideNavigation.vue';
+
 </script>
 <style scoped>
 .full-container {
@@ -45,5 +46,9 @@ import Header from './Header.vue';
     -webkit-app-region: drag;
     pointer-events: auto;
     margin: 0; height: 40px; line-height: 40px; text-align: center;
+}
+.left{
+  width: 60px;
+  min-width: 60px;
 }
 </style>
