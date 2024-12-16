@@ -1,8 +1,13 @@
-import { contextBridge } from 'electron'
+import { contextBridge, shell } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 
 // Custom APIs for renderer
-const api = {}
+const api = {
+  //ipc 通过electron打开github
+  OpenGithub: () => {
+    shell.openExternal('https://github.com/wnzzer/lol-rank-record-analysis');
+  }// 调用主进程方法打开 GitHub 链接
+}
 
 // Use `contextBridge` APIs to expose Electron APIs to
 // renderer only if context isolation is enabled, otherwise

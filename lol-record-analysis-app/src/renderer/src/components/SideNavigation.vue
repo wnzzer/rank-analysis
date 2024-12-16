@@ -1,6 +1,6 @@
 <template>
     <n-flex justify="space-between" style="height: 90vh;" vertical>
-        <n-menu :collapsed="true" :collapsed-width="60" :collapsed-icon-size="20" :options="menuOptions" />
+        <n-menu :collapsed="true" :collapsed-width="60" :collapsed-icon-size="20" @update:value="handleMenuClick" :options="menuOptions" />
         <div class="loadingIcon" style="margin-left: 13px;">
             
             <n-popover trigger="hover">
@@ -17,6 +17,7 @@
 </template>
 
 <script setup lang="ts">
+import router from '@renderer/router';
 import { Reload, BarChart } from '@vicons/ionicons5'
 import { MenuOption, NIcon } from 'naive-ui';
 import { Component, h } from 'vue';
@@ -24,16 +25,21 @@ import { Component, h } from 'vue';
 function renderIcon(icon: Component) {
     return () => h(NIcon, null, { default: () => h(icon) })
 }
+function handleMenuClick(key: string) {
+    // 跳转到对应路由
+    router.push({ name: key });
+}
 
 const menuOptions: MenuOption[] = [
     {
         label: '战绩',
-        key: 'record',
+        key: 'Record',
         icon: renderIcon(BarChart)
+
     },
     {
         label: '对局',
-        key: 'load',
+        key: 'Loading',
         icon: renderIcon(Reload)
     }
 ]

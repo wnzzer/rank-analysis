@@ -18,7 +18,8 @@
         <n-divider vertical style="margin: 0 1px; line-height: 1px; height: 100vh;" />
         <!-- 内容区域 -->
         <n-layout-content >
-          <p>内容区</p>        </n-layout-content>
+                         <router-view></router-view>
+        </n-layout-content>
       </n-layout>
     </n-layout>
   </n-space>
