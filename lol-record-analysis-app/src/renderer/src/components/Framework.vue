@@ -10,7 +10,7 @@
       <n-divider style="margin: 1px 0; line-height: 1px;" />
       
       <!-- 中间部分：左侧导航 + 内容区域 -->
-      <n-layout has-sider  style="width: 100vh; ">
+      <n-layout has-sider  style="width: 100%; ">
         <!-- 左侧导航 -->
         <n-layout-sider  collapse-mode="width" class="left"  style="width: 60px; height: 100vh; ">
           <SideNavigation></SideNavigation>

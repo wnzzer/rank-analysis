@@ -1,15 +1,14 @@
 <template>
-<div>
+<div style="width: 100%;">
     <n-layout has-sider>
-        <n-layout-sider>
+          <n-layout-sider>
          <UserRecord></UserRecord>
         </n-layout-sider>
-        <n-layout-content content-style="padding: 24px; width: 1000px">
-          <div style="width: 1000px;">
-            <MatchHistory></MatchHistory>
-
-          </div>
-        </n-layout-content>
+        <n-layout-content style="flex: 3; padding: 24px;">
+        <div style="width: 100%;">
+          <MatchHistory />
+        </div>
+      </n-layout-content>
       </n-layout>
 </div>
 </template>
