@@ -1,6 +1,9 @@
 <template>
   <n-config-provider :theme="theme">
+    <n-message-provider>
+
    <Framework></Framework>
+   </n-message-provider>
   </n-config-provider>
 </template>
 

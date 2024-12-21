@@ -1,9 +1,12 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, session } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 
 function createWindow(): void {
+  session.defaultSession.clearCache().then(() => {
+    console.log('Cache cleared on app startup!');
+  });
   // Create the browser window.
   const mainWindow = new BrowserWindow({
 

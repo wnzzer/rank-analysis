@@ -7,7 +7,9 @@
         <div style="flex: 1;width: 33%;; text-align: center;">
             <n-input class="input-lolid" type="text" size="tiny" placeholder="输入召唤师">
                 <template #suffix>
-                    <n-icon :component="Search" />
+                    <n-button text>
+                        <n-icon :component="Search" />
+                    </n-button>
                 </template>
             </n-input>
         </div>
