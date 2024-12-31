@@ -1,15 +1,14 @@
 <template>
-    <el-card :style="divStyle">
-        <n-flex>
-            <div style=" display: flex; flex-direction: column; height: 7%; width: 7%; position: relative;">
+        <n-flex :style="divStyle">
+            <div
+                style="display: flex; flex-direction: column; justify-content: space-between;  width: 6%;  position: relative;">
                 <span class="win-font">胜利</span>
-                <img src="https://07akioni.oss-cn-beijing.aliyuncs.com/07akioni.jpeg" style=" object-fit: cover;" />
-                <!-- <div class="mvp">mvp</div> -->
-
+                <img :src="championBase64" style="object-fit: cover; height: 100%; flex: 9;" />
             </div>
 
+
+
         </n-flex>
-    </el-card>
 </template>
 
 <script lang="ts" setup>
@@ -17,23 +16,21 @@ import { computed } from 'vue';
 
 // 接收 props
 const props = defineProps<{
-    recordType?: 'win' | 'loss' | 'remake';
+    recordType?: true | false
+    championBase64 : string
 }>();
 
 // 计算样式
 const divStyle = computed(() => {
     console.log(props.recordType);
     let background = '';
-    if (props.recordType === 'win') {
+    if (props.recordType === true) {
         // 胜利背景颜色
         background = 'linear-gradient(120deg, rgba(2,63,80,1.00) 30%, rgba(44, 44, 44, 0.5))';
-    } else if (props.recordType === 'loss') {
+    } else if (props.recordType === false) {
         // 失败背景颜色
         background = 'linear-gradient(120deg, rgba(245, 6, 6, 0.2) 30%, rgba(44, 44, 44, 0.5))';
-    } else if (props.recordType === 'remake') {
-        // 重开背景颜色（假设用默认灰色背景）
-        background = 'linear-gradient(120deg, rgba(133, 133, 133, 1) 30%, rgba(44, 44, 44, 0.5))';
-    }
+    } 
 
     return { background };
 
@@ -49,6 +46,7 @@ const divStyle = computed(() => {
 .win-font {
     color: #03c2f7;
     font-weight: 300;
+    font-size: small;
 }
 
 .mvp {
