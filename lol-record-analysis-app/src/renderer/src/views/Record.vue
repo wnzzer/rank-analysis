@@ -1,16 +1,14 @@
 <template>
-<div style="width: 100%;">
-    <n-layout has-sider>
+    <n-layout has-sider style="height: 100%;">
           <n-layout-sider>
          <UserRecord></UserRecord>
         </n-layout-sider>
-        <n-layout-content style="flex: 3; padding-left: 24px; padding-right: 24px; padding-top: 4px;">
-        <div style="width: 100%;">
+        <n-layout-content style="flex: 3; padding-left: 14px; padding-right: 14px; padding-top: 3px;padding-bottom: 1px;">
+        <div style=" ">
           <MatchHistory />
         </div>
       </n-layout-content>
       </n-layout>
-</div>
 </template>
 <script lang="ts" setup>
 import MatchHistory from '@renderer/components/record/MatchHistory.vue';

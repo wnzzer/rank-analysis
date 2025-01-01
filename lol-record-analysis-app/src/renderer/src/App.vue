@@ -19,7 +19,6 @@ html,body {
     margin: 0;
     /* 禁止 html,body 滚动，避免滚动条出现在标题栏右边 */
     overflow: hidden;
-    height: 100%;
   }
   .root {
     /* 使用 flex 来实现 */
@@ -49,4 +48,5 @@ html,body {
     /* 内容区需要设置可滚动 */
     overflow: auto;
   }
+
 </style>

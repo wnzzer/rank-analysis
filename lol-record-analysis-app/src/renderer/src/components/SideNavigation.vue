@@ -48,7 +48,7 @@ const menuOptions: MenuOption[] = [
 <style lang="css" scoped>
 .left-container {
     width: 60px;
-    height: 100vh;
+    height: 100%;
 }
 
 @keyframes rotate {

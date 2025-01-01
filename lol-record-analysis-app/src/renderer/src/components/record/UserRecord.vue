@@ -1,5 +1,5 @@
 <template>
-  <n-flex vertical style="display: flex; position: relative; height: 100vh;">
+  <n-flex vertical style="display: flex; position: relative; height: 100%;">
     <n-card :bordered="false">
       <n-flex>
         <div style="position: relative;">
@@ -290,6 +290,6 @@ const copy = () => {
 
 <style lang="css" scoped>
 .user-record-card {
-  height: 100vh;
+  height: 100%;
 }
 </style>

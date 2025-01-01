@@ -1,13 +1,13 @@
 <template>
-  <n-flex vertical style="height: 100vh;">
+  <n-flex vertical style="height: 100%;">
     <RecordCard v-for="i in 10" :record-type="true" :champion-base64="matchHistory.games.games[0].participants[0].championBase64"
       style="flex: 1; display: flex; ">
 
     </RecordCard>
-    <div style="flex: 1; display: flex; flex-direction: column;"></div>
   </n-flex>
 </template>
 <script setup lang="ts">
+
 import http from '@renderer/services/http';
 import RecordCard from './RecordCard.vue';
 import { onMounted, ref } from 'vue';
