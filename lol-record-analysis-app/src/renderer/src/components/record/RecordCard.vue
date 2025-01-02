@@ -1,31 +1,148 @@
 <template>
-    <n-card content-style="padding: 1px;" class="some-class">
-        <n-flex style="height: 100%;">
-            <n-flex vertical>
-                <span style="font-weight: 600; color: #8BDFB7; margin-left: 4px; margin-top: 2px;">胜利</span>
+    <n-card content-style="padding: 1px;" class="win-class" :class="{ 'defeat-class': !games.participants[0].stats.win }">
+        <n-flex style="height: 6.7vh;">
+            <n-flex vertical style="gap: 1px;">
+                <span :style="{
+                    fontWeight: '600',
+                    color: games.participants[0].stats.win ? '#8BDFB7' : '#BA3F53',
+                    marginLeft: '4px',
+                    marginTop: '2px'
+                }"> {{ games.participants[0].stats.win ? '胜利' : '失败' }}
+                    <n-divider style="margin: 1px 0; line-height: 1px;" />
+
+                </span>
 
                 <span style="color: #676768; font-size: 10px;">
                     <n-icon style="margin-right: 1px;">
                         <Time></Time>
-                    </n-icon>46分</span>
+                    </n-icon>46分
+                </span>
             </n-flex>
-            <n-image width="50" :src="championBase64" preview-disabled />
+            <img :src="games.participants[0].championBase64" style="height: 100%;" />
             <n-flex vertical>
                 <span>单双排</span>
                 <span style="color: #676768; font-size: 10px;">2025/1/2</span>
             </n-flex>
+            <n-flex justify="space-between" vertical style="gap: 0px; ">
+                <n-flex justify="space-between">
+                    <span>
+                        <span style="font-weight: 500; color: #8BDFB7">
+                            {{ games.participants[0].stats?.kills }}
+                        </span>
+                        /
+                        <span style="font-weight: 500; color: #BA3F53">
+                            {{ games.participants[0].stats?.deaths }}
+                        </span>
+                        /
+                        <span style="font-weight: 500; color: #D38B2A">
+                            {{ games.participants[0].stats?.assists }}
+                        </span>
+                    </span>
+                    <span style="margin-left: 20px;">
+                        
+                        <img :src="games.participants[0].spell1Base64 ? games.participants[0].spell1Base64 : itemNull"
+                            style="width: 20px;" alt="item image" />
+                        <img :src="games.participants[0].spell2Base64 ? games.participants[0].spell2Base64 : itemNull"
+                            style="width: 20px;" alt="item image" />
+                        <!-- <img :src="games.participants[0].stats?.perkPrimaryStyleBase64 ? games.participants[0].stats.perkPrimaryStyleBase64 : itemNull"
+                            style="width: 20px;" alt="item image" /> -->
+                        <!-- <img :src="games.participants[0].stats?.perkSubStyleBase64 ? games.participants[0].stats.perkSubStyleBase64 : itemNull"
+                            style="width: 20px;" alt="item image" /> -->
+                    </span>
+
+                </n-flex>
+                <n-flex style="gap: 2px;">
+                    <img :src="games.participants[0].stats?.item0Base64 ? games.participants[0].stats.item0Base64 : itemNull"
+                        style="width: 20px;" alt="item image" />
+                    <img :src="games.participants[0].stats?.item1Base64 ? games.participants[0].stats.item1Base64 : itemNull"
+                        style="width: 20px;" alt="item image" />
+                    <img :src="games.participants[0].stats?.item2Base64 ? games.participants[0].stats.item2Base64 : itemNull"
+                        style="width: 20px;" alt="item image" />
+                    <img :src="games.participants[0].stats?.item3Base64 ? games.participants[0].stats.item3Base64 : itemNull"
+                        style="width: 20px;" alt="item image" />
+                    <img :src="games.participants[0].stats?.item4Base64 ? games.participants[0].stats.item4Base64 : itemNull"
+                        style="width: 20px;" alt="item image" />
+                    <img :src="games.participants[0].stats?.item5Base64 ? games.participants[0].stats.item5Base64 : itemNull"
+                        style="width: 20px;" alt="item image" />
+                    <img :src="games.participants[0].stats?.item6Base64 ? games.participants[0].stats.item6Base64 : itemNull"
+                        style="width: 20px;" alt="item image" />
+                </n-flex>
+
+            </n-flex>
+            <div>
+ 
+            </div>
         </n-flex>
     </n-card>
 </template>
 
+
 <script lang="ts" setup>
 import { Time } from '@vicons/ionicons5';
-
+import itemNull from '@renderer/assets/imgs/item/null.png';
+import { computed } from 'vue';
 // 接收 props
 const props = defineProps<{
-    recordType?: true | false
-    championBase64: string
+    recordType?: boolean; // 确保这里是 boolean 类型
+    games: {
+        gameId: number;
+        gameCreationDate: string;
+        gameDuration: number;
+        gameMode: string;
+        gameType: string;
+        mapId: number;
+        queueId: number;
+        participants: Array<{
+            win: boolean;
+            participantId: number;
+            teamId: number;
+            championId: number;
+            championBase64: string;
+            spell1Id: number;
+            spell1Base64: string;
+            spell2Id: number;
+            spell2Base64: string;
+            stats: {
+                win: boolean;
+                item0: number;
+                item1: number;
+                item2: number;
+                item3: number;
+                item4: number;
+                item5: number;
+                item6: number;
+                item0Base64: string;
+                item1Base64: string;
+                item2Base64: string;
+                item3Base64: string;
+                item4Base64: string;
+                item5Base64: string;
+                item6Base64: string;
+                perkPrimaryStyle: number;
+                perkSubStyle: number;
+                perkPrimaryStyleBase64: string;
+                perkSubStyleBase64: string;
+                kills: number;
+                deaths: number;
+                assists: number;
+                goldEarned: number;
+                goldSpent: number;
+                totalDamageDealt: number;
+                totalDamageTaken: number;
+                totalHeal: number;
+                totalMinionsKilled: number;
+            };
+        }>;
+    };
 }>();
+
+const displayWin = computed(() => {
+    if (props.recordType) {
+        return 'win-font';
+    }
+    return '';
+})
+
 
 
 </script>
@@ -50,56 +167,47 @@ const props = defineProps<{
     /* 根据需求可以选择 contain, cover 等 */
 }
 
-.red-border-card {
-    border: 2px solid #4caf50;
-    /* 成功绿色边框 */
-    box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
-    /* 绿色阴影效果 */
-}
 
-.some-class {
+
+.win-class {
     /* 默认的边框颜色 */
     --n-border: 1px solid #63e2b7;
     /* 静态绿色边框 */
     --n-border-hover: 1px solid #7fe7c4;
     /* 悬停时的绿色边框 */
     --n-border-pressed: 1px solid #5acea7;
-    /* 按下时的绿色边框 */
-    --n-border-focus: 1px solid #7fe7c4;
-    /* 聚焦时的绿色边框 */
-    --n-border-disabled: 1px solid #63e2b7;
-    /* 禁用状态下的绿色边框 */
-    --n-text-color: #63e2b7;
-    /* 绿色文本颜色 */
-    --n-text-color-hover: #7fe7c4;
-    /* 悬停时的文本颜色 */
-    --n-text-color-pressed: #5acea7;
-    /* 按下时的文本颜色 */
-    --n-text-color-focus: #7fe7c4;
-    /* 聚焦时的文本颜色 */
-    --n-text-color-disabled: #63e2b7;
-    /* 禁用状态下的文本颜色 */
-    --n-ripple-color: #63e2b7;
-    /* 涟漪效果的绿色 */
 
     /* 添加平滑过渡效果 */
-    transition: border-color 0.3s ease, color 1s ease;
+    transition: border-color 0.3s ease, color 0.3s ease;
     /* 为边框颜色和文本颜色添加过渡 */
 }
 
-.some-class:hover {
+.defeat-class {
+    /* 默认的边框颜色 */
+    --n-border: 1px solid #BA3F53;
+    /* 静态绿色边框 */
+    --n-border-hover: 1px solid #BA3F53;
+    /* 悬停时的绿色边框 */
+    --n-border-pressed: 1px solid #BA3F53;
+
+    /* 添加平滑过渡效果 */
+    transition: border-color 0.3s ease, color 0.3s ease;
+    /* 为边框颜色和文本颜色添加过渡 */
+}
+
+.win-class:hover {
     border: var(--n-border-hover);
 }
 
-.some-class:active {
+.win-class:active {
     border: var(--n-border-pressed);
 }
 
-.some-class:focus {
+.win-class:focus {
     border: var(--n-border-focus);
 }
 
-.some-class:disabled {
+.win-class:disabled {
     border: var(--n-border-disabled);
 }
 </style>

@@ -1,15 +1,34 @@
 <template>
   <n-flex vertical style="height: 100%;">
-    <RecordCard v-for="i in 10" :record-type="true" :champion-base64="matchHistory.games.games[0].participants[0].championBase64"
-      style="flex: 1; display: flex; ">
-
+    <RecordCard v-for="(game, index) in matchHistory?.games?.games || []" :key="index" :record-type="true" :games="game"
+      style="flex: 1; display: flex;">
     </RecordCard>
+    <div>
+      <!-- 自定义分页组件 -->
+      <n-pagination style="margin-top: 10px;">
+        <template #prev> <n-button size="tiny">
+            <template #icon>
+              <n-icon>
+                <ArrowBack></ArrowBack>
+              </n-icon>
+            </template>
+          </n-button> </template>
+        <template #next>  <n-button size="tiny">
+            <template #icon>
+              <n-icon>
+                <ArrowForward></ArrowForward>
+              </n-icon>
+            </template>
+          </n-button></template>
+      </n-pagination>
+    </div>
   </n-flex>
 </template>
 <script setup lang="ts">
 
 import http from '@renderer/services/http';
 import RecordCard from './RecordCard.vue';
+import { ArrowBack ,ArrowForward} from '@vicons/ionicons5';
 import { onMounted, ref } from 'vue';
 
 

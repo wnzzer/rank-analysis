@@ -23,7 +23,7 @@
             <span style="color: #676768; font-size: small;">#{{ summoner.summoner.tagLine }}</span>
             <n-icon :depth="3" color="dark">
               <server></server>
-            </n-icon><span>联盟四区 </span>
+            </n-icon><span>{{ summoner.summoner.platformIdCn }} </span>
           </n-flex>
         </n-flex>
       </n-flex>
@@ -32,17 +32,8 @@
     <!-- 这里显示的是RANKED_SOLO_5x5的排名图标 -->
     <div style="position: relative;">
 
-      <n-card :bordered="true">
-        <div style="position: absolute; left: 0;top: 0;">
-          <span style="transform: translateX(5px);">
-            <n-icon>
-              <heart-dislike></heart-dislike>
-            </n-icon>
-          </span>
-          <span>
-            牛马标签
-          </span>
-        </div>
+      <n-card :bordered="false" content-style="padding-top:0px">
+
         <n-flex>
           <div>
           </div>
@@ -116,16 +107,7 @@
     <div style="position: relative;  flex: 1; flex-grow: 1;">
 
       <n-card :bordered="true" style=" flex: 1; flex-grow: 1;">
-        <div style="position: absolute; left: 0;top: 0; flex: 1; flex-grow: 1;">
-          <span style="transform: translateX(5px);">
-            <n-icon>
-              <heart-dislike></heart-dislike>
-            </n-icon>
-          </span>
-          <span>
-            数据面板
-          </span>
-        </div>
+        
         <n-flex>
           <div>
           </div>
@@ -157,6 +139,8 @@ interface Summoner {
   profileIconId: number;
   profileIconBase64: string;
   puuid: string;
+  platformIdCn: string,
+
 }
 
 // 定义 QueueInfo 接口
@@ -196,6 +180,7 @@ const summoner = ref<SummonerData>({
     profileIconId: 0,
     profileIconBase64: "",
     puuid: "",
+    platformIdCn: ''
   },
   rank: {
     queueMap: {
