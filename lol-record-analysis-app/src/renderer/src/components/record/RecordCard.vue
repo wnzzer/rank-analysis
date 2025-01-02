@@ -20,8 +20,8 @@
             </n-flex>
             <img :src="games.participants[0].championBase64" style="height: 100%;" />
             <n-flex vertical>
-                <span>单双排</span>
-                <span style="color: #676768; font-size: 10px;">2025/1/2</span>
+                <span>{{ games.queueName }}</span>
+                <span style="color: #676768; font-size: 10px;">{{formattedDate}}</span>
             </n-flex>
             <n-flex justify="space-between" vertical style="gap: 0px; ">
                 <n-flex justify="space-between">
@@ -92,6 +92,8 @@ const props = defineProps<{
         gameType: string;
         mapId: number;
         queueId: number;
+        queueName: number;
+
         participants: Array<{
             win: boolean;
             participantId: number;
@@ -136,13 +138,14 @@ const props = defineProps<{
     };
 }>();
 
-const displayWin = computed(() => {
-    if (props.recordType) {
-        return 'win-font';
-    }
-    return '';
-})
 
+const formattedDate = computed(() => {
+  const date = new Date(props.games.gameCreationDate);
+  const year = date.getFullYear();
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');  // 月份从0开始，所以加1
+  const day = date.getDate().toString().padStart(2, '0');  // 确保两位数格式
+  return `${year}/${month}/${day}`;
+});
 
 
 </script>
