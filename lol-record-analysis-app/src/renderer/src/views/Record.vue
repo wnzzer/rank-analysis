@@ -3,7 +3,7 @@
           <n-layout-sider>
          <UserRecord></UserRecord>
         </n-layout-sider>
-        <n-layout-content style="flex: 3; padding-left: 14px; padding-right: 14px; padding-top: 10px;padding-bottom: 1px;">
+        <n-layout-content style="flex: 3; padding-left: 5px; padding-right: 5x; padding-top: 5px;padding-bottom: 1px;">
         <div style=" ">
           <MatchHistory />
         </div>

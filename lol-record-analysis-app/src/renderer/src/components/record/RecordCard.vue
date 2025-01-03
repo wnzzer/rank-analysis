@@ -1,6 +1,7 @@
 <template>
-    <n-card content-style="padding: 1px;" class="win-class" :class="{ 'defeat-class': !games.participants[0].stats.win }">
-        <n-flex style="height: 6.7vh;">
+    <n-card content-style="padding: 2px;" class="win-class"
+        :class="{ 'defeat-class': !games.participants[0].stats.win }">
+        <n-flex style="height: 6.7vh;" justify="space-between">
             <n-flex vertical style="gap: 1px;">
                 <span :style="{
                     fontWeight: '600',
@@ -15,14 +16,15 @@
                 <span style="color: #676768; font-size: 10px;">
                     <n-icon style="margin-right: 1px;">
                         <Time></Time>
-                    </n-icon>46分
+                    </n-icon>{{ Math.ceil(games.gameDuration / 60) }}分
                 </span>
             </n-flex>
             <img :src="games.participants[0].championBase64" style="height: 100%;" />
             <n-flex vertical>
                 <span>{{ games.queueName }}</span>
-                <span style="color: #676768; font-size: 10px;">{{formattedDate}}</span>
+                <span style="color: #676768; font-size: 10px;">{{ formattedDate }}</span>
             </n-flex>
+
             <n-flex justify="space-between" vertical style="gap: 0px; ">
                 <n-flex justify="space-between">
                     <span>
@@ -39,15 +41,12 @@
                         </span>
                     </span>
                     <span style="margin-left: 20px;">
-                        
+
                         <img :src="games.participants[0].spell1Base64 ? games.participants[0].spell1Base64 : itemNull"
                             style="width: 20px;" alt="item image" />
                         <img :src="games.participants[0].spell2Base64 ? games.participants[0].spell2Base64 : itemNull"
                             style="width: 20px;" alt="item image" />
-                        <!-- <img :src="games.participants[0].stats?.perkPrimaryStyleBase64 ? games.participants[0].stats.perkPrimaryStyleBase64 : itemNull"
-                            style="width: 20px;" alt="item image" /> -->
-                        <!-- <img :src="games.participants[0].stats?.perkSubStyleBase64 ? games.participants[0].stats.perkSubStyleBase64 : itemNull"
-                            style="width: 20px;" alt="item image" /> -->
+
                     </span>
 
                 </n-flex>
@@ -68,10 +67,52 @@
                         style="width: 20px;" alt="item image" />
                 </n-flex>
 
+
             </n-flex>
-            <div>
- 
-            </div>
+            <n-flex vertical justify="space-between" style="gap: 0px;">
+                <span style="color: #676768; font-size: 9px;">输出：<span style="color: #D38B2A;">{{
+                    (games.participants[0].stats.totalDamageDealtToChampions / 1000).toFixed(1) }}k</span></span>
+                <span style="color: #676768; font-size: 9px;">承伤：<span style="color: #BA3F53;">{{
+                    (games.participants[0].stats.totalDamageTaken / 1000).toFixed(1) }}k</span></span>
+                <span style="color: #676768; font-size: 9px;">治疗：<span style="color: #8BDFB7;">{{
+                    (games.participants[0].stats.totalHeal / 1000).toFixed(1) }}k</span></span>
+
+            </n-flex>
+            <n-flex vertical justify="space-between" style="gap: 0px; ">
+
+                <n-tag :bordered="false" size="small">
+                    <template #avatar>
+                        <n-flex>
+                            <n-popover v-for="i in 5" :key="i" trigger="hover">
+                                <template #trigger>
+                                    <n-button text>
+                                        <n-avatar :src="games.gameDetail.participants[i - 1]?.championBase64" />
+                                    </n-button>
+                                </template>
+                                <span>{{ games.gameDetail.participantIdentities[i - 1].player.gameName + "#" + games.gameDetail.participantIdentities[i - 1].player.tagLine }}</span>
+                            </n-popover>
+                        </n-flex>
+                    </template>
+                </n-tag>
+
+                <n-tag :bordered="false" size="small">
+                    <template #avatar>
+                        <n-flex>
+                            <n-popover v-for="i in 5" :key="i + 5" trigger="hover">
+                                <template #trigger>
+                                    <n-button text>
+                                        <!-- 这里确保不会访问越界 -->
+                                        <n-avatar :src="games.gameDetail.participants[i + 4]?.championBase64" />
+                                    </n-button>
+                                </template>
+                                <span>{{ games.gameDetail.participantIdentities[i + 4].player.gameName + "#" + games.gameDetail.participantIdentities[i + 4].player.tagLine }}</span>
+                            </n-popover>
+                        </n-flex>
+                    </template>
+                </n-tag>
+
+
+            </n-flex>
         </n-flex>
     </n-card>
 </template>
@@ -81,70 +122,20 @@
 import { Time } from '@vicons/ionicons5';
 import itemNull from '@renderer/assets/imgs/item/null.png';
 import { computed } from 'vue';
+import { Game, MatchHistory } from './MatchHistory.vue';
 // 接收 props
 const props = defineProps<{
     recordType?: boolean; // 确保这里是 boolean 类型
-    games: {
-        gameId: number;
-        gameCreationDate: string;
-        gameDuration: number;
-        gameMode: string;
-        gameType: string;
-        mapId: number;
-        queueId: number;
-        queueName: number;
-
-        participants: Array<{
-            win: boolean;
-            participantId: number;
-            teamId: number;
-            championId: number;
-            championBase64: string;
-            spell1Id: number;
-            spell1Base64: string;
-            spell2Id: number;
-            spell2Base64: string;
-            stats: {
-                win: boolean;
-                item0: number;
-                item1: number;
-                item2: number;
-                item3: number;
-                item4: number;
-                item5: number;
-                item6: number;
-                item0Base64: string;
-                item1Base64: string;
-                item2Base64: string;
-                item3Base64: string;
-                item4Base64: string;
-                item5Base64: string;
-                item6Base64: string;
-                perkPrimaryStyle: number;
-                perkSubStyle: number;
-                perkPrimaryStyleBase64: string;
-                perkSubStyleBase64: string;
-                kills: number;
-                deaths: number;
-                assists: number;
-                goldEarned: number;
-                goldSpent: number;
-                totalDamageDealt: number;
-                totalDamageTaken: number;
-                totalHeal: number;
-                totalMinionsKilled: number;
-            };
-        }>;
-    };
+    games: Game;
 }>();
 
 
 const formattedDate = computed(() => {
-  const date = new Date(props.games.gameCreationDate);
-  const year = date.getFullYear();
-  const month = (date.getMonth() + 1).toString().padStart(2, '0');  // 月份从0开始，所以加1
-  const day = date.getDate().toString().padStart(2, '0');  // 确保两位数格式
-  return `${year}/${month}/${day}`;
+    const date = new Date(props.games.gameCreationDate);
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');  // 月份从0开始，所以加1
+    const day = date.getDate().toString().padStart(2, '0');  // 确保两位数格式
+    return `${year}/${month}/${day}`;
 });
 
 
