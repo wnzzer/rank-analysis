@@ -1,21 +1,6 @@
 <template>
-
   <n-flex vertical style="height: 100%; position: relative;">
-    <n-loading-bar-provider :to="loadingBarTargetRef" container-style="position: absolute;">
 
-      <!-- 进度条有bug，想放到右上角的 -->
-      <div ref="loadingBarTargetRef" style="
-        position: absolute;
-        top: 0;
-        right: 0;
-        bottom: 0;
-        left: 0;
-        border-radius: var(--n-border-radius);
-        overflow: hidden;
-        pointer-events: none;
-      "></div>
-    </n-loading-bar-provider>
-    <!-- 确保 <n-loading-bar-provider> 包裹整个应用 -->
 
     <RecordCard v-for="(game, index) in matchHistory?.games?.games || []" :key="index" :record-type="true" :games="game"
       style="flex: 1; display: flex;">
@@ -23,9 +8,9 @@
 
     <!-- 自定义分页组件 -->
     <div>
-      <n-pagination style="margin-top: 0px;" >
+      <n-pagination style="margin-top: 0px;">
         <template #prev>
-          <n-button size="tiny" @click="prevPage" :disabled="page==1">
+          <n-button size="tiny" @click="prevPage" :disabled="page == 1">
             <template #icon>
               <n-icon>
                 <ArrowBack></ArrowBack>
@@ -37,7 +22,7 @@
           <span>{{ page }}</span>
         </template>
         <template #next>
-          <n-button size="tiny" @click="nextPage" >
+          <n-button size="tiny" @click="nextPage">
             <template #icon>
               <n-icon>
                 <ArrowForward></ArrowForward>
@@ -159,7 +144,6 @@ export interface MatchHistory {
 }
 
 const matchHistory = ref<MatchHistory>();
-const loadingBarTargetRef = ref<undefined | HTMLElement>(undefined)
 
 const loadingBar = useLoadingBar(); // 确保 useLoadingBar 在 setup 中正确调用
 
@@ -179,19 +163,19 @@ const getHistoryMatch = async (name: string, begIndex: number, endIndex: number)
     loadingBar.finish(); // 加载完成时结束进度条
   } catch (error) {
     loadingBar.error(); // 发生错误时显示错误状态
-  }finally {
+  } finally {
     loadingBar.finish(); // 加载完成时结束进度条
   }
 
 };
 const page = ref(1)
 const nextPage = () => {
-  getHistoryMatch("",(page.value) * 10, (page.value) * 10 + 9).then(() => {
+  getHistoryMatch("", (page.value) * 10, (page.value) * 10 + 9).then(() => {
     page.value++
   });
 }
 const prevPage = () => {
-  getHistoryMatch("",(page.value - 2) * 10, (page.value - 2) * 10 + 9).then(() => {
+  getHistoryMatch("", (page.value - 2) * 10, (page.value - 2) * 10 + 9).then(() => {
     page.value--
   });
 

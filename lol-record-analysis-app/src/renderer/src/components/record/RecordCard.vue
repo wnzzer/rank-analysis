@@ -21,7 +21,7 @@
             </n-flex>
             <img :src="games.participants[0].championBase64" style="height: 100%;" />
             <n-flex vertical>
-                <span style="font-size: 12px;font-weight: 700;">{{ games.queueName }}</span>
+                <span style="font-size: 12px;font-weight: 500;">{{ games.queueName }}</span>
                 <span style="color: #676768; font-size: 10px;">{{ formattedDate }}</span>
             </n-flex>
 

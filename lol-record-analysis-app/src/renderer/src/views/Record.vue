@@ -1,13 +1,13 @@
 <template>
   <n-layout has-sider style="height: 100%;">
-    <n-layout-sider     
-    >
+    <n-layout-sider>
+
       <UserRecord></UserRecord>
     </n-layout-sider>
     <n-layout-content style="flex: 3; padding-left: 5px; padding-right: 5x; padding-top: 5px;padding-bottom: 1px;">
-      <div >
+      <div>
 
-          <MatchHistory />
+        <MatchHistory />
 
 
       </div>
