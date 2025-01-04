@@ -170,12 +170,12 @@ const getHistoryMatch = async (name: string, begIndex: number, endIndex: number)
 };
 const page = ref(1)
 const nextPage = () => {
-  getHistoryMatch("", (page.value) * 10, (page.value) * 10 + 9).then(() => {
+  getHistoryMatch(name, (page.value) * 10, (page.value) * 10 + 9).then(() => {
     page.value++
   });
 }
 const prevPage = () => {
-  getHistoryMatch("", (page.value - 2) * 10, (page.value - 2) * 10 + 9).then(() => {
+  getHistoryMatch(name, (page.value - 2) * 10, (page.value - 2) * 10 + 9).then(() => {
     page.value--
   });
 
