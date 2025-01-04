@@ -27,7 +27,7 @@ function renderIcon(icon: Component) {
 }
 function handleMenuClick(key: string) {
     // 跳转到对应路由
-    router.push({ name: key });
+    router.push({ name: key});
 }
 
 const menuOptions: MenuOption[] = [

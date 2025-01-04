@@ -1,64 +1,73 @@
 <template>
-  <n-flex vertical style="height: 100%;">
+
+  <n-flex vertical style="height: 100%; position: relative;">
+    <n-loading-bar-provider :to="loadingBarTargetRef" container-style="position: absolute;">
+
+      <!-- 进度条有bug，想放到右上角的 -->
+      <div ref="loadingBarTargetRef" style="
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        border-radius: var(--n-border-radius);
+        overflow: hidden;
+        pointer-events: none;
+      "></div>
+    </n-loading-bar-provider>
+    <!-- 确保 <n-loading-bar-provider> 包裹整个应用 -->
+
     <RecordCard v-for="(game, index) in matchHistory?.games?.games || []" :key="index" :record-type="true" :games="game"
       style="flex: 1; display: flex;">
     </RecordCard>
+
+    <!-- 自定义分页组件 -->
     <div>
-      <!-- 自定义分页组件 -->
-      <n-pagination style="margin-top: 0px;">
-        <template #prev> <n-button size="tiny">
+      <n-pagination style="margin-top: 0px;" >
+        <template #prev>
+          <n-button size="tiny" @click="prevPage" :disabled="page==1">
             <template #icon>
               <n-icon>
                 <ArrowBack></ArrowBack>
               </n-icon>
             </template>
-          </n-button> </template>
-        <template #next> <n-button size="tiny">
+          </n-button>
+        </template>
+        <template #label>
+          <span>{{ page }}</span>
+        </template>
+        <template #next>
+          <n-button size="tiny" @click="nextPage" >
             <template #icon>
               <n-icon>
                 <ArrowForward></ArrowForward>
               </n-icon>
             </template>
-          </n-button></template>
+          </n-button>
+        </template>
       </n-pagination>
     </div>
   </n-flex>
 </template>
-<script setup lang="ts">
 
+<script setup lang="ts">
 import http from '@renderer/services/http';
 import RecordCard from './RecordCard.vue';
 import { ArrowBack, ArrowForward } from '@vicons/ionicons5';
 import { onMounted, ref } from 'vue';
+import { useLoadingBar } from 'naive-ui';
+import { useRoute } from 'vue-router';
 
 
-onMounted(async () => {
-  await getHistoryMatch();
-});
-
-/**
- * Interface representing a player's match history.
- * @property {string} platformId - The ID of the platform where the matches were played.
- * @property {Object} games - An object containing an array of game details.
- * @property {Array<Object>} games.games - An array of game objects, each containing details about a single match.
- * @property {number} games.games.gameId - The unique identifier for the game.
- * @property {string} games.games.gameCreationDate - The date and time the game was created.
- * @property {number} games.games.gameDuration - The duration of the game in seconds.
- * @property {Array<Object>} games.games.participants - An array of participant objects, each representing a player in the game.
- * @property {boolean} games.games.participants.win - Indicates whether the participant won the game.
- * @property {number} games.games.participants.stats.kills - The number of kills the participant achieved.
- * @property {number} games.games.participants.stats.deaths - The number of deaths the participant had.
- * @property {number} games.games.participants.stats.assists - The number of assists the participant provided.
- * @property {number} games.games.participants.stats.goldEarned - The total gold earned by the participant during the game.
- */
+// 类型定义
 export interface GameDetail {
   endOfGameResult: string;
   participantIdentities: {
     player: {
       accountId: string;
       platformId: string;
-      gameName : string;
-      tagLine : string;
+      gameName: string;
+      tagLine: string;
       summonerName: string;
       summonerId: string;
     };
@@ -68,13 +77,11 @@ export interface GameDetail {
     participantId: number;
     championId: number;
     championBase64: string;
-
     summonerName: string;
     summonerId: string;
   }[];
 }
 
-// 参与者的类型
 export interface ParticipantStats {
   win: boolean;
   item0: number;
@@ -107,7 +114,6 @@ export interface ParticipantStats {
   totalMinionsKilled: number;
 }
 
-// 参与者类型
 export interface Participant {
   win: boolean;
   participantId: number;
@@ -121,7 +127,6 @@ export interface Participant {
   stats: ParticipantStats;
 }
 
-// 每场游戏的类型
 export interface Game {
   gameDetail: GameDetail;
   gameId: number;
@@ -132,32 +137,70 @@ export interface Game {
   mapId: number;
   queueId: number;
   queueName: number;
+  participantIdentities: {
+    player: {
+      accountId: string;
+      platformId: string;
+      gameName: string;
+      tagLine: string;
+      summonerName: string;
+      summonerId: string;
+    };
+  }[];
   participants: Participant[];
 }
 
-
-
-// 最外层的 MatchHistory 类型
 export interface MatchHistory {
   platformId: string;
   games: {
     gameDetail: GameDetail;
-    games: Game[];  // 使用 Game 类型替代原来的嵌套结构
+    games: Game[];
   };
 }
 
+const matchHistory = ref<MatchHistory>();
+const loadingBarTargetRef = ref<undefined | HTMLElement>(undefined)
 
-const matchHistory = ref<MatchHistory>()
+const loadingBar = useLoadingBar(); // 确保 useLoadingBar 在 setup 中正确调用
 
+// 获取历史记录
+const getHistoryMatch = async (name: string, begIndex: number, endIndex: number) => {
+  loadingBar.start(); // 开始进度条
 
-
-const getHistoryMatch = async () => {
-  const res = await http.get<MatchHistory>(
-    "/GetMatchHistory", {
-    params: {}
-  })
-  matchHistory.value = res.data;
+  try {
+    const res = await http.get<MatchHistory>("/GetMatchHistory", {
+      params: {
+        begIndex: begIndex,
+        endIndex: endIndex,
+        name
+      }
+    });
+    matchHistory.value = res.data;
+    loadingBar.finish(); // 加载完成时结束进度条
+  } catch (error) {
+    loadingBar.error(); // 发生错误时显示错误状态
+  }finally {
+    loadingBar.finish(); // 加载完成时结束进度条
+  }
 
 };
+const page = ref(1)
+const nextPage = () => {
+  getHistoryMatch("",(page.value) * 10, (page.value) * 10 + 9).then(() => {
+    page.value++
+  });
+}
+const prevPage = () => {
+  getHistoryMatch("",(page.value - 2) * 10, (page.value - 2) * 10 + 9).then(() => {
+    page.value--
+  });
 
+}
+
+const route = useRoute()
+let name = ""
+onMounted(async () => {
+  name = route.query.name as string
+  await getHistoryMatch(name, 0, 9);
+});
 </script>

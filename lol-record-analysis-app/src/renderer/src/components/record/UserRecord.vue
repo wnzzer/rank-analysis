@@ -58,14 +58,14 @@
         <n-flex>
           <div>
             <img width="70px" height="70px"
-              :src="requireImg(summoner.rank.queueMap.RANKED_SOLO_5x5.tier.toLocaleLowerCase() + '.png')" />
+              :src="requireImg(summoner.rank.queueMap.RANKED_SOLO_5x5.tier.toLocaleLowerCase() )" />
           </div>
           <div style="width: 60%;">
             <n-flex vertical>
               <RecordButton
                 :record-type="getRecordType(summoner.rank.queueMap.RANKED_SOLO_5x5.wins, summoner.rank.queueMap.RANKED_SOLO_5x5.losses)">
                 胜率：{{ getWinRate(summoner.rank.queueMap.RANKED_SOLO_5x5.wins,
-                  summoner.rank.queueMap.RANKED_SOLO_5x5.losses) }}%
+                  summoner.rank.queueMap.RANKED_SOLO_5x5.losses) }}
               </RecordButton>
               <n-button size="tiny">胜场：{{ summoner.rank.queueMap.RANKED_SOLO_5x5.wins }}</n-button>
               <n-button size="tiny">负场：{{ summoner.rank.queueMap.RANKED_SOLO_5x5.losses }}</n-button>
@@ -86,14 +86,14 @@
           </div>
           <div>
             <img width="70px" height="70px"
-              :src="requireImg(summoner.rank.queueMap.RANKED_FLEX_SR.tier.toLocaleLowerCase() + '.png')" />
+              :src="requireImg(summoner.rank.queueMap.RANKED_FLEX_SR.tier.toLocaleLowerCase() )" />
           </div>
           <div style="width: 60%;">
             <n-flex vertical>
               <RecordButton
                 :record-type="getRecordType(summoner.rank.queueMap.RANKED_FLEX_SR.wins, summoner.rank.queueMap.RANKED_FLEX_SR.losses)">
                 胜率：{{
-                  getWinRate(summoner.rank.queueMap.RANKED_FLEX_SR.wins, summoner.rank.queueMap.RANKED_FLEX_SR.losses) }}%
+                  getWinRate(summoner.rank.queueMap.RANKED_FLEX_SR.wins, summoner.rank.queueMap.RANKED_FLEX_SR.losses) }}
               </RecordButton>
               <n-button size="tiny">胜场：{{ summoner.rank.queueMap.RANKED_FLEX_SR.wins }}</n-button>
               <n-button size="tiny">负场：{{ summoner.rank.queueMap.RANKED_FLEX_SR.losses }}</n-button>
@@ -130,6 +130,7 @@ import { onMounted, ref } from 'vue';
 
 import { NCard, NFlex, NButton, NIcon, useMessage } from 'naive-ui';
 import RecordButton from './RecordButton.vue';
+import { useRoute } from 'vue-router';
 
 // 定义 SummonerInfo 接口
 interface Summoner {
@@ -214,13 +215,17 @@ const summoner = ref<SummonerData>({
   },
 })
 
+const route = useRoute()
+let name = ""
+
 onMounted(() => {
-  getSummoner("")
+  name = route.query.name as string
+  getSummoner(name)
 })
 
 const getSummoner = async (name: string) => {
   const res = await http.get<SummonerData>(
-    "/GetSummonerByPuuid", {
+    "/GetSummoner", {
     params: { name }
   }
   )
@@ -228,6 +233,7 @@ const getSummoner = async (name: string) => {
   summoner.value = res.data
 }
 const getWinRate = (win: number, loss: number) => {
+
   // 首先检查是否有比赛记录，如果没有则胜率为0
   if (win + loss === 0) {
     return 0;
@@ -235,11 +241,21 @@ const getWinRate = (win: number, loss: number) => {
   // 计算胜率并转换为百分比形式
   const winRate = (win / (win + loss)) * 100;
   // 返回胜率，保留整数部分
-  console.log(winRate)
-  return Math.round(winRate);
+  const value = Math.round(winRate) == 100 ? "--" : Math.round(winRate) + "%";
+  return value;
 };
 const getRecordType = (win, loss) => {
-  const winRate = getWinRate(win, loss)
+
+  // 首先检查是否有比赛记录，如果没有则胜率为0
+  if (loss === 0) {
+    return '';
+  }
+  // 计算胜率并转换为百分比形式
+  const winRate = (win / (win + loss)) * 100; 
+  if(loss === 0) {
+    return ''
+  }
+
   if (winRate >= 58) {
     return 'good'
   } else if (winRate <= 49) {
@@ -257,9 +273,16 @@ const getRecordType = (win, loss) => {
 * @param {string} tier - The rank tier to get the image for.
 * @returns {string} - The path to the rank tier image.
 */
-const requireImg = (imgPath: string) => {
-  console.log(imgPath)
-  return new URL(`../../assets/imgs/tier/${imgPath}`, import.meta.url).href;
+const requireImg = (tier: string) => {
+  // 处理tier为空或为null的情况
+  const tierNormalized = tier ? tier.toLocaleLowerCase() : 'unranked';
+  const imgPath = `../../assets/imgs/tier/${tierNormalized}.png`;
+  
+  // 输出图片路径进行调试
+  console.log(imgPath);
+  
+  // 返回图片的URL
+  return new URL(imgPath, import.meta.url).href;
 };
 const message = useMessage();
 const copy = () => {

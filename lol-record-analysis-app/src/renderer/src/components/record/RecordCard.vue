@@ -21,7 +21,7 @@
             </n-flex>
             <img :src="games.participants[0].championBase64" style="height: 100%;" />
             <n-flex vertical>
-                <span>{{ games.queueName }}</span>
+                <span style="font-size: 12px;font-weight: 700;">{{ games.queueName }}</span>
                 <span style="color: #676768; font-size: 10px;">{{ formattedDate }}</span>
             </n-flex>
 
@@ -85,8 +85,8 @@
                         <n-flex>
                             <n-popover v-for="i in 5" :key="i" trigger="hover">
                                 <template #trigger>
-                                    <n-button text>
-                                        <n-avatar :src="games.gameDetail.participants[i - 1]?.championBase64" />
+                                    <n-button text @click="toNameRecord(games.gameDetail.participantIdentities[i - 1].player.gameName + '#' + games.gameDetail.participantIdentities[i - 1].player.tagLine)">
+                                        <n-avatar bordered="true" :src="games.gameDetail.participants[i - 1]?.championBase64"    :style="{ borderColor: getIsMeBorderedColor(games.gameDetail.participantIdentities[i - 1].player.gameName + '#' + games.gameDetail.participantIdentities[i - 1].player.tagLine) }" />
                                     </n-button>
                                 </template>
                                 <span>{{ games.gameDetail.participantIdentities[i - 1].player.gameName + "#" + games.gameDetail.participantIdentities[i - 1].player.tagLine }}</span>
@@ -100,9 +100,9 @@
                         <n-flex>
                             <n-popover v-for="i in 5" :key="i + 5" trigger="hover">
                                 <template #trigger>
-                                    <n-button text>
+                                    <n-button text @click="toNameRecord(games.gameDetail.participantIdentities[i + 4].player.gameName + '#' + games.gameDetail.participantIdentities[i + 4].player.tagLine)">
                                         <!-- 这里确保不会访问越界 -->
-                                        <n-avatar :src="games.gameDetail.participants[i + 4]?.championBase64" />
+                                        <n-avatar bordered="true" :src="games.gameDetail.participants[i + 4]?.championBase64" :style="{ borderColor: getIsMeBorderedColor(games.gameDetail.participantIdentities[i + 4]?.player.gameName + '#' + games.gameDetail.participantIdentities[i + 4]?.player.tagLine) }"/>
                                     </n-button>
                                 </template>
                                 <span>{{ games.gameDetail.participantIdentities[i + 4].player.gameName + "#" + games.gameDetail.participantIdentities[i + 4].player.tagLine }}</span>
@@ -123,6 +123,9 @@ import { Time } from '@vicons/ionicons5';
 import itemNull from '@renderer/assets/imgs/item/null.png';
 import { computed } from 'vue';
 import { Game, MatchHistory } from './MatchHistory.vue';
+import { useRouter } from 'vue-router';
+
+const router = useRouter();
 // 接收 props
 const props = defineProps<{
     recordType?: boolean; // 确保这里是 boolean 类型
@@ -138,6 +141,17 @@ const formattedDate = computed(() => {
     return `${year}/${month}/${day}`;
 });
 
+function getIsMeBorderedColor  (name : string) {
+    if(name == props.games.participantIdentities[0].player.gameName + "#" + props.games.participantIdentities[0].player.tagLine) {
+        return '#63e2b7';
+    }else{
+        return '#000000'
+    }
+}
+function toNameRecord (name : string) {
+    return router.push({path: '/Record', 
+    query: { name, t: Date.now() }})  // 添加动态时间戳作为查询参数
+}
 
 </script>
 
@@ -188,6 +202,11 @@ const formattedDate = computed(() => {
     transition: border-color 0.3s ease, color 0.3s ease;
     /* 为边框颜色和文本颜色添加过渡 */
 }
+.bordered{
+    border:   red; /* 边框宽度2px，实线，红色 */
+
+}
+
 
 .win-class:hover {
     border: var(--n-border-hover);

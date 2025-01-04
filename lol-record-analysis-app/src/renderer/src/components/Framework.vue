@@ -18,7 +18,7 @@
         <n-divider vertical style="margin: 0 1px; line-height: 1px; height: 100%;" />
         <!-- 内容区域 -->
         <n-layout-content >
-                         <router-view></router-view>
+                         <router-view :key="$route.fullPath"></router-view>
         </n-layout-content>
       </n-layout>
     </n-layout>

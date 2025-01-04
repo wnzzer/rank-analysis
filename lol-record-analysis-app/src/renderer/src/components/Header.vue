@@ -3,11 +3,13 @@
         <div style="width: 33%; text-align: left;">
             <img src="../assets/logo.png" alt="Logo"
                 style="margin-left: 10px;margin-top: 5px; height: 25px; display: inline-block;">
-                <span class="clip" style="margin-left: 10px; margin-top:10px; vertical-align: top;">Rank Analysis</span>        </div>
+            <span class="clip" style="margin-left: 10px; margin-top:10px; vertical-align: top;">Rank Analysis</span>
+        </div>
         <div style="flex: 1;width: 33%;; text-align: center;">
-            <n-input class="input-lolid" type="text" size="tiny" placeholder="输入召唤师">
+            <n-input class="input-lolid" type="text" size="tiny" placeholder="输入召唤师" v-model:value="value"
+                :keyup.enter="onClinkSearch">
                 <template #suffix>
-                    <n-button text>
+                    <n-button text @click="onClinkSearch">
                         <n-icon :component="Search" />
                     </n-button>
                 </template>
@@ -31,10 +33,19 @@
     </n-flex>
 </template>
 <script lang="ts" setup>
+import router from '@renderer/router';
 import { Search, LogoGithub } from '@vicons/ionicons5';
+import { ref } from 'vue';
 
 const openGithubLink = () => {
     window.api.OpenGithub();  // 调用暴露的 OpenGithub 方法
+}
+const value = ref('');
+function onClinkSearch() {
+    router.push({
+        path: '/Record',
+        query: { name: value.value, t: Date.now() }  // 添加动态时间戳作为查询参数
+    });
 }
 </script>
 <style lang="css">
@@ -42,15 +53,11 @@ const openGithubLink = () => {
     -webkit-app-region: no-drag;
     pointer-events: auto;
 }
+
 .clip {
-  background: linear-gradient(120deg, hwb(189 2% 6%) 30%, hsl(30deg, 100%, 50%));
-  color: transparent;
-  background-clip: text;
-  font-weight: 900;
+    background: linear-gradient(120deg, hwb(189 2% 6%) 30%, hsl(30deg, 100%, 50%));
+    color: transparent;
+    background-clip: text;
+    font-weight: 900;
 }
-
-
-
-
-
 </style>
