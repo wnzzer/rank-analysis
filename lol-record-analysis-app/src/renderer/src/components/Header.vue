@@ -7,7 +7,7 @@
         </div>
         <div style="flex: 1;width: 33%;; text-align: center;">
             <n-input class="input-lolid" type="text" size="tiny" placeholder="输入召唤师" v-model:value="value"
-                :keyup.enter="onClinkSearch">
+                @keyup.enter="onClinkSearch">
                 <template #suffix>
                     <n-button text @click="onClinkSearch">
                         <n-icon :component="Search" />
@@ -45,6 +45,8 @@ function onClinkSearch() {
     router.push({
         path: '/Record',
         query: { name: value.value, t: Date.now() }  // 添加动态时间戳作为查询参数
+    }).then(() => {
+        value.value = '';
     });
 }
 </script>

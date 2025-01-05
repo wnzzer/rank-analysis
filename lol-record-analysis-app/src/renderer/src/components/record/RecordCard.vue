@@ -28,15 +28,15 @@
             <n-flex justify="space-between" vertical style="gap: 0px; ">
                 <n-flex justify="space-between">
                     <span>
-                        <span style="font-weight: 500; color: #8BDFB7">
+                        <span style="font-weight: 500; font-size: 13px;color: #8BDFB7">
                             {{ games.participants[0].stats?.kills }}
                         </span>
                         /
-                        <span style="font-weight: 500; color: #BA3F53">
+                        <span style="font-weight: 500;font-size: 13px; color: #BA3F53">
                             {{ games.participants[0].stats?.deaths }}
                         </span>
                         /
-                        <span style="font-weight: 500; color: #D38B2A">
+                        <span style="font-weight: 500;font-size: 13px; color: #D38B2A">
                             {{ games.participants[0].stats?.assists }}
                         </span>
                     </span>

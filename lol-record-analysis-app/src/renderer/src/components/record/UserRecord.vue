@@ -38,9 +38,15 @@
           <div>
           </div>
           <div>
-            <n-button style="margin: 5px;" v-for="i in 5" :key="i" size="tiny" type="primary">
-              六连胜
-            </n-button>
+
+            <n-tooltip trigger="hover" v-for="tag in tags">
+              <template #trigger>
+                <n-button style="margin: 5px;" size="tiny" :type="tag.good ? 'primary' : 'error'">
+                  {{ tag.tagName }}
+                </n-button> </template>
+              <span>{{ tag.tagDesc }}</span>
+            </n-tooltip>
+
 
           </div>
         </n-flex>
@@ -58,7 +64,7 @@
         <n-flex>
           <div>
             <img width="70px" height="70px"
-              :src="requireImg(summoner.rank.queueMap.RANKED_SOLO_5x5.tier.toLocaleLowerCase() )" />
+              :src="requireImg(summoner.rank.queueMap.RANKED_SOLO_5x5.tier.toLocaleLowerCase())" />
           </div>
           <div style="width: 60%;">
             <n-flex vertical>
@@ -86,7 +92,7 @@
           </div>
           <div>
             <img width="70px" height="70px"
-              :src="requireImg(summoner.rank.queueMap.RANKED_FLEX_SR.tier.toLocaleLowerCase() )" />
+              :src="requireImg(summoner.rank.queueMap.RANKED_FLEX_SR.tier.toLocaleLowerCase())" />
           </div>
           <div style="width: 60%;">
             <n-flex vertical>
@@ -103,20 +109,34 @@
         </n-flex>
       </n-card>
     </div>
-    <!-- 这里显示的是RANKED_SOLO_5x5的排名图标 -->
+    <!-- 20场统计 -->
     <div style="position: relative;  flex: 1; flex-grow: 1;">
+      <div class="stats-card">
+        <div class="stats-title">最近表现</div>
+        <div class="stats-item">
+          <span class="stats-label"><n-icon>
+              <Star></Star>
+            </n-icon> KDA</span>
+          <span class="stats-value">3.2</span>
+        </div>
+        <div class="stats-item">
+          <span class="stats-label"><n-icon>
+              <Accessibility></Accessibility>
+            </n-icon> 参团率：</span>
+          <span class="stats-value">65%</span>
+        </div>
 
-      <n-card :bordered="true" style=" flex: 1; flex-grow: 1;">
-        
-        <n-flex>
-          <div>
-          </div>
-          <div>
+        <div class="stats-item">
+          <span class="stats-label">胜率：</span>
+          <span class="stats-value">70% <span class="up">↑</span></span>
+        </div>
 
+        <div class="stats-item">
+          <span class="stats-label">伤转：</span>
+          <span class="stats-value">3.2</span>
+        </div>
+      </div>
 
-          </div>
-        </n-flex>
-      </n-card>
     </div>
 
 
@@ -125,7 +145,7 @@
 
 <script setup lang="ts">
 import http from '@renderer/services/http';
-import { CopyOutline, Server, HeartDislike } from '@vicons/ionicons5'
+import { CopyOutline, Server, Star, Accessibility, ColorWand } from '@vicons/ionicons5'
 import { onMounted, ref } from 'vue';
 
 import { NCard, NFlex, NButton, NIcon, useMessage } from 'naive-ui';
@@ -221,6 +241,10 @@ let name = ""
 onMounted(() => {
   name = route.query.name as string
   getSummoner(name)
+  getTags(name)
+
+
+
 })
 
 const getSummoner = async (name: string) => {
@@ -231,6 +255,22 @@ const getSummoner = async (name: string) => {
   )
   console.log(res)
   summoner.value = res.data
+}
+
+interface RankTag {
+  good: string
+  tagName: string;
+  tagDesc: string;
+}
+const tags = ref<RankTag[]>([])
+const getTags = async (name: string) => {
+  const res = await http.get<RankTag[]>(
+    "/GetTag", {
+    params: { name }
+  }
+  )
+  console.log(res)
+  tags.value = res.data
 }
 const getWinRate = (win: number, loss: number) => {
 
@@ -251,8 +291,8 @@ const getRecordType = (win, loss) => {
     return '';
   }
   // 计算胜率并转换为百分比形式
-  const winRate = (win / (win + loss)) * 100; 
-  if(loss === 0) {
+  const winRate = (win / (win + loss)) * 100;
+  if (loss === 0) {
     return ''
   }
 
@@ -277,10 +317,10 @@ const requireImg = (tier: string) => {
   // 处理tier为空或为null的情况
   const tierNormalized = tier ? tier.toLocaleLowerCase() : 'unranked';
   const imgPath = `../../assets/imgs/tier/${tierNormalized}.png`;
-  
+
   // 输出图片路径进行调试
   console.log(imgPath);
-  
+
   // 返回图片的URL
   return new URL(imgPath, import.meta.url).href;
 };
@@ -294,10 +334,55 @@ const copy = () => {
       message.error("复制失败");
     });
 }
+
 </script>
 
 <style lang="css" scoped>
 .user-record-card {
   height: 100%;
+}
+
+.des-title {
+  font-size: 12px;
+  color: #888;
+}
+
+.stats-card {
+  background: #28282B;
+  /* 半透明背景 */
+  border-radius: 8px;
+  /* 圆角边框 */
+  padding: 10px;
+  font-size: 12px;
+  color: #fff;
+  /* 白色字体 */
+  width: 245px;
+  /* 固定宽度 */
+}
+
+.stats-title {
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+
+.stats-item {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.stats-label {
+  color: #ccc;
+}
+
+.stats-value {
+  color: #8BDFB7;
+  /* 绿色表示积极数据 */
+}
+
+.up {
+  color: #8BDFB7;
+  /* 上升箭头为绿色 */
+  font-size: 12px;
 }
 </style>
