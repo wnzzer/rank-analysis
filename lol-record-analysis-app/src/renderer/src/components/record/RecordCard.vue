@@ -86,7 +86,7 @@
                             <n-popover v-for="i in 5" :key="i" trigger="hover">
                                 <template #trigger>
                                     <n-button text @click="toNameRecord(games.gameDetail.participantIdentities[i - 1].player.gameName + '#' + games.gameDetail.participantIdentities[i - 1].player.tagLine)">
-                                        <n-avatar bordered="true" :src="games.gameDetail.participants[i - 1]?.championBase64"    :style="{ borderColor: getIsMeBorderedColor(games.gameDetail.participantIdentities[i - 1].player.gameName + '#' + games.gameDetail.participantIdentities[i - 1].player.tagLine) }" />
+                                        <n-avatar :bordered="true" :src="games.gameDetail.participants[i - 1]?.championBase64"    :style="{ borderColor: getIsMeBorderedColor(games.gameDetail.participantIdentities[i - 1].player.gameName + '#' + games.gameDetail.participantIdentities[i - 1].player.tagLine) }" />
                                     </n-button>
                                 </template>
                                 <span>{{ games.gameDetail.participantIdentities[i - 1].player.gameName + "#" + games.gameDetail.participantIdentities[i - 1].player.tagLine }}</span>
@@ -102,7 +102,7 @@
                                 <template #trigger>
                                     <n-button text @click="toNameRecord(games.gameDetail.participantIdentities[i + 4].player.gameName + '#' + games.gameDetail.participantIdentities[i + 4].player.tagLine)">
                                         <!-- 这里确保不会访问越界 -->
-                                        <n-avatar bordered="true" :src="games.gameDetail.participants[i + 4]?.championBase64" :style="{ borderColor: getIsMeBorderedColor(games.gameDetail.participantIdentities[i + 4]?.player.gameName + '#' + games.gameDetail.participantIdentities[i + 4]?.player.tagLine) }"/>
+                                        <n-avatar :bordered="true" :src="games.gameDetail.participants[i + 4]?.championBase64" :style="{ borderColor: getIsMeBorderedColor(games.gameDetail.participantIdentities[i + 4]?.player.gameName + '#' + games.gameDetail.participantIdentities[i + 4]?.player.tagLine) }"/>
                                     </n-button>
                                 </template>
                                 <span>{{ games.gameDetail.participantIdentities[i + 4].player.gameName + "#" + games.gameDetail.participantIdentities[i + 4].player.tagLine }}</span>

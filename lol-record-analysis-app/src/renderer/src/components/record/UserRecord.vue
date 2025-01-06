@@ -66,6 +66,11 @@
             <img width="70px" height="70px"
               :src="requireImg(summoner.rank.queueMap.RANKED_SOLO_5x5.tier.toLocaleLowerCase())" />
           </div>
+          <div style="position: absolute; bottom: 10px; left: 25px;">
+            <span style="font-size: 12px;">
+              {{ summoner.rank.queueMap.RANKED_SOLO_5x5.tierCn }} {{ summoner.rank.queueMap.RANKED_SOLO_5x5.division }}
+            </span>
+          </div>
           <div style="width: 60%;">
             <n-flex vertical>
               <RecordButton
@@ -78,6 +83,7 @@
             </n-flex>
           </div>
         </n-flex>
+
       </n-card>
     </div>
     <div style="position: relative;">
@@ -93,6 +99,11 @@
           <div>
             <img width="70px" height="70px"
               :src="requireImg(summoner.rank.queueMap.RANKED_FLEX_SR.tier.toLocaleLowerCase())" />
+          </div>
+          <div style="position: absolute; bottom: 10px; left: 25px;">
+            <span style="font-size: 12px;">
+              {{ summoner.rank.queueMap.RANKED_FLEX_SR.tierCn }} {{ summoner.rank.queueMap.RANKED_FLEX_SR.division }}
+            </span>
           </div>
           <div style="width: 60%;">
             <n-flex vertical>
@@ -113,28 +124,38 @@
     <div style="position: relative;  flex: 1; flex-grow: 1;">
       <div class="stats-card">
         <div class="stats-title">最近表现</div>
+
         <div class="stats-item">
-          <span class="stats-label"><n-icon>
-              <Star></Star>
-            </n-icon> KDA</span>
-          <span class="stats-value">3.2</span>
+
+          <span class="stats-label">
+            <n-flex style="gap: 5px;">
+              <n-progress style=" width: 12px; position: relative; bottom: 3px; " type="circle" :show-indicator="false"
+              :percentage="50"
+
+                :height="24" status="success"  color="bule" />
+
+              <span>KDA:</span>
+            </n-flex>
+          </span>
+          <span class="stats-value">{{ recentData.kda }}</span>
         </div>
         <div class="stats-item">
           <span class="stats-label"><n-icon>
               <Accessibility></Accessibility>
             </n-icon> 参团率：</span>
-          <span class="stats-value">65%</span>
+          <span class="stats-value">{{ recentData.groupRate }}%</span>
+        </div>
+        <div class="stats-item">
+          <span class="stats-label"> 伤害/占比：</span>
+          <span class="stats-value">{{ recentData.averageDamageDealtToChampions }} / {{ recentData.damageDealtToChampionsRate }}%</span>
+        </div>
+        <div class="stats-item">
+          <span class="stats-label"> 经济/占比：</span>
+          <span class="stats-value">{{ recentData.averageGold }} / {{ recentData.goldRate }}%</span>
         </div>
 
-        <div class="stats-item">
-          <span class="stats-label">胜率：</span>
-          <span class="stats-value">70% <span class="up">↑</span></span>
-        </div>
 
-        <div class="stats-item">
-          <span class="stats-label">伤转：</span>
-          <span class="stats-value">3.2</span>
-        </div>
+
       </div>
 
     </div>
@@ -253,24 +274,69 @@ const getSummoner = async (name: string) => {
     params: { name }
   }
   )
-  console.log(res)
   summoner.value = res.data
 }
 
+interface RecentData {
+  kda: number;
+  kills: number;
+  deaths: number;
+  assists: number;
+  wins: number;
+  losses: number;
+  flexWins: number;
+  flexLosses: number;
+  groupRate: number;
+  averageGold: number;
+  goldRate: number;
+  averageDamageDealtToChampions: number;
+  damageDealtToChampionsRate: number;
+}
+
 interface RankTag {
-  good: string
+  good: boolean;
   tagName: string;
   tagDesc: string;
 }
+
+interface UserTag {
+  recentData: RecentData;
+  tag: RankTag[];
+}
+
+const recentData = ref<RecentData>({
+  kda: 0,
+  kills: 0,
+  deaths: 0,
+  assists: 0,
+  wins: 0,
+  losses: 0,
+  flexWins: 0,
+  flexLosses: 0,
+  groupRate: 0,
+  averageGold: 0,
+  goldRate: 0,
+  averageDamageDealtToChampions: 0,
+  damageDealtToChampionsRate: 0,
+})
 const tags = ref<RankTag[]>([])
 const getTags = async (name: string) => {
-  const res = await http.get<RankTag[]>(
+  const res = await http.get<UserTag>(
     "/GetTag", {
     params: { name }
   }
   )
-  console.log(res)
-  tags.value = res.data
+  recentData.value = res.data.recentData
+  tags.value = res.data.tag
+  if ((res.data.recentData.wins) && (res.data.recentData.losses)) {
+    summoner.value.rank.queueMap.RANKED_SOLO_5x5.wins = res.data.recentData.wins
+    summoner.value.rank.queueMap.RANKED_SOLO_5x5.losses = res.data.recentData.losses
+  }
+  if ((res.data.recentData.flexWins) && (res.data.recentData.flexLosses)) {
+    summoner.value.rank.queueMap.RANKED_FLEX_SR.wins = res.data.recentData.flexWins
+    summoner.value.rank.queueMap.RANKED_FLEX_SR.losses = res.data.recentData.flexLosses
+  }
+
 }
 const getWinRate = (win: number, loss: number) => {
 
@@ -318,8 +384,6 @@ const requireImg = (tier: string) => {
   const tierNormalized = tier ? tier.toLocaleLowerCase() : 'unranked';
   const imgPath = `../../assets/imgs/tier/${tierNormalized}.png`;
 
-  // 输出图片路径进行调试
-  console.log(imgPath);
 
   // 返回图片的URL
   return new URL(imgPath, import.meta.url).href;
