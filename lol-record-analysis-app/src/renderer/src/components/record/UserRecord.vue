@@ -121,44 +121,90 @@
       </n-card>
     </div>
     <!-- 20场统计 -->
-    <div style="position: relative;  flex: 1; flex-grow: 1;">
-      <div class="stats-card">
+    <n-card class="recent-card" :bordered="false" content-style="padding:15px">
+      <n-flex vertical style="position: relative; ">
         <div class="stats-title">最近表现</div>
 
-        <div class="stats-item">
+        <n-flex class="stats-item" justify="space-between">
 
           <span class="stats-label">
             <n-flex style="gap: 5px;">
-              <n-progress style=" width: 12px; position: relative; bottom: 3px; " type="circle" :show-indicator="false"
-              :percentage="50"
-
-                :height="24" status="success"  color="bule" />
+              <n-progress style=" width: 12px; position: relative; bottom: 5px; " type="circle" :show-indicator="false"
+                :percentage="70" :height="24" status="success" color="bule" />
 
               <span>KDA:</span>
             </n-flex>
           </span>
-          <span class="stats-value">{{ recentData.kda }}</span>
-        </div>
-        <div class="stats-item">
+          <span class="stats-value">
+            <n-flex>
+              <span :style="{ color: kdaColor(recentData.kda) }">{{
+                recentData.kda
+              }}</span>
+              <span>
+                <span :style="{ color: killsColor(recentData.kills) }">
+                  {{ recentData.kills }}
+                </span>/
+                <span :style="{ color: deathsColor(recentData.deaths) }">{{ recentData.deaths }}</span>
+                /
+                <span :style="{ color: assistsColor(recentData.assists) }">{{ recentData.assists }}</span>
+              </span>
+
+            </n-flex>
+          </span>
+        </n-flex>
+        <n-flex class="stats-item" justify="space-between">
           <span class="stats-label"><n-icon>
               <Accessibility></Accessibility>
             </n-icon> 参团率：</span>
-          <span class="stats-value">{{ recentData.groupRate }}%</span>
-        </div>
-        <div class="stats-item">
+          <n-flex>
+            <span style="width: 65px;" :style="{ color: groupRateColor(recentData.groupRate) }"> <n-progress type="line"
+                :percentage="recentData.groupRate" :height="6" :show-indicator="false"
+                :color="groupRateColor(recentData.groupRate)" processing :stroke-width="10"
+                style="position: relative; top: 7px;"></n-progress>
+            </span>
+            <span class="stats-value">{{ recentData.groupRate }}%</span>
+
+          </n-flex>
+        </n-flex>
+        <n-flex class="stats-item" justify="space-between">
           <span class="stats-label"> 伤害/占比：</span>
-          <span class="stats-value">{{ recentData.averageDamageDealtToChampions }} / {{ recentData.damageDealtToChampionsRate }}%</span>
-        </div>
-        <div class="stats-item">
+          <span class="stats-value">
+            <n-flex>
+              <span>
+                {{ recentData.averageDamageDealtToChampions }}
+              </span>
+              <span style="width: 45px;"> <n-progress type="line" :percentage="recentData.damageDealtToChampionsRate" :color="otherColor(recentData.damageDealtToChampionsRate)"
+                  :height="6" :show-indicator="false" processing :stroke-width="13"
+                  style="position: relative; top: 7px;"></n-progress>
+              </span>
+              <span class="stats-value" :style="{color : otherColor(recentData.damageDealtToChampionsRate)}">
+                {{ recentData.damageDealtToChampionsRate }}%
+
+              </span>
+            </n-flex>
+          </span>
+        </n-flex>
+        <n-flex class="stats-item" justify="space-between">
           <span class="stats-label"> 经济/占比：</span>
-          <span class="stats-value">{{ recentData.averageGold }} / {{ recentData.goldRate }}%</span>
-        </div>
+          <n-flex>
+            <span class="stats-value">{{ recentData.averageGold }} </span>
+
+            <span style="width: 45px;"> <n-progress type="line" :percentage="recentData.goldRate" :height="6" :color="otherColor(recentData.goldRate)"
+                :show-indicator="false" processing :stroke-width="13"
+                style="position: relative; top: 7px;"></n-progress>
+            </span>
+            <span class="stats-value" :style="{color : otherColor(recentData.goldRate)}">
+              {{ recentData.goldRate }}%
+
+            </span>
+          </n-flex>
+        </n-flex>
 
 
 
-      </div>
 
-    </div>
+      </n-flex>
+    </n-card>
 
 
   </n-flex>
@@ -270,7 +316,7 @@ onMounted(() => {
 
 const getSummoner = async (name: string) => {
   const res = await http.get<SummonerData>(
-    "/GetSummoner", {
+    "/GetSummonerAndRank", {
     params: { name }
   }
   )
@@ -399,6 +445,61 @@ const copy = () => {
     });
 }
 
+const kdaColor = (kda: number) => {
+  if (kda >= 2.6) {
+    return '#8BDFB7'
+  } else if (kda <= 1.3) {
+    return '#BA3F53'
+  }
+  return '#FFFFFF';
+}
+/**
+ * Returns a color based on the number of kills.
+ * - Green for 8 or more kills.
+ * - Red for 3 or fewer kills.
+ * @param {number} kills - The number of kills to evaluate.
+ * @returns {string} - The color corresponding to the number of kills.
+ */
+const killsColor = (kills: number) => {
+  if (kills >= 8) {
+    return '#8BDFB7'
+  } else if (kills <= 3) {
+    return '#BA3F53'
+  }
+  return '#FFFFFF';
+}
+const deathsColor = (deaths: number) => {
+  if (deaths >= 8) {
+    return '#BA3F53'
+  } else if (deaths <= 3) {
+    return '#8BDFB7'
+  }
+  return '#FFFFFF';
+}
+const assistsColor = (assists: number) => {
+  if (assists >= 10) {
+    return '#8BDFB7'
+  } else if (assists <= 3) {
+    return '#BA3F53'
+  }
+  return '#FFFFFF';
+}
+const groupRateColor = (groupRate: number) => {
+  if (groupRate >= 25) {
+    return '#8BDFB7'
+  } else if (groupRate <= 10) {
+    return '#BA3F53'
+  }
+  return '#FFFFFF';
+}
+const otherColor = (other: number) => {
+  if (other >= 30) {
+    return '#8BDFB7'
+  } else if (other <= 10) {
+    return '#BA3F53'
+  }
+  return '#FFFFFF';
+}
 </script>
 
 <style lang="css" scoped>
@@ -411,18 +512,17 @@ const copy = () => {
   color: #888;
 }
 
-.stats-card {
+.recent-card {
   background: #28282B;
   /* 半透明背景 */
   border-radius: 8px;
   /* 圆角边框 */
-  padding: 10px;
   font-size: 12px;
   color: #fff;
   /* 白色字体 */
-  width: 245px;
-  /* 固定宽度 */
 }
+
+
 
 .stats-title {
   font-weight: bold;
@@ -436,11 +536,14 @@ const copy = () => {
 }
 
 .stats-label {
+  font-size: 12px;
+
   color: #ccc;
 }
 
 .stats-value {
-  color: #8BDFB7;
+  font-size: 12px;
+  color: #ffffff;
   /* 绿色表示积极数据 */
 }
 
