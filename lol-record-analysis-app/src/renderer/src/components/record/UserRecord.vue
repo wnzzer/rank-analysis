@@ -220,7 +220,7 @@ import RecordButton from './RecordButton.vue';
 import { useRoute } from 'vue-router';
 
 // 定义 SummonerInfo 接口
-interface Summoner {
+export interface Summoner {
   gameName: string;
   tagLine: string;
   summonerLevel: number;
