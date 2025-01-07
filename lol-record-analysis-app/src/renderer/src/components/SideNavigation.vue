@@ -6,21 +6,51 @@
 
             <n-popover trigger="hover">
                 <template #trigger>
-                    <n-button circle>
+                    <n-button circle @click="toMe">
                         <template v-if="mySummoner?.profileIconBase64 == ''">
                             <!-- 渲染图标 -->
-                            <n-icon size="20">
+                            <n-icon size="20"   class="rotating-icon" 
+                            >
                                 <Reload />
                             </n-icon>
                         </template>
                         <template v-else>
                             <!-- 渲染图片 -->
-                            <img :src="mySummoner?.profileIconBase64" alt="图片" style="width: 20px;" />
+                            <img :src="mySummoner?.profileIconBase64" alt="图片" style="width: 20px; margin: 0;"  />
                         </template>
                     </n-button> </template>
+                <template v-if="mySummoner?.gameName == ''">
+                    等待连接服务器
 
-                <span>等待连接服务器</span>
-                <img :src="mySummoner?.profileIconBase64" alt="图片" style="width: 20px;" />
+                </template>
+                <template v-else>
+                    <n-card :bordered="false" content-style="padding : 0px">
+                        <n-flex>
+                            <div style="position: relative;">
+                                <img width="35px" height="35px" :src="mySummoner?.profileIconBase64">
+                                <div
+                                    style="position: absolute; bottom: 4px; right: 0; font-size: 10px; width: 20px; height: 10px; text-align: center; line-height: 20px; border-radius: 50%; color: white;">
+                                    {{ mySummoner?.summonerLevel }}
+                                </div>
+                            </div>
+                            <n-flex vertical style="gap: 0px;">
+                                <n-flex>
+                                    <span style="font-size: medium;font-size: 14px; font-weight: 1000;">{{ mySummoner?.gameName
+                                        }}</span>
+                                    
+                                </n-flex>
+
+                                <n-flex>
+                                    <span style="color: #676768; font-size: small;">#{{ mySummoner?.tagLine
+                                        }}</span>
+                                    <n-icon :depth="3" color="dark" style="position: relative; top: 2px;">
+                                        <server></server>
+                                    </n-icon><span>{{ mySummoner?.platformIdCn }} </span>
+                                </n-flex>
+                            </n-flex>
+                        </n-flex>
+                    </n-card>
+                </template>
 
             </n-popover>
         </div>
@@ -30,18 +60,28 @@
 <script setup lang="ts">
 import router from '@renderer/router';
 import http from '@renderer/services/http';
-import { Reload, BarChart } from '@vicons/ionicons5'
+import { Reload, BarChart,Server} from '@vicons/ionicons5'
 import { MenuOption, NIcon } from 'naive-ui';
-import { Component, h, onMounted, ref } from 'vue';
+import { Component, h, onMounted, onUnmounted, ref } from 'vue';
 import { Summoner } from './record/UserRecord.vue';
 
 
-onMounted(async () => {
-    const intervalId = setInterval(() => {
-        getGetMySummoner()
-    }, 10000);
+let timer: ReturnType<typeof setInterval> | null = null;
+onMounted(() => {
+    getGetMySummoner().then(() => {
+        timer = setInterval(() => {
+            getGetMySummoner();
+        }, 10000);
+    })
+});
 
-})
+onUnmounted(() => {
+
+    if (timer !== null) {
+        clearInterval(timer);
+        timer = null;
+    }
+});
 const mySummoner = ref<Summoner>()
 async function getGetMySummoner() {
     const res = await http.get<Summoner>("/GetSummoner")
@@ -70,6 +110,12 @@ const menuOptions: MenuOption[] = [
         icon: renderIcon(Reload)
     }
 ]
+const toMe = () => {
+    router.push({ path: '/Record',
+    query: {  t: Date.now() }  // 添加动态时间戳作为查询参数
+});
+}
+
 </script>
 
 <style lang="css" scoped>
@@ -87,6 +133,7 @@ const menuOptions: MenuOption[] = [
         transform: rotate(360deg);
     }
 }
+
 
 
 .rotating-icon {

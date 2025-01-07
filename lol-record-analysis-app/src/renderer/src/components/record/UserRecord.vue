@@ -5,7 +5,7 @@
         <div style="position: relative;">
           <img width="50px" height="50px" :src="summoner.summoner.profileIconBase64">
           <div
-            style="position: absolute; bottom: 0; right: 0; font-size: 10px; width: 20px; height: 10px; text-align: center; line-height: 20px; border-radius: 50%; color: white;">
+            style="position: absolute; bottom: 0; right: 0; font-size: 10px; width: 25px; height: 10px; text-align: center; line-height: 20px; border-radius: 50%; color: white;">
             {{ summoner.summoner.summonerLevel }}
           </div>
         </div>
