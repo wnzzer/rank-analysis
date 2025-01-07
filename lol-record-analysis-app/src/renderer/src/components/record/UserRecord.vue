@@ -121,7 +121,7 @@
       </n-card>
     </div>
     <!-- 20场统计 -->
-    <n-card class="recent-card" :bordered="false" content-style="padding:15px">
+    <n-card class="recent-card" :bordered="false" content-style="padding:10px">
       <n-flex vertical style="position: relative; ">
         <div class="stats-title">最近表现</div>
 
@@ -487,7 +487,7 @@ const assistsColor = (assists: number) => {
 const groupRateColor = (groupRate: number) => {
   if (groupRate >= 25) {
     return '#8BDFB7'
-  } else if (groupRate <= 10) {
+  } else if (groupRate <= 15) {
     return '#BA3F53'
   }
   return '#FFFFFF';
@@ -495,7 +495,7 @@ const groupRateColor = (groupRate: number) => {
 const otherColor = (other: number) => {
   if (other >= 30) {
     return '#8BDFB7'
-  } else if (other <= 10) {
+  } else if (other <= 15) {
     return '#BA3F53'
   }
   return '#FFFFFF';

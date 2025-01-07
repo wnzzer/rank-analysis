@@ -162,6 +162,8 @@ const getHistoryMatch = async (name: string, begIndex: number, endIndex: number)
     matchHistory.value = res.data;
     loadingBar.finish(); // 加载完成时结束进度条
   } catch (error) {
+    const res = await http.get<MatchHistory>("/GetMatchHistory");
+    matchHistory.value = res.data;
     loadingBar.error(); // 发生错误时显示错误状态
   } finally {
     loadingBar.finish(); // 加载完成时结束进度条

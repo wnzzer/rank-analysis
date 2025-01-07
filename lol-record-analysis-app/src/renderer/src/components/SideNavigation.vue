@@ -9,14 +9,13 @@
                     <n-button circle @click="toMe">
                         <template v-if="mySummoner?.profileIconBase64 == ''">
                             <!-- 渲染图标 -->
-                            <n-icon size="20"   class="rotating-icon" 
-                            >
+                            <n-icon size="20" class="rotating-icon">
                                 <Reload />
                             </n-icon>
                         </template>
                         <template v-else>
                             <!-- 渲染图片 -->
-                            <img :src="mySummoner?.profileIconBase64" alt="图片" style="width: 20px; margin: 0;"  />
+                            <img :src="mySummoner?.profileIconBase64" alt="图片" style="width: 20px; margin: 0;" />
                         </template>
                     </n-button> </template>
                 <template v-if="mySummoner?.gameName == ''">
@@ -35,9 +34,15 @@
                             </div>
                             <n-flex vertical style="gap: 0px;">
                                 <n-flex>
-                                    <span style="font-size: medium;font-size: 14px; font-weight: 1000;">{{ mySummoner?.gameName
+                                    <span style="font-size: medium;font-size: 14px; font-weight: 1000;">{{
+                                        mySummoner?.gameName
                                         }}</span>
-                                    
+                                    <n-button text style="font-size: 12px" @click="copy">
+                                        <n-icon>
+                                            <copy-outline></copy-outline>
+                                        </n-icon>
+                                    </n-button>
+
                                 </n-flex>
 
                                 <n-flex>
@@ -60,8 +65,8 @@
 <script setup lang="ts">
 import router from '@renderer/router';
 import http from '@renderer/services/http';
-import { Reload, BarChart,Server} from '@vicons/ionicons5'
-import { MenuOption, NIcon } from 'naive-ui';
+import { Reload, BarChart, Server,CopyOutline } from '@vicons/ionicons5'
+import { MenuOption, NIcon, useMessage } from 'naive-ui';
 import { Component, h, onMounted, onUnmounted, ref } from 'vue';
 import { Summoner } from './record/UserRecord.vue';
 
@@ -111,9 +116,20 @@ const menuOptions: MenuOption[] = [
     }
 ]
 const toMe = () => {
-    router.push({ path: '/Record',
-    query: {  t: Date.now() }  // 添加动态时间戳作为查询参数
-});
+    router.push({
+        path: '/Record',
+        query: { t: Date.now() }  // 添加动态时间戳作为查询参数
+    });
+}
+const message = useMessage();
+const copy = () => {
+    navigator.clipboard.writeText(mySummoner.value?.gameName + "#" + mySummoner.value?.tagLine)
+        .then(() => {
+            message.success("复制成功");
+        })
+        .catch(() => {
+            message.error("复制失败");
+        });
 }
 
 </script>

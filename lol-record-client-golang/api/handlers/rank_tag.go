@@ -115,7 +115,7 @@ func countGoldAndGroupAndDamageDealtToChampions(matchHistory *client.MatchHistor
 	myGold := 0
 	allGold := 0
 	myKA := 0
-	allKA := 0
+	allK := 0
 	myDamageDealtToChampions := 0
 	allDamageDealtToChampions := 0
 	for _, games := range matchHistory.Games.Games {
@@ -130,15 +130,14 @@ func countGoldAndGroupAndDamageDealtToChampions(matchHistory *client.MatchHistor
 			for _, participant := range games.GameDetail.Participants {
 				if participant0.TeamId == participant.TeamId {
 					allGold += participant.Stats.GoldEarned
-					allKA += participant.Stats.Kills
-					allKA += participant.Stats.Assists
+					allK += participant.Stats.Kills
 					allDamageDealtToChampions += participant.Stats.TotalDamageDealtToChampions
 				}
 			}
 		}
 		count++
 	}
-	groupRate := math.Trunc(float64(myKA) / float64(allKA) * 100)
+	groupRate := math.Trunc(float64(myKA) / float64(allK) * 100)
 	averageGold := math.Trunc(float64(myGold) / float64(count))
 	goldRate := math.Trunc(float64(myGold) / float64(allGold) * 100)
 	averageDamageDealtToChampions := math.Trunc(float64(myDamageDealtToChampions) / float64(count))
