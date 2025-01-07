@@ -162,7 +162,7 @@
                 :color="groupRateColor(recentData.groupRate)" processing :stroke-width="10"
                 style="position: relative; top: 7px;"></n-progress>
             </span>
-            <span class="stats-value">{{ recentData.groupRate }}%</span>
+            <span class="stats-value" :style="{color:groupRateColor(recentData.groupRate)}">{{ recentData.groupRate }}%</span>
 
           </n-flex>
         </n-flex>
@@ -485,7 +485,7 @@ const assistsColor = (assists: number) => {
   return '#FFFFFF';
 }
 const groupRateColor = (groupRate: number) => {
-  if (groupRate >= 25) {
+  if (groupRate >= 45) {
     return '#8BDFB7'
   } else if (groupRate <= 15) {
     return '#BA3F53'
