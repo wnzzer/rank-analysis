@@ -9,7 +9,7 @@
                     <n-button circle>
                         <template v-if="mySummoner?.profileIconBase64 == ''">
                             <!-- 渲染图标 -->
-                            <n-icon size="20" >
+                            <n-icon size="20">
                                 <Reload />
                             </n-icon>
                         </template>
@@ -18,7 +18,10 @@
                             <img :src="mySummoner?.profileIconBase64" alt="图片" style="width: 20px;" />
                         </template>
                     </n-button> </template>
+
                 <span>等待连接服务器</span>
+                <img :src="mySummoner?.profileIconBase64" alt="图片" style="width: 20px;" />
+
             </n-popover>
         </div>
     </n-flex>
