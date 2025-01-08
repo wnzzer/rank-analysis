@@ -87,7 +87,7 @@ async function getGetMySummoner() {
         const res = await http.get<Summoner>("/GetSummoner"); // 包裹在 try 中
         if (res.status === 200) {
             mySummoner.value = res.data;
-            if (router.currentRoute.value.path != "/Record") {
+            if (router.currentRoute.value.path == "/Loading") {
                 router.push({
                     path: '/Record',
                 });
