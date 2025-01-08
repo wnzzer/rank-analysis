@@ -1,8 +1,42 @@
 <template>
     <div>
-        Loading
-        <p>212</p>
-        <n-card>121</n-card>
+        <n-flex justify="space-between">
+            <n-flex vertical justify="space-between" style="gap: 0px; flex: 1;">
+                <n-card>
+                    1
+                </n-card>
+                <n-card>
+                    1
+                </n-card>
+                <n-card>
+                    1
+                </n-card>
+                <n-card>
+                    1
+                </n-card>
+                <n-card>
+                    1
+                </n-card>
+            </n-flex>
+            <n-flex vertical justify="space-between" style="gap: 0px; flex: 1;">
+                <n-card>
+                    1
+                </n-card>
+                <n-card>
+                    1
+                </n-card>
+                <n-card>
+                    1
+                </n-card>
+                <n-card>
+                    1
+                </n-card>
+                <n-card>
+                    1
+                </n-card>
+            </n-flex>
+
+        </n-flex>
     </div>
 </template>
 <script lang="ts" setup>

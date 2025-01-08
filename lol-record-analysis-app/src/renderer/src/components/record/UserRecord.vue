@@ -210,7 +210,7 @@
   </n-flex>
 </template>
 
-<script setup lang="ts">
+<script  lang="ts" setup>
 import http from '@renderer/services/http';
 import { CopyOutline, Server, Star, Accessibility, ColorWand } from '@vicons/ionicons5'
 import { onMounted, ref } from 'vue';
@@ -218,47 +218,9 @@ import { onMounted, ref } from 'vue';
 import { NCard, NFlex, NButton, NIcon, useMessage } from 'naive-ui';
 import RecordButton from './RecordButton.vue';
 import { useRoute } from 'vue-router';
+import { SummonerData } from './model';
 
-// 定义 SummonerInfo 接口
-export interface Summoner {
-  gameName: string;
-  tagLine: string;
-  summonerLevel: number;
-  profileIconId: number;
-  profileIconBase64: string;
-  puuid: string;
-  platformIdCn: string,
 
-}
-
-// 定义 QueueInfo 接口
-interface QueueInfo {
-  queueType: string;
-  queueTypeCn: string;
-  division: string;
-  tier: string;
-  tierCn: string;
-  highestDivision: string;
-  highestTier: string;
-  isProvisional: boolean;
-  leaguePoints: number;
-  losses: number;
-  wins: number;
-}
-
-// 定义 RankInfo 接口
-interface Rank {
-  queueMap: {
-    RANKED_SOLO_5x5: QueueInfo;
-    RANKED_FLEX_SR: QueueInfo;
-  };
-}
-
-// 整体数据结构接口
-interface SummonerData {
-  summoner: Summoner;
-  rank: Rank;
-}
 
 const summoner = ref<SummonerData>({
   summoner: {

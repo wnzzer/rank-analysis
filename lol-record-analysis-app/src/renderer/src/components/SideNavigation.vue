@@ -1,8 +1,8 @@
 <template>
     <n-flex justify="space-between" style="height: 90vh;" vertical>
 
-        <n-menu  :collapsed="true" :collapsed-width="60" :collapsed-icon-size="20" @update:value="handleMenuClick"
-  :options="menuOptions" />
+        <n-menu :collapsed="true" :collapsed-width="60" :collapsed-icon-size="20" @update:value="handleMenuClick"
+            :options="menuOptions" />
         <div class="loadingIcon" style="margin-left: 13px;">
 
             <n-popover trigger="hover">
@@ -25,12 +25,18 @@
                 <template v-else>
                     <n-card :bordered="false" content-style="padding : 0px">
                         <n-flex>
-                            
+                            <div style="position: relative;">
+                                <img width="35px" height="35px" :src="mySummoner?.profileIconBase64">
+                                <div
+                                    style="position: absolute; bottom: 4px; right: 0; font-size: 10px; width: 20px; height: 10px; text-align: center; line-height: 20px; border-radius: 50%; color: white;">
+                                    {{ mySummoner?.summonerLevel }}
+                                </div>
+                            </div>
                             <n-flex vertical style="gap: 0px;">
                                 <n-flex>
                                     <span style="font-size: medium;font-size: 14px; font-weight: 1000;">{{
                                         mySummoner?.gameName
-                                    }}</span>
+                                        }}</span>
                                     <n-button text style="font-size: 12px" @click="copy">
                                         <n-icon>
                                             <copy-outline></copy-outline>
@@ -60,9 +66,9 @@
 import router from '@renderer/router';
 import http from '@renderer/services/http';
 import { Reload, BarChart, Server, CopyOutline } from '@vicons/ionicons5'
-import { MenuOption, NIcon, useMessage } from 'naive-ui';
-import { Component, computed, h, onMounted, onUnmounted, ref } from 'vue';
-import { Summoner } from './record/UserRecord.vue';
+import { NIcon, useMessage } from 'naive-ui';
+import { Component, computed, h, onMounted, ref } from 'vue';
+import { defaultSummoner, Summoner } from './record/model';
 
 
 let timer: ReturnType<typeof setInterval> | null = null;
@@ -74,27 +80,32 @@ onMounted(() => {
     })
 });
 
-onUnmounted(() => {
 
-    if (timer !== null) {
-        clearInterval(timer);
-        timer = null;
-    }
-});
 const mySummoner = ref<Summoner>()
 async function getGetMySummoner() {
-    const res = await http.get<Summoner>("/GetSummoner")
-    if (res.status === 200) {
-        mySummoner.value = res.data
-        router.push({
-            path: '/Record',
-        });
-    }else{
-        router.push({
-            path: '/',
-        });
+    try {
+        const res = await http.get<Summoner>("/GetSummoner"); // 包裹在 try 中
+        if (res.status === 200) {
+            mySummoner.value = res.data;
+            if (router.currentRoute.value.path != "/Record") {
+                router.push({
+                    path: '/Record',
+                });
+            }
+        }
+    } catch (error) {
+        mySummoner.value = defaultSummoner();
+
+        // 捕获 http 请求失败的情况
+        console.error("请求失败或网络异常", error);
+        if (router.currentRoute.value.path != "/Loading") {
+            router.push({
+                path: '/Loading',
+            });
+        }
     }
 }
+
 function renderIcon(icon: Component) {
     return () => h(NIcon, null, { default: () => h(icon) })
 }
