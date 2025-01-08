@@ -40,6 +40,18 @@ type UserTag struct {
 func GetTag(c *gin.Context) {
 	puuid := c.DefaultQuery("puuid", "")
 	name := c.DefaultQuery("name", "")
+	userTag, err := GetTagCore(puuid, name)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"error": err.Error(),
+		})
+	} else {
+		c.JSON(http.StatusOK, userTag)
+	}
+
+}
+func GetTagCore(puuid string, name string) (*UserTag, error) {
+
 	if name != "" {
 		summoner, _ := client.GetSummonerByName(name)
 		puuid = summoner.Puuid
@@ -51,7 +63,7 @@ func GetTag(c *gin.Context) {
 	}
 
 	if puuid == "" {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": errors.New("no puuid")})
+		return nil, errors.New("puuid or name is empty")
 	} else {
 		matchHistory, _ := client.GetMatchHistoryByPuuid(puuid, 0, 39)
 		for i, games := range matchHistory.Games.Games {
@@ -107,7 +119,7 @@ func GetTag(c *gin.Context) {
 			},
 			Tag: tags,
 		}
-		c.JSON(http.StatusOK, userTag)
+		return &userTag, nil
 	}
 }
 func countGoldAndGroupAndDamageDealtToChampions(matchHistory *client.MatchHistory) (int, int, int, int, int) {
