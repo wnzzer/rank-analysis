@@ -113,6 +113,7 @@ export interface Participant {
 }
 
 export interface Game {
+  mvp: string;
   gameDetail: GameDetail;
   gameId: number;
   gameCreationDate: string;

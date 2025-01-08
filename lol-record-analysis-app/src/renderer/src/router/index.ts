@@ -5,12 +5,17 @@ const routes: Array<RouteRecordRaw> = [
     {
         path: '/',
         name: 'Home',
-        component: () => import('@renderer/views/Record.vue'), // 懒加载
+        component: () => import('@renderer/views/Loading.vue'), // 懒加载
     },
     {
         path: '/Record',
         name: 'Record',
         component: () => import('@renderer/views/Record.vue'), // 懒加载
+    },
+    {
+        path: '/Gaming',
+        name: 'Gaming',
+        component: () => import('@renderer/views/Gaming.vue'), // 懒加载
     },
     {
         path: '/Loading',

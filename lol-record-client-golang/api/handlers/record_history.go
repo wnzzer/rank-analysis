@@ -2,10 +2,11 @@ package handlers
 
 import (
 	"errors"
-	"github.com/gin-gonic/gin"
 	"lol-record-analysis/lcu/client"
 	"net/http"
 	"strconv"
+
+	"github.com/gin-gonic/gin"
 )
 
 func GetMatchHistory(c *gin.Context) {
@@ -54,7 +55,42 @@ func GetMatchHistory(c *gin.Context) {
 			}
 
 		}
+		//计算mvp
+		isMvpOrSvp(&matchHistory)
 
 		c.JSON(http.StatusOK, matchHistory)
+	}
+}
+func isMvpOrSvp(matchHistory *client.MatchHistory) {
+	for i, _ := range matchHistory.Games.Games {
+		games := &matchHistory.Games.Games[i]
+		mvpTag := ""
+		myTeamId := games.Participants[0].TeamId
+		isWin := games.Participants[0].Stats.Win
+		deaths := 1
+		if games.Participants[0].Stats.Deaths != 0 {
+			deaths = games.Participants[0].Stats.Deaths
+		}
+		myKda := (games.Participants[0].Stats.Kills*2 + games.Participants[0].Stats.Assists) / deaths
+		if isWin {
+			mvpTag = "MVP"
+		} else {
+			mvpTag = "SVP"
+		}
+
+		for _, participant := range games.GameDetail.Participants {
+			deaths := 1
+			if participant.Stats.Deaths != 0 {
+				deaths = participant.Stats.Deaths
+			}
+			if participant.TeamId == myTeamId && (participant.Stats.Kills*2+participant.Stats.Assists)/deaths > myKda {
+				mvpTag = ""
+				break
+			}
+		}
+		if mvpTag != "" {
+			games.Mvp = mvpTag
+		}
+
 	}
 }

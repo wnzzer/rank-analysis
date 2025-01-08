@@ -19,7 +19,17 @@
                     </n-icon>{{ Math.ceil(games.gameDuration / 60) }}分
                 </span>
             </n-flex>
-            <img :src="games.participants[0].championBase64" style="height: 100%;" />
+            <div style="height: 100%; position: relative;">
+
+                <img style="height: 100%;" :src="games.participants[0].championBase64" />
+                <template v-if="!!games.mvp">
+                    <div style="position: absolute; left: 0; bottom: 0;" class="mvp-box" :style="{backgroundColor:games.mvp == 'MVP'?'#FFD700':'#FFFFFF'}">
+                    {{ games.mvp == 'MVP'? 'MVP' : 'SVP' }}
+                </div>
+                </template>
+
+            </div>
+
             <n-flex vertical>
                 <span style="font-size: 12px;font-weight: 500;">{{ games.queueName }}</span>
                 <span style="color: #676768; font-size: 10px;">{{ formattedDate }}</span>
@@ -85,11 +95,16 @@
                         <n-flex>
                             <n-popover v-for="i in 5" :key="i" trigger="hover">
                                 <template #trigger>
-                                    <n-button text @click="toNameRecord(games.gameDetail.participantIdentities[i - 1].player.gameName + '#' + games.gameDetail.participantIdentities[i - 1].player.tagLine)">
-                                        <n-avatar :bordered="true" :src="games.gameDetail.participants[i - 1]?.championBase64"    :style="{ borderColor: getIsMeBorderedColor(games.gameDetail.participantIdentities[i - 1].player.gameName + '#' + games.gameDetail.participantIdentities[i - 1].player.tagLine) }" />
+                                    <n-button text
+                                        @click="toNameRecord(games.gameDetail.participantIdentities[i - 1].player.gameName + '#' + games.gameDetail.participantIdentities[i - 1].player.tagLine)">
+                                        <n-avatar :bordered="true"
+                                            :src="games.gameDetail.participants[i - 1]?.championBase64"
+                                            :style="{ borderColor: getIsMeBorderedColor(games.gameDetail.participantIdentities[i - 1].player.gameName + '#' + games.gameDetail.participantIdentities[i - 1].player.tagLine) }" />
                                     </n-button>
                                 </template>
-                                <span>{{ games.gameDetail.participantIdentities[i - 1].player.gameName + "#" + games.gameDetail.participantIdentities[i - 1].player.tagLine }}</span>
+                                <span>{{ games.gameDetail.participantIdentities[i - 1].player.gameName + "#" +
+                                    games.gameDetail.participantIdentities[i
+                                    - 1].player.tagLine }}</span>
                             </n-popover>
                         </n-flex>
                     </template>
@@ -100,12 +115,16 @@
                         <n-flex>
                             <n-popover v-for="i in 5" :key="i + 5" trigger="hover">
                                 <template #trigger>
-                                    <n-button text @click="toNameRecord(games.gameDetail.participantIdentities[i + 4].player.gameName + '#' + games.gameDetail.participantIdentities[i + 4].player.tagLine)">
+                                    <n-button text
+                                        @click="toNameRecord(games.gameDetail.participantIdentities[i + 4].player.gameName + '#' + games.gameDetail.participantIdentities[i + 4].player.tagLine)">
                                         <!-- 这里确保不会访问越界 -->
-                                        <n-avatar :bordered="true" :src="games.gameDetail.participants[i + 4]?.championBase64" :style="{ borderColor: getIsMeBorderedColor(games.gameDetail.participantIdentities[i + 4]?.player.gameName + '#' + games.gameDetail.participantIdentities[i + 4]?.player.tagLine) }"/>
+                                        <n-avatar :bordered="true"
+                                            :src="games.gameDetail.participants[i + 4]?.championBase64"
+                                            :style="{ borderColor: getIsMeBorderedColor(games.gameDetail.participantIdentities[i + 4]?.player.gameName + '#' + games.gameDetail.participantIdentities[i + 4]?.player.tagLine) }" />
                                     </n-button>
                                 </template>
-                                <span>{{ games.gameDetail.participantIdentities[i + 4].player.gameName + "#" + games.gameDetail.participantIdentities[i + 4].player.tagLine }}</span>
+                                <span>{{ games.gameDetail.participantIdentities[i + 4].player.gameName + "#" +
+                                    games.gameDetail.participantIdentities[i + 4].player.tagLine }}</span>
                             </n-popover>
                         </n-flex>
                     </template>
@@ -141,16 +160,18 @@ const formattedDate = computed(() => {
     return `${year}/${month}/${day}`;
 });
 
-function getIsMeBorderedColor  (name : string) {
-    if(name == props.games.participantIdentities[0].player.gameName + "#" + props.games.participantIdentities[0].player.tagLine) {
+function getIsMeBorderedColor(name: string) {
+    if (name == props.games.participantIdentities[0].player.gameName + "#" + props.games.participantIdentities[0].player.tagLine) {
         return '#63e2b7';
-    }else{
+    } else {
         return '#000000'
     }
 }
-function toNameRecord (name : string) {
-    return router.push({path: '/Record', 
-    query: { name, t: Date.now() }})  // 添加动态时间戳作为查询参数
+function toNameRecord(name: string) {
+    return router.push({
+        path: '/Record',
+        query: { name, t: Date.now() }
+    })  // 添加动态时间戳作为查询参数
 }
 
 </script>
@@ -202,8 +223,10 @@ function toNameRecord (name : string) {
     transition: border-color 0.3s ease, color 0.3s ease;
     /* 为边框颜色和文本颜色添加过渡 */
 }
-.bordered{
-    border:   red; /* 边框宽度2px，实线，红色 */
+
+.bordered {
+    border: red;
+    /* 边框宽度2px，实线，红色 */
 
 }
 
@@ -222,5 +245,17 @@ function toNameRecord (name : string) {
 
 .win-class:disabled {
     border: var(--n-border-disabled);
+}
+.mvp-box {
+  display: inline-block;
+  width: 20px; /* 调整宽度 */
+  height: 10px; /* 调整高度 */
+  color: #000; /* 黑色字体 */
+  font-weight: bold; /* 字体加粗 */
+  font-size: 8px; /* 小字体 */
+  line-height: 10px; /* 垂直居中 */
+  text-align: center; /* 水平居中 */
+  border-radius: 2px; /* 圆角 */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); /* 添加阴影效果 */
 }
 </style>

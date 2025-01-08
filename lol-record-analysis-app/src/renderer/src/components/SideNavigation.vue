@@ -1,13 +1,14 @@
 <template>
     <n-flex justify="space-between" style="height: 90vh;" vertical>
-        <n-menu :collapsed="true" :collapsed-width="60" :collapsed-icon-size="20" @update:value="handleMenuClick"
-            :options="menuOptions" />
+
+        <n-menu  :collapsed="true" :collapsed-width="60" :collapsed-icon-size="20" @update:value="handleMenuClick"
+  :options="menuOptions" />
         <div class="loadingIcon" style="margin-left: 13px;">
 
             <n-popover trigger="hover">
                 <template #trigger>
                     <n-button circle @click="toMe">
-                        <template v-if="mySummoner?.profileIconBase64 == ''">
+                        <template v-if="!mySummoner || mySummoner.profileIconBase64 === ''">
                             <!-- 渲染图标 -->
                             <n-icon size="20" class="rotating-icon">
                                 <Reload />
@@ -18,25 +19,18 @@
                             <img :src="mySummoner?.profileIconBase64" alt="图片" style="width: 20px; margin: 0;" />
                         </template>
                     </n-button> </template>
-                <template v-if="mySummoner?.gameName == ''">
+                <template v-if="!mySummoner || mySummoner?.tagLine == ''">
                     等待连接服务器
-
                 </template>
                 <template v-else>
                     <n-card :bordered="false" content-style="padding : 0px">
                         <n-flex>
-                            <div style="position: relative;">
-                                <img width="35px" height="35px" :src="mySummoner?.profileIconBase64">
-                                <div
-                                    style="position: absolute; bottom: 4px; right: 0; font-size: 10px; width: 20px; height: 10px; text-align: center; line-height: 20px; border-radius: 50%; color: white;">
-                                    {{ mySummoner?.summonerLevel }}
-                                </div>
-                            </div>
+                            
                             <n-flex vertical style="gap: 0px;">
                                 <n-flex>
                                     <span style="font-size: medium;font-size: 14px; font-weight: 1000;">{{
                                         mySummoner?.gameName
-                                        }}</span>
+                                    }}</span>
                                     <n-button text style="font-size: 12px" @click="copy">
                                         <n-icon>
                                             <copy-outline></copy-outline>
@@ -65,9 +59,9 @@
 <script setup lang="ts">
 import router from '@renderer/router';
 import http from '@renderer/services/http';
-import { Reload, BarChart, Server,CopyOutline } from '@vicons/ionicons5'
+import { Reload, BarChart, Server, CopyOutline } from '@vicons/ionicons5'
 import { MenuOption, NIcon, useMessage } from 'naive-ui';
-import { Component, h, onMounted, onUnmounted, ref } from 'vue';
+import { Component, computed, h, onMounted, onUnmounted, ref } from 'vue';
 import { Summoner } from './record/UserRecord.vue';
 
 
@@ -92,6 +86,13 @@ async function getGetMySummoner() {
     const res = await http.get<Summoner>("/GetSummoner")
     if (res.status === 200) {
         mySummoner.value = res.data
+        router.push({
+            path: '/Record',
+        });
+    }else{
+        router.push({
+            path: '/',
+        });
     }
 }
 function renderIcon(icon: Component) {
@@ -102,19 +103,20 @@ function handleMenuClick(key: string) {
     router.push({ name: key });
 }
 
-const menuOptions: MenuOption[] = [
+const menuOptions = computed(() => [
     {
         label: '战绩',
         key: 'Record',
-        icon: renderIcon(BarChart)
-
+        icon: renderIcon(BarChart),
+        show: !!mySummoner.value?.platformIdCn,
     },
     {
         label: '对局',
-        key: 'Loading',
-        icon: renderIcon(Reload)
+        key: 'Gaming',
+        icon: renderIcon(Reload),
+        show: !!mySummoner.value?.platformIdCn,
     }
-]
+]);
 const toMe = () => {
     router.push({
         path: '/Record',

@@ -112,6 +112,7 @@ type MatchHistory struct {
 	PlatformId string `json:"platformId"`
 	Games      struct {
 		Games []struct {
+			Mvp                   string	 `json:"mvp"`
 			GameDetail            GameDetail `json:"gameDetail"`
 			GameId                int        `json:"gameId"`
 			GameCreationDate      string     `json:"gameCreationDate"`
