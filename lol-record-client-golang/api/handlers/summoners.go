@@ -12,61 +12,103 @@ type SummonerInfo struct {
 	Rank     client.Rank     `json:"rank"`
 }
 
+// GetSummoner 获取召唤师信息
 func GetSummoner(c *gin.Context) {
-	summoner := getSummoner(c)
+	summoner, err := getSummoner(c)
+	if err != nil {
+		// 错误响应已经在 getSummoner 中处理
+		return
+	}
 	c.JSON(http.StatusOK, summoner)
 }
+
+// GetSummonerAndRank 获取召唤师信息和排位信息
 func GetSummonerAndRank(c *gin.Context) {
-	var err error
-	summoner := getSummoner(c)
-	var rank client.Rank
-	// 获取排位信息
-	rank, err = client.GetRankByPuuid(summoner.Puuid)
+	summoner, err := getSummoner(c)
 	if err != nil {
-		init_log.AppLog.Error("GetRankByPuuid() failed: " + err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		// 错误响应已经在 getSummoner 中处理
 		return
 	}
 
-	// 返回结果
+	rank, err := client.GetRankByPuuid(summoner.Puuid)
+	if err != nil {
+		handleError(c, "GetRankByPuuid() failed", err)
+		return
+	}
+
+	// 返回召唤师信息和排位信息
 	summonerInfo := SummonerInfo{
 		Summoner: summoner,
 		Rank:     rank,
 	}
 	c.JSON(http.StatusOK, summonerInfo)
 }
-func getSummoner(c *gin.Context) client.Summoner {
-	var summoner client.Summoner
-	var err error
+
+// getSummoner 获取召唤师信息，支持通过name或puuid获取，默认获取当前召唤师信息
+func getSummoner(c *gin.Context) (client.Summoner, error) {
 	name := c.DefaultQuery("name", "")
 	puuid := c.DefaultQuery("puuid", "")
 
-	// 如果没有信息，就获取自己的信息
+	var summoner client.Summoner
+	var err error
+
 	if puuid == "" && name == "" {
 		summoner, err = client.GetCurSummoner()
 		if err != nil {
-			init_log.AppLog.Error("GetCurSummoner() failed: " + err.Error())
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return client.Summoner{}
+			handleError(c, "GetCurSummoner() failed", err)
+			return client.Summoner{}, err
 		}
 	} else {
-		if name != "" {
-			summoner, err = client.GetSummonerByName(name)
-		} else {
-			summoner, err = client.GetSummonerByPuuid(puuid)
-		}
+		summoner, err = getSummonerByNameOrPuuid(name, puuid)
 		if err != nil {
-			init_log.AppLog.Error("GetSummonerById() failed: " + err.Error())
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return client.Summoner{}
+			handleError(c, "GetSummonerByNameOrPuuid() failed", err)
+			return client.Summoner{}, err
 		}
 	}
-	match, _ := client.GetMatchHistoryByPuuid(summoner.Puuid, 0, 0)
-	summoner.PlatformIdCn = client.SGPServerIdToName[match.Games.Games[0].PlatformId]
-	//获取头像
-	if summoner.ProfileIconId != 0 {
-		summoner.ProfileIconBase64, _ = client.GetProfileIconByIconId(summoner.ProfileIconId)
-	}
-	return summoner
 
+	// 设置召唤师平台ID和头像
+	if err := enrichSummonerData(&summoner); err != nil {
+		handleError(c, "enrichSummonerData() failed", err)
+		return client.Summoner{}, err
+	}
+
+	return summoner, nil
+}
+
+// getSummonerByNameOrPuuid 根据召唤师名称或puuid获取召唤师信息
+func getSummonerByNameOrPuuid(name, puuid string) (client.Summoner, error) {
+	var summoner client.Summoner
+	var err error
+
+	if name != "" {
+		summoner, err = client.GetSummonerByName(name)
+	} else {
+		summoner, err = client.GetSummonerByPuuid(puuid)
+	}
+
+	if err != nil {
+		init_log.AppLog.Error("GetSummonerByNameOrPuuid() failed: " + err.Error())
+	}
+	return summoner, err
+}
+
+// enrichSummonerData 丰富召唤师信息，获取平台Id和头像
+func enrichSummonerData(summoner *client.Summoner) error {
+	match, err := client.GetMatchHistoryByPuuid(summoner.Puuid, 0, 0)
+	if err != nil {
+		return err
+	}
+	summoner.PlatformIdCn = client.SGPServerIdToName[match.Games.Games[0].PlatformId]
+
+	// 获取头像
+	if summoner.ProfileIconId != 0 {
+		summoner.ProfileIconBase64, err = client.GetProfileIconByIconId(summoner.ProfileIconId)
+	}
+	return err
+}
+
+// handleError 统一处理错误，记录日志并返回错误响应
+func handleError(c *gin.Context, message string, err error) {
+	init_log.AppLog.Error(message + ": " + err.Error())
+	c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 }

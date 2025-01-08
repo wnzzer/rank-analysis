@@ -121,3 +121,20 @@ const (
 	QueueTFT     = 1700
 	QueueURF     = 1900
 )
+
+// 游戏状态常量
+const (
+	Matchmaking       = "Matchmaking"       // 正在匹配
+	ChampSelect       = "ChampSelect"       // 英雄选择中
+	ReadyCheck        = "ReadyCheck"        // 等待接受状态中
+	InProgress        = "InProgress"        // 游戏进行中
+	EndOfGame         = "EndOfGame"         // 游戏结算
+	Lobby             = "Lobby"             // 房间
+	GameStart         = "GameStart"         // 游戏开始
+	None              = "None"              // 无
+	Reconnect         = "Reconnect"         // 重新连接
+	WaitingForStats   = "WaitingForStats"   // 等待结果
+	PreEndOfGame      = "PreEndOfGame"      // 结束游戏之前
+	WatchInProgress   = "WatchInProgress"   // 在观战中
+	TerminatedInError = "TerminatedInError" // 错误终止
+)

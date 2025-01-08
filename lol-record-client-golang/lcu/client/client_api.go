@@ -112,7 +112,7 @@ type MatchHistory struct {
 	PlatformId string `json:"platformId"`
 	Games      struct {
 		Games []struct {
-			Mvp                   string	 `json:"mvp"`
+			Mvp                   string     `json:"mvp"`
 			GameDetail            GameDetail `json:"gameDetail"`
 			GameId                int        `json:"gameId"`
 			GameCreationDate      string     `json:"gameCreationDate"`
@@ -187,6 +187,7 @@ func GetMatchHistoryByPuuid(puuid string, begIndex int, endIndex int) (MatchHist
 
 	parms.Add("begIndex", fmt.Sprintf("%d", begIndex))
 	parms.Add("endIndex", fmt.Sprintf("%d", endIndex))
+
 	err := util.Get(fmt.Sprintf(uri, puuid, parms.Encode()), &matchHistory)
 	if err != nil {
 		return MatchHistory{}, err
@@ -261,5 +262,35 @@ func GetGameDetail(gameId int) (GameDetail, error) {
 		return GameDetail{}, err
 	}
 	return gameDetail, err
+}
+func GetPhase() (string, error) {
+	uri := "lol-gameflow/v1/gameflow-phase"
+	var phase string
+	err := util.Get(uri, &phase)
+	if err != nil {
+		return "", err
+	}
+	return phase, nil
+}
 
+type Session struct {
+	Phase   string `json:"phase"`
+	TeamOne []struct {
+		ChampionId int    `json:"championId"`
+		Puuid      string `json:"puuid"`
+	}
+	TeamTwo []struct {
+		ChampionId int    `json:"championId"`
+		Puuid      string `json:"puuid"`
+	}
+}
+
+func GetSession() (Session, error) {
+	var session Session
+	uri := "lol-gameflow/v1/session"
+	err := util.Get(uri, &session)
+	if err != nil {
+		return Session{}, err
+	}
+	return session, err
 }

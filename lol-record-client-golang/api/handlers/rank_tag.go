@@ -111,13 +111,13 @@ func GetTag(c *gin.Context) {
 	}
 }
 func countGoldAndGroupAndDamageDealtToChampions(matchHistory *client.MatchHistory) (int, int, int, int, int) {
-	count := 0
+	count := 1
 	myGold := 0
-	allGold := 0
+	allGold := 1
 	myKA := 0
-	allK := 0
+	allK := 1
 	myDamageDealtToChampions := 0
-	allDamageDealtToChampions := 0
+	allDamageDealtToChampions := 1
 	for _, games := range matchHistory.Games.Games {
 		if games.QueueId != client.QueueSolo5x5 && games.QueueId != client.QueueFlex {
 			continue
@@ -172,9 +172,9 @@ func countWinAndLoss(matchHistory *client.MatchHistory) (int, int, int, int) {
 
 }
 func countKda(matchHistory *client.MatchHistory) (float64, float64, float64) {
-	count := 0
+	count := 1
 	kills := 0
-	deaths := 0
+	deaths := 1
 	assists := 0
 	for _, games := range matchHistory.Games.Games {
 		if games.QueueId != client.QueueSolo5x5 && games.QueueId != client.QueueFlex {
