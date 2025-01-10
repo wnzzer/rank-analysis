@@ -274,15 +274,20 @@ func GetPhase() (string, error) {
 }
 
 type Session struct {
-	Phase   string `json:"phase"`
-	TeamOne []struct {
-		ChampionId int    `json:"championId"`
-		Puuid      string `json:"puuid"`
-	}
-	TeamTwo []struct {
-		ChampionId int    `json:"championId"`
-		Puuid      string `json:"puuid"`
-	}
+	GameData struct {
+		Queue struct {
+			Type string `json:"type"`
+		} `json:"queue"`
+		TeamOne []struct {
+			ChampionId int    `json:"championId"`
+			Puuid      string `json:"puuid"`
+		} `json:"teamOne"`
+		TeamTwo []struct {
+			ChampionId int    `json:"championId"`
+			Puuid      string `json:"puuid"`
+		} `json:"teamTwo"`
+	} `json:"gameData"`
+	Phase string `json:"phase"`
 }
 
 func GetSession() (Session, error) {

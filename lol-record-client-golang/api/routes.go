@@ -18,5 +18,7 @@ func InitRoutes(r *gin.Engine) {
 
 		userGroup.GET("/GetTag", handlers.GetTag)
 
+		userGroup.GET("/GetSessionData", handlers.GetSessionData)
+
 	}
 }

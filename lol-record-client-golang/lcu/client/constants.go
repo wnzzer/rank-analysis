@@ -48,6 +48,7 @@ var TierEnToCn = map[string]string{
 var QueueTypeToCn = map[string]string{
 	"RANKED_SOLO_5x5": "单双排",
 	"RANKED_FLEX_SR":  "灵活组排",
+	"":                "其他",
 }
 var QueueIdToCn = map[int]string{
 	420:  "单双排",
