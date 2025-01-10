@@ -307,7 +307,7 @@ interface RankTag {
   tagDesc: string;
 }
 
-interface UserTag {
+export interface UserTag {
   recentData: RecentData;
   tag: RankTag[];
 }

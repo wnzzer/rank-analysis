@@ -99,7 +99,7 @@
                                         @click="toNameRecord(games.gameDetail.participantIdentities[i - 1].player.gameName + '#' + games.gameDetail.participantIdentities[i - 1].player.tagLine)">
                                         <n-avatar :bordered="true"
                                             :src="games.gameDetail.participants[i - 1]?.championBase64"
-                                            :style="{ borderColor: getIsMeBorderedColor(games.gameDetail.participantIdentities[i - 1].player.gameName + '#' + games.gameDetail.participantIdentities[i - 1].player.tagLine) }" />
+                                            :style="{ borderColor: getIsMeBorderedColor(games.gameDetail.participantIdentities[i - 1]?.player.gameName + '#' + games.gameDetail.participantIdentities[i - 1]?.player.tagLine) }" />
                                     </n-button>
                                 </template>
                                 <span>{{ games.gameDetail.participantIdentities[i - 1].player.gameName + "#" +
