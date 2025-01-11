@@ -3,7 +3,7 @@ import axios from "axios";
 // src/services/http.ts
 const http = axios.create({
   baseURL: 'http://localhost:11451/v1/', // 替换为你的接口基础路径
-  timeout: 50000, // 请求超时时间
+  timeout: 500000, // 请求超时时间
 });
 
 

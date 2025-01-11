@@ -52,3 +52,29 @@ export interface Summoner {
     summoner: Summoner;
     rank: Rank;
   }
+  export interface RecentData {
+    kda: number;
+    kills: number;
+    deaths: number;
+    assists: number;
+    wins: number;
+    losses: number;
+    flexWins: number;
+    flexLosses: number;
+    groupRate: number;
+    averageGold: number;
+    goldRate: number;
+    averageDamageDealtToChampions: number;
+    damageDealtToChampionsRate: number;
+  }
+  
+  export interface RankTag {
+    good: boolean;
+    tagName: string;
+    tagDesc: string;
+  }
+  
+  export interface UserTag {
+    recentData: RecentData;
+    tag: RankTag[];
+  }

@@ -141,7 +141,7 @@
 import { Time } from '@vicons/ionicons5';
 import itemNull from '@renderer/assets/imgs/item/null.png';
 import { computed } from 'vue';
-import { Game, MatchHistory } from './MatchHistory.vue';
+import { Game,} from './MatchHistory.vue';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();

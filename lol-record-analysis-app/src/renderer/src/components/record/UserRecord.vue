@@ -218,7 +218,8 @@ import { onMounted, ref } from 'vue';
 import { NCard, NFlex, NButton, NIcon, useMessage } from 'naive-ui';
 import RecordButton from './RecordButton.vue';
 import { useRoute } from 'vue-router';
-import { SummonerData } from './model';
+import { RankTag, RecentData, SummonerData, UserTag } from './model';
+import { kdaColor,deathsColor,assistsColor,otherColor,groupRateColor,killsColor } from './composition';
 
 
 
@@ -283,33 +284,6 @@ const getSummoner = async (name: string) => {
   }
   )
   summoner.value = res.data
-}
-
-interface RecentData {
-  kda: number;
-  kills: number;
-  deaths: number;
-  assists: number;
-  wins: number;
-  losses: number;
-  flexWins: number;
-  flexLosses: number;
-  groupRate: number;
-  averageGold: number;
-  goldRate: number;
-  averageDamageDealtToChampions: number;
-  damageDealtToChampionsRate: number;
-}
-
-interface RankTag {
-  good: boolean;
-  tagName: string;
-  tagDesc: string;
-}
-
-export interface UserTag {
-  recentData: RecentData;
-  tag: RankTag[];
 }
 
 const recentData = ref<RecentData>({
@@ -407,61 +381,7 @@ const copy = () => {
     });
 }
 
-const kdaColor = (kda: number) => {
-  if (kda >= 2.6) {
-    return '#8BDFB7'
-  } else if (kda <= 1.3) {
-    return '#BA3F53'
-  }
-  return '#FFFFFF';
-}
-/**
- * Returns a color based on the number of kills.
- * - Green for 8 or more kills.
- * - Red for 3 or fewer kills.
- * @param {number} kills - The number of kills to evaluate.
- * @returns {string} - The color corresponding to the number of kills.
- */
-const killsColor = (kills: number) => {
-  if (kills >= 8) {
-    return '#8BDFB7'
-  } else if (kills <= 3) {
-    return '#BA3F53'
-  }
-  return '#FFFFFF';
-}
-const deathsColor = (deaths: number) => {
-  if (deaths >= 8) {
-    return '#BA3F53'
-  } else if (deaths <= 3) {
-    return '#8BDFB7'
-  }
-  return '#FFFFFF';
-}
-const assistsColor = (assists: number) => {
-  if (assists >= 10) {
-    return '#8BDFB7'
-  } else if (assists <= 3) {
-    return '#BA3F53'
-  }
-  return '#FFFFFF';
-}
-const groupRateColor = (groupRate: number) => {
-  if (groupRate >= 45) {
-    return '#8BDFB7'
-  } else if (groupRate <= 15) {
-    return '#BA3F53'
-  }
-  return '#FFFFFF';
-}
-const otherColor = (other: number) => {
-  if (other >= 30) {
-    return '#8BDFB7'
-  } else if (other <= 15) {
-    return '#BA3F53'
-  }
-  return '#FFFFFF';
-}
+
 </script>
 
 <style lang="css" scoped>
