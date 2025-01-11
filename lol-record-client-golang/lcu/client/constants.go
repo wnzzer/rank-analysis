@@ -59,6 +59,7 @@ var QueueIdToCn = map[int]string{
 	900:  "无限乱斗",
 	1700: "斗魂竞技",
 	1900: "无限火力",
+	0:    "其他",
 }
 
 const (

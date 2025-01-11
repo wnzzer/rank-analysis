@@ -8,6 +8,7 @@ import (
 	"math"
 	"net/http"
 	"strings"
+	"sync"
 )
 
 type RecentData struct {
@@ -66,9 +67,26 @@ func GetTagCore(puuid string, name string) (*UserTag, error) {
 		return nil, errors.New("puuid or name is empty")
 	} else {
 		matchHistory, _ := client.GetMatchHistoryByPuuid(puuid, 0, 39)
+
+		var wg sync.WaitGroup
 		for i, games := range matchHistory.Games.Games {
-			matchHistory.Games.Games[i].GameDetail, _ = client.GetGameDetail(games.GameId)
+
+			wg.Add(1)
+			go func(i int, gameId int) {
+				defer wg.Done()
+
+				// 获取游戏详情
+				gameDetail, err := client.GetGameDetail(gameId)
+				if err != nil {
+					// 错误处理：你可以在此记录错误日志或采取其他措施
+					return
+				}
+
+				matchHistory.Games.Games[i].GameDetail = gameDetail
+			}(i, games.GameId)
 		}
+		wg.Wait()
+
 		var tags []RankTag
 		//判断是否是连胜
 		streakTag := isStreakTag(&matchHistory)

@@ -46,12 +46,15 @@ func curSessionChampion() (SessionData, error) {
 	sessionData.Type = session.GameData.Queue.Type
 	sessionData.TypeCn = client.QueueTypeToCn[session.GameData.Queue.Type]
 	for _, summonerPlayer := range session.GameData.TeamOne {
+		if summonerPlayer.Puuid == "" {
+			continue
+		}
 		summoner, _ := getSummonerByNameOrPuuid("", summonerPlayer.Puuid)
 		matchHistory, _ := GetMatchHistoryCore(MatchHistoryParams{
 			Puuid:    summoner.Puuid,
 			BegIndex: 0,
-			EndIndex: 5,
-		})
+			EndIndex: 2,
+		}, false)
 		userTag, _ := GetTagCore(summoner.Puuid, "")
 		sessionData.TeamOne = append(sessionData.TeamOne,
 			SessionSummoner{
@@ -64,12 +67,15 @@ func curSessionChampion() (SessionData, error) {
 		)
 	}
 	for _, summonerPlayer := range session.GameData.TeamTwo {
+		if summonerPlayer.Puuid == "" {
+			continue
+		}
 		summoner, _ := getSummonerByNameOrPuuid("", summonerPlayer.Puuid)
 		matchHistory, _ := GetMatchHistoryCore(MatchHistoryParams{
 			Puuid:    summoner.Puuid,
 			BegIndex: 0,
-			EndIndex: 5,
-		})
+			EndIndex: 2,
+		}, false)
 		userTag, _ := GetTagCore(summoner.Puuid, "")
 		sessionData.TeamTwo = append(sessionData.TeamTwo,
 			SessionSummoner{
