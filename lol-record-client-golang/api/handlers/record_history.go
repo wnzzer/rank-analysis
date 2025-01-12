@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/gin-gonic/gin"
 	"lol-record-analysis/lcu/client"
+	"lol-record-analysis/util/init_log"
 	"net/http"
 	"strconv"
 )
@@ -20,12 +21,14 @@ func GetMatchHistory(c *gin.Context) {
 	params, err := extractParamsFromGin(c)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		init_log.AppLog.Error("extractParamsFromGin() failed", err)
 		return
 	}
 
 	// 调用核心逻辑
 	matchHistory, err := GetMatchHistoryCore(params, true)
 	if err != nil {
+		init_log.AppLog.Error("GetMatchHistoryCore() failed", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

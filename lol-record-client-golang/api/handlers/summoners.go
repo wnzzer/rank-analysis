@@ -16,6 +16,7 @@ type SummonerInfo struct {
 func GetSummoner(c *gin.Context) {
 	summoner, err := getSummoner(c)
 	if err != nil {
+		init_log.AppLog.Error("getSummoner() failed", err)
 		// 错误响应已经在 getSummoner 中处理
 		return
 	}

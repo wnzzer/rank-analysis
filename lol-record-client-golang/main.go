@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"lol-record-analysis/api"
 	"lol-record-analysis/api/handlers"
@@ -17,4 +18,11 @@ func main() {
 
 	// 启动服务
 	r.Run(":11451") // 在 11451 端口上运行
+	defer handlePanic()
+
+}
+func handlePanic() {
+	if r := recover(); r != nil {
+		fmt.Println("Recovered from panic:", r)
+	}
 }

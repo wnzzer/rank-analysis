@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"lol-record-analysis/lcu/client"
+	"lol-record-analysis/util/init_log"
 	"math"
 	"net/http"
 	"strings"
@@ -43,6 +44,7 @@ func GetTag(c *gin.Context) {
 	name := c.DefaultQuery("name", "")
 	userTag, err := GetTagCore(puuid, name)
 	if err != nil {
+		init_log.AppLog.Error("GetTagCore() failed,%v", err)
 		c.JSON(http.StatusOK, gin.H{
 			"error": err.Error(),
 		})

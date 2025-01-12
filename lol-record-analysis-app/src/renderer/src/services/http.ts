@@ -2,8 +2,8 @@ import axios from "axios";
 
 // src/services/http.ts
 const http = axios.create({
-  baseURL: 'http://localhost:11451/v1/', // 替换为你的接口基础路径
-  timeout: 500000, // 请求超时时间
+  baseURL: 'http://127.0.0.1:11451/v1/', // 替换为你的接口基础路径
+  timeout: 5000, // 请求超时时间
 });
 
 

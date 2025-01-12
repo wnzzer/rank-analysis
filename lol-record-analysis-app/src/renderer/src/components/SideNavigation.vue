@@ -82,6 +82,7 @@ onMounted(() => {
 
 const mySummoner = ref<Summoner>()
 async function getGetMySummoner() {
+    console.log(router.currentRoute.value.path);
     try {
         const res = await http.get<Summoner>("/GetSummoner"); // 包裹在 try 中
         if (res.status === 200) {
