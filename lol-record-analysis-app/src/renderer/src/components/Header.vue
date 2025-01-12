@@ -38,8 +38,9 @@ import { Search, LogoGithub } from '@vicons/ionicons5';
 import { ref } from 'vue';
 
 const openGithubLink = () => {
-    window.api.OpenGithub();  // 调用暴露的 OpenGithub 方法
-}
+    (window.api as { OpenGithub: () => void }).OpenGithub(); // 类型断言
+};
+
 const value = ref('');
 function onClinkSearch() {
     router.push({

@@ -1,5 +1,5 @@
 <template>
-    <template v-if="!sesssionData.phase">
+    <template v-if="!sessionData.phase">
         <div
             style="display: flex; justify-content: center; align-items: center; height: 80vh; width: 80vw; border: 1px solid black;">
 
@@ -20,7 +20,7 @@
 
                 <n-flex vertical justify="space-between" style="gap: 0; flex: 1; height: 100%;">
                     <n-card v-for="i in 5" :key="i" style="flex: 1; height: 100%;" content-style="padding: 0;">
-                        <div v-if="!sesssionData.teamOne || !sesssionData.teamOne[i - 1] || !sesssionData.teamOne[i - 1].championBase64"
+                        <div v-if="!sessionData.teamOne || !sessionData.teamOne[i - 1] || !sessionData.teamOne[i - 1].championBase64"
                             style="position: relative; width: 100%; height: 100%;">
                             <n-spin size="small"
                                 style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);" />
@@ -34,29 +34,35 @@
                                     <n-flex>
                                         <div style="position: relative;">
                                             <img width="33px" height="33px"
-                                                :src="sesssionData.teamOne[i - 1]?.championBase64" />
+                                                :src="sessionData.teamOne[i - 1]?.championBase64" />
                                             <div
                                                 style="position: absolute; bottom: 12px; right: 0; font-size: 10px; width: 20px; height: 10px; text-align: center; line-height: 20px; border-radius: 50%; color: white;">
-                                                {{ sesssionData.teamOne[i - 1]?.summoner.summonerLevel }}
+                                                {{ sessionData.teamOne[i - 1]?.summoner.summonerLevel }}
                                             </div>
                                         </div>
                                         <n-flex vertical style="gap: 0;">
                                             <n-flex>
                                                 <span style="font-size: 12px; font-weight: bold;">
-                                                    {{ sesssionData.teamOne[i - 1]?.summoner.gameName }}
+                                                    {{ sessionData.teamOne[i - 1]?.summoner.gameName }}
                                                 </span>
                                             </n-flex>
 
                                             <n-flex style="gap: 5px;">
                                                 <span style="color: #676768; font-size: 11px;">
-                                                    #{{ sesssionData.teamOne[i - 1]?.summoner.tagLine }}
+                                                    #{{ sessionData.teamOne[i - 1]?.summoner.tagLine }}
                                                 </span>
-                                                <n-button text style="font-size: 12px"
-                                                    @click="copy(sesssionData.teamOne[i - 1].summoner.gameName + '#' + sesssionData.teamOne[i - 1].summoner.tagLine)">
+                                                <n-button text style="font-size: 12px; position: relative; bottom: 2px;"
+                                                    @click="copy(sessionData.teamOne[i - 1].summoner.gameName + '#' + sessionData.teamOne[i - 1].summoner.tagLine)">
                                                     <n-icon>
                                                         <copy-outline></copy-outline>
                                                     </n-icon>
                                                 </n-button>
+                                                <span>
+                                                    <img style="width: 16px;height: 16px;"
+                                                        :src="comImgTier.teamOne[i - 1].imgUrl" />
+                                                    <span style="font-size: 8px;">{{comImgTier.teamOne[i - 1].tierCn }}</span>
+                                                </span>
+
                                             </n-flex>
                                         </n-flex>
                                     </n-flex>
@@ -65,7 +71,7 @@
 
 
                                 <div>
-                                    <n-card v-for="game in sesssionData.teamOne[i - 1]?.matchHistory.games.games"
+                                    <n-card v-for="game in sessionData.teamOne[i - 1]?.matchHistory.games.games"
                                         content-style="padding: 0;" footer-style="padding:0">
                                         <n-flex justify="space-between" style="gap: 0px; align-items: center;">
                                             <span :style="{
@@ -113,7 +119,7 @@
                                                     s
                                                 </span>
                                                 <n-tooltip trigger="hover"
-                                                    v-for="tag in sesssionData.teamOne[i - 1]?.userTag.tag">
+                                                    v-for="tag in sessionData.teamOne[i - 1]?.userTag.tag">
                                                     <template #trigger>
                                                         <n-button size="tiny" :type="tag.good ? 'primary' : 'error'">
                                                             {{ tag.tagName }}
@@ -144,23 +150,23 @@
                                                 <span class="stats-value">
                                                     <n-flex>
                                                         <span
-                                                            :style="{ color: kdaColor(sesssionData.teamOne[i - 1]?.userTag.recentData.kda) }">{{
-                                                                sesssionData.teamOne[i - 1]?.userTag.recentData.kda
+                                                            :style="{ color: kdaColor(sessionData.teamOne[i - 1]?.userTag.recentData.kda) }">{{
+                                                                sessionData.teamOne[i - 1]?.userTag.recentData.kda
                                                             }}</span>
                                                         <span>
                                                             <span
-                                                                :style="{ color: killsColor(sesssionData.teamOne[i - 1]?.userTag.recentData.kills) }">
-                                                                {{ sesssionData.teamOne[i - 1]?.userTag.recentData.kills
+                                                                :style="{ color: killsColor(sessionData.teamOne[i - 1]?.userTag.recentData.kills) }">
+                                                                {{ sessionData.teamOne[i - 1]?.userTag.recentData.kills
                                                                 }}
                                                             </span>/
                                                             <span
-                                                                :style="{ color: deathsColor(sesssionData.teamOne[i - 1]?.userTag.recentData.deaths) }">{{
-                                                                    sesssionData.teamOne[i - 1]?.userTag.recentData.deaths
+                                                                :style="{ color: deathsColor(sessionData.teamOne[i - 1]?.userTag.recentData.deaths) }">{{
+                                                                    sessionData.teamOne[i - 1]?.userTag.recentData.deaths
                                                                 }}</span>
                                                             /
                                                             <span
-                                                                :style="{ color: assistsColor(sesssionData.teamOne[i - 1]?.userTag.recentData.assists) }">{{
-                                                                    sesssionData.teamOne[i - 1]?.userTag.recentData.assists
+                                                                :style="{ color: assistsColor(sessionData.teamOne[i - 1]?.userTag.recentData.assists) }">{{
+                                                                    sessionData.teamOne[i - 1]?.userTag.recentData.assists
                                                                 }}</span>
                                                         </span>
 
@@ -168,26 +174,26 @@
                                                 </span>
                                             </n-flex>
                                             <n-flex class="stats-item" justify="space-between">
-                                                <span class="stats-label"> 胜率（{{ sesssionData.typeCn ?
-                                                    sesssionData.typeCn :
+                                                <span class="stats-label"> 胜率（{{ sessionData.typeCn ?
+                                                    sessionData.typeCn :
                                                     "单双排" }}）:</span>
                                                 <n-flex>
                                                     <span style="width: 65px;"
-                                                        :style="{ color: groupRateColor(sesssionData.teamOne[i - 1]?.userTag.recentData.groupRate) }">
-                                                        <n-progress type="line" :percentage="winRate(sesssionData.teamOne[i -
-                                                            1]?.userTag.recentData, sesssionData.type)" :height="6"
-                                                            :show-indicator="false" :color="winRateColor(winRate(sesssionData.teamOne[i -
-                                                                1]?.userTag.recentData, sesssionData.type))" processing
+                                                        :style="{ color: groupRateColor(sessionData.teamOne[i - 1]?.userTag.recentData.groupRate) }">
+                                                        <n-progress type="line" :percentage="winRate(sessionData.teamOne[i -
+                                                            1]?.userTag.recentData, sessionData.type)" :height="6"
+                                                            :show-indicator="false" :color="winRateColor(winRate(sessionData.teamOne[i -
+                                                                1]?.userTag.recentData, sessionData.type))" processing
                                                             :stroke-width="10"
                                                             style="position: relative; top: 7px;"></n-progress>
                                                     </span>
                                                     <span class="stats-value" :style="{
-                                                        color: winRateColor(winRate(sesssionData.teamOne[i -
-                                                            1]?.userTag.recentData, sesssionData.type))
+                                                        color: winRateColor(winRate(sessionData.teamOne[i -
+                                                            1]?.userTag.recentData, sessionData.type))
                                                     }">
                                                         {{
-                                                            winRate(sesssionData.teamOne[i -
-                                                                1]?.userTag.recentData, sesssionData.type)
+                                                            winRate(sessionData.teamOne[i -
+                                                                1]?.userTag.recentData, sessionData.type)
                                                         }}%
                                                     </span>
 
@@ -197,17 +203,17 @@
                                                 <span class="stats-label"> 参团率：</span>
                                                 <n-flex>
                                                     <span style="width: 65px;"
-                                                        :style="{ color: groupRateColor(sesssionData.teamOne[i - 1]?.userTag.recentData.groupRate) }">
+                                                        :style="{ color: groupRateColor(sessionData.teamOne[i - 1]?.userTag.recentData.groupRate) }">
                                                         <n-progress type="line"
-                                                            :percentage="sesssionData.teamOne[i - 1]?.userTag.recentData.groupRate"
+                                                            :percentage="sessionData.teamOne[i - 1]?.userTag.recentData.groupRate"
                                                             :height="6" :show-indicator="false"
-                                                            :color="groupRateColor(sesssionData.teamOne[i - 1]?.userTag.recentData.groupRate)"
+                                                            :color="groupRateColor(sessionData.teamOne[i - 1]?.userTag.recentData.groupRate)"
                                                             processing :stroke-width="10"
                                                             style="position: relative; top: 7px;"></n-progress>
                                                     </span>
                                                     <span class="stats-value"
-                                                        :style="{ color: groupRateColor(sesssionData.teamOne[i - 1]?.userTag.recentData.groupRate) }">{{
-                                                            sesssionData.teamOne[i - 1]?.userTag.recentData.groupRate
+                                                        :style="{ color: groupRateColor(sessionData.teamOne[i - 1]?.userTag.recentData.groupRate) }">{{
+                                                            sessionData.teamOne[i - 1]?.userTag.recentData.groupRate
                                                         }}%</span>
 
                                                 </n-flex>
@@ -217,19 +223,19 @@
                                                 <span class="stats-value">
                                                     <n-flex>
                                                         <span>
-                                                            {{ sesssionData.teamOne[i -
+                                                            {{ sessionData.teamOne[i -
                                                                 1]?.userTag.recentData.averageDamageDealtToChampions }}
                                                         </span>
                                                         <span style="width: 45px;"> <n-progress type="line"
-                                                                :percentage="sesssionData.teamOne[i - 1]?.userTag.recentData.damageDealtToChampionsRate"
-                                                                :color="otherColor(sesssionData.teamOne[i - 1]?.userTag.recentData.damageDealtToChampionsRate)"
+                                                                :percentage="sessionData.teamOne[i - 1]?.userTag.recentData.damageDealtToChampionsRate"
+                                                                :color="otherColor(sessionData.teamOne[i - 1]?.userTag.recentData.damageDealtToChampionsRate)"
                                                                 :height="6" :show-indicator="false" processing
                                                                 :stroke-width="13"
                                                                 style="position: relative; top: 7px;"></n-progress>
                                                         </span>
                                                         <span class="stats-value"
-                                                            :style="{ color: otherColor(sesssionData.teamOne[i - 1]?.userTag.recentData.damageDealtToChampionsRate) }">
-                                                            {{ sesssionData.teamOne[i -
+                                                            :style="{ color: otherColor(sessionData.teamOne[i - 1]?.userTag.recentData.damageDealtToChampionsRate) }">
+                                                            {{ sessionData.teamOne[i -
                                                                 1]?.userTag.recentData.damageDealtToChampionsRate }}%
 
                                                         </span>
@@ -252,7 +258,7 @@
                 <!-- 右侧部分 -->
                 <n-flex vertical justify="space-between" style="gap: 0; flex: 1; height: 100%;">
                     <n-card v-for="i in 5" :key="i" style="flex: 1; height: 100%;" content-style="padding: 0;">
-                        <div v-if="!sesssionData.teamTwo || !sesssionData.teamTwo[i - 1] || !sesssionData.teamTwo[i - 1].championBase64"
+                        <div v-if="!sessionData.teamTwo || !sessionData.teamTwo[i - 1] || !sessionData.teamTwo[i - 1].championBase64"
                             style="position: relative; width: 100%; height: 100%;">
                             <n-spin size="small"
                                 style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);" />
@@ -266,29 +272,34 @@
                                     <n-flex>
                                         <div style="position: relative;">
                                             <img width="33px" height="33px"
-                                                :src="sesssionData.teamTwo[i - 1]?.championBase64" />
+                                                :src="sessionData.teamTwo[i - 1]?.championBase64" />
                                             <div
                                                 style="position: absolute; bottom: 12px; right: 0; font-size: 10px; width: 20px; height: 10px; text-align: center; line-height: 20px; border-radius: 50%; color: white;">
-                                                {{ sesssionData.teamTwo[i - 1]?.summoner.summonerLevel }}
+                                                {{ sessionData.teamTwo[i - 1]?.summoner.summonerLevel }}
                                             </div>
                                         </div>
                                         <n-flex vertical style="gap: 0;">
                                             <n-flex>
                                                 <span style="font-size: 12px; font-weight: bold;">
-                                                    {{ sesssionData.teamTwo[i - 1]?.summoner.gameName }}
+                                                    {{ sessionData.teamTwo[i - 1]?.summoner.gameName }}
                                                 </span>
                                             </n-flex>
 
                                             <n-flex style="gap: 5px;">
                                                 <span style="color: #676768; font-size: 11px;">
-                                                    #{{ sesssionData.teamTwo[i - 1]?.summoner.tagLine }}
+                                                    #{{ sessionData.teamTwo[i - 1]?.summoner.tagLine }}
                                                 </span>
-                                                <n-button text style="font-size: 12px"
-                                                    @click="copy(sesssionData.teamTwo[i - 1].summoner.gameName + '#' + sesssionData.teamTwo[i - 1].summoner.tagLine)">
+                                                <n-button text style="font-size: 12px; position: relative; bottom: 2px;"
+                                                    @click="copy(sessionData.teamOne[i - 1].summoner.gameName + '#' + sessionData.teamOne[i - 1].summoner.tagLine)">
                                                     <n-icon>
                                                         <copy-outline></copy-outline>
                                                     </n-icon>
                                                 </n-button>
+                                                <span>
+                                                    <img style="width: 16px;height: 16px;"
+                                                        :src="comImgTier.teamTwo[i - 1]?.imgUrl" />
+                                                    <span style="font-size: 8px;">{{ comImgTier.teamTwo[i - 1]?.tierCn}}</span>
+                                                </span>
                                             </n-flex>
                                         </n-flex>
                                     </n-flex>
@@ -297,7 +308,7 @@
 
 
                                 <div>
-                                    <n-card v-for="game in sesssionData.teamTwo[i - 1]?.matchHistory.games.games"
+                                    <n-card v-for="game in sessionData.teamTwo[i - 1]?.matchHistory.games.games"
                                         content-style="padding: 0;" footer-style="padding:0">
                                         <n-flex justify="space-between" style="gap: 0px; align-items: center;">
                                             <span :style="{
@@ -345,7 +356,7 @@
                                                     s
                                                 </span>
                                                 <n-tooltip trigger="hover"
-                                                    v-for="tag in sesssionData.teamTwo[i - 1]?.userTag.tag">
+                                                    v-for="tag in sessionData.teamTwo[i - 1]?.userTag.tag">
                                                     <template #trigger>
                                                         <n-button size="tiny" :type="tag.good ? 'primary' : 'error'">
                                                             {{ tag.tagName }}
@@ -376,23 +387,23 @@
                                                 <span class="stats-value">
                                                     <n-flex>
                                                         <span
-                                                            :style="{ color: kdaColor(sesssionData.teamTwo[i - 1]?.userTag.recentData.kda) }">{{
-                                                                sesssionData.teamTwo[i - 1]?.userTag.recentData.kda
+                                                            :style="{ color: kdaColor(sessionData.teamTwo[i - 1]?.userTag.recentData.kda) }">{{
+                                                                sessionData.teamTwo[i - 1]?.userTag.recentData.kda
                                                             }}</span>
                                                         <span>
                                                             <span
-                                                                :style="{ color: killsColor(sesssionData.teamTwo[i - 1]?.userTag.recentData.kills) }">
-                                                                {{ sesssionData.teamTwo[i - 1]?.userTag.recentData.kills
+                                                                :style="{ color: killsColor(sessionData.teamTwo[i - 1]?.userTag.recentData.kills) }">
+                                                                {{ sessionData.teamTwo[i - 1]?.userTag.recentData.kills
                                                                 }}
                                                             </span>/
                                                             <span
-                                                                :style="{ color: deathsColor(sesssionData.teamTwo[i - 1]?.userTag.recentData.deaths) }">{{
-                                                                    sesssionData.teamTwo[i - 1]?.userTag.recentData.deaths
+                                                                :style="{ color: deathsColor(sessionData.teamTwo[i - 1]?.userTag.recentData.deaths) }">{{
+                                                                    sessionData.teamTwo[i - 1]?.userTag.recentData.deaths
                                                                 }}</span>
                                                             /
                                                             <span
-                                                                :style="{ color: assistsColor(sesssionData.teamTwo[i - 1]?.userTag.recentData.assists) }">{{
-                                                                    sesssionData.teamTwo[i - 1]?.userTag.recentData.assists
+                                                                :style="{ color: assistsColor(sessionData.teamTwo[i - 1]?.userTag.recentData.assists) }">{{
+                                                                    sessionData.teamTwo[i - 1]?.userTag.recentData.assists
                                                                 }}</span>
                                                         </span>
 
@@ -400,26 +411,26 @@
                                                 </span>
                                             </n-flex>
                                             <n-flex class="stats-item" justify="space-between">
-                                                <span class="stats-label"> 胜率（{{ sesssionData.typeCn ?
-                                                    sesssionData.typeCn :
+                                                <span class="stats-label"> 胜率（{{ sessionData.typeCn ?
+                                                    sessionData.typeCn :
                                                     "单双排" }}）:</span>
                                                 <n-flex>
                                                     <span style="width: 65px;"
-                                                        :style="{ color: groupRateColor(sesssionData.teamTwo[i - 1]?.userTag.recentData.groupRate) }">
-                                                        <n-progress type="line" :percentage="winRate(sesssionData.teamTwo[i -
-                                                            1]?.userTag.recentData, sesssionData.type)" :height="6"
-                                                            :show-indicator="false" :color="winRateColor(winRate(sesssionData.teamTwo[i -
-                                                                1]?.userTag.recentData, sesssionData.type))" processing
+                                                        :style="{ color: groupRateColor(sessionData.teamTwo[i - 1]?.userTag.recentData.groupRate) }">
+                                                        <n-progress type="line" :percentage="winRate(sessionData.teamTwo[i -
+                                                            1]?.userTag.recentData, sessionData.type)" :height="6"
+                                                            :show-indicator="false" :color="winRateColor(winRate(sessionData.teamTwo[i -
+                                                                1]?.userTag.recentData, sessionData.type))" processing
                                                             :stroke-width="10"
                                                             style="position: relative; top: 7px;"></n-progress>
                                                     </span>
                                                     <span class="stats-value" :style="{
-                                                        color: winRateColor(winRate(sesssionData.teamTwo[i -
-                                                            1]?.userTag.recentData, sesssionData.type))
+                                                        color: winRateColor(winRate(sessionData.teamTwo[i -
+                                                            1]?.userTag.recentData, sessionData.type))
                                                     }">
                                                         {{
-                                                            winRate(sesssionData.teamTwo[i -
-                                                                1]?.userTag.recentData, sesssionData.type)
+                                                            winRate(sessionData.teamTwo[i -
+                                                                1]?.userTag.recentData, sessionData.type)
                                                         }}%
                                                     </span>
 
@@ -429,17 +440,17 @@
                                                 <span class="stats-label"> 参团率：</span>
                                                 <n-flex>
                                                     <span style="width: 65px;"
-                                                        :style="{ color: groupRateColor(sesssionData.teamTwo[i - 1]?.userTag.recentData.groupRate) }">
+                                                        :style="{ color: groupRateColor(sessionData.teamTwo[i - 1]?.userTag.recentData.groupRate) }">
                                                         <n-progress type="line"
-                                                            :percentage="sesssionData.teamTwo[i - 1]?.userTag.recentData.groupRate"
+                                                            :percentage="sessionData.teamTwo[i - 1]?.userTag.recentData.groupRate"
                                                             :height="6" :show-indicator="false"
-                                                            :color="groupRateColor(sesssionData.teamTwo[i - 1]?.userTag.recentData.groupRate)"
+                                                            :color="groupRateColor(sessionData.teamTwo[i - 1]?.userTag.recentData.groupRate)"
                                                             processing :stroke-width="10"
                                                             style="position: relative; top: 7px;"></n-progress>
                                                     </span>
                                                     <span class="stats-value"
-                                                        :style="{ color: groupRateColor(sesssionData.teamTwo[i - 1]?.userTag.recentData.groupRate) }">{{
-                                                            sesssionData.teamTwo[i - 1]?.userTag.recentData.groupRate
+                                                        :style="{ color: groupRateColor(sessionData.teamTwo[i - 1]?.userTag.recentData.groupRate) }">{{
+                                                            sessionData.teamTwo[i - 1]?.userTag.recentData.groupRate
                                                         }}%</span>
 
                                                 </n-flex>
@@ -449,19 +460,19 @@
                                                 <span class="stats-value">
                                                     <n-flex>
                                                         <span>
-                                                            {{ sesssionData.teamTwo[i -
+                                                            {{ sessionData.teamTwo[i -
                                                                 1]?.userTag.recentData.averageDamageDealtToChampions }}
                                                         </span>
                                                         <span style="width: 45px;"> <n-progress type="line"
-                                                                :percentage="sesssionData.teamTwo[i - 1]?.userTag.recentData.damageDealtToChampionsRate"
-                                                                :color="otherColor(sesssionData.teamTwo[i - 1]?.userTag.recentData.damageDealtToChampionsRate)"
+                                                                :percentage="sessionData.teamTwo[i - 1]?.userTag.recentData.damageDealtToChampionsRate"
+                                                                :color="otherColor(sessionData.teamTwo[i - 1]?.userTag.recentData.damageDealtToChampionsRate)"
                                                                 :height="6" :show-indicator="false" processing
                                                                 :stroke-width="13"
                                                                 style="position: relative; top: 7px;"></n-progress>
                                                         </span>
                                                         <span class="stats-value"
-                                                            :style="{ color: otherColor(sesssionData.teamTwo[i - 1]?.userTag.recentData.damageDealtToChampionsRate) }">
-                                                            {{ sesssionData.teamTwo[i -
+                                                            :style="{ color: otherColor(sessionData.teamTwo[i - 1]?.userTag.recentData.damageDealtToChampionsRate) }">
+                                                            {{ sessionData.teamTwo[i -
                                                                 1]?.userTag.recentData.damageDealtToChampionsRate }}%
 
                                                         </span>
@@ -487,13 +498,88 @@
 
 <script lang="ts" setup>
 import { CopyOutline, Reload } from '@vicons/ionicons5';
-import { RecentData, Summoner, UserTag } from '@renderer/components/record/model';
+import { Rank, RecentData, Summoner, UserTag } from '@renderer/components/record/model';
 import { MatchHistory } from '@renderer/components/record/MatchHistory.vue';
 import http from '@renderer/services/http';
-import { onMounted, onUnmounted, reactive } from 'vue';
+import { computed, onMounted, onUnmounted, reactive } from 'vue';
 import { kdaColor, deathsColor, assistsColor, otherColor, groupRateColor, killsColor, winRateColor } from '../components/record/composition';
 import { useMessage } from 'naive-ui';
 
+/**
+* Returns the image path for the given rank tier.
+* This function dynamically requires the image based on the provided tier string,
+* converting it to lowercase to ensure correct file name matching.
+*
+* @param {string} tier - The rank tier to get the image for.
+* @returns {string} - The path to the rank tier image.
+*/
+interface ComImgTier {
+  teamOne: { imgUrl: string, tierCn: string }[];
+  teamTwo: { imgUrl: string, tierCn: string }[];
+}
+
+const comImgTier = computed(() => {
+  const comImgTier: ComImgTier = {
+    teamOne: [],
+    teamTwo: [],
+  };
+
+  // 处理 teamOne
+  for (const sessionSummoner of sessionData.teamOne) {
+    let tierNormalized = sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.tier
+      ? sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.tier.toLocaleLowerCase()
+      : 'unranked';
+
+    if (sessionData.type === "RANKED_FLEX_SR" && sessionSummoner.rank.queueMap.RANKED_FLEX_SR.tier) {
+      tierNormalized = sessionSummoner.rank.queueMap.RANKED_FLEX_SR.tier.toLocaleLowerCase();
+    }
+
+    const imgPath = `../assets/imgs/tier/${tierNormalized}.png`;
+    const url = new URL(imgPath, import.meta.url).href;
+
+    let tierCn = sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.tierCn
+      ? sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.tierCn.slice(-2)
+      : '无';
+
+    if (sessionData.type === "RANKED_FLEX_SR" && sessionSummoner.rank.queueMap.RANKED_FLEX_SR.tierCn) {
+      tierCn = sessionSummoner.rank.queueMap.RANKED_FLEX_SR.tierCn.slice(-2);
+    }
+
+    comImgTier.teamOne.push({
+      imgUrl: url,
+      tierCn: tierCn,
+    });
+  }
+
+  // 处理 teamTwo
+  for (const sessionSummoner of sessionData.teamTwo) {
+    let tierNormalized = sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.tier
+      ? sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.tier.toLocaleLowerCase()
+      : 'unranked';
+
+    if (sessionData.type === "RANKED_FLEX_SR" && sessionSummoner.rank.queueMap.RANKED_FLEX_SR.tier) {
+      tierNormalized = sessionSummoner.rank.queueMap.RANKED_FLEX_SR.tier.toLocaleLowerCase();
+    }
+
+    const imgPath = `../assets/imgs/tier/${tierNormalized}.png`;
+    const url = new URL(imgPath, import.meta.url).href;
+
+    let tierCn = sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.tierCn.slice(-2)
+      ? sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.tierCn
+      : '无';
+
+    if (sessionData.type === "RANKED_FLEX_SR" && sessionSummoner.rank.queueMap.RANKED_FLEX_SR.tierCn) {
+      tierCn = sessionSummoner.rank.queueMap.RANKED_FLEX_SR.tierCn.slice(-2);
+    }
+
+    comImgTier.teamTwo.push({
+      imgUrl: url,
+      tierCn: tierCn,
+    });
+  }
+
+  return comImgTier;
+});
 
 interface SessionData {
     phase: string;
@@ -509,22 +595,43 @@ interface SessionSummoner {
     summoner: Summoner
     matchHistory: MatchHistory
     userTag: UserTag
+    rank: Rank
+
 }
-const sesssionData = reactive<SessionData>(
+const sessionData = reactive<SessionData>(
     {
         phase: "",
         type: "",
         typeCn: "",
         teamOne: [],
-        teamTwo: []
-    }
+        teamTwo: [],
+
+    },
+
 );
 let timer: ReturnType<typeof setInterval> | null = null;
-onMounted(async () => {
-    await GetSessionData(); // 假设 GetSessionData 是一个返回 Promise 的函数
-    timer = setInterval(() => {
-        GetSessionData();
-    }, 25000);
+var isRequesting = false;
+
+onMounted(() => {
+    // 第一次请求
+    (async () => {
+        await GetSessionData();
+    })();
+
+    // 启动定时器
+    timer = setInterval(async () => {
+        if (!isRequesting) {
+            try {
+                isRequesting = true; // 设置为请求中
+                await GetSessionData(); // 等待请求完成
+            } catch (error) {
+                console.error('请求失败', error);
+                // 错误处理，例如重试机制等
+            } finally {
+                isRequesting = false; // 请求完成，允许下一个请求
+            }
+        }
+    }, 5000);
 });
 
 onUnmounted(() => {
@@ -532,20 +639,18 @@ onUnmounted(() => {
         clearInterval(timer); // 在组件卸载时清理定时器
     }
 });
-
 async function GetSessionData() {
+
     const res = await http.get<SessionData>("/GetSessionData");
-    console.log(res.data);
     if (res.status === 200) {
-        if (res.data.phase && !sesssionData.phase) {
-            sesssionData.phase = res.data.phase;
-            sesssionData.type = res.data.type;
-            sesssionData.typeCn = res.data.typeCn;
-            sesssionData.teamOne = res.data.teamOne;
-            sesssionData.teamTwo = res.data.teamTwo;
+        if (res.data.phase && !sessionData.phase) {
+            sessionData.phase = res.data.phase;
+            sessionData.type = res.data.type;
+            sessionData.typeCn = res.data.typeCn;
+            sessionData.teamOne = res.data.teamOne;
+            sessionData.teamTwo = res.data.teamTwo;
         }
     }
-    console.log(sesssionData);
 }
 function winRate(rencentData: RecentData, type: string) {
     if (type == "") {
@@ -568,6 +673,8 @@ const copy = (nameId) => {
             message.error("复制失败");
         });
 }
+
+
 </script>
 <style lang="css" scoped>
 .champion-img {

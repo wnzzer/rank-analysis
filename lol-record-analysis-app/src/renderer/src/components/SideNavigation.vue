@@ -71,10 +71,9 @@ import { Component, computed, h, onMounted, ref } from 'vue';
 import { defaultSummoner, Summoner } from './record/model';
 
 
-let timer: ReturnType<typeof setInterval> | null = null;
 onMounted(() => {
     getGetMySummoner().then(() => {
-        timer = setInterval(() => {
+        setInterval(() => {
             getGetMySummoner();
         }, 10000);
     })

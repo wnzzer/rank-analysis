@@ -212,7 +212,7 @@
 
 <script  lang="ts" setup>
 import http from '@renderer/services/http';
-import { CopyOutline, Server, Star, Accessibility, ColorWand } from '@vicons/ionicons5'
+import { CopyOutline, Server,  Accessibility} from '@vicons/ionicons5'
 import { onMounted, ref } from 'vue';
 
 import { NCard, NFlex, NButton, NIcon, useMessage } from 'naive-ui';
@@ -370,6 +370,7 @@ const requireImg = (tier: string) => {
   // 返回图片的URL
   return new URL(imgPath, import.meta.url).href;
 };
+
 const message = useMessage();
 const copy = () => {
   navigator.clipboard.writeText(summoner.value.summoner.gameName + "#" + summoner.value.summoner.tagLine)
