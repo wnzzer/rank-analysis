@@ -29,11 +29,15 @@ type SessionSummoner struct {
 	Summoner       client.Summoner     `json:"summoner"`
 	MatchHistory   client.MatchHistory `json:"matchHistory"`
 	UserTag        UserTag             `json:"userTag"`
+	Rank           client.Rank         `json:"rank"`
 }
+
+var lastSessionChampionData SessionData
+var lastSession client.Session = client.Session{}
 
 func curSessionChampion() (SessionData, error) {
 	phase, _ := client.GetPhase()
-	if phase != client.ChampSelect && phase != client.InProgress && phase != client.PreEndOfGame {
+	if phase != client.ChampSelect && phase != client.InProgress && phase != client.PreEndOfGame && phase != client.EndOfGame {
 		return SessionData{}, nil
 	}
 	session, err := client.GetSession()
@@ -42,6 +46,15 @@ func curSessionChampion() (SessionData, error) {
 	if err != nil {
 		return SessionData{}, nil
 	}
+	//一致则返回缓存
+	if isOneGame(session, lastSession) {
+		return lastSessionChampionData, nil
+	}
+	if lastSessionChampionData.Phase == session.Phase && lastSessionChampionData.Type == session.GameData.Queue.Type {
+		return lastSessionChampionData, nil
+	}
+	lastSessionChampionData = sessionData
+	lastSession = session
 	sessionData.Phase = session.Phase
 	sessionData.Type = session.GameData.Queue.Type
 	sessionData.TypeCn = client.QueueTypeToCn[session.GameData.Queue.Type]
@@ -56,6 +69,7 @@ func curSessionChampion() (SessionData, error) {
 			EndIndex: 2,
 		}, false)
 		userTag, _ := GetTagCore(summoner.Puuid, "")
+		rank, _ := client.GetRankByPuuid(summoner.Puuid)
 		sessionData.TeamOne = append(sessionData.TeamOne,
 			SessionSummoner{
 				ChampionId:     summonerPlayer.ChampionId,
@@ -63,6 +77,7 @@ func curSessionChampion() (SessionData, error) {
 				Summoner:       summoner,
 				MatchHistory:   *matchHistory,
 				UserTag:        *userTag,
+				Rank:           rank,
 			},
 		)
 	}
@@ -87,6 +102,27 @@ func curSessionChampion() (SessionData, error) {
 			},
 		)
 	}
+	lastSessionChampionData = sessionData
 	return sessionData, nil
 
+}
+func isOneGame(session client.Session, lastSession client.Session) bool {
+	if len(session.GameData.TeamOne) != len(lastSession.GameData.TeamOne) {
+		return false
+	}
+	for i, _ := range session.GameData.TeamOne {
+		if session.GameData.TeamOne[i].Puuid != lastSession.GameData.TeamOne[i].Puuid {
+			return false
+
+		}
+	}
+	if len(session.GameData.TeamTwo) != len(lastSession.GameData.TeamTwo) {
+		return false
+	}
+	for i, _ := range session.GameData.TeamTwo {
+		if session.GameData.TeamTwo[i].Puuid != lastSession.GameData.TeamTwo[i].Puuid {
+			return false
+		}
+	}
+	return true
 }

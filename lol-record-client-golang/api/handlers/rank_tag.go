@@ -270,7 +270,7 @@ func isCasualTag(matchHistory *client.MatchHistory) RankTag {
 		}
 	}
 	if i > 10 {
-		tag := "娱乐玩家"
+		tag := "娱乐"
 		return RankTag{Good: false, TagName: tag, TagDesc: desc}
 	} else {
 		return RankTag{}
@@ -279,9 +279,9 @@ func isCasualTag(matchHistory *client.MatchHistory) RankTag {
 func isSpecialPlayerTag(matchHistory *client.MatchHistory) []RankTag {
 	var tags []RankTag
 	var BadSpecialChampion = map[int]string{
-		901: "小火龙玩家",
-		141: "凯隐玩家",
-		10:  "天使玩家",
+		901: "小火龙",
+		141: "凯隐",
+		10:  "天使",
 	}
 	desc := "该玩家使用上述英雄比例较高(由于英雄特殊定位,风评相对糟糕的英雄玩家)"
 	//糟糕英雄标签选取

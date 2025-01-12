@@ -32,7 +32,7 @@ var SGPServerIdToName = map[string]string{
 	"VN2":   "越南",
 }
 var TierEnToCn = map[string]string{
-	"UNRANKED":    "未定级",
+	"UNRANKED":    "无",
 	"IRON":        "坚韧黑铁",
 	"BRONZE":      "英勇黄铜",
 	"SILVER":      "不屈白银",
@@ -43,7 +43,7 @@ var TierEnToCn = map[string]string{
 	"MASTER":      "超凡大师",
 	"GRANDMASTER": "傲世宗师",
 	"CHALLENGER":  "最强王者",
-	"":            "未定级",
+	"":            "无",
 }
 var QueueTypeToCn = map[string]string{
 	"RANKED_SOLO_5x5": "单双排",
