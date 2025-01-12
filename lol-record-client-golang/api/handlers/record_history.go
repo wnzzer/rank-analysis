@@ -103,6 +103,7 @@ func GetMatchHistoryCore(params MatchHistoryParams, enrichInfo bool) (*client.Ma
 
 func enrichChampionBase64(matchHistory *client.MatchHistory) {
 	for i, game := range matchHistory.Games.Games {
+		matchHistory.Games.Games[i].QueueName = client.QueueIdToCn[game.QueueId]
 		matchHistory.Games.Games[i].Participants[0].ChampionBase64 = client.GetChampionBase64ById(game.Participants[0].ChampionId)
 	}
 }
@@ -110,7 +111,6 @@ func enrichChampionBase64(matchHistory *client.MatchHistory) {
 // processMatchHistory 处理比赛历史的图标和数据转换
 func processMatchHistory(matchHistory *client.MatchHistory) {
 	for i, games := range matchHistory.Games.Games {
-		matchHistory.Games.Games[i].QueueName = client.QueueIdToCn[games.QueueId]
 
 		for index := range matchHistory.Games.Games[i].Participants {
 			participant := &games.Participants[index]

@@ -32,10 +32,10 @@ type SessionSummoner struct {
 }
 
 func curSessionChampion() (SessionData, error) {
-	//phase, _ := client.GetPhase()
-	//if phase != client.ChampSelect && phase != client.InProgress && phase != client.PreEndOfGame {
-	//	return SessionData{}, nil
-	//}
+	phase, _ := client.GetPhase()
+	if phase != client.ChampSelect && phase != client.InProgress && phase != client.PreEndOfGame {
+		return SessionData{}, nil
+	}
 	session, err := client.GetSession()
 
 	var sessionData = SessionData{}
