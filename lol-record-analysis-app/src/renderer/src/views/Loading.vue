@@ -9,7 +9,7 @@
                     <Reload />
                 </n-icon></span>
         </div>
-        
+
     </div>
 </template>
 <script lang="ts" setup>
@@ -24,6 +24,7 @@ import { Reload } from '@vicons/ionicons5';
     font-weight: 600;
     font-size: 16px;
 }
+
 @keyframes rotate {
     0% {
         transform: rotate(0deg);
