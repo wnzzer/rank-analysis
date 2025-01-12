@@ -60,7 +60,8 @@
                                                 <span>
                                                     <img style="width: 16px;height: 16px;"
                                                         :src="comImgTier.teamOne[i - 1].imgUrl" />
-                                                    <span style="font-size: 8px;">{{comImgTier.teamOne[i - 1].tierCn }}</span>
+                                                    <span style="font-size: 8px;">{{ comImgTier.teamOne[i - 1].tierCn
+                                                        }}</span>
                                                 </span>
 
                                             </n-flex>
@@ -298,7 +299,8 @@
                                                 <span>
                                                     <img style="width: 16px;height: 16px;"
                                                         :src="comImgTier.teamTwo[i - 1]?.imgUrl" />
-                                                    <span style="font-size: 8px;">{{ comImgTier.teamTwo[i - 1]?.tierCn}}</span>
+                                                    <span style="font-size: 8px;">{{ comImgTier.teamTwo[i -
+                                                        1]?.tierCn}}</span>
                                                 </span>
                                             </n-flex>
                                         </n-flex>
@@ -504,7 +506,17 @@ import http from '@renderer/services/http';
 import { computed, onMounted, onUnmounted, reactive } from 'vue';
 import { kdaColor, deathsColor, assistsColor, otherColor, groupRateColor, killsColor, winRateColor } from '../components/record/composition';
 import { useMessage } from 'naive-ui';
-
+import unranked from '@renderer/assets/imgs/tier/unranked.png';
+import bronzed from '@renderer/assets/imgs/tier/bronze.png';
+import silver from '@renderer/assets/imgs/tier/silver.png';
+import gold from '@renderer/assets/imgs/tier/gold.png';
+import platinum from '@renderer/assets/imgs/tier/platinum.png';
+import diamond from '@renderer/assets/imgs/tier/diamond.png';
+import master from '@renderer/assets/imgs/tier/master.png';
+import grandmaster from '@renderer/assets/imgs/tier/grandmaster.png';
+import challenger from '@renderer/assets/imgs/tier/challenger.png';
+import iron from '@renderer/assets/imgs/tier/iron.png';
+import emerald from '@renderer/assets/imgs/tier/emerald.png';
 /**
 * Returns the image path for the given rank tier.
 * This function dynamically requires the image based on the provided tier string,
@@ -514,71 +526,88 @@ import { useMessage } from 'naive-ui';
 * @returns {string} - The path to the rank tier image.
 */
 interface ComImgTier {
-  teamOne: { imgUrl: string, tierCn: string }[];
-  teamTwo: { imgUrl: string, tierCn: string }[];
+    teamOne: { imgUrl: string, tierCn: string }[];
+    teamTwo: { imgUrl: string, tierCn: string }[];
 }
 
 const comImgTier = computed(() => {
-  const comImgTier: ComImgTier = {
-    teamOne: [],
-    teamTwo: [],
-  };
+    const comImgTier: ComImgTier = {
+        teamOne: [],
+        teamTwo: [],
+    };
 
-  // 处理 teamOne
-  for (const sessionSummoner of sessionData.teamOne) {
-    let tierNormalized = sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.tier
-      ? sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.tier.toLocaleLowerCase()
-      : 'unranked';
 
-    if (sessionData.type === "RANKED_FLEX_SR" && sessionSummoner.rank.queueMap.RANKED_FLEX_SR.tier) {
-      tierNormalized = sessionSummoner.rank.queueMap.RANKED_FLEX_SR.tier.toLocaleLowerCase();
+    const tierImages: { [key: string]: any } = {
+        unranked: unranked,
+        bronzed: bronzed,
+        silver: silver,
+        gold: gold,
+        platinum: platinum,
+        diamond: diamond,
+        master: master,
+        grandmaster: grandmaster,
+        challenger: challenger,
+        iron: iron,
+        emerald: emerald,
+    };
+
+
+
+
+
+    // 处理 teamOne
+    for (const sessionSummoner of sessionData.teamOne) {
+        let tierNormalized = sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.tier
+            ? tierImages[sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.tier.toLocaleLowerCase()]
+            : unranked;
+
+        if (sessionData.type === "RANKED_FLEX_SR" && sessionSummoner.rank.queueMap.RANKED_FLEX_SR.tier) {
+            tierNormalized = tierImages[sessionSummoner.rank.queueMap.RANKED_FLEX_SR.tier.toLocaleLowerCase()];
+        }
+
+
+        let tierCn = sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.tierCn
+            ? sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.tierCn.slice(-2)
+            : '无';
+
+        if (sessionData.type === "RANKED_FLEX_SR" && sessionSummoner.rank.queueMap.RANKED_FLEX_SR.tierCn) {
+            tierCn = sessionSummoner.rank.queueMap.RANKED_FLEX_SR.tierCn.slice(-2);
+        }
+
+
+        comImgTier.teamOne.push({
+            imgUrl: tierNormalized,
+            tierCn: tierCn,
+        });
     }
 
-    const imgPath = `../assets/imgs/tier/${tierNormalized}.png`;
-    const url = new URL(imgPath, import.meta.url).href;
+    // 处理 teamTwo
+    for (const sessionSummoner of sessionData.teamTwo) {
+        let tierNormalized = sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.tier
+            ? tierImages[sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.tier.toLocaleLowerCase()]
+            : unranked;
 
-    let tierCn = sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.tierCn
-      ? sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.tierCn.slice(-2)
-      : '无';
+        if (sessionData.type === "RANKED_FLEX_SR" && sessionSummoner.rank.queueMap.RANKED_FLEX_SR.tier) {
+            tierNormalized = tierImages[sessionSummoner.rank.queueMap.RANKED_FLEX_SR.tier.toLocaleLowerCase()];
+        }
 
-    if (sessionData.type === "RANKED_FLEX_SR" && sessionSummoner.rank.queueMap.RANKED_FLEX_SR.tierCn) {
-      tierCn = sessionSummoner.rank.queueMap.RANKED_FLEX_SR.tierCn.slice(-2);
+
+        let tierCn = sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.tierCn
+            ? sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.tierCn.slice(-2)
+            : '无';
+
+        if (sessionData.type === "RANKED_FLEX_SR" && sessionSummoner.rank.queueMap.RANKED_FLEX_SR.tierCn) {
+            tierCn = sessionSummoner.rank.queueMap.RANKED_FLEX_SR.tierCn.slice(-2);
+        }
+
+
+        comImgTier.teamTwo.push({
+            imgUrl: tierNormalized,
+            tierCn: tierCn,
+        });
     }
 
-    comImgTier.teamOne.push({
-      imgUrl: url,
-      tierCn: tierCn,
-    });
-  }
-
-  // 处理 teamTwo
-  for (const sessionSummoner of sessionData.teamTwo) {
-    let tierNormalized = sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.tier
-      ? sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.tier.toLocaleLowerCase()
-      : 'unranked';
-
-    if (sessionData.type === "RANKED_FLEX_SR" && sessionSummoner.rank.queueMap.RANKED_FLEX_SR.tier) {
-      tierNormalized = sessionSummoner.rank.queueMap.RANKED_FLEX_SR.tier.toLocaleLowerCase();
-    }
-
-    const imgPath = `../assets/imgs/tier/${tierNormalized}.png`;
-    const url = new URL(imgPath, import.meta.url).href;
-
-    let tierCn = sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.tierCn.slice(-2)
-      ? sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.tierCn
-      : '无';
-
-    if (sessionData.type === "RANKED_FLEX_SR" && sessionSummoner.rank.queueMap.RANKED_FLEX_SR.tierCn) {
-      tierCn = sessionSummoner.rank.queueMap.RANKED_FLEX_SR.tierCn.slice(-2);
-    }
-
-    comImgTier.teamTwo.push({
-      imgUrl: url,
-      tierCn: tierCn,
-    });
-  }
-
-  return comImgTier;
+    return comImgTier;
 });
 
 interface SessionData {
@@ -612,11 +641,9 @@ const sessionData = reactive<SessionData>(
 let timer: ReturnType<typeof setInterval> | null = null;
 var isRequesting = false;
 
-onMounted(() => {
+onMounted(async () => {
     // 第一次请求
-    (async () => {
-        await GetSessionData();
-    })();
+    await GetSessionData();
 
     // 启动定时器
     timer = setInterval(async () => {

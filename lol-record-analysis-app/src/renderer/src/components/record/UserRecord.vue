@@ -162,7 +162,8 @@
                 :color="groupRateColor(recentData.groupRate)" processing :stroke-width="10"
                 style="position: relative; top: 7px;"></n-progress>
             </span>
-            <span class="stats-value" :style="{color:groupRateColor(recentData.groupRate)}">{{ recentData.groupRate }}%</span>
+            <span class="stats-value" :style="{ color: groupRateColor(recentData.groupRate) }">{{ recentData.groupRate
+              }}%</span>
 
           </n-flex>
         </n-flex>
@@ -173,11 +174,11 @@
               <span>
                 {{ recentData.averageDamageDealtToChampions }}
               </span>
-              <span style="width: 45px;"> <n-progress type="line" :percentage="recentData.damageDealtToChampionsRate" :color="otherColor(recentData.damageDealtToChampionsRate)"
-                  :height="6" :show-indicator="false" processing :stroke-width="13"
-                  style="position: relative; top: 7px;"></n-progress>
+              <span style="width: 45px;"> <n-progress type="line" :percentage="recentData.damageDealtToChampionsRate"
+                  :color="otherColor(recentData.damageDealtToChampionsRate)" :height="6" :show-indicator="false"
+                  processing :stroke-width="13" style="position: relative; top: 7px;"></n-progress>
               </span>
-              <span class="stats-value" :style="{color : otherColor(recentData.damageDealtToChampionsRate)}">
+              <span class="stats-value" :style="{ color: otherColor(recentData.damageDealtToChampionsRate) }">
                 {{ recentData.damageDealtToChampionsRate }}%
 
               </span>
@@ -189,11 +190,11 @@
           <n-flex>
             <span class="stats-value">{{ recentData.averageGold }} </span>
 
-            <span style="width: 45px;"> <n-progress type="line" :percentage="recentData.goldRate" :height="6" :color="otherColor(recentData.goldRate)"
-                :show-indicator="false" processing :stroke-width="13"
+            <span style="width: 45px;"> <n-progress type="line" :percentage="recentData.goldRate" :height="6"
+                :color="otherColor(recentData.goldRate)" :show-indicator="false" processing :stroke-width="13"
                 style="position: relative; top: 7px;"></n-progress>
             </span>
-            <span class="stats-value" :style="{color : otherColor(recentData.goldRate)}">
+            <span class="stats-value" :style="{ color: otherColor(recentData.goldRate) }">
               {{ recentData.goldRate }}%
 
             </span>
@@ -210,16 +211,27 @@
   </n-flex>
 </template>
 
-<script  lang="ts" setup>
+<script lang="ts" setup>
 import http from '@renderer/services/http';
-import { CopyOutline, Server,  Accessibility} from '@vicons/ionicons5'
+import { CopyOutline, Server, Accessibility, } from '@vicons/ionicons5'
 import { onMounted, ref } from 'vue';
 
 import { NCard, NFlex, NButton, NIcon, useMessage } from 'naive-ui';
 import RecordButton from './RecordButton.vue';
 import { useRoute } from 'vue-router';
 import { RankTag, RecentData, SummonerData, UserTag } from './model';
-import { kdaColor,deathsColor,assistsColor,otherColor,groupRateColor,killsColor } from './composition';
+import { kdaColor, deathsColor, assistsColor, otherColor, groupRateColor, killsColor } from './composition';
+import unranked from '@renderer/assets/imgs/tier/unranked.png';
+import bronzed from '@renderer/assets/imgs/tier/bronze.png';
+import silver from '@renderer/assets/imgs/tier/silver.png';
+import gold from '@renderer/assets/imgs/tier/gold.png';
+import platinum from '@renderer/assets/imgs/tier/platinum.png';
+import diamond from '@renderer/assets/imgs/tier/diamond.png';
+import master from '@renderer/assets/imgs/tier/master.png';
+import grandmaster from '@renderer/assets/imgs/tier/grandmaster.png';
+import challenger from '@renderer/assets/imgs/tier/challenger.png';
+import iron from '@renderer/assets/imgs/tier/iron.png';
+import emerald from '@renderer/assets/imgs/tier/emerald.png';
 
 
 
@@ -362,13 +374,25 @@ const getRecordType = (win, loss) => {
 * @returns {string} - The path to the rank tier image.
 */
 const requireImg = (tier: string) => {
+  const tierImages: { [key: string]: any } = {
+    unranked: unranked,
+    bronzed: bronzed,
+    silver: silver,
+    gold: gold,
+    platinum: platinum,
+    diamond: diamond,
+    master: master,
+    grandmaster: grandmaster,
+    challenger: challenger,
+    iron: iron,
+    emerald: emerald,
+  };
+
   // 处理tier为空或为null的情况
   const tierNormalized = tier ? tier.toLocaleLowerCase() : 'unranked';
-  const imgPath = `../../assets/imgs/tier/${tierNormalized}.png`;
 
-
-  // 返回图片的URL
-  return new URL(imgPath, import.meta.url).href;
+  // 返回对应图片路径，如果没有匹配到返回 unranked 图片
+  return tierImages[tierNormalized] || unranked;
 };
 
 const message = useMessage();
