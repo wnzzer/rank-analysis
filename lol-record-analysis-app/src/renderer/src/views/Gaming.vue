@@ -42,7 +42,7 @@
                                         </div>
                                         <n-flex vertical style="gap: 0;">
                                             <n-flex>
-                                                <span style="font-size: 12px; font-weight: bold;">
+                                                <span style="font-size: 11px; font-weight: bold;">
                                                     {{ sessionData.teamOne[i - 1]?.summoner.gameName }}
                                                 </span>
                                             </n-flex>
@@ -115,7 +115,6 @@
                                     <div style="margin-bottom: 2px; margin-top: 3px;">
 
                                         <n-flex>
-                                            <div>
                                                 <span style="visibility: hidden;">
                                                     s
                                                 </span>
@@ -129,7 +128,6 @@
                                                 </n-tooltip>
 
 
-                                            </div>
                                         </n-flex>
                                     </div>
                                     <!-- 20场统计 -->
@@ -281,7 +279,7 @@
                                         </div>
                                         <n-flex vertical style="gap: 0;">
                                             <n-flex>
-                                                <span style="font-size: 12px; font-weight: bold;">
+                                                <span style="font-size: 11px; font-weight: bold;">
                                                     {{ sessionData.teamTwo[i - 1]?.summoner.gameName }}
                                                 </span>
                                             </n-flex>
@@ -353,7 +351,6 @@
                                     <div style="margin-bottom: 2px; margin-top: 3px;">
 
                                         <n-flex>
-                                            <div>
                                                 <span style="visibility: hidden;">
                                                     s
                                                 </span>
@@ -367,7 +364,6 @@
                                                 </n-tooltip>
 
 
-                                            </div>
                                         </n-flex>
                                     </div>
                                     <!-- 20场统计 -->
