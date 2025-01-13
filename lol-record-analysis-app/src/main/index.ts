@@ -9,10 +9,15 @@ function createWindow(): void {
     console.log('Cache cleared on app startup!');
   });
 
+  const iconPath = path.resolve(__dirname, '../../public/assets/logo.png');
+
+
   // Create the browser window.
   const mainWindow = new BrowserWindow({
     width: 900,
     height: 670,
+    icon: iconPath,
+
     show: false,
     autoHideMenuBar: true,
     titleBarStyle: 'hidden',  // Hide native title bar
