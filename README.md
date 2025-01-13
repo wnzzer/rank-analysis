@@ -47,6 +47,11 @@
 > Rank Analysis 会很好地处理中途启动的情景，并始终维持合适的连接状态。
 
 
+## 1.3 软件预览
+   ![本地路径](./lol-record-analysis-app/public/one.png "相对路径演示") 
+
+   ![本地路径](./lol-record-analysis-app/public/two.png "相对路径演示") 
+
 
 
 
