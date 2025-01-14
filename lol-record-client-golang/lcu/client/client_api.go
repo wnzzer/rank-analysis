@@ -299,3 +299,20 @@ func GetSession() (Session, error) {
 	}
 	return session, err
 }
+
+type SelectSession struct {
+	MyTeam []struct {
+		ChampionId int    `json:"championId"`
+		Puuid      string `json:"puuid"`
+	} `json:"myTeam"`
+}
+
+func GetChampSelectSession() (SelectSession, error) {
+	var selectSession SelectSession
+	uri := "lol-champ-select/v1/session"
+	err := util.Get(uri, &selectSession)
+	if err != nil {
+		return SelectSession{}, err
+	}
+	return selectSession, err
+}

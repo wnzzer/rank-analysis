@@ -40,7 +40,18 @@ func curSessionChampion() (SessionData, error) {
 	if phase != client.ChampSelect && phase != client.InProgress && phase != client.PreEndOfGame && phase != client.EndOfGame {
 		return SessionData{}, nil
 	}
-	session, err := client.GetSession()
+	session := client.Session{}
+	var err error
+	if phase == client.ChampSelect {
+		selectSession, err := client.GetChampSelectSession()
+		if err != nil {
+			return SessionData{}, err
+		}
+		session.Phase = client.ChampSelect
+		session.GameData.TeamOne = selectSession.MyTeam
+	} else {
+		session, err = client.GetSession()
+	}
 
 	var sessionData = SessionData{}
 	if err != nil {

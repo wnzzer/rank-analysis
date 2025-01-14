@@ -666,12 +666,16 @@ async function GetSessionData() {
 
     const res = await http.get<SessionData>("/GetSessionData");
     if (res.status === 200) {
-        if (res.data.phase && !sessionData.phase) {
+        if (res.data.phase && !sessionData.phase) { 
             sessionData.phase = res.data.phase;
             sessionData.type = res.data.type;
             sessionData.typeCn = res.data.typeCn;
-            sessionData.teamOne = res.data.teamOne;
-            sessionData.teamTwo = res.data.teamTwo;
+            if(Array.isArray(res.data.teamOne)){
+                sessionData.teamOne = res.data.teamOne;
+            }
+            if(Array.isArray(res.data.teamTwo)){
+                sessionData.teamTwo = res.data.teamTwo;
+            }
         }
     }
 }
