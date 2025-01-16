@@ -11,7 +11,11 @@
         </div>
         <n-flex vertical>
           <n-flex>
-            <span style="font-size: medium; font-weight: 1000;">{{ summoner.summoner.gameName }}</span>
+            <span style="font-size: medium; font-weight: 1000;">
+              <n-ellipsis style="max-width: 128px">
+                {{ summoner.summoner.gameName }}
+              </n-ellipsis>
+            </span>
             <n-button text style="font-size: 12px" @click="copy">
               <n-icon>
                 <copy-outline></copy-outline>

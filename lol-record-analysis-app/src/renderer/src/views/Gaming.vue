@@ -42,9 +42,17 @@
                                         </div>
                                         <n-flex vertical style="gap: 0;">
                                             <n-flex>
-                                                <span style="font-size: 11px; font-weight: bold;">
-                                                    {{ sessionData.teamOne[i - 1]?.summoner.gameName }}
-                                                </span>
+                                                <n-button text>
+
+                                                    <n-button text @click="searchSummoner(sessionData.teamOne[i - 1]?.summoner.gameName + '#' + sessionData.teamOne[i - 1]?.summoner.tagLine)">
+                                                        <n-ellipsis style="max-width: 88px">
+                                                            <span style="font-size: 11px; font-weight: bold;">
+                                                                {{ sessionData.teamOne[i - 1]?.summoner.gameName }}
+                                                            </span> </n-ellipsis>
+
+                                                    </n-button>
+                                                </n-button>
+
                                             </n-flex>
 
                                             <n-flex style="gap: 5px;">
@@ -115,17 +123,17 @@
                                     <div style="margin-bottom: 2px; margin-top: 3px;">
 
                                         <n-flex>
-                                                <span style="visibility: hidden;">
-                                                    s
-                                                </span>
-                                                <n-tooltip trigger="hover"
-                                                    v-for="tag in sessionData.teamOne[i - 1]?.userTag.tag">
-                                                    <template #trigger>
-                                                        <n-button size="tiny" :type="tag.good ? 'primary' : 'error'">
-                                                            {{ tag.tagName }}
-                                                        </n-button> </template>
-                                                    <span>{{ tag.tagDesc }}</span>
-                                                </n-tooltip>
+                                            <span style="visibility: hidden;">
+                                                s
+                                            </span>
+                                            <n-tooltip trigger="hover"
+                                                v-for="tag in sessionData.teamOne[i - 1]?.userTag.tag">
+                                                <template #trigger>
+                                                    <n-button size="tiny" :type="tag.good ? 'primary' : 'error'">
+                                                        {{ tag.tagName }}
+                                                    </n-button> </template>
+                                                <span>{{ tag.tagDesc }}</span>
+                                            </n-tooltip>
 
 
                                         </n-flex>
@@ -279,9 +287,13 @@
                                         </div>
                                         <n-flex vertical style="gap: 0;">
                                             <n-flex>
-                                                <span style="font-size: 11px; font-weight: bold;">
-                                                    {{ sessionData.teamTwo[i - 1]?.summoner.gameName }}
-                                                </span>
+                                                <n-button text @click="searchSummoner(sessionData.teamTwo[i - 1]?.summoner.gameName + '#' + sessionData.teamTwo[i - 1]?.summoner.tagLine)">
+                                                    <n-ellipsis style="max-width: 88px">
+                                                        <span style="font-size: 11px; font-weight: bold;">
+                                                            {{ sessionData.teamTwo[i - 1]?.summoner.gameName }}
+                                                        </span> </n-ellipsis>
+
+                                                </n-button>
                                             </n-flex>
 
                                             <n-flex style="gap: 5px;">
@@ -298,7 +310,7 @@
                                                     <img style="width: 16px;height: 16px;"
                                                         :src="comImgTier.teamTwo[i - 1]?.imgUrl" />
                                                     <span style="font-size: 8px;">{{ comImgTier.teamTwo[i -
-                                                        1]?.tierCn}}</span>
+                                                        1]?.tierCn }}</span>
                                                 </span>
                                             </n-flex>
                                         </n-flex>
@@ -351,17 +363,17 @@
                                     <div style="margin-bottom: 2px; margin-top: 3px;">
 
                                         <n-flex>
-                                                <span style="visibility: hidden;">
-                                                    s
-                                                </span>
-                                                <n-tooltip trigger="hover"
-                                                    v-for="tag in sessionData.teamTwo[i - 1]?.userTag.tag">
-                                                    <template #trigger>
-                                                        <n-button size="tiny" :type="tag.good ? 'primary' : 'error'">
-                                                            {{ tag.tagName }}
-                                                        </n-button> </template>
-                                                    <span>{{ tag.tagDesc }}</span>
-                                                </n-tooltip>
+                                            <span style="visibility: hidden;">
+                                                s
+                                            </span>
+                                            <n-tooltip trigger="hover"
+                                                v-for="tag in sessionData.teamTwo[i - 1]?.userTag.tag">
+                                                <template #trigger>
+                                                    <n-button size="tiny" :type="tag.good ? 'primary' : 'error'">
+                                                        {{ tag.tagName }}
+                                                    </n-button> </template>
+                                                <span>{{ tag.tagDesc }}</span>
+                                            </n-tooltip>
 
 
                                         </n-flex>
@@ -502,6 +514,7 @@ import http from '@renderer/services/http';
 import { computed, onMounted, onUnmounted, reactive } from 'vue';
 import { kdaColor, deathsColor, assistsColor, otherColor, groupRateColor, killsColor, winRateColor } from '../components/record/composition';
 import { useMessage } from 'naive-ui';
+import {searchSummoner} from '@renderer/components/record/composition'
 import unranked from '@renderer/assets/imgs/tier/unranked.png';
 import bronzed from '@renderer/assets/imgs/tier/bronze.png';
 import silver from '@renderer/assets/imgs/tier/silver.png';
@@ -666,18 +679,18 @@ async function GetSessionData() {
 
     const res = await http.get<SessionData>("/GetSessionData");
     if (res.status == 200) {
-        if (res.data.phase != "") { 
+        if (res.data.phase != "") {
             sessionData.phase = res.data.phase;
             sessionData.type = res.data.type;
             sessionData.typeCn = res.data.typeCn;
-            if(Array.isArray(res.data.teamOne)){
+            if (Array.isArray(res.data.teamOne)) {
                 sessionData.teamOne = res.data.teamOne;
-            }else{
+            } else {
                 sessionData.teamOne = [];
             }
-            if(Array.isArray(res.data.teamTwo)){
+            if (Array.isArray(res.data.teamTwo)) {
                 sessionData.teamTwo = res.data.teamTwo;
-            }else{
+            } else {
                 sessionData.teamTwo = [];
             }
         }
