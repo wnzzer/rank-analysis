@@ -665,16 +665,20 @@ onUnmounted(() => {
 async function GetSessionData() {
 
     const res = await http.get<SessionData>("/GetSessionData");
-    if (res.status === 200) {
-        if (res.data.phase && !sessionData.phase) { 
+    if (res.status == 200) {
+        if (res.data.phase != "") { 
             sessionData.phase = res.data.phase;
             sessionData.type = res.data.type;
             sessionData.typeCn = res.data.typeCn;
             if(Array.isArray(res.data.teamOne)){
                 sessionData.teamOne = res.data.teamOne;
+            }else{
+                sessionData.teamOne = [];
             }
             if(Array.isArray(res.data.teamTwo)){
                 sessionData.teamTwo = res.data.teamTwo;
+            }else{
+                sessionData.teamTwo = [];
             }
         }
     }
