@@ -6,107 +6,142 @@
     height="128"
     />
   </div>
-  基于 LCU API 的英雄联盟排位分析工具
+  <h1>基于 LCU API 的英雄联盟排位分析工具</h1>
 </div>
 
 <p align="center">
-    <a href="https://github.com/wnzzer/lol-rank-record-analysis/releases"><img src="https://img.shields.io/github/release/wnzzer/lol-rank-record-analysis.svg?style=flat-square&maxAge=600" alt="Downloads"></a>
+    <a href="https://github.com/wnzzer/lol-rank-record-analysis/releases"><img src="https://img.shields.io/github/release/wnzzer/lol-rank-record-analysis.svg?style=flat-square&maxAge=600" alt="最新版本"></a>
     <a href="https://github.com/wnzzer/lol-rank-record-analysis/releases">
-    <img src="https://img.shields.io/github/downloads/wnzzer/lol-rank-record-analysis/total?style=flat&label=Downloads"></a>
+    <img src="https://img.shields.io/github/downloads/wnzzer/lol-rank-record-analysis/total?style=flat&label=下载次数"></a>
     <a href="https://github.com/wnzzer/lol-rank-record-analysis/stargazers">
-    <img src="https://img.shields.io/github/stars/wnzzer/lol-rank-record-analysis?style=flat&label=Stars">
+    <img src="https://img.shields.io/github/stars/wnzzer/lol-rank-record-analysis?style=flat&label=GitHub Stars">
   </a>
 </p>
 
+---
 
+# 简介
 
-# 1. Rank Analysis
+**Rank Analysis** 是一个基于 Riot 提供的 LCU API 的英雄联盟排位数据分析工具，致力于帮助玩家轻松查询战绩并进行深度对局分析。
 
+---
 
+# 功能特点
 
-## 1.1 已支持功能
+## 已支持功能
 
-- **战绩查询**
-  - 同大区玩家战绩查询
-- **对局分析**
-  - 战绩分析
+### 战绩查询
 
+1. 高低胜率高亮显示
+2. Mvp 显示
+3. 打标签：对连胜、连败、非排位玩家进行标记 
 
+### 对局分析
 
-## 1.2 使用方法
+- 提供详细的战绩数据分析，帮助玩家更好地理解对局表现。
 
-在右侧 Release 中寻找最新的构建版本压缩包，解压后即可运行。
+---
 
-运行时无管理员权限
+# 使用方法
 
-目前仅支持腾讯服
+1. 前往 [Release 页面](https://github.com/wnzzer/lol-rank-record-analysis/releases) 下载最新的构建版本压缩包。
+2. 解压后直接运行，无需管理员权限。
+3. 软件运行时会自动检测游戏客户端，无需考虑启动顺序，支持中途启动并保持稳定连接。
 
-> [!NOTE]
-> 一旦检测到游戏客户端，则会自动连接，无需考虑启动顺序。
+> **注意**
 >
-> Rank Analysis 会很好地处理中途启动的情景，并始终维持合适的连接状态。
+> - 当前仅支持腾讯服务器。
+> - 若游戏客户端正在运行，软件会自动连接并获取相关数据。
 
+---
 
-## 1.3 软件预览
-   ![本地路径](./lol-record-analysis-app/public/one.png "相对路径演示") 
+# 软件预览
 
-   ![本地路径](./lol-record-analysis-app/public/two.png "相对路径演示") 
+![软件界面](./lol-record-analysis-app/public/one.png "软件主界面预览")
 
+![分析功能](./lol-record-analysis-app/public/two.png "分析功能演示")
 
+---
 
+# 安装与开发
 
-# 2. 加入到开发
+## 编译与构建
 
-百密一疏，各种问题总是难以避免，作为使用者，您可以：
+以下是通过源码构建 **Rank Analysis** 的步骤。
 
-## 2.1 GitHub Issues
+### Electron 前端
 
-GitHub Issues 是最重要的反馈渠道，请精准描述您的需求、遇到的问题或任何可行的想法。
+1. 切换到 Electron 主程序目录：
+   ```bash
+   cd ./lol-record-analysis-app
+   ```
+2. 安装依赖：
+   ```bash
+   npm install
+   ```
+3. 开发模式运行：
+   ```bash
+   npm run dev
+   ```
+4. 构建 Windows 版本：
+   ```bash
+   npm run build:win
+   ```
 
-## 2.2 加入开发
+### Golang 后端
 
-如果您对此项目感兴趣，欢迎加入到开发之中，提交 PR，为其添加更多功能。
+1. 切换到 Golang 主程序目录：
+   ```bash
+   cd ./lol-record-client-golang
+   ```
+2. 编译为二进制版本：
+   ```bash
+   go build
+   ```
+3. 将生成的 `lol-record-analysis.exe` 复制到以下路径：
+   ```
+   ./lol-record-analysis-app/dist/win-unpacked/resources/backend/
+   ```
 
-# 3. 编译 & 构建 & 运行
+## 提供反馈
 
-本章节指示如何通过源码构建 Rank-Analysis。
+- 通过 [GitHub Issues](https://github.com/wnzzer/lol-rank-record-analysis/issues) 提交问题或建议。
+- 请尽可能详细地描述问题或需求，以便开发者快速定位和解决问题。
 
-## 3.1 Electron 主程序（前端）
-切换到 electron主程序  `cd .\lol-record-analysis-app`
+## 提交代码
 
-安装依赖：`npm i`
+- Fork 项目并创建新分支。
+- 添加您实现的功能或修复的 Bug。
+- 提交 Pull Request 并附上详细描述。
 
-dev：`npm run dev`
+---
 
-build（for Windows only）: `npm build:win`
+# 致谢与免责声明
 
-## 3.2 Golang 服务端 (后端)
-切换到 Golang主程序  `cd .\lol-record-client-golang\`
+## 致谢
 
-编译为二进制版本 `go build`
+**Rank Analysis** 的开发参考了以下优秀的开源项目，在此对这些项目的贡献者表示衷心感谢：
 
+| 项目名称                                                                                                   | 描述             |
+| ------------------------------------------------------------------------------------------------------ | -------------- |
+| ⭐⭐⭐ [LeagueAkari](https://github.com/Hanxven/LeagueAkari)                                              | 游戏风格与设计思路参考    |
+| ⭐⭐⭐ [League of Legends LCU and Riot Client API Docs](https://github.com/KebsCS/lcu-and-riotclient-api) | LCU API 文档参考   |
+| ⭐⭐ [Seraphine](https://github.com/Zzaphkiel/Seraphine)                                                 | 集成思路参考         |
+| ⭐ [LCU API](https://www.mingweisamuel.com/lcu-schema/tool/#/)                                          | LCU API 早期文档参考 |
 
-之后将 `lol-record-analysis.exe`  复制到打包后的 `lol-rank-record-analysis\lol-record-analysis-app\dist\win-unpacked\resources\backend\` 目录下
+## 免责声明
 
-# 4. 参考
+本软件作为基于 Riot 提供的 League Client Update (LCU) API 开发的辅助工具，由于其设计和实施均未采用侵入性技术手段，理论上不会直接干预或修改游戏数据。
 
-Rank Analysis 的实现参考了许多现有的优秀开源项目，这些项目为软件的部分模块开发提供了清晰的思路指导，特此表示感谢。❤️
+然而需明确指出：
 
-| 项目名称                                                                                                  | 描述                                |
-| --------------------------------------------------------------------------------------------------------- | ----------------------------------- |
-| ⭐⭐⭐ [LeagueAkari](https://github.com/Hanxven/LeagueAkari)                                         | 游戏风风格和设计思路参考   |
-| ⭐⭐⭐ [League of Legends LCU and Riot Client API Docs](https://github.com/KebsCS/lcu-and-riotclient-api) | LCU API 文档参考                    |
-| ⭐⭐ [Seraphine](https://github.com/Zzaphkiel/Seraphine)                                                  | 缝合重灾区，提供了集成思路          
-| ⭐ [LCU API](https://www.mingweisamuel.com/lcu-schema/tool/#/)                                            | LCU API 早期参考文档                |
+1. 未来腾讯可能更新反作弊系统或其他保护服务，可能会对本软件的使用产生兼容性问题。
+2. 使用本软件可能带来包括但不限于游戏账户封禁、数据损坏或其他负面后果。
 
+使用本软件的用户需自行承担由此产生的所有风险与后果。开发者对可能的损失不承担任何责任。
 
+> **提示：**
+> 请遵守相关游戏规则，维护健康公平的游戏环境。
 
-# 5. 免责声明
+---
 
-本软件作为基于 Riot 提供的 League Client Update (LCU) API 开发的辅助工具，由于其设计和实施均未采用侵入性技术手段，理论上不会直接干预或修改游戏数据。然而，需明确指出的是，虽然本软件在原理上并未直接修改游戏内部数据，但在游戏环境的持续更新和演变中 (如未来腾讯可能的反作弊系统或其他保护服务的更新)，无法完全排除由于版本更新导致的兼容性问题或其他意外后果。
-
-特此强调，对于使用本软件可能带来的任何后果，包括但不限于游戏账户的封禁、数据损坏或其他任何形式的游戏体验负面影响，本软件的开发者将不承担任何责任。用户在决定使用本软件时，应充分考虑并自行承担由此产生的所有风险和后果。
-
-本声明旨在全面而详尽地通知用户关于本软件使用的可能风险，以便用户在使用过程中做出充分的风险评估和明智的决策。感谢您的关注，同时敬请遵守相关游戏规则和使用指南，确保一种健康和公平的游戏环境。
-
-[![Star History Chart](https://api.star-history.com/svg?repos=wnzzer/lol-rank-record-analysis&type=Date)](https://star-history.com/#wnzzer/lol-rank-record-analysis&Date)
