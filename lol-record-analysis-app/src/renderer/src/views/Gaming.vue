@@ -44,7 +44,8 @@
                                             <n-flex>
                                                 <n-button text>
 
-                                                    <n-button text @click="searchSummoner(sessionData.teamOne[i - 1]?.summoner.gameName + '#' + sessionData.teamOne[i - 1]?.summoner.tagLine)">
+                                                    <n-button text
+                                                        @click="searchSummoner(sessionData.teamOne[i - 1]?.summoner.gameName + '#' + sessionData.teamOne[i - 1]?.summoner.tagLine)">
                                                         <n-ellipsis style="max-width: 88px">
                                                             <span style="font-size: 11px; font-weight: bold;">
                                                                 {{ sessionData.teamOne[i - 1]?.summoner.gameName }}
@@ -287,7 +288,8 @@
                                         </div>
                                         <n-flex vertical style="gap: 0;">
                                             <n-flex>
-                                                <n-button text @click="searchSummoner(sessionData.teamTwo[i - 1]?.summoner.gameName + '#' + sessionData.teamTwo[i - 1]?.summoner.tagLine)">
+                                                <n-button text
+                                                    @click="searchSummoner(sessionData.teamTwo[i - 1]?.summoner.gameName + '#' + sessionData.teamTwo[i - 1]?.summoner.tagLine)">
                                                     <n-ellipsis style="max-width: 88px">
                                                         <span style="font-size: 11px; font-weight: bold;">
                                                             {{ sessionData.teamTwo[i - 1]?.summoner.gameName }}
@@ -363,9 +365,9 @@
                                     <div style="margin-bottom: 2px; margin-top: 3px;">
 
                                         <n-flex>
-                                            <span style="visibility: hidden;">
-                                                s
-                                            </span>
+                                            <!-- <n-tag type="success" size="small" round >
+                                                <span>队伍 A</span>
+                                            </n-tag> -->
                                             <n-tooltip trigger="hover"
                                                 v-for="tag in sessionData.teamTwo[i - 1]?.userTag.tag">
                                                 <template #trigger>
@@ -514,7 +516,7 @@ import http from '@renderer/services/http';
 import { computed, onMounted, onUnmounted, reactive } from 'vue';
 import { kdaColor, deathsColor, assistsColor, otherColor, groupRateColor, killsColor, winRateColor } from '../components/record/composition';
 import { useMessage } from 'naive-ui';
-import {searchSummoner} from '@renderer/components/record/composition'
+import { searchSummoner } from '@renderer/components/record/composition'
 import unranked from '@renderer/assets/imgs/tier/unranked.png';
 import bronzed from '@renderer/assets/imgs/tier/bronze.png';
 import silver from '@renderer/assets/imgs/tier/silver.png';
