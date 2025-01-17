@@ -26,6 +26,7 @@ type RecentData struct {
 	GoldRate                      int     `json:"goldRate"`
 	AverageDamageDealtToChampions int     `json:"averageDamageDealtToChampions"`
 	DamageDealtToChampionsRate    int     `json:"damageDealtToChampionsRate"`
+	//GamePlayers                   []string `json:"gamePlayers"` // 遇到用户的 puuid
 }
 
 type RankTag struct {
@@ -142,6 +143,14 @@ func GetTagCore(puuid string, name string) (*UserTag, error) {
 		return &userTag, nil
 	}
 }
+
+//func getMyFriends(matchHistory *client.MatchHistory) () {
+//	friendsCountMap := make(map[string]int)
+//	for _, games := range matchHistory.Games.Games {
+//
+//	}
+//}
+
 func countGoldAndGroupAndDamageDealtToChampions(matchHistory *client.MatchHistory) (int, int, int, int, int) {
 	count := 1
 	myGold := 0
