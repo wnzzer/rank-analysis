@@ -13,22 +13,23 @@ import (
 )
 
 type RecentData struct {
-	KDA                           float64  `json:"kda"`
-	Kills                         float64  `json:"kills"`
-	Deaths                        float64  `json:"deaths"`
-	Assists                       float64  `json:"assists"`
-	Wins                          int      `json:"wins"`
-	Losses                        int      `json:"losses"`
-	FlexWins                      int      `json:"flexWins"`
-	FlexLosses                    int      `json:"flexLosses"`
-	GroupRate                     int      `json:"groupRate"`
-	AverageGold                   int      `json:"averageGold"`
-	GoldRate                      int      `json:"goldRate"`
-	AverageDamageDealtToChampions int      `json:"averageDamageDealtToChampions"`
-	DamageDealtToChampionsRate    int      `json:"damageDealtToChampionsRate"`
-	OneGamePlayers                []string `json:"gamePlayers"` // 遇到用户的 puuid
+	KDA                           float64                    `json:"kda"`
+	Kills                         float64                    `json:"kills"`
+	Deaths                        float64                    `json:"deaths"`
+	Assists                       float64                    `json:"assists"`
+	Wins                          int                        `json:"wins"`
+	Losses                        int                        `json:"losses"`
+	FlexWins                      int                        `json:"flexWins"`
+	FlexLosses                    int                        `json:"flexLosses"`
+	GroupRate                     int                        `json:"groupRate"`
+	AverageGold                   int                        `json:"averageGold"`
+	GoldRate                      int                        `json:"goldRate"`
+	AverageDamageDealtToChampions int                        `json:"averageDamageDealtToChampions"`
+	DamageDealtToChampionsRate    int                        `json:"damageDealtToChampionsRate"`
+	OneGamePlayers                map[string][]OneGamePlayer `json:"gamePlayers"` // 遇到用户的 puuid
 }
 type OneGamePlayer struct {
+	Index          int    `json:"index"` //用于标记第几页,第几个
 	GameId         int    `json:"gameId"`
 	Puuid          string `json:"puuid"`
 	GameName       string `json:"gameName"`
@@ -126,6 +127,9 @@ func GetTagCore(puuid string, name string) (*UserTag, error) {
 			tags = append(tags, specialPlayerTag...)
 		}
 
+		//获取该玩家局内的所有玩家
+		oneGamePlayerMap := getOneGamePlayers(&matchHistory)
+
 		//计算 kda,胜率,参团率,伤害转换率
 		kills, death, assists := countKda(&matchHistory)
 		kda := (kills + assists) / death
@@ -151,6 +155,7 @@ func GetTagCore(puuid string, name string) (*UserTag, error) {
 				GoldRate:                      goldRate,
 				AverageDamageDealtToChampions: averageDamageDealtToChampions,
 				DamageDealtToChampionsRate:    DamageDealtToChampionsRate,
+				OneGamePlayers:                oneGamePlayerMap,
 			},
 			Tag: tags,
 		}
@@ -158,15 +163,28 @@ func GetTagCore(puuid string, name string) (*UserTag, error) {
 	}
 }
 
-//func getOneGamePlayersAndFriends(matchHistory *client.MatchHistory, myPuuid string) {
-//	OneGamePlayerMap := make(map[string][]OneGamePlayer)
-//	for _, games := range matchHistory.Games.Games {
-//		if games.QueueId != client.QueueSolo5x5 && games.QueueId != client.QueueFlex {
-//			continue
-//		}
-//
-//	}
-//}
+func getOneGamePlayers(matchHistory *client.MatchHistory) map[string][]OneGamePlayer {
+	oneGamePlayerMap := make(map[string][]OneGamePlayer)
+	for index, games := range matchHistory.Games.Games {
+		myTeamId := games.Participants[0].TeamId
+		for i := 0; i < len(games.GameDetail.ParticipantIdentities); i++ {
+			oneGamePlayerMap[games.GameDetail.ParticipantIdentities[i].Player.Puuid] = append(oneGamePlayerMap[games.GameDetail.ParticipantIdentities[i].Player.SummonerName], OneGamePlayer{
+				Index:          index,
+				GameId:         games.GameId,
+				IsMyTeam:       myTeamId == games.GameDetail.Participants[i].TeamId,
+				GameName:       games.GameDetail.ParticipantIdentities[i].Player.SummonerName,
+				TagLine:        games.GameDetail.ParticipantIdentities[i].Player.TagLine,
+				ChampionId:     games.GameDetail.Participants[i].ChampionId,
+				ChampionBase64: client.GetChampionBase64ById(games.GameDetail.Participants[i].ChampionId),
+				Kills:          games.GameDetail.Participants[i].Stats.Kills,
+				Deaths:         games.GameDetail.Participants[i].Stats.Deaths,
+				Assists:        games.GameDetail.Participants[i].Stats.Assists,
+				Win:            games.GameDetail.Participants[i].Stats.Win,
+			})
+		}
+	}
+	return oneGamePlayerMap
+}
 
 func countGoldAndGroupAndDamageDealtToChampions(matchHistory *client.MatchHistory) (int, int, int, int, int) {
 	count := 1

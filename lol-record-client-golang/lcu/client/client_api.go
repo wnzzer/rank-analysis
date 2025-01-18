@@ -202,6 +202,7 @@ type GameDetail struct {
 	ParticipantIdentities []struct {
 		Player struct {
 			AccountId    int    `json:"accountId"`
+			Puuid        string `json:"puuid"`
 			PlatformId   string `json:"platformId"`
 			SummonerName string `json:"summonerName"`
 			GameName     string `json:"gameName"`
@@ -278,16 +279,14 @@ type Session struct {
 		Queue struct {
 			Type string `json:"type"`
 		} `json:"queue"`
-		TeamOne []struct {
-			ChampionId int    `json:"championId"`
-			Puuid      string `json:"puuid"`
-		} `json:"teamOne"`
-		TeamTwo []struct {
-			ChampionId int    `json:"championId"`
-			Puuid      string `json:"puuid"`
-		} `json:"teamTwo"`
+		TeamOne []OnePlayer `json:"teamOne"`
+		TeamTwo []OnePlayer `json:"teamTwo"`
 	} `json:"gameData"`
 	Phase string `json:"phase"`
+}
+type OnePlayer struct {
+	ChampionId int    `json:"championId"`
+	Puuid      string `json:"puuid"`
 }
 
 func GetSession() (Session, error) {
@@ -301,10 +300,7 @@ func GetSession() (Session, error) {
 }
 
 type SelectSession struct {
-	MyTeam []struct {
-		ChampionId int    `json:"championId"`
-		Puuid      string `json:"puuid"`
-	} `json:"myTeam"`
+	MyTeam []OnePlayer `json:"myTeam"`
 }
 
 func GetChampSelectSession() (SelectSession, error) {
