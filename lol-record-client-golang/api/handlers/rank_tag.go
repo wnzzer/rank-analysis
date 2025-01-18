@@ -13,20 +13,33 @@ import (
 )
 
 type RecentData struct {
-	KDA                           float64 `json:"kda"`
-	Kills                         float64 `json:"kills"`
-	Deaths                        float64 `json:"deaths"`
-	Assists                       float64 `json:"assists"`
-	Wins                          int     `json:"wins"`
-	Losses                        int     `json:"losses"`
-	FlexWins                      int     `json:"flexWins"`
-	FlexLosses                    int     `json:"flexLosses"`
-	GroupRate                     int     `json:"groupRate"`
-	AverageGold                   int     `json:"averageGold"`
-	GoldRate                      int     `json:"goldRate"`
-	AverageDamageDealtToChampions int     `json:"averageDamageDealtToChampions"`
-	DamageDealtToChampionsRate    int     `json:"damageDealtToChampionsRate"`
-	//GamePlayers                   []string `json:"gamePlayers"` // 遇到用户的 puuid
+	KDA                           float64  `json:"kda"`
+	Kills                         float64  `json:"kills"`
+	Deaths                        float64  `json:"deaths"`
+	Assists                       float64  `json:"assists"`
+	Wins                          int      `json:"wins"`
+	Losses                        int      `json:"losses"`
+	FlexWins                      int      `json:"flexWins"`
+	FlexLosses                    int      `json:"flexLosses"`
+	GroupRate                     int      `json:"groupRate"`
+	AverageGold                   int      `json:"averageGold"`
+	GoldRate                      int      `json:"goldRate"`
+	AverageDamageDealtToChampions int      `json:"averageDamageDealtToChampions"`
+	DamageDealtToChampionsRate    int      `json:"damageDealtToChampionsRate"`
+	OneGamePlayers                []string `json:"gamePlayers"` // 遇到用户的 puuid
+}
+type OneGamePlayer struct {
+	GameId         int    `json:"gameId"`
+	Puuid          string `json:"puuid"`
+	GameName       string `json:"gameName"`
+	TagLine        string `json:"tagLine"`
+	ChampionId     int    `json:"championId"`
+	ChampionBase64 string `json:"championBase64"`
+	Win            bool   `json:"win"`
+	Kills          int    `json:"kills"`
+	Deaths         int    `json:"deaths"`
+	Assists        int    `json:"assists"`
+	IsMyTeam       bool   `json:"isMyTeam"`
 }
 
 type RankTag struct {
@@ -54,6 +67,7 @@ func GetTag(c *gin.Context) {
 	}
 
 }
+
 func GetTagCore(puuid string, name string) (*UserTag, error) {
 
 	if name != "" {
@@ -144,9 +158,12 @@ func GetTagCore(puuid string, name string) (*UserTag, error) {
 	}
 }
 
-//func getMyFriends(matchHistory *client.MatchHistory) () {
-//	friendsCountMap := make(map[string]int)
+//func getOneGamePlayersAndFriends(matchHistory *client.MatchHistory, myPuuid string) {
+//	OneGamePlayerMap := make(map[string][]OneGamePlayer)
 //	for _, games := range matchHistory.Games.Games {
+//		if games.QueueId != client.QueueSolo5x5 && games.QueueId != client.QueueFlex {
+//			continue
+//		}
 //
 //	}
 //}

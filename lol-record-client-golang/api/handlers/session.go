@@ -60,27 +60,35 @@ func curSessionChampion() (SessionData, error) {
 	if phase != client.ChampSelect && phase != client.InProgress && phase != client.PreEndOfGame && phase != client.EndOfGame {
 		return SessionData{}, nil
 	}
-	session := client.Session{}
+	session, _ := client.GetSession()
 	// 判断是否在选英雄阶段
 	if phase == client.ChampSelect {
 		selectSession, err := client.GetChampSelectSession()
 		if err != nil {
 			return SessionData{}, err
 		}
-		session.Phase = client.ChampSelect
 		session.GameData.TeamOne = selectSession.MyTeam
-	} else {
-		gameFlowSession, err := client.GetSession()
-		if err != nil {
-			return SessionData{}, err
-		}
-		session = gameFlowSession
+		session.GameData.TeamTwo = session.GameData.TeamTwo[:0]
+
 	}
 
 	var sessionData = SessionData{}
 	sessionData.Phase = session.Phase
 	sessionData.Type = session.GameData.Queue.Type
 	sessionData.TypeCn = client.QueueTypeToCn[session.GameData.Queue.Type]
+
+	// 反转自己到队伍1
+	needSwap := true
+	for _, playerSummoner := range session.GameData.TeamOne {
+		mySummoner, _ := client.GetCurSummoner()
+		if playerSummoner.Puuid == mySummoner.Puuid {
+			needSwap = false
+		}
+	}
+	if needSwap {
+
+		session.GameData.TeamOne, session.GameData.TeamTwo = session.GameData.TeamTwo, session.GameData.TeamOne
+	}
 
 	// 处理队伍一
 	for _, summonerPlayer := range session.GameData.TeamOne {
