@@ -699,16 +699,27 @@ async function GetSessionData() {
     }
 }
 function winRate(rencentData: RecentData, type: string) {
-    if (type == "") {
-        return 0
+    if (type === "") {
+        return 0;
     }
-    if (type === "RANKED_FLEX_SR") {
 
-        return Math.round((rencentData.flexWins) / (rencentData.flexWins + rencentData.flexLosses) * 100)
+    if (type === "RANKED_FLEX_SR") {
+        // 处理分母为 0 的情况
+        const totalFlexGames = rencentData.flexWins + rencentData.flexLosses;
+        if (totalFlexGames === 0) {
+            return 0; // 或者可以选择返回 null、-1、或者其他你认为合适的值
+        }
+        return Math.round((rencentData.flexWins) / totalFlexGames * 100);
     } else {
-        return Math.round(rencentData.wins / (rencentData.wins + rencentData.losses) * 100)
+        // 处理分母为 0 的情况
+        const totalGames = rencentData.wins + rencentData.losses;
+        if (totalGames === 0) {
+            return 0; // 同样可以根据需求返回其他值
+        }
+        return Math.round(rencentData.wins / totalGames * 100);
     }
 }
+
 const message = useMessage();
 const copy = (nameId) => {
     navigator.clipboard.writeText(nameId)
