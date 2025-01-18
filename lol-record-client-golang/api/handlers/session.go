@@ -106,7 +106,7 @@ func processTeam(team []client.OnePlayer, result *[]SessionSummoner) {
 			BegIndex: 0,
 			EndIndex: 2,
 		}, false)
-		userTag, _ = GetTagCore(summoner.Puuid, "")
+		userTag, _ = GetTagCore(summoner.Puuid, "", true)
 		rank, _ = client.GetRankByPuuid(summoner.Puuid)
 
 		// 构造 SessionSummoner 数据
@@ -166,10 +166,28 @@ func curSessionChampion() (SessionData, error) {
 	// 处理队伍一和队伍二
 	processTeam(session.GameData.TeamOne, &sessionData.TeamOne)
 	processTeam(session.GameData.TeamTwo, &sessionData.TeamTwo)
+	//标记队伍
+	//addPreGroupMarkers(&sessionData)
 	//处理遇到过标签
 	insertMeetGamersRecord(&sessionData, mySummoner.Puuid)
 
+	//删除Tag标记
+	deleteMeetGamersRecord(&sessionData)
+
 	return sessionData, nil
+}
+
+// 这部分图标较多,用完删掉
+func deleteMeetGamersRecord(sessionData *SessionData) {
+	for i, _ := range sessionData.TeamOne {
+		sessionSummoner := &sessionData.TeamOne[i]
+		sessionSummoner.UserTag.RecentData.OneGamePlayers = make(map[string][]OneGamePlayer)
+	}
+	for i, _ := range sessionData.TeamTwo {
+		sessionSummoner := &sessionData.TeamTwo[i]
+		sessionSummoner.UserTag.RecentData.OneGamePlayers = make(map[string][]OneGamePlayer)
+	}
+
 }
 func insertMeetGamersRecord(sessionData *SessionData, myPuuid string) {
 	mySessionSummoner, _ := getCache(myPuuid)

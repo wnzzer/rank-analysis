@@ -26,7 +26,7 @@ type RecentData struct {
 	GoldRate                      int                        `json:"goldRate"`
 	AverageDamageDealtToChampions int                        `json:"averageDamageDealtToChampions"`
 	DamageDealtToChampionsRate    int                        `json:"damageDealtToChampionsRate"`
-	OneGamePlayers                map[string][]OneGamePlayer `json:"gamePlayers"` // 遇到用户的 puuid
+	OneGamePlayers                map[string][]OneGamePlayer `json:"oneGamePlayers"` // 遇到用户的 puuid
 }
 type OneGamePlayer struct {
 	Index          int    `json:"index"` //用于标记第几页,第几个
@@ -57,7 +57,7 @@ type UserTag struct {
 func GetTag(c *gin.Context) {
 	puuid := c.DefaultQuery("puuid", "")
 	name := c.DefaultQuery("name", "")
-	userTag, err := GetTagCore(puuid, name)
+	userTag, err := GetTagCore(puuid, name, false)
 	if err != nil {
 		init_log.AppLog.Error("GetTagCore() failed,%v", err)
 		c.JSON(http.StatusOK, gin.H{
@@ -69,7 +69,7 @@ func GetTag(c *gin.Context) {
 
 }
 
-func GetTagCore(puuid string, name string) (*UserTag, error) {
+func GetTagCore(puuid string, name string, boolOneGamePlayers bool) (*UserTag, error) {
 
 	if name != "" {
 		summoner, _ := client.GetSummonerByName(name)
@@ -84,7 +84,7 @@ func GetTagCore(puuid string, name string) (*UserTag, error) {
 	if puuid == "" {
 		return nil, errors.New("puuid or name is empty")
 	} else {
-		matchHistory, _ := client.GetMatchHistoryByPuuid(puuid, 0, 39)
+		matchHistory, _ := client.GetMatchHistoryByPuuid(puuid, 0, 19)
 
 		var wg sync.WaitGroup
 		for i, games := range matchHistory.Games.Games {
@@ -128,7 +128,10 @@ func GetTagCore(puuid string, name string) (*UserTag, error) {
 		}
 
 		//获取该玩家局内的所有玩家
-		oneGamePlayerMap := getOneGamePlayers(&matchHistory)
+		var oneGamePlayerMap map[string][]OneGamePlayer
+		if boolOneGamePlayers {
+			oneGamePlayerMap = getOneGamePlayers(&matchHistory)
+		}
 
 		//计算 kda,胜率,参团率,伤害转换率
 		kills, death, assists := countKda(&matchHistory)
