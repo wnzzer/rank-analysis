@@ -6,7 +6,7 @@
   "author": "wnzzer",
   "homepage": "https://electron-vite.org",
   "build": {
-    "appId": "com.example.app",
+    "appId": "com.rank-analysis.app",
     "win": {
       "icon": "../public/assets/logo.png" 
     }
@@ -18,13 +18,13 @@
     "typecheck:web": "vue-tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "start": "electron-vite preview",
-    "dev": "electron-vite dev",
+    "predev": "cd ../lol-record-client-golang && go build -o ../lol-record-analysis-app/backend/lol-record-analysis.exe",
+    "dev": "npm run predev && electron-vite dev",
     "build": "npm run typecheck && electron-vite build",
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "npm run build && electron-builder --dir",
-    "build:win": "npm run build && electron-builder --win",
-    "build:mac": "npm run build && electron-builder --mac",
-    "build:linux": "npm run build && electron-builder --linux"
+    "postbuild": "cd ../lol-record-client-golang && go build -o ../lol-record-analysis-app/dist/win-unpacked/resources/backend/lol-record-analysis.exe", 
+    "build:win": "npm run build && electron-builder --win && npm run postbuild"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.0",
