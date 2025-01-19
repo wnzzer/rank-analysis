@@ -73,8 +73,8 @@ type SessionSummoner struct {
 	PreGroupMarkers PreGroupMaker       `json:"preGroupMarkers"`
 }
 type PreGroupMaker struct {
-	Name  string
-	Color string
+	Name string `json:"name"`
+	Type string `json:"type"`
 }
 
 // 处理队伍的公共函数
@@ -284,10 +284,10 @@ func addPreGroupMarkers(sessionData *SessionData) {
 	for _, team := range mergedTeams {
 		//预先标记的队伍名和颜色
 		var preGroupMakerConsts = []PreGroupMaker{
-			{Name: "队伍1", Color: "#A1DDB8"},
-			{Name: "队伍2", Color: "#4BC9ED"},
-			{Name: "队伍3", Color: "#D68582"},
-			{Name: "队伍4", Color: "#D68784"},
+			{Name: "队伍1", Type: "success"},
+			{Name: "队伍2", Type: "warning"},
+			{Name: "队伍3", Type: "error"},
+			{Name: "队伍4", Type: "info"},
 		}
 		// 如果存在两个或者两个以上成员
 		intersectionTeamOne := intersection(team, teamOnePuuids)

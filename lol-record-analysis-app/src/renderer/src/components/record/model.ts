@@ -66,7 +66,23 @@ export interface Summoner {
     goldRate: number;
     averageDamageDealtToChampions: number;
     damageDealtToChampionsRate: number;
+    oneGamePlayers: Record<string, OneGamePlayer[]>; // 对应 Go 中的 map[string][]OneGamePlayer
   }
+  export interface OneGamePlayer {
+    index: number;            // 用于标记第几页,第几个
+    gameId: number;
+    puuid: string;
+    gameName: string;
+    tagLine: string;
+    championId: number;
+    championBase64: string;
+    win: boolean;
+    kills: number;
+    deaths: number;
+    assists: number;
+    isMyTeam: boolean;
+}
+
   
   export interface RankTag {
     good: boolean;

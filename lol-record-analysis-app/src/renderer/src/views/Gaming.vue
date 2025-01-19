@@ -124,9 +124,9 @@
                                     <div style="margin-bottom: 2px; margin-top: 3px;">
 
                                         <n-flex>
-                                            <span style="visibility: hidden;">
-                                                s
-                                            </span>
+                                            <n-tag  v-if="sessionData.teamOne[i - 1].preGroupMarkers?.name" size="small" :type="sessionData.teamOne[i - 1].preGroupMarkers.type">
+                                             {{sessionData.teamOne[i - 1].preGroupMarkers.name  }}
+                                            </n-tag>
                                             <n-tooltip trigger="hover"
                                                 v-for="tag in sessionData.teamOne[i - 1]?.userTag.tag">
                                                 <template #trigger>
@@ -365,9 +365,9 @@
                                     <div style="margin-bottom: 2px; margin-top: 3px;">
 
                                         <n-flex>
-                                            <!-- <n-tag type="success" size="small" round >
-                                                <span>队伍 A</span>
-                                            </n-tag> -->
+                                            <n-tag  v-if="sessionData.teamTwo[i - 1].preGroupMarkers?.name" size="small" :type="sessionData.teamTwo[i - 1].preGroupMarkers.type">
+                                             {{sessionData.teamTwo[i - 1].preGroupMarkers.name}}
+                                            </n-tag>
                                             <n-tooltip trigger="hover"
                                                 v-for="tag in sessionData.teamTwo[i - 1]?.userTag.tag">
                                                 <template #trigger>
@@ -510,7 +510,7 @@
 
 <script lang="ts" setup>
 import { CopyOutline, Reload } from '@vicons/ionicons5';
-import { Rank, RecentData, Summoner, UserTag } from '@renderer/components/record/model';
+import { OneGamePlayer, Rank, RecentData, Summoner, UserTag } from '@renderer/components/record/model';
 import { MatchHistory } from '@renderer/components/record/MatchHistory.vue';
 import http from '@renderer/services/http';
 import { computed, onMounted, onUnmounted, reactive } from 'vue';
@@ -636,7 +636,13 @@ interface SessionSummoner {
     matchHistory: MatchHistory
     userTag: UserTag
     rank: Rank
+    meetGames: OneGamePlayer[]
+    preGroupMarkers: PreGroupMarkers
 
+}
+interface PreGroupMarkers {
+    name: string
+    type: string
 }
 const sessionData = reactive<SessionData>(
     {

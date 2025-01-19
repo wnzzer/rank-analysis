@@ -316,6 +316,7 @@ const recentData = ref<RecentData>({
   goldRate: 0,
   averageDamageDealtToChampions: 0,
   damageDealtToChampionsRate: 0,
+  oneGamePlayers: {}
 })
 const tags = ref<RankTag[]>([])
 const getTags = async (name: string) => {
