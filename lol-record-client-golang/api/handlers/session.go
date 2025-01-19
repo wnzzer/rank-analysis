@@ -167,10 +167,9 @@ func curSessionChampion() (SessionData, error) {
 	processTeam(session.GameData.TeamOne, &sessionData.TeamOne)
 	processTeam(session.GameData.TeamTwo, &sessionData.TeamTwo)
 	//标记队伍
-	//addPreGroupMarkers(&sessionData)
+	addPreGroupMarkers(&sessionData)
 	//处理遇到过标签
 	insertMeetGamersRecord(&sessionData, mySummoner.Puuid)
-
 	//删除Tag标记
 	deleteMeetGamersRecord(&sessionData)
 
@@ -245,7 +244,7 @@ func addPreGroupMarkers(sessionData *SessionData) {
 		allMaybeTeams = append(allMaybeTeams, theTeams)
 	}
 
-	var currentGamePuuids map[string]bool
+	var currentGamePuuids = make(map[string]bool)
 	var teamOnePuuids []string
 	var teamTwoPuuids []string
 	for _, summoner := range sessionData.TeamOne {
@@ -290,7 +289,7 @@ func addPreGroupMarkers(sessionData *SessionData) {
 			{Name: "队伍3", Color: "#D68582"},
 			{Name: "队伍4", Color: "#D68784"},
 		}
-		// 如果存在两个成员
+		// 如果存在两个或者两个以上成员
 		intersectionTeamOne := intersection(team, teamOnePuuids)
 		intersectionTeamTwo := intersection(team, teamTwoPuuids)
 		if len(intersectionTeamOne) >= 2 {
@@ -302,6 +301,7 @@ func addPreGroupMarkers(sessionData *SessionData) {
 				}
 			}
 		} else if len(intersectionTeamTwo) >= 2 {
+			constIndex++
 			for i, _ := range sessionData.TeamTwo {
 				sessionSummoner := &sessionData.TeamOne[i]
 				if oneInArr(sessionSummoner.Summoner.Puuid, intersectionTeamTwo) {
