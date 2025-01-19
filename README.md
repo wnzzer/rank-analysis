@@ -69,6 +69,18 @@
 
 以下是通过源码构建 **Rank Analysis** 的步骤。
 
+
+### 1. 一键编译
+>rank-analysis 内置了一键编译脚本，可以一键编译并生成 Windows 版本。
+
+1. 切换到前端项目的根目录 `./lol-record-analysis-app`。
+
+2. 运行一键编译脚本： `npm run build:win`
+
+3. 打开 `./lol-record-analysis-app/dist/win-unpacked` 目录，即可看到生成的 Windows 版本。
+
+## 2. 分别编译
+
 ### Electron 前端
 
 1. 切换到 Electron 主程序目录：
