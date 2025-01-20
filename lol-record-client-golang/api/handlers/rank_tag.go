@@ -26,7 +26,7 @@ type RecentData struct {
 	GoldRate                      int                        `json:"goldRate"`
 	AverageDamageDealtToChampions int                        `json:"averageDamageDealtToChampions"`
 	DamageDealtToChampionsRate    int                        `json:"damageDealtToChampionsRate"`
-	OneGamePlayers                map[string][]OneGamePlayer `json:"oneGamePlayers"` // 遇到用户的 puuid
+	OneGamePlayersMap             map[string][]OneGamePlayer `json:"oneGamePlayers"` // 遇到用户的 puuid
 }
 type OneGamePlayer struct {
 	Index          int    `json:"index"` //用于标记第几页,第几个
@@ -158,7 +158,7 @@ func GetTagCore(puuid string, name string, boolOneGamePlayers bool) (*UserTag, e
 				GoldRate:                      goldRate,
 				AverageDamageDealtToChampions: averageDamageDealtToChampions,
 				DamageDealtToChampionsRate:    DamageDealtToChampionsRate,
-				OneGamePlayers:                oneGamePlayerMap,
+				OneGamePlayersMap:             oneGamePlayerMap,
 			},
 			Tag: tags,
 		}

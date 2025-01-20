@@ -5,6 +5,7 @@ import (
 	lru "github.com/hashicorp/golang-lru"
 	"lol-record-analysis/lcu/client"
 	"lol-record-analysis/util/init_log"
+	"sort"
 	"time"
 )
 
@@ -180,11 +181,11 @@ func curSessionChampion() (SessionData, error) {
 func deleteMeetGamersRecord(sessionData *SessionData) {
 	for i, _ := range sessionData.TeamOne {
 		sessionSummoner := &sessionData.TeamOne[i]
-		sessionSummoner.UserTag.RecentData.OneGamePlayers = make(map[string][]OneGamePlayer)
+		sessionSummoner.UserTag.RecentData.OneGamePlayersMap = make(map[string][]OneGamePlayer)
 	}
 	for i, _ := range sessionData.TeamTwo {
 		sessionSummoner := &sessionData.TeamTwo[i]
-		sessionSummoner.UserTag.RecentData.OneGamePlayers = make(map[string][]OneGamePlayer)
+		sessionSummoner.UserTag.RecentData.OneGamePlayersMap = make(map[string][]OneGamePlayer)
 	}
 
 }
@@ -195,18 +196,19 @@ func insertMeetGamersRecord(sessionData *SessionData, myPuuid string) {
 		if sessionSummoner.Summoner.Puuid == myPuuid {
 			continue
 		}
-		sessionSummoner.MeetGamers = mySessionSummoner.UserTag.RecentData.OneGamePlayers[sessionSummoner.Summoner.Puuid]
+		sessionSummoner.MeetGamers = mySessionSummoner.UserTag.RecentData.OneGamePlayersMap[sessionSummoner.Summoner.Puuid]
 	}
 	for _, sessionSummoner := range sessionData.TeamTwo {
 		if sessionSummoner.Summoner.Puuid == myPuuid {
 			continue
 		}
-		sessionSummoner.MeetGamers = mySessionSummoner.UserTag.RecentData.OneGamePlayers[sessionSummoner.Summoner.Puuid]
+		sessionSummoner.MeetGamers = mySessionSummoner.UserTag.RecentData.OneGamePlayersMap[sessionSummoner.Summoner.Puuid]
 	}
 }
 func addPreGroupMarkers(sessionData *SessionData) {
 	// 一起玩三次且是队友则判断为预组队队友
-	myTeamThreshold := 3
+	friendThreshold := 3
+	// 队伍的最少人数
 	theTeamMinSum := 2
 	var allMaybeTeams [][]string
 
@@ -222,24 +224,28 @@ func addPreGroupMarkers(sessionData *SessionData) {
 		currentGamePuuids[summoner.Summoner.Puuid] = true
 	}
 
-	// 统一处理 TeamOne 和 TeamTwo 的逻辑
+	// 统一处理 TeamOne 和 TeamTwo 的逻辑，把可能的队伍存入 allMaybeTeams
 	processTeamForMarkers := func(team []SessionSummoner) {
 		for _, sessionSummoner := range team {
 			var theTeams []string
-			for _, playRecordArr := range sessionSummoner.UserTag.RecentData.OneGamePlayers {
-				myTeamCount := 0
+			for puuid, playRecordArr := range sessionSummoner.UserTag.RecentData.OneGamePlayersMap {
+
+				// 如果不在当前对局中,跳过这个玩家的统计
+				if !currentGamePuuids[puuid] {
+					continue
+				}
+
+				teamCount := 0
 				for _, playRecord := range playRecordArr {
 					if playRecord.IsMyTeam {
-						myTeamCount++
+						teamCount++
 					}
 				}
-				if myTeamCount >= myTeamThreshold {
-					theTeams = append(theTeams, playRecordArr[0].Puuid)
+				if teamCount >= friendThreshold {
+					theTeams = append(theTeams, puuid)
 				}
 			}
-			if len(theTeams) >= theTeamMinSum {
-				allMaybeTeams = append(allMaybeTeams, theTeams)
-			}
+			allMaybeTeams = append(allMaybeTeams, theTeams)
 		}
 	}
 
@@ -249,18 +255,7 @@ func addPreGroupMarkers(sessionData *SessionData) {
 
 	// 合并队伍
 	var mergedTeams [][]string
-	for _, team := range allMaybeTeams {
-		isSubset := false
-		for _, mergedTeam := range mergedTeams {
-			if isSubsetOf(team, mergedTeam) {
-				isSubset = true
-				break
-			}
-		}
-		if !isSubset {
-			mergedTeams = append(mergedTeams, team)
-		}
-	}
+	mergedTeams = removeSubsets(allMaybeTeams)
 
 	// 标记预组队信息
 	constIndex := 0
@@ -274,19 +269,19 @@ func addPreGroupMarkers(sessionData *SessionData) {
 	for _, team := range mergedTeams {
 		intersectionTeamOne := intersection(team, teamOnePuuids)
 		intersectionTeamTwo := intersection(team, teamTwoPuuids)
-		if len(intersectionTeamOne) >= 2 {
+		if len(intersectionTeamOne) >= theTeamMinSum {
 			constIndex++
 			for i := range sessionData.TeamOne {
 				sessionSummoner := &sessionData.TeamOne[i]
-				if oneInArr(sessionSummoner.Summoner.Puuid, intersectionTeamOne) {
+				if oneInArr(sessionSummoner.Summoner.Puuid, intersectionTeamTwo) && sessionSummoner.PreGroupMarkers.Name == "" {
 					sessionSummoner.PreGroupMarkers = preGroupMakerConsts[constIndex]
 				}
 			}
-		} else if len(intersectionTeamTwo) >= 2 {
+		} else if len(intersectionTeamTwo) >= theTeamMinSum {
 			constIndex++
 			for i := range sessionData.TeamTwo {
 				sessionSummoner := &sessionData.TeamTwo[i]
-				if oneInArr(sessionSummoner.Summoner.Puuid, intersectionTeamTwo) {
+				if oneInArr(sessionSummoner.Summoner.Puuid, intersectionTeamTwo) && sessionSummoner.PreGroupMarkers.Name == "" {
 					sessionSummoner.PreGroupMarkers = preGroupMakerConsts[constIndex]
 				}
 			}
@@ -294,14 +289,43 @@ func addPreGroupMarkers(sessionData *SessionData) {
 	}
 }
 
-// 判断是否是子集
-func isSubsetOf(smaller, larger []string) bool {
-	set := make(map[string]bool)
-	for _, elem := range larger {
-		set[elem] = true
+// 去重并保留最大范围的数组
+func removeSubsets(arrays [][]string) [][]string {
+	// 按数组长度排序，确保先处理较大的数组
+	sort.Slice(arrays, func(i, j int) bool {
+		return len(arrays[i]) > len(arrays[j])
+	})
+
+	// 存储去重后的结果
+	var result [][]string
+	for _, arr := range arrays {
+		// 判断当前数组是否被其他数组包含
+		isSubsetFlag := false
+		for _, resArr := range result {
+			if isSubset(arr, resArr) {
+				isSubsetFlag = true
+				break
+			}
+		}
+		// 如果当前数组没有被包含，就加入结果
+		if !isSubsetFlag {
+			result = append(result, arr)
+		}
 	}
-	for _, elem := range smaller {
-		if !set[elem] {
+	return result
+}
+func isSubset(a, b []string) bool {
+	// 如果a的长度大于b的长度，a肯定不可能是b的子集
+	if len(a) >= len(b) {
+		return false
+	}
+	// 使用map存储b中的元素，检查a的元素是否都在b中
+	bMap := make(map[string]struct{}, len(b))
+	for _, item := range b {
+		bMap[item] = struct{}{}
+	}
+	for _, item := range a {
+		if _, found := bMap[item]; !found {
 			return false
 		}
 	}
