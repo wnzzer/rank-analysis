@@ -205,48 +205,14 @@ func insertMeetGamersRecord(sessionData *SessionData, myPuuid string) {
 	}
 }
 func addPreGroupMarkers(sessionData *SessionData) {
-	// 查找历史的组队记录
 	// 一起玩三次且是队友则判断为预组队队友
 	myTeamThreshold := 3
+	theTeamMinSum := 2
 	var allMaybeTeams [][]string
 
-	// 处理 TeamOne 的记录
-	for _, sessionSummoner := range sessionData.TeamOne {
-		var theTeams []string
-		for _, playRecordArr := range sessionSummoner.UserTag.RecentData.OneGamePlayers {
-			myTeamCount := 0
-			for _, playRecord := range playRecordArr {
-				if playRecord.IsMyTeam {
-					myTeamCount++
-				}
-			}
-			if myTeamCount >= myTeamThreshold {
-				theTeams = append(theTeams, playRecordArr[0].Puuid)
-			}
-		}
-		allMaybeTeams = append(allMaybeTeams, theTeams)
-	}
-
-	// 处理 TeamTwo 的记录
-	for _, sessionSummoner := range sessionData.TeamTwo {
-		var theTeams []string
-		for _, playRecordArr := range sessionSummoner.UserTag.RecentData.OneGamePlayers {
-			myTeamCount := 0
-			for _, playRecord := range playRecordArr {
-				if playRecord.IsMyTeam {
-					myTeamCount++
-				}
-			}
-			if myTeamCount >= myTeamThreshold {
-				theTeams = append(theTeams, playRecordArr[0].Puuid)
-			}
-		}
-		allMaybeTeams = append(allMaybeTeams, theTeams)
-	}
-
-	var currentGamePuuids = make(map[string]bool)
-	var teamOnePuuids []string
-	var teamTwoPuuids []string
+	// 获取当前对局所有人的 PUUID
+	currentGamePuuids := make(map[string]bool)
+	var teamOnePuuids, teamTwoPuuids []string
 	for _, summoner := range sessionData.TeamOne {
 		teamOnePuuids = append(teamOnePuuids, summoner.Summoner.Puuid)
 		currentGamePuuids[summoner.Summoner.Puuid] = true
@@ -255,46 +221,62 @@ func addPreGroupMarkers(sessionData *SessionData) {
 		teamTwoPuuids = append(teamTwoPuuids, summoner.Summoner.Puuid)
 		currentGamePuuids[summoner.Summoner.Puuid] = true
 	}
-	var mergedTeams [][]string
-	for _, team := range allMaybeTeams {
-		// 过滤掉不属于当前游戏的 PUUUID
-		var filteredTeam []string
-		for _, puuid := range team {
-			if currentGamePuuids[puuid] {
-				filteredTeam = append(filteredTeam, puuid)
-			}
-		}
 
-		// 如果过滤后的队伍非空，继续进行合并检查
-		if len(filteredTeam) > 0 {
-			isSubset := false
-			for _, mergedTeam := range mergedTeams {
-				if isSubsetOf(filteredTeam, mergedTeam) {
-					isSubset = true
-					break
+	// 统一处理 TeamOne 和 TeamTwo 的逻辑
+	processTeamForMarkers := func(team []SessionSummoner) {
+		for _, sessionSummoner := range team {
+			var theTeams []string
+			for _, playRecordArr := range sessionSummoner.UserTag.RecentData.OneGamePlayers {
+				myTeamCount := 0
+				for _, playRecord := range playRecordArr {
+					if playRecord.IsMyTeam {
+						myTeamCount++
+					}
+				}
+				if myTeamCount >= myTeamThreshold {
+					theTeams = append(theTeams, playRecordArr[0].Puuid)
 				}
 			}
-			if !isSubset {
-				mergedTeams = append(mergedTeams, filteredTeam)
+			if len(theTeams) >= theTeamMinSum {
+				allMaybeTeams = append(allMaybeTeams, theTeams)
 			}
 		}
 	}
 
-	constIndex := 0
-	for _, team := range mergedTeams {
-		//预先标记的队伍名和颜色
-		var preGroupMakerConsts = []PreGroupMaker{
-			{Name: "队伍1", Type: "success"},
-			{Name: "队伍2", Type: "warning"},
-			{Name: "队伍3", Type: "error"},
-			{Name: "队伍4", Type: "info"},
+	// 分别处理 TeamOne 和 TeamTwo
+	processTeamForMarkers(sessionData.TeamOne)
+	processTeamForMarkers(sessionData.TeamTwo)
+
+	// 合并队伍
+	var mergedTeams [][]string
+	for _, team := range allMaybeTeams {
+		isSubset := false
+		for _, mergedTeam := range mergedTeams {
+			if isSubsetOf(team, mergedTeam) {
+				isSubset = true
+				break
+			}
 		}
-		// 如果存在两个或者两个以上成员
+		if !isSubset {
+			mergedTeams = append(mergedTeams, team)
+		}
+	}
+
+	// 标记预组队信息
+	constIndex := 0
+	preGroupMakerConsts := []PreGroupMaker{
+		{Name: "队伍1", Type: "success"},
+		{Name: "队伍2", Type: "warning"},
+		{Name: "队伍3", Type: "error"},
+		{Name: "队伍4", Type: "info"},
+	}
+
+	for _, team := range mergedTeams {
 		intersectionTeamOne := intersection(team, teamOnePuuids)
 		intersectionTeamTwo := intersection(team, teamTwoPuuids)
 		if len(intersectionTeamOne) >= 2 {
 			constIndex++
-			for i, _ := range sessionData.TeamOne {
+			for i := range sessionData.TeamOne {
 				sessionSummoner := &sessionData.TeamOne[i]
 				if oneInArr(sessionSummoner.Summoner.Puuid, intersectionTeamOne) {
 					sessionSummoner.PreGroupMarkers = preGroupMakerConsts[constIndex]
@@ -302,14 +284,13 @@ func addPreGroupMarkers(sessionData *SessionData) {
 			}
 		} else if len(intersectionTeamTwo) >= 2 {
 			constIndex++
-			for i, _ := range sessionData.TeamTwo {
-				sessionSummoner := &sessionData.TeamOne[i]
+			for i := range sessionData.TeamTwo {
+				sessionSummoner := &sessionData.TeamTwo[i]
 				if oneInArr(sessionSummoner.Summoner.Puuid, intersectionTeamTwo) {
 					sessionSummoner.PreGroupMarkers = preGroupMakerConsts[constIndex]
 				}
 			}
 		}
-
 	}
 }
 
@@ -326,6 +307,8 @@ func isSubsetOf(smaller, larger []string) bool {
 	}
 	return true
 }
+
+// 取两个数组的交集
 func intersection(arr1, arr2 []string) []string {
 	// 使用 map 存储 arr1 的元素
 	set := make(map[string]bool)
