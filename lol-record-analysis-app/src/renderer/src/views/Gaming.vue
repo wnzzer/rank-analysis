@@ -124,8 +124,9 @@
                                     <div style="margin-bottom: 2px; margin-top: 3px;">
 
                                         <n-flex>
-                                            <n-tag  v-if="sessionData.teamOne[i - 1].preGroupMarkers?.name" size="small" :type="sessionData.teamOne[i - 1].preGroupMarkers.type">
-                                             {{sessionData.teamOne[i - 1].preGroupMarkers.name  }}
+                                            <n-tag v-if="sessionData.teamOne[i - 1].preGroupMarkers?.name" size="small"
+                                                :type="sessionData.teamOne[i - 1].preGroupMarkers.type">
+                                                {{ sessionData.teamOne[i - 1].preGroupMarkers.name }}
                                             </n-tag>
                                             <n-tooltip trigger="hover"
                                                 v-for="tag in sessionData.teamOne[i - 1]?.userTag.tag">
@@ -166,7 +167,8 @@
                                                                 :style="{ color: killsColor(sessionData.teamOne[i - 1]?.userTag.recentData.kills) }">
                                                                 {{ sessionData.teamOne[i - 1]?.userTag.recentData.kills
                                                                 }}
-                                                            </span>/
+                                                            </span>
+                                                            /
                                                             <span
                                                                 :style="{ color: deathsColor(sessionData.teamOne[i - 1]?.userTag.recentData.deaths) }">{{
                                                                     sessionData.teamOne[i - 1]?.userTag.recentData.deaths
@@ -365,8 +367,9 @@
                                     <div style="margin-bottom: 2px; margin-top: 3px;">
 
                                         <n-flex>
-                                            <n-tag  v-if="sessionData.teamTwo[i - 1].preGroupMarkers?.name" size="small" :type="sessionData.teamTwo[i - 1].preGroupMarkers.type">
-                                             {{sessionData.teamTwo[i - 1].preGroupMarkers.name}}
+                                            <n-tag v-if="sessionData.teamTwo[i - 1].preGroupMarkers?.name" size="small"
+                                                :type="sessionData.teamTwo[i - 1].preGroupMarkers.type">
+                                                {{ sessionData.teamTwo[i - 1].preGroupMarkers.name }}
                                             </n-tag>
                                             <n-tooltip trigger="hover"
                                                 v-for="tag in sessionData.teamTwo[i - 1]?.userTag.tag">
