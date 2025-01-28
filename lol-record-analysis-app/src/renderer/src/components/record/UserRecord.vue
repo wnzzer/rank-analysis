@@ -147,7 +147,8 @@
               <span>
                 <span :style="{ color: killsColor(recentData.kills) }">
                   {{ recentData.kills }}
-                </span>/
+                </span>
+                /
                 <span :style="{ color: deathsColor(recentData.deaths) }">{{ recentData.deaths }}</span>
                 /
                 <span :style="{ color: assistsColor(recentData.assists) }">{{ recentData.assists }}</span>
