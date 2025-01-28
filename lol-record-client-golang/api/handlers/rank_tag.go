@@ -171,7 +171,7 @@ func getOneGamePlayers(matchHistory *client.MatchHistory) map[string][]OneGamePl
 	for index, games := range matchHistory.Games.Games {
 		myTeamId := games.Participants[0].TeamId
 		for i := 0; i < len(games.GameDetail.ParticipantIdentities); i++ {
-			oneGamePlayerMap[games.GameDetail.ParticipantIdentities[i].Player.Puuid] = append(oneGamePlayerMap[games.GameDetail.ParticipantIdentities[i].Player.SummonerName], OneGamePlayer{
+			oneGamePlayerMap[games.GameDetail.ParticipantIdentities[i].Player.Puuid] = append(oneGamePlayerMap[games.GameDetail.ParticipantIdentities[i].Player.Puuid], OneGamePlayer{
 				Index:          index,
 				GameId:         games.GameId,
 				IsMyTeam:       myTeamId == games.GameDetail.Participants[i].TeamId,

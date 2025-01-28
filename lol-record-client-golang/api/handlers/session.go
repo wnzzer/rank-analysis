@@ -192,19 +192,25 @@ func deleteMeetGamersRecord(sessionData *SessionData) {
 func insertMeetGamersRecord(sessionData *SessionData, myPuuid string) {
 	mySessionSummoner, _ := getCache(myPuuid)
 
-	for _, sessionSummoner := range sessionData.TeamOne {
+	// 遍历并修改 TeamOne
+	for i := range sessionData.TeamOne {
+		sessionSummoner := &sessionData.TeamOne[i] // 取切片中元素的地址
 		if sessionSummoner.Summoner.Puuid == myPuuid {
 			continue
 		}
 		sessionSummoner.MeetGamers = mySessionSummoner.UserTag.RecentData.OneGamePlayersMap[sessionSummoner.Summoner.Puuid]
 	}
-	for _, sessionSummoner := range sessionData.TeamTwo {
+
+	// 遍历并修改 TeamTwo
+	for i := range sessionData.TeamTwo {
+		sessionSummoner := &sessionData.TeamTwo[i] // 取切片中元素的地址
 		if sessionSummoner.Summoner.Puuid == myPuuid {
 			continue
 		}
 		sessionSummoner.MeetGamers = mySessionSummoner.UserTag.RecentData.OneGamePlayersMap[sessionSummoner.Summoner.Puuid]
 	}
 }
+
 func addPreGroupMarkers(sessionData *SessionData) {
 	// 一起玩三次且是队友则判断为预组队队友
 	friendThreshold := 3
@@ -270,21 +276,22 @@ func addPreGroupMarkers(sessionData *SessionData) {
 		intersectionTeamOne := intersection(team, teamOnePuuids)
 		intersectionTeamTwo := intersection(team, teamTwoPuuids)
 		if len(intersectionTeamOne) >= theTeamMinSum {
-			constIndex++
 			for i := range sessionData.TeamOne {
 				sessionSummoner := &sessionData.TeamOne[i]
-				if oneInArr(sessionSummoner.Summoner.Puuid, intersectionTeamTwo) && sessionSummoner.PreGroupMarkers.Name == "" {
+				if oneInArr(sessionSummoner.Summoner.Puuid, intersectionTeamOne) && sessionSummoner.PreGroupMarkers.Name == "" {
 					sessionSummoner.PreGroupMarkers = preGroupMakerConsts[constIndex]
 				}
 			}
-		} else if len(intersectionTeamTwo) >= theTeamMinSum {
 			constIndex++
+
+		} else if len(intersectionTeamTwo) >= theTeamMinSum {
 			for i := range sessionData.TeamTwo {
 				sessionSummoner := &sessionData.TeamTwo[i]
 				if oneInArr(sessionSummoner.Summoner.Puuid, intersectionTeamTwo) && sessionSummoner.PreGroupMarkers.Name == "" {
 					sessionSummoner.PreGroupMarkers = preGroupMakerConsts[constIndex]
 				}
 			}
+			constIndex++
 		}
 	}
 }
