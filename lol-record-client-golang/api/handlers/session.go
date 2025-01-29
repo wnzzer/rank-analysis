@@ -273,6 +273,7 @@ func addPreGroupMarkers(sessionData *SessionData) {
 	}
 
 	for _, team := range mergedTeams {
+		marked := false
 		intersectionTeamOne := intersection(team, teamOnePuuids)
 		intersectionTeamTwo := intersection(team, teamTwoPuuids)
 		if len(intersectionTeamOne) >= theTeamMinSum {
@@ -280,17 +281,20 @@ func addPreGroupMarkers(sessionData *SessionData) {
 				sessionSummoner := &sessionData.TeamOne[i]
 				if oneInArr(sessionSummoner.Summoner.Puuid, intersectionTeamOne) && sessionSummoner.PreGroupMarkers.Name == "" {
 					sessionSummoner.PreGroupMarkers = preGroupMakerConsts[constIndex]
+					marked = true
 				}
 			}
-			constIndex++
 
 		} else if len(intersectionTeamTwo) >= theTeamMinSum {
 			for i := range sessionData.TeamTwo {
 				sessionSummoner := &sessionData.TeamTwo[i]
 				if oneInArr(sessionSummoner.Summoner.Puuid, intersectionTeamTwo) && sessionSummoner.PreGroupMarkers.Name == "" {
 					sessionSummoner.PreGroupMarkers = preGroupMakerConsts[constIndex]
+					marked = true
 				}
 			}
+		}
+		if marked {
 			constIndex++
 		}
 	}
