@@ -91,11 +91,11 @@ const comImgTier = computed(() => {
 
 
         let tierCn = sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.tierCn
-            ? sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.tierCn.slice(-2)
+            ? sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.tierCn.slice(-2) + " " +  sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.division 
             : '无';
 
         if (sessionData.type === "RANKED_FLEX_SR" && sessionSummoner.rank.queueMap.RANKED_FLEX_SR.tierCn) {
-            tierCn = sessionSummoner.rank.queueMap.RANKED_FLEX_SR.tierCn.slice(-2);
+            tierCn = sessionSummoner.rank.queueMap.RANKED_FLEX_SR.tierCn.slice(-2) + " " +  sessionSummoner.rank.queueMap.RANKED_FLEX_SR.division;
         }
 
 
@@ -117,11 +117,11 @@ const comImgTier = computed(() => {
 
 
         let tierCn = sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.tierCn
-            ? sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.tierCn.slice(-2)
+            ? sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.tierCn.slice(-2) + " " +  sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.division
             : '无';
 
         if (sessionData.type === "RANKED_FLEX_SR" && sessionSummoner.rank.queueMap.RANKED_FLEX_SR.tierCn) {
-            tierCn = sessionSummoner.rank.queueMap.RANKED_FLEX_SR.tierCn.slice(-2);
+            tierCn = sessionSummoner.rank.queueMap.RANKED_FLEX_SR.tierCn.slice(-2) + " " +  sessionSummoner.rank.queueMap.RANKED_FLEX_SR.division;
         }
 
 

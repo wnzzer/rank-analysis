@@ -7,15 +7,15 @@
 
         <n-flex v-else>
             <!-- 左侧卡片内容 -->
-            <n-flex vertical justify="space-between" style="flex: 3; gap: 4px;">
+            <n-flex vertical  style="flex: 3; gap: 4px;">
                 <!-- 个人概览 -->
                 <n-card :bordered="false" content-style="padding: 0;">
                     <n-flex>
                         <div style="position: relative;">
-                            <img width="33px" height="33px"
-                                :src="sessionSummoner.championBase64 ? sessionSummoner.championBase64 : nullImg" />
+                            <img width="32x" height="32px"
+                                :src="sessionSummoner.championBase64 ? sessionSummoner.championBase64 : nullImg" style="vertical-align: middle;"/>
                             <div
-                                style="position: absolute; bottom: 12px; right: 0; font-size: 10px; width: 20px; height: 10px; text-align: center; line-height: 20px; border-radius: 50%; color: white;">
+                                style="position: absolute; bottom: 9px; right: 0; font-size: 10px; width: 20px; height: 10px; text-align: center; line-height: 20px; border-radius: 50%; color: white;">
                                 {{ sessionSummoner?.summoner.summonerLevel }}
                             </div>
                         </div>
@@ -36,7 +36,7 @@
                             </n-flex>
 
                             <n-flex style="gap: 5px;">
-                                <span style="color: #676768; font-size: 11px;">
+                                <span style="color: #676768; font-size: 11px; margin-top: 2px;">
                                     #{{ sessionSummoner?.summoner.tagLine }}
                                 </span>
                                 <n-button text style="font-size: 12px; position: relative; bottom: 2px;"
@@ -46,7 +46,7 @@
                                     </n-icon>
                                 </n-button>
                                 <span>
-                                    <img style="width: 16px;height: 16px;" :src="imgUrl" />
+                                    <img style="width: 16px;height: 16px ;" :src="imgUrl" />
                                     <span style="font-size: 8px;">{{ tierCn
                                         }}</span>
                                 </span>
@@ -60,7 +60,7 @@
 
                 <div>
                     <n-card v-for="game in sessionSummoner?.matchHistory.games.games"
-                        content-style="padding: 0;" footer-style="padding:0">
+                        content-style="padding: 0;  margin-left:5px;margin-right:5px" footer-style="padding:0">
                         <n-flex justify="space-between" style="gap: 0px; align-items: center;">
                             <span :style="{
                                 fontWeight: '600',
@@ -87,7 +87,7 @@
                                 </span>
 
                             </span>
-                            <span style="font-size: 8px;margin-right: 3px;">
+                            <span style="font-size: 9px;margin-right: 3px;">
                                 {{ game.queueName ? game.queueName : '其他' }}
                             </span>
 
@@ -97,7 +97,7 @@
             </n-flex>
 
             <!-- 中间部分 -->
-            <div style="flex: 5;">
+            <div style="flex: 4;">
                 <flex vertical style="gap: 0px;">
                     <div style="margin-bottom: 2px;">
 
@@ -113,6 +113,7 @@
                                     </n-button> </template>
                                 <span>{{ tag.tagDesc }}</span>
                             </n-tooltip>
+                         
 
 
                         </n-flex>
