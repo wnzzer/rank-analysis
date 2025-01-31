@@ -68,7 +68,7 @@ import http from '@renderer/services/http';
 import { Reload, BarChart, Server, CopyOutline } from '@vicons/ionicons5'
 import { NIcon, useMessage } from 'naive-ui';
 import { Component, computed, h, onMounted, ref } from 'vue';
-import { defaultSummoner, Summoner } from './record/model';
+import { defaultSummoner, Summoner } from './record/type';
 
 
 onMounted(() => {

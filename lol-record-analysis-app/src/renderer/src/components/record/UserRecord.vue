@@ -224,7 +224,7 @@ import { onMounted, ref } from 'vue';
 import { NCard, NFlex, NButton, NIcon, useMessage } from 'naive-ui';
 import RecordButton from './RecordButton.vue';
 import { useRoute } from 'vue-router';
-import { RankTag, RecentData, SummonerData, UserTag } from './model';
+import { RankTag, RecentData, SummonerData, UserTag } from './type';
 import { kdaColor, deathsColor, assistsColor, otherColor, groupRateColor, killsColor } from './composition';
 import unranked from '@renderer/assets/imgs/tier/unranked.png';
 import bronzed from '@renderer/assets/imgs/tier/bronze.png';

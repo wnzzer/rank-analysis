@@ -13,7 +13,7 @@
 
                 </span>
 
-                <span style="color: #676768; font-size: 10px;">
+                <span style="color: #676768; font-size: 11px;">
                     <n-icon style="margin-right: 1px;">
                         <Time></Time>
                     </n-icon>{{ Math.ceil(games.gameDuration / 60) }}分
@@ -31,8 +31,8 @@
             </div>
 
             <n-flex vertical>
-                <span style="font-size: 12px;font-weight: 500;">{{ games.queueName }}</span>
-                <span style="color: #676768; font-size: 10px;">{{ formattedDate }}</span>
+                <span style="font-size: 13px;font-weight: 500;">{{ games.queueName }}</span>
+                <span style="color: #676768; font-size: 11px;">{{ formattedDate }}</span>
             </n-flex>
 
             <n-flex justify="space-between" vertical style="gap: 0px; ">
@@ -53,28 +53,28 @@
                     <span style="margin-left: 20px;">
 
                         <img :src="games.participants[0].spell1Base64 ? games.participants[0].spell1Base64 : itemNull"
-                            style="width: 20px;" alt="item image" />
+                            style="width: 23px;" alt="item image" />
                         <img :src="games.participants[0].spell2Base64 ? games.participants[0].spell2Base64 : itemNull"
-                            style="width: 20px;" alt="item image" />
+                            style="width: 23px;" alt="item image" />
 
                     </span>
 
                 </n-flex>
                 <n-flex style="gap: 2px;">
                     <img :src="games.participants[0].stats?.item0Base64 ? games.participants[0].stats.item0Base64 : itemNull"
-                        style="width: 20px;" alt="item image" />
+                        style="width: 23px;" alt="item image" />
                     <img :src="games.participants[0].stats?.item1Base64 ? games.participants[0].stats.item1Base64 : itemNull"
-                        style="width: 20px;" alt="item image" />
+                        style="width: 23px;" alt="item image" />
                     <img :src="games.participants[0].stats?.item2Base64 ? games.participants[0].stats.item2Base64 : itemNull"
-                        style="width: 20px;" alt="item image" />
+                        style="width: 23px;" alt="item image" />
                     <img :src="games.participants[0].stats?.item3Base64 ? games.participants[0].stats.item3Base64 : itemNull"
-                        style="width: 20px;" alt="item image" />
+                        style="width: 23px;" alt="item image" />
                     <img :src="games.participants[0].stats?.item4Base64 ? games.participants[0].stats.item4Base64 : itemNull"
-                        style="width: 20px;" alt="item image" />
+                        style="width: 23px;" alt="item image" />
                     <img :src="games.participants[0].stats?.item5Base64 ? games.participants[0].stats.item5Base64 : itemNull"
-                        style="width: 20px;" alt="item image" />
+                        style="width: 23px;" alt="item image" />
                     <img :src="games.participants[0].stats?.item6Base64 ? games.participants[0].stats.item6Base64 : itemNull"
-                        style="width: 20px;" alt="item image" />
+                        style="width: 23px;" alt="item image" />
                 </n-flex>
 
 
@@ -249,11 +249,11 @@ function toNameRecord(name: string) {
 .mvp-box {
   display: inline-block;
   width: 20px; /* 调整宽度 */
-  height: 10px; /* 调整高度 */
+  height: 11px; /* 调整高度 */
   color: #000; /* 黑色字体 */
   font-weight: bold; /* 字体加粗 */
   font-size: 8px; /* 小字体 */
-  line-height: 10px; /* 垂直居中 */
+  line-height: 11px; /* 垂直居中 */
   text-align: center; /* 水平居中 */
   border-radius: 2px; /* 圆角 */
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); /* 添加阴影效果 */
