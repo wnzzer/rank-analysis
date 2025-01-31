@@ -1,7 +1,7 @@
 <template>
     <n-card content-style="padding: 2px;" class="win-class"
         :class="{ 'defeat-class': !games.participants[0].stats.win }">
-        <n-flex style="height: 6.7vh;" justify="space-between">
+        <n-flex style="height: 6vh;" justify="space-between">
             <n-flex vertical style="gap: 1px;">
                 <span :style="{
                     fontWeight: '600',
