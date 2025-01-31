@@ -20,7 +20,7 @@
 
                 <n-flex vertical justify="space-between" style="gap: 0; flex: 1; height: 100%;">
                     <n-card v-for="i in 5" :key="i" style="flex: 1; height: 100%;" content-style="padding: 0;">
-                        <div v-if="!sessionData.teamOne || !sessionData.teamOne[i - 1] || !sessionData.teamOne[i - 1].championBase64"
+                        <div v-if="!sessionData.teamOne || !sessionData.teamOne[i - 1] || !sessionData.teamOne[i - 1].summoner.gameName"
                             style="position: relative; width: 100%; height: 100%;">
                             <n-spin size="small"
                                 style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);" />
@@ -34,7 +34,7 @@
                                     <n-flex>
                                         <div style="position: relative;">
                                             <img width="33px" height="33px"
-                                                :src="sessionData.teamOne[i - 1]?.championBase64" />
+                                                :src="sessionData.teamOne[i - 1]?.championBase64? sessionData.teamOne[i - 1]?.championBase64 : nullImg" />
                                             <div
                                                 style="position: absolute; bottom: 12px; right: 0; font-size: 10px; width: 20px; height: 10px; text-align: center; line-height: 20px; border-radius: 50%; color: white;">
                                                 {{ sessionData.teamOne[i - 1]?.summoner.summonerLevel }}
@@ -268,7 +268,7 @@
                 <!-- 右侧部分 -->
                 <n-flex vertical justify="space-between" style="gap: 0; flex: 1; height: 100%;">
                     <n-card v-for="i in 5" :key="i" style="flex: 1; height: 100%;" content-style="padding: 0;">
-                        <div v-if="!sessionData.teamTwo || !sessionData.teamTwo[i - 1] || !sessionData.teamTwo[i - 1].championBase64"
+                        <div v-if="!sessionData.teamTwo || !sessionData.teamTwo[i - 1] || !sessionData.teamTwo[i - 1].summoner.gameName"
                             style="position: relative; width: 100%; height: 100%;">
                             <n-spin size="small"
                                 style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);" />
@@ -282,7 +282,7 @@
                                     <n-flex>
                                         <div style="position: relative;">
                                             <img width="33px" height="33px"
-                                                :src="sessionData.teamTwo[i - 1]?.championBase64" />
+                                                :src="sessionData.teamOne[i - 1]?.championBase64? sessionData.teamOne[i - 1]?.championBase64 : nullImg" />
                                             <div
                                                 style="position: absolute; bottom: 12px; right: 0; font-size: 10px; width: 20px; height: 10px; text-align: center; line-height: 20px; border-radius: 50%; color: white;">
                                                 {{ sessionData.teamTwo[i - 1]?.summoner.summonerLevel }}
@@ -531,6 +531,7 @@ import grandmaster from '@renderer/assets/imgs/tier/grandmaster.png';
 import challenger from '@renderer/assets/imgs/tier/challenger.png';
 import iron from '@renderer/assets/imgs/tier/iron.png';
 import emerald from '@renderer/assets/imgs/tier/emerald.png';
+import nullImg from '@renderer/assets/imgs/item/null.png'
 /**
 * Returns the image path for the given rank tier.
 * This function dynamically requires the image based on the provided tier string,
