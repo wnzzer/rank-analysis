@@ -25,7 +25,7 @@
 
                                     <n-button text
                                         @click="searchSummoner(sessionSummoner?.summoner.gameName + '#' + sessionSummoner?.summoner.tagLine)">
-                                        <n-ellipsis style="max-width: 88px">
+                                        <n-ellipsis style="max-width: 110px">
                                             <span style="font-size: 13px; font-weight: bold;">
                                                 {{ sessionSummoner?.summoner.gameName }}
                                             </span> </n-ellipsis>
@@ -240,7 +240,7 @@ import { SessionSummoner } from "../../components/gaming/type";
 import nullImg from "../../assets/imgs/item/null.png";
 import { RecentData } from '../record/type';
 import { CopyOutline } from '@vicons/ionicons5';
-const props = defineProps<{
+defineProps<{
     sessionSummoner : SessionSummoner
     typeCn: string
     modeType : string
