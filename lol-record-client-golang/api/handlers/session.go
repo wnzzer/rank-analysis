@@ -105,7 +105,7 @@ func processTeam(team []client.OnePlayer, result *[]SessionSummoner) {
 		matchHistory, _ = GetMatchHistoryCore(MatchHistoryParams{
 			Puuid:    summoner.Puuid,
 			BegIndex: 0,
-			EndIndex: 2,
+			EndIndex: 3,
 		}, false)
 		userTag, _ = GetTagCore(summoner.Puuid, "", true)
 		rank, _ = client.GetRankByPuuid(summoner.Puuid)
