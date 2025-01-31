@@ -11,10 +11,8 @@
 
 <p align="center">
     <a href="https://github.com/wnzzer/lol-rank-record-analysis/releases"><img src="https://img.shields.io/github/release/wnzzer/lol-rank-record-analysis.svg?style=flat-square&maxAge=600" alt="最新版本"></a>
-    <a href="https://github.com/wnzzer/lol-rank-record-analysis/releases">
-    <img src="https://img.shields.io/github/downloads/wnzzer/lol-rank-record-analysis/total?style=flat&label=下载次数"></a>
-    <a href="https://github.com/wnzzer/lol-rank-record-analysis/stargazers">
-    <img src="https://img.shields.io/github/stars/wnzzer/lol-rank-record-analysis?style=flat&label=GitHub Stars">
+    <a href="https://github.com/wnzzer/lol-rank-record-analysis/releases"><img src="https://img.shields.io/github/downloads/wnzzer/lol-rank-record-analysis/total?style=flat&label=下载次数"></a>
+    <a href="https://github.com/wnzzer/lol-rank-record-analysis/stargazers"><img src="https://img.shields.io/github/stars/wnzzer/lol-rank-record-analysis?style=flat&label=GitHub Stars">
   </a>
 </p>
 
