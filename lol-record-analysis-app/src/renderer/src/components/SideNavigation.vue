@@ -1,7 +1,7 @@
 <template>
     <n-flex justify="space-between" style="height: 90vh;" vertical>
 
-        <n-menu :collapsed="true" :collapsed-width="60" :collapsed-icon-size="20" @update:value="handleMenuClick"
+        <n-menu :collapsed="true" :collapsed-width="60" :collapsed-icon-size="20" @update:value="handleMenuClick" :value="router.currentRoute.value.name"
             :options="menuOptions" />
         <div class="loadingIcon" style="margin-left: 13px;">
 
