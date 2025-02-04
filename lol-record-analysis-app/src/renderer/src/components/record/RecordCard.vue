@@ -32,7 +32,11 @@
 
             <n-flex vertical>
                 <span style="font-size: 13px;font-weight: 500;">{{ games.queueName }}</span>
-                <span style="color: #676768; font-size: 11px;">{{ formattedDate }}</span>
+                <span style="color: #676768; font-size: 11px;">
+                    <n-icon style="margin-right: 1px;">
+                        <CalendarNumber></CalendarNumber>
+                    </n-icon>
+                    {{ formattedDate }}</span>
             </n-flex>
 
             <n-flex justify="space-between" vertical style="gap: 0px; ">
@@ -138,7 +142,7 @@
 
 
 <script lang="ts" setup>
-import { Time } from '@vicons/ionicons5';
+import { Time,CalendarNumber } from '@vicons/ionicons5';
 import itemNull from '@renderer/assets/imgs/item/null.png';
 import { computed } from 'vue';
 import { Game,} from './MatchHistory.vue';
