@@ -30,6 +30,7 @@ type RecentData struct {
 }
 type OneGamePlayer struct {
 	Index          int    `json:"index"` //用于标记第几页,第几个
+	GameCreatedAt  string `json:"gameCreatedAt"`
 	GameId         int    `json:"gameId"`
 	Puuid          string `json:"puuid"`
 	GameName       string `json:"gameName"`
@@ -174,6 +175,7 @@ func getOneGamePlayers(matchHistory *client.MatchHistory) map[string][]OneGamePl
 			oneGamePlayerMap[games.GameDetail.ParticipantIdentities[i].Player.Puuid] = append(oneGamePlayerMap[games.GameDetail.ParticipantIdentities[i].Player.Puuid], OneGamePlayer{
 				Index:          index,
 				GameId:         games.GameId,
+				GameCreatedAt:  games.GameCreationDate,
 				IsMyTeam:       myTeamId == games.GameDetail.Participants[i].TeamId,
 				GameName:       games.GameDetail.ParticipantIdentities[i].Player.SummonerName,
 				TagLine:        games.GameDetail.ParticipantIdentities[i].Player.TagLine,
