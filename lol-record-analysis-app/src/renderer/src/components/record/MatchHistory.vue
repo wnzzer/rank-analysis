@@ -1,8 +1,8 @@
 <template>
   <n-flex vertical style="height: 100%; position: relative;">
     <n-flex>
-      <n-select v-model:value="filterQueueId" placeholder="按模式筛选" @update:value="handleUpdateValue" :options="modeOptions"
-        style="width: 150px" />
+      <n-select v-model:value="filterQueueId" placeholder="按模式筛选" @update:value="handleUpdateValue"
+        :options="modeOptions" style="width: 150px" />
       <n-select v-model:value="filterChampionId" filterable placeholder="按英雄筛选" @update:value="handleUpdateValue"
         :options="championOptions" style="width: 150px" />
     </n-flex>
@@ -238,7 +238,7 @@ const championOptions = [
 const handleUpdateValue = () => {
   page.value = 1;
   console.log(filterQueueId.value)
-  getHistoryMatch("", 0, 9999);
+  getHistoryMatch("", 0, 1500);
 }
 
 // 类型定义
@@ -365,7 +365,7 @@ const getHistoryMatch = async (name: string, begIndex: number, endIndex: number)
     matchHistory.value = res.data;
     curBegIndex = res.data.beginIndex;
     curEndIndex = res.data.endIndex;
-    
+
     loadingBar.finish(); // 加载完成时结束进度条
   } catch (error) {
     const res = await http.get<MatchHistory>("/GetMatchHistory");
@@ -379,12 +379,13 @@ const getHistoryMatch = async (name: string, begIndex: number, endIndex: number)
 const page = ref(1)
 var curBegIndex = 0;
 var curEndIndex = 0;
-var lastBeginIndex = 0;
-var lastEndIndex = 0;
+
+const pageHistory = ref<{ begIndex: number, endIndex: number }[]>([]);
+
 
 const nextPage = () => {
   if (filterQueueId.value != 0 || filterChampionId.value != 0) {
-    getHistoryMatch(name, curEndIndex + 1, 9999).then(() => {
+    getHistoryMatch(name, curEndIndex + 1, 1500).then(() => {
       page.value++
     });
   } else {
@@ -392,18 +393,23 @@ const nextPage = () => {
       page.value++
     });
   }
-  lastBeginIndex = curBegIndex;
-  lastEndIndex = curEndIndex;
+  pageHistory.value.push({ begIndex: curBegIndex, endIndex: curEndIndex });
 }
 const prevPage = () => {
-  
-  if(filterQueueId.value != 0 || filterChampionId.value != 0) {
-    getHistoryMatch(name, lastBeginIndex, lastEndIndex).then(() => {
+
+  if (filterQueueId.value != 0 || filterChampionId.value != 0) {
+    const lastPage = pageHistory.value.pop();
+    if (!lastPage || lastPage.begIndex == null || lastPage.endIndex == null) {
+      throw new Error("Last page's begIndex or endIndex is null or undefined");
+    }
+    getHistoryMatch(name, lastPage.begIndex, lastPage.endIndex).then(() => {
       page.value--
     });
-  }else {getHistoryMatch(name, (page.value - 2) * 10, (page.value - 2) * 10 + 9).then(() => {
-    page.value--
-  })};
+  } else {
+    getHistoryMatch(name, (page.value - 2) * 10, (page.value - 2) * 10 + 9).then(() => {
+      page.value--
+    })
+  };
 
 }
 

@@ -131,8 +131,8 @@ func getFilterMatchHistory(params MatchHistoryParams) (client.MatchHistory, int,
 	matchHistory := client.MatchHistory{}
 	maxGames := 10 // 设定最大筛选结果数，防止无限循环
 
-	for i := index; i < params.EndIndex; i += 20 {
-		tempMatchHistory, err := client.GetMatchHistoryByPuuid(params.Puuid, i, i+20)
+	for i := index; i < params.EndIndex; i += 100 {
+		tempMatchHistory, err := client.GetMatchHistoryByPuuid(params.Puuid, i, i+100)
 		if err != nil {
 			return matchHistory, index, i, err // 发生错误时立即返回当前已收集的比赛
 		}
