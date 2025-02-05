@@ -44,7 +44,7 @@ import http from '@renderer/services/http';
 import RecordCard from './RecordCard.vue';
 import { ArrowBack, ArrowForward } from '@vicons/ionicons5';
 import { onMounted, ref } from 'vue';
-import { c, useLoadingBar } from 'naive-ui';
+import { useLoadingBar } from 'naive-ui';
 import { useRoute } from 'vue-router';
 
 const filterQueueId = ref(0);
