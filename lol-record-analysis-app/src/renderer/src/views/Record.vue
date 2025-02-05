@@ -6,10 +6,7 @@
     </n-layout-sider>
     <n-layout-content style="flex: 3; padding-left: 5px; padding-right: 5x; padding-top: 5px;padding-bottom: 1px;">
       <div>
-
         <MatchHistory />
-
-
       </div>
     </n-layout-content>
   </n-layout>

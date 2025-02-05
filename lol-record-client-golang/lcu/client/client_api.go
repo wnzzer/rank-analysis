@@ -110,6 +110,8 @@ func GetRankByPuuid(puuid string) (Rank, error) {
 
 type MatchHistory struct {
 	PlatformId string `json:"platformId"`
+	BeginIndex int    `json:"beginIndex"`
+	EndIndex   int    `json:"endIndex"`
 	Games      struct {
 		Games []struct {
 			Mvp                   string     `json:"mvp"`

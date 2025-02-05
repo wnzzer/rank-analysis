@@ -10,10 +10,12 @@ import (
 )
 
 type MatchHistoryParams struct {
-	Puuid    string
-	Name     string
-	BegIndex int
-	EndIndex int
+	Puuid         string
+	Name          string
+	BegIndex      int
+	EndIndex      int
+	filterQueueId int
+	filterChampId int
 }
 
 func GetMatchHistory(c *gin.Context) {
@@ -49,11 +51,16 @@ func extractParamsFromGin(c *gin.Context) (MatchHistoryParams, error) {
 		return MatchHistoryParams{}, errors.New("invalid endIndex")
 	}
 
+	filterQueueId, err := strconv.Atoi(c.DefaultQuery("filterQueueId", "0"))
+	filterChampId, err := strconv.Atoi(c.DefaultQuery("filterChampionId", "0"))
+
 	return MatchHistoryParams{
-		Puuid:    c.DefaultQuery("puuid", ""),
-		Name:     c.DefaultQuery("name", ""),
-		BegIndex: begIndex,
-		EndIndex: endIndex,
+		Puuid:         c.DefaultQuery("puuid", ""),
+		Name:          c.DefaultQuery("name", ""),
+		BegIndex:      begIndex,
+		EndIndex:      endIndex,
+		filterQueueId: filterQueueId,
+		filterChampId: filterChampId,
 	}, nil
 }
 
@@ -83,10 +90,24 @@ func GetMatchHistoryCore(params MatchHistoryParams, enrichInfo bool) (*client.Ma
 	}
 
 	// 获取比赛历史
-	matchHistory, err := client.GetMatchHistoryByPuuid(params.Puuid, params.BegIndex, params.EndIndex)
+	var matchHistory client.MatchHistory
+	var err error
+	beginIndex := params.BegIndex
+	endIndex := params.EndIndex
+	//如果正常无筛选
+	if params.filterChampId == 0 && params.filterQueueId == 0 {
+		matchHistory, err = client.GetMatchHistoryByPuuid(params.Puuid, params.BegIndex, params.EndIndex)
+	}
 	if err != nil {
 		return nil, err
 	}
+	//如果筛选
+	if params.filterChampId != 0 || params.filterQueueId != 0 {
+		matchHistory, beginIndex, endIndex, err = getFilterMatchHistory(params)
+
+	}
+	matchHistory.BeginIndex = beginIndex
+	matchHistory.EndIndex = endIndex
 
 	// 处理装备、天赋、头像等为 base64
 	enrichChampionBase64(&matchHistory)
@@ -102,6 +123,35 @@ func GetMatchHistoryCore(params MatchHistoryParams, enrichInfo bool) (*client.Ma
 	}
 
 	return &matchHistory, nil
+}
+func getFilterMatchHistory(params MatchHistoryParams) (client.MatchHistory, int, int, error) {
+	index := params.BegIndex
+	filterQueueId := params.filterQueueId
+	filterChampId := params.filterChampId
+	matchHistory := client.MatchHistory{}
+	maxGames := 10 // 设定最大筛选结果数，防止无限循环
+
+	for i := index; i < params.EndIndex; i += 20 {
+		tempMatchHistory, err := client.GetMatchHistoryByPuuid(params.Puuid, i, i+20)
+		if err != nil {
+			return matchHistory, index, i, err // 发生错误时立即返回当前已收集的比赛
+		}
+
+		for j, game := range tempMatchHistory.Games.Games {
+			// 进行筛选：如果 filterChampId 和 filterQueueId 都匹配，才添加
+			if (filterChampId == 0 || game.Participants[0].ChampionId == filterChampId) &&
+				(filterQueueId == 0 || game.QueueId == filterQueueId) {
+				matchHistory.Games.Games = append(matchHistory.Games.Games, game)
+			}
+
+			// 如果筛选的比赛数量超出 maxGames，则提前返回
+			if len(matchHistory.Games.Games) >= maxGames {
+				return matchHistory, index, i + j, err
+			}
+		}
+	}
+
+	return matchHistory, index, index, nil
 }
 
 func enrichChampionBase64(matchHistory *client.MatchHistory) {
