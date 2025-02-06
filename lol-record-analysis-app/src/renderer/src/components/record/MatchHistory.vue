@@ -2,9 +2,20 @@
   <n-flex vertical style="height: 100%; position: relative;">
     <n-flex>
       <n-select v-model:value="filterQueueId" placeholder="按模式筛选" @update:value="handleUpdateValue"
-        :options="modeOptions" style="width: 150px" />
+        :options="modeOptions" style="width: 100px" />
       <n-select v-model:value="filterChampionId" filterable placeholder="按英雄筛选" @update:value="handleUpdateValue"
-        :options="championOptions" style="width: 150px" />
+        :options="championOptions" style="width: 100px" />
+
+      <n-tooltip trigger="hover">
+        <template #trigger>
+          <n-button @click="resetFilter" text style="font-size: 24px">
+
+            <n-icon>
+              <Repeat />
+            </n-icon>
+          </n-button> </template>
+        复位
+      </n-tooltip>
     </n-flex>
     <RecordCard v-for="(game, index) in matchHistory?.games?.games || []" :key="index" :record-type="true" :games="game"
       style="flex: 1; display: flex;">
@@ -42,7 +53,7 @@
 <script setup lang="ts">
 import http from '@renderer/services/http';
 import RecordCard from './RecordCard.vue';
-import { ArrowBack, ArrowForward } from '@vicons/ionicons5';
+import { ArrowBack, ArrowForward, Repeat } from '@vicons/ionicons5';
 import { onMounted, ref } from 'vue';
 import { useLoadingBar } from 'naive-ui';
 import { useRoute } from 'vue-router';
@@ -235,11 +246,16 @@ const championOptions = [
   { label: "百裂冥犬", value: 950 }
 ];
 
+const resetFilter = () =>{
+  filterChampionId.value = 0;
+  filterQueueId.value = 0;
+  handleUpdateValue();
+}
 const handleUpdateValue = () => {
   page.value = 1;
-  if(filterChampionId.value != 0 || filterQueueId.value != 0) {
+  if (filterChampionId.value != 0 || filterQueueId.value != 0) {
     getHistoryMatch("", 0, 1500);
-  }else{
+  } else {
     getHistoryMatch("", 0, 9);
   }
 }
