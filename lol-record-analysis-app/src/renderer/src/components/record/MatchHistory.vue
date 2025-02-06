@@ -237,8 +237,11 @@ const championOptions = [
 
 const handleUpdateValue = () => {
   page.value = 1;
-  console.log(filterQueueId.value)
-  getHistoryMatch("", 0, 1500);
+  if(filterChampionId.value != 0 || filterQueueId.value != 0) {
+    getHistoryMatch("", 0, 1500);
+  }else{
+    getHistoryMatch("", 0, 9);
+  }
 }
 
 // 类型定义
