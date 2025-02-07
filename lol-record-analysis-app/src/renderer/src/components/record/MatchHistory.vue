@@ -193,7 +193,7 @@ const championOptions = [
   { label: "德玛西亚之翼", value: 133, realName: "奎因", nickname: "鸟人" },
   { label: "暗黑元首", value: 134, realName: "辛德拉", nickname: "球女" },
   { label: "铸星龙王", value: 136, realName: "奥瑞利安·索尔",nickname: "龙王" },
-  { label: "影流之镰", value: 141, realName: "凯隐&拉亚斯特", nickname: "孤儿" },
+  { label: "影流之镰", value: 141, realName: "凯隐&拉亚斯特", nickname: "" },
   { label: "暮光星灵", value: 142 , realName: "佐伊", nickname: "佐a"},
   { label: "荆棘之兴", value: 143 , realName: "婕拉", nickname: "植物人"},
   { label: "虚空之女", value: 145 , realName: "卡莎", nickname: ""},
