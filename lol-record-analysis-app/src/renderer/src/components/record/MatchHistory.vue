@@ -265,7 +265,7 @@ const resetFilter = () =>{
 const handleUpdateValue = () => {
   page.value = 1;
   if (filterChampionId.value != 0 || filterQueueId.value != 0) {
-    getHistoryMatch("", 0, 1500);
+    getHistoryMatch("", 0, 800);
   } else {
     getHistoryMatch("", 0, 9);
   }
@@ -415,7 +415,7 @@ const pageHistory = ref<{ begIndex: number, endIndex: number }[]>([]);
 
 const nextPage = () => {
   if (filterQueueId.value != 0 || filterChampionId.value != 0) {
-    getHistoryMatch(name, curEndIndex + 1, 1500).then(() => {
+    getHistoryMatch(name, curEndIndex + 1, 800).then(() => {
       page.value++
     });
   } else {
