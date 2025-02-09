@@ -132,6 +132,7 @@ func getFilterMatchHistory(params MatchHistoryParams) (client.MatchHistory, int,
 	maxGames := 10 // 设定最大筛选结果数，防止无限循环
 
 	for i := index; i < params.EndIndex; i += 50 {
+		haveData := false
 		tempMatchHistory, err := client.GetMatchHistoryByPuuid(params.Puuid, i, i+50)
 		if err != nil {
 			return matchHistory, index, i, err // 发生错误时立即返回当前已收集的比赛
@@ -142,10 +143,11 @@ func getFilterMatchHistory(params MatchHistoryParams) (client.MatchHistory, int,
 			if (filterChampId == 0 || game.Participants[0].ChampionId == filterChampId) &&
 				(filterQueueId == 0 || game.QueueId == filterQueueId) {
 				matchHistory.Games.Games = append(matchHistory.Games.Games, game)
+				haveData = true
 			}
 
 			// 如果筛选的比赛数量超出 maxGames，则提前返回
-			if len(matchHistory.Games.Games) >= maxGames {
+			if len(matchHistory.Games.Games) >= maxGames || !haveData {
 				return matchHistory, index, i + j, err
 			}
 		}
