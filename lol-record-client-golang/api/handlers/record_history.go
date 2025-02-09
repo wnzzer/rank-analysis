@@ -147,9 +147,12 @@ func getFilterMatchHistory(params MatchHistoryParams) (client.MatchHistory, int,
 			}
 
 			// 如果筛选的比赛数量超出 maxGames，则提前返回
-			if len(matchHistory.Games.Games) >= maxGames || !haveData {
+			if len(matchHistory.Games.Games) >= maxGames {
 				return matchHistory, index, i + j, err
 			}
+		}
+		if !haveData {
+			return matchHistory, index, i + 50, err
 		}
 	}
 
