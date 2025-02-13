@@ -69,8 +69,7 @@ function getFormattedDate(dateString) {
     const day = date.getDate().toString().padStart(2, '0');  // 确保两位数格式
     return `${month} / ${day}`;
 };
-
-const props = defineProps<{
+defineProps<{
     meetGames: OneGamePlayer[]
 }>();
 </script>
