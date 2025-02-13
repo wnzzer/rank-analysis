@@ -1,19 +1,19 @@
 <template>
-    <n-card  style="flex: 1; height: 100%;" content-style="padding: 0; margin:5px">
-        <div v-if="!sessionSummoner.summoner.gameName"
-            style="position: relative; width: 100%; height: 100%;">
+    <n-card style="flex: 1; height: 100%;" content-style="padding: 0; margin:5px">
+        <div v-if="!sessionSummoner.summoner.gameName" style="position: relative; width: 100%; height: 100%;">
             <n-spin size="small" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);" />
         </div>
 
         <n-flex v-else>
             <!-- 左侧卡片内容 -->
-            <n-flex vertical  style="flex: 3; gap: 4px;">
+            <n-flex vertical style="flex: 3; gap: 4px;">
                 <!-- 个人概览 -->
                 <n-card :bordered="false" content-style="padding: 0;">
                     <n-flex>
                         <div style="position: relative;">
                             <img width="32x" height="32px"
-                                :src="sessionSummoner.championBase64 ? sessionSummoner.championBase64 : nullImg" style="vertical-align: middle;"/>
+                                :src="sessionSummoner.championBase64 ? sessionSummoner.championBase64 : nullImg"
+                                style="vertical-align: middle;" />
                             <div
                                 style="position: absolute; bottom: 9px; right: 0; font-size: 10px; width: 20px; height: 10px; text-align: center; line-height: 20px; border-radius: 50%; color: white;">
                                 {{ sessionSummoner?.summoner.summonerLevel }}
@@ -106,6 +106,14 @@
                                 :type="sessionSummoner.preGroupMarkers.type">
                                 {{ sessionSummoner.preGroupMarkers.name }}
                             </n-tag>
+                            <n-tag v-if="sessionSummoner.meetGames?.length > 0" type="warning" size="small" round>
+                                <n-popover trigger="hover">
+                                    <template #trigger>
+                                        遇见过
+                                    </template>
+                                    <MettingPlayersCard :meet-games="sessionSummoner.meetGames"></MettingPlayersCard>
+                                </n-popover>
+                            </n-tag>
                             <n-tooltip trigger="hover" v-for="tag in sessionSummoner?.userTag.tag">
                                 <template #trigger>
                                     <n-button size="tiny" :type="tag.good ? 'primary' : 'error'">
@@ -113,7 +121,7 @@
                                     </n-button> </template>
                                 <span>{{ tag.tagDesc }}</span>
                             </n-tooltip>
-                         
+
 
 
                         </n-flex>
@@ -135,9 +143,8 @@
                                 </span>
                                 <span class="stats-value">
                                     <n-flex>
-                                        <span
-                                            :style="{ color: kdaColor(sessionSummoner?.userTag.recentData.kda) }">{{
-                                                sessionSummoner?.userTag.recentData.kda
+                                        <span :style="{ color: kdaColor(sessionSummoner?.userTag.recentData.kda) }">{{
+                                            sessionSummoner?.userTag.recentData.kda
                                             }}</span>
                                         <span>
                                             <span
@@ -166,9 +173,12 @@
                                 <n-flex>
                                     <span style="width: 65px;"
                                         :style="{ color: groupRateColor(sessionSummoner?.userTag.recentData.groupRate) }">
-                                        <n-progress type="line" :percentage="winRate(sessionSummoner?.userTag.recentData, modeType)" :height="6"
-                                            :show-indicator="false" :color="winRateColor(winRate(sessionSummoner?.userTag.recentData, modeType))" processing
-                                            :stroke-width="10" style="position: relative; top: 7px;"></n-progress>
+                                        <n-progress type="line"
+                                            :percentage="winRate(sessionSummoner?.userTag.recentData, modeType)"
+                                            :height="6" :show-indicator="false"
+                                            :color="winRateColor(winRate(sessionSummoner?.userTag.recentData, modeType))"
+                                            processing :stroke-width="10"
+                                            style="position: relative; top: 7px;"></n-progress>
                                     </span>
                                     <span class="stats-value" :style="{
                                         color: winRateColor(winRate(sessionSummoner?.userTag.recentData, modeType))
@@ -186,8 +196,8 @@
                                     <span style="width: 65px;"
                                         :style="{ color: groupRateColor(sessionSummoner?.userTag.recentData.groupRate) }">
                                         <n-progress type="line"
-                                            :percentage="sessionSummoner?.userTag.recentData.groupRate"
-                                            :height="6" :show-indicator="false"
+                                            :percentage="sessionSummoner?.userTag.recentData.groupRate" :height="6"
+                                            :show-indicator="false"
                                             :color="groupRateColor(sessionSummoner?.userTag.recentData.groupRate)"
                                             processing :stroke-width="10"
                                             style="position: relative; top: 7px;"></n-progress>
@@ -233,19 +243,20 @@
     </n-card>
 </template>
 <script lang="ts" setup>
-import {copy} from '@renderer/components/composition';
+import MettingPlayersCard from './MettingPlayersCard.vue';
+import { copy } from '@renderer/components/composition';
 import { searchSummoner } from '@renderer/components/record/composition';
-import {kdaColor,killsColor,deathsColor,assistsColor,otherColor,winRateColor,groupRateColor,} from  '@renderer/components/record/composition'
+import { kdaColor, killsColor, deathsColor, assistsColor, otherColor, winRateColor, groupRateColor, } from '@renderer/components/record/composition'
 import { SessionSummoner } from "../../components/gaming/type";
 import nullImg from "../../assets/imgs/item/null.png";
 import { RecentData } from '../record/type';
 import { CopyOutline } from '@vicons/ionicons5';
 defineProps<{
-    sessionSummoner : SessionSummoner
+    sessionSummoner: SessionSummoner
     typeCn: string
-    modeType : string
-    imgUrl : string
-    tierCn : string
+    modeType: string
+    imgUrl: string
+    tierCn: string
 }>();
 function winRate(rencentData: RecentData, type: string) {
     if (type === "") {

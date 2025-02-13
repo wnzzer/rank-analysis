@@ -171,6 +171,8 @@ func curSessionChampion() (SessionData, error) {
 	addPreGroupMarkers(&sessionData)
 	//处理遇到过标签
 	insertMeetGamersRecord(&sessionData, mySummoner.Puuid)
+	//排除本局的记录
+	deleteCurMeetGamersRecord(&sessionData, session.GameData.GameId)
 	//删除Tag标记
 	deleteMeetGamersRecord(&sessionData)
 
@@ -190,6 +192,7 @@ func deleteMeetGamersRecord(sessionData *SessionData) {
 
 }
 func insertMeetGamersRecord(sessionData *SessionData, myPuuid string) {
+	// 获取自己的 SessionSummoner
 	mySessionSummoner, _ := getCache(myPuuid)
 
 	// 遍历并修改 TeamOne
@@ -208,6 +211,26 @@ func insertMeetGamersRecord(sessionData *SessionData, myPuuid string) {
 			continue
 		}
 		sessionSummoner.MeetGamers = mySessionSummoner.UserTag.RecentData.OneGamePlayersMap[sessionSummoner.Summoner.Puuid]
+	}
+}
+func deleteCurMeetGamersRecord(sessionData *SessionData, curGameId int) {
+	for i := range sessionData.TeamOne {
+		sessionSummoner := &sessionData.TeamOne[i] // 取切片中元素的地址
+		for _, playRecord := range sessionSummoner.MeetGamers {
+			if playRecord.GameId == curGameId {
+				sessionSummoner.MeetGamers = sessionSummoner.MeetGamers[1:]
+			}
+		}
+	}
+
+	// 遍历并修改 TeamTwo
+	for i := range sessionData.TeamTwo {
+		sessionSummoner := &sessionData.TeamTwo[i] // 取切片中元素的地址
+		for _, playRecord := range sessionSummoner.MeetGamers {
+			if playRecord.GameId == curGameId {
+				sessionSummoner.MeetGamers = sessionSummoner.MeetGamers[1:]
+			}
+		}
 	}
 }
 

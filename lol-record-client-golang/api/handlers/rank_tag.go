@@ -34,6 +34,7 @@ type OneGamePlayer struct {
 	GameId         int    `json:"gameId"`
 	Puuid          string `json:"puuid"`
 	GameName       string `json:"gameName"`
+	QueueIdCn      string `json:"queueIdCn"`
 	TagLine        string `json:"tagLine"`
 	ChampionId     int    `json:"championId"`
 	ChampionBase64 string `json:"championBase64"`
@@ -185,6 +186,7 @@ func getOneGamePlayers(matchHistory *client.MatchHistory) map[string][]OneGamePl
 				Deaths:         games.GameDetail.Participants[i].Stats.Deaths,
 				Assists:        games.GameDetail.Participants[i].Stats.Assists,
 				Win:            games.GameDetail.Participants[i].Stats.Win,
+				QueueIdCn:      client.QueueIdToCn[games.QueueId],
 			})
 		}
 	}

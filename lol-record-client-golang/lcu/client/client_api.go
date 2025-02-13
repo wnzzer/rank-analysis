@@ -278,7 +278,8 @@ func GetPhase() (string, error) {
 
 type Session struct {
 	GameData struct {
-		Queue struct {
+		GameId int `json:"gameId"`
+		Queue  struct {
 			Type string `json:"type"`
 		} `json:"queue"`
 		TeamOne []OnePlayer `json:"teamOne"`

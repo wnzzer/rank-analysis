@@ -69,6 +69,7 @@ export interface Summoner {
     oneGamePlayers: Record<string, OneGamePlayer[]>; // 对应 Go 中的 map[string][]OneGamePlayer
   }
   export interface OneGamePlayer {
+    gameCreatedAt: string;      // 用于标记第几页,第几个
     index: number;            // 用于标记第几页,第几个
     gameId: number;
     puuid: string;
@@ -81,6 +82,7 @@ export interface Summoner {
     deaths: number;
     assists: number;
     isMyTeam: boolean;
+    queueIdCn: string;
 }
 
   
