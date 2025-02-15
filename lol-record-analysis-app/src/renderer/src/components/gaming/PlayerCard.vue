@@ -62,7 +62,8 @@
                     <n-card v-for="game in sessionSummoner?.matchHistory.games.games"
                         content-style="padding: 0;  margin-left:5px;margin-right:5px" footer-style="padding:0">
                         <n-flex justify="space-between" style="gap: 0px; align-items: center;">
-                            <span :style="{
+                            <n-flex>
+                                <span :style="{
                                 fontWeight: '600',
                                 color: game.participants[0].stats.win ? '#8BDFB7' : '#BA3F53',
 
@@ -87,6 +88,7 @@
                                 </span>
 
                             </span>
+                            </n-flex>
                             <span style="font-size: 9px;margin-right: 3px;">
                                 {{ game.queueName ? game.queueName : '其他' }}
                             </span>
