@@ -2,9 +2,9 @@
   <n-flex vertical style="height: 100%; position: relative;">
     <n-flex>
       <n-select v-model:value="filterQueueId" placeholder="按模式筛选" @update:value="handleUpdateValue"
-        :options="modeOptions" style="width: 100px" />
+        :options="modeOptions" size="small" style="width: 100px;" />
       <n-select v-model:value="filterChampionId" filterable :filter="filterChampionFunc" placeholder="按英雄筛选" @update:value="handleUpdateValue"
-        :options="championOptions" style="width: 100px" />
+        :options="championOptions" size="small" style="width: 100px" />
 
       <n-tooltip trigger="hover">
         <template #trigger>
