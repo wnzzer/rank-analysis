@@ -49,7 +49,7 @@
                     </span>
                     <span :style="{
                         fontWeight: '600',
-                        color: meetGame.win ? '#8BDFB7' : '#BA3F53',
+                        color: meetGame.isMyTeam ? '#8BDFB7' : '#BA3F53',
 
 
                     }"> {{ meetGame.isMyTeam ? '友' : '敌' }}
