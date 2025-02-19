@@ -1,5 +1,5 @@
 <template>
-    <div style="max-width: 600px;">
+    <div style="max-width: 520px;">
         <n-flex>
             <n-card v-for="meetGame in meetGames" style="width: 250px;"
                 content-style="padding: 0;  margin-left:5px;margin-right:5px;" footer-style="padding:0">
