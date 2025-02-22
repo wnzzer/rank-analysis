@@ -216,21 +216,20 @@ func insertMeetGamersRecord(sessionData *SessionData, myPuuid string) {
 func deleteCurMeetGamersRecord(sessionData *SessionData, curGameId int) {
 	for i := range sessionData.TeamOne {
 		sessionSummoner := &sessionData.TeamOne[i] // 取切片中元素的地址
-		for _, playRecord := range sessionSummoner.MeetGamers {
-			if playRecord.GameId == curGameId {
-				sessionSummoner.MeetGamers = sessionSummoner.MeetGamers[1:]
-			}
+		if sessionSummoner.MeetGamers[0].GameId == curGameId {
+			sessionSummoner.MeetGamers = sessionSummoner.MeetGamers[1:]
 		}
+
 	}
 
 	// 遍历并修改 TeamTwo
 	for i := range sessionData.TeamTwo {
 		sessionSummoner := &sessionData.TeamTwo[i] // 取切片中元素的地址
-		for _, playRecord := range sessionSummoner.MeetGamers {
-			if playRecord.GameId == curGameId {
-				sessionSummoner.MeetGamers = sessionSummoner.MeetGamers[1:]
-			}
+
+		if sessionSummoner.MeetGamers[0].GameId == curGameId {
+			sessionSummoner.MeetGamers = sessionSummoner.MeetGamers[1:]
 		}
+
 	}
 }
 
