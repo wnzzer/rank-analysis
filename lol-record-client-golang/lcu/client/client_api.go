@@ -303,15 +303,16 @@ func GetSession() (Session, error) {
 }
 
 type SelectSession struct {
-	MyTeam  []OnePlayer `json:"myTeam"`
-	Actions []Action    `json:"actions"`
+	MyTeam []OnePlayer `json:"myTeam"`
+	//Actions []Action    `json:"actions"`
 }
-type Action struct {
-	ActorCellId int    `json:"actorCellId"`
-	Id          int    `json:"id"`
-	Type        string `json:"type"`
-	Complete    bool   `json:"complete"`
-}
+
+//type Action struct {
+//	ActorCellId int    `json:"actorCellId"`
+//	Id          int    `json:"id"`
+//	Type        string `json:"type"`
+//	Complete    bool   `json:"complete"`
+//}
 
 func GetChampSelectSession() (SelectSession, error) {
 	var selectSession SelectSession
