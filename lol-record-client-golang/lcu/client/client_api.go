@@ -303,7 +303,14 @@ func GetSession() (Session, error) {
 }
 
 type SelectSession struct {
-	MyTeam []OnePlayer `json:"myTeam"`
+	MyTeam  []OnePlayer `json:"myTeam"`
+	Actions []Action    `json:"actions"`
+}
+type Action struct {
+	ActorCellId int    `json:"actorCellId"`
+	Id          int    `json:"id"`
+	Type        string `json:"type"`
+	Complete    bool   `json:"complete"`
 }
 
 func GetChampSelectSession() (SelectSession, error) {
@@ -315,3 +322,7 @@ func GetChampSelectSession() (SelectSession, error) {
 	}
 	return selectSession, err
 }
+
+//func PatchPickChampion(championId int) error {
+//	uri := ""
+//}

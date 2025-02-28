@@ -1,6 +1,7 @@
 package util
 
 import (
+	"bytes"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
@@ -87,6 +88,69 @@ func Get(uri string, result interface{}) error {
 	return fmt.Errorf("failed to get valid response after retries")
 }
 
+// Patch 方法发送 PATCH 请求并处理响应
+func Patch(uri string, data interface{}, result interface{}) error {
+	for i := 0; i < 2; i++ {
+		var allError error
+		// 获取认证信息（如果缺失）
+		if authToken == "" || port == "" {
+			authToken, port, allError = GetAuth()
+			if allError != nil {
+				return fmt.Errorf("failed to get auth: %w", allError)
+			}
+		}
+
+		// 处理 URI 格式
+		if uri != "" && uri[0] == '/' {
+			uri = uri[1:]
+		}
+
+		// 构建请求 URL
+		url := fmt.Sprintf(baseUrlTemplate, authToken, port, uri)
+		fmt.Println("PATCH Request URL:", url)
+
+		// 序列化请求数据
+		jsonData, err := json.Marshal(data)
+		if err != nil {
+			return fmt.Errorf("failed to marshal request data: %w", err)
+		}
+
+		// 创建 PATCH 请求
+		req, err := http.NewRequest(http.MethodPatch, url, bytes.NewBuffer(jsonData))
+		if err != nil {
+			return fmt.Errorf("failed to create request: %w", err)
+		}
+
+		// 设置请求头
+		req.Header.Set("Content-Type", "application/json")
+
+		// 发送请求
+		res, err := getLCUClient().Do(req)
+		if err != nil {
+			// 如果失败则尝试刷新认证信息
+			authToken, port, _ = GetAuth()
+			continue
+		}
+		defer res.Body.Close()
+
+		// 处理响应
+		if res.StatusCode == http.StatusOK || res.StatusCode == http.StatusNoContent {
+			// 如果需要解析响应体
+			if result != nil {
+				if err := json.NewDecoder(res.Body).Decode(result); err != nil {
+					return fmt.Errorf("failed to decode response: %w", err)
+				}
+			}
+			return nil
+		} else {
+			// 处理认证失效的情况
+			authToken, port, _ = GetAuth()
+		}
+	}
+
+	return fmt.Errorf("failed to complete PATCH request after retries")
+}
+
 func GetImgAsBase64(uri string) (string, error) {
 	for i := 0; i < 2; i++ {
 		if authToken == "" || port == "" {
@@ -132,10 +196,4 @@ func GetImgAsBase64(uri string) (string, error) {
 
 	// 超过最大重试次数
 	return "", fmt.Errorf("failed to get valid response after retries")
-}
-func BuildUrl(uri string) string {
-	if uri != "" && uri[0] == '/' {
-		uri = uri[1:]
-	}
-	return fmt.Sprintf(baseUrlTemplate, authToken, port, uri)
 }
