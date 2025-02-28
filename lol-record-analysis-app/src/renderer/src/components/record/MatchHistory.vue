@@ -265,9 +265,9 @@ const resetFilter = () =>{
 const handleUpdateValue = () => {
   page.value = 1;
   if (filterChampionId.value != 0 || filterQueueId.value != 0) {
-    getHistoryMatch("", 0, 800);
+    getHistoryMatch(route.query.name as string, 0, 800);
   } else {
-    getHistoryMatch("", 0, 9);
+    getHistoryMatch(route.query.name as string, 0, 9);
   }
 }
 
