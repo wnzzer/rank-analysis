@@ -1,4 +1,4 @@
-package client
+package constants
 
 var SGPServerName = map[string]string{
 	"TENCENT_HN1":   "艾欧尼亚",

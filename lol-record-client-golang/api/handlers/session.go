@@ -3,7 +3,9 @@ package handlers
 import (
 	"github.com/gin-gonic/gin"
 	lru "github.com/hashicorp/golang-lru"
-	"lol-record-analysis/lcu/client"
+	"lol-record-analysis/lcu/client/api"
+	"lol-record-analysis/lcu/client/asset"
+	"lol-record-analysis/lcu/client/constants"
 	"lol-record-analysis/util/init_log"
 	"sort"
 	"time"
@@ -64,14 +66,14 @@ type SessionData struct {
 }
 
 type SessionSummoner struct {
-	ChampionId      int                 `json:"championId"`
-	ChampionBase64  string              `json:"championBase64"`
-	Summoner        client.Summoner     `json:"summoner"`
-	MatchHistory    client.MatchHistory `json:"matchHistory"`
-	UserTag         UserTag             `json:"userTag"`
-	Rank            client.Rank         `json:"rank"`
-	MeetGamers      []OneGamePlayer     `json:"meetGames"`
-	PreGroupMarkers PreGroupMaker       `json:"preGroupMarkers"`
+	ChampionId      int              `json:"championId"`
+	ChampionBase64  string           `json:"championBase64"`
+	Summoner        api.Summoner     `json:"summoner"`
+	MatchHistory    api.MatchHistory `json:"matchHistory"`
+	UserTag         UserTag          `json:"userTag"`
+	Rank            api.Rank         `json:"rank"`
+	MeetGamers      []OneGamePlayer  `json:"meetGames"`
+	PreGroupMarkers PreGroupMaker    `json:"preGroupMarkers"`
 }
 type PreGroupMaker struct {
 	Name string `json:"name"`
@@ -79,12 +81,12 @@ type PreGroupMaker struct {
 }
 
 // 处理队伍的公共函数
-func processTeam(team []client.OnePlayer, result *[]SessionSummoner) {
+func processTeam(team []api.OnePlayer, result *[]SessionSummoner) {
 	for _, summonerPlayer := range team {
-		var summoner client.Summoner
-		var matchHistory *client.MatchHistory
+		var summoner api.Summoner
+		var matchHistory api.MatchHistory
 		var userTag *UserTag
-		var rank client.Rank
+		var rank api.Rank
 
 		// 若没有 puuid，则跳过
 		if summonerPlayer.Puuid == "" {
@@ -95,27 +97,23 @@ func processTeam(team []client.OnePlayer, result *[]SessionSummoner) {
 		if cachedData, found := getCache(summonerPlayer.Puuid); found {
 			// 更新 champion 数据
 			cachedData.ChampionId = summonerPlayer.ChampionId
-			cachedData.ChampionBase64 = client.GetChampionBase64ById(summonerPlayer.ChampionId)
+			cachedData.ChampionBase64 = asset.GetChampionBase64ById(summonerPlayer.ChampionId)
 			*result = append(*result, *cachedData)
 			continue
 		}
 
 		// 缓存未命中，重新请求数据
 		summoner, _ = getSummonerByNameOrPuuid("", summonerPlayer.Puuid)
-		matchHistory, _ = GetMatchHistoryCore(MatchHistoryParams{
-			Puuid:    summoner.Puuid,
-			BegIndex: 0,
-			EndIndex: 3,
-		}, false)
+		matchHistory, _ = api.GetMatchHistoryByPuuid(summoner.Puuid, 0, 3)
 		userTag, _ = GetTagCore(summoner.Puuid, "", true)
-		rank, _ = client.GetRankByPuuid(summoner.Puuid)
+		rank, _ = api.GetRankByPuuid(summoner.Puuid)
 
 		// 构造 SessionSummoner 数据
 		summonerSummonerData := SessionSummoner{
 			ChampionId:     summonerPlayer.ChampionId,
-			ChampionBase64: client.GetChampionBase64ById(summonerPlayer.ChampionId),
+			ChampionBase64: asset.GetChampionBase64ById(summonerPlayer.ChampionId),
 			Summoner:       summoner,
-			MatchHistory:   *matchHistory,
+			MatchHistory:   matchHistory,
 			UserTag:        *userTag,
 			Rank:           rank,
 		}
@@ -129,18 +127,18 @@ func processTeam(team []client.OnePlayer, result *[]SessionSummoner) {
 }
 
 func curSessionChampion() (SessionData, error) {
-	mySummoner, _ := client.GetCurSummoner()
+	mySummoner, _ := api.GetCurSummoner()
 
 	// 判断状态, 若没有在游戏中, 直接返回
-	phase, _ := client.GetPhase()
-	if phase != client.ChampSelect && phase != client.InProgress && phase != client.PreEndOfGame && phase != client.EndOfGame {
+	phase, _ := api.GetPhase()
+	if phase != constants.ChampSelect && phase != constants.InProgress && phase != constants.PreEndOfGame && phase != constants.EndOfGame {
 		return SessionData{}, nil
 	}
-	session, _ := client.GetSession()
+	session, _ := api.GetSession()
 
 	// 判断是否在选英雄阶段
-	if phase == client.ChampSelect {
-		selectSession, err := client.GetChampSelectSession()
+	if phase == constants.ChampSelect {
+		selectSession, err := api.GetChampSelectSession()
 		if err != nil {
 			return SessionData{}, err
 		}
@@ -151,7 +149,7 @@ func curSessionChampion() (SessionData, error) {
 	var sessionData = SessionData{}
 	sessionData.Phase = session.Phase
 	sessionData.Type = session.GameData.Queue.Type
-	sessionData.TypeCn = client.QueueTypeToCn[session.GameData.Queue.Type]
+	sessionData.TypeCn = constants.QueueTypeToCn[session.GameData.Queue.Type]
 
 	// 确保自己在队伍1
 	needSwap := true

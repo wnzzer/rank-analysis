@@ -4,12 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
-	"lol-record-analysis/lcu/client"
+	"lol-record-analysis/lcu/client/api"
+	"lol-record-analysis/lcu/client/asset"
+	"lol-record-analysis/lcu/client/constants"
 	"lol-record-analysis/util/init_log"
 	"math"
 	"net/http"
 	"strings"
-	"sync"
 )
 
 type RecentData struct {
@@ -74,38 +75,20 @@ func GetTag(c *gin.Context) {
 func GetTagCore(puuid string, name string, boolOneGamePlayers bool) (*UserTag, error) {
 
 	if name != "" {
-		summoner, _ := client.GetSummonerByName(name)
+		summoner, _ := api.GetSummonerByName(name)
 		puuid = summoner.Puuid
 	}
 
 	if puuid == "" {
-		summoner, _ := client.GetCurSummoner()
+		summoner, _ := api.GetCurSummoner()
 		puuid = summoner.Puuid
 	}
 
 	if puuid == "" {
 		return nil, errors.New("puuid or name is empty")
 	} else {
-		matchHistory, _ := client.GetMatchHistoryByPuuid(puuid, 0, 19)
-
-		var wg sync.WaitGroup
-		for i, games := range matchHistory.Games.Games {
-
-			wg.Add(1)
-			go func(i int, gameId int) {
-				defer wg.Done()
-
-				// 获取游戏详情
-				gameDetail, err := client.GetGameDetail(gameId)
-				if err != nil {
-					// 错误处理：你可以在此记录错误日志或采取其他措施
-					return
-				}
-
-				matchHistory.Games.Games[i].GameDetail = gameDetail
-			}(i, games.GameId)
-		}
-		wg.Wait()
+		matchHistory, _ := api.GetMatchHistoryByPuuid(puuid, 0, 19)
+		matchHistory.EnrichGameDetails()
 
 		var tags []RankTag
 		//判断是否是连胜
@@ -168,7 +151,7 @@ func GetTagCore(puuid string, name string, boolOneGamePlayers bool) (*UserTag, e
 	}
 }
 
-func getOneGamePlayers(matchHistory *client.MatchHistory) map[string][]OneGamePlayer {
+func getOneGamePlayers(matchHistory *api.MatchHistory) map[string][]OneGamePlayer {
 	oneGamePlayerMap := make(map[string][]OneGamePlayer)
 	for index, games := range matchHistory.Games.Games {
 		myTeamId := games.Participants[0].TeamId
@@ -181,19 +164,19 @@ func getOneGamePlayers(matchHistory *client.MatchHistory) map[string][]OneGamePl
 				GameName:       games.GameDetail.ParticipantIdentities[i].Player.SummonerName,
 				TagLine:        games.GameDetail.ParticipantIdentities[i].Player.TagLine,
 				ChampionId:     games.GameDetail.Participants[i].ChampionId,
-				ChampionBase64: client.GetChampionBase64ById(games.GameDetail.Participants[i].ChampionId),
+				ChampionBase64: asset.GetChampionBase64ById(games.GameDetail.Participants[i].ChampionId),
 				Kills:          games.GameDetail.Participants[i].Stats.Kills,
 				Deaths:         games.GameDetail.Participants[i].Stats.Deaths,
 				Assists:        games.GameDetail.Participants[i].Stats.Assists,
 				Win:            games.GameDetail.Participants[i].Stats.Win,
-				QueueIdCn:      client.QueueIdToCn[games.QueueId],
+				QueueIdCn:      constants.QueueIdToCn[games.QueueId],
 			})
 		}
 	}
 	return oneGamePlayerMap
 }
 
-func countGoldAndGroupAndDamageDealtToChampions(matchHistory *client.MatchHistory) (int, int, int, int, int) {
+func countGoldAndGroupAndDamageDealtToChampions(matchHistory *api.MatchHistory) (int, int, int, int, int) {
 	count := 1
 	myGold := 0
 	allGold := 1
@@ -202,7 +185,7 @@ func countGoldAndGroupAndDamageDealtToChampions(matchHistory *client.MatchHistor
 	myDamageDealtToChampions := 0
 	allDamageDealtToChampions := 1
 	for _, games := range matchHistory.Games.Games {
-		if games.QueueId != client.QueueSolo5x5 && games.QueueId != client.QueueFlex {
+		if games.QueueId != constants.QueueSolo5x5 && games.QueueId != constants.QueueFlex {
 			continue
 		}
 		for _, participant0 := range games.Participants {
@@ -227,21 +210,21 @@ func countGoldAndGroupAndDamageDealtToChampions(matchHistory *client.MatchHistor
 	damageDealtToChampionsRate := math.Trunc(float64(myDamageDealtToChampions) / float64(allDamageDealtToChampions) * 100)
 	return int(groupRate), int(averageGold), int(goldRate), int(averageDamageDealtToChampions), int(damageDealtToChampionsRate)
 }
-func countWinAndLoss(matchHistory *client.MatchHistory) (int, int, int, int) {
+func countWinAndLoss(matchHistory *api.MatchHistory) (int, int, int, int) {
 	wins := 0
 	losses := 0
 	flexWins := 0
 	flexLosses := 0
 	for _, games := range matchHistory.Games.Games {
 
-		if games.QueueId == client.QueueSolo5x5 {
+		if games.QueueId == constants.QueueSolo5x5 {
 			if games.Participants[0].Stats.Win == true {
 				wins++
 			} else {
 				losses++
 			}
 		}
-		if games.QueueId == client.QueueFlex {
+		if games.QueueId == constants.QueueFlex {
 			if games.Participants[0].Stats.Win == true {
 				flexWins++
 			} else {
@@ -254,13 +237,13 @@ func countWinAndLoss(matchHistory *client.MatchHistory) (int, int, int, int) {
 	return wins, losses, flexWins, flexLosses
 
 }
-func countKda(matchHistory *client.MatchHistory) (float64, float64, float64) {
+func countKda(matchHistory *api.MatchHistory) (float64, float64, float64) {
 	count := 1
 	kills := 0
 	deaths := 1
 	assists := 0
 	for _, games := range matchHistory.Games.Games {
-		if games.QueueId != client.QueueSolo5x5 && games.QueueId != client.QueueFlex {
+		if games.QueueId != constants.QueueSolo5x5 && games.QueueId != constants.QueueFlex {
 			continue
 		}
 		count++
@@ -271,13 +254,13 @@ func countKda(matchHistory *client.MatchHistory) (float64, float64, float64) {
 	return float64(float32(kills) / float32(count)), float64(float32(deaths) / float32(count)), float64(float32(assists) / float32(count))
 }
 
-func isStreakTag(matchHistory *client.MatchHistory) RankTag {
+func isStreakTag(matchHistory *api.MatchHistory) RankTag {
 	des := "最近胜率较高的大腿玩家哦"
 
 	i := 0
 	for _, games := range matchHistory.Games.Games {
 		//不是排位不算
-		if games.QueueId != client.QueueSolo5x5 && games.QueueId != client.QueueFlex {
+		if games.QueueId != constants.QueueSolo5x5 && games.QueueId != constants.QueueFlex {
 			continue
 		}
 		if games.Participants[0].Stats.Win == false {
@@ -293,12 +276,12 @@ func isStreakTag(matchHistory *client.MatchHistory) RankTag {
 	}
 
 }
-func isLosingTag(matchHistory *client.MatchHistory) RankTag {
+func isLosingTag(matchHistory *api.MatchHistory) RankTag {
 	desc := "最近连败的玩家哦"
 
 	i := 0
 	for _, games := range matchHistory.Games.Games {
-		if games.QueueId != client.QueueSolo5x5 && games.QueueId != client.QueueFlex {
+		if games.QueueId != constants.QueueSolo5x5 && games.QueueId != constants.QueueFlex {
 			continue
 		}
 		if games.Participants[0].Stats.Win == true {
@@ -314,11 +297,11 @@ func isLosingTag(matchHistory *client.MatchHistory) RankTag {
 	}
 
 }
-func isCasualTag(matchHistory *client.MatchHistory) RankTag {
+func isCasualTag(matchHistory *api.MatchHistory) RankTag {
 	desc := "排位比例较少的玩家哦,请宽容一点"
 	i := 0
 	for _, games := range matchHistory.Games.Games {
-		if games.QueueId != client.QueueSolo5x5 && games.QueueId != client.QueueFlex {
+		if games.QueueId != constants.QueueSolo5x5 && games.QueueId != constants.QueueFlex {
 			i++
 		}
 	}
@@ -329,7 +312,7 @@ func isCasualTag(matchHistory *client.MatchHistory) RankTag {
 		return RankTag{}
 	}
 }
-func isSpecialPlayerTag(matchHistory *client.MatchHistory) []RankTag {
+func isSpecialPlayerTag(matchHistory *api.MatchHistory) []RankTag {
 	var tags []RankTag
 	var BadSpecialChampion = map[int]string{
 		901: "小火龙",
@@ -341,7 +324,7 @@ func isSpecialPlayerTag(matchHistory *client.MatchHistory) []RankTag {
 
 	var badSpecialChampionSelectMap = map[string]int{}
 	for _, games := range matchHistory.Games.Games {
-		if games.QueueId != client.QueueSolo5x5 && games.QueueId != client.QueueFlex {
+		if games.QueueId != constants.QueueSolo5x5 && games.QueueId != constants.QueueFlex {
 			continue
 		}
 		championName, _ := BadSpecialChampion[games.Participants[0].ChampionId]

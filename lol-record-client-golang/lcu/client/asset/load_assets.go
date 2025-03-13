@@ -1,4 +1,4 @@
-package client
+package asset
 
 import (
 	"lol-record-analysis/lcu/util"

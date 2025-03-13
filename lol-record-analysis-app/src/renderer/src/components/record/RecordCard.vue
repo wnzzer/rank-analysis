@@ -23,9 +23,10 @@
 
                 <img style="height: 100%;" :src="games.participants[0].championBase64" />
                 <template v-if="!!games.mvp">
-                    <div style="position: absolute; left: 0; bottom: 0;" class="mvp-box" :style="{backgroundColor:games.mvp == 'MVP'?'#FFD700':'#FFFFFF'}">
-                    {{ games.mvp == 'MVP'? 'MVP' : 'SVP' }}
-                </div>
+                    <div style="position: absolute; left: 0; bottom: 0;" class="mvp-box"
+                        :style="{ backgroundColor: games.mvp == 'MVP' ? '#FFD700' : '#FFFFFF' }">
+                        {{ games.mvp == 'MVP' ? 'MVP' : 'SVP' }}
+                    </div>
                 </template>
 
             </div>
@@ -83,13 +84,45 @@
 
 
             </n-flex>
-            <n-flex vertical justify="space-between" style="gap: 0px;">
-                <span style="color: #676768; font-size: 9px;">输出：<span style="color: #D38B2A;">{{
-                    (games.participants[0].stats.totalDamageDealtToChampions / 1000).toFixed(1) }}k</span></span>
-                <span style="color: #676768; font-size: 9px;">承伤：<span style="color: #BA3F53;">{{
-                    (games.participants[0].stats.totalDamageTaken / 1000).toFixed(1) }}k</span></span>
-                <span style="color: #676768; font-size: 9px;">治疗：<span style="color: #8BDFB7;">{{
-                    (games.participants[0].stats.totalHeal / 1000).toFixed(1) }}k</span></span>
+            <n-flex vertical justify="space-between" style="gap: 0px; font-size: 10px;">
+                <n-flex>
+                    <n-icon size="13" color="#EEB43E">
+                        <Flame></Flame>
+                    </n-icon>
+                    <span style="width: 50px;"> <n-progress type="line" :percentage="100" :height="6"
+                            :show-indicator="false" processing :stroke-width="13"
+                            style="position: relative; top: 4px;"></n-progress>
+                    </span>
+                    <span>
+                        212
+                    </span>
+                    <span>
+                        212
+                    </span>
+                </n-flex>
+
+                <n-flex>
+                    <n-icon size="13" color="#5CA3EA">
+                        <Shield></Shield>
+                    </n-icon>
+                    <span style="width: 50px;"> <n-progress type="line" :percentage="100" :height="6"
+                            :show-indicator="false" processing :stroke-width="13"
+                            style="position: relative; top: 4px;"></n-progress>
+                    </span>
+                    <span>
+                        <span>2121</span>
+                        <span>15</span>
+                    </span>
+                </n-flex>
+                <n-flex>
+                    <n-icon size="13" color="#58B66D">
+                        <Heart></Heart>
+                    </n-icon>
+                    <span style="width: 50px;"> <n-progress type="line" :percentage="100" :height="6"
+                            :show-indicator="false" processing :stroke-width="13"
+                            style="position: relative; top: 4px;"></n-progress>
+                    </span>
+                </n-flex>
 
             </n-flex>
             <n-flex vertical justify="space-between" style="gap: 0px; ">
@@ -108,7 +141,7 @@
                                 </template>
                                 <span>{{ games.gameDetail.participantIdentities[i - 1].player.gameName + "#" +
                                     games.gameDetail.participantIdentities[i
-                                    - 1].player.tagLine }}</span>
+                                        - 1].player.tagLine }}</span>
                             </n-popover>
                         </n-flex>
                     </template>
@@ -142,10 +175,10 @@
 
 
 <script lang="ts" setup>
-import { Time,CalendarNumber } from '@vicons/ionicons5';
+import { Time, CalendarNumber, Flame, Shield, Heart } from '@vicons/ionicons5';
 import itemNull from '@renderer/assets/imgs/item/null.png';
 import { computed } from 'vue';
-import { Game,} from './MatchHistory.vue';
+import { Game, } from './MatchHistory.vue';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
@@ -158,10 +191,10 @@ const props = defineProps<{
 
 const formattedDate = computed(() => {
     const date = new Date(props.games.gameCreationDate);
-    const year = date.getFullYear();
+    // const year = date.getFullYear();
     const month = (date.getMonth() + 1).toString().padStart(2, '0');  // 月份从0开始，所以加1
     const day = date.getDate().toString().padStart(2, '0');  // 确保两位数格式
-    return `${year}/${month}/${day}`;
+    return `${month}/${day}`;
 });
 
 function getIsMeBorderedColor(name: string) {
@@ -250,16 +283,26 @@ function toNameRecord(name: string) {
 .win-class:disabled {
     border: var(--n-border-disabled);
 }
+
 .mvp-box {
-  display: inline-block;
-  width: 20px; /* 调整宽度 */
-  height: 11px; /* 调整高度 */
-  color: #000; /* 黑色字体 */
-  font-weight: bold; /* 字体加粗 */
-  font-size: 8px; /* 小字体 */
-  line-height: 11px; /* 垂直居中 */
-  text-align: center; /* 水平居中 */
-  border-radius: 2px; /* 圆角 */
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); /* 添加阴影效果 */
+    display: inline-block;
+    width: 20px;
+    /* 调整宽度 */
+    height: 11px;
+    /* 调整高度 */
+    color: #000;
+    /* 黑色字体 */
+    font-weight: bold;
+    /* 字体加粗 */
+    font-size: 8px;
+    /* 小字体 */
+    line-height: 11px;
+    /* 垂直居中 */
+    text-align: center;
+    /* 水平居中 */
+    border-radius: 2px;
+    /* 圆角 */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    /* 添加阴影效果 */
 }
 </style>

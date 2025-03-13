@@ -3,7 +3,8 @@ package handlers
 import (
 	"errors"
 	"github.com/gin-gonic/gin"
-	"lol-record-analysis/lcu/client"
+	"lol-record-analysis/lcu/client/api"
+	"lol-record-analysis/lcu/client/asset"
 	"lol-record-analysis/util/init_log"
 	"net/http"
 	"strconv"
@@ -65,10 +66,10 @@ func extractParamsFromGin(c *gin.Context) (MatchHistoryParams, error) {
 }
 
 // GetMatchHistoryCore 核心业务逻辑
-func GetMatchHistoryCore(params MatchHistoryParams, enrichInfo bool) (*client.MatchHistory, error) {
+func GetMatchHistoryCore(params MatchHistoryParams, enrichInfo bool) (*api.MatchHistory, error) {
 	// 如果通过召唤师名称获取 puuid
 	if params.Name != "" {
-		summoner, err := client.GetSummonerByName(params.Name)
+		summoner, err := api.GetSummonerByName(params.Name)
 		if err != nil {
 			return nil, err
 		}
@@ -77,7 +78,7 @@ func GetMatchHistoryCore(params MatchHistoryParams, enrichInfo bool) (*client.Ma
 
 	// 如果没有 puuid，则尝试获取当前召唤师的 puuid
 	if params.Puuid == "" {
-		summoner, err := client.GetCurSummoner()
+		summoner, err := api.GetCurSummoner()
 		if err != nil {
 			return nil, err
 		}
@@ -90,13 +91,13 @@ func GetMatchHistoryCore(params MatchHistoryParams, enrichInfo bool) (*client.Ma
 	}
 
 	// 获取比赛历史
-	var matchHistory client.MatchHistory
+	var matchHistory api.MatchHistory
 	var err error
 	beginIndex := params.BegIndex
 	endIndex := params.EndIndex
 	//如果正常无筛选
 	if params.filterChampId == 0 && params.filterQueueId == 0 {
-		matchHistory, err = client.GetMatchHistoryByPuuid(params.Puuid, params.BegIndex, params.EndIndex)
+		matchHistory, err = api.GetMatchHistoryByPuuid(params.Puuid, params.BegIndex, params.EndIndex)
 	}
 	if err != nil {
 		return nil, err
@@ -110,11 +111,10 @@ func GetMatchHistoryCore(params MatchHistoryParams, enrichInfo bool) (*client.Ma
 	matchHistory.EndIndex = endIndex
 
 	// 处理装备、天赋、头像等为 base64
-	enrichChampionBase64(&matchHistory)
+	matchHistory.EnrichChampionBase64()
 	//装备图标
 	if enrichInfo {
 		processMatchHistory(&matchHistory)
-
 	}
 
 	// 计算 MVP 或 SVP
@@ -124,16 +124,16 @@ func GetMatchHistoryCore(params MatchHistoryParams, enrichInfo bool) (*client.Ma
 
 	return &matchHistory, nil
 }
-func getFilterMatchHistory(params MatchHistoryParams) (client.MatchHistory, int, int, error) {
+func getFilterMatchHistory(params MatchHistoryParams) (api.MatchHistory, int, int, error) {
 	index := params.BegIndex
 	filterQueueId := params.filterQueueId
 	filterChampId := params.filterChampId
-	matchHistory := client.MatchHistory{}
+	matchHistory := api.MatchHistory{}
 	maxGames := 10 // 设定最大筛选结果数，防止无限循环
 
 	for i := index; i < params.EndIndex; i += 50 {
 		haveData := false
-		tempMatchHistory, err := client.GetMatchHistoryByPuuid(params.Puuid, i, i+50)
+		tempMatchHistory, err := api.GetMatchHistoryByPuuid(params.Puuid, i, i+50)
 		if err != nil {
 			return matchHistory, index, i, err // 发生错误时立即返回当前已收集的比赛
 		}
@@ -159,39 +159,32 @@ func getFilterMatchHistory(params MatchHistoryParams) (client.MatchHistory, int,
 	return matchHistory, index, index, nil
 }
 
-func enrichChampionBase64(matchHistory *client.MatchHistory) {
-	for i, game := range matchHistory.Games.Games {
-		matchHistory.Games.Games[i].QueueName = client.QueueIdToCn[game.QueueId]
-		matchHistory.Games.Games[i].Participants[0].ChampionBase64 = client.GetChampionBase64ById(game.Participants[0].ChampionId)
-	}
-}
-
 // processMatchHistory 处理比赛历史的图标和数据转换
-func processMatchHistory(matchHistory *client.MatchHistory) {
+func processMatchHistory(matchHistory *api.MatchHistory) {
 	for i, games := range matchHistory.Games.Games {
 
 		for index := range matchHistory.Games.Games[i].Participants {
 			participant := &games.Participants[index]
-			participant.Spell1Base64 = client.GetSpellBase64ById(participant.Spell1Id)
-			participant.Spell2Base64 = client.GetSpellBase64ById(participant.Spell2Id)
-			participant.Stats.Item0Base64 = client.GetItemBase64ById(participant.Stats.Item0)
-			participant.Stats.Item1Base64 = client.GetItemBase64ById(participant.Stats.Item1)
-			participant.Stats.Item2Base64 = client.GetItemBase64ById(participant.Stats.Item2)
-			participant.Stats.Item3Base64 = client.GetItemBase64ById(participant.Stats.Item3)
-			participant.Stats.Item4Base64 = client.GetItemBase64ById(participant.Stats.Item4)
-			participant.Stats.Item5Base64 = client.GetItemBase64ById(participant.Stats.Item5)
-			participant.Stats.Item6Base64 = client.GetItemBase64ById(participant.Stats.Item6)
-			participant.Stats.PerkPrimaryStyleBase64 = client.GetPerkBase64ById(participant.Stats.PerkPrimaryStyle)
-			participant.Stats.PerkSubStyleBase64 = client.GetPerkBase64ById(participant.Stats.PerkSubStyle)
+			participant.Spell1Base64 = asset.GetSpellBase64ById(participant.Spell1Id)
+			participant.Spell2Base64 = asset.GetSpellBase64ById(participant.Spell2Id)
+			participant.Stats.Item0Base64 = asset.GetItemBase64ById(participant.Stats.Item0)
+			participant.Stats.Item1Base64 = asset.GetItemBase64ById(participant.Stats.Item1)
+			participant.Stats.Item2Base64 = asset.GetItemBase64ById(participant.Stats.Item2)
+			participant.Stats.Item3Base64 = asset.GetItemBase64ById(participant.Stats.Item3)
+			participant.Stats.Item4Base64 = asset.GetItemBase64ById(participant.Stats.Item4)
+			participant.Stats.Item5Base64 = asset.GetItemBase64ById(participant.Stats.Item5)
+			participant.Stats.Item6Base64 = asset.GetItemBase64ById(participant.Stats.Item6)
+			participant.Stats.PerkPrimaryStyleBase64 = asset.GetPerkBase64ById(participant.Stats.PerkPrimaryStyle)
+			participant.Stats.PerkSubStyleBase64 = asset.GetPerkBase64ById(participant.Stats.PerkSubStyle)
 		}
 	}
 }
 
 // calculateMvpOrSvp 计算 MVP 或 SVP
-func calculateMvpOrSvp(matchHistory *client.MatchHistory) {
+func calculateMvpOrSvp(matchHistory *api.MatchHistory) {
 	for i := range matchHistory.Games.Games {
 		games := &matchHistory.Games.Games[i]
-		matchHistory.Games.Games[i].GameDetail, _ = client.GetGameDetail(games.GameId)
+		matchHistory.Games.Games[i].GameDetail, _ = api.GetGameDetail(games.GameId)
 
 		mvpTag := ""
 		myTeamId := games.Participants[0].TeamId
@@ -209,7 +202,7 @@ func calculateMvpOrSvp(matchHistory *client.MatchHistory) {
 		for _, participant := range games.GameDetail.Participants {
 			for index := range matchHistory.Games.Games[i].GameDetail.Participants {
 				participant1 := &matchHistory.Games.Games[i].GameDetail.Participants[index]
-				participant1.ChampionBase64 = client.GetChampionBase64ById(participant1.ChampionId)
+				participant1.ChampionBase64 = asset.GetChampionBase64ById(participant1.ChampionId)
 			}
 			deaths := 1
 			if participant.Stats.Deaths != 0 {
