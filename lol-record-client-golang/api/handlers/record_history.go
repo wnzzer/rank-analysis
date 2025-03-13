@@ -114,8 +114,11 @@ func GetMatchHistoryCore(params MatchHistoryParams) (*api.MatchHistory, error) {
 
 	matchHistory.ProcessMatchHistory()
 
+	//计算 MVP
 	matchHistory.CalculateMvpOrSvp()
 
+	//计算各种占比
+	calculateRate(&matchHistory)
 	return &matchHistory, nil
 }
 func getFilterMatchHistory(params MatchHistoryParams) (api.MatchHistory, int, int, error) {
@@ -151,4 +154,31 @@ func getFilterMatchHistory(params MatchHistoryParams) (api.MatchHistory, int, in
 	}
 
 	return matchHistory, index, index, nil
+}
+func calculateRate(matchHistory *api.MatchHistory) {
+	for i, _ := range matchHistory.Games.Games {
+		game := &matchHistory.Games.Games[i]
+		teamId := game.Participants[0].TeamId
+		totalGoldEarned := 1
+		totalDamageDealtToChampions := 1
+		totalDamageTaken := 1
+		totalHeal := 1
+		myGoldEarned := game.Participants[0].Stats.GoldEarned
+		myDamageDealtToChampions := game.Participants[0].Stats.TotalDamageDealtToChampions
+		myDamageTaken := game.Participants[0].Stats.TotalDamageTaken
+		myHeal := game.Participants[0].Stats.TotalHeal
+		for _, participant := range game.GameDetail.Participants {
+			if participant.TeamId == teamId {
+				totalGoldEarned += participant.Stats.GoldEarned
+				totalDamageDealtToChampions += participant.Stats.TotalDamageDealtToChampions
+				totalDamageTaken += participant.Stats.TotalDamageTaken
+				totalHeal += participant.Stats.TotalHeal
+			}
+		}
+		game.Participants[0].Stats.GoldEarnedRate = int(float64(myGoldEarned) / float64(totalGoldEarned) * 100)
+		game.Participants[0].Stats.DamageDealtToChampionsRate = int(float64(myDamageDealtToChampions) / float64(totalDamageDealtToChampions) * 100)
+		game.Participants[0].Stats.DamageTakenRate = int(float64(myDamageTaken) / float64(totalDamageTaken) * 100)
+		game.Participants[0].Stats.HealRate = int(float64(myHeal) / float64(totalHeal) * 100)
+
+	}
 }

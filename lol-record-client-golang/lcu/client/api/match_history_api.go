@@ -70,13 +70,20 @@ type MatchHistory struct {
 					Deaths  int `json:"deaths"`
 					Assists int `json:"assists"`
 
-					GoldEarned                  int `json:"goldEarned"`
+					GoldEarned                  int `json:"goldEarned"` //金钱
 					GoldSpent                   int `json:"goldSpent"`
 					TotalDamageDealtToChampions int `json:"totalDamageDealtToChampions"` //对英雄伤害
-					TotalDamageDealt            int `json:"totalDamageDealt"`
-					TotalDamageTaken            int `json:"totalDamageTaken"` //承受伤害
-					TotalHeal                   int `json:"totalHeal"`
+					TotalDamageDealt            int `json:"totalDamageDealt"`            //总伤害
+					TotalDamageTaken            int `json:"totalDamageTaken"`            //承受伤害
+					TotalHeal                   int `json:"totalHeal"`                   //治疗量
 					TotalMinionsKilled          int `json:"totalMinionsKilled"`
+
+					//计算数据
+					GroupRate                  int `json:"groupRate"`
+					GoldEarnedRate             int `json:"goldEarnedRate"`
+					DamageDealtToChampionsRate int `json:"damageDealtToChampionsRate"`
+					DamageTakenRate            int `json:"damageTakenRate"`
+					HealRate                   int `json:"healRate"`
 				} `json:"stats"`
 			} `json:"participants"`
 		} `json:"games"`

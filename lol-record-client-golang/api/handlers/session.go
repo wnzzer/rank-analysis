@@ -105,6 +105,8 @@ func processTeam(team []api.OnePlayer, result *[]SessionSummoner) {
 		// 缓存未命中，重新请求数据
 		summoner, _ = getSummonerByNameOrPuuid("", summonerPlayer.Puuid)
 		matchHistory, _ = api.GetMatchHistoryByPuuid(summoner.Puuid, 0, 3)
+		matchHistory.EnrichChampionBase64()
+		matchHistory.ProcessMatchHistory()
 		userTag, _ = GetTagCore(summoner.Puuid, "", true)
 		rank, _ = api.GetRankByPuuid(summoner.Puuid)
 
