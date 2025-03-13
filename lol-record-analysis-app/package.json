@@ -27,7 +27,8 @@
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "npm run build && electron-builder --dir",
     "postbuild": "cd ../lol-record-client-golang && go build -o ../lol-record-analysis-app/dist/win-unpacked/resources/backend/lol-record-analysis.exe",
-    "build:win": "npm run build && electron-builder --win && npm run postbuild"
+    "clean": "cmd.exe /c \"if exist .\\backend rmdir /s /q .\\backend\"",
+    "build:win": "npm run clean && npm run build && electron-builder --win && npm run postbuild"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.0",
