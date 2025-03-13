@@ -29,7 +29,7 @@ func GetMatchHistory(c *gin.Context) {
 	}
 
 	// 调用核心逻辑
-	matchHistory, err := GetMatchHistoryCore(params, true)
+	matchHistory, err := GetMatchHistoryCore(params)
 	if err != nil {
 		init_log.AppLog.Error("GetMatchHistoryCore() failed", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -66,7 +66,7 @@ func extractParamsFromGin(c *gin.Context) (MatchHistoryParams, error) {
 }
 
 // GetMatchHistoryCore 核心业务逻辑
-func GetMatchHistoryCore(params MatchHistoryParams, enrichInfo bool) (*api.MatchHistory, error) {
+func GetMatchHistoryCore(params MatchHistoryParams) (*api.MatchHistory, error) {
 	// 如果通过召唤师名称获取 puuid
 	if params.Name != "" {
 		summoner, err := api.GetSummonerByName(params.Name)
@@ -112,15 +112,10 @@ func GetMatchHistoryCore(params MatchHistoryParams, enrichInfo bool) (*api.Match
 
 	// 处理装备、天赋、头像等为 base64
 	matchHistory.EnrichChampionBase64()
-	//装备图标
-	if enrichInfo {
-		processMatchHistory(&matchHistory)
-	}
 
-	// 计算 MVP 或 SVP
-	if enrichInfo {
-		calculateMvpOrSvp(&matchHistory)
-	}
+	processMatchHistory(&matchHistory)
+
+	calculateMvpOrSvp(&matchHistory)
 
 	return &matchHistory, nil
 }

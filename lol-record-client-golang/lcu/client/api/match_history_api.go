@@ -15,7 +15,7 @@ type MatchHistory struct {
 	EndIndex   int    `json:"endIndex"`
 	Games      struct {
 		Games []struct {
-			Mvp                   string     `json:"mvp"`
+			Mvp                   string     `json:"mvp"` //计算信息
 			GameDetail            GameDetail `json:"gameDetail"`
 			GameId                int        `json:"gameId"`
 			GameCreationDate      string     `json:"gameCreationDate"`
