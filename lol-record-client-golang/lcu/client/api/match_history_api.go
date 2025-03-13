@@ -128,3 +128,65 @@ func (matchHistory *MatchHistory) EnrichGameDetails() {
 	wg.Wait()
 
 }
+
+// ProcessMatchHistory 处理比赛历史的图标和数据转换
+func (matchHistory *MatchHistory) ProcessMatchHistory() {
+	if matchHistory.Games.Games == nil {
+		return
+	}
+	for i, games := range matchHistory.Games.Games {
+		for index := range matchHistory.Games.Games[i].Participants {
+			participant := &games.Participants[index]
+			participant.Spell1Base64 = asset.GetSpellBase64ById(participant.Spell1Id)
+			participant.Spell2Base64 = asset.GetSpellBase64ById(participant.Spell2Id)
+			participant.Stats.Item0Base64 = asset.GetItemBase64ById(participant.Stats.Item0)
+			participant.Stats.Item1Base64 = asset.GetItemBase64ById(participant.Stats.Item1)
+			participant.Stats.Item2Base64 = asset.GetItemBase64ById(participant.Stats.Item2)
+			participant.Stats.Item3Base64 = asset.GetItemBase64ById(participant.Stats.Item3)
+			participant.Stats.Item4Base64 = asset.GetItemBase64ById(participant.Stats.Item4)
+			participant.Stats.Item5Base64 = asset.GetItemBase64ById(participant.Stats.Item5)
+			participant.Stats.Item6Base64 = asset.GetItemBase64ById(participant.Stats.Item6)
+			participant.Stats.PerkPrimaryStyleBase64 = asset.GetPerkBase64ById(participant.Stats.PerkPrimaryStyle)
+			participant.Stats.PerkSubStyleBase64 = asset.GetPerkBase64ById(participant.Stats.PerkSubStyle)
+		}
+	}
+}
+
+// CalculateMvpOrSvp 计算 MVP 或 SVP
+func (matchHistory *MatchHistory) CalculateMvpOrSvp() {
+	for i := range matchHistory.Games.Games {
+		games := &matchHistory.Games.Games[i]
+		matchHistory.Games.Games[i].GameDetail, _ = GetGameDetail(games.GameId)
+
+		mvpTag := ""
+		myTeamId := games.Participants[0].TeamId
+		isWin := games.Participants[0].Stats.Win
+		deaths := 1
+		if games.Participants[0].Stats.Deaths != 0 {
+			deaths = games.Participants[0].Stats.Deaths
+		}
+		myKda := (games.Participants[0].Stats.Kills*2 + games.Participants[0].Stats.Assists) / deaths
+		if isWin {
+			mvpTag = "MVP"
+		} else {
+			mvpTag = "SVP"
+		}
+		for _, participant := range games.GameDetail.Participants {
+			for index := range matchHistory.Games.Games[i].GameDetail.Participants {
+				participant1 := &matchHistory.Games.Games[i].GameDetail.Participants[index]
+				participant1.ChampionBase64 = asset.GetChampionBase64ById(participant1.ChampionId)
+			}
+			deaths := 1
+			if participant.Stats.Deaths != 0 {
+				deaths = participant.Stats.Deaths
+			}
+			if participant.TeamId == myTeamId && (participant.Stats.Kills*2+participant.Stats.Assists)/deaths > myKda {
+				mvpTag = ""
+				break
+			}
+		}
+		if mvpTag != "" {
+			games.Mvp = mvpTag
+		}
+	}
+}
