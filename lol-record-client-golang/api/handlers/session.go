@@ -8,6 +8,7 @@ import (
 	"lol-record-analysis/lcu/client/constants"
 	"lol-record-analysis/util/init_log"
 	"sort"
+	"strconv"
 	"time"
 )
 
@@ -67,7 +68,7 @@ type SessionData struct {
 
 type SessionSummoner struct {
 	ChampionId      int              `json:"championId"`
-	ChampionBase64  string           `json:"championBase64"`
+	ChampionKey     string           `json:"championKey"`
 	Summoner        api.Summoner     `json:"summoner"`
 	MatchHistory    api.MatchHistory `json:"matchHistory"`
 	UserTag         UserTag          `json:"userTag"`
@@ -97,7 +98,7 @@ func processTeam(team []api.OnePlayer, result *[]SessionSummoner) {
 		if cachedData, found := getCache(summonerPlayer.Puuid); found {
 			// 更新 champion 数据
 			cachedData.ChampionId = summonerPlayer.ChampionId
-			cachedData.ChampionBase64 = asset.GetChampionBase64ById(summonerPlayer.ChampionId)
+			cachedData.ChampionKey = string(asset.ChampionType) + strconv.Itoa(summonerPlayer.ChampionId)
 			*result = append(*result, *cachedData)
 			continue
 		}
@@ -105,19 +106,19 @@ func processTeam(team []api.OnePlayer, result *[]SessionSummoner) {
 		// 缓存未命中，重新请求数据
 		summoner, _ = getSummonerByNameOrPuuid("", summonerPlayer.Puuid)
 		matchHistory, _ = api.GetMatchHistoryByPuuid(summoner.Puuid, 0, 8)
-		matchHistory.EnrichChampionBase64()
+		matchHistory.EnrichChampionKey()
 		matchHistory.ProcessMatchHistory()
 		userTag, _ = GetTagCore(summoner.Puuid, "", true)
 		rank, _ = api.GetRankByPuuid(summoner.Puuid)
 
 		// 构造 SessionSummoner 数据
 		summonerSummonerData := SessionSummoner{
-			ChampionId:     summonerPlayer.ChampionId,
-			ChampionBase64: asset.GetChampionBase64ById(summonerPlayer.ChampionId),
-			Summoner:       summoner,
-			MatchHistory:   matchHistory,
-			UserTag:        *userTag,
-			Rank:           rank,
+			ChampionId:   summonerPlayer.ChampionId,
+			ChampionKey:  api.StoreProfileIcon(summonerPlayer.ChampionId),
+			Summoner:     summoner,
+			MatchHistory: matchHistory,
+			UserTag:      *userTag,
+			Rank:         rank,
 		}
 
 		// 添加到结果队伍

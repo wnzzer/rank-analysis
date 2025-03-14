@@ -110,7 +110,7 @@ func GetMatchHistoryCore(params MatchHistoryParams) (*api.MatchHistory, error) {
 	matchHistory.EndIndex = endIndex
 
 	// 处理装备、天赋、头像等为 base64
-	matchHistory.EnrichChampionBase64()
+	matchHistory.EnrichChampionKey()
 
 	matchHistory.ProcessMatchHistory()
 

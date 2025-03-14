@@ -10,6 +10,7 @@ import (
 	"lol-record-analysis/util/init_log"
 	"math"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -30,20 +31,20 @@ type RecentData struct {
 	OneGamePlayersMap             map[string][]OneGamePlayer `json:"oneGamePlayers"` // 遇到用户的 puuid
 }
 type OneGamePlayer struct {
-	Index          int    `json:"index"` //用于标记第几页,第几个
-	GameCreatedAt  string `json:"gameCreatedAt"`
-	GameId         int    `json:"gameId"`
-	Puuid          string `json:"puuid"`
-	GameName       string `json:"gameName"`
-	QueueIdCn      string `json:"queueIdCn"`
-	TagLine        string `json:"tagLine"`
-	ChampionId     int    `json:"championId"`
-	ChampionBase64 string `json:"championBase64"`
-	Win            bool   `json:"win"`
-	Kills          int    `json:"kills"`
-	Deaths         int    `json:"deaths"`
-	Assists        int    `json:"assists"`
-	IsMyTeam       bool   `json:"isMyTeam"`
+	Index         int    `json:"index"` //用于标记第几页,第几个
+	GameCreatedAt string `json:"gameCreatedAt"`
+	GameId        int    `json:"gameId"`
+	Puuid         string `json:"puuid"`
+	GameName      string `json:"gameName"`
+	QueueIdCn     string `json:"queueIdCn"`
+	TagLine       string `json:"tagLine"`
+	ChampionId    int    `json:"championId"`
+	ChampionKey   string `json:"championKey"`
+	Win           bool   `json:"win"`
+	Kills         int    `json:"kills"`
+	Deaths        int    `json:"deaths"`
+	Assists       int    `json:"assists"`
+	IsMyTeam      bool   `json:"isMyTeam"`
 }
 
 type RankTag struct {
@@ -157,19 +158,19 @@ func getOneGamePlayers(matchHistory *api.MatchHistory) map[string][]OneGamePlaye
 		myTeamId := games.Participants[0].TeamId
 		for i := 0; i < len(games.GameDetail.ParticipantIdentities); i++ {
 			oneGamePlayerMap[games.GameDetail.ParticipantIdentities[i].Player.Puuid] = append(oneGamePlayerMap[games.GameDetail.ParticipantIdentities[i].Player.Puuid], OneGamePlayer{
-				Index:          index,
-				GameId:         games.GameId,
-				GameCreatedAt:  games.GameCreationDate,
-				IsMyTeam:       myTeamId == games.GameDetail.Participants[i].TeamId,
-				GameName:       games.GameDetail.ParticipantIdentities[i].Player.SummonerName,
-				TagLine:        games.GameDetail.ParticipantIdentities[i].Player.TagLine,
-				ChampionId:     games.GameDetail.Participants[i].ChampionId,
-				ChampionBase64: asset.GetChampionBase64ById(games.GameDetail.Participants[i].ChampionId),
-				Kills:          games.GameDetail.Participants[i].Stats.Kills,
-				Deaths:         games.GameDetail.Participants[i].Stats.Deaths,
-				Assists:        games.GameDetail.Participants[i].Stats.Assists,
-				Win:            games.GameDetail.Participants[i].Stats.Win,
-				QueueIdCn:      constants.QueueIdToCn[games.QueueId],
+				Index:         index,
+				GameId:        games.GameId,
+				GameCreatedAt: games.GameCreationDate,
+				IsMyTeam:      myTeamId == games.GameDetail.Participants[i].TeamId,
+				GameName:      games.GameDetail.ParticipantIdentities[i].Player.SummonerName,
+				TagLine:       games.GameDetail.ParticipantIdentities[i].Player.TagLine,
+				ChampionId:    games.GameDetail.Participants[i].ChampionId,
+				ChampionKey:   string(asset.ChampionType) + strconv.Itoa(games.GameDetail.Participants[i].ChampionId),
+				Kills:         games.GameDetail.Participants[i].Stats.Kills,
+				Deaths:        games.GameDetail.Participants[i].Stats.Deaths,
+				Assists:       games.GameDetail.Participants[i].Stats.Assists,
+				Win:           games.GameDetail.Participants[i].Stats.Win,
+				QueueIdCn:     constants.QueueIdToCn[games.QueueId],
 			})
 		}
 	}

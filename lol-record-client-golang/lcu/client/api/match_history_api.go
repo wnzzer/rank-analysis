@@ -6,6 +6,7 @@ import (
 	"lol-record-analysis/lcu/client/constants"
 	"lol-record-analysis/lcu/util"
 	"net/url"
+	"strconv"
 	"sync"
 )
 
@@ -37,34 +38,34 @@ type MatchHistory struct {
 				} `json:"player"`
 			} `json:"participantIdentities"`
 			Participants []struct {
-				ChampionBase64 string `json:"championBase64"`
-				ParticipantId  int    `json:"participantId"`
-				TeamId         int    `json:"teamId"`
-				ChampionId     int    `json:"championId"`
-				Spell1Id       int    `json:"spell1Id"`
-				Spell1Base64   string `json:"spell1Base64"`
-				Spell2Id       int    `json:"spell2Id"`
-				Spell2Base64   string `json:"spell2Base64"`
-				Stats          struct {
-					Win                    bool   `json:"win"`
-					Item0                  int    `json:"item0"`
-					Item1                  int    `json:"item1"`
-					Item2                  int    `json:"item2"`
-					Item3                  int    `json:"item3"`
-					Item4                  int    `json:"item4"`
-					Item5                  int    `json:"item5"`
-					Item6                  int    `json:"item6"`
-					Item0Base64            string `json:"item0Base64"`
-					Item1Base64            string `json:"item1Base64"`
-					Item2Base64            string `json:"item2Base64"`
-					Item3Base64            string `json:"item3Base64"`
-					Item4Base64            string `json:"item4Base64"`
-					Item5Base64            string `json:"item5Base64"`
-					Item6Base64            string `json:"item6Base64"`
-					PerkPrimaryStyle       int    `json:"perkPrimaryStyle"`
-					PerkSubStyle           int    `json:"perkSubStyle"`
-					PerkPrimaryStyleBase64 string `json:"perkPrimaryStyleBase64"`
-					PerkSubStyleBase64     string `json:"perkSubStyleBase64"`
+				ChampionKey   string `json:"championKey"`
+				ParticipantId int    `json:"participantId"`
+				TeamId        int    `json:"teamId"`
+				ChampionId    int    `json:"championId"`
+				Spell1Id      int    `json:"spell1Id"`
+				Spell1Key     string `json:"spell1Key"`
+				Spell2Id      int    `json:"spell2Id"`
+				Spell2Key     string `json:"spell2Key"`
+				Stats         struct {
+					Win                 bool   `json:"win"`
+					Item0               int    `json:"item0"`
+					Item1               int    `json:"item1"`
+					Item2               int    `json:"item2"`
+					Item3               int    `json:"item3"`
+					Item4               int    `json:"item4"`
+					Item5               int    `json:"item5"`
+					Item6               int    `json:"item6"`
+					Item0Key            string `json:"item0Key"`
+					Item1Key            string `json:"item1Key"`
+					Item2Key            string `json:"item2Key"`
+					Item3Key            string `json:"item3Key"`
+					Item4Key            string `json:"item4Key"`
+					Item5Key            string `json:"item5Key"`
+					Item6Key            string `json:"item6Key"`
+					PerkPrimaryStyle    int    `json:"perkPrimaryStyle"`
+					PerkSubStyle        int    `json:"perkSubStyle"`
+					PerkPrimaryStyleKey string `json:"perkPrimaryStyleKey"`
+					PerkSubStyleKey     string `json:"perkSubStyleKey"`
 
 					Kills   int `json:"kills"`
 					Deaths  int `json:"deaths"`
@@ -106,13 +107,13 @@ func GetMatchHistoryByPuuid(puuid string, begIndex int, endIndex int) (MatchHist
 	return matchHistory, err
 
 }
-func (matchHistory *MatchHistory) EnrichChampionBase64() {
+func (matchHistory *MatchHistory) EnrichChampionKey() {
 	if matchHistory.Games.Games == nil {
 		return
 	}
 	for i, game := range matchHistory.Games.Games {
 		matchHistory.Games.Games[i].QueueName = constants.QueueIdToCn[game.QueueId]
-		matchHistory.Games.Games[i].Participants[0].ChampionBase64 = asset.GetChampionBase64ById(game.Participants[0].ChampionId)
+		matchHistory.Games.Games[i].Participants[0].ChampionKey = string(asset.ChampionType) + strconv.Itoa(game.Participants[0].ChampionId)
 	}
 }
 func (matchHistory *MatchHistory) EnrichGameDetails() {
@@ -144,17 +145,17 @@ func (matchHistory *MatchHistory) ProcessMatchHistory() {
 	for i, games := range matchHistory.Games.Games {
 		for index := range matchHistory.Games.Games[i].Participants {
 			participant := &games.Participants[index]
-			participant.Spell1Base64 = asset.GetSpellBase64ById(participant.Spell1Id)
-			participant.Spell2Base64 = asset.GetSpellBase64ById(participant.Spell2Id)
-			participant.Stats.Item0Base64 = asset.GetItemBase64ById(participant.Stats.Item0)
-			participant.Stats.Item1Base64 = asset.GetItemBase64ById(participant.Stats.Item1)
-			participant.Stats.Item2Base64 = asset.GetItemBase64ById(participant.Stats.Item2)
-			participant.Stats.Item3Base64 = asset.GetItemBase64ById(participant.Stats.Item3)
-			participant.Stats.Item4Base64 = asset.GetItemBase64ById(participant.Stats.Item4)
-			participant.Stats.Item5Base64 = asset.GetItemBase64ById(participant.Stats.Item5)
-			participant.Stats.Item6Base64 = asset.GetItemBase64ById(participant.Stats.Item6)
-			participant.Stats.PerkPrimaryStyleBase64 = asset.GetPerkBase64ById(participant.Stats.PerkPrimaryStyle)
-			participant.Stats.PerkSubStyleBase64 = asset.GetPerkBase64ById(participant.Stats.PerkSubStyle)
+			participant.Spell1Key = string(asset.SpellType) + strconv.Itoa(participant.Spell1Id)
+			participant.Spell2Key = string(asset.SpellType) + strconv.Itoa(participant.Spell2Id)
+			participant.Stats.Item0Key = string(asset.ItemType) + strconv.Itoa(participant.Stats.Item0)
+			participant.Stats.Item1Key = string(asset.ItemType) + strconv.Itoa(participant.Stats.Item1)
+			participant.Stats.Item2Key = string(asset.ItemType) + strconv.Itoa(participant.Stats.Item2)
+			participant.Stats.Item3Key = string(asset.ItemType) + strconv.Itoa(participant.Stats.Item3)
+			participant.Stats.Item4Key = string(asset.ItemType) + strconv.Itoa(participant.Stats.Item4)
+			participant.Stats.Item5Key = string(asset.ItemType) + strconv.Itoa(participant.Stats.Item5)
+			participant.Stats.Item6Key = string(asset.ItemType) + strconv.Itoa(participant.Stats.Item6)
+			participant.Stats.PerkPrimaryStyleKey = string(asset.PerkType) + strconv.Itoa(participant.Stats.PerkPrimaryStyle)
+			participant.Stats.PerkSubStyleKey = string(asset.PerkType) + strconv.Itoa(participant.Stats.PerkSubStyle)
 		}
 	}
 }
@@ -181,7 +182,7 @@ func (matchHistory *MatchHistory) CalculateMvpOrSvp() {
 		for _, participant := range games.GameDetail.Participants {
 			for index := range matchHistory.Games.Games[i].GameDetail.Participants {
 				participant1 := &matchHistory.Games.Games[i].GameDetail.Participants[index]
-				participant1.ChampionBase64 = asset.GetChampionBase64ById(participant1.ChampionId)
+				participant1.ChampionKey = string(asset.ChampionType) + strconv.Itoa(participant1.ChampionId)
 			}
 			deaths := 1
 			if participant.Stats.Deaths != 0 {

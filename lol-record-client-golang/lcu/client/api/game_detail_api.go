@@ -19,34 +19,34 @@ type GameDetail struct {
 		} `json:"player"`
 	} `json:"participantIdentities"`
 	Participants []struct {
-		ChampionBase64 string `json:"championBase64"`
-		ParticipantId  int    `json:"participantId"`
-		TeamId         int    `json:"teamId"`
-		ChampionId     int    `json:"championId"`
-		Spell1Id       int    `json:"spell1Id"`
-		Spell1Base64   string `json:"spell1Base64"`
-		Spell2Id       int    `json:"spell2Id"`
-		Spell2Base64   string `json:"spell2Base64"`
-		Stats          struct {
-			Win                    bool   `json:"win"`
-			Item0                  int    `json:"item0"`
-			Item1                  int    `json:"item1"`
-			Item2                  int    `json:"item2"`
-			Item3                  int    `json:"item3"`
-			Item4                  int    `json:"item4"`
-			Item5                  int    `json:"item5"`
-			Item6                  int    `json:"item6"`
-			Item0Base64            string `json:"item0Base64"`
-			Item1Base64            string `json:"item1Base64"`
-			Item2Base64            string `json:"item2Base64"`
-			Item3Base64            string `json:"item3Base64"`
-			Item4Base64            string `json:"item4Base64"`
-			Item5Base64            string `json:"item5Base64"`
-			Item6Base64            string `json:"item6Base64"`
-			PerkPrimaryStyle       int    `json:"perkPrimaryStyle"`
-			PerkSubStyle           int    `json:"perkSubStyle"`
-			PerkPrimaryStyleBase64 string `json:"perkPrimaryStyleBase64"`
-			PerkSubStyleBase64     string `json:"perkSubStyleBase64"`
+		ChampionKey   string `json:"championKey"`
+		ParticipantId int    `json:"participantId"`
+		TeamId        int    `json:"teamId"`
+		ChampionId    int    `json:"championId"`
+		Spell1Id      int    `json:"spell1Id"`
+		Spell1Key     string `json:"spell1Key"`
+		Spell2Id      int    `json:"spell2Id"`
+		Spell2Key     string `json:"spell2Key"`
+		Stats         struct {
+			Win                 bool   `json:"win"`
+			Item0               int    `json:"item0"`
+			Item1               int    `json:"item1"`
+			Item2               int    `json:"item2"`
+			Item3               int    `json:"item3"`
+			Item4               int    `json:"item4"`
+			Item5               int    `json:"item5"`
+			Item6               int    `json:"item6"`
+			Item0Key            string `json:"item0Key"`
+			Item1Key            string `json:"item1Key"`
+			Item2Key            string `json:"item2Key"`
+			Item3Key            string `json:"item3Key"`
+			Item4Key            string `json:"item4Key"`
+			Item5Key            string `json:"item5Key"`
+			Item6Key            string `json:"item6Key"`
+			PerkPrimaryStyle    int    `json:"perkPrimaryStyle"`
+			PerkSubStyle        int    `json:"perkSubStyle"`
+			PerkPrimaryStyleKey string `json:"perkPrimaryStyleKey"`
+			PerkSubStyleKey     string `json:"perkSubStyleKey"`
 
 			Kills   int `json:"kills"`
 			Deaths  int `json:"deaths"`

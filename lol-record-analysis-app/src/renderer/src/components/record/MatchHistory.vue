@@ -288,7 +288,7 @@ export interface GameDetail {
     teamId: number;
     participantId: number;
     championId: number;
-    championBase64: string;
+    championKey: string;
     summonerName: string;
     summonerId: string;
   }[];
@@ -303,17 +303,17 @@ export interface ParticipantStats {
   item4: number;
   item5: number;
   item6: number;
-  item0Base64: string;
-  item1Base64: string;
-  item2Base64: string;
-  item3Base64: string;
-  item4Base64: string;
-  item5Base64: string;
-  item6Base64: string;
+  item0Key: string;
+  item1Key: string;
+  item2Key: string;
+  item3Key: string;
+  item4Key: string;
+  item5Key: string;
+  item6Key: string;
   perkPrimaryStyle: number;
   perkSubStyle: number;
-  perkPrimaryStyleBase64: string;
-  perkSubStyleBase64: string;
+  perkPrimaryStyleKey: string;
+  perkSubStyleKey: string;
   kills: number;
   deaths: number;
   assists: number;
@@ -337,11 +337,11 @@ export interface Participant {
   participantId: number;
   teamId: number;
   championId: number;
-  championBase64: string;
+  championKey: string;
   spell1Id: number;
-  spell1Base64: string;
+  spell1Key: string;
   spell2Id: number;
-  spell2Base64: string;
+  spell2Key: string;
   stats: ParticipantStats;
 }
 

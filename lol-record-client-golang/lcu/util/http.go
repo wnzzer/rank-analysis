@@ -23,6 +23,10 @@ var (
 	clientInitOnce sync.Once
 )
 
+func init() {
+	getLCUClient() // 提前触发初始化
+}
+
 // 获取HTTP客户端
 func getLCUClient() *http.Client {
 	clientInitOnce.Do(func() {
@@ -196,4 +200,49 @@ func GetImgAsBase64(uri string) (string, error) {
 
 	// 超过最大重试次数
 	return "", fmt.Errorf("failed to get valid response after retries")
+}
+func GetImgAsBinary(uri string) ([]byte, http.Header, error) {
+	for i := 0; i < 2; i++ {
+		if authToken == "" || port == "" {
+			var err error
+			authToken, port, err = GetAuth()
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get auth: %w", err)
+			}
+		}
+
+		if uri != "" && uri[0] == '/' {
+			uri = uri[1:]
+		}
+
+		// 构建请求 URL
+		url := fmt.Sprintf(baseUrlTemplate, authToken, port, uri)
+		fmt.Println("Request URL:", url)
+
+		// 发起 HTTP 请求
+		res, err := getLCUClient().Get(url)
+		if err != nil {
+			return nil, nil, fmt.Errorf("HTTP request failed: %w", err)
+		}
+		defer res.Body.Close()
+
+		// 如果响应状态码为 200，读取二进制内容
+		if res.StatusCode == http.StatusOK {
+			// 直接读取响应体为字节切片
+			imgData, err := io.ReadAll(res.Body)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to read binary data: %w", err)
+			}
+			return imgData, res.Header, nil
+		} else {
+			// 非 200 状态码时，尝试重新获取认证信息
+			authToken, port, err = GetAuth()
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to re-authenticate: %w", err)
+			}
+		}
+	}
+
+	// 超过最大重试次数
+	return nil, nil, fmt.Errorf("failed to get valid response after retries")
 }

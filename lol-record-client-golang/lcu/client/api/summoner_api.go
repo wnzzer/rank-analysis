@@ -7,13 +7,13 @@ import (
 )
 
 type Summoner struct {
-	GameName          string `json:"gameName"`
-	TagLine           string `json:"tagLine"`
-	SummonerLevel     int    `json:"summonerLevel"`
-	ProfileIconId     int    `json:"profileIconId"`
-	ProfileIconBase64 string `json:"profileIconBase64"`
-	Puuid             string `json:"puuid"`
-	PlatformIdCn      string `json:"platformIdCn"`
+	GameName       string `json:"gameName"`
+	TagLine        string `json:"tagLine"`
+	SummonerLevel  int    `json:"summonerLevel"`
+	ProfileIconId  int    `json:"profileIconId"`
+	ProfileIconKey string `json:"profileIconKey"`
+	Puuid          string `json:"puuid"`
+	PlatformIdCn   string `json:"platformIdCn"`
 }
 
 func GetCurSummoner() (Summoner, error) {

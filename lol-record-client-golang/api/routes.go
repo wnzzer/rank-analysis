@@ -20,5 +20,8 @@ func InitRoutes(r *gin.Engine) {
 
 		userGroup.GET("/GetSessionData", handlers.GetSessionData)
 
+		//资源
+		userGroup.GET("/GetAsset", handlers.GetAsset)
+
 	}
 }

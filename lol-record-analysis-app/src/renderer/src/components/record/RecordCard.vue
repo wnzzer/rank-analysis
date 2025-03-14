@@ -21,7 +21,7 @@
             </n-flex>
             <div style="height: 100%; position: relative;">
 
-                <img style="height: 100%;" :src="games.participants[0].championBase64" />
+                <img style="height: 100%;" :src="assetPrefix + games.participants[0].championKey" />
                 <template v-if="!!games.mvp">
                     <div style="position: absolute; left: 0; bottom: 0;" class="mvp-box"
                         :style="{ backgroundColor: games.mvp == 'MVP' ? '#FFD700' : '#FFFFFF' }">
@@ -57,29 +57,29 @@
                     </span>
                     <span style="margin-left: 20px;">
 
-                        <img :src="games.participants[0].spell1Base64 ? games.participants[0].spell1Base64 : itemNull"
-                            style="width: 23px;" alt="item image" />
-                        <img :src="games.participants[0].spell2Base64 ? games.participants[0].spell2Base64 : itemNull"
-                            style="width: 23px;" alt="item image" />
+                        <img :src="assetPrefix + games.participants[0].spell1Key ? assetPrefix + games.participants[0].spell1Key : itemNull"
+                            style="width: 23px; height: 23px;" alt="item image" />
+                        <img :src="assetPrefix + games.participants[0].spell2Key ? assetPrefix + games.participants[0].spell1Key : itemNull"
+                            style="width: 23px; height: 23px;" alt="item image" />
 
                     </span>
 
                 </n-flex>
                 <n-flex style="gap: 2px;">
-                    <img :src="games.participants[0].stats?.item0Base64 ? games.participants[0].stats.item0Base64 : itemNull"
-                        style="width: 23px;" alt="item image" />
-                    <img :src="games.participants[0].stats?.item1Base64 ? games.participants[0].stats.item1Base64 : itemNull"
-                        style="width: 23px;" alt="item image" />
-                    <img :src="games.participants[0].stats?.item2Base64 ? games.participants[0].stats.item2Base64 : itemNull"
-                        style="width: 23px;" alt="item image" />
-                    <img :src="games.participants[0].stats?.item3Base64 ? games.participants[0].stats.item3Base64 : itemNull"
-                        style="width: 23px;" alt="item image" />
-                    <img :src="games.participants[0].stats?.item4Base64 ? games.participants[0].stats.item4Base64 : itemNull"
-                        style="width: 23px;" alt="item image" />
-                    <img :src="games.participants[0].stats?.item5Base64 ? games.participants[0].stats.item5Base64 : itemNull"
-                        style="width: 23px;" alt="item image" />
-                    <img :src="games.participants[0].stats?.item6Base64 ? games.participants[0].stats.item6Base64 : itemNull"
-                        style="width: 23px;" alt="item image" />
+                    <img :src="assetPrefix + games.participants[0].stats?.item0Key ? assetPrefix + games.participants[0].stats.item0Key : itemNull"
+                        style="width: 23px; height: 23px;" alt="item image" />
+                    <img :src="assetPrefix + games.participants[0].stats?.item1Key ? assetPrefix + games.participants[0].stats.item1Key : itemNull"
+                        style="width: 23px; height: 23px;" alt="item image" />
+                    <img :src="assetPrefix + games.participants[0].stats?.item2Key ?assetPrefix + games.participants[0].stats.item2Key : itemNull"
+                        style="width: 23px; height: 23px;" alt="item image" />
+                    <img :src="assetPrefix + games.participants[0].stats?.item3Key ? assetPrefix + games.participants[0].stats.item3Key : itemNull"
+                        style="width: 23px;height: 23px;" alt="item image" />
+                    <img :src="assetPrefix + games.participants[0].stats?.item4Key ? assetPrefix + games.participants[0].stats.item4Key : itemNull"
+                        style="width: 23px;height: 23px;" alt="item image" />
+                    <img :src="assetPrefix + games.participants[0].stats?.item5Key ? assetPrefix + games.participants[0].stats.item5Key : itemNull"
+                        style="width: 23px;height: 23px;" alt="item image" />
+                    <img :src="assetPrefix + games.participants[0].stats?.item6Key ? assetPrefix + games.participants[0].stats.item6Key : itemNull"
+                        style="width: 23px;height: 23px;" alt="item image" />
                 </n-flex>
 
 
@@ -136,7 +136,7 @@
                                     <n-button text
                                         @click="toNameRecord(games.gameDetail.participantIdentities[i - 1].player.gameName + '#' + games.gameDetail.participantIdentities[i - 1].player.tagLine)">
                                         <n-avatar :bordered="true"
-                                            :src="games.gameDetail.participants[i - 1]?.championBase64"
+                                            :src="assetPrefix + games.gameDetail.participants[i - 1]?.championKey"
                                             :style="{ borderColor: getIsMeBorderedColor(games.gameDetail.participantIdentities[i - 1]?.player.gameName + '#' + games.gameDetail.participantIdentities[i - 1]?.player.tagLine) }" />
                                     </n-button>
                                 </template>
@@ -157,7 +157,7 @@
                                         @click="toNameRecord(games.gameDetail.participantIdentities[i + 4]?.player.gameName + '#' + games.gameDetail.participantIdentities[i + 4]?.player.tagLine)">
                                         <!-- 这里确保不会访问越界 -->
                                         <n-avatar :bordered="true"
-                                            :src="games.gameDetail.participants[i + 4]?.championBase64"
+                                            :src="assetPrefix + games.gameDetail.participants[i + 4]?.championKey"
                                             :style="{ borderColor: getIsMeBorderedColor(games.gameDetail.participantIdentities[i + 4]?.player.gameName + '#' + games.gameDetail.participantIdentities[i + 4]?.player.tagLine) }" />
                                     </n-button>
                                 </template>
@@ -182,6 +182,7 @@ import { computed } from 'vue';
 import { Game, } from './MatchHistory.vue';
 import { useRouter } from 'vue-router';
 import { healColorAndTaken, otherColor } from './composition';
+import {assetPrefix} from '../../services/http'
 
 const router = useRouter();
 // 接收 props

@@ -104,7 +104,8 @@ func enrichSummonerData(summoner *api.Summoner) error {
 
 	// 获取头像
 	if summoner.ProfileIconId != 0 {
-		summoner.ProfileIconBase64, err = api.GetProfileIconByIconId(summoner.ProfileIconId)
+		key := api.StoreProfileIcon(summoner.ProfileIconId)
+		summoner.ProfileIconKey = key
 	}
 	return err
 }

@@ -2,60 +2,19 @@ package asset
 
 import (
 	"lol-record-analysis/lcu/util"
+	"path/filepath"
+	"strconv"
+	"sync"
 )
-
-var itemsMap = map[int]string{}
 
 type Items []struct {
 	ID       int    `json:"id"`       //
 	IconPath string `json:"iconPath"` //
 }
 
-func GetItemBase64ById(id int) string {
-	if len(itemsMap) == 0 {
-		initItemMap()
-	}
-	return itemsMap[id]
-}
-
-func initItemMap() {
-	var items Items
-
-	err := util.Get("lol-game-data/assets/v1/items.json", &items)
-	if err != nil {
-		panic(err)
-	}
-
-	for _, item := range items {
-		itemsMap[item.ID], _ = util.GetImgAsBase64(item.IconPath)
-	}
-
-}
-
-func GetChampionBase64ById(id int) string {
-	if len(championMap) == 0 {
-		initChampionMap()
-	}
-	return championMap[id]
-}
-
-var championMap = map[int]string{}
-
 type Champion []struct {
 	ID                 int    `json:"id"`                 //
 	SquarePortraitPath string `json:"squarePortraitPath"` //
-}
-
-func initChampionMap() {
-	var champions Champion
-	err := util.Get("lol-game-data/assets/v1/champion-summary.json", &champions)
-	if err != nil {
-	}
-	for _, champion := range champions {
-		championMap[champion.ID], _ = util.GetImgAsBase64(champion.SquarePortraitPath)
-
-	}
-
 }
 
 type Spells []struct {
@@ -63,47 +22,167 @@ type Spells []struct {
 	IconPath string `json:"iconPath"` //
 }
 
-var spellMap = map[int]string{}
-
-func initSpellMap() {
-	var spells Spells
-	err := util.Get("lol-game-data/assets/v1/summoner-spells.json", &spells)
-	if err != nil {
-		panic(err)
-	}
-	for _, spell := range spells {
-		spellMap[spell.ID], _ = util.GetImgAsBase64(spell.IconPath)
-	}
-
-}
-func GetSpellBase64ById(id int) string {
-	if len(spellMap) == 0 {
-		initSpellMap()
-	}
-	return spellMap[id]
-
-}
-
 type Perks []struct {
 	ID       int    `json:"id"`       //
 	IconPath string `json:"iconPath"` //
 }
 
-var perksMap = map[int]string{}
+// ResourceType 重构二进制数据
 
-func initPerksMap() {
-	var perks Perks
+type ResourceType string
+
+const (
+	ItemType     ResourceType = "item"
+	ChampionType ResourceType = "champion"
+	SpellType    ResourceType = "spell"
+	PerkType     ResourceType = "perk"
+	Profile      ResourceType = "profile"
+)
+
+type ResourceEntry struct {
+	FileName     string       `json:"fileName"`
+	FileType     string       `json:"fileType"`
+	ResourceType ResourceType `json:"resourceType"`
+	BinaryData   []byte       `json:"binaryData"`
+}
+
+var (
+	resourceEntryMap = make(map[string]ResourceEntry)
+	once             sync.Once // 用于确保 initAllAssets 只执行一次
+)
+
+var mutex sync.Mutex
+
+func StoreEntry(key string, value ResourceEntry) {
+	if _, exists := resourceEntryMap[key]; !exists {
+		mutex.Lock()
+		resourceEntryMap[key] = value
+		mutex.Unlock()
+	}
+}
+
+func GetAsset(key string) ResourceEntry {
+	// 使用 sync.Once 确保 initAllAssets 只执行一次
+	once.Do(initAllAssets)
+	return resourceEntryMap[key]
+}
+
+func initAllAssets() {
+	initItems()
+	initChampions()
+	initSpells()
+	//initPerks()
+
+}
+
+// 物品资源初始化
+func initItems() {
+	type Item struct {
+		ID       int    `json:"id"`
+		IconPath string `json:"iconPath"`
+	}
+	var items []Item
+	err := util.Get("lol-game-data/assets/v1/items.json", &items)
+	if err != nil {
+		panic(err)
+	}
+	for _, item := range items {
+		bytes, headers, err := util.GetImgAsBinary(item.IconPath)
+		if err != nil {
+			panic(err)
+		}
+		contentType := headers.Get("Content-Type")
+		fileName := filepath.Base(item.IconPath)
+		key := string(ItemType) + strconv.Itoa(item.ID)
+		resourceEntryMap[key] = ResourceEntry{
+			BinaryData:   bytes,
+			FileType:     contentType,
+			FileName:     fileName,
+			ResourceType: ItemType,
+		}
+	}
+}
+
+// 英雄资源初始化
+func initChampions() {
+	type Champion struct {
+		ID                 int    `json:"id"`
+		SquarePortraitPath string `json:"squarePortraitPath"`
+	}
+	var champions []Champion
+	err := util.Get("lol-game-data/assets/v1/champion-summary.json", &champions)
+	if err != nil {
+		panic(err)
+	}
+	for _, champion := range champions {
+		bytes, headers, err := util.GetImgAsBinary(champion.SquarePortraitPath)
+		if err != nil {
+			panic(err)
+		}
+		contentType := headers.Get("Content-Type")
+		fileName := filepath.Base(champion.SquarePortraitPath)
+		key := string(ChampionType) + strconv.Itoa(champion.ID)
+		resourceEntryMap[key] = ResourceEntry{
+			BinaryData:   bytes,
+			FileType:     contentType,
+			FileName:     fileName,
+			ResourceType: ChampionType,
+		}
+	}
+}
+
+// 召唤师技能初始化
+func initSpells() {
+	type Spell struct {
+		ID       int    `json:"id"`
+		IconPath string `json:"iconPath"`
+	}
+	var spells []Spell
+	err := util.Get("lol-game-data/assets/v1/summoner-spells.json", &spells)
+	if err != nil {
+		panic(err)
+	}
+	for _, spell := range spells {
+		bytes, headers, err := util.GetImgAsBinary(spell.IconPath)
+		if err != nil {
+			panic(err)
+		}
+		contentType := headers.Get("Content-Type")
+		fileName := filepath.Base(spell.IconPath)
+		key := string(SpellType) + strconv.Itoa(spell.ID)
+		resourceEntryMap[key] = ResourceEntry{
+			BinaryData:   bytes,
+			FileType:     contentType,
+			FileName:     fileName,
+			ResourceType: SpellType,
+		}
+	}
+}
+
+// 符文资源初始化
+func initPerks() {
+	type Perk struct {
+		ID       int    `json:"id"`
+		IconPath string `json:"iconPath"`
+	}
+	var perks []Perk
 	err := util.Get("lol-game-data/assets/v1/perks.json", &perks)
 	if err != nil {
 		panic(err)
 	}
 	for _, perk := range perks {
-		perksMap[perk.ID], _ = util.GetImgAsBase64(perk.IconPath)
+		bytes, headers, err := util.GetImgAsBinary(perk.IconPath)
+		if err != nil {
+			panic(err)
+		}
+		contentType := headers.Get("Content-Type")
+		fileName := filepath.Base(perk.IconPath)
+		key := string(PerkType) + strconv.Itoa(perk.ID)
+		resourceEntryMap[key] = ResourceEntry{
+			BinaryData:   bytes,
+			FileType:     contentType,
+			FileName:     fileName,
+			ResourceType: PerkType,
+		}
 	}
-}
-func GetPerkBase64ById(id int) string {
-	if len(perksMap) == 0 {
-		initPerksMap()
-	}
-	return perksMap[id]
 }
