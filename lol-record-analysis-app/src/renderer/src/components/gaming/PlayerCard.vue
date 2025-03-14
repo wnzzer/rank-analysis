@@ -244,13 +244,14 @@
 </template>
 <script lang="ts" setup>
 import MettingPlayersCard from './MettingPlayersCard.vue';
-import { copy } from '@renderer/components/composition';
+import { useCopy } from '@renderer/components/composition';
 import { searchSummoner } from '@renderer/components/record/composition';
 import { kdaColor, killsColor, deathsColor, assistsColor, otherColor, winRateColor, groupRateColor, } from '@renderer/components/record/composition'
 import { SessionSummoner } from "../../components/gaming/type";
 import nullImg from "../../assets/imgs/item/null.png";
 import { RecentData } from '../record/type';
 import { CopyOutline } from '@vicons/ionicons5';
+const copy = useCopy().copy
 defineProps<{
     sessionSummoner: SessionSummoner
     typeCn: string
