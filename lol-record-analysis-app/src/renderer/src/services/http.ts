@@ -1,6 +1,7 @@
 import axios from "axios";
 
 // src/services/http.ts
+export const assetPrefix = "http://127.0.0.1:11451/v1/GetAsset?key="
 const http = axios.create({
   baseURL: 'http://127.0.0.1:11451/v1/', // 替换为你的接口基础路径
   timeout: 50000, // 请求超时时间

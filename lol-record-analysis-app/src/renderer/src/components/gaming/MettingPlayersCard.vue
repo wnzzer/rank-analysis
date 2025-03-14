@@ -22,7 +22,7 @@
                     </span>
 
                    
-                    <img :src="meetGame.championBase64"
+                    <img :src="assetPrefix + meetGame.championKey"
                         style="width: auto; height: 24px;       vertical-align: middle;" />
                     <span style=" font-size: 12px;">
                         <span style="font-weight: 500; font-size: 12px;color: #8BDFB7">
@@ -63,6 +63,7 @@
 <script setup lang="ts">
 import { OneGamePlayer } from '../record/type';
 import { CalendarNumber } from '@vicons/ionicons5';
+import {assetPrefix} from '../../services/http';
 function getFormattedDate(dateString) {
     const date = new Date(dateString);
     const month = (date.getMonth() + 1).toString().padStart(2, '0');  // 月份从0开始，所以加1

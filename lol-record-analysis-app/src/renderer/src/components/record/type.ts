@@ -4,7 +4,7 @@ export interface Summoner {
     tagLine: string;
     summonerLevel: number;
     profileIconId: number;
-    profileIconBase64: string;
+    profileIconKey: string;
     puuid: string;
     platformIdCn: string,
   
@@ -15,7 +15,7 @@ export interface Summoner {
       tagLine: "",
       summonerLevel: 0,
       profileIconId: 0,
-      profileIconBase64: "",
+      profileIconKey: "",
       puuid: "",
       platformIdCn: ''
     };
@@ -76,7 +76,7 @@ export interface Summoner {
     gameName: string;
     tagLine: string;
     championId: number;
-    championBase64: string;
+    championKey: string;
     win: boolean;
     kills: number;
     deaths: number;

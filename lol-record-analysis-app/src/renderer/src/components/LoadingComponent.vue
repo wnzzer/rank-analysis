@@ -1,6 +1,6 @@
 <template>
   <div
-      style="display: flex; justify-content: center; align-items: center; height: 90vh; width: 90vw; border: 1px solid black;">
+      style="display: flex; justify-content: center; align-items: center; height: 95vh; width: 95vw; border: 1px solid black;">
 
       <div style="position: relative;">
           <span class="clip"><slot></slot></span>

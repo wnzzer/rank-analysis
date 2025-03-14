@@ -12,7 +12,7 @@
                     <n-flex>
                         <div style="position: relative;">
                             <img width="32x" height="32px"
-                                :src="sessionSummoner.championBase64 ? sessionSummoner.championBase64 : nullImg"
+                                :src="assetPrefix + sessionSummoner.championKey ? assetPrefix + sessionSummoner.championKey : nullImg"
                                 style="vertical-align: middle;" />
                             <div
                                 style="position: absolute; bottom: 9px; right: 0; font-size: 10px; width: 20px; height: 10px; text-align: center; line-height: 20px; border-radius: 50%; color: white;">
@@ -70,7 +70,7 @@
                             }"> {{ game.participants[0].stats.win ? '胜' : '负' }}
 
                             </span>
-                            <img :src="game.participants[0]?.championBase64"
+                            <img :src="assetPrefix + game.participants[0]?.championKey"
                                 style="width: auto; height: 24px;       vertical-align: middle;" />
                             <span style=" font-size: 12px;">
                                 <span style="font-weight: 500; font-size: 12px;color: #8BDFB7">
@@ -112,7 +112,7 @@
                             }"> {{ game.participants[0].stats.win ? '胜' : '负' }}
 
                             </span>
-                            <img :src="game.participants[0]?.championBase64"
+                            <img :src="assetPrefix + game.participants[0]?.championKey"
                                 style="width: auto; height: 24px;       vertical-align: middle;" />
                             <span style=" font-size: 12px;">
                                 <span style="font-weight: 500; font-size: 12px;color: #8BDFB7">
@@ -293,6 +293,7 @@ import { SessionSummoner } from "../../components/gaming/type";
 import nullImg from "../../assets/imgs/item/null.png";
 import { RecentData } from '../record/type';
 import { CopyOutline } from '@vicons/ionicons5';
+import {assetPrefix} from '../../services/http';
 const copy = useCopy().copy;
 defineProps<{
     sessionSummoner: SessionSummoner

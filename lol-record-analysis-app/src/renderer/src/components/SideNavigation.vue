@@ -8,7 +8,7 @@
             <n-popover trigger="hover">
                 <template #trigger>
                     <n-button circle @click="toMe">
-                        <template v-if="!mySummoner || mySummoner.profileIconBase64 === ''">
+                        <template v-if="!mySummoner || assetPrefix + mySummoner.profileIconKey === ''">
                             <!-- 渲染图标 -->
                             <n-icon size="20" class="rotating-icon">
                                 <Reload />
@@ -16,7 +16,7 @@
                         </template>
                         <template v-else>
                             <!-- 渲染图片 -->
-                            <img :src="mySummoner?.profileIconBase64" alt="图片" style="width: 20px; margin: 0;" />
+                            <img :src="assetPrefix + mySummoner?.profileIconKey" alt="图片" style="width: 20px; margin: 0;" />
                         </template>
                     </n-button> </template>
                 <template v-if="!mySummoner || mySummoner?.tagLine == ''">
@@ -26,7 +26,7 @@
                     <n-card :bordered="false" content-style="padding : 0px">
                         <n-flex>
                             <div style="position: relative;">
-                                <img width="35px" height="35px" :src="mySummoner?.profileIconBase64">
+                                <img width="35px" height="35px" :src="assetPrefix + mySummoner?.profileIconKey">
                                 <div
                                     style="position: absolute; bottom: 4px; right: 0; font-size: 10px; width: 20px; height: 10px; text-align: center; line-height: 20px; border-radius: 50%; color: white;">
                                     {{ mySummoner?.summonerLevel }}
@@ -65,6 +65,7 @@
 <script setup lang="ts">
 import router from '@renderer/router';
 import http from '@renderer/services/http';
+import {assetPrefix} from '../services/http';
 import { Reload, BarChart, Server, CopyOutline } from '@vicons/ionicons5'
 import { NIcon, useMessage } from 'naive-ui';
 import { Component, computed, h, onMounted, ref } from 'vue';

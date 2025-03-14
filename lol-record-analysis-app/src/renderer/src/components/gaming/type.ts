@@ -15,7 +15,7 @@ interface PreGroupMarkers {
 }
 export interface SessionSummoner {
     championId: number
-    championBase64: string
+    championKey: string
     summoner: Summoner
     matchHistory: MatchHistory
     userTag: UserTag
