@@ -66,63 +66,111 @@
 
                 </n-flex>
                 <n-flex style="gap: 2px;">
-                    <img :src="assetPrefix + games.participants[0].stats?.item0Key ? assetPrefix + games.participants[0].stats.item0Key : itemNull"
-                        style="width: 23px; height: 23px;" alt="item image" />
-                    <img :src="assetPrefix + games.participants[0].stats?.item1Key ? assetPrefix + games.participants[0].stats.item1Key : itemNull"
-                        style="width: 23px; height: 23px;" alt="item image" />
-                    <img :src="assetPrefix + games.participants[0].stats?.item2Key ?assetPrefix + games.participants[0].stats.item2Key : itemNull"
-                        style="width: 23px; height: 23px;" alt="item image" />
-                    <img :src="assetPrefix + games.participants[0].stats?.item3Key ? assetPrefix + games.participants[0].stats.item3Key : itemNull"
-                        style="width: 23px;height: 23px;" alt="item image" />
-                    <img :src="assetPrefix + games.participants[0].stats?.item4Key ? assetPrefix + games.participants[0].stats.item4Key : itemNull"
-                        style="width: 23px;height: 23px;" alt="item image" />
-                    <img :src="assetPrefix + games.participants[0].stats?.item5Key ? assetPrefix + games.participants[0].stats.item5Key : itemNull"
-                        style="width: 23px;height: 23px;" alt="item image" />
-                    <img :src="assetPrefix + games.participants[0].stats?.item6Key ? assetPrefix + games.participants[0].stats.item6Key : itemNull"
-                        style="width: 23px;height: 23px;" alt="item image" />
+                    <n-image width="23px" :src="assetPrefix + games.participants[0].stats?.item0Key"
+                    preview-disabled
+
+                        fallback-src="https://07akioni.oss-cn-beijing.aliyuncs.com/07akioni.jpeg">
+                        <template #error>
+                            <img :src="itemNull">
+                        </template>
+                    </n-image>
+                    <n-image width="23px" :src="assetPrefix + games.participants[0].stats?.item1Key"
+                    preview-disabled
+
+                        fallback-src="https://07akioni.oss-cn-beijing.aliyuncs.com/07akioni.jpeg">
+                        <template #error>
+                            <img :src="itemNull">
+                        </template>
+                    </n-image>
+                    <n-image width="23px" :src="assetPrefix + games.participants[0].stats?.item2Key"
+                    preview-disabled
+
+                        fallback-src="https://07akioni.oss-cn-beijing.aliyuncs.com/07akioni.jpeg">
+                        <template #error>
+                            <img :src="itemNull">
+                        </template>
+                    </n-image>
+                    <n-image width="23px" :src="assetPrefix + games.participants[0].stats?.item3Key"
+                    preview-disabled
+
+                        fallback-src="https://07akioni.oss-cn-beijing.aliyuncs.com/07akioni.jpeg">
+                        <template #error>
+                            <img :src="itemNull">
+                        </template>
+                    </n-image>
+                    <n-image width="23px" :src="assetPrefix + games.participants[0].stats?.item4Key"
+                    preview-disabled
+
+                        fallback-src="https://07akioni.oss-cn-beijing.aliyuncs.com/07akioni.jpeg">
+                        <template #error>
+                            <img :src="itemNull">
+                        </template>
+                    </n-image>
+                    <n-image width="23px" :src="assetPrefix + games.participants[0].stats?.item5Key"
+                    preview-disabled
+
+                        fallback-src="https://07akioni.oss-cn-beijing.aliyuncs.com/07akioni.jpeg">
+                        <template #error>
+                            <img :src="itemNull">
+                        </template>
+                    </n-image>
+                    <n-image width="23px" :src="assetPrefix + games.participants[0].stats?.item6Key"
+                    preview-disabled
+
+                        fallback-src="https://07akioni.oss-cn-beijing.aliyuncs.com/07akioni.jpeg">
+                        <template #error>
+                            <img :src="itemNull">
+                        </template>
+                    </n-image>
                 </n-flex>
 
 
             </n-flex>
             <n-flex vertical justify="space-between" style="gap: 0px; font-size: 11px;">
-                <n-flex :style="{color : otherColor(games.participants[0].stats?.damageDealtToChampionsRate)}">
+                <n-flex :style="{ color: otherColor(games.participants[0].stats?.damageDealtToChampionsRate) }">
                     <n-icon size="13" color="#EEB43E">
                         <Flame></Flame>
                     </n-icon>
-                    <span style="width: 50px;"> <n-progress type="line" :percentage="games.participants[0].stats?.damageDealtToChampionsRate" :height="6"
-                            :show-indicator="false" processing :stroke-width="13" :color="otherColor(games.participants[0].stats?.damageDealtToChampionsRate)"
+                    <span style="width: 50px;"> <n-progress type="line"
+                            :percentage="games.participants[0].stats?.damageDealtToChampionsRate" :height="6"
+                            :show-indicator="false" processing :stroke-width="13"
+                            :color="otherColor(games.participants[0].stats?.damageDealtToChampionsRate)"
                             style="position: relative; top: 4px;"></n-progress>
                     </span>
                     <span>
-                        {{  Math.round(games.participants[0].stats?.totalDamageDealtToChampions / 1000)}}k
+                        {{ Math.round(games.participants[0].stats?.totalDamageDealtToChampions / 1000) }}k
                     </span>
                     <span>
                         {{ games.participants[0].stats?.damageDealtToChampionsRate }}%
                     </span>
                 </n-flex>
 
-                <n-flex :style="{color : healColorAndTaken(games.participants[0].stats?.damageTakenRate)}">
-                    <n-icon size="13" color="#5CA3EA" >
+                <n-flex :style="{ color: healColorAndTaken(games.participants[0].stats?.damageTakenRate) }">
+                    <n-icon size="13" color="#5CA3EA">
                         <Shield></Shield>
                     </n-icon>
-                    <span style="width: 50px;"> <n-progress type="line" :percentage="games.participants[0].stats?.damageTakenRate" :height="6"
-                            :show-indicator="false" processing :stroke-width="13" :color="healColorAndTaken(games.participants[0].stats?.damageTakenRate)"
+                    <span style="width: 50px;"> <n-progress type="line"
+                            :percentage="games.participants[0].stats?.damageTakenRate" :height="6"
+                            :show-indicator="false" processing :stroke-width="13"
+                            :color="healColorAndTaken(games.participants[0].stats?.damageTakenRate)"
                             style="position: relative; top: 4px;"></n-progress>
                     </span>
-                    <span>{{  Math.round(games.participants[0].stats?.totalDamageTaken / 1000)}}k</span>
+                    <span>{{ Math.round(games.participants[0].stats?.totalDamageTaken / 1000) }}k</span>
                     <span>{{ games.participants[0].stats?.damageTakenRate }}%</span>
 
                 </n-flex>
-                <n-flex :style="{color : healColorAndTaken(games.participants[0].stats?.healRate)}">
+                <n-flex :style="{ color: healColorAndTaken(games.participants[0].stats?.healRate) }">
                     <n-icon size="13" color="#58B66D">
                         <Heart></Heart>
                     </n-icon>
-                    <span style="width: 50px;"> <n-progress type="line" :percentage="games.participants[0].stats?.healRate" :height="6"
-                            :show-indicator="false" processing :stroke-width="13" :color="healColorAndTaken(games.participants[0].stats?.healRate)"
+                    <span style="width: 50px;"> <n-progress type="line"
+                            :percentage="games.participants[0].stats?.healRate" :height="6" :show-indicator="false"
+                            processing :stroke-width="13"
+                            :color="healColorAndTaken(games.participants[0].stats?.healRate)"
                             style="position: relative; top: 4px;"></n-progress>
                     </span>
-                    <span>{{  Math.round(games.participants[0].stats?.totalHeal / 1000)}}k</span>
-                    <span>{{ games.participants[0].stats?.healRate}}%</span>
+                    <span>{{ Math.round(games.participants[0].stats?.totalHeal / 1000) }}k</span>
+                    <span>{{ games.participants[0].stats?.healRate }}%</span>
                 </n-flex>
 
             </n-flex>
@@ -182,7 +230,7 @@ import { computed } from 'vue';
 import { Game, } from './MatchHistory.vue';
 import { useRouter } from 'vue-router';
 import { healColorAndTaken, otherColor } from './composition';
-import {assetPrefix} from '../../services/http'
+import { assetPrefix } from '../../services/http'
 
 const router = useRouter();
 // 接收 props
