@@ -47,8 +47,15 @@ export  const groupRateColor = (groupRate: number) => {
     }
     return '#FFFFFF';
   }
+  export const healColorAndTaken = (other: number) => {
+    if (other >= 25) {
+      return '#8BDFB7'
+    }
+    return '#C8C8C8FF';
+  }
+
  export const otherColor = (other: number) => {
-    if (other >= 30) {
+    if (other >= 25) {
       return '#8BDFB7'
     } else if (other <= 15) {
       return '#BA3F53'

@@ -324,6 +324,12 @@ export interface ParticipantStats {
   totalDamageTaken: number;
   totalHeal: number;
   totalMinionsKilled: number;
+  groupRate: number;                    
+  goldEarnedRate: number;               
+  damageDealtToChampionsRate: number; 
+  damageTakenRate: number;
+  healRate: number;              
+  
 }
 
 export interface Participant {
