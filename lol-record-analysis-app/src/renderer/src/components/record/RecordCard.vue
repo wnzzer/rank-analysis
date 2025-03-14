@@ -59,7 +59,7 @@
 
                         <img :src="assetPrefix + games.participants[0].spell1Key ? assetPrefix + games.participants[0].spell1Key : itemNull"
                             style="width: 23px; height: 23px;" alt="item image" />
-                        <img :src="assetPrefix + games.participants[0].spell2Key ? assetPrefix + games.participants[0].spell1Key : itemNull"
+                        <img :src="assetPrefix + games.participants[0].spell2Key ? assetPrefix + games.participants[0].spell2Key : itemNull"
                             style="width: 23px; height: 23px;" alt="item image" />
 
                     </span>
