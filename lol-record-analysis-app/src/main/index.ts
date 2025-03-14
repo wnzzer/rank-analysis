@@ -14,7 +14,7 @@ function createWindow(): void {
 
   // Create the browser window.
   const mainWindow = new BrowserWindow({
-    width: 1150,
+    width: 1200,
     height: 850,
     icon: iconPath,
 

@@ -4,9 +4,9 @@
             <n-spin size="small" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);" />
         </div>
 
-        <n-flex v-else>
+        <n-flex style="gap: 1px;">
             <!-- 左侧卡片内容 -->
-            <n-flex vertical style="flex: 3; gap: 4px;">
+            <n-flex vertical style="flex: 3.1; gap: 4px;">
                 <!-- 个人概览 -->
                 <n-card :bordered="false" content-style="padding: 0;">
                     <n-flex>
@@ -48,7 +48,7 @@
                                 <span>
                                     <img style="width: 16px;height: 16px ;" :src="imgUrl" />
                                     <span style="font-size: 8px;">{{ tierCn
-                                        }}</span>
+                                    }}</span>
                                 </span>
 
                             </n-flex>
@@ -59,8 +59,50 @@
 
 
                 <div>
-                    <n-card v-for="game in sessionSummoner?.matchHistory.games.games"
-                        content-style="padding: 0;  margin-left:5px;margin-right:5px" footer-style="padding:0">
+                    <n-card v-for="(game, index) in sessionSummoner?.matchHistory.games.games.slice(0, 4)"
+                    :key="index"                        content-style="padding: 0;  margin-left:5px;margin-right:5px" footer-style="padding:0">
+                        <n-flex justify="space-between" style="gap: 0px; align-items: center;">
+                            <span :style="{
+                                fontWeight: '600',
+                                color: game.participants[0].stats.win ? '#8BDFB7' : '#BA3F53',
+
+
+                            }"> {{ game.participants[0].stats.win ? '胜' : '负' }}
+
+                            </span>
+                            <img :src="game.participants[0]?.championBase64"
+                                style="width: auto; height: 24px;       vertical-align: middle;" />
+                            <span style=" font-size: 12px;">
+                                <span style="font-weight: 500; font-size: 12px;color: #8BDFB7">
+                                    {{ game.participants[0].stats?.kills }}
+                                </span>
+                                /
+                                <span style="font-weight: 500;font-size: 12px; color: #BA3F53">
+                                    {{ game.participants[0].stats?.deaths }}
+                                </span>
+                                /
+
+                                <span style="font-weight: 500;font-size: 12px; color: #D38B2A">
+                                    {{ game.participants[0].stats?.assists }}
+                                </span>
+
+                            </span>
+                            <span style="font-size: 9px;margin-right: 3px;">
+                                {{ game.queueName ? game.queueName : '其他' }}
+                            </span>
+
+                        </n-flex>
+                    </n-card>
+                </div>
+            </n-flex>
+            <n-flex vertical style="flex: 3.1; gap: 4px; margin-right: 5px; margin-top: 11px;">
+
+                <!-- 战绩 -->
+
+
+                <div>
+                    <n-card v-for="(game, index) in sessionSummoner?.matchHistory.games.games.slice(4, 9)"
+                    :key="index + 4"                        content-style="padding: 0;  margin-left:5px;margin-right:5px" footer-style="padding:0">
                         <n-flex justify="space-between" style="gap: 0px; align-items: center;">
                             <span :style="{
                                 fontWeight: '600',
@@ -98,7 +140,7 @@
 
             <!-- 中间部分 -->
             <div style="flex: 4;">
-                <flex vertical style="gap: 0px;">
+                <n-flex vertical style="gap: 0px;">
                     <div style="margin-bottom: 2px;">
 
                         <n-flex>
@@ -145,7 +187,7 @@
                                     <n-flex>
                                         <span :style="{ color: kdaColor(sessionSummoner?.userTag.recentData.kda) }">{{
                                             sessionSummoner?.userTag.recentData.kda
-                                            }}</span>
+                                        }}</span>
                                         <span>
                                             <span
                                                 :style="{ color: killsColor(sessionSummoner?.userTag.recentData.kills) }">
@@ -237,7 +279,7 @@
 
                         </n-flex>
                     </n-card>
-                </flex>
+                </n-flex>
             </div>
         </n-flex>
     </n-card>
@@ -251,7 +293,7 @@ import { SessionSummoner } from "../../components/gaming/type";
 import nullImg from "../../assets/imgs/item/null.png";
 import { RecentData } from '../record/type';
 import { CopyOutline } from '@vicons/ionicons5';
-const copy = useCopy().copy
+const copy = useCopy().copy;
 defineProps<{
     sessionSummoner: SessionSummoner
     typeCn: string
