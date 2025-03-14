@@ -69,42 +69,32 @@
                     <n-image width="23px" :src="assetPrefix + games.participants[0].stats?.item0Key"
                     preview-disabled
 
-                        fallback-src="https://07akioni.oss-cn-beijing.aliyuncs.com/07akioni.jpeg">
-                        <template #error>
-                            <img :src="itemNull">
-                        </template>
+                    :fallback-src="itemNull">
+
                     </n-image>
                     <n-image width="23px" :src="assetPrefix + games.participants[0].stats?.item1Key"
                     preview-disabled
 
-                        fallback-src="https://07akioni.oss-cn-beijing.aliyuncs.com/07akioni.jpeg">
-                        <template #error>
-                            <img :src="itemNull">
-                        </template>
+                    :fallback-src="itemNull">
+
                     </n-image>
                     <n-image width="23px" :src="assetPrefix + games.participants[0].stats?.item2Key"
                     preview-disabled
 
-                        fallback-src="https://07akioni.oss-cn-beijing.aliyuncs.com/07akioni.jpeg">
-                        <template #error>
-                            <img :src="itemNull">
-                        </template>
+                    :fallback-src="itemNull">
+
                     </n-image>
                     <n-image width="23px" :src="assetPrefix + games.participants[0].stats?.item3Key"
                     preview-disabled
 
-                        fallback-src="https://07akioni.oss-cn-beijing.aliyuncs.com/07akioni.jpeg">
-                        <template #error>
-                            <img :src="itemNull">
-                        </template>
+                    :fallback-src="itemNull">
+
                     </n-image>
                     <n-image width="23px" :src="assetPrefix + games.participants[0].stats?.item4Key"
                     preview-disabled
 
-                        fallback-src="https://07akioni.oss-cn-beijing.aliyuncs.com/07akioni.jpeg">
-                        <template #error>
-                            <img :src="itemNull">
-                        </template>
+                    :fallback-src="itemNull">
+
                     </n-image>
                     <n-image width="23px" :src="assetPrefix + games.participants[0].stats?.item5Key"
                     preview-disabled
@@ -116,11 +106,7 @@
                     </n-image>
                     <n-image width="23px" :src="assetPrefix + games.participants[0].stats?.item6Key"
                     preview-disabled
-
-                        fallback-src="https://07akioni.oss-cn-beijing.aliyuncs.com/07akioni.jpeg">
-                        <template #error>
-                            <img :src="itemNull">
-                        </template>
+                        :fallback-src="itemNull">
                     </n-image>
                 </n-flex>
 

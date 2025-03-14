@@ -11,9 +11,10 @@
                 <n-card :bordered="false" content-style="padding: 0;">
                     <n-flex>
                         <div style="position: relative;">
-                            <img width="32x" height="32px"
+                            <n-image width="32px"
                                 :src="assetPrefix + sessionSummoner.championKey ? assetPrefix + sessionSummoner.championKey : nullImg"
-                                style="vertical-align: middle;" />
+                                preview-disabled :fallback-src="nullImg" />
+
                             <div
                                 style="position: absolute; bottom: 9px; right: 0; font-size: 10px; width: 20px; height: 10px; text-align: center; line-height: 20px; border-radius: 50%; color: white;">
                                 {{ sessionSummoner?.summoner.summonerLevel }}
@@ -46,6 +47,7 @@
                                     </n-icon>
                                 </n-button>
                                 <span>
+
                                     <img style="width: 16px;height: 16px ;" :src="imgUrl" />
                                     <span style="font-size: 8px;">{{ tierCn
                                     }}</span>
@@ -59,8 +61,8 @@
 
 
                 <div>
-                    <n-card v-for="(game, index) in sessionSummoner?.matchHistory.games.games.slice(0, 4)"
-                    :key="index"                        content-style="padding: 0;  margin-left:5px;margin-right:5px" footer-style="padding:0">
+                    <n-card v-for="(game, index) in sessionSummoner?.matchHistory.games.games.slice(0, 4)" :key="index"
+                        content-style="padding: 0;  margin-left:5px;margin-right:5px" footer-style="padding:0">
                         <n-flex justify="space-between" style="gap: 0px; align-items: center;">
                             <span :style="{
                                 fontWeight: '600',
@@ -102,7 +104,8 @@
 
                 <div>
                     <n-card v-for="(game, index) in sessionSummoner?.matchHistory.games.games.slice(4, 9)"
-                    :key="index + 4"                        content-style="padding: 0;  margin-left:5px;margin-right:5px" footer-style="padding:0">
+                        :key="index + 4" content-style="padding: 0;  margin-left:5px;margin-right:5px"
+                        footer-style="padding:0">
                         <n-flex justify="space-between" style="gap: 0px; align-items: center;">
                             <span :style="{
                                 fontWeight: '600',
@@ -293,7 +296,7 @@ import { SessionSummoner } from "../../components/gaming/type";
 import nullImg from "../../assets/imgs/item/null.png";
 import { RecentData } from '../record/type';
 import { CopyOutline } from '@vicons/ionicons5';
-import {assetPrefix} from '../../services/http';
+import { assetPrefix } from '../../services/http';
 const copy = useCopy().copy;
 defineProps<{
     sessionSummoner: SessionSummoner
