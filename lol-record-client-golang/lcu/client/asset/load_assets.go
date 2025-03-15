@@ -66,6 +66,9 @@ func GetAsset(key string) ResourceEntry {
 	once.Do(initAllAssets)
 	return resourceEntryMap[key]
 }
+func init() {
+	GetAsset(string(Profile) + "0")
+}
 
 func initAllAssets() {
 	initItems()
