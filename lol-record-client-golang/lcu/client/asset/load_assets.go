@@ -49,7 +49,6 @@ type ResourceEntry struct {
 
 var (
 	resourceEntryMap = make(map[string]ResourceEntry)
-	once             sync.Once // 用于确保 initAllAssets 只执行一次
 )
 
 var mutex sync.Mutex
@@ -64,7 +63,11 @@ func StoreEntry(key string, value ResourceEntry) {
 
 func GetAsset(key string) ResourceEntry {
 	// 使用 sync.Once 确保 initAllAssets 只执行一次
-	once.Do(initAllAssets)
+	if len(resourceEntryMap) < 100 {
+		mutex.Lock()
+		initAllAssets()
+		mutex.Unlock()
+	}
 	return resourceEntryMap[key]
 }
 func init() {

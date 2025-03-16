@@ -1,23 +1,21 @@
 <template>
     <n-flex justify="space-between" style="height: 90vh;" vertical>
 
-        <n-menu :collapsed="true" :collapsed-width="60" :collapsed-icon-size="20" @update:value="handleMenuClick" :value="router.currentRoute.value.name"
-            :options="menuOptions" />
+        <n-menu :collapsed="true" :collapsed-width="60" :collapsed-icon-size="20" @update:value="handleMenuClick"
+            :value="router.currentRoute.value.name" :options="menuOptions" />
         <div class="loadingIcon" style="margin-left: 13px;">
 
             <n-popover trigger="hover">
                 <template #trigger>
                     <n-button circle @click="toMe">
-                        <template v-if="!mySummoner || assetPrefix + mySummoner.profileIconKey === ''">
-                            <!-- 渲染图标 -->
-                            <n-icon size="20" class="rotating-icon">
+
+                        <n-image width="20px" :src="assetPrefix + mySummoner?.profileIconKey">
+                            <template #error>
+                                <n-icon size="20" class="rotating-icon">
                                 <Reload />
                             </n-icon>
-                        </template>
-                        <template v-else>
-                            <!-- 渲染图片 -->
-                            <img :src="assetPrefix + mySummoner?.profileIconKey" alt="图片" style="width: 20px; margin: 0;" />
-                        </template>
+                            </template>
+                        </n-image>
                     </n-button> </template>
                 <template v-if="!mySummoner || mySummoner?.tagLine == ''">
                     等待连接服务器
@@ -36,7 +34,7 @@
                                 <n-flex>
                                     <span style="font-size: medium;font-size: 14px; font-weight: 1000;">{{
                                         mySummoner?.gameName
-                                        }}</span>
+                                    }}</span>
                                     <n-button text style="font-size: 12px" @click="copy">
                                         <n-icon>
                                             <copy-outline></copy-outline>
@@ -47,7 +45,7 @@
 
                                 <n-flex>
                                     <span style="color: #676768; font-size: small;">#{{ mySummoner?.tagLine
-                                        }}</span>
+                                    }}</span>
                                     <n-icon :depth="3" color="dark" style="position: relative; top: 2px;">
                                         <server></server>
                                     </n-icon><span>{{ mySummoner?.platformIdCn }} </span>
@@ -65,7 +63,7 @@
 <script setup lang="ts">
 import router from '@renderer/router';
 import http from '@renderer/services/http';
-import {assetPrefix} from '../services/http';
+import { assetPrefix } from '../services/http';
 import { Reload, BarChart, Server, CopyOutline } from '@vicons/ionicons5'
 import { NIcon, useMessage } from 'naive-ui';
 import { Component, computed, h, onMounted, ref } from 'vue';
