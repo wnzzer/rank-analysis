@@ -155,3 +155,6 @@
 
 ---
 
+# Star 趋势
+
+![Star History Chart](https://starchart.cc/wnzzer/lol-rank-record-analysis.svg)
