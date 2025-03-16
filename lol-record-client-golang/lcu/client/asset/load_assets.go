@@ -2,6 +2,7 @@ package asset
 
 import (
 	"lol-record-analysis/lcu/util"
+	"lol-record-analysis/util/init_log"
 	"path/filepath"
 	"strconv"
 	"sync"
@@ -87,12 +88,12 @@ func initItems() {
 	var items []Item
 	err := util.Get("lol-game-data/assets/v1/items.json", &items)
 	if err != nil {
-		panic(err)
+		init_log.AppLog.Error("Error getting image: " + err.Error())
 	}
 	for _, item := range items {
 		bytes, headers, err := util.GetImgAsBinary(item.IconPath)
 		if err != nil {
-			panic(err)
+			init_log.AppLog.Error("Error getting image: " + err.Error())
 		}
 		contentType := headers.Get("Content-Type")
 		fileName := filepath.Base(item.IconPath)
@@ -115,12 +116,12 @@ func initChampions() {
 	var champions []Champion
 	err := util.Get("lol-game-data/assets/v1/champion-summary.json", &champions)
 	if err != nil {
-		panic(err)
+		init_log.AppLog.Error("Error getting image json: " + err.Error())
 	}
 	for _, champion := range champions {
 		bytes, headers, err := util.GetImgAsBinary(champion.SquarePortraitPath)
 		if err != nil {
-			panic(err)
+			init_log.AppLog.Error("Error getting image: " + err.Error())
 		}
 		contentType := headers.Get("Content-Type")
 		fileName := filepath.Base(champion.SquarePortraitPath)
@@ -143,12 +144,12 @@ func initSpells() {
 	var spells []Spell
 	err := util.Get("lol-game-data/assets/v1/summoner-spells.json", &spells)
 	if err != nil {
-		panic(err)
+		init_log.AppLog.Error("Error getting image json: " + err.Error())
 	}
 	for _, spell := range spells {
 		bytes, headers, err := util.GetImgAsBinary(spell.IconPath)
 		if err != nil {
-			panic(err)
+			init_log.AppLog.Error("Error getting image: " + err.Error())
 		}
 		contentType := headers.Get("Content-Type")
 		fileName := filepath.Base(spell.IconPath)
@@ -171,12 +172,12 @@ func initPerks() {
 	var perks []Perk
 	err := util.Get("lol-game-data/assets/v1/perks.json", &perks)
 	if err != nil {
-		panic(err)
+		init_log.AppLog.Error("Error getting image json: " + err.Error())
 	}
 	for _, perk := range perks {
 		bytes, headers, err := util.GetImgAsBinary(perk.IconPath)
 		if err != nil {
-			panic(err)
+			init_log.AppLog.Error("Error getting image: " + err.Error())
 		}
 		contentType := headers.Get("Content-Type")
 		fileName := filepath.Base(perk.IconPath)
