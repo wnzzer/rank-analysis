@@ -104,7 +104,7 @@ func GetTagCore(puuid string, name string) (*UserTag, error) {
 	if puuid == "" {
 		return nil, errors.New("puuid or name is empty")
 	} else {
-		matchHistory, _ := api.GetMatchHistoryByPuuid(puuid, 0, 19)
+		matchHistory, _ := api.GetMatchHistoryByPuuid(puuid, 0, 29)
 		matchHistory.EnrichGameDetails()
 
 		var tags []RankTag
@@ -163,7 +163,7 @@ func GetTagCore(puuid string, name string) (*UserTag, error) {
 			Tag: tags,
 		}
 		//计算朋友组队胜率和冤家组队胜率
-		countFriendAndDispute(oneGamePlayerMap, &userTag.RecentData)
+		countFriendAndDispute(oneGamePlayerMap, &userTag.RecentData, puuid)
 		return &userTag, nil
 	}
 }
@@ -176,6 +176,7 @@ func getOneGamePlayers(matchHistory *api.MatchHistory) map[string][]OneGamePlaye
 			oneGamePlayerMap[games.GameDetail.ParticipantIdentities[i].Player.Puuid] = append(oneGamePlayerMap[games.GameDetail.ParticipantIdentities[i].Player.Puuid], OneGamePlayer{
 				Index:         index,
 				GameId:        games.GameId,
+				Puuid:         games.GameDetail.ParticipantIdentities[i].Player.Puuid,
 				GameCreatedAt: games.GameCreationDate,
 				IsMyTeam:      myTeamId == games.GameDetail.Participants[i].TeamId,
 				GameName:      games.GameDetail.ParticipantIdentities[i].Player.SummonerName,
@@ -192,12 +193,12 @@ func getOneGamePlayers(matchHistory *api.MatchHistory) map[string][]OneGamePlaye
 	}
 	return oneGamePlayerMap
 }
-func countFriendAndDispute(oneGamePlayersMap map[string][]OneGamePlayer, recentData *RecentData) {
-	friendsArr := make([][]OneGamePlayer, 10)
-	disputeArr := make([][]OneGamePlayer, 10)
+func countFriendAndDispute(oneGamePlayersMap map[string][]OneGamePlayer, recentData *RecentData, myPuuid string) {
+	friendsArr := make([][]OneGamePlayer, 0)
+	disputeArr := make([][]OneGamePlayer, 0)
 	friendOrDisputeLimit := 3
 	for _, value := range oneGamePlayersMap {
-		if len(value) < friendOrDisputeLimit {
+		if len(value) < friendOrDisputeLimit || value[0].Puuid == myPuuid {
 			continue
 		}
 		isMyFriend := true
@@ -240,7 +241,7 @@ func countFriendAndDispute(oneGamePlayersMap map[string][]OneGamePlayer, recentD
 		}
 		friendsSummoner = append(friendsSummoner, oneGamePlayerSummoner)
 	}
-	friendsRate := int(float64(friendsWins) / float64(friendsWins+friendsLoss) * 100)
+	friendsRate := int(float64(friendsWins) / float64(friendsWins+friendsLoss+1) * 100)
 	//计算冤家组队胜率
 	var disputeSummoner []OneGamePlayerSummoner
 	disputeWins := 0
@@ -272,7 +273,7 @@ func countFriendAndDispute(oneGamePlayersMap map[string][]OneGamePlayer, recentD
 		}
 		disputeSummoner = append(disputeSummoner, oneGamePlayerSummoner)
 	}
-	disputeRate := int(float64(disputeWins) / float64(disputeWins+disputeLoss) * 100)
+	disputeRate := int(float64(disputeWins) / float64(disputeWins+disputeLoss+1) * 100)
 	recentData.FriendAndDispute.FriendsRate = friendsRate
 	recentData.FriendAndDispute.FriendsSummoner = friendsSummoner
 	recentData.FriendAndDispute.DisputeRate = disputeRate

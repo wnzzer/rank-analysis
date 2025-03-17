@@ -9,7 +9,10 @@
                 <template #trigger>
                     <n-button circle @click="toMe">
 
-                        <n-image width="20px" :src="assetPrefix + mySummoner?.profileIconKey">
+                        <n-image width="20px" :src="assetPrefix + mySummoner?.profileIconKey"
+                        preview-disabled
+                        >
+
                             <template #error>
                                 <n-icon size="20" class="rotating-icon">
                                 <Reload />
