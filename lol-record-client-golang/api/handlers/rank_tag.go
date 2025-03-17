@@ -29,7 +29,15 @@ type RecentData struct {
 	AverageDamageDealtToChampions int                        `json:"averageDamageDealtToChampions"`
 	DamageDealtToChampionsRate    int                        `json:"damageDealtToChampionsRate"`
 	OneGamePlayersMap             map[string][]OneGamePlayer `json:"oneGamePlayers"` // 遇到用户的 puuid
+	FriendAndDispute              struct {
+		FriendsRate     int                     `json:"friendsRate"`
+		FriendsSummoner []OneGamePlayerSummoner `json:"friendsSummoner"`
+		DisputeRate     int                     `json:"disputeRate"`
+		DisputeSummoner []OneGamePlayerSummoner `json:"disputeSummoner"`
+	} `json:"friendAndDispute"`
 }
+
+// OneGamePlayer 玩家信息
 type OneGamePlayer struct {
 	Index         int    `json:"index"` //用于标记第几页,第几个
 	GameCreatedAt string `json:"gameCreatedAt"`
@@ -46,7 +54,15 @@ type OneGamePlayer struct {
 	Assists       int    `json:"assists"`
 	IsMyTeam      bool   `json:"isMyTeam"`
 }
+type OneGamePlayerSummoner struct {
+	winRate       int
+	wins          int
+	losses        int
+	Summoner      api.Summoner
+	OneGamePlayer []OneGamePlayer
+}
 
+// RankTag 玩家标签
 type RankTag struct {
 	Good    bool   `json:"good"`
 	TagName string `json:"tagName"`
@@ -61,7 +77,7 @@ type UserTag struct {
 func GetTag(c *gin.Context) {
 	puuid := c.DefaultQuery("puuid", "")
 	name := c.DefaultQuery("name", "")
-	userTag, err := GetTagCore(puuid, name, false)
+	userTag, err := GetTagCore(puuid, name)
 	if err != nil {
 		init_log.AppLog.Error("GetTagCore() failed,%v", err)
 		c.JSON(http.StatusOK, gin.H{
@@ -73,7 +89,7 @@ func GetTag(c *gin.Context) {
 
 }
 
-func GetTagCore(puuid string, name string, boolOneGamePlayers bool) (*UserTag, error) {
+func GetTagCore(puuid string, name string) (*UserTag, error) {
 
 	if name != "" {
 		summoner, _ := api.GetSummonerByName(name)
@@ -115,9 +131,7 @@ func GetTagCore(puuid string, name string, boolOneGamePlayers bool) (*UserTag, e
 
 		//获取该玩家局内的所有玩家
 		var oneGamePlayerMap map[string][]OneGamePlayer
-		if boolOneGamePlayers {
-			oneGamePlayerMap = getOneGamePlayers(&matchHistory)
-		}
+		oneGamePlayerMap = getOneGamePlayers(&matchHistory)
 
 		//计算 kda,胜率,参团率,伤害转换率
 		kills, death, assists := countKda(&matchHistory)
@@ -148,6 +162,8 @@ func GetTagCore(puuid string, name string, boolOneGamePlayers bool) (*UserTag, e
 			},
 			Tag: tags,
 		}
+		//计算朋友组队胜率和冤家组队胜率
+		countFriendAndDispute(oneGamePlayerMap, &userTag.RecentData)
 		return &userTag, nil
 	}
 }
@@ -175,6 +191,93 @@ func getOneGamePlayers(matchHistory *api.MatchHistory) map[string][]OneGamePlaye
 		}
 	}
 	return oneGamePlayerMap
+}
+func countFriendAndDispute(oneGamePlayersMap map[string][]OneGamePlayer, recentData *RecentData) {
+	friendsArr := make([][]OneGamePlayer, 10)
+	disputeArr := make([][]OneGamePlayer, 10)
+	friendOrDisputeLimit := 3
+	for _, value := range oneGamePlayersMap {
+		if len(value) < friendOrDisputeLimit {
+			continue
+		}
+		isMyFriend := true
+		for _, oneGamePlayer := range value {
+			if !oneGamePlayer.IsMyTeam {
+				isMyFriend = false
+				break
+			}
+		}
+		if isMyFriend {
+			friendsArr = append(friendsArr, value)
+		} else {
+			disputeArr = append(disputeArr, value)
+		}
+	}
+	//计算朋友组队胜率
+	var friendsSummoner []OneGamePlayerSummoner
+	friendsWins := 0
+	friendsLoss := 0
+	for _, value := range friendsArr {
+		summoner, _ := api.GetSummonerByPuuid(value[0].Puuid)
+		summoner.EnrichImgKeys()
+		wins := 0
+		losses := 0
+		for _, oneGamePlayer := range value {
+			if oneGamePlayer.Win {
+				wins++
+				friendsWins++
+			} else {
+				losses++
+				friendsLoss++
+			}
+		}
+		oneGamePlayerSummoner := OneGamePlayerSummoner{
+			winRate:       int(float64(wins) / float64(wins+losses) * 100),
+			wins:          wins,
+			losses:        losses,
+			Summoner:      summoner,
+			OneGamePlayer: value,
+		}
+		friendsSummoner = append(friendsSummoner, oneGamePlayerSummoner)
+	}
+	friendsRate := int(float64(friendsWins) / float64(friendsWins+friendsLoss) * 100)
+	//计算冤家组队胜率
+	var disputeSummoner []OneGamePlayerSummoner
+	disputeWins := 0
+	disputeLoss := 0
+	for _, value := range disputeArr {
+		summoner, _ := api.GetSummonerByPuuid(value[0].Puuid)
+		summoner.EnrichImgKeys()
+		wins := 0
+		losses := 0
+		for _, oneGamePlayer := range value {
+			//跳过是队友的对局
+			if oneGamePlayer.IsMyTeam {
+				continue
+			}
+			if oneGamePlayer.Win {
+				wins++
+				disputeWins++
+			} else {
+				losses++
+				disputeLoss++
+			}
+		}
+		oneGamePlayerSummoner := OneGamePlayerSummoner{
+			winRate:       int(float64(wins) / float64(wins+losses) * 100),
+			wins:          wins,
+			losses:        losses,
+			Summoner:      summoner,
+			OneGamePlayer: value,
+		}
+		disputeSummoner = append(disputeSummoner, oneGamePlayerSummoner)
+	}
+	disputeRate := int(float64(disputeWins) / float64(disputeWins+disputeLoss) * 100)
+	recentData.FriendAndDispute.FriendsRate = friendsRate
+	recentData.FriendAndDispute.FriendsSummoner = friendsSummoner
+	recentData.FriendAndDispute.DisputeRate = disputeRate
+	recentData.FriendAndDispute.DisputeSummoner = disputeSummoner
+
 }
 
 func countGoldAndGroupAndDamageDealtToChampions(matchHistory *api.MatchHistory) (int, int, int, int, int) {
