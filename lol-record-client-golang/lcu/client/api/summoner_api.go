@@ -47,3 +47,7 @@ func GetSummonerByPuuid(puuid string) (Summoner, error) {
 
 	return summoner, nil
 }
+func (summoner *Summoner) EnrichImgKeys() {
+	key := StoreProfileIcon(summoner.ProfileIconId)
+	summoner.ProfileIconKey = key
+}
