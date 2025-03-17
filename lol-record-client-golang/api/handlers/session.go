@@ -108,7 +108,7 @@ func processTeam(team []api.OnePlayer, result *[]SessionSummoner) {
 		matchHistory, _ = api.GetMatchHistoryByPuuid(summoner.Puuid, 0, 8)
 		matchHistory.EnrichChampionKey()
 		matchHistory.ProcessMatchHistory()
-		userTag, _ = GetTagCore(summoner.Puuid, "", true)
+		userTag, _ = GetTagCore(summoner.Puuid, "")
 		rank, _ = api.GetRankByPuuid(summoner.Puuid)
 
 		// 构造 SessionSummoner 数据
