@@ -67,6 +67,7 @@ export interface Summoner {
     averageDamageDealtToChampions: number;
     damageDealtToChampionsRate: number;
     oneGamePlayers: Record<string, OneGamePlayer[]>; // 对应 Go 中的 map[string][]OneGamePlayer
+    friendAndDispute : FriendAndDispute;
   }
   export interface OneGamePlayer {
     gameCreatedAt: string;      // 用于标记第几页,第几个
@@ -84,6 +85,21 @@ export interface Summoner {
     isMyTeam: boolean;
     queueIdCn: string;
 }
+export interface OneGamePlayerSummoner {
+  winRate: number;
+  wins: number;
+  losses: number;
+  Summoner: Summoner; // 需要根据实际api.Summoner结构定义
+  OneGamePlayer: OneGamePlayerSummoner[];
+}
+
+export interface FriendAndDispute {
+  friendsRate: number;
+  friendsSummoner: OneGamePlayerSummoner[];
+  disputeRate: number;
+  disputeSummoner: OneGamePlayerSummoner[];
+}
+
 
   
   export interface RankTag {

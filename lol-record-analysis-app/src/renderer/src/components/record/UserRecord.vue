@@ -33,9 +33,8 @@
       </n-flex>
     </n-card>
 
-    <!-- 这里显示的是RANKED_SOLO_5x5的排名图标 -->
-    <div style="position: relative;">
 
+    <div style="position: relative;">
       <n-card :bordered="false" content-style="padding-top:0px">
 
         <n-flex>
@@ -56,6 +55,22 @@
         </n-flex>
       </n-card>
     </div>
+    <!-- 宿敌和好友 -->
+    <!-- <flex style="display: flex;">
+      <flex vertical style="flex : 1">
+        <span>好友</span>
+        <n-card content-style="padding: 0px">
+          <img width="25px" height="25px" :src="assetPrefix + summoner.summoner.profileIconKey" />
+          
+        </n-card>
+      </flex>
+      <flex vertical style="flex: 1">
+        <span>宿敌</span>
+      </flex>
+    </flex> -->
+
+
+
     <div style="position: relative;">
 
       <n-card :bordered="false">
@@ -168,7 +183,7 @@
                 style="position: relative; top: 7px;"></n-progress>
             </span>
             <span class="stats-value" :style="{ color: groupRateColor(recentData.groupRate) }">{{ recentData.groupRate
-              }}%</span>
+            }}%</span>
 
           </n-flex>
         </n-flex>
@@ -218,7 +233,7 @@
 
 <script lang="ts" setup>
 import http from '@renderer/services/http';
-import {assetPrefix} from '@renderer/services/http';
+import { assetPrefix } from '@renderer/services/http';
 import { CopyOutline, Server, Accessibility, } from '@vicons/ionicons5'
 import { onMounted, ref } from 'vue';
 
@@ -318,7 +333,13 @@ const recentData = ref<RecentData>({
   goldRate: 0,
   averageDamageDealtToChampions: 0,
   damageDealtToChampionsRate: 0,
-  oneGamePlayers: {}
+  oneGamePlayers: {},
+  friendAndDispute:{
+    friendsRate: 0,
+    friendsSummoner: [],
+    disputeRate: 0,
+    disputeSummoner: []
+  },
 })
 const tags = ref<RankTag[]>([])
 const getTags = async (name: string) => {

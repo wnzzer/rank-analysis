@@ -44,7 +44,7 @@
     <div>
       <n-pagination style="margin-top: 0px">
         <template #prev>
-          <n-button size="tiny" :disabled="page == 1" @click="prevPage">
+          <n-button size="tiny" :disabled="page == 1 || isRequestingMatchHostory" @click="prevPage">
             <template #icon>
               <n-icon>
                 <ArrowBack></ArrowBack>
@@ -404,7 +404,7 @@ const loadingBar = useLoadingBar() // 确保 useLoadingBar 在 setup 中正确�
 // 获取历史记录
 const getHistoryMatch = async (name: string, begIndex: number, endIndex: number) => {
   loadingBar.start() // 开始进度条
-
+  isRequestingMatchHostory.value = true
   try {
     const res = await http.get<MatchHistory>('/GetMatchHistory', {
       params: {
@@ -425,6 +425,7 @@ const getHistoryMatch = async (name: string, begIndex: number, endIndex: number)
     matchHistory.value = res.data
     loadingBar.error() // 发生错误时显示错误状态
   } finally {
+    isRequestingMatchHostory.value = false
     loadingBar.finish() // 加载完成时结束进度条
   }
 }
@@ -446,8 +447,9 @@ const nextPage = () => {
   }
   pageHistory.value.push({ begIndex: curBegIndex, endIndex: curEndIndex })
 }
+//是否正在请求中
+const isRequestingMatchHostory = ref(false)
 const prevPage = () => {
-  if (page.value <= 1) return // 防止页码小于1
 
   if (filterQueueId.value != 0 || filterChampionId.value != 0) {
     const lastPage = pageHistory.value.pop()
