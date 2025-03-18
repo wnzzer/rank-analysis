@@ -85,20 +85,21 @@ export interface Summoner {
     isMyTeam: boolean;
     queueIdCn: string;
 }
-export interface OneGamePlayerSummoner {
-  winRate: number;
-  wins: number;
-  losses: number;
-  Summoner: Summoner; // 需要根据实际api.Summoner结构定义
-  OneGamePlayer: OneGamePlayerSummoner[];
-}
-
 export interface FriendAndDispute {
   friendsRate: number;
   friendsSummoner: OneGamePlayerSummoner[];
   disputeRate: number;
   disputeSummoner: OneGamePlayerSummoner[];
 }
+export interface OneGamePlayerSummoner {
+  winRate: number;
+  wins: number;
+  losses: number;
+  Summoner: Summoner; // 需要根据实际api.Summoner结构定义
+  OneGamePlayer: OneGamePlayer[];
+}
+
+
 
 
   
