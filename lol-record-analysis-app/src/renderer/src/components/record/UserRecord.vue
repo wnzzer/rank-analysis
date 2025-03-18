@@ -56,18 +56,54 @@
       </n-card>
     </div>
     <!-- 宿敌和好友 -->
-    <!-- <flex style="display: flex;">
-      <flex vertical style="flex : 1">
-        <span>好友</span>
-        <n-card content-style="padding: 0px">
-          <img width="25px" height="25px" :src="assetPrefix + summoner.summoner.profileIconKey" />
-          
-        </n-card>
+    <flex style="display: flex;">
+      <flex vertical style="flex: 1">
+        <div v-if="recentData.friendAndDispute.friendsSummoner" style="font-weight: 800; color:#8BDFB7;">
+          <n-icon>
+            <Accessibility />
+          </n-icon>
+          好友/胜率
+        </div>
+        <n-popover trigger="hover" v-for="friend in recentData.friendAndDispute.friendsSummoner">
+          <template #trigger>
+            <n-tag round :bordered="false" :color ="{textColor : winRateColor(friend.winRate)}">
+              <n-ellipsis style="max-width: 90px">
+                {{ friend.Summoner.gameName}}
+              </n-ellipsis>
+
+              <span style="font-size: 13px; margin-left: 5px;" >{{ friend.winRate}}</span>
+              <template #avatar>
+                <n-avatar :src="assetPrefix + friend.Summoner.profileIconKey" />
+              </template>
+            </n-tag>
+          </template>
+          <MettingPlayersCard :meet-games="friend.OneGamePlayer"></MettingPlayersCard>
+        </n-popover>
       </flex>
       <flex vertical style="flex: 1">
-        <span>宿敌</span>
+        <div v-if="recentData.friendAndDispute.disputeSummoner" style="font-weight: 800; color:#C9606F;">
+          <n-icon>
+            <Skull />
+          </n-icon>
+          宿敌/胜率
+        </div>
+        <n-popover trigger="hover" v-for="dispute in recentData.friendAndDispute.disputeSummoner">
+          <template #trigger>
+            <n-tag round :bordered="false" :color ="{textColor : winRateColor(dispute.winRate)}">
+              <n-ellipsis style="max-width: 90px">
+                {{ dispute.Summoner.gameName }}
+              </n-ellipsis>
+              <span style="font-size: 13px; margin-left: 5px;">{{ dispute.winRate}}</span>
+              <template #avatar>
+                <n-avatar :src="assetPrefix + dispute.Summoner.profileIconKey" />
+              </template>
+            </n-tag>
+          </template>
+          <MettingPlayersCard :meet-games="dispute.OneGamePlayer"></MettingPlayersCard>
+        </n-popover>
       </flex>
-    </flex> -->
+    </flex>
+
 
 
 
@@ -234,14 +270,14 @@
 <script lang="ts" setup>
 import http from '@renderer/services/http';
 import { assetPrefix } from '@renderer/services/http';
-import { CopyOutline, Server, Accessibility, } from '@vicons/ionicons5'
+import { CopyOutline, Server, Accessibility, Skull } from '@vicons/ionicons5'
 import { onMounted, ref } from 'vue';
-
+import MettingPlayersCard from '../gaming/MettingPlayersCard.vue'
 import { NCard, NFlex, NButton, NIcon, useMessage } from 'naive-ui';
 import RecordButton from './RecordButton.vue';
 import { useRoute } from 'vue-router';
 import { RankTag, RecentData, SummonerData, UserTag } from './type';
-import { kdaColor, deathsColor, assistsColor, otherColor, groupRateColor, killsColor } from './composition';
+import { kdaColor, deathsColor, assistsColor, otherColor, groupRateColor, killsColor,winRateColor} from './composition';
 import unranked from '@renderer/assets/imgs/tier/unranked.png';
 import bronzed from '@renderer/assets/imgs/tier/bronze.png';
 import silver from '@renderer/assets/imgs/tier/silver.png';
@@ -334,7 +370,7 @@ const recentData = ref<RecentData>({
   averageDamageDealtToChampions: 0,
   damageDealtToChampionsRate: 0,
   oneGamePlayers: {},
-  friendAndDispute:{
+  friendAndDispute: {
     friendsRate: 0,
     friendsSummoner: [],
     disputeRate: 0,
