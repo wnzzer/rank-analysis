@@ -276,9 +276,18 @@ func countFriendAndDispute(oneGamePlayersMap map[string][]OneGamePlayer, recentD
 	}
 	disputeRate := int(float64(disputeWins) / float64(disputeWins+disputeLoss+1) * 100)
 	recentData.FriendAndDispute.FriendsRate = friendsRate
-	recentData.FriendAndDispute.FriendsSummoner = friendsSummoner[:6]
 	recentData.FriendAndDispute.DisputeRate = disputeRate
-	recentData.FriendAndDispute.DisputeSummoner = disputeSummoner[:6]
+
+	if len(friendsSummoner) > 6 {
+		recentData.FriendAndDispute.FriendsSummoner = friendsSummoner[:6]
+	} else {
+		recentData.FriendAndDispute.FriendsSummoner = friendsSummoner
+	}
+	if len(disputeSummoner) > 6 {
+		recentData.FriendAndDispute.DisputeSummoner = disputeSummoner[:6]
+	} else {
+		recentData.FriendAndDispute.DisputeSummoner = disputeSummoner
+	}
 
 }
 
