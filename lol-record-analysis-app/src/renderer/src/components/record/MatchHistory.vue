@@ -56,7 +56,7 @@
           <span>{{ page }}</span>
         </template>
         <template #next>
-          <n-button size="tiny" @click="nextPage">
+          <n-button size="tiny" @click="nextPage" :disabled=" isRequestingMatchHostory">
             <template #icon>
               <n-icon>
                 <ArrowForward></ArrowForward>
