@@ -55,9 +55,9 @@ type OneGamePlayer struct {
 	IsMyTeam      bool   `json:"isMyTeam"`
 }
 type OneGamePlayerSummoner struct {
-	winRate       int
-	wins          int
-	losses        int
+	WinRate       int `json:"winRate"`
+	Wins          int `json:"wins"`
+	Losses        int `json:"losses"`
 	Summoner      api.Summoner
 	OneGamePlayer []OneGamePlayer
 }
@@ -78,6 +78,7 @@ func GetTag(c *gin.Context) {
 	puuid := c.DefaultQuery("puuid", "")
 	name := c.DefaultQuery("name", "")
 	userTag, err := GetTagCore(puuid, name)
+	userTag.RecentData.OneGamePlayersMap = nil
 	if err != nil {
 		init_log.AppLog.Error("GetTagCore() failed,%v", err)
 		c.JSON(http.StatusOK, gin.H{
@@ -104,7 +105,7 @@ func GetTagCore(puuid string, name string) (*UserTag, error) {
 	if puuid == "" {
 		return nil, errors.New("puuid or name is empty")
 	} else {
-		matchHistory, _ := api.GetMatchHistoryByPuuid(puuid, 0, 29)
+		matchHistory, _ := api.GetMatchHistoryByPuuid(puuid, 0, 39)
 		matchHistory.EnrichGameDetails()
 
 		var tags []RankTag
@@ -233,9 +234,9 @@ func countFriendAndDispute(oneGamePlayersMap map[string][]OneGamePlayer, recentD
 			}
 		}
 		oneGamePlayerSummoner := OneGamePlayerSummoner{
-			winRate:       int(float64(wins) / float64(wins+losses) * 100),
-			wins:          wins,
-			losses:        losses,
+			WinRate:       int(float64(wins) / float64(wins+losses) * 100),
+			Wins:          wins,
+			Losses:        losses,
 			Summoner:      summoner,
 			OneGamePlayer: value,
 		}
@@ -265,9 +266,9 @@ func countFriendAndDispute(oneGamePlayersMap map[string][]OneGamePlayer, recentD
 			}
 		}
 		oneGamePlayerSummoner := OneGamePlayerSummoner{
-			winRate:       int(float64(wins) / float64(wins+losses) * 100),
-			wins:          wins,
-			losses:        losses,
+			WinRate:       int(float64(wins) / float64(wins+losses) * 100),
+			Wins:          wins,
+			Losses:        losses,
 			Summoner:      summoner,
 			OneGamePlayer: value,
 		}
