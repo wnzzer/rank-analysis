@@ -137,6 +137,9 @@ func GetMatchHistoryByPuuid(puuid string, begIndex int, endIndex int) (MatchHist
 		return MatchHistory{}, err
 	}
 	go func() {
+		if _, ok := matchHistoryCache.Get(puuid); ok {
+			return
+		}
 		parms.Add("begIndex", fmt.Sprintf("%d", cacheMinIndex))
 		parms.Add("endIndex", fmt.Sprintf("%d", cacheMaxIndex))
 
