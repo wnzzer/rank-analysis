@@ -105,7 +105,7 @@ func GetTagCore(puuid string, name string) (*UserTag, error) {
 	if puuid == "" {
 		return nil, errors.New("puuid or name is empty")
 	} else {
-		matchHistory, _ := api.GetMatchHistoryByPuuid(puuid, 0, 39)
+		matchHistory, _ := api.GetMatchHistoryByPuuid(puuid, 0, 19)
 		matchHistory.EnrichGameDetails()
 
 		var tags []RankTag
@@ -278,13 +278,14 @@ func countFriendAndDispute(oneGamePlayersMap map[string][]OneGamePlayer, recentD
 	recentData.FriendAndDispute.FriendsRate = friendsRate
 	recentData.FriendAndDispute.DisputeRate = disputeRate
 
-	if len(friendsSummoner) > 6 {
-		recentData.FriendAndDispute.FriendsSummoner = friendsSummoner[:6]
+	//只取前5个,前端无法展示太多
+	if len(friendsSummoner) > 5 {
+		recentData.FriendAndDispute.FriendsSummoner = friendsSummoner[:5]
 	} else {
 		recentData.FriendAndDispute.FriendsSummoner = friendsSummoner
 	}
-	if len(disputeSummoner) > 6 {
-		recentData.FriendAndDispute.DisputeSummoner = disputeSummoner[:6]
+	if len(disputeSummoner) > 5 {
+		recentData.FriendAndDispute.DisputeSummoner = disputeSummoner[:5]
 	} else {
 		recentData.FriendAndDispute.DisputeSummoner = disputeSummoner
 	}
