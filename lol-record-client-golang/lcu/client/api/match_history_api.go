@@ -2,12 +2,16 @@ package api
 
 import (
 	"fmt"
+	lru "github.com/hashicorp/golang-lru"
 	"lol-record-analysis/lcu/client/asset"
 	"lol-record-analysis/lcu/client/constants"
 	"lol-record-analysis/lcu/util"
+	"lol-record-analysis/util/init_log"
+	"math/rand"
 	"net/url"
 	"strconv"
 	"sync"
+	"time"
 )
 
 type MatchHistory struct {
@@ -90,8 +94,37 @@ type MatchHistory struct {
 		} `json:"games"`
 	} `json:"games"`
 }
+type lruValue struct {
+	expiresAt    time.Time
+	matchHistory MatchHistory
+}
+
+var (
+	matchHistoryCache *lru.Cache
+)
+
+func init() {
+	var err error
+	matchHistoryCache, err = lru.New(20)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to create LRU cache: %v", err))
+	}
+}
 
 func GetMatchHistoryByPuuid(puuid string, begIndex int, endIndex int) (MatchHistory, error) {
+	//如果缓存中有数据，且未过期，则直接返回
+	cacheMinIndex := 0
+	cacheMaxIndex := 39
+	if cached, ok := matchHistoryCache.Get(puuid); ok {
+		if value, ok := cached.(lruValue); ok && value.expiresAt.After(time.Now()) {
+			if endIndex <= cacheMaxIndex {
+				value.matchHistory.Games.Games = value.matchHistory.Games.Games[begIndex : endIndex+1]
+				return value.matchHistory, nil
+			}
+		}
+	}
+
+	// 缓存未命中，从接口获取
 	uri := "lol-match-history/v1/products/lol/%s/matches?%s"
 	parms := url.Values{}
 	var matchHistory MatchHistory
@@ -103,7 +136,23 @@ func GetMatchHistoryByPuuid(puuid string, begIndex int, endIndex int) (MatchHist
 	if err != nil {
 		return MatchHistory{}, err
 	}
+	go func() {
+		parms.Add("begIndex", fmt.Sprintf("%d", cacheMinIndex))
+		parms.Add("endIndex", fmt.Sprintf("%d", cacheMaxIndex))
 
+		var insertMatchHistory MatchHistory
+		err := util.Get(fmt.Sprintf(uri, puuid, parms.Encode()), &insertMatchHistory)
+		if err != nil {
+			init_log.AppLog.Error("GetMatchHistoryByPuuid() failed", err)
+			return
+		}
+		randomTime := time.Duration(rand.Intn(300)) * time.Second
+		value := lruValue{
+			expiresAt:    time.Now().Add(time.Minute * 1).Add(randomTime),
+			matchHistory: insertMatchHistory,
+		}
+		matchHistoryCache.Add(puuid, value)
+	}()
 	return matchHistory, err
 
 }

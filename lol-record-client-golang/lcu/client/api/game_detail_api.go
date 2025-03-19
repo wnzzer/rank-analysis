@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	lru "github.com/hashicorp/golang-lru"
 	"lol-record-analysis/lcu/util"
 )
 
@@ -63,12 +64,36 @@ type GameDetail struct {
 	} `json:"participants"`
 }
 
+var (
+	gameDetailCache *lru.Cache
+)
+
+// 初始化缓存（建议放在程序初始化处调用）
+func init() {
+	var err error
+	gameDetailCache, err = lru.New(200)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to create LRU cache: %v", err))
+	}
+}
+
 func GetGameDetail(gameId int) (GameDetail, error) {
+	// 尝试从缓存获取
+	if cached, ok := gameDetailCache.Get(gameId); ok {
+		if detail, ok := cached.(GameDetail); ok {
+			return detail, nil
+		}
+	}
+	// 缓存未命中，从接口获取
 	uri := "lol-match-history/v1/games/%d"
 	var gameDetail GameDetail
 	err := util.Get(fmt.Sprintf(uri, gameId), &gameDetail)
 	if err != nil {
 		return GameDetail{}, err
 	}
-	return gameDetail, err
+
+	// 存入缓存（仅在成功时缓存）
+	gameDetailCache.Add(gameId, gameDetail)
+
+	return gameDetail, nil
 }
