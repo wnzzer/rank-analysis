@@ -7,6 +7,7 @@ import (
 	"lol-record-analysis/lcu/client/asset"
 	"lol-record-analysis/lcu/client/constants"
 	"lol-record-analysis/util/init_log"
+	"math/rand"
 	"sort"
 	"strconv"
 	"time"
@@ -43,9 +44,11 @@ func getCache(puuid string) (*SessionSummoner, bool) {
 
 // 缓存写入方法
 func setCache(puuid string, data SessionSummoner, duration time.Duration) {
+	// 随机时间，避免缓存雪崩
+	randomTime := time.Duration(rand.Intn(120)) * time.Second
 	cache.Add(puuid, &CacheItem{
 		Data:      data,
-		ExpiresAt: time.Now().Add(duration),
+		ExpiresAt: time.Now().Add(duration).Add(randomTime),
 	})
 }
 func GetSessionData(c *gin.Context) {

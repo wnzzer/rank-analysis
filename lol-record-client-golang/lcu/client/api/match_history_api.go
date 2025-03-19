@@ -146,7 +146,7 @@ func GetMatchHistoryByPuuid(puuid string, begIndex int, endIndex int) (MatchHist
 			init_log.AppLog.Error("GetMatchHistoryByPuuid() failed", err)
 			return
 		}
-		randomTime := time.Duration(rand.Intn(300)) * time.Second
+		randomTime := time.Duration(rand.Intn(120)) * time.Second
 		value := lruValue{
 			expiresAt:    time.Now().Add(time.Minute * 1).Add(randomTime),
 			matchHistory: insertMatchHistory,
