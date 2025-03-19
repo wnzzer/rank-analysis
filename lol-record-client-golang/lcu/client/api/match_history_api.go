@@ -107,15 +107,7 @@ func GetMatchHistoryByPuuid(puuid string, begIndex int, endIndex int) (MatchHist
 	return matchHistory, err
 
 }
-func (matchHistory *MatchHistory) EnrichChampionKey() {
-	if matchHistory.Games.Games == nil {
-		return
-	}
-	for i, game := range matchHistory.Games.Games {
-		matchHistory.Games.Games[i].QueueName = constants.QueueIdToCn[game.QueueId]
-		matchHistory.Games.Games[i].Participants[0].ChampionKey = string(asset.ChampionType) + strconv.Itoa(game.Participants[0].ChampionId)
-	}
-}
+
 func (matchHistory *MatchHistory) EnrichGameDetails() {
 	var wg sync.WaitGroup
 	for i, games := range matchHistory.Games.Games {
@@ -137,10 +129,15 @@ func (matchHistory *MatchHistory) EnrichGameDetails() {
 
 }
 
-// ProcessMatchHistory 处理比赛历史的图标和数据转换
-func (matchHistory *MatchHistory) ProcessMatchHistory() {
+// EnrichImgKeys 处理比赛历史的图标和数据转换
+func (matchHistory *MatchHistory) EnrichImgKeys() {
 	if matchHistory.Games.Games == nil {
 		return
+	}
+
+	for i, game := range matchHistory.Games.Games {
+		matchHistory.Games.Games[i].QueueName = constants.QueueIdToCn[game.QueueId]
+		matchHistory.Games.Games[i].Participants[0].ChampionKey = string(asset.ChampionType) + strconv.Itoa(game.Participants[0].ChampionId)
 	}
 	for i, games := range matchHistory.Games.Games {
 		for index := range matchHistory.Games.Games[i].Participants {
