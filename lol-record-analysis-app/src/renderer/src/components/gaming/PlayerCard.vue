@@ -12,7 +12,7 @@
                     <n-flex>
                         <div style="position: relative;">
                             <n-image width="32px"
-                                :src="assetPrefix + sessionSummoner.championKey ? assetPrefix + sessionSummoner.championKey : nullImg"
+                                :src="assetPrefix + sessionSummoner.championKey"
                                 preview-disabled :fallback-src="nullImg" />
 
                             <div
@@ -46,7 +46,7 @@
                                         <copy-outline></copy-outline>
                                     </n-icon>
                                 </n-button>
-                                <span>
+                                <span> 
 
                                     <img style="width: 16px;height: 16px ;" :src="imgUrl" />
                                     <span style="font-size: 8px;">{{ tierCn
