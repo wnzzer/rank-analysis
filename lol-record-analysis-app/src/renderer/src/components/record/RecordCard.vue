@@ -1,7 +1,7 @@
 <template>
     <n-card content-style="padding: 2px;" class="win-class"
         :class="{ 'defeat-class': !games.participants[0].stats.win }">
-        <n-flex style="height: 6vh;" justify="space-between">
+        <n-flex style="height: 53px;" justify="space-between">
             <n-flex vertical style="gap: 1px;">
                 <span :style="{
                     fontWeight: '600',
@@ -283,6 +283,7 @@ function toNameRecord(name: string) {
     /* 添加平滑过渡效果 */
     transition: border-color 0.3s ease, color 0.3s ease;
     /* 为边框颜色和文本颜色添加过渡 */
+    
 }
 
 .defeat-class {

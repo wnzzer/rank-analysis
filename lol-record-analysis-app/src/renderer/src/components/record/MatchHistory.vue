@@ -1,5 +1,7 @@
 <template>
-  <n-flex vertical style="height: 100%; position: relative">
+    <div class="ratio-container">
+
+  <n-flex vertical class="content-wrapper" style="height: 100%; position: relative">
     <n-flex>
       <n-select
         v-model:value="filterQueueId"
@@ -31,17 +33,18 @@
         复位
       </n-tooltip>
     </n-flex>
+
     <RecordCard
       v-for="(game, index) in matchHistory?.games?.games || []"
       :key="index"
       :record-type="true"
       :games="game"
-      style="flex: 1; display: flex"
     >
     </RecordCard>
 
     <!-- 自定义分页组件 -->
-    <div>
+     
+    <div class="pagination">
       <n-pagination style="margin-top: 0px">
         <template #prev>
           <n-button size="tiny" :disabled="page == 1 || isRequestingMatchHostory" @click="prevPage">
@@ -67,6 +70,7 @@
       </n-pagination>
     </div>
   </n-flex>
+</div>
 </template>
 
 <script setup lang="ts">
@@ -473,3 +477,39 @@ onMounted(async () => {
   await getHistoryMatch(name, 0, 9)
 })
 </script>
+
+<style lang="css"scoped>
+.ratio-container {
+  /* 维持1.1:1宽高比的核心容器 */
+  width: 100%;
+  height: 100%;
+  padding: 20px;
+  box-sizing: border-box;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.content-wrapper {
+  /* 比例容器 */
+  aspect-ratio: 1.1 / 1;
+  width: 100%;
+  max-width: calc(100vh * 1.1);  /* 防止过高 */
+  max-height: calc(100vw / 1.1); /* 防止过宽 */
+  margin: auto;
+  position: relative;
+}
+.scroll-area {
+  /* 滚动区域 */
+  flex: 1;
+  overflow-y: auto;
+  margin: 8px 0;
+}
+.pagination {
+  /* 分页固定底部 */
+  position: sticky;
+  bottom: 0;
+  background: var(--n-color);
+  padding: 8px 0;
+}
+
+</style>
