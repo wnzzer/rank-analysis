@@ -121,17 +121,17 @@ func GetMatchHistoryCore(params MatchHistoryParams) (*api.MatchHistory, error) {
 	return &matchHistory, nil
 }
 func getFilterMatchHistory(params MatchHistoryParams) (api.MatchHistory, int, int, error) {
-	index := params.BegIndex
 	filterQueueId := params.filterQueueId
 	filterChampId := params.filterChampId
 	matchHistory := api.MatchHistory{}
 	maxGames := 10 // 设定最大筛选结果数，防止无限循环
 
-	for i := index; i < params.EndIndex; i += 50 {
+	begIndex, endIndex := params.BegIndex, params.BegIndex+49
+	for ; begIndex < params.EndIndex; begIndex, endIndex = begIndex+50, endIndex+50 {
 		haveData := false
-		tempMatchHistory, err := api.GetMatchHistoryByPuuid(params.Puuid, i, i+50)
+		tempMatchHistory, err := api.GetMatchHistoryByPuuid(params.Puuid, begIndex, endIndex)
 		if err != nil {
-			return matchHistory, index, i, err // 发生错误时立即返回当前已收集的比赛
+			return matchHistory, begIndex, endIndex, err
 		}
 
 		for j, game := range tempMatchHistory.Games.Games {
@@ -144,15 +144,15 @@ func getFilterMatchHistory(params MatchHistoryParams) (api.MatchHistory, int, in
 
 			// 如果筛选的比赛数量超出 maxGames，则提前返回
 			if len(matchHistory.Games.Games) >= maxGames {
-				return matchHistory, index, i + j, err
+				return matchHistory, begIndex, begIndex + j, err
 			}
 		}
 		if !haveData {
-			return matchHistory, index, i + 50, err
+			return matchHistory, begIndex, endIndex, err
 		}
 	}
 
-	return matchHistory, index, index, nil
+	return matchHistory, begIndex, endIndex, nil
 }
 func calculateRate(matchHistory *api.MatchHistory) {
 	for i, _ := range matchHistory.Games.Games {

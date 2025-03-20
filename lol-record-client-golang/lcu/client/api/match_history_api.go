@@ -114,7 +114,7 @@ func init() {
 func GetMatchHistoryByPuuid(puuid string, begIndex int, endIndex int) (MatchHistory, error) {
 	//如果缓存中有数据，且未过期，则直接返回
 	cacheMinIndex := 0
-	cacheMaxIndex := 39
+	cacheMaxIndex := 49
 	if cached, ok := matchHistoryCache.Get(puuid); ok {
 		if value, ok := cached.(lruValue); ok && value.expiresAt.After(time.Now()) {
 			if endIndex <= cacheMaxIndex {

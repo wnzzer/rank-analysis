@@ -8,10 +8,8 @@
           <n-select v-model:value="filterQueueId" placeholder="按模式筛选" :options="modeOptions" size="small"
             style="width: 100px" @update:value="handleUpdateValue" />
           <n-select v-model:value="filterChampionId" filterable :filter="filterChampionFunc" placeholder="按英雄筛选"
-          :render-tag="renderSingleSelectTag"
-          :render-label="renderLabel"
-
-          :options="championOptions" size="small" style="width: 170px" @update:value="handleUpdateValue" />
+            :render-tag="renderSingleSelectTag" :render-label="renderLabel" :options="championOptions" size="small"
+            style="width: 170px" @update:value="handleUpdateValue" />
 
           <n-tooltip trigger="hover">
             <template #trigger>
@@ -97,16 +95,20 @@ function filterChampionFunc(input, option) {
   )
 }
 const championOptions = [
-  { label: '全部', value: 0, realName: '', nickname: '',icon: () => h(NAvatar, {
+  {
+    label: '全部', value: 0, realName: '', nickname: '', icon: () => h(NAvatar, {
       src: `${assetPrefix}/assets/champion1`,
       round: true,
       size: 24
-    }) },
-  { label: '黑暗之女', value: 1, realName: '安妮', nickname: '火女',icon: () => h(NAvatar, {
+    })
+  },
+  {
+    label: '黑暗之女', value: 1, realName: '安妮', nickname: '火女', icon: () => h(NAvatar, {
       src: `${assetPrefix}/assets/champion1`,
       round: true,
       size: 24
-    })  },
+    })
+  },
   { label: '狂战士', value: 2, realName: '奥拉夫', nickname: '大头' },
   { label: '正义巨像', value: 3, realName: '加里奥', nickname: '城墙' },
   { label: '卡牌大师', value: 4, realName: '崔斯特', nickname: '卡牌' },
@@ -302,39 +304,39 @@ const renderSingleSelectTag: SelectRenderTag = ({ option }) => {
   )
 }
 const renderLabel: SelectRenderLabel = (option) => {
-      return h(
+  return h(
+    'div',
+    {
+      style: {
+        display: 'flex',
+        alignItems: 'center'
+      }
+    },
+    [
+      h(NAvatar, {
+        src: option.value !== 0 ? `${assetPrefix}champion${option.value}` : `${assetPrefix}champion-1`,
+        round: true,
+        size: 'small'
+      }),
+      h(
         'div',
         {
           style: {
-            display: 'flex',
-            alignItems: 'center'
+            marginLeft: '12px',
+            padding: '4px 0'
           }
         },
         [
-          h(NAvatar, {
-            src: option.value !== 0 ? `${assetPrefix}champion${option.value}` : `${assetPrefix}champion-1`,
-            round: true,
-            size: 'small'
-          }),
-          h(
-            'div',
-            {
-              style: {
-                marginLeft: '12px',
-                padding: '4px 0'
-              }
-            },
-            [
-              h('div', null, [option.label as string]),
+          h('div', null, [option.label as string]),
 
-            ]
-          )
         ]
       )
-    }
+    ]
+  )
+}
 
 const resetFilter = () => {
-  filterChampionId.value = 0
+  pageHistory.value = []
   filterQueueId.value = 0
   handleUpdateValue()
 }
@@ -455,80 +457,80 @@ export interface MatchHistory {
 }
 
 const matchHistory = ref<MatchHistory>()
+const loadingBar = useLoadingBar()
+const isRequestingMatchHostory = ref(false)
+const page = ref(1)
+const pageHistory = ref<{ begIndex: number; endIndex: number }[]>([])
 
-const loadingBar = useLoadingBar() // 确保 useLoadingBar 在 setup 中正确调用
+let curBegIndex = 0
+let curEndIndex = 0
+
+const route = useRoute()
+let name = ''
 
 // 获取历史记录
 const getHistoryMatch = async (name: string, begIndex: number, endIndex: number) => {
-  loadingBar.start() // 开始进度条
+  loadingBar.start()
   isRequestingMatchHostory.value = true
   try {
     const res = await http.get<MatchHistory>('/GetMatchHistory', {
       params: {
         filterQueueId: filterQueueId.value,
         filterChampionId: filterChampionId.value,
-        begIndex: begIndex,
-        endIndex: endIndex,
-        name
-      }
+        begIndex,
+        endIndex,
+        name,
+      },
     })
     matchHistory.value = res.data
     curBegIndex = res.data.beginIndex
     curEndIndex = res.data.endIndex
-
-    loadingBar.finish() // 加载完成时结束进度条
+    loadingBar.finish()
   } catch (error) {
+    // 兜底请求默认数据，避免页面空白
     const res = await http.get<MatchHistory>('/GetMatchHistory')
     matchHistory.value = res.data
-    loadingBar.error() // 发生错误时显示错误状态
+    loadingBar.error()
   } finally {
     isRequestingMatchHostory.value = false
-    loadingBar.finish() // 加载完成时结束进度条
   }
 }
-const page = ref(1)
-var curBegIndex = 0
-var curEndIndex = 0
 
-const pageHistory = ref<{ begIndex: number; endIndex: number }[]>([])
-
-const nextPage = () => {
-  if (filterQueueId.value != 0 || filterChampionId.value != 0) {
-    getHistoryMatch(name, curEndIndex + 1, 800).then(() => {
-      page.value++
-    })
-  } else {
-    getHistoryMatch(name, page.value * 10, page.value * 10 + 9).then(() => {
-      page.value++
-    })
-  }
+// 下一页
+const nextPage = async () => {
+  let begIndex = 0
+  let endIndex = 0
   pageHistory.value.push({ begIndex: curBegIndex, endIndex: curEndIndex })
-}
-//是否正在请求中
-const isRequestingMatchHostory = ref(false)
-const prevPage = () => {
 
-  if (filterQueueId.value != 0 || filterChampionId.value != 0) {
-    const lastPage = pageHistory.value.pop()
-    if (!lastPage || lastPage.begIndex == null || lastPage.endIndex == null) {
-      throw new Error("Last page's begIndex or endIndex is null or undefined")
-    }
-    getHistoryMatch(name, lastPage.begIndex, lastPage.endIndex).then(() => {
-      page.value--
-    })
+  if (filterQueueId.value !== 0 || filterChampionId.value !== 0) {
+    begIndex = curEndIndex + 1
+    endIndex = begIndex + 799
   } else {
-    getHistoryMatch(name, (page.value - 2) * 10, (page.value - 2) * 10 + 9).then(() => {
-      page.value--
-    })
+    begIndex = page.value * 10
+    endIndex = begIndex + 9
   }
+
+  await getHistoryMatch(name, begIndex, endIndex)
+  page.value++
 }
 
-const route = useRoute()
-let name = ''
+// 上一页
+const prevPage = async () => {
+  const lastPage = pageHistory.value.pop()
+  console.log(lastPage)
+
+  if (!lastPage) {
+    throw new Error("无上一页数据")
+  }
+  await getHistoryMatch(name, lastPage.begIndex, lastPage.endIndex)
+  page.value = Math.max(1, page.value - 1)
+}
+
 onMounted(async () => {
   name = route.query.name as string
   await getHistoryMatch(name, 0, 9)
 })
+
 </script>
 
 <style lang="css" scoped>
