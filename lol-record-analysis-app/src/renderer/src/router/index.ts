@@ -21,6 +21,11 @@ const routes: Array<RouteRecordRaw> = [
         name: 'Loading',
         component: () => import('@renderer/views/Loading.vue'), // 懒加载
     },
+    {
+        path: '/Settings',
+        name: 'Settings',
+        component: () => import('@renderer/views/Settings.vue'), // 懒加载
+    }
 ];
 
 // 创建路由实例

@@ -1,7 +1,7 @@
 <template>
     <n-flex justify="space-between" style="height: 90vh;" vertical>
 
-        <n-menu :collapsed="true" :collapsed-width="60" :collapsed-icon-size="20" @update:value="handleMenuClick"
+        <n-menu :collapsed="true" :collapsed-width="60" :collapsed-icon-size="20" @update:value="handleMenuClick" 
             :value="router.currentRoute.value.name" :options="menuOptions" />
         <div class="loadingIcon" style="margin-left: 13px;">
 
@@ -67,7 +67,7 @@
 import router from '@renderer/router';
 import http from '@renderer/services/http';
 import { assetPrefix } from '../services/http';
-import { Reload, BarChart, Server, CopyOutline } from '@vicons/ionicons5'
+import { Reload, BarChart, Server, CopyOutline, SettingsOutline } from '@vicons/ionicons5'
 import { NIcon, useMessage } from 'naive-ui';
 import { Component, computed, h, onMounted, ref } from 'vue';
 import { defaultSummoner, Summoner } from './record/type';
@@ -128,7 +128,14 @@ const menuOptions = computed(() => [
         key: 'Gaming',
         icon: renderIcon(Reload),
         show: !!mySummoner.value?.platformIdCn,
-    }
+    },
+    {
+        label: '设置',
+        key: 'Settings',
+        icon: renderIcon(SettingsOutline),
+        show: !!mySummoner.value?.platformIdCn,
+    },
+    
 ]);
 const toMe = () => {
     router.push({

@@ -15,7 +15,7 @@
         <n-layout-sider  collapse-mode="width" class="left"  style="width: 60px; ">
           <SideNavigation/>
         </n-layout-sider>
-        <n-divider vertical style="margin: 0 1px; line-height: 1px; height: 100%;" />
+          <n-divider vertical style="margin: 0 1px; line-height: 5px; height: 100%; border-color: #ccc; border-width: 2px;" />
         <!-- 内容区域 -->
         <n-layout-content >
                          <router-view :key="$route.fullPath"></router-view>
