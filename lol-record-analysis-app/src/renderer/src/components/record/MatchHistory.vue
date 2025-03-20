@@ -8,7 +8,10 @@
           <n-select v-model:value="filterQueueId" placeholder="按模式筛选" :options="modeOptions" size="small"
             style="width: 100px" @update:value="handleUpdateValue" />
           <n-select v-model:value="filterChampionId" filterable :filter="filterChampionFunc" placeholder="按英雄筛选"
-            :options="championOptions" size="small" style="width: 100px" @update:value="handleUpdateValue" />
+          :render-tag="renderSingleSelectTag"
+          :render-label="renderLabel"
+
+          :options="championOptions" size="small" style="width: 170px" @update:value="handleUpdateValue" />
 
           <n-tooltip trigger="hover">
             <template #trigger>
@@ -61,10 +64,11 @@
 
 <script setup lang="ts">
 import http from '@renderer/services/http'
+import { assetPrefix } from '@renderer/services/http'
 import RecordCard from './RecordCard.vue'
 import { ArrowBack, ArrowForward, Repeat } from '@vicons/ionicons5'
-import { onMounted, ref } from 'vue'
-import { useLoadingBar } from 'naive-ui'
+import { h, onMounted, ref, render } from 'vue'
+import { c, NAvatar, NTag, NText, SelectRenderLabel, SelectRenderTag, useLoadingBar } from 'naive-ui'
 import { useRoute } from 'vue-router'
 
 const filterQueueId = ref(0)
@@ -93,8 +97,16 @@ function filterChampionFunc(input, option) {
   )
 }
 const championOptions = [
-  { label: '全部', value: 0, realName: '', nickname: '' },
-  { label: '黑暗之女', value: 1, realName: '安妮', nickname: '火女' },
+  { label: '全部', value: 0, realName: '', nickname: '',icon: () => h(NAvatar, {
+      src: `${assetPrefix}/assets/champion1`,
+      round: true,
+      size: 24
+    }) },
+  { label: '黑暗之女', value: 1, realName: '安妮', nickname: '火女',icon: () => h(NAvatar, {
+      src: `${assetPrefix}/assets/champion1`,
+      round: true,
+      size: 24
+    })  },
   { label: '狂战士', value: 2, realName: '奥拉夫', nickname: '大头' },
   { label: '正义巨像', value: 3, realName: '加里奥', nickname: '城墙' },
   { label: '卡牌大师', value: 4, realName: '崔斯特', nickname: '卡牌' },
@@ -265,6 +277,61 @@ const championOptions = [
   { label: '异画师', value: 910, realName: '慧', nickname: '毛笔人' },
   { label: '百裂冥犬', value: 950, realName: '纳亚菲利', nickname: '狼狗|狗比' }
 ]
+
+const renderSingleSelectTag: SelectRenderTag = ({ option }) => {
+  return h(
+    'div',
+    {
+      style: {
+        display: 'flex',
+        alignItems: 'center'
+      }
+    },
+    [
+      h(NAvatar, {
+        // Replace the hardcoded URL with a dynamic URL based on champion ID
+        src: option.value !== 0 ? `${assetPrefix}champion${option.value}` : `${assetPrefix}champion-1`,
+        round: true,
+        size: 24,
+        style: {
+          marginRight: '12px'
+        }
+      }),
+      option.label as string
+    ]
+  )
+}
+const renderLabel: SelectRenderLabel = (option) => {
+      return h(
+        'div',
+        {
+          style: {
+            display: 'flex',
+            alignItems: 'center'
+          }
+        },
+        [
+          h(NAvatar, {
+            src: option.value !== 0 ? `${assetPrefix}champion${option.value}` : `${assetPrefix}champion-1`,
+            round: true,
+            size: 'small'
+          }),
+          h(
+            'div',
+            {
+              style: {
+                marginLeft: '12px',
+                padding: '4px 0'
+              }
+            },
+            [
+              h('div', null, [option.label as string]),
+
+            ]
+          )
+        ]
+      )
+    }
 
 const resetFilter = () => {
   filterChampionId.value = 0
