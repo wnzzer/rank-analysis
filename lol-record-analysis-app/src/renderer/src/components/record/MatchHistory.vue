@@ -1,76 +1,62 @@
 <template>
+  <n-scrollbar style="max-height: 800px">
+
     <div class="ratio-container">
 
-  <n-flex vertical class="content-wrapper" style="height: 100%; position: relative">
-    <n-flex>
-      <n-select
-        v-model:value="filterQueueId"
-        placeholder="按模式筛选"
-        :options="modeOptions"
-        size="small"
-        style="width: 100px"
-        @update:value="handleUpdateValue"
-      />
-      <n-select
-        v-model:value="filterChampionId"
-        filterable
-        :filter="filterChampionFunc"
-        placeholder="按英雄筛选"
-        :options="championOptions"
-        size="small"
-        style="width: 100px"
-        @update:value="handleUpdateValue"
-      />
+      <n-flex vertical class="content-wrapper" style="height: 100%; position: relative">
+        <n-flex>
+          <n-select v-model:value="filterQueueId" placeholder="按模式筛选" :options="modeOptions" size="small"
+            style="width: 100px" @update:value="handleUpdateValue" />
+          <n-select v-model:value="filterChampionId" filterable :filter="filterChampionFunc" placeholder="按英雄筛选"
+            :options="championOptions" size="small" style="width: 100px" @update:value="handleUpdateValue" />
 
-      <n-tooltip trigger="hover">
-        <template #trigger>
-          <n-button text style="font-size: 24px" @click="resetFilter">
-            <n-icon>
-              <Repeat />
-            </n-icon>
-          </n-button>
-        </template>
-        复位
-      </n-tooltip>
-    </n-flex>
-
-    <RecordCard
-      v-for="(game, index) in matchHistory?.games?.games || []"
-      :key="index"
-      :record-type="true"
-      :games="game"
-    >
-    </RecordCard>
-
-    <!-- 自定义分页组件 -->
-     
-    <div class="pagination">
-      <n-pagination style="margin-top: 0px">
-        <template #prev>
-          <n-button size="tiny" :disabled="page == 1 || isRequestingMatchHostory" @click="prevPage">
-            <template #icon>
-              <n-icon>
-                <ArrowBack></ArrowBack>
-              </n-icon>
+          <n-tooltip trigger="hover">
+            <template #trigger>
+              <n-button text style="font-size: 24px" @click="resetFilter">
+                <n-icon>
+                  <Repeat />
+                </n-icon>
+              </n-button>
             </template>
-          </n-button>
-        </template>
-        <template #label>
-          <span>{{ page }}</span>
-        </template>
-        <template #next>
-          <n-button size="tiny" @click="nextPage" :disabled=" isRequestingMatchHostory">
-            <template #icon>
-              <n-icon>
-                <ArrowForward></ArrowForward>
-              </n-icon>
+            复位
+          </n-tooltip>
+        </n-flex>
+
+        <RecordCard v-for="(game, index) in matchHistory?.games?.games || []" :key="index" :record-type="true"
+          :games="game">
+        </RecordCard>
+
+        <!-- 自定义分页组件 -->
+
+        <div class="pagination">
+          <n-pagination style="margin-top: 0px">
+            <template #prev>
+              <n-button size="tiny" :disabled="page == 1 || isRequestingMatchHostory" @click="prevPage">
+                <template #icon>
+                  <n-icon>
+                    <ArrowBack></ArrowBack>
+                  </n-icon>
+                </template>
+              </n-button>
             </template>
-          </n-button>
-        </template>
-      </n-pagination>
+            <template #label>
+              <span>{{ page }}</span>
+            </template>
+            <template #next>
+              <n-button size="tiny" @click="nextPage" :disabled="isRequestingMatchHostory">
+                <template #icon>
+                  <n-icon>
+                    <ArrowForward></ArrowForward>
+                  </n-icon>
+                </template>
+              </n-button>
+            </template>
+          </n-pagination>
+        </div>
+      </n-flex>
     </div>
-  </n-flex>
-</div>
+  </n-scrollbar>
+
 </template>
 
 <script setup lang="ts">
@@ -478,7 +464,7 @@ onMounted(async () => {
 })
 </script>
 
-<style lang="css"scoped>
+<style lang="css" scoped>
 .ratio-container {
   /* 维持1.1:1宽高比的核心容器 */
   width: 100%;
@@ -489,21 +475,26 @@ onMounted(async () => {
   justify-content: center;
   align-items: center;
 }
+
 .content-wrapper {
   /* 比例容器 */
   aspect-ratio: 1.1 / 1;
   width: 100%;
-  max-width: calc(100vh * 1.1);  /* 防止过高 */
-  max-height: calc(100vw / 1.1); /* 防止过宽 */
+  max-width: calc(100vh * 1.1);
+  /* 防止过高 */
+  max-height: calc(100vw / 1.1);
+  /* 防止过宽 */
   margin: auto;
   position: relative;
 }
+
 .scroll-area {
   /* 滚动区域 */
   flex: 1;
   overflow-y: auto;
   margin: 8px 0;
 }
+
 .pagination {
   /* 分页固定底部 */
   position: sticky;
@@ -511,5 +502,4 @@ onMounted(async () => {
   background: var(--n-color);
   padding: 8px 0;
 }
-
 </style>
