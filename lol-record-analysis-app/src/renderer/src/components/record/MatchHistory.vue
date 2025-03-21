@@ -65,8 +65,8 @@ import http from '@renderer/services/http'
 import { assetPrefix } from '@renderer/services/http'
 import RecordCard from './RecordCard.vue'
 import { ArrowBack, ArrowForward, Repeat } from '@vicons/ionicons5'
-import { h, onMounted, ref, render } from 'vue'
-import { c, NAvatar, NTag, NText, SelectRenderLabel, SelectRenderTag, useLoadingBar } from 'naive-ui'
+import { h, onMounted, ref } from 'vue'
+import {NAvatar, SelectRenderLabel, SelectRenderTag, useLoadingBar } from 'naive-ui'
 import { useRoute } from 'vue-router'
 
 const filterQueueId = ref(0)
@@ -338,6 +338,7 @@ const renderLabel: SelectRenderLabel = (option) => {
 const resetFilter = () => {
   pageHistory.value = []
   filterQueueId.value = 0
+  filterChampionId.value = 0
   handleUpdateValue()
 }
 const handleUpdateValue = () => {
