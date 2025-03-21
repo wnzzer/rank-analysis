@@ -24,6 +24,14 @@ const routes: Array<RouteRecordRaw> = [
     {
         path: '/Settings',
         name: 'Settings',
+        redirect: '/Settings/Automation',
+        children: [
+            {
+                path: '/Settings/Automation',
+                name: 'Automation',
+                component: () => import('@renderer/views/settings/Automation.vue'), // 懒加载
+            },
+        ],
         component: () => import('@renderer/views/Settings.vue'), // 懒加载
     }
 ];
