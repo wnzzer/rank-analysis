@@ -116,13 +116,14 @@ func GetMatchHistoryByPuuid(puuid string, begIndex int, endIndex int) (MatchHist
 	cacheMinIndex := 0
 	cacheMaxIndex := 49
 	if cached, ok := matchHistoryCache.Get(puuid); ok {
-		init_log.AppLog.Info("GetMatchHistoryByPuuid() cache hit")
 		if value, ok := cached.(lruValue); ok && value.expiresAt.After(time.Now()) {
-			init_log.AppLog.Info("GetMatchHistoryByPuuid() cache hit, puuid:%s", puuid)
-			if endIndex <= cacheMaxIndex && len(value.matchHistory.Games.Games) > endIndex {
+			init_log.AppLog.Info("GetMatchHistoryByPuuid() cache hit, puuid: %s", puuid)
+			if endIndex <= cacheMaxIndex && begIndex >= cacheMinIndex && len(value.matchHistory.Games.Games) > endIndex {
 				value.matchHistory.Games.Games = value.matchHistory.Games.Games[begIndex : endIndex+1]
 				return value.matchHistory, nil
 			}
+		} else {
+			matchHistoryCache.Remove(puuid)
 		}
 	}
 

@@ -82,7 +82,7 @@ func GetGameDetail(gameId int) (GameDetail, error) {
 	// 尝试从缓存获取
 	if cached, ok := gameDetailCache.Get(gameId); ok {
 		if detail, ok := cached.(GameDetail); ok {
-			init_log.AppLog.Info("GetGameDetail() cache hit, gameId : %s", gameId)
+			init_log.AppLog.Info("GetGameDetail() cache hit, gameId: %v", gameId)
 			return detail, nil
 		}
 	}

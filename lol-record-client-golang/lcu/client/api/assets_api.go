@@ -13,6 +13,10 @@ func GetProfileIconByIconId(id int) (string, error) {
 	return util.GetImgAsBase64(fmt.Sprintf(uri, id))
 }
 func StoreProfileIcon(id int) string {
+	key := string(asset.Profile) + strconv.Itoa(id)
+	if asset.IsExist(key) {
+		return string(asset.Profile) + strconv.Itoa(id)
+	}
 	uri := "lol-game-data/assets/v1/profile-icons/%d.jpg"
 	url := fmt.Sprintf(uri, id)
 	bytes, headers, _ := util.GetImgAsBinary(url)
@@ -24,7 +28,6 @@ func StoreProfileIcon(id int) string {
 		BinaryData:   bytes,
 		ResourceType: asset.Profile,
 	}
-	key := string(asset.Profile) + strconv.Itoa(id)
 	asset.StoreEntry(key, resourceEntry)
 	return key
 }

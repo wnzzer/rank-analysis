@@ -60,6 +60,12 @@ func StoreEntry(key string, value ResourceEntry) {
 		mutex.Unlock()
 	}
 }
+func IsExist(key string) bool {
+	if _, exists := resourceEntryMap[key]; !exists {
+		return exists
+	}
+	return false
+}
 
 func GetAsset(key string) ResourceEntry {
 	// 使用 sync.Once 确保 initAllAssets 只执行一次
