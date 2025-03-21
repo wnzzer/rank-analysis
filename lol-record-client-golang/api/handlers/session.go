@@ -2,55 +2,12 @@ package handlers
 
 import (
 	"github.com/gin-gonic/gin"
-	lru "github.com/hashicorp/golang-lru"
 	"lol-record-analysis/lcu/client/api"
-	"lol-record-analysis/lcu/client/asset"
 	"lol-record-analysis/lcu/client/constants"
 	"lol-record-analysis/util/init_log"
-	"math/rand"
 	"sort"
-	"strconv"
-	"time"
 )
 
-var (
-	// 设置缓存最大容量为 10，过期时间为 1分钟
-	cache *lru.Cache
-)
-
-type CacheItem struct {
-	Data      SessionSummoner
-	ExpiresAt time.Time
-}
-
-func init() {
-	var err error
-	// 初始化 LRU 缓存，最大容量为 10
-	cache, err = lru.New(10)
-	if err != nil {
-		init_log.AppLog.Fatal("Failed to create session LRU cache:", err)
-	}
-}
-func getCache(puuid string) (*SessionSummoner, bool) {
-	if cachedSummonerPlayer, found := cache.Get(puuid); found {
-		cacheItem := cachedSummonerPlayer.(*CacheItem)
-		// 检查是否过期
-		if time.Now().Before(cacheItem.ExpiresAt) {
-			return &cacheItem.Data, true
-		}
-	}
-	return nil, false
-}
-
-// 缓存写入方法
-func setCache(puuid string, data SessionSummoner, duration time.Duration) {
-	// 随机时间，避免缓存雪崩
-	randomTime := time.Duration(rand.Intn(120)) * time.Second
-	cache.Add(puuid, &CacheItem{
-		Data:      data,
-		ExpiresAt: time.Now().Add(duration).Add(randomTime),
-	})
-}
 func GetSessionData(c *gin.Context) {
 	getSessionData, err := curSessionChampion()
 	if err != nil {
@@ -97,16 +54,6 @@ func processTeam(team []api.OnePlayer, result *[]SessionSummoner) {
 			continue
 		}
 
-		// 从缓存中读取
-		if cachedData, found := getCache(summonerPlayer.Puuid); found {
-			// 更新 champion 数据
-			cachedData.ChampionId = summonerPlayer.ChampionId
-			cachedData.ChampionKey = string(asset.ChampionType) + strconv.Itoa(summonerPlayer.ChampionId)
-			*result = append(*result, *cachedData)
-			continue
-		}
-
-		// 缓存未命中，重新请求数据
 		summoner, _ = getSummonerByNameOrPuuid("", summonerPlayer.Puuid)
 		matchHistory, _ = api.GetMatchHistoryByPuuid(summoner.Puuid, 0, 8)
 		matchHistory.EnrichImgKeys()
@@ -126,8 +73,6 @@ func processTeam(team []api.OnePlayer, result *[]SessionSummoner) {
 		// 添加到结果队伍
 		*result = append(*result, summonerSummonerData)
 
-		// 写入缓存
-		setCache(summonerPlayer.Puuid, summonerSummonerData, 1*time.Minute)
 	}
 }
 
@@ -174,8 +119,6 @@ func curSessionChampion() (SessionData, error) {
 	addPreGroupMarkers(&sessionData)
 	//处理遇到过标签
 	insertMeetGamersRecord(&sessionData, mySummoner.Puuid)
-	//排除本局的记录
-	//deleteCurMeetGamersRecord(&sessionData, session.GameData.GameId)
 	//删除Tag标记
 	deleteMeetGamersRecord(&sessionData)
 
@@ -196,7 +139,14 @@ func deleteMeetGamersRecord(sessionData *SessionData) {
 }
 func insertMeetGamersRecord(sessionData *SessionData, myPuuid string) {
 	// 获取自己的 SessionSummoner
-	mySessionSummoner, _ := getCache(myPuuid)
+	mySessionSummoner := func() *SessionSummoner {
+		for _, sessionSummoner := range sessionData.TeamOne {
+			if sessionSummoner.Summoner.Puuid == myPuuid {
+				return &sessionSummoner
+			}
+		}
+		return nil
+	}()
 
 	// 遍历并修改 TeamOne
 	for i := range sessionData.TeamOne {

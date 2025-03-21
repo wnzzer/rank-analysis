@@ -4,6 +4,7 @@ import (
 	"fmt"
 	lru "github.com/hashicorp/golang-lru"
 	"lol-record-analysis/lcu/util"
+	"lol-record-analysis/util/init_log"
 )
 
 type GameDetail struct {
@@ -81,6 +82,7 @@ func GetGameDetail(gameId int) (GameDetail, error) {
 	// 尝试从缓存获取
 	if cached, ok := gameDetailCache.Get(gameId); ok {
 		if detail, ok := cached.(GameDetail); ok {
+			init_log.AppLog.Info("GetGameDetail() cache hit, gameId : %s", gameId)
 			return detail, nil
 		}
 	}

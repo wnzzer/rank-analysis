@@ -2,7 +2,9 @@ package api
 
 import (
 	"fmt"
+	lru "github.com/hashicorp/golang-lru"
 	"lol-record-analysis/lcu/util"
+	"lol-record-analysis/util/init_log"
 	"net/url"
 )
 
@@ -16,6 +18,18 @@ type Summoner struct {
 	PlatformIdCn   string `json:"platformIdCn"`
 }
 
+var (
+	summonerCache *lru.Cache
+)
+
+func init() {
+	var err error
+	summonerCache, err = lru.New(20)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to create LRU cache: %v", err))
+	}
+}
+
 func GetCurSummoner() (Summoner, error) {
 	var summoner Summoner
 	err := util.Get("lol-summoner/v1/current-summoner", &summoner)
@@ -25,6 +39,7 @@ func GetCurSummoner() (Summoner, error) {
 	return summoner, nil
 }
 func GetSummonerByName(name string) (Summoner, error) {
+
 	var summoner Summoner
 	uri := "lol-summoner/v1/summoners/?%s"
 	params := url.Values{}
@@ -37,6 +52,12 @@ func GetSummonerByName(name string) (Summoner, error) {
 }
 func GetSummonerByPuuid(puuid string) (Summoner, error) {
 	var summoner Summoner
+	if cached, ok := summonerCache.Get(puuid); ok {
+		init_log.AppLog.Info("GetSummonerByPuuid() cache hit, puuid:", puuid)
+		if summoner, ok := cached.(Summoner); ok {
+			return summoner, nil
+		}
+	}
 
 	uri := "lol-summoner/v2/summoners/puuid/%s"
 	err := util.Get(fmt.Sprintf(uri, puuid), &summoner)
@@ -44,6 +65,7 @@ func GetSummonerByPuuid(puuid string) (Summoner, error) {
 	if err != nil {
 		return Summoner{}, err
 	}
+	summonerCache.Add(puuid, summoner)
 
 	return summoner, nil
 }
