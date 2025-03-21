@@ -3,9 +3,11 @@ package handlers
 import (
 	"github.com/gin-gonic/gin"
 	"lol-record-analysis/lcu/client/api"
+	"lol-record-analysis/lcu/client/asset"
 	"lol-record-analysis/lcu/client/constants"
 	"lol-record-analysis/util/init_log"
 	"sort"
+	"strconv"
 )
 
 func GetSessionData(c *gin.Context) {
@@ -63,7 +65,7 @@ func processTeam(team []api.OnePlayer, result *[]SessionSummoner) {
 		// 构造 SessionSummoner 数据
 		summonerSummonerData := SessionSummoner{
 			ChampionId:   summonerPlayer.ChampionId,
-			ChampionKey:  api.StoreProfileIcon(summonerPlayer.ChampionId),
+			ChampionKey:  string(asset.ChampionType) + strconv.Itoa(summonerPlayer.ChampionId),
 			Summoner:     summoner,
 			MatchHistory: matchHistory,
 			UserTag:      *userTag,
