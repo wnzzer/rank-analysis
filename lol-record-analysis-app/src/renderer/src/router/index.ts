@@ -42,4 +42,8 @@ const router = createRouter({
     routes,
 });
 
+export function getFirstPath(currentPath:string) {
+    return currentPath.split('/')[1];
+}
+
 export default router;

@@ -2,7 +2,7 @@
     <n-flex justify="space-between" style="height: 90vh;" vertical>
 
         <n-menu :collapsed="true" :collapsed-width="60" :collapsed-icon-size="20" @update:value="handleMenuClick" 
-            :value="router.currentRoute.value.name" :options="menuOptions" />
+            :value="getFirstPath(router.currentRoute.value.path)" :options="menuOptions" />
         <div class="loadingIcon" style="margin-left: 13px;">
 
             <n-popover trigger="hover">
@@ -65,6 +65,7 @@
 
 <script setup lang="ts">
 import router from '@renderer/router';
+import { getFirstPath } from '@renderer/router';
 import http from '@renderer/services/http';
 import { assetPrefix } from '../services/http';
 import { Reload, BarChart, Server, CopyOutline, SettingsOutline } from '@vicons/ionicons5'
