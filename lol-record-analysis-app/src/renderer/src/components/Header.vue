@@ -38,8 +38,9 @@ import { Search, LogoGithub } from '@vicons/ionicons5';
 import { ref } from 'vue';
 
 const openGithubLink = () => {
-    (window.api as { OpenGithub: () => void }).OpenGithub(); // 类型断言
-};
+    window.open('https://github.com/wnzzer/rank-analysis', '_blank')
+
+}
 
 const value = ref('');
 function onClinkSearch() {

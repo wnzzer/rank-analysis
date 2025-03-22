@@ -31,6 +31,11 @@ const routes: Array<RouteRecordRaw> = [
                 name: 'Automation',
                 component: () => import('@renderer/views/settings/Automation.vue'), // 懒加载
             },
+            {
+                path: '/Settings/About',
+                name: 'About',
+                component: () => import('@renderer/views/settings/About.vue'), // 懒加载
+            }
         ],
         component: () => import('@renderer/views/Settings.vue'), // 懒加载
     }

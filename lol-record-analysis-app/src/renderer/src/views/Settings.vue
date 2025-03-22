@@ -21,6 +21,7 @@ import { NIcon } from 'naive-ui'
 import {
     FlashOutline,
     // BulbOutline
+    AlertCircleOutline
 } from '@vicons/ionicons5'
 
 const collapsed = ref(false)
@@ -45,6 +46,11 @@ const menuOptions = [
     //     key: 'ai-capabilities',
     //     icon: renderIcon(BulbOutline)
     // }
+    {
+        label: '关于我们',
+        key: 'About',
+        icon: renderIcon(AlertCircleOutline)
+    }
 ]
 </script>
 

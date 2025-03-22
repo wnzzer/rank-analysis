@@ -68,7 +68,7 @@ import router from '@renderer/router';
 import { getFirstPath } from '@renderer/router';
 import http from '@renderer/services/http';
 import { assetPrefix } from '../services/http';
-import { Reload, BarChart, Server, CopyOutline } from '@vicons/ionicons5'
+import { Reload, BarChart, Server, CopyOutline, SettingsOutline } from '@vicons/ionicons5'
 import { NIcon, useMessage } from 'naive-ui';
 import { Component, computed, h, onMounted, ref } from 'vue';
 import { defaultSummoner, Summoner } from './record/type';
@@ -130,12 +130,12 @@ const menuOptions = computed(() => [
         icon: renderIcon(Reload),
         show: !!mySummoner.value?.platformIdCn,
     },
-    // {
-    //     label: '设置',
-    //     key: 'Settings',
-    //     icon: renderIcon(SettingsOutline),
-    //     show: !!mySummoner.value?.platformIdCn,
-    // },
+    {
+        label: '设置',
+        key: 'Settings',
+        icon: renderIcon(SettingsOutline),
+        show: !!mySummoner.value?.platformIdCn,
+    },
     
 ]);
 const toMe = () => {
