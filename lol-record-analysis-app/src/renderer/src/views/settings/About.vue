@@ -105,20 +105,12 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { 
-  NLayout, 
-  NCard, 
-  NSpace, 
-  NButton, 
-  NSwitch, 
-  NDivider,
-  NIcon,
   useNotification
 } from 'naive-ui'
 import config from '../../../../../package.json' // Import the configuration file
 import axios from 'axios' // Import axios for HTTP requests
 
 // Component state
-const updateCheckEnabled = ref(false)
 const currentVersion = ref(config.version) // Bind the version from the config
 const latestVersion = ref('')
 
