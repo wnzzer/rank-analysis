@@ -8,7 +8,10 @@
                     :collapsed-icon-size="22" :options="menuOptions" @update:value="handleMenuSelect" />
             </n-layout-sider>
             <n-layout-content content-style="padding: 24px;">
+                <n-notification-provider>
+
                 <router-view></router-view>
+                </n-notification-provider>
             </n-layout-content>
         </n-layout>
     </n-layout>

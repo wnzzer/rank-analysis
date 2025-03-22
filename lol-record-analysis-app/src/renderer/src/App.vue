@@ -1,11 +1,11 @@
 <template>
   <n-config-provider :theme="theme">
     <n-message-provider>
-      <n-loading-bar-provider
 
-  >
+      <n-loading-bar-provider>
         <Framework></Framework>
         </n-loading-bar-provider>
+
     </n-message-provider>
   </n-config-provider>
 </template>
