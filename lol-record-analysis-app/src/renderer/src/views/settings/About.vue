@@ -103,7 +103,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { h, ref } from 'vue'
 import { 
   useNotification
 } from 'naive-ui'
@@ -113,6 +113,7 @@ import axios from 'axios' // Import axios for HTTP requests
 // Component state
 const currentVersion = ref(config.version) // Bind the version from the config
 const latestVersion = ref('')
+const latestReleaseUrl = ref('')
 
 // Notification
 const notification = useNotification()
@@ -123,10 +124,27 @@ const checkForUpdates = async () => {
   try {
     const response = await axios.get('https://api.github.com/repos/wnzzer/rank-analysis/releases/latest')
     latestVersion.value = response.data.tag_name
+    latestReleaseUrl.value = response.data.html_url
     if (latestVersion.value !== currentVersion.value) {
       notification.success({
         title: '有更新可用',
-        content: `新版本可用: ${latestVersion.value}`,
+        content: () => {
+          return h('div', [
+            `新版本可用: ${latestVersion.value}`,
+            h('br'),
+            h('a', 
+              { 
+                href: latestReleaseUrl.value,
+                onclick: (e) => {
+                  e.preventDefault()
+                  window.open(latestReleaseUrl.value, '_blank')
+                },
+                style: 'color: #1890ff; text-decoration: underline; cursor: pointer;'
+              },
+              '点击此处下载最新版本'
+            )
+          ])
+        },
         duration: 10000 // 10 seconds
       })
     } else {
