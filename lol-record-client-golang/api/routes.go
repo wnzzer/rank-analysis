@@ -24,4 +24,10 @@ func InitRoutes(r *gin.Engine) {
 		userGroup.GET("/GetAsset", handlers.GetAsset)
 
 	}
+	configGroup := userGroup.Group("/config")
+	{
+		configGroup.GET("", handlers.GetFullConfig)     // 获取全部配置
+		configGroup.GET("/:key", handlers.GetConfig)    // 获取指定配置项
+		configGroup.PUT("/:key", handlers.UpdateConfig) // 更新配置项
+	}
 }
