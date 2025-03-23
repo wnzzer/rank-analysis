@@ -22,10 +22,10 @@
         </div>
         <n-flex>
           <VueDraggable ref="el" v-model="myListData">
-            <n-tag v-for="item in myListData" round closeable :bordered="false" style="margin-right: 15px;">
+            <n-tag v-for="item in myListData" round closable :bordered="false" style="margin-right: 15px;">
               {{ item.label }}
               <template #avatar>
-                <n-avatar src="https://cdnimg103.lizhi.fm/user/2017/02/04/2583325032200238082_160x160.jpg" />
+                <n-avatar :src="assetPrefix + 'champion' + item.value" />
               </template>
             </n-tag>
           </VueDraggable>
@@ -43,10 +43,10 @@
         </div>
         <n-flex>
           <VueDraggable ref="el" v-model="myListData">
-          <n-tag v-for="item in myListData" round closeable :bordered="false" style="margin-right: 15px;">
+          <n-tag v-for="item in myListData" round closable :bordered="false" style="margin-right: 15px;">
             {{ item.label }}
             <template #avatar>
-              <n-avatar src="https://cdnimg103.lizhi.fm/user/2017/02/04/2583325032200238082_160x160.jpg" />
+              <n-avatar :src="assetPrefix + 'champion' + item.value" />
             </template>
           </n-tag>
         </VueDraggable>
@@ -66,6 +66,7 @@ import { VueDraggable } from 'vue-draggable-plus'
 import { ref } from 'vue'
 import { renderSingleSelectTag, renderLabel, championOptions, filterChampionFunc } from '@renderer/components/composition'
 import { CheckmarkCircle, Flash, Close } from '@vicons/ionicons5'
+import { assetPrefix } from '@renderer/services/http'
 
 const autoAccept = ref(false)
 const autoPick = ref(false)
