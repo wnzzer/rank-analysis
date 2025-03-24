@@ -18,6 +18,7 @@ import MatchHistory from '@renderer/components/record/MatchHistory.vue';
 import UserRecord from '@renderer/components/record/UserRecord.vue';
 import { ref, onMounted, onUnmounted } from 'vue';
 
+
 const windowWidth = ref(window.innerWidth);
 
 const updateWidth = () => {

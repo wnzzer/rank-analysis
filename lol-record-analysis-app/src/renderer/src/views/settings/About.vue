@@ -118,6 +118,7 @@ const latestReleaseUrl = ref('')
 // Notification
 const notification = useNotification()
 
+
 // Methods
 const checkForUpdates = async () => {
   console.log('Checking for updates...')

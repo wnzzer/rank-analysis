@@ -8,7 +8,6 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
-    DraggableList: typeof import('./src/components/settings/DraggableList.vue')['default']
     Framework: typeof import('./src/components/Framework.vue')['default']
     Header: typeof import('./src/components/Header.vue')['default']
     LoadingComponent: typeof import('./src/components/LoadingComponent.vue')['default']

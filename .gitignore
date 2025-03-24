@@ -62,3 +62,5 @@ desktop.ini
 
 # MacOS 特定文件
 *.DS_Store
+
+config.yaml

@@ -21,8 +21,8 @@
           <n-switch v-model:value="autoPick" />
         </div>
         <n-flex>
-          <VueDraggable ref="el" v-model="myListData">
-            <n-tag v-for="item in myListData" round closable :bordered="false" style="margin-right: 15px;">
+          <VueDraggable ref="el" v-model="myPickData">
+            <n-tag v-for="item in myPickData" round closable :bordered="false" style="margin-right: 15px;">
               {{ item.label }}
               <template #avatar>
                 <n-avatar :src="assetPrefix + 'champion' + item.value" />
@@ -31,7 +31,7 @@
           </VueDraggable>
           <n-select v-model:value="selectChampionId" filterable :filter="filterChampionFunc" placeholder="添加英雄"
             :render-tag="renderSingleSelectTag" :render-label="renderLabel" :options="championOptions" size="small"
-            style="width: 170px" @update:value="handleUpdateValue" />
+            style="width: 170px"  />
         </n-flex>
         <n-text depth="3" style="font-size: 12px">拖动可以改变选择英雄的优先级</n-text>
         <div class="setting-item">
@@ -42,8 +42,8 @@
           <n-switch v-model:value="autoBan" />
         </div>
         <n-flex>
-          <VueDraggable ref="el" v-model="myListData">
-          <n-tag v-for="item in myListData" round closable :bordered="false" style="margin-right: 15px;">
+          <VueDraggable ref="el" v-model="myBanData">
+          <n-tag v-for="item in myBanData" round closable :bordered="false" style="margin-right: 15px;">
             {{ item.label }}
             <template #avatar>
               <n-avatar :src="assetPrefix + 'champion' + item.value" />
@@ -52,7 +52,7 @@
         </VueDraggable>
         <n-select v-model:value="selectChampionId" filterable :filter="filterChampionFunc" placeholder="添加英雄"
           :render-tag="renderSingleSelectTag" :render-label="renderLabel" :options="championOptions" size="small"
-          style="width: 170px" @update:value="handleUpdateValue" />
+          style="width: 170px"  />
         </n-flex>
         <n-text depth="3" style="font-size: 12px">拖动可以改变禁用英雄的优先级</n-text>
 
@@ -63,26 +63,43 @@
 </template>
 <script setup lang="ts">
 import { VueDraggable } from 'vue-draggable-plus'
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { renderSingleSelectTag, renderLabel, championOptions, filterChampionFunc } from '@renderer/components/composition'
 import { CheckmarkCircle, Flash, Close } from '@vicons/ionicons5'
-import { assetPrefix } from '@renderer/services/http'
+import http, { assetPrefix } from '@renderer/services/http'
 
+onMounted(async () => {
+  autoAccept.value = (await http.get<boolean>("/config/settings.auto.acceptMatchSwitch")).data
+  autoPick.value = (await http.get<boolean>("/config/settings.auto.pickChampionSwitch")).data
+  autoBan.value = (await http.get<boolean>("/config/settings.auto.banChampionSwitch")).data
+  myPickData.value = (await http.get<any[]>("/config/settings.auto.pickChampionSlice")).data
+  myBanData.value = (await http.get<any[]>("/config/settings.auto.banChampionSlice")).data
+});
 const autoAccept = ref(false)
 const autoPick = ref(false)
 const autoBan = ref(false)
 
 const selectChampionId = ref(null)
 
-const myListData = ref([
+const myPickData = ref([
+  { label: '山隐之焰', value: 516, realName: '奥恩', nickname: '山羊' },
+  { label: '正义巨像', value: 517, realName: '加里奥', nickname: '雕像' },
+  // More items...
+])
+const myBanData = ref([
   { label: '山隐之焰', value: 516, realName: '奥恩', nickname: '山羊' },
   { label: '正义巨像', value: 517, realName: '加里奥', nickname: '雕像' },
   // More items...
 ]);
 
-const handleOrderChange = (newList) => {
-  console.log('Order changed:', newList);
-};
+// const 
+
+// const updatePickSwitch = async (value: boolean) => {
+//   await http.put("/config/settings/auto/pickChampionSwitch", value)
+// }
+// const updateBanSwitch = async (value: boolean) => {
+//   await http.put("/config/settings/auto/banChampionSwitch", value)
+// }
 
 // Helper settings
 </script>
