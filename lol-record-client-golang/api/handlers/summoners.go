@@ -100,7 +100,7 @@ func enrichSummonerData(summoner *api.Summoner) error {
 	if err != nil {
 		return err
 	}
-	platformId := "暂无"
+	platformId := ""
 	if len(match.Games.Games) > 0 {
 		platformId = match.Games.Games[0].PlatformId
 	}
