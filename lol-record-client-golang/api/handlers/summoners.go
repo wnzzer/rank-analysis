@@ -100,7 +100,12 @@ func enrichSummonerData(summoner *api.Summoner) error {
 	if err != nil {
 		return err
 	}
-	summoner.PlatformIdCn = constants.SGPServerIdToName[match.Games.Games[0].PlatformId]
+	platformId := "暂无"
+	if len(match.Games.Games) > 0 {
+		platformId = match.Games.Games[0].PlatformId
+	}
+
+	summoner.PlatformIdCn = constants.SGPServerIdToName[platformId]
 
 	// 获取头像
 	if summoner.ProfileIconId != 0 {

@@ -30,6 +30,7 @@ var SGPServerIdToName = map[string]string{
 	"SG2":   "新加坡",
 	"PH2":   "菲律宾",
 	"VN2":   "越南",
+	"":      "暂无",
 }
 var TierEnToCn = map[string]string{
 	"UNRANKED":    "无",
