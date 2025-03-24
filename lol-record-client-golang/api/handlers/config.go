@@ -28,10 +28,7 @@ func GetConfig(c *gin.Context) {
 		return
 	}
 
-	c.JSON(200, ConfigResponse{
-		Key:   key,
-		Value: value,
-	})
+	c.JSON(200, value)
 }
 
 // UpdateConfig 更新配置项
@@ -39,16 +36,14 @@ func UpdateConfig(c *gin.Context) {
 	key := c.Param("key")
 
 	// 解析请求体
-	var req struct {
-		Value interface{} `json:"value"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
+	var value interface{}
+	if err := c.ShouldBindJSON(&value); err != nil {
 		c.JSON(400, gin.H{"error": "无效请求"})
 		return
 	}
 
 	// 安全更新配置
-	config.Viper().Set(key, req.Value)
+	config.Viper().Set(key, value)
 
 	// 持久化到文件
 	if err := config.OverwriteConfig(); err != nil {
@@ -56,8 +51,5 @@ func UpdateConfig(c *gin.Context) {
 		return
 	}
 
-	c.JSON(200, ConfigResponse{
-		Key:   key,
-		Value: req.Value,
-	})
+	c.JSON(200, gin.H{"message": "配置更新成功"})
 }

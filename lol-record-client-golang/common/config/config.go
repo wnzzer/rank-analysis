@@ -45,11 +45,12 @@ func init() {
 
 // 设置默认值
 func setDefaults(v *viper.Viper) {
-	v.SetDefault("server.port", 8080)
-	v.SetDefault("server.debug", true)
-	v.SetDefault("database.host", "localhost")
-	v.SetDefault("database.user", "admin")
-	v.SetDefault("database.password", "secret")
+	v.SetDefault("settings.auto.acceptMatchSwitch", false)
+	v.SetDefault("settings.auto.pickChampionSwitch", false)
+	v.SetDefault("settings.auto.banChampionSwitch", false)
+	v.SetDefault("settings.auto.pickChampionSlice", make([]int, 0))
+	v.SetDefault("settings.auto.banChampionSlice", make([]int, 0))
+
 }
 
 // 创建目录（如果不存在）
