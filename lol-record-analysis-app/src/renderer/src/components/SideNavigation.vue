@@ -122,19 +122,19 @@ const menuOptions = computed(() => [
         label: '战绩',
         key: 'Record',
         icon: renderIcon(BarChart),
-        show: !!mySummoner.value?.platformIdCn,
+        show: !!mySummoner.value?.gameName,
     },
     {
         label: '对局',
         key: 'Gaming',
         icon: renderIcon(Reload),
-        show: !!mySummoner.value?.platformIdCn,
+        show: !!mySummoner.value?.gameName,
     },
     {
         label: '设置',
         key: 'Settings',
         icon: renderIcon(SettingsOutline),
-        show: !!mySummoner.value?.platformIdCn,
+        show: !!mySummoner.value?.gameName,
     },
     
 ]);
