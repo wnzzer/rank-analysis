@@ -112,24 +112,43 @@ func init() {
 }
 
 func GetMatchHistoryByPuuid(puuid string, begIndex int, endIndex int) (MatchHistory, error) {
-	//如果缓存中有数据，且未过期，则直接返回
+	uri := "lol-match-history/v1/products/lol/%s/matches?%s"
+
+	cachParms := url.Values{}
 	cacheMinIndex := 0
 	cacheMaxIndex := 49
+	//没缓存加缓存
 	if cached, ok := matchHistoryCache.Get(puuid); ok {
-		if value, ok := cached.(lruValue); ok && value.expiresAt.After(time.Now()) {
-			init_log.AppLog.Info("GetMatchHistoryByPuuid() cache hit, puuid: %s", puuid)
-			if endIndex <= cacheMaxIndex && begIndex >= cacheMinIndex && len(value.matchHistory.Games.Games) > endIndex {
-				value.matchHistory.Games.Games = value.matchHistory.Games.Games[begIndex : endIndex+1]
-				return value.matchHistory, nil
+		if value, ok := cached.(lruValue); !ok || !value.expiresAt.After(time.Now()) {
+			cachParms.Add("begIndex", fmt.Sprintf("%d", cacheMinIndex))
+			cachParms.Add("endIndex", fmt.Sprintf("%d", cacheMaxIndex))
+			var insertMatchHistory MatchHistory
+			err := util.Get(fmt.Sprintf(uri, puuid, cachParms.Encode()), &insertMatchHistory)
+			if err != nil {
+				init_log.AppLog.Error("GetMatchHistoryByPuuid() failed", err)
 			}
-		} else {
-			matchHistoryCache.Remove(puuid)
+			randomTime := time.Duration(rand.Intn(120)) * time.Second
+			value := lruValue{
+				expiresAt:    time.Now().Add(time.Minute * 1).Add(randomTime),
+				matchHistory: insertMatchHistory,
+			}
+			matchHistoryCache.Add(puuid, value)
+
 		}
 	}
 
-	// 缓存未命中，从接口获取
-	uri := "lol-match-history/v1/products/lol/%s/matches?%s"
+	// 从缓存中获取
 	parms := url.Values{}
+
+	cached, _ := matchHistoryCache.Get(puuid)
+	value, _ := cached.(lruValue)
+	if endIndex <= cacheMaxIndex && begIndex >= cacheMinIndex && len(value.matchHistory.Games.Games) > endIndex {
+		value.matchHistory.Games.Games = value.matchHistory.Games.Games[begIndex : endIndex+1]
+		return value.matchHistory, nil
+
+	}
+
+	// 缓存未命中，从接口获取
 	var matchHistory MatchHistory
 
 	parms.Add("begIndex", fmt.Sprintf("%d", begIndex))
@@ -139,26 +158,7 @@ func GetMatchHistoryByPuuid(puuid string, begIndex int, endIndex int) (MatchHist
 	if err != nil {
 		return MatchHistory{}, err
 	}
-	go func() {
-		if _, ok := matchHistoryCache.Get(puuid); ok {
-			return
-		}
-		parms.Add("begIndex", fmt.Sprintf("%d", cacheMinIndex))
-		parms.Add("endIndex", fmt.Sprintf("%d", cacheMaxIndex))
 
-		var insertMatchHistory MatchHistory
-		err := util.Get(fmt.Sprintf(uri, puuid, parms.Encode()), &insertMatchHistory)
-		if err != nil {
-			init_log.AppLog.Error("GetMatchHistoryByPuuid() failed", err)
-			return
-		}
-		randomTime := time.Duration(rand.Intn(120)) * time.Second
-		value := lruValue{
-			expiresAt:    time.Now().Add(time.Minute * 1).Add(randomTime),
-			matchHistory: insertMatchHistory,
-		}
-		matchHistoryCache.Add(puuid, value)
-	}()
 	return matchHistory, err
 
 }
