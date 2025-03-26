@@ -10,7 +10,7 @@
             <n-icon size="20" color="#2080f0"><Flash /></n-icon>
             自动接受对局
           </span>
-          <n-switch v-model:value="autoAccept" />
+          <n-switch v-model:value="autoAccept" @update:value="updateAcceptSwitch" />
         </div>
 
         <div class="setting-item">
@@ -18,7 +18,7 @@
             <n-icon size="20" color="#18a058"><CheckmarkCircle /></n-icon>
             自动选择英雄
           </span>
-          <n-switch v-model:value="autoPick" />
+          <n-switch v-model:value="autoPick" @update:value="updatePickSwitch" />
         </div>
         <n-flex>
           <VueDraggable ref="el" v-model="myPickData">
@@ -39,7 +39,7 @@
             <n-icon size="20" color="#d03050"><Close /></n-icon>
             自动禁止英雄
           </span>
-          <n-switch v-model:value="autoBan" />
+          <n-switch v-model:value="autoBan" @update:value="updateBanSwitch" />
         </div>
         <n-flex>
           <VueDraggable ref="el" v-model="myBanData">
@@ -92,14 +92,26 @@ const myBanData = ref([
   // More items...
 ]);
 
-// const 
+const updateAcceptSwitch = async (value: boolean) => {
+  await http.put("/config/settings.auto.acceptMatchSwitch", value)
+} 
 
-// const updatePickSwitch = async (value: boolean) => {
-//   await http.put("/config/settings/auto/pickChampionSwitch", value)
-// }
-// const updateBanSwitch = async (value: boolean) => {
-//   await http.put("/config/settings/auto/banChampionSwitch", value)
-// }
+const updatePickSwitch = async (value: boolean) => {
+  await http.put("/config/settings.auto.pickChampionSwitch", value)
+}
+const updateBanSwitch = async (value: boolean) => {
+  await http.put("/config/settings.auto.banChampionSwitch", value)
+}
+const updatePickData = async (value: any[]) => {
+  await http.put("/config/settings.auto.pickChampionSlice", myPickData.value)
+}
+const updateBanData = async (value: any[]) => {
+  await http.put("/config/settings.auto.banChampionSlice", myBanData.value)
+}
+const addBanData = async (value: any) => {
+  myBanData.value.push(value)
+  await updateBanData(myBanData.value)
+}
 
 // Helper settings
 </script>

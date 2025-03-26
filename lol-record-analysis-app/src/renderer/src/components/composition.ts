@@ -1,6 +1,7 @@
 import { assetPrefix } from "@renderer/services/http";
 import { NAvatar, SelectRenderLabel, SelectRenderTag, useMessage } from "naive-ui";
 import { h } from "vue";
+import { championOption } from "./type";
 
 export const useCopy = () => {
   const message = useMessage();
@@ -17,7 +18,7 @@ export const useCopy = () => {
   
   return { copy };
 }
-export const championOptions = [
+export const championOptions:championOption[] = [
   {label: '全部', value: 0, realName: '', nickname: ''},
   {label: '黑暗之女', value: 1, realName: '安妮', nickname: '火女', },
   { label: '狂战士', value: 2, realName: '奥拉夫', nickname: '大头' },
@@ -134,16 +135,16 @@ export const championOptions = [
   { label: '星籁歌姬', value: 147, realName: '萨勒芬妮', nickname: '轮椅人' },
   { label: '迷失之牙', value: 150, realName: '纳尔', nickname: '' },
   { label: '生化魔人', value: 154, realName: '扎克', nickname: '粑粑人' },
-  { label: '疾风剑豪', value: 157, realName: '亚索', nickName: '索子哥|孤儿索' },
+  { label: '疾风剑豪', value: 157, realName: '亚索', nickname: '索子哥|孤儿索' },
   { label: '虚空之眼', value: 161, realName: '维克兹', nickname: '大眼' },
   { label: '岩雀', value: 163, realName: '塔莉垭', nickname: '' },
-  { label: '青钢影', value: 164, realname: '卡米尔', nickname: '' },
+  { label: '青钢影', value: 164, realName: '卡米尔', nickname: '' },
   { label: '影哨', value: 166, realName: '阿克尚', nickname: '' },
-  { label: '虚空女皇', value: 200, realname: '卑尔维斯', nickname: '阿尔卑斯|棒棒糖' },
+  { label: '虚空女皇', value: 200, realName: '卑尔维斯', nickname: '阿尔卑斯|棒棒糖' },
   { label: '弗雷尔卓德之心', value: 201, realName: '布隆', nickname: '' },
   { label: '戏命师', value: 202, realName: '烬', nickname: '瘸子' },
-  { label: '永猎双子', value: 203, realName: '千珏', nickName: '' },
-  { label: '祖安花火', value: 221, realName: '泽丽', nickName: '' },
+  { label: '永猎双子', value: 203, realName: '千珏', nickname: '' },
+  { label: '祖安花火', value: 221, realName: '泽丽', nickname: '' },
   { label: '暴走萝莉', value: 222, realName: '金克丝', nickname: '' },
   { label: '河流之王', value: 223, realName: '塔姆', nickname: '' },
   { label: '狂厄蔷薇', value: 233, realName: '狱卒', nickname: '' },
@@ -163,7 +164,7 @@ export const championOptions = [
   { label: '魂锁典狱长', value: 412, realName: '锤石', nickname: '' },
   { label: '海兽祭司', value: 420, realName: '俄洛伊', nickname: '触手妈' },
   { label: '虚空遁地兽', value: 421, realName: '雷克赛', nickname: '挖掘机' },
-  { label: '翠神', value: 427, realName: '艾翁', nickName: '小树' },
+  { label: '翠神', value: 427, realName: '艾翁', nickname: '小树' },
   { label: '复仇之矛', value: 429, realName: '卡莉丝塔', nickname: '' },
   { label: '星界游神', value: 432, realName: '巴德', nickname: '' },
   { label: '幻翎', value: 497, realName: '洛', nickname: '' },
@@ -176,16 +177,16 @@ export const championOptions = [
   { label: '血港鬼影', value: 555, realName: '派克', nickname: '' },
   { label: '愁云使者', value: 711, realName: '薇古斯', nickname: '' },
   { label: '封魔剑魂', value: 777, realName: '永恩', nickname: '' },
-  { label: '铁血狼母', value: 799, realNmae: '安蓓萨', nickname: '' },
+  { label: '铁血狼母', value: 799, realName: '安蓓萨', nickname: '' },
   { label: '流光镜影', value: 800, realName: '梅尔', nickname: '三体人' },
   { label: '腕豪', value: 875, realName: '瑟提', nickname: '' },
   { label: '含羞蓓蕾', value: 876, realName: '莉莉娅', nickname: '' },
   { label: '灵罗娃娃', value: 887, realName: '格温', nickname: '' },
-  { label: '炼金男爵', value: 888, realname: '烈娜塔・戈拉斯克', nickname: '' },
+  { label: '炼金男爵', value: 888, realName: '烈娜塔・戈拉斯克', nickname: '' },
   { label: '双界灵兔', value: 893, realName: '阿萝拉', nickname: '兔子' },
   { label: '不羁之悦', value: 895, realName: '尼菈', nickname: '水米拉|水弥拉' },
   { label: '纳祖芒荣耀', value: 897, realName: '奎桑提', nickname: '黑哥' },
-  { label: '炽炎雏龙', value: 901, realName: '斯莫德', nickName: '小火龙' },
+  { label: '炽炎雏龙', value: 901, realName: '斯莫德', nickname: '小火龙' },
   { label: '明烛', value: 902, realName: '米利欧', nickname: '顶真|丁真' },
   { label: '异画师', value: 910, realName: '慧', nickname: '毛笔人' },
   { label: '百裂冥犬', value: 950, realName: '纳亚菲利', nickname: '狼狗|狗比' }
