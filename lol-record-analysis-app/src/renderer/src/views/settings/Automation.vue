@@ -111,13 +111,14 @@ const updatePickData = async () => {
 const updateBanData = async () => {
   await http.put("/config/settings.auto.banChampionSlice", myBanData.value)
 }
-const addBanData = async (value: championOption) => {
-  console.log(value)
-  myBanData.value.push(value)
+const addBanData = async (option) => {
+  console.log(option)
+  myBanData.value.push(option)
   await updateBanData()
 }
-const addPickData = async (value: championOption) => {
-  myPickData.value.push(value)
+const addPickData = async (option) => {
+
+  myPickData.value.push(option)
   await updatePickData()
 }
 
