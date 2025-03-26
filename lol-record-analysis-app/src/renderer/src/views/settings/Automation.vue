@@ -22,14 +22,15 @@
         </div>
         <n-flex>
           <VueDraggable ref="el" v-model="myPickData">
-            <n-tag v-for="item in myPickData" round closable :bordered="false" style="margin-right: 15px;">
+            <n-tag v-for="item in myPickData" round closable :bordered="false" @close="deletePickData(item.value)" style="margin-right: 15px; ">
               {{ item.label }}
               <template #avatar>
-                <n-avatar :src="assetPrefix + 'champion' + item.value" />
+                <n-avatar :src="assetPrefix + 'champion' + item.value" 
+                :fallback-src="assetPrefix + 'champion-1'"/>
               </template>
             </n-tag>
           </VueDraggable>
-          <n-select v-model:value="selectChampionId" filterable :filter="filterChampionFunc" placeholder="添加英雄"
+          <n-select v-model:value="selectPickChampionId" filterable :filter="filterChampionFunc" placeholder="添加英雄"
             :render-tag="renderSingleSelectTag" :render-label="renderLabel" :options="championOptions" size="small"
             @update:value="addPickData"
             style="width: 170px"  />
@@ -44,14 +45,15 @@
         </div>
         <n-flex>
           <VueDraggable ref="el" v-model="myBanData">
-          <n-tag v-for="item in myBanData" round closable :bordered="false" style="margin-right: 15px;">
+          <n-tag v-for="item in myBanData" round closable @close="deleteBanData(item.value)" :bordered="false" style="margin-right: 15px;">
             {{ item.label }}
             <template #avatar>
-              <n-avatar :src="assetPrefix + 'champion' + item.value" />
+              <n-avatar :src="assetPrefix + 'champion' + item.value"
+              :fallback-src="assetPrefix + 'champion-1'"/>
             </template>
           </n-tag>
         </VueDraggable>
-        <n-select v-model:value="selectChampionId" filterable :filter="filterChampionFunc" placeholder="添加英雄"
+        <n-select v-model:value="selectBanChampionId" filterable :filter="filterChampionFunc" placeholder="添加英雄"
           :render-tag="renderSingleSelectTag" :render-label="renderLabel" :options="championOptions" size="small"
           @update:value="addBanData"
           style="width: 170px"  />
@@ -75,25 +77,18 @@ onMounted(async () => {
   autoAccept.value = (await http.get<boolean>("/config/settings.auto.acceptMatchSwitch")).data
   autoPick.value = (await http.get<boolean>("/config/settings.auto.pickChampionSwitch")).data
   autoBan.value = (await http.get<boolean>("/config/settings.auto.banChampionSwitch")).data
-  myPickData.value = (await http.get<any[]>("/config/settings.auto.pickChampionSlice")).data
-  myBanData.value = (await http.get<any[]>("/config/settings.auto.banChampionSlice")).data
+  myPickData.value = (await http.get<championOption[]>("/config/settings.auto.pickChampionSlice")).data
+  myBanData.value = (await http.get<championOption[]>("/config/settings.auto.banChampionSlice")).data
 });
 const autoAccept = ref(false)
 const autoPick = ref(false)
 const autoBan = ref(false)
 
-const selectChampionId = ref(null)
+const selectPickChampionId = ref(null)
+const selectBanChampionId = ref(null)
 
-const myPickData = ref([
-  { label: '山隐之焰', value: 516, realName: '奥恩', nickname: '山羊' },
-  { label: '正义巨像', value: 517, realName: '加里奥', nickname: '雕像' },
-  // More items...
-])
-const myBanData = ref([
-  { label: '山隐之焰', value: 516, realName: '奥恩', nickname: '山羊' },
-  { label: '正义巨像', value: 517, realName: '加里奥', nickname: '雕像' },
-  // More items...
-]);
+const myPickData = ref<championOption[]>([]);
+const myBanData = ref<championOption[]>([]);
 
 const updateAcceptSwitch = async (value: boolean) => {
   await http.put("/config/settings.auto.acceptMatchSwitch", value)
@@ -111,18 +106,42 @@ const updatePickData = async () => {
 const updateBanData = async () => {
   await http.put("/config/settings.auto.banChampionSlice", myBanData.value)
 }
-const addBanData = async (option) => {
-  console.log(option)
-  myBanData.value.push(option)
+
+const deleteBanData = async (value) => {
+  myBanData.value = myBanData.value.filter((item) => item.value !== value)
   await updateBanData()
 }
-const addPickData = async (option) => {
+const deletePickData = async (value) => {
+  myPickData.value = myPickData.value.filter((item) => item.value !== value)
+  await updatePickData()
+}
+const addBanData = async (value, option) => {
+  if(value === 0) return
 
-  myPickData.value.push(option)
+  myBanData.value?.push(option)
+  await updateBanData()
+}
+const addPickData = async (value, option) => {
+  if(value === 0){
+    myPickData.value = [
+      {
+        label : '全部',
+        value : 0,
+        realName: '',
+        nickname: ''
+      }
+    ]
+    
+  }else{
+    if(myPickData.value.length >= 1 && myPickData.value[0].value === 0){
+      myPickData.value = []
+    }
+    myPickData.value?.push(option)
+  }
+
   await updatePickData()
 }
 
-// Helper settings
 </script>
 
 <style scoped>
