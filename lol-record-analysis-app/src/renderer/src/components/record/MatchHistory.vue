@@ -268,7 +268,6 @@ const nextPage = async () => {
 // 上一页
 const prevPage = async () => {
   const lastPage = pageHistory.value.pop()
-  console.log(lastPage)
 
   if (!lastPage) {
     throw new Error("无上一页数据")

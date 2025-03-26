@@ -56,7 +56,7 @@
       </n-card>
     </div>
     <!-- 宿敌和好友 -->
-    <flex style="display: flex;">
+    <n-flex style="display: flex;">
       <flex vertical style="flex: 1">
         <div v-if="recentData.friendAndDispute.friendsSummoner" style="font-weight: 800; color:#8BDFB7;">
           <n-icon>
@@ -80,7 +80,7 @@
           <MettingPlayersCard :meet-games="friend.OneGamePlayer"></MettingPlayersCard>
         </n-popover>
       </flex>
-      <flex vertical style="flex: 1">
+      <n-flex vertical style="flex: 1">
         <div v-if="recentData.friendAndDispute.disputeSummoner" style="font-weight: 800; color:#C9606F;">
           <n-icon>
             <Skull />
@@ -101,8 +101,8 @@
           </template>
           <MettingPlayersCard :meet-games="dispute.OneGamePlayer"></MettingPlayersCard>
         </n-popover>
-      </flex>
-    </flex>
+      </n-flex>
+    </n-flex>
 
 
 

@@ -31,6 +31,7 @@
           </VueDraggable>
           <n-select v-model:value="selectChampionId" filterable :filter="filterChampionFunc" placeholder="添加英雄"
             :render-tag="renderSingleSelectTag" :render-label="renderLabel" :options="championOptions" size="small"
+            @update:value="addPickData"
             style="width: 170px"  />
         </n-flex>
         <n-text depth="3" style="font-size: 12px">拖动可以改变选择英雄的优先级</n-text>
@@ -52,6 +53,7 @@
         </VueDraggable>
         <n-select v-model:value="selectChampionId" filterable :filter="filterChampionFunc" placeholder="添加英雄"
           :render-tag="renderSingleSelectTag" :render-label="renderLabel" :options="championOptions" size="small"
+          @update:value="addBanData"
           style="width: 170px"  />
         </n-flex>
         <n-text depth="3" style="font-size: 12px">拖动可以改变禁用英雄的优先级</n-text>
@@ -67,6 +69,7 @@ import { onMounted, ref } from 'vue'
 import { renderSingleSelectTag, renderLabel, championOptions, filterChampionFunc } from '@renderer/components/composition'
 import { CheckmarkCircle, Flash, Close } from '@vicons/ionicons5'
 import http, { assetPrefix } from '@renderer/services/http'
+import { championOption } from '@renderer/components/type'
 
 onMounted(async () => {
   autoAccept.value = (await http.get<boolean>("/config/settings.auto.acceptMatchSwitch")).data
@@ -102,15 +105,20 @@ const updatePickSwitch = async (value: boolean) => {
 const updateBanSwitch = async (value: boolean) => {
   await http.put("/config/settings.auto.banChampionSwitch", value)
 }
-const updatePickData = async (value: any[]) => {
+const updatePickData = async () => {
   await http.put("/config/settings.auto.pickChampionSlice", myPickData.value)
 }
-const updateBanData = async (value: any[]) => {
+const updateBanData = async () => {
   await http.put("/config/settings.auto.banChampionSlice", myBanData.value)
 }
-const addBanData = async (value: any) => {
+const addBanData = async (value: championOption) => {
+  console.log(value)
   myBanData.value.push(value)
-  await updateBanData(myBanData.value)
+  await updateBanData()
+}
+const addPickData = async (value: championOption) => {
+  myPickData.value.push(value)
+  await updatePickData()
 }
 
 // Helper settings
