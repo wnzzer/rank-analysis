@@ -100,24 +100,25 @@ const selectBanChampionId = ref(null)
 const myPickData = ref<championOption[]>([]);
 const myBanData = ref<championOption[]>([]);
 
-const updateAcceptSwitch = async (value: boolean) => {
-  await http.put("/config/settings.auto.acceptMatchSwitch", value)
+const updateAcceptSwitch = async () => {
+
+  await http.put("/config/settings.auto.acceptMatchSwitch", {value:autoAccept.value})
 } 
 
-const updatePickSwitch = async (value: boolean) => {
-  await http.put("/config/settings.auto.pickChampionSwitch", value)
+const updatePickSwitch = async () => {
+  await http.put("/config/settings.auto.pickChampionSwitch", {value:autoPick.value})
 }
-const updateBanSwitch = async (value: boolean) => {
-  await http.put("/config/settings.auto.banChampionSwitch", value)
+const updateBanSwitch = async () => {
+  await http.put("/config/settings.auto.banChampionSwitch", {value:autoBan.value})
 }
 const updatePickData = async () => {
-  await http.put("/config/settings.auto.pickChampionSlice", myPickData.value)
+  await http.put("/config/settings.auto.pickChampionSlice", {value:myPickData.value})
 }
 const updateBanData = async () => {
-  await http.put("/config/settings.auto.banChampionSlice", myBanData.value)
+  await http.put("/config/settings.auto.banChampionSlice", {value:myBanData.value})
 }
-const updateStartSwitch = async (value: boolean) => {
-  await http.put("/config/settings.auto.startMatchSwitch", value)
+const updateStartSwitch = async () => {
+  await http.put("/config/settings.auto.startMatchSwitch", {value:autoStart.value})
 }
 
 const deleteBanData = async (value) => {

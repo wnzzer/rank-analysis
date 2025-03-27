@@ -31,19 +31,23 @@ func GetConfig(c *gin.Context) {
 	c.JSON(200, value)
 }
 
+type UpdateConfigRequest struct {
+	Value interface{} `json:"value"`
+}
+
 // UpdateConfig 更新配置项
 func UpdateConfig(c *gin.Context) {
 	key := c.Param("key")
 
 	// 解析请求体
-	var value interface{}
+	var value UpdateConfigRequest
 	if err := c.ShouldBindJSON(&value); err != nil {
 		c.JSON(400, gin.H{"error": "无效请求"})
 		return
 	}
 
 	// 安全更新配置
-	config.Viper().Set(key, value)
+	config.Viper().Set(key, value.Value)
 
 	// 持久化到文件
 	if err := config.OverwriteConfig(); err != nil {
