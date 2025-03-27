@@ -16,11 +16,11 @@ func Automation() {
 		}
 		switch curPhase {
 		case constants.Lobby:
-			if config.Viper().GetBool("settings.auto.acceptMatchSwitch") {
+			if config.Viper().GetBool("settings.auto.startMatchSwitch") {
 				api.PostMatchSearch()
 			}
 		case constants.ReadyCheck:
-			if config.Viper().GetBool("settings.auto.startMatchSwitch") {
+			if config.Viper().GetBool("settings.auto.acceptMatchSwitch") {
 				api.PostAcceptMatch()
 			}
 		}
