@@ -5,6 +5,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"lol-record-analysis/api"
 	"lol-record-analysis/api/handlers"
+	"lol-record-analysis/automation"
 )
 
 func main() {
@@ -15,6 +16,7 @@ func main() {
 
 	// 初始化路由
 	api.InitRoutes(r)
+	go automation.Automation()
 
 	// 启动服务
 	r.Run(":11451") // 在 11451 端口上运行

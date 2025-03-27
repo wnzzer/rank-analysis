@@ -246,3 +246,64 @@ func GetImgAsBinary(uri string) ([]byte, http.Header, error) {
 	// 超过最大重试次数
 	return nil, nil, fmt.Errorf("failed to get valid response after retries")
 }
+func Post(uri string, data interface{}, result interface{}) error {
+	for i := 0; i < 2; i++ {
+		var allError error
+		// 获取认证信息（如果缺失）
+		if authToken == "" || port == "" {
+			authToken, port, allError = GetAuth()
+			if allError != nil {
+				return fmt.Errorf("failed to get auth: %w", allError)
+			}
+		}
+
+		// 处理 URI 格式
+		if uri != "" && uri[0] == '/' {
+			uri = uri[1:]
+		}
+
+		// 构建请求 URL
+		url := fmt.Sprintf(baseUrlTemplate, authToken, port, uri)
+		fmt.Println("POST Request URL:", url)
+
+		// 序列化请求数据
+		jsonData, err := json.Marshal(data)
+		if err != nil {
+			return fmt.Errorf("failed to marshal request data: %w", err)
+		}
+
+		// 创建 POST 请求
+		req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(jsonData))
+		if err != nil {
+			return fmt.Errorf("failed to create request: %w", err)
+		}
+
+		// 设置请求头
+		req.Header.Set("Content-Type", "application/json")
+
+		// 发送请求
+		res, err := getLCUClient().Do(req)
+		if err != nil {
+			// 如果失败则尝试刷新认证信息
+			authToken, port, _ = GetAuth()
+			continue
+		}
+		defer res.Body.Close()
+
+		// 处理响应
+		if res.StatusCode == http.StatusOK || res.StatusCode == http.StatusCreated {
+			// 如果需要解析响应体
+			if result != nil {
+				if err := json.NewDecoder(res.Body).Decode(result); err != nil {
+					return fmt.Errorf("failed to decode response: %w", err)
+				}
+			}
+			return nil
+		} else {
+			// 处理认证失效的情况
+			authToken, port, _ = GetAuth()
+		}
+	}
+
+	return fmt.Errorf("failed to complete POST request after retries")
+}

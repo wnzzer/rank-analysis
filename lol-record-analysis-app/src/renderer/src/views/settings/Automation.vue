@@ -60,6 +60,14 @@
         </n-flex>
         <n-text depth="3" style="font-size: 12px">拖动可以改变禁用英雄的优先级</n-text>
 
+        <div class="setting-item">
+          <span class="setting-label">
+            <n-icon size="20" color="#2080f0"><PlayCircle /></n-icon>
+            自动开始匹配
+          </span>
+          <n-switch v-model:value="autoStart" @update:value="updateStartSwitch" />
+        </div>
+
       </n-space>
     </n-card>
 
@@ -69,7 +77,7 @@
 import { VueDraggable } from 'vue-draggable-plus'
 import { onMounted, ref } from 'vue'
 import { renderSingleSelectTag, renderLabel, championOptions, filterChampionFunc } from '@renderer/components/composition'
-import { CheckmarkCircle, Flash, Close } from '@vicons/ionicons5'
+import { CheckmarkCircle, Flash, Close, PlayCircle } from '@vicons/ionicons5'
 import http, { assetPrefix } from '@renderer/services/http'
 import { championOption } from '@renderer/components/type'
 
@@ -79,10 +87,12 @@ onMounted(async () => {
   autoBan.value = (await http.get<boolean>("/config/settings.auto.banChampionSwitch")).data
   myPickData.value = (await http.get<championOption[]>("/config/settings.auto.pickChampionSlice")).data
   myBanData.value = (await http.get<championOption[]>("/config/settings.auto.banChampionSlice")).data
+  autoStart.value = (await http.get<boolean>("/config/settings.auto.startMatchSwitch")).data
 });
 const autoAccept = ref(false)
 const autoPick = ref(false)
 const autoBan = ref(false)
+const autoStart = ref(false)
 
 const selectPickChampionId = ref(null)
 const selectBanChampionId = ref(null)
@@ -105,6 +115,9 @@ const updatePickData = async () => {
 }
 const updateBanData = async () => {
   await http.put("/config/settings.auto.banChampionSlice", myBanData.value)
+}
+const updateStartSwitch = async (value: boolean) => {
+  await http.put("/config/settings.auto.startMatchSwitch", value)
 }
 
 const deleteBanData = async (value) => {

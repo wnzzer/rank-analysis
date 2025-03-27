@@ -48,6 +48,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("settings.auto.acceptMatchSwitch", false)
 	v.SetDefault("settings.auto.pickChampionSwitch", false)
 	v.SetDefault("settings.auto.banChampionSwitch", false)
+	v.SetDefault("settings.auto.startMatchSwitch", false)
 	v.SetDefault("settings.auto.pickChampionSlice", make([]int, 0))
 	v.SetDefault("settings.auto.banChampionSlice", make([]int, 0))
 
