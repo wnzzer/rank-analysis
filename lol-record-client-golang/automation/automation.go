@@ -18,10 +18,12 @@ func Automation() {
 		case constants.Lobby:
 			if config.Viper().GetBool("settings.auto.startMatchSwitch") {
 				api.PostMatchSearch()
+				time.Sleep(10 * time.Second)
 			}
 		case constants.ReadyCheck:
 			if config.Viper().GetBool("settings.auto.acceptMatchSwitch") {
 				api.PostAcceptMatch()
+				time.Sleep(10 * time.Second)
 			}
 		}
 		time.Sleep(1 * time.Second)
