@@ -114,53 +114,49 @@ func init() {
 func GetMatchHistoryByPuuid(puuid string, begIndex int, endIndex int) (MatchHistory, error) {
 	uri := "lol-match-history/v1/products/lol/%s/matches?%s"
 
-	cachParms := url.Values{}
-	cacheMinIndex := 0
-	cacheMaxIndex := 49
-	//没缓存加缓存
+	// 尝试从缓存获取
 	if cached, ok := matchHistoryCache.Get(puuid); ok {
-		if value, ok := cached.(lruValue); !ok || !value.expiresAt.After(time.Now()) {
-			cachParms.Add("begIndex", fmt.Sprintf("%d", cacheMinIndex))
-			cachParms.Add("endIndex", fmt.Sprintf("%d", cacheMaxIndex))
-			var insertMatchHistory MatchHistory
-			err := util.Get(fmt.Sprintf(uri, puuid, cachParms.Encode()), &insertMatchHistory)
-			if err != nil {
-				init_log.AppLog.Error("GetMatchHistoryByPuuid() failed", err)
+		if value, ok := cached.(lruValue); ok && value.expiresAt.After(time.Now()) {
+			// 检查请求范围是否在缓存范围内 (0-49)
+			if begIndex >= 0 && endIndex <= 49 && endIndex < len(value.matchHistory.Games.Games) {
+				init_log.AppLog.Info("GetMatchHistoryByPuuid() cache hit")
+				result := value.matchHistory
+				result.Games.Games = result.Games.Games[begIndex : endIndex+1]
+				return result, nil
 			}
-			randomTime := time.Duration(rand.Intn(120)) * time.Second
-			value := lruValue{
-				expiresAt:    time.Now().Add(time.Minute * 1).Add(randomTime),
-				matchHistory: insertMatchHistory,
-			}
-			matchHistoryCache.Add(puuid, value)
-
 		}
 	}
 
-	// 从缓存中获取
-	parms := url.Values{}
-
-	cached, _ := matchHistoryCache.Get(puuid)
-	value, _ := cached.(lruValue)
-	if endIndex <= cacheMaxIndex && begIndex >= cacheMinIndex && len(value.matchHistory.Games.Games) > endIndex {
-		value.matchHistory.Games.Games = value.matchHistory.Games.Games[begIndex : endIndex+1]
-		return value.matchHistory, nil
-
+	// 缓存未命中或范围不匹配，从接口获取
+	params := url.Values{}
+	if begIndex == 0 {
+		params.Add("begIndex", "0")
+		params.Add("endIndex", "49")
+	} else {
+		params.Add("begIndex", strconv.Itoa(begIndex))
+		params.Add("endIndex", strconv.Itoa(endIndex))
 	}
 
-	// 缓存未命中，从接口获取
 	var matchHistory MatchHistory
-
-	parms.Add("begIndex", fmt.Sprintf("%d", begIndex))
-	parms.Add("endIndex", fmt.Sprintf("%d", endIndex))
-
-	err := util.Get(fmt.Sprintf(uri, puuid, parms.Encode()), &matchHistory)
+	err := util.Get(fmt.Sprintf(uri, puuid, params.Encode()), &matchHistory)
 	if err != nil {
 		return MatchHistory{}, err
 	}
 
-	return matchHistory, err
+	// 如果获取的是0-49范围的数据，则更新缓存
+	if begIndex == 0 {
+		randomTime := time.Duration(rand.Intn(120)) * time.Second
+		value := lruValue{
+			expiresAt:    time.Now().Add(time.Minute * 1).Add(randomTime),
+			matchHistory: matchHistory,
+		}
+		matchHistoryCache.Add(puuid, value)
+	}
+	if begIndex == 0 && endIndex < len(matchHistory.Games.Games) {
+		matchHistory.Games.Games = matchHistory.Games.Games[begIndex : endIndex+1]
+	}
 
+	return matchHistory, nil
 }
 
 func (matchHistory *MatchHistory) EnrichGameDetails() {
