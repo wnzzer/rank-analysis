@@ -2,7 +2,6 @@ package api
 
 import (
 	"lol-record-analysis/lcu/util"
-	"lol-record-analysis/util/init_log"
 )
 
 type Session struct {

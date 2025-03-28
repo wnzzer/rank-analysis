@@ -24,7 +24,7 @@ func GetPhase() (string, error) {
 	// 检查缓存是否在1秒内
 	currentTime := time.Now()
 	if !phaseCache.lastFetchTime.IsZero() &&
-		currentTime.Sub(phaseCache.lastFetchTime) < 1*time.Second {
+		currentTime.Sub(phaseCache.lastFetchTime) <= 200*time.Millisecond {
 		return phaseCache.lastPhase, nil
 	}
 

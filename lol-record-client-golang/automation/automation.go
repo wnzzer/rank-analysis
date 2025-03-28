@@ -11,7 +11,7 @@ import (
 
 // 自动接受匹配
 func acceptMatchAutomation(ctx context.Context) {
-	ticker := time.NewTicker(1 * time.Second)
+	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
 	for range ticker.C {

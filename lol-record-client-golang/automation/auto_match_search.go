@@ -30,36 +30,35 @@ func startMatchAutomation(ctx context.Context) {
 				init_log.AppLog.Error(err.Error())
 				continue
 			}
-			// 检测匹配状态变化
+
+			// 如果状态没变，跳过本次循环
 			if lastSearchState == curState {
 				continue
 			}
+
 			// 检查是否开启自动匹配
 			if !autoMatchEnabled {
+				lastSearchState = curState
 				continue
 			}
 
 			// 检查配置中的自动匹配开关
 			if !config.Viper().GetBool("settings.auto.startMatchSwitch") {
+				lastSearchState = curState
 				continue
 			}
-			// 取消后关闭
+
+			// 从匹配状态变回大厅状态，说明取消了匹配
 			if lastSearchState == constants.Matchmaking && curState == constants.Lobby {
 				autoMatchEnabled = false
+				lastSearchState = curState
+				continue
 			}
-			// 开始后启动
-			if lastSearchState == constants.Lobby && curState == constants.Matchmaking {
-				autoMatchEnabled = true
-			}
+
 			lastSearchState = curState
 
 			// 检查当前游戏阶段
-			curPhase, err := api.GetPhase()
-			if err != nil {
-				init_log.AppLog.Error(err.Error())
-				continue
-			}
-			if curPhase != "Lobby" {
+			if curState != constants.Lobby {
 				continue
 			}
 
