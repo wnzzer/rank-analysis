@@ -55,16 +55,14 @@ func champSelectAutomation(ctx context.Context) {
 	}
 }
 
-// 启动所有定时任务
 func StartAutomation() {
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel() // 确保在函数返回时调用 cancel
 
 	// 启动多个定时任务
 	go startMatchAutomation(ctx)
 	go acceptMatchAutomation(ctx)
 	go champSelectAutomation(ctx)
+	select {}
 
-	// 运行 60 秒后停止所有任务
-	time.Sleep(60 * time.Second)
-	cancel()
 }
