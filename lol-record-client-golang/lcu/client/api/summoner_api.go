@@ -30,12 +30,18 @@ func init() {
 	}
 }
 
+var mySummoner Summoner
+
 func GetCurSummoner() (Summoner, error) {
+	if mySummoner.Puuid != "" {
+		return mySummoner, nil
+	}
 	var summoner Summoner
 	err := util.Get("lol-summoner/v1/current-summoner", &summoner)
 	if err != nil {
 		return Summoner{}, err
 	}
+	mySummoner = summoner
 	return summoner, nil
 }
 func GetSummonerByName(name string) (Summoner, error) {
