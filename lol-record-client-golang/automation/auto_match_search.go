@@ -75,7 +75,7 @@ func startMatchAutomation(ctx context.Context) {
 			}
 
 			// 检查是否是房主
-			if len(lobby.Members) > 0 && !lobby.Members[0].IsLeader {
+			if isLeader(lobby.Members) {
 				continue
 			}
 
@@ -83,4 +83,16 @@ func startMatchAutomation(ctx context.Context) {
 			api.PostMatchSearch()
 		}
 	}
+}
+
+// 判断是否是房主
+func isLeader(members []api.Member) bool {
+	mySummoner, _ := api.GetCurSummoner()
+	myPuuid := mySummoner.Puuid
+	for _, member := range members {
+		if member.Puuid == myPuuid && member.IsLeader {
+			return true
+		}
+	}
+	return false
 }

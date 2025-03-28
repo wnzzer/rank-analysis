@@ -79,7 +79,7 @@ type Member struct {
 	IsSpectator                   bool         `json:"isSpectator"`
 	MemberData                    any          `json:"memberData"`
 	PlayerSlots                   []PlayerSlot `json:"playerSlots"`
-	PUUID                         string       `json:"puuid"`
+	Puuid                         string       `json:"puuid"`
 	Ready                         bool         `json:"ready"`
 	SecondPositionPreference      string       `json:"secondPositionPreference"`
 	ShowGhostedBanner             bool         `json:"showGhostedBanner"`
