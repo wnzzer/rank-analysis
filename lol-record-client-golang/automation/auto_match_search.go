@@ -19,16 +19,25 @@ func startMatchAutomation(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		default:
-			if config.Viper().GetBool("settings.auto.startMatchSwitch") {
-				curPhase, err := api.GetPhase()
-				if err != nil {
-					init_log.AppLog.Error(err.Error())
-					continue
-				}
-				if curPhase == constants.Lobby {
-					api.PostMatchSearch()
-				}
+			if !config.Viper().GetBool("settings.auto.startMatchSwitch") {
+				continue
 			}
+			curPhase, err := api.GetPhase()
+			if err != nil {
+				init_log.AppLog.Error(err.Error())
+				continue
+			}
+			if curPhase != constants.Lobby {
+				continue
+			}
+			lobby, _ := api.GetLobby()
+			if lobby.GameConfig.IsCustom {
+				continue
+			}
+			if len(lobby.Members) > 0 && !lobby.Members[0].IsLeader {
+				continue
+			}
+			api.PostMatchSearch()
 		}
 	}
 }
