@@ -3,19 +3,25 @@ package api
 import (
 	"lol-record-analysis/lcu/util"
 	"lol-record-analysis/util/init_log"
+	"sync"
+	"time"
 )
 
 type SelectSession struct {
-	MyTeam  []OnePlayer `json:"myTeam"`
-	Actions [][]Action  `json:"actions"`
-	Timer   Timer       `json:"timer"`
+	MyTeam            []OnePlayer `json:"myTeam"`
+	Actions           [][]Action  `json:"actions"`
+	Timer             Timer       `json:"timer"`
+	LocalPlayerCellId int         `json:"localPlayerCellId"`
 }
 
 type Action struct {
-	ActorCellId int    `json:"actorCellId"`
-	Id          int    `json:"id"`
-	Type        string `json:"type"`
-	Complete    bool   `json:"complete"`
+	ActorCellId  int    `json:"actorCellId"`
+	Id           int    `json:"id"`
+	ChampionId   int    `json:"championId"`
+	Complete     bool   `json:"complete"`
+	IsAllyAction bool   `json:"isAllyAction"`
+	IsInProgress bool   `json:"isInProgress"`
+	Type         string `json:"type"`
 }
 type Timer struct {
 	AdjustedTimeLeftInPhase float64 `json:"adjustedTimeLeftInPhase"`
@@ -24,24 +30,35 @@ type Timer struct {
 	Phase                   string  `json:"phase"`
 	TotalTimeInPhase        float64 `json:"totalTimeInPhase"`
 }
+type SelectSessionCache struct {
+	mu            sync.Mutex
+	lastSession   SelectSession
+	lastFetchTime time.Time
+}
+
+var selectCache = &SelectSessionCache{}
 
 func GetChampSelectSession() (SelectSession, error) {
+	selectCache.mu.Lock()
+	defer selectCache.mu.Unlock()
+	// 检查缓存是否在1秒内
+	currentTime := time.Now()
+	if !selectCache.lastFetchTime.IsZero() &&
+		currentTime.Sub(selectCache.lastFetchTime) <= 1*time.Second {
+		return selectCache.lastSession, nil
+	}
+
 	var selectSession SelectSession
 	uri := "lol-champ-select/v1/session"
 	err := util.Get(uri, &selectSession)
 	if err != nil {
 		return SelectSession{}, err
 	}
+	// 更新缓存
+	selectCache.lastSession = selectSession
 	return selectSession, err
 }
 
-func PostMatchSearch() {
-	uri := "lol-lobby/v2/lobby/matchmaking/search"
-	err := util.Post(uri, nil, nil)
-	if err != nil {
-		init_log.AppLog.Error(err.Error())
-	}
-}
 func PostAcceptMatch() {
 	uri := "lol-matchmaking/v1/ready-check/accept"
 	err := util.Post(uri, nil, nil)
@@ -49,6 +66,11 @@ func PostAcceptMatch() {
 		init_log.AppLog.Error(err.Error())
 	}
 }
-func PatchPickChampion(championId int) {
-	//uri := ""
+func PatchSessionAction(patchData interface{}) error {
+	uri := "lol-champ-select/v1/session/actions"
+	err := util.Patch(uri, patchData, nil)
+	if err != nil {
+		return err
+	}
+	return nil
 }

@@ -191,6 +191,15 @@ export const championOptions:championOption[] = [
   { label: '异画师', value: 910, realName: '慧', nickname: '毛笔人' },
   { label: '百裂冥犬', value: 950, realName: '纳亚菲利', nickname: '狼狗|狗比' }
 ]
+
+
+export const championHash: Readonly<{[key: number]: championOption}> = Object.freeze(
+  championOptions.reduce((acc, option) => {
+    acc[option.value] = option;
+    return acc;
+  }, {} as {[key: number]: championOption})
+);
+
 export function filterChampionFunc(input, option) {
   if (!input) return true
   const searchText = input.toLowerCase()

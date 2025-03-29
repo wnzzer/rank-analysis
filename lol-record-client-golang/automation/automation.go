@@ -33,28 +33,6 @@ func acceptMatchAutomation(ctx context.Context) {
 	}
 }
 
-// 英雄选择自动化（如果有逻辑的话）
-func champSelectAutomation(ctx context.Context) {
-	ticker := time.NewTicker(1 * time.Second)
-	defer ticker.Stop()
-
-	for range ticker.C {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			curPhase, err := api.GetPhase()
-			if err != nil {
-				init_log.AppLog.Error(err.Error())
-				continue
-			}
-			if curPhase == constants.ChampSelect {
-				// 选英雄逻辑
-			}
-		}
-	}
-}
-
 func StartAutomation() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel() // 确保在函数返回时调用 cancel
@@ -62,7 +40,7 @@ func StartAutomation() {
 	// 启动多个定时任务
 	go startMatchAutomation(ctx)
 	go acceptMatchAutomation(ctx)
-	go champSelectAutomation(ctx)
+	go startChampSelectAutomation(ctx)
 	select {}
 
 }

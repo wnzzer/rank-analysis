@@ -123,3 +123,10 @@ func GetMember() (Member, error) {
 	}
 	return member, nil
 }
+func PostMatchSearch() {
+	uri := "lol-lobby/v2/lobby/matchmaking/search"
+	err := util.Post(uri, nil, nil)
+	if err != nil {
+		init_log.AppLog.Error(err.Error())
+	}
+}

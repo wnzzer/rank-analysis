@@ -22,10 +22,10 @@
         </div>
         <n-flex>
           <VueDraggable ref="el" v-model="myPickData">
-            <n-tag v-for="item in myPickData" round closable :bordered="false" @close="deletePickData(item.value)" style="margin-right: 15px; ">
-              {{ item.label }}
+            <n-tag v-for="item in myPickData" round closable :bordered="false" @close="deletePickData(item)" style="margin-right: 15px; ">
+              {{ championHash[item]?.label || `英雄 ${item}` }}
               <template #avatar>
-                <n-avatar :src="assetPrefix + 'champion' + item.value" 
+                <n-avatar :src="assetPrefix + 'champion' + item" 
                 :fallback-src="assetPrefix + 'champion-1'"/>
               </template>
             </n-tag>
@@ -45,10 +45,10 @@
         </div>
         <n-flex>
           <VueDraggable ref="el" v-model="myBanData">
-          <n-tag v-for="item in myBanData" round closable @close="deleteBanData(item.value)" :bordered="false" style="margin-right: 15px;">
-            {{ item.label }}
+          <n-tag v-for="item in myBanData" round closable @close="deleteBanData(item)" :bordered="false" style="margin-right: 15px;">
+            {{ championHash[item]?.label || `英雄 ${item}` }}
             <template #avatar>
-              <n-avatar :src="assetPrefix + 'champion' + item.value"
+              <n-avatar :src="assetPrefix + 'champion' + item"
               :fallback-src="assetPrefix + 'champion-1'"/>
             </template>
           </n-tag>
@@ -79,14 +79,16 @@ import { onMounted, ref } from 'vue'
 import { renderSingleSelectTag, renderLabel, championOptions, filterChampionFunc } from '@renderer/components/composition'
 import { CheckmarkCircle, Flash, Close, PlayCircle } from '@vicons/ionicons5'
 import http, { assetPrefix } from '@renderer/services/http'
-import { championOption } from '@renderer/components/type'
+import {championHash} from '@renderer/components/composition'
 
 onMounted(async () => {
   autoAccept.value = (await http.get<boolean>("/config/settings.auto.acceptMatchSwitch")).data
   autoPick.value = (await http.get<boolean>("/config/settings.auto.pickChampionSwitch")).data
   autoBan.value = (await http.get<boolean>("/config/settings.auto.banChampionSwitch")).data
-  myPickData.value = (await http.get<championOption[]>("/config/settings.auto.pickChampionSlice")).data
-  myBanData.value = (await http.get<championOption[]>("/config/settings.auto.banChampionSlice")).data
+  myPickData.value = (await http.get<number[]>("/config/settings.auto.pickChampionSlice")).data
+  console.log('Pick Data:', myPickData.value) // 添加调试日志
+  myBanData.value = (await http.get<number[]>("/config/settings.auto.banChampionSlice")).data
+  console.log('Ban Data:', myBanData.value) // 添加调试日志
   autoStart.value = (await http.get<boolean>("/config/settings.auto.startMatchSwitch")).data
 });
 const autoAccept = ref(false)
@@ -97,8 +99,8 @@ const autoStart = ref(false)
 const selectPickChampionId = ref(null)
 const selectBanChampionId = ref(null)
 
-const myPickData = ref<championOption[]>([]);
-const myBanData = ref<championOption[]>([]);
+const myPickData = ref<number[]>([]);
+const myBanData = ref<number[]>([]);
 
 const updateAcceptSwitch = async () => {
 
@@ -122,35 +124,30 @@ const updateStartSwitch = async () => {
 }
 
 const deleteBanData = async (value) => {
-  myBanData.value = myBanData.value.filter((item) => item.value !== value)
+  myBanData.value = myBanData.value.filter((item) => item !== value)
   await updateBanData()
 }
 const deletePickData = async (value) => {
-  myPickData.value = myPickData.value.filter((item) => item.value !== value)
+  myPickData.value = myPickData.value.filter((item) => item !== value)
   await updatePickData()
 }
-const addBanData = async (value, option) => {
+const addBanData = async (value) => {
   if(value === 0) return
 
-  myBanData.value?.push(option)
+  myBanData.value?.push(value)
   await updateBanData()
 }
-const addPickData = async (value, option) => {
+const addPickData = async (value) => {
   if(value === 0){
     myPickData.value = [
-      {
-        label : '全部',
-        value : 0,
-        realName: '',
-        nickname: ''
-      }
+      0,
     ]
     
   }else{
-    if(myPickData.value.length >= 1 && myPickData.value[0].value === 0){
+    if(myPickData.value.length >= 1 && myPickData.value[0] === 0){
       myPickData.value = []
     }
-    myPickData.value?.push(option)
+    myPickData.value?.push(value)
   }
 
   await updatePickData()
