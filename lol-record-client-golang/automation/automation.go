@@ -10,7 +10,7 @@ import (
 )
 
 // 自动接受匹配
-func acceptMatchAutomation(ctx context.Context) {
+func startAcceptMatchAutomation(ctx context.Context) {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
@@ -39,7 +39,7 @@ func StartAutomation() {
 
 	// 启动多个定时任务
 	go startMatchAutomation(ctx)
-	go acceptMatchAutomation(ctx)
+	go startAcceptMatchAutomation(ctx)
 	go startChampSelectAutomation(ctx)
 	go startChampBanAutomation(ctx)
 	select {}

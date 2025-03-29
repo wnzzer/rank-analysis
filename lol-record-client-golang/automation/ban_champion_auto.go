@@ -27,7 +27,7 @@ func startChampBanAutomation(ctx context.Context) {
 			}
 			init_log.AppLog.Info("Current phase: %s", curPhase)
 
-			if !config.Viper().GetBool("settings.auto.champBanSwitch") {
+			if !config.Viper().GetBool("settings.auto.banChampionSwitch") {
 				init_log.AppLog.Info("ChampBanSwitch is disabled")
 				continue
 			}
@@ -61,11 +61,23 @@ func startBanChampion() error {
 	init_log.AppLog.Info("Ban Champion Slice: %+v", myBanChampionIntSlice)
 
 	notBanChampionIdsMap := make(map[int]bool)
+
+	// 检查是否已经ban了,ban 了则不需要再ban
+	for _, action := range selectSession.Actions {
+		if len(action) >= 1 && action[0].Type == "ban" {
+			for _, ban := range action {
+				if ban.ActorCellId == myCellId && ban.Completed {
+					return nil
+				}
+			}
+		}
+	}
+
 	//获取ban的英雄
 	for _, action := range selectSession.Actions {
 		if len(action) >= 1 && action[0].Type == "ban" {
 			for _, ban := range action {
-				if ban.ActorCellId != myCellId && ban.Complete {
+				if ban.ActorCellId != myCellId && ban.Completed {
 					notBanChampionIdsMap[ban.ChampionId] = true
 				}
 			}
@@ -77,7 +89,7 @@ func startBanChampion() error {
 	for _, action := range selectSession.Actions {
 		if len(action) >= 1 && action[0].Type == "pick" {
 			for _, pick := range action {
-				if pick.ActorCellId != myCellId && pick.Complete {
+				if pick.ActorCellId != myCellId && pick.Completed {
 					notBanChampionIdsMap[pick.ChampionId] = true
 				}
 			}
@@ -89,7 +101,7 @@ func startBanChampion() error {
 	for _, action := range selectSession.Actions {
 		if len(action) >= 1 && action[0].Type == "ban" {
 			for _, ban := range action {
-				if ban.ChampionId != 0 && ban.Complete {
+				if ban.ChampionId != 0 && ban.Completed {
 					notBanChampionIdsMap[ban.ChampionId] = true
 				}
 			}

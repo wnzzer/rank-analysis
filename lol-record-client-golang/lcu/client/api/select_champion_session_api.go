@@ -19,7 +19,7 @@ type Action struct {
 	ActorCellId  int    `json:"actorCellId"`
 	Id           int    `json:"id"`
 	ChampionId   int    `json:"championId"`
-	Complete     bool   `json:"complete"`
+	Completed    bool   `json:"completed"`
 	IsAllyAction bool   `json:"isAllyAction"`
 	IsInProgress bool   `json:"isInProgress"`
 	Type         string `json:"type"`

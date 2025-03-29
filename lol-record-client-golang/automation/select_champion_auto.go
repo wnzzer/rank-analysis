@@ -22,17 +22,19 @@ func startChampSelectAutomation(ctx context.Context) {
 			init_log.AppLog.Info("Champion select automation stopped")
 			return
 		default:
+			init_log.AppLog.Info("Starting  champion select automation tick")
+
 			curPhase, err := api.GetPhase()
 			if err != nil {
 				init_log.AppLog.Error("Failed to get current phase: " + err.Error())
 				continue
 			}
-			if !config.Viper().GetBool("settings.auto.champSelectSwitch") {
-				init_log.AppLog.Debug("Champion select automation is disabled")
+			if !config.Viper().GetBool("settings.auto.pickChampionSwitch") {
+				init_log.AppLog.Info("Champion select automation is disabled")
 				continue
 			}
 			if curPhase != constants.ChampSelect {
-				init_log.AppLog.Debug("Not in champion select phase")
+				init_log.AppLog.Info("Not in champion select phase")
 				continue
 			}
 
@@ -61,12 +63,23 @@ func startSelectChampion() error {
 	init_log.AppLog.Info("Configured champion selection list: ", myPickChampionIntSlice)
 
 	notSelectChampionIdsMap := make(map[int]bool)
+	// 如果我们已经选择了英雄,则不需要再选择
+	for _, action := range selectSession.Actions {
+		if len(action) >= 1 && action[0].Type == "pick" {
+			for _, pick := range action {
+				if pick.ActorCellId == myCellId && pick.Completed {
+					init_log.AppLog.Info("Already selected champion: ", pick.ChampionId)
+					return nil
+				}
+			}
+		}
+	}
 
 	// 获取ban的英雄
 	for _, action := range selectSession.Actions {
 		if len(action) >= 1 && action[0].Type == "ban" {
 			for _, ban := range action {
-				if ban.ActorCellId != myCellId && ban.Complete {
+				if ban.ActorCellId != myCellId && ban.Completed {
 					notSelectChampionIdsMap[ban.ChampionId] = true
 					init_log.AppLog.Debug("Champion banned by others: ", ban.ChampionId)
 				}
@@ -117,7 +130,7 @@ func startSelectChampion() error {
 				if pick.ActorCellId == myCellId && pick.ChampionId == 0 {
 					actionId = pick.Id
 					if pick.IsInProgress {
-						patchJsonMap["completed"] = false
+						patchJsonMap["completed"] = true
 					}
 					break
 				}
@@ -129,6 +142,5 @@ func startSelectChampion() error {
 		init_log.AppLog.Error("Failed to patch session action: " + err.Error())
 		return err
 	}
-	init_log.AppLog.Info("Successfully selected champion: ", willSelectChampionId)
 	return nil
 }
