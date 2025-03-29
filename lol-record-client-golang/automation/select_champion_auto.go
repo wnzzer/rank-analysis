@@ -58,7 +58,7 @@ func startSelectChampion() error {
 
 		}
 	}
-	//获取选中的英雄
+	//获取队友选择的英雄
 	for _, action := range selectSession.Actions {
 		if len(action) >= 1 && action[0].Type == "pick" {
 			for _, pick := range action {
@@ -69,6 +69,8 @@ func startSelectChampion() error {
 		}
 	}
 	willSelectChampionId := 1
+
+	//如果是全部选择的选项,即又一项为 0,默认选择所有英雄
 	if len(myPickChampionIntSlice) > 0 && myPickChampionIntSlice[0] == 0 {
 		myPickChampionIntSlice = nil
 		for _, champion := range constants.ChampionOptions {

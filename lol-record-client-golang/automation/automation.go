@@ -41,6 +41,7 @@ func StartAutomation() {
 	go startMatchAutomation(ctx)
 	go acceptMatchAutomation(ctx)
 	go startChampSelectAutomation(ctx)
+	go startChampBanAutomation(ctx)
 	select {}
 
 }
