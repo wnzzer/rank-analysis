@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"lol-record-analysis/lcu/util"
 	"lol-record-analysis/util/init_log"
 	"sync"
@@ -66,9 +67,10 @@ func PostAcceptMatch() {
 		init_log.AppLog.Error(err.Error())
 	}
 }
-func PatchSessionAction(patchData interface{}) error {
-	uri := "lol-champ-select/v1/session/actions"
-	err := util.Patch(uri, patchData, nil)
+func PatchSessionAction(actionId, patchData interface{}) error {
+	uri := "lol-champ-select/v1/session/actions/%d"
+
+	err := util.Patch(fmt.Sprintf(uri, actionId), patchData, nil)
 	if err != nil {
 		return err
 	}

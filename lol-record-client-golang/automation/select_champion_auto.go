@@ -2,7 +2,6 @@ package automation
 
 import (
 	"context"
-	"fmt"
 	"lol-record-analysis/common/config"
 	"lol-record-analysis/lcu/client/api"
 	"lol-record-analysis/lcu/client/constants"
@@ -13,7 +12,7 @@ import (
 // 英雄选择自动化（如果有逻辑的话）
 
 func startChampSelectAutomation(ctx context.Context) {
-	ticker := time.NewTicker(1 * time.Second)
+	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
 	for range ticker.C {
@@ -34,6 +33,7 @@ func startChampSelectAutomation(ctx context.Context) {
 			}
 
 			// 选择逻辑
+			err = startSelectChampion()
 			if err != nil {
 				init_log.AppLog.Error(err.Error())
 				continue
@@ -42,12 +42,10 @@ func startChampSelectAutomation(ctx context.Context) {
 		}
 	}
 }
-func startSelectChampion() []constants.ChampionOption {
+func startSelectChampion() error {
 	selectSession, _ := api.GetChampSelectSession()
 	myCellId := selectSession.LocalPlayerCellId
-	myPickChampionSliceInterface := config.Viper().Get("settings.auto.pickChampionSlice")
-	myPickChampionSlice := myPickChampionSliceInterface.([]interface{})
-	fmt.Println(myPickChampionSlice)
+	myPickChampionIntSlice := config.Viper().GetIntSlice("settings.auto.pickChampionSlice")
 	notSelectChampionIdsMap := make(map[int]bool)
 	//获取ban的英雄
 	for _, action := range selectSession.Actions {
@@ -70,10 +68,40 @@ func startSelectChampion() []constants.ChampionOption {
 			}
 		}
 	}
-	//willSelectChampionId := 1
-	//for _, championId := range myPickChampionSlice {
-	//
-	//}
+	willSelectChampionId := 1
+	if len(myPickChampionIntSlice) > 0 && myPickChampionIntSlice[0] == 0 {
+		myPickChampionIntSlice = nil
+		for _, champion := range constants.ChampionOptions {
+			myPickChampionIntSlice = append(myPickChampionIntSlice, champion.Value)
+		}
+	}
+	for _, championId := range myPickChampionIntSlice {
+		if _, ok := notSelectChampionIdsMap[championId]; !ok {
+			willSelectChampionId = championId
+			break
+		}
+	}
+	patchJsonMap := map[string]interface{}{}
+	patchJsonMap["championId"] = willSelectChampionId
+	patchJsonMap["type"] = "pick"
+	actionId := 0
+	for _, action := range selectSession.Actions {
+		if len(action) >= 1 && action[0].Type == "pick" {
+			for _, pick := range action {
+				if pick.ActorCellId == myCellId && pick.ChampionId == 0 {
+					actionId = pick.Id
+					if pick.IsInProgress {
+						patchJsonMap["completed"] = false
+					}
+					break
+				}
+			}
+		}
+	}
+	err := api.PatchSessionAction(actionId, patchJsonMap)
+	if err != nil {
+		return err
+	}
 	return nil
 
 }
