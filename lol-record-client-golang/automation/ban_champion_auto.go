@@ -30,7 +30,8 @@ func startChampBanAutomation(ctx context.Context) {
 				continue
 			}
 
-			// 选择逻辑
+			// ban逻辑
+			err = startBanChampion()
 			if err != nil {
 				init_log.AppLog.Error(err.Error())
 				continue
