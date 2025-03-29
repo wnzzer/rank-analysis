@@ -21,10 +21,10 @@ func GetPhase() (string, error) {
 	phaseCache.mu.Lock()
 	defer phaseCache.mu.Unlock()
 
-	// 检查缓存是否在1秒内
+	// 检查缓存是否在2秒内
 	currentTime := time.Now()
 	if !phaseCache.lastFetchTime.IsZero() &&
-		currentTime.Sub(phaseCache.lastFetchTime) <= 200*time.Millisecond {
+		currentTime.Sub(phaseCache.lastFetchTime) <= 2000*time.Millisecond {
 		return phaseCache.lastPhase, nil
 	}
 

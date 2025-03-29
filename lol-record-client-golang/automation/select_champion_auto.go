@@ -64,15 +64,24 @@ func startSelectChampion() error {
 
 	notSelectChampionIdsMap := make(map[int]bool)
 	// 如果我们已经选择了英雄,则不需要再选择
+	havePickId := false
 	for _, action := range selectSession.Actions {
 		if len(action) >= 1 && action[0].Type == "pick" {
 			for _, pick := range action {
-				if pick.ActorCellId == myCellId && pick.Completed {
-					init_log.AppLog.Info("Already selected champion: ", pick.ChampionId)
-					return nil
+				if pick.ActorCellId == myCellId {
+					havePickId = true
+					if pick.Completed {
+						init_log.AppLog.Info("Already selected champion: ", pick.ChampionId)
+						return nil
+					}
 				}
 			}
 		}
+	}
+	//如果没有pick操作，则不需要选择
+	if !havePickId {
+		init_log.AppLog.Info("pick action not found")
+		return nil
 	}
 
 	// 获取ban的英雄

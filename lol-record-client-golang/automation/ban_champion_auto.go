@@ -52,6 +52,7 @@ func startBanChampion() error {
 		init_log.AppLog.Error("Error getting ChampSelectSession: ", err)
 		return err
 	}
+
 	init_log.AppLog.Info("ChampSelectSession: %+v", selectSession)
 
 	myCellId := selectSession.LocalPlayerCellId
@@ -62,15 +63,24 @@ func startBanChampion() error {
 
 	notBanChampionIdsMap := make(map[int]bool)
 
+	haveBanId := false
+
 	// 检查是否已经ban了,ban 了则不需要再ban
 	for _, action := range selectSession.Actions {
 		if len(action) >= 1 && action[0].Type == "ban" {
 			for _, ban := range action {
-				if ban.ActorCellId == myCellId && ban.Completed {
-					return nil
+				if ban.ActorCellId == myCellId {
+					if ban.Completed {
+						return nil
+					}
+					haveBanId = true
 				}
 			}
 		}
+	}
+	if !haveBanId {
+		init_log.AppLog.Info("Ban action Not Found")
+		return nil
 	}
 
 	//获取ban的英雄
