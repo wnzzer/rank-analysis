@@ -14,36 +14,52 @@ func startChampBanAutomation(ctx context.Context) {
 	defer ticker.Stop()
 
 	for range ticker.C {
+		init_log.AppLog.Info("ChampBanAutomation ticker ticked")
 		select {
 		case <-ctx.Done():
+			init_log.AppLog.Info("ChampBanAutomation context done")
 			return
 		default:
 			curPhase, err := api.GetPhase()
 			if err != nil {
-				init_log.AppLog.Error(err.Error())
+				init_log.AppLog.Error("Error getting phase: ", err)
 				continue
 			}
+			init_log.AppLog.Info("Current phase: %s", curPhase)
+
 			if !config.Viper().GetBool("settings.auto.champBanSwitch") {
+				init_log.AppLog.Info("ChampBanSwitch is disabled")
 				continue
 			}
 			if curPhase != constants.ChampSelect {
+				init_log.AppLog.Info("Current phase is not ChampSelect: %s", curPhase)
 				continue
 			}
 
 			// ban逻辑
 			err = startBanChampion()
 			if err != nil {
-				init_log.AppLog.Error(err.Error())
+				init_log.AppLog.Error("Error in startBanChampion: ", err)
 				continue
 			}
-
 		}
 	}
 }
+
 func startBanChampion() error {
-	selectSession, _ := api.GetChampSelectSession()
+	selectSession, err := api.GetChampSelectSession()
+	if err != nil {
+		init_log.AppLog.Error("Error getting ChampSelectSession: ", err)
+		return err
+	}
+	init_log.AppLog.Info("ChampSelectSession: %+v", selectSession)
+
 	myCellId := selectSession.LocalPlayerCellId
+	init_log.AppLog.Info("My Cell ID: %d", myCellId)
+
 	myBanChampionIntSlice := config.Viper().GetIntSlice("settings.auto.banChampionSlice")
+	init_log.AppLog.Info("Ban Champion Slice: %+v", myBanChampionIntSlice)
+
 	notBanChampionIdsMap := make(map[int]bool)
 	//获取ban的英雄
 	for _, action := range selectSession.Actions {
@@ -53,9 +69,10 @@ func startBanChampion() error {
 					notBanChampionIdsMap[ban.ChampionId] = true
 				}
 			}
-
 		}
 	}
+	init_log.AppLog.Info("Not Ban Champion IDs Map: %+v", notBanChampionIdsMap)
+
 	//队友已经预选的英雄
 	for _, action := range selectSession.Actions {
 		if len(action) >= 1 && action[0].Type == "pick" {
@@ -66,6 +83,8 @@ func startBanChampion() error {
 			}
 		}
 	}
+	init_log.AppLog.Info("Updated Not Ban Champion IDs Map: %+v", notBanChampionIdsMap)
+
 	//去除已经ban的英雄
 	for _, action := range selectSession.Actions {
 		if len(action) >= 1 && action[0].Type == "ban" {
@@ -76,6 +95,8 @@ func startBanChampion() error {
 			}
 		}
 	}
+	init_log.AppLog.Info("Final Not Ban Champion IDs Map: %+v", notBanChampionIdsMap)
+
 	patchJsonMap := make(map[string]interface{})
 	patchJsonMap["championId"] = 1
 	actionId := 0
@@ -91,19 +112,23 @@ func startBanChampion() error {
 			}
 		}
 	}
+	init_log.AppLog.Info("Action ID: %d, Is In Progress: %t", actionId, isInProgress)
+
 	for _, championId := range myBanChampionIntSlice {
 		if _, ok := notBanChampionIdsMap[championId]; !ok {
 			patchJsonMap["championId"] = championId
 			break
 		}
 	}
+	init_log.AppLog.Info("Patch JSON Map: %+v", patchJsonMap)
+
 	if isInProgress {
 		patchJsonMap["completed"] = true
 		err := api.PatchSessionAction(actionId, patchJsonMap)
 		if err != nil {
+			init_log.AppLog.Error("Error patching session action: ", err)
 			return err
 		}
 	}
 	return nil
-
 }

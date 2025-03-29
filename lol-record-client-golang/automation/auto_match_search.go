@@ -36,12 +36,6 @@ func startMatchAutomation(ctx context.Context) {
 				continue
 			}
 
-			// 检查是否开启自动匹配
-			if !autoMatchEnabled {
-				lastSearchState = curState
-				continue
-			}
-
 			// 检查配置中的自动匹配开关
 			if !config.Viper().GetBool("settings.auto.startMatchSwitch") {
 				lastSearchState = curState
@@ -51,6 +45,16 @@ func startMatchAutomation(ctx context.Context) {
 			// 从匹配状态变回大厅状态，说明取消了匹配
 			if lastSearchState == constants.Matchmaking && curState == constants.Lobby {
 				autoMatchEnabled = false
+				lastSearchState = curState
+				continue
+			}
+			// 恢复自动匹配状态
+			if !autoMatchEnabled && (curState != constants.Lobby) {
+				autoMatchEnabled = true
+				continue
+			}
+			// 检查是否开启自动匹配
+			if !autoMatchEnabled {
 				lastSearchState = curState
 				continue
 			}
@@ -75,7 +79,7 @@ func startMatchAutomation(ctx context.Context) {
 			}
 
 			// 检查是否是房主
-			if isLeader(lobby.Members) {
+			if !isLeader(lobby.Members) {
 				continue
 			}
 
