@@ -132,21 +132,29 @@ func startSelectChampion() error {
 	patchJsonMap := map[string]interface{}{}
 	patchJsonMap["championId"] = willSelectChampionId
 	patchJsonMap["type"] = "pick"
-	actionId := 0
+	actionId := -1
+	isInProgress := false
 	for _, action := range selectSession.Actions {
 		if len(action) >= 1 && action[0].Type == "pick" {
 			for _, pick := range action {
 				if pick.ActorCellId == myCellId && pick.ChampionId == 0 {
 					actionId = pick.Id
 					if pick.IsInProgress {
-						patchJsonMap["completed"] = true
+						isInProgress = true
 					}
 					break
 				}
 			}
 		}
 	}
-	err = api.PatchSessionAction(actionId, patchJsonMap)
+	if actionId != -1 {
+		if isInProgress {
+			patchJsonMap["completed"] = true
+			err = api.PatchSessionAction(actionId, patchJsonMap)
+		} else {
+			err = api.PatchSessionAction(actionId, patchJsonMap)
+		}
+	}
 	if err != nil {
 		init_log.AppLog.Error("Failed to patch session action: " + err.Error())
 		return err

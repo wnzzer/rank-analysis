@@ -121,7 +121,7 @@ func startBanChampion() error {
 
 	patchJsonMap := make(map[string]interface{})
 	patchJsonMap["championId"] = 1
-	actionId := 0
+	actionId := -1
 	isInProgress := false
 	for _, action := range selectSession.Actions {
 		if len(action) >= 1 && action[0].Type == "ban" {
@@ -144,7 +144,7 @@ func startBanChampion() error {
 	}
 	init_log.AppLog.Info("Patch JSON Map: %+v", patchJsonMap)
 
-	if isInProgress {
+	if actionId != -1 && isInProgress {
 		patchJsonMap["completed"] = true
 		err := api.PatchSessionAction(actionId, patchJsonMap)
 		if err != nil {
