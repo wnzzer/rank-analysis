@@ -60,6 +60,9 @@
 
 ![分析功能](./lol-record-analysis-app/public/two.png "分析功能演示")
 
+![自动化功能](./lol-record-analysis-app/public/three.png "分析功能演示")
+
+
 ---
 
 # 安装与开发
