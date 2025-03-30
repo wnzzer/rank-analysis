@@ -17,10 +17,7 @@
         <div class="content-container">
           <div class="logo-section">
             <div class="logo">
-              <svg viewBox="0 0 100 100" width="70" height="70">
-                <circle cx="50" cy="50" r="45" fill="#e57373" />
-                <path d="M35,40 Q50,25 65,40 M45,55 A10,10 0 1,0 65,55 A10,10 0 1,0 45,55 Z" fill="white" stroke="white" stroke-width="2" />
-              </svg>
+              <img src="../../assets/logo.png" alt="Logo" width="80" height="80" />
             </div>
             <div class="app-info">
               <h2>Rank Analysis</h2>
