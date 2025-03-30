@@ -64,7 +64,6 @@ func Get(uri string, result interface{}) error {
 
 		// 构建请求 URL
 		url := fmt.Sprintf(baseUrlTemplate, authToken, port, uri)
-		fmt.Println("Request URL:", url)
 
 		// 发起 HTTP 请求
 		res, err := getLCUClient().Get(url)
@@ -111,7 +110,6 @@ func Patch(uri string, data interface{}, result interface{}) error {
 
 		// 构建请求 URL
 		url := fmt.Sprintf(baseUrlTemplate, authToken, port, uri)
-		fmt.Println("PATCH Request URL:", url)
 
 		// 序列化请求数据
 		jsonData, err := json.Marshal(data)
@@ -146,9 +144,6 @@ func Patch(uri string, data interface{}, result interface{}) error {
 				}
 			}
 			return nil
-		} else {
-			// 处理认证失效的情况
-			authToken, port, _ = GetAuth()
 		}
 	}
 
@@ -172,7 +167,6 @@ func GetImgAsBase64(uri string) (string, error) {
 
 		// 构建请求 URL
 		url := fmt.Sprintf(baseUrlTemplate, authToken, port, uri)
-		fmt.Println("Request URL:", url)
 
 		// 发起 HTTP 请求
 		res, err := getLCUClient().Get(url)
@@ -217,7 +211,6 @@ func GetImgAsBinary(uri string) ([]byte, http.Header, error) {
 
 		// 构建请求 URL
 		url := fmt.Sprintf(baseUrlTemplate, authToken, port, uri)
-		fmt.Println("Request URL:", url)
 
 		// 发起 HTTP 请求
 		res, err := getLCUClient().Get(url)
@@ -264,7 +257,6 @@ func Post(uri string, data interface{}, result interface{}) error {
 
 		// 构建请求 URL
 		url := fmt.Sprintf(baseUrlTemplate, authToken, port, uri)
-		fmt.Println("POST Request URL:", url)
 
 		// 序列化请求数据
 		jsonData, err := json.Marshal(data)
