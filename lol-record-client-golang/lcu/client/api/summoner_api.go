@@ -6,7 +6,6 @@ import (
 	"lol-record-analysis/lcu/util"
 	"lol-record-analysis/util/init_log"
 	"net/url"
-	"sync"
 )
 
 type Summoner struct {
@@ -31,24 +30,13 @@ func init() {
 	}
 }
 
-var (
-	mySummoner Summoner
-	summonerMu sync.Mutex
-)
-
 func GetCurSummoner() (Summoner, error) {
 
-	if mySummoner.Puuid != "" {
-		return mySummoner, nil
-	}
-	summonerMu.Lock()
 	var summoner Summoner
 	err := util.Get("lol-summoner/v1/current-summoner", &summoner)
 	if err != nil {
 		return Summoner{}, err
 	}
-	mySummoner = summoner
-	summonerMu.Unlock()
 
 	return summoner, nil
 }
