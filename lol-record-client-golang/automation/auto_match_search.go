@@ -85,6 +85,8 @@ func startMatchAutomation(ctx context.Context) {
 
 			// 开始匹配
 			api.PostMatchSearch()
+			// 这里等待用户接受匹配,等待状态变更
+			time.Sleep(6 * time.Second) // 等待6秒钟
 		}
 	}
 }
