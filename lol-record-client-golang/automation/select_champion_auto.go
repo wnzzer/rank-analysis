@@ -63,26 +63,6 @@ func startSelectChampion() error {
 	init_log.AppLog.Info("Configured champion selection list: ", myPickChampionIntSlice)
 
 	notSelectChampionIdsMap := make(map[int]bool)
-	// 如果我们已经选择了英雄,则不需要再选择
-	havePickId := false
-	for _, action := range selectSession.Actions {
-		if len(action) >= 1 && action[0].Type == "pick" {
-			for _, pick := range action {
-				if pick.ActorCellId == myCellId {
-					havePickId = true
-					if pick.Completed {
-						init_log.AppLog.Info("Already selected champion: ", pick.ChampionId)
-						return nil
-					}
-				}
-			}
-		}
-	}
-	//如果没有pick操作，则不需要选择
-	if !havePickId {
-		init_log.AppLog.Info("pick action not found")
-		return nil
-	}
 
 	// 获取ban的英雄
 	for _, action := range selectSession.Actions {
@@ -134,10 +114,14 @@ func startSelectChampion() error {
 	patchJsonMap["type"] = "pick"
 	actionId := -1
 	isInProgress := false
+	myPickedChampionId := -1
+	completed := false
 	for _, action := range selectSession.Actions {
 		if len(action) >= 1 && action[0].Type == "pick" {
 			for _, pick := range action {
-				if pick.ActorCellId == myCellId && pick.ChampionId == 0 {
+				if pick.ActorCellId == myCellId {
+					completed = pick.Completed
+					myPickedChampionId = pick.ChampionId
 					actionId = pick.Id
 					if pick.IsInProgress {
 						isInProgress = true
@@ -148,10 +132,10 @@ func startSelectChampion() error {
 		}
 	}
 	if actionId != -1 {
-		if isInProgress {
+		if isInProgress && !completed {
 			patchJsonMap["completed"] = true
 			err = api.PatchSessionAction(actionId, patchJsonMap)
-		} else {
+		} else if myPickedChampionId == 0 && !completed && !isInProgress {
 			err = api.PatchSessionAction(actionId, patchJsonMap)
 		}
 	}
