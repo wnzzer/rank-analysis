@@ -1,0 +1,47 @@
+{
+  "name": "lol-record-analysis-app",
+  "private": true,
+  "version": "1.5.4",
+  "description": "lol record analysis app",
+  "type": "module",
+  "author": "wnzzer",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "format": "prettier --write .",
+    "lint": "eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts,.vue --fix",
+    "typecheck": "vue-tsc --noEmit --composite false"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.0.0-alpha.11",
+    "@tauri-apps/plugin-opener": "^2.0.0-alpha.3",
+    "axios": "^1.7.9",
+    "native-ui": "^0.0.1",
+    "pinia": "^2.1.7",
+    "vue": "^3.4.15",
+    "vue-draggable-plus": "^0.6.0",
+    "vue-router": "^4.2.5"
+  },
+  "devDependencies": {
+    "@rushstack/eslint-patch": "^1.3.3",
+    "@tauri-apps/cli": "^2.0.0-alpha.17",
+    "@types/node": "^20.11.16",
+    "@vicons/ionicons5": "^0.12.0",
+    "@vitejs/plugin-vue": "^5.0.3",
+    "@vue/eslint-config-prettier": "^8.0.0",
+    "@vue/eslint-config-typescript": "^12.0.0",
+    "eslint": "^8.56.0",
+    "eslint-plugin-vue": "^9.21.1",
+    "naive-ui": "^2.37.3",
+    "prettier": "^3.2.5",
+    "terser": "^5.39.0",
+    "typescript": "^5.3.3",
+    "unplugin-auto-import": "^0.17.5",
+    "unplugin-vue-components": "^0.26.0",
+    "vfonts": "^0.0.3",
+    "vite": "^5.0.12",
+    "vue-tsc": "^2.2.8"
+  }
+}
