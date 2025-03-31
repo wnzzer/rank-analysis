@@ -109,6 +109,13 @@
    npm run build:win
    ```
 
+#### Tauri2 前端（可选）
+1. 切换到 Tauri 项目的根目录 `./lol-record-analysis-tauri`。
+2. 确保已安装 [Rust](https://www.rust-lang.org/) 环境 和 cpp 相关环境
+3. 运行一键编译脚本： `npm run tauri build`
+4. 打开 `./lol-record-analysis-tauri/src-tauri/target/release/bundle` 目录，即可看到生成的安装包。
+
+
 ### Golang 后端
 
 1. 切换到 Golang 主程序目录：
@@ -119,9 +126,14 @@
    ```bash
    go build
    ```
-3. 将生成的 `lol-record-analysis.exe` 复制到以下路径：
+3(1). 将生成的 `lol-record-analysis.exe` 复制到以下路径：
    ```
    ./lol-record-analysis-app/dist/win-unpacked/resources/backend/
+   ```
+
+3(2). 将生成的 `lol-record-analysis.exe` 复制到以下路径：
+   ```
+   ./lol-record-analysis-tauri/src-tauri/target
    ```
 
 ## 提供反馈
