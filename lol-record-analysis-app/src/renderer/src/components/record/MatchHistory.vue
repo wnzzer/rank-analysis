@@ -67,22 +67,11 @@ import { ArrowBack, ArrowForward, Repeat } from '@vicons/ionicons5'
 import { onMounted, ref } from 'vue'
 import { useLoadingBar } from 'naive-ui'
 import { useRoute } from 'vue-router'
-import { renderSingleSelectTag,renderLabel,championOptions,filterChampionFunc } from '../composition'
+import { renderSingleSelectTag,renderLabel,championOptions,filterChampionFunc, modeOptions } from '../composition'
 
 const filterQueueId = ref(0)
 const filterChampionId = ref(0)
-const modeOptions = [
-  { label: '全部', value: 0 },
-  { label: '单双排', value: 420 },
-  { label: '匹配', value: 430 },
-  { label: '灵活排', value: 440 },
-  { label: '大乱斗', value: 450 },
-  { label: '匹配', value: 490 },
-  { label: '人机', value: 890 },
-  { label: '无限乱斗', value: 900 },
-  { label: '斗魂竞技场', value: 1700 },
-  { label: '无限火力', value: 1900 }
-]
+
 
 
 const resetFilter = () => {

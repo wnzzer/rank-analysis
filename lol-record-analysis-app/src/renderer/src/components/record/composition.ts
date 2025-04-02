@@ -78,4 +78,3 @@ export  const groupRateColor = (groupRate: number) => {
         query: { name: nameId, t: Date.now() }  // 添加动态时间戳作为查询参数
     })
 }
-  
