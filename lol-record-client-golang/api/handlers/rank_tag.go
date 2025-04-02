@@ -23,8 +23,8 @@ type RecentData struct {
 	Losses                        int                        `json:"losses"`
 	FlexWins                      int                        `json:"flexWins"`
 	FlexLosses                    int                        `json:"flexLosses"`
-	SelectMode                    int                        `json:"selectMode"`     //选择的模式
-	SelectModeCn                  string                     `json:"selectModeName"` //选择的名称
+	SelectMode                    int                        `json:"selectMode"`   //选择的模式
+	SelectModeCn                  string                     `json:"selectModeCn"` //选择的名称
 	SelectWins                    int                        `json:"selectWins"`
 	SelectLosses                  int                        `json:"selectLosses"`
 	GroupRate                     int                        `json:"groupRate"`
