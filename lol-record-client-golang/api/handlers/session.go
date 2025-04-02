@@ -44,7 +44,7 @@ type PreGroupMaker struct {
 }
 
 // 处理队伍的公共函数
-func processTeam(team []api.OnePlayer, result *[]SessionSummoner) {
+func processTeam(team []api.OnePlayer, result *[]SessionSummoner, mode int) {
 	for _, summonerPlayer := range team {
 		var summoner api.Summoner
 		var matchHistory api.MatchHistory
@@ -59,7 +59,7 @@ func processTeam(team []api.OnePlayer, result *[]SessionSummoner) {
 		summoner, _ = getSummonerByNameOrPuuid("", summonerPlayer.Puuid)
 		matchHistory, _ = api.GetMatchHistoryByPuuid(summoner.Puuid, 0, 8)
 		matchHistory.EnrichImgKeys()
-		userTag, _ = GetTagCore(summoner.Puuid, "")
+		userTag, _ = GetTagCore(summoner.Puuid, "", mode)
 		rank, _ = api.GetRankByPuuid(summoner.Puuid)
 
 		// 构造 SessionSummoner 数据
@@ -115,8 +115,8 @@ func curSessionChampion() (SessionData, error) {
 	}
 
 	// 处理队伍一和队伍二
-	processTeam(session.GameData.TeamOne, &sessionData.TeamOne)
-	processTeam(session.GameData.TeamTwo, &sessionData.TeamTwo)
+	processTeam(session.GameData.TeamOne, &sessionData.TeamOne, session.GameData.Queue.Id)
+	processTeam(session.GameData.TeamTwo, &sessionData.TeamTwo, session.GameData.Queue.Id)
 	//标记队伍
 	addPreGroupMarkers(&sessionData)
 	//处理遇到过标签

@@ -10,6 +10,7 @@ type Session struct {
 		IsCustomGame bool `json:"isCustomGame"`
 		Queue        struct {
 			Type string `json:"type"`
+			Id   int    `json:"id"`
 		} `json:"queue"`
 		TeamOne []OnePlayer `json:"teamOne"`
 		TeamTwo []OnePlayer `json:"teamTwo"`

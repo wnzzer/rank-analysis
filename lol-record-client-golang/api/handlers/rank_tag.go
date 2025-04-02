@@ -23,6 +23,10 @@ type RecentData struct {
 	Losses                        int                        `json:"losses"`
 	FlexWins                      int                        `json:"flexWins"`
 	FlexLosses                    int                        `json:"flexLosses"`
+	SelectMode                    int                        `json:"selectMode"`     //选择的模式
+	SelectModeCn                  string                     `json:"selectModeName"` //选择的名称
+	SelectWins                    int                        `json:"selectWins"`
+	SelectLosses                  int                        `json:"selectLosses"`
 	GroupRate                     int                        `json:"groupRate"`
 	AverageGold                   int                        `json:"averageGold"`
 	GoldRate                      int                        `json:"goldRate"`
@@ -77,7 +81,9 @@ type UserTag struct {
 func GetTag(c *gin.Context) {
 	puuid := c.DefaultQuery("puuid", "")
 	name := c.DefaultQuery("name", "")
-	userTag, err := GetTagCore(puuid, name)
+	mode := c.DefaultQuery("mode", "0")
+	modeInt, err := strconv.Atoi(mode)
+	userTag, err := GetTagCore(puuid, name, modeInt)
 	userTag.RecentData.OneGamePlayersMap = nil
 	if err != nil {
 		init_log.AppLog.Error("GetTagCore() failed,%v", err)
@@ -90,7 +96,7 @@ func GetTag(c *gin.Context) {
 
 }
 
-func GetTagCore(puuid string, name string) (*UserTag, error) {
+func GetTagCore(puuid string, name string, mode int) (*UserTag, error) {
 
 	if name != "" {
 		summoner, _ := api.GetSummonerByName(name)
@@ -135,15 +141,15 @@ func GetTagCore(puuid string, name string) (*UserTag, error) {
 		oneGamePlayerMap = getOneGamePlayers(&matchHistory)
 
 		//计算 kda,胜率,参团率,伤害转换率
-		kills, death, assists := countKda(&matchHistory)
+		kills, death, assists := countKda(&matchHistory, mode)
 		kda := (kills + assists) / death
 		kda = math.Trunc(kda*10) / 10
 		kills = math.Trunc(kills*10) / 10
 		death = math.Trunc(death*10) / 10
 		assists = math.Trunc(assists*10) / 10
 
-		wins, losses, flexWins, flexLosses := countWinAndLoss(&matchHistory)
-		groupRate, averageGold, goldRate, averageDamageDealtToChampions, DamageDealtToChampionsRate := countGoldAndGroupAndDamageDealtToChampions(&matchHistory)
+		wins, losses, flexWins, flexLosses, selectWins, selectLosses := countWinAndLoss(&matchHistory, mode)
+		groupRate, averageGold, goldRate, averageDamageDealtToChampions, DamageDealtToChampionsRate := countGoldAndGroupAndDamageDealtToChampions(&matchHistory, mode)
 		userTag := UserTag{
 			RecentData: RecentData{
 				KDA:                           kda,
@@ -154,6 +160,10 @@ func GetTagCore(puuid string, name string) (*UserTag, error) {
 				Losses:                        losses,
 				FlexWins:                      flexWins,
 				FlexLosses:                    flexLosses,
+				SelectMode:                    mode,
+				SelectModeCn:                  constants.QueueIdToCn[mode],
+				SelectWins:                    selectWins,
+				SelectLosses:                  selectLosses,
 				GroupRate:                     groupRate,
 				AverageGold:                   averageGold,
 				GoldRate:                      goldRate,
@@ -292,7 +302,7 @@ func countFriendAndDispute(oneGamePlayersMap map[string][]OneGamePlayer, recentD
 
 }
 
-func countGoldAndGroupAndDamageDealtToChampions(matchHistory *api.MatchHistory) (int, int, int, int, int) {
+func countGoldAndGroupAndDamageDealtToChampions(matchHistory *api.MatchHistory, mode int) (int, int, int, int, int) {
 	count := 1
 	myGold := 0
 	allGold := 1
@@ -301,7 +311,7 @@ func countGoldAndGroupAndDamageDealtToChampions(matchHistory *api.MatchHistory) 
 	myDamageDealtToChampions := 0
 	allDamageDealtToChampions := 1
 	for _, games := range matchHistory.Games.Games {
-		if games.QueueId != constants.QueueSolo5x5 && games.QueueId != constants.QueueFlex {
+		if games.QueueId != mode {
 			continue
 		}
 		for _, participant0 := range games.Participants {
@@ -326,11 +336,13 @@ func countGoldAndGroupAndDamageDealtToChampions(matchHistory *api.MatchHistory) 
 	damageDealtToChampionsRate := math.Trunc(float64(myDamageDealtToChampions) / float64(allDamageDealtToChampions) * 100)
 	return int(groupRate), int(averageGold), int(goldRate), int(averageDamageDealtToChampions), int(damageDealtToChampionsRate)
 }
-func countWinAndLoss(matchHistory *api.MatchHistory) (int, int, int, int) {
+func countWinAndLoss(matchHistory *api.MatchHistory, mode int) (int, int, int, int, int, int) {
 	wins := 0
 	losses := 0
 	flexWins := 0
 	flexLosses := 0
+	selectWins := 0
+	selectLosses := 0
 	for _, games := range matchHistory.Games.Games {
 
 		if games.QueueId == constants.QueueSolo5x5 {
@@ -348,18 +360,25 @@ func countWinAndLoss(matchHistory *api.MatchHistory) (int, int, int, int) {
 
 			}
 		}
+		if games.QueueId == mode {
+			if games.Participants[0].Stats.Win == true {
+				selectWins++
+			} else {
+				selectLosses++
+			}
+		}
 
 	}
-	return wins, losses, flexWins, flexLosses
+	return wins, losses, flexWins, flexLosses, selectWins, selectLosses
 
 }
-func countKda(matchHistory *api.MatchHistory) (float64, float64, float64) {
+func countKda(matchHistory *api.MatchHistory, mode int) (float64, float64, float64) {
 	count := 1
 	kills := 0
 	deaths := 1
 	assists := 0
 	for _, games := range matchHistory.Games.Games {
-		if games.QueueId != constants.QueueSolo5x5 && games.QueueId != constants.QueueFlex {
+		if games.QueueId != mode {
 			continue
 		}
 		count++
