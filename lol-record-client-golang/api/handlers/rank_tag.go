@@ -311,7 +311,7 @@ func countGoldAndGroupAndDamageDealtToChampions(matchHistory *api.MatchHistory, 
 	myDamageDealtToChampions := 0
 	allDamageDealtToChampions := 1
 	for _, games := range matchHistory.Games.Games {
-		if games.QueueId != mode {
+		if mode != 0 && games.QueueId != mode {
 			continue
 		}
 		for _, participant0 := range games.Participants {
@@ -360,7 +360,7 @@ func countWinAndLoss(matchHistory *api.MatchHistory, mode int) (int, int, int, i
 
 			}
 		}
-		if games.QueueId == mode {
+		if mode != 0 && games.QueueId == mode {
 			if games.Participants[0].Stats.Win == true {
 				selectWins++
 			} else {
@@ -378,7 +378,7 @@ func countKda(matchHistory *api.MatchHistory, mode int) (float64, float64, float
 	deaths := 1
 	assists := 0
 	for _, games := range matchHistory.Games.Games {
-		if games.QueueId != mode {
+		if mode != 0 && games.QueueId != mode {
 			continue
 		}
 		count++

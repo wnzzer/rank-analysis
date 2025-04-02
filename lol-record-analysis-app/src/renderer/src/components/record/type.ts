@@ -58,6 +58,10 @@ export interface Summoner {
     deaths: number;
     assists: number;
     wins: number;
+    selectMode: number;
+    selectModeCn: string;
+    selectWins: number;
+    selectLosses: number;
     losses: number;
     flexWins: number;
     flexLosses: number;
