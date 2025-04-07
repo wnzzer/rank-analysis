@@ -184,6 +184,10 @@ func getOneGamePlayers(matchHistory *api.MatchHistory) map[string][]OneGamePlaye
 	for index, games := range matchHistory.Games.Games {
 		myTeamId := games.Participants[0].TeamId
 		for i := 0; i < len(games.GameDetail.ParticipantIdentities); i++ {
+			//跳过机器人和没有puuid的玩家
+			if games.GameDetail.ParticipantIdentities[i].Player.Puuid == "" || games.GameDetail.ParticipantIdentities[i].Player.Puuid == constants.RobotPuuid {
+				continue
+			}
 			oneGamePlayerMap[games.GameDetail.ParticipantIdentities[i].Player.Puuid] = append(oneGamePlayerMap[games.GameDetail.ParticipantIdentities[i].Player.Puuid], OneGamePlayer{
 				Index:         index,
 				GameId:        games.GameId,
@@ -209,7 +213,7 @@ func countFriendAndDispute(oneGamePlayersMap map[string][]OneGamePlayer, recentD
 	disputeArr := make([][]OneGamePlayer, 0)
 	friendOrDisputeLimit := 3
 	for _, value := range oneGamePlayersMap {
-		if len(value) < friendOrDisputeLimit || value[0].Puuid == constants.RobotPuuid || value[0].Puuid == myPuuid {
+		if len(value) < friendOrDisputeLimit || value[0].Puuid == myPuuid {
 			continue
 		}
 		isMyFriend := true
