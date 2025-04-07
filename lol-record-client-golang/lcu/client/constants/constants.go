@@ -323,3 +323,5 @@ var ChampionOptions = []ChampionOption{
 	{Label: "异画师", Value: 910, RealName: "慧", Nickname: "毛笔人"},
 	{Label: "百裂冥犬", Value: 950, RealName: "纳亚菲利", Nickname: "狼狗|狗比"},
 }
+
+const RobotPuuid = "00000000-0000-0000-0000-000000000000"

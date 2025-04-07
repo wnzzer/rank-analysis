@@ -209,7 +209,7 @@ func countFriendAndDispute(oneGamePlayersMap map[string][]OneGamePlayer, recentD
 	disputeArr := make([][]OneGamePlayer, 0)
 	friendOrDisputeLimit := 3
 	for _, value := range oneGamePlayersMap {
-		if len(value) < friendOrDisputeLimit || value[0].Puuid == myPuuid {
+		if len(value) < friendOrDisputeLimit || value[0].Puuid == constants.RobotPuuid || value[0].Puuid == myPuuid {
 			continue
 		}
 		isMyFriend := true
