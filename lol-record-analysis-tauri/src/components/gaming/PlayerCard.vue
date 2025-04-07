@@ -213,8 +213,8 @@
                                 </span>
                             </n-flex>
                             <n-flex class="stats-item" justify="space-between">
-                                <span class="stats-label"> 胜率（{{ typeCn ?
-                                    typeCn : "单双排" }}）:</span>
+                                <span class="stats-label"> 胜率（{{ sessionSummoner.userTag.recentData.selectModeCn}}）:</span>
+
                                 <n-flex>
                                     <span style="width: 65px;"
                                         :style="{ color: groupRateColor(sessionSummoner?.userTag.recentData.groupRate) }">
