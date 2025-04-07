@@ -67,14 +67,19 @@ type Logger struct {
 	file        *os.File
 	logToFile   bool
 	logToStdout bool
+	logFilePath string
+	maxFileSize int64 // 日志文件最大大小（字节）
+	currentSize int64 // 当前日志文件大小
 }
 
 // NewLogger 创建一个新的日志记录器
-func NewLogger(level LogLevel, logToFile bool, logToStdout bool, logFilePath string) (*Logger, error) {
+func NewLogger(level LogLevel, logToFile bool, logToStdout bool, logFilePath string, maxFileSize int64) (*Logger, error) {
 	logger := &Logger{
 		level:       level,
 		logToFile:   logToFile,
 		logToStdout: logToStdout,
+		logFilePath: logFilePath,
+		maxFileSize: maxFileSize,
 	}
 
 	if logToFile {
@@ -83,6 +88,13 @@ func NewLogger(level LogLevel, logToFile bool, logToStdout bool, logFilePath str
 			return nil, err
 		}
 		logger.file = file
+
+		// 获取当前文件大小
+		fileInfo, err := file.Stat()
+		if err != nil {
+			return nil, err
+		}
+		logger.currentSize = fileInfo.Size()
 	}
 
 	return logger, nil
@@ -95,6 +107,35 @@ func getCallerInfo() string {
 		return "unknown:0"
 	}
 	return fmt.Sprintf("%s:%d", file, line)
+}
+
+// rotateLog 轮转日志文件
+func (l *Logger) rotateLog() error {
+	if l.currentSize < l.maxFileSize {
+		return nil
+	}
+
+	// 关闭当前日志文件
+	if l.file != nil {
+		l.file.Close()
+	}
+
+	// 重命名当前日志文件（例如，添加时间戳）
+	backupFilePath := fmt.Sprintf("%s.%s", l.logFilePath, time.Now().Format("20060102-150405"))
+	err := os.Rename(l.logFilePath, backupFilePath)
+	if err != nil {
+		return err
+	}
+
+	// 创建新的日志文件
+	file, err := os.OpenFile(l.logFilePath, os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	l.file = file
+	l.currentSize = 0
+
+	return nil
 }
 
 // log 输出日志
@@ -117,9 +158,18 @@ func (l *Logger) log(level LogLevel, format string, args ...interface{}) {
 
 	// 输出到文件（无颜色）
 	if l.logToFile && l.file != nil {
+		// 检查文件大小并轮转日志
+		if err := l.rotateLog(); err != nil {
+			fmt.Println("Failed to rotate log file:", err)
+		}
+
+		// 写入日志
 		_, err := l.file.WriteString(logMessage + "\n")
 		if err != nil {
 			fmt.Println("Failed to write to logger file:", err)
+		} else {
+			// 更新当前文件大小
+			l.currentSize += int64(len(logMessage) + 1) // +1 是换行符
 		}
 	}
 }
