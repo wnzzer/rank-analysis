@@ -4,7 +4,7 @@
     </template>
     <template v-else>
         <div>
-            <n-flex justify="space-between" style="height: 93vh; overflow: hidden;">
+            <n-flex justify="space-between" style="height: 93vh;">
                 <!-- 左侧部分 -->
 
                 <n-flex vertical justify="space-between" style="gap: 0; flex: 1; height: 100%;">
