@@ -26,8 +26,10 @@ fn main() {
     tauri::Builder::default()
         .manage(BackendProcess(Mutex::new(None)))
         .setup(|app| {
-            let process = start_backend_process();
-            *app.state::<BackendProcess>().0.lock().unwrap() = Some(process);
+            if !cfg!(debug_assertions) {
+                let process = start_backend_process();
+                *app.state::<BackendProcess>().0.lock().unwrap() = Some(process);
+            }
             Ok(())
         })
         .on_window_event(|app_handle, event| {
