@@ -66,12 +66,12 @@
         </div>
         <n-popover trigger="hover" v-for="friend in recentData.friendAndDispute.friendsSummoner">
           <template #trigger>
-            <n-tag round :bordered="false" :color ="{textColor : winRateColor(friend.winRate)}">
+            <n-tag round :bordered="false" :color="{ textColor: winRateColor(friend.winRate) }">
               <n-ellipsis style="max-width: 90px">
-                {{ friend.Summoner.gameName}}
+                {{ friend.Summoner.gameName }}
               </n-ellipsis>
 
-              <span style="font-size: 13px; margin-left: 5px;" >{{ friend.winRate}}</span>
+              <span style="font-size: 13px; margin-left: 5px;">{{ friend.winRate }}</span>
               <template #avatar>
                 <n-avatar :src="assetPrefix + friend.Summoner.profileIconKey" />
               </template>
@@ -89,11 +89,11 @@
         </div>
         <n-popover trigger="hover" v-for="dispute in recentData.friendAndDispute.disputeSummoner">
           <template #trigger>
-            <n-tag round :bordered="false" :color ="{textColor : winRateColor(dispute.winRate)}">
+            <n-tag round :bordered="false" :color="{ textColor: winRateColor(dispute.winRate) }">
               <n-ellipsis style="max-width: 90px">
                 {{ dispute.Summoner.gameName }}
               </n-ellipsis>
-              <span style="font-size: 13px; margin-left: 5px;">{{ dispute.winRate}}</span>
+              <span style="font-size: 13px; margin-left: 5px;">{{ dispute.winRate }}</span>
               <template #avatar>
                 <n-avatar :src="assetPrefix + dispute.Summoner.profileIconKey" />
               </template>
@@ -178,7 +178,13 @@
     <!-- 20场统计 -->
     <n-card class="recent-card" :bordered="false" content-style="padding:10px">
       <n-flex vertical style="position: relative; ">
-        <div class="stats-title">最近表现</div>
+        <n-flex>
+          <div class="stats-title">最近表现</div>
+          <div> <n-dropdown trigger="hover" :options="modeOptions" :on-select ="updateModel" :show-arrow="false">
+              <n-button round size="tiny">{{ mode }}</n-button>
+            </n-dropdown>
+          </div>
+        </n-flex>
 
         <n-flex class="stats-item" justify="space-between">
 
@@ -277,7 +283,7 @@ import { NCard, NFlex, NButton, NIcon, useMessage } from 'naive-ui';
 import RecordButton from './RecordButton.vue';
 import { useRoute } from 'vue-router';
 import { RankTag, RecentData, SummonerData, UserTag } from './type';
-import { kdaColor, deathsColor, assistsColor, otherColor, groupRateColor, killsColor,winRateColor} from './composition';
+import { kdaColor, deathsColor, assistsColor, otherColor, groupRateColor, killsColor, winRateColor,modeOptions } from './composition';
 import unranked from '../../assets/imgs/tier/unranked.png';
 import bronze from '../../assets/imgs/tier/bronze.png';
 import silver from '../../assets/imgs/tier/silver.png';
@@ -289,6 +295,7 @@ import grandmaster from '../../assets/imgs/tier/grandmaster.png';
 import challenger from '../../assets/imgs/tier/challenger.png';
 import iron from '../../assets/imgs/tier/iron.png';
 import emerald from '../../assets/imgs/tier/emerald.png';
+
 
 
 
@@ -340,10 +347,7 @@ let name = ""
 onMounted(() => {
   name = route.query.name as string
   getSummoner(name)
-  getTags(name)
-
-
-
+  getTags(name, 0)
 })
 
 const getSummoner = async (name: string) => {
@@ -355,6 +359,11 @@ const getSummoner = async (name: string) => {
   summoner.value = res.data
 }
 
+const mode = ref("单双排")
+const updateModel = (key: number,option: { label: string; }) => {
+  getTags(name,key)
+  mode.value = option.label
+}
 const recentData = ref<RecentData>({
   kda: 0,
   kills: 0,
@@ -376,12 +385,16 @@ const recentData = ref<RecentData>({
     disputeRate: 0,
     disputeSummoner: []
   },
+  selectMode: 0,
+  selectModeCn: '',
+  selectWins: 0,
+  selectLosses: 0
 })
 const tags = ref<RankTag[]>([])
-const getTags = async (name: string) => {
+const getTags = async (name: string,mode : number) => {
   const res = await http.get<UserTag>(
     "/GetTag", {
-    params: { name }
+    params: { name, mode }
   }
   )
   recentData.value = res.data.recentData
