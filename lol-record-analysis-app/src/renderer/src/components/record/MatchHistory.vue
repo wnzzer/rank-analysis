@@ -1,5 +1,4 @@
 <template>
-  <n-scrollbar style="max-height: 800px">
 
     <div class="ratio-container">
 
@@ -56,7 +55,6 @@
         </div>
       </n-flex>
     </div>
-  </n-scrollbar>
 
 </template>
 
