@@ -279,7 +279,7 @@ import { useRoute } from 'vue-router';
 import { RankTag, RecentData, SummonerData, UserTag } from './type';
 import { kdaColor, deathsColor, assistsColor, otherColor, groupRateColor, killsColor,winRateColor} from './composition';
 import unranked from '../../assets/imgs/tier/unranked.png';
-import bronzed from '../../assets/imgs/tier/bronze.png';
+import bronze from '../../assets/imgs/tier/bronze.png';
 import silver from '../../assets/imgs/tier/silver.png';
 import gold from '../../assets/imgs/tier/gold.png';
 import platinum from '../../assets/imgs/tier/platinum.png';
@@ -440,7 +440,7 @@ const getRecordType = (win: number, loss: number) => {
 const requireImg = (tier: string) => {
   const tierImages: { [key: string]: any } = {
     unranked: unranked,
-    bronzed: bronzed,
+    bronze: bronze,
     silver: silver,
     gold: gold,
     platinum: platinum,

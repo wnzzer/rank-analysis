@@ -28,7 +28,7 @@ import http from '@renderer/services/http';
 import { computed, onMounted, onUnmounted, reactive } from 'vue';
 
 import unranked from '@renderer/assets/imgs/tier/unranked.png';
-import bronzed from '@renderer/assets/imgs/tier/bronze.png';
+import bronze from '@renderer/assets/imgs/tier/bronze.png';
 import silver from '@renderer/assets/imgs/tier/silver.png';
 import gold from '@renderer/assets/imgs/tier/gold.png';
 import platinum from '@renderer/assets/imgs/tier/platinum.png';
@@ -63,7 +63,7 @@ const comImgTier = computed(() => {
 
     const tierImages: { [key: string]: any } = {
         unranked: unranked,
-        bronzed: bronzed,
+        bronze: bronze,
         silver: silver,
         gold: gold,
         platinum: platinum,
