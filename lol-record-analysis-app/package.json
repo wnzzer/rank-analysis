@@ -1,6 +1,6 @@
 {
   "name": "lol-record-analysis-app",
-  "version": "v1.5.4",
+  "version": "v1.5.5",
   "description": "lol record analysis app",
   "main": "./out/main/index.js",
   "author": "wnzzer",
