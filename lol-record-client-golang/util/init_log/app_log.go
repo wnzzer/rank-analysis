@@ -15,7 +15,7 @@ var (
 func GetLogger() *logger.Logger {
 	once.Do(func() {
 		var err error
-		appLog, err = logger.NewLogger(logger.INFO, true, true, "app.log", 1<<24)
+		appLog, err = logger.NewLogger(logger.INFO, true, true, "app.log", 1>>23)
 		if err != nil {
 			panic(err)
 		}
