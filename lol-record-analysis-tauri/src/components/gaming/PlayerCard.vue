@@ -219,17 +219,17 @@
                                     <span style="width: 65px;"
                                         :style="{ color: groupRateColor(sessionSummoner?.userTag.recentData.groupRate) }">
                                         <n-progress type="line"
-                                            :percentage="winRate(sessionSummoner?.userTag.recentData)"
+                                            :percentage="winRate(sessionSummoner?.userTag.recentData.wins, sessionSummoner?.userTag.recentData.losses)"
                                             :height="6" :show-indicator="false"
-                                            :color="winRateColor(winRate(sessionSummoner?.userTag.recentData))"
+                                            :color="winRateColor(winRate(sessionSummoner?.userTag.recentData.wins, sessionSummoner?.userTag.recentData.losses))"
                                             processing :stroke-width="10"
                                             style="position: relative; top: 7px;"></n-progress>
                                     </span>
                                     <span class="stats-value" :style="{
-                                        color: winRateColor(winRate(sessionSummoner?.userTag.recentData))
+                                        color: winRateColor(winRate(sessionSummoner?.userTag.recentData.wins, sessionSummoner?.userTag.recentData.losses))
                                     }">
                                         {{
-                                            winRate(sessionSummoner?.userTag.recentData)
+                                            winRate(sessionSummoner?.userTag.recentData.wins, sessionSummoner?.userTag.recentData.losses)
                                         }}%
                                     </span>
 
@@ -289,12 +289,11 @@
 </template>
 <script lang="ts" setup>
 import MettingPlayersCard from './MettingPlayersCard.vue';
-import { useCopy } from '../composition';
-import { searchSummoner } from '../record/composition';
+import { useCopy} from '../composition';
+import { searchSummoner,winRate } from '../record/composition';
 import { kdaColor, killsColor, deathsColor, assistsColor, otherColor, winRateColor, groupRateColor, } from '../record/composition'
 import { SessionSummoner } from "../../components/gaming/type";
 import nullImg from "../../assets/imgs/item/null.png";
-import { RecentData } from '../record/type';
 import { CopyOutline } from '@vicons/ionicons5';
 import { assetPrefix } from '../../services/http';
 const copy = useCopy().copy;
@@ -305,15 +304,7 @@ defineProps<{
     imgUrl: string
     tierCn: string
 }>();
-function winRate(rencentData: RecentData) {
 
-    const totalFlexGames = rencentData.selectWins + rencentData.selectLosses
-    if (totalFlexGames === 0) {
-        return 0; // 或者可以选择返回 null、-1、或者其他你认为合适的值
-    }
-    return Math.round((rencentData.selectWins) / totalFlexGames * 100);
-
-}
 </script>
 <style lang="css" scoped>
 .champion-img {

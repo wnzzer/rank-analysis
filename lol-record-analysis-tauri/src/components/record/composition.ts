@@ -63,6 +63,15 @@ export  const groupRateColor = (groupRate: number) => {
       return '#BA3F53'
     }
   }
+  export function winRate(wins : number, losses : number) {
+
+    const totalFlexGames = wins + losses
+    if (totalFlexGames === 0) {
+        return 0; // 或者可以选择返回 null、-1、或者其他你认为合适的值
+    }
+    return Math.round(wins / totalFlexGames * 100);
+  
+  }
   
 
  export function searchSummoner(nameId:string) {

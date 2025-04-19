@@ -216,6 +216,19 @@
         </n-flex>
         <n-flex class="stats-item" justify="space-between">
           <span class="stats-label"><n-icon>
+            </n-icon> 胜率：</span>
+          <n-flex>
+            <span style="width: 65px;" :style="{ color: winRateColor(winRate(recentData.wins,recentData.losses)) }"> <n-progress type="line"
+                :percentage="winRate(recentData.wins,recentData.losses)" :height="6" :show-indicator="false"
+                :color="winRateColor(winRate(recentData.wins,recentData.losses))" processing :stroke-width="10"
+                style="position: relative; top: 7px;"></n-progress>
+            </span>
+            <span class="stats-value" :style="{ color: winRateColor(winRate(recentData.wins,recentData.losses)) }">{{ winRate(recentData.wins,recentData.losses)}}%</span>
+
+          </n-flex>
+        </n-flex>
+        <n-flex class="stats-item" justify="space-between">
+          <span class="stats-label"><n-icon>
               <Accessibility></Accessibility>
             </n-icon> 参团率：</span>
           <n-flex>
@@ -283,7 +296,7 @@ import { NCard, NFlex, NButton, NIcon, useMessage } from 'naive-ui';
 import RecordButton from './RecordButton.vue';
 import { useRoute } from 'vue-router';
 import { RankTag, RecentData, SummonerData, UserTag } from './type';
-import { kdaColor, deathsColor, assistsColor, otherColor, groupRateColor, killsColor, winRateColor,modeOptions } from './composition';
+import { winRate,kdaColor, deathsColor, assistsColor, otherColor, groupRateColor, killsColor, winRateColor,modeOptions } from './composition';
 import unranked from '../../assets/imgs/tier/unranked.png';
 import bronze from '../../assets/imgs/tier/bronze.png';
 import silver from '../../assets/imgs/tier/silver.png';
