@@ -93,7 +93,7 @@
 
 ## 2. 分别编译
 
-### Electron 前端
+### Electron 前端(已失效)
 
 1. 切换到 Electron 主程序目录：
    ```bash

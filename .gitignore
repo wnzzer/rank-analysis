@@ -64,3 +64,5 @@ desktop.ini
 *.DS_Store
 
 config.yaml
+
+app.log.*
