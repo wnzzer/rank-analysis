@@ -11,9 +11,8 @@
                 <n-card :bordered="false" content-style="padding: 0;">
                     <n-flex>
                         <div style="position: relative;">
-                            <n-image width="32px"
-                                :src="assetPrefix + sessionSummoner.championKey"
-                                preview-disabled :fallback-src="nullImg" />
+                            <n-image width="32px" :src="assetPrefix + sessionSummoner.championKey" preview-disabled
+                                :fallback-src="nullImg" />
 
                             <div
                                 style="position: absolute; bottom: 9px; right: 0; font-size: 10px; width: 20px; height: 10px; text-align: center; line-height: 20px; border-radius: 50%; color: white;">
@@ -46,11 +45,11 @@
                                         <copy-outline></copy-outline>
                                     </n-icon>
                                 </n-button>
-                                <span> 
+                                <span>
 
                                     <img style="width: 16px;height: 16px ;" :src="imgUrl" />
                                     <span style="font-size: 8px;">{{ tierCn
-                                    }}</span>
+                                        }}</span>
                                 </span>
 
                             </n-flex>
@@ -190,7 +189,7 @@
                                     <n-flex>
                                         <span :style="{ color: kdaColor(sessionSummoner?.userTag.recentData.kda) }">{{
                                             sessionSummoner?.userTag.recentData.kda
-                                        }}</span>
+                                            }}</span>
                                         <span>
                                             <span
                                                 :style="{ color: killsColor(sessionSummoner?.userTag.recentData.kills) }">
@@ -213,23 +212,24 @@
                                 </span>
                             </n-flex>
                             <n-flex class="stats-item" justify="space-between">
-                                <span class="stats-label"> 胜率（{{ sessionSummoner.userTag.recentData.selectModeCn}}）:</span>
+                                <span class="stats-label"> 胜率（{{
+                                    sessionSummoner.userTag.recentData.selectModeCn}}）:</span>
 
                                 <n-flex>
                                     <span style="width: 65px;"
                                         :style="{ color: groupRateColor(sessionSummoner?.userTag.recentData.groupRate) }">
                                         <n-progress type="line"
-                                            :percentage="winRate(sessionSummoner?.userTag.recentData, modeType)"
+                                            :percentage="winRate(sessionSummoner?.userTag.recentData)"
                                             :height="6" :show-indicator="false"
-                                            :color="winRateColor(winRate(sessionSummoner?.userTag.recentData, modeType))"
+                                            :color="winRateColor(winRate(sessionSummoner?.userTag.recentData))"
                                             processing :stroke-width="10"
                                             style="position: relative; top: 7px;"></n-progress>
                                     </span>
                                     <span class="stats-value" :style="{
-                                        color: winRateColor(winRate(sessionSummoner?.userTag.recentData, modeType))
+                                        color: winRateColor(winRate(sessionSummoner?.userTag.recentData))
                                     }">
                                         {{
-                                            winRate(sessionSummoner?.userTag.recentData, modeType)
+                                            winRate(sessionSummoner?.userTag.recentData)
                                         }}%
                                     </span>
 
@@ -305,26 +305,14 @@ defineProps<{
     imgUrl: string
     tierCn: string
 }>();
-function winRate(rencentData: RecentData, type: string) {
-    if (type === "") {
-        return 0;
-    }
+function winRate(rencentData: RecentData) {
 
-    if (type === "RANKED_FLEX_SR") {
-        // 处理分母为 0 的情况
-        const totalFlexGames = rencentData.flexWins + rencentData.flexLosses;
-        if (totalFlexGames === 0) {
-            return 0; // 或者可以选择返回 null、-1、或者其他你认为合适的值
-        }
-        return Math.round((rencentData.flexWins) / totalFlexGames * 100);
-    } else {
-        // 处理分母为 0 的情况
-        const totalGames = rencentData.wins + rencentData.losses;
-        if (totalGames === 0) {
-            return 0; // 同样可以根据需求返回其他值
-        }
-        return Math.round(rencentData.wins / totalGames * 100);
+    const totalFlexGames = rencentData.selectWins + rencentData.selectLosses
+    if (totalFlexGames === 0) {
+        return 0; // 或者可以选择返回 null、-1、或者其他你认为合适的值
     }
+    return Math.round((rencentData.selectWins) / totalFlexGames * 100);
+
 }
 </script>
 <style lang="css" scoped>
