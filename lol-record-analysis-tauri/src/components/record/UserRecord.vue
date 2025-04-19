@@ -510,16 +510,11 @@ const copy = () => {
 }
 
 .recent-card {
-  background: #28282B;
-  /* 半透明背景 */
+  background: var(--n-color);
   border-radius: 8px;
-  /* 圆角边框 */
   font-size: 12px;
-  color: #fff;
-  /* 白色字体 */
+  color: var(--n-text-color);
 }
-
-
 
 .stats-title {
   font-weight: bold;
@@ -534,19 +529,16 @@ const copy = () => {
 
 .stats-label {
   font-size: 12px;
-
-  color: #ccc;
+  color: var(--n-text-color-3);
 }
 
 .stats-value {
   font-size: 12px;
-  color: #ffffff;
-  /* 绿色表示积极数据 */
+  color: var(--n-text-color);
 }
 
 .up {
-  color: #8BDFB7;
-  /* 上升箭头为绿色 */
+  color: var(--n-success-color);
   font-size: 12px;
 }
 </style>

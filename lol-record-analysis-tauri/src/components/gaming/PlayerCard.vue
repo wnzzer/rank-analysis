@@ -330,22 +330,17 @@ defineProps<{
 
 .stats-label {
     font-size: 10px;
-
-    color: #ccc;
+    color: var(--n-text-color-3);
 }
 
 .stats-value {
     font-size: 10px;
-    color: #ffffff;
-    /* 绿色表示积极数据 */
+    color: var(--n-text-color);
 }
 
 .recent-card {
-    background: #28282B;
-    /* 半透明背景 */
+    background: var(--n-color);
     border-radius: 8px;
-    /* 圆角边框 */
-    color: #fff;
-    /* 白色字体 */
+    color: var(--n-text-color);
 }
 </style>
