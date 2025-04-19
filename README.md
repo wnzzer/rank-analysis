@@ -82,7 +82,7 @@
 以下是通过源码构建 **Rank Analysis** 的步骤。
 
 
-### 1. 一键编译
+### 1. 一键编译（已废弃）
 >rank-analysis 内置了一键编译脚本，可以一键编译并生成 Windows 版本。
 
 1. 切换到前端项目的根目录 `./lol-record-analysis-app`。
