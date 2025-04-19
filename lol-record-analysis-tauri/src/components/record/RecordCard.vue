@@ -171,6 +171,7 @@
                                         @click="toNameRecord(games.gameDetail.participantIdentities[i - 1].player.gameName + '#' + games.gameDetail.participantIdentities[i - 1].player.tagLine)">
                                         <n-avatar :bordered="true"
                                             :src="assetPrefix + games.gameDetail.participants[i - 1]?.championKey"
+                                            :fallback-src="itemNull"
                                             :style="{ borderColor: getIsMeBorderedColor(games.gameDetail.participantIdentities[i - 1]?.player.gameName + '#' + games.gameDetail.participantIdentities[i - 1]?.player.tagLine) }" />
                                     </n-button>
                                 </template>
@@ -192,6 +193,8 @@
                                         <!-- 这里确保不会访问越界 -->
                                         <n-avatar :bordered="true"
                                             :src="assetPrefix + games.gameDetail.participants[i + 4]?.championKey"
+                                            :fallback-src="itemNull"
+
                                             :style="{ borderColor: getIsMeBorderedColor(games.gameDetail.participantIdentities[i + 4]?.player.gameName + '#' + games.gameDetail.participantIdentities[i + 4]?.player.tagLine) }" />
                                     </n-button>
                                 </template>
