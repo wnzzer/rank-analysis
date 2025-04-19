@@ -372,7 +372,7 @@ const getSummoner = async (name: string) => {
   summoner.value = res.data
 }
 
-const mode = ref("单双排")
+const mode = ref("全部")
 const updateModel = (key: number,option: { label: string; }) => {
   getTags(name,key)
   mode.value = option.label
