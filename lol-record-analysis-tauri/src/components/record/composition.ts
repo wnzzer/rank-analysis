@@ -21,7 +21,6 @@ export const kdaColor = (kda: number) => {
     } else if (kills <= 3) {
       return '#BA3F53'
     }
-    return '#FFFFFF';
   }
 export  const deathsColor = (deaths: number) => {
     if (deaths >= 8) {
@@ -29,7 +28,6 @@ export  const deathsColor = (deaths: number) => {
     } else if (deaths <= 3) {
       return '#8BDFB7'
     }
-    return '#FFFFFF';
   }
 export  const assistsColor = (assists: number) => {
     if (assists >= 10) {
@@ -37,7 +35,6 @@ export  const assistsColor = (assists: number) => {
     } else if (assists <= 3) {
       return '#BA3F53'
     }
-    return '#FFFFFF';
   }
 export  const groupRateColor = (groupRate: number) => {
     if (groupRate >= 45) {
@@ -45,13 +42,11 @@ export  const groupRateColor = (groupRate: number) => {
     } else if (groupRate <= 15) {
       return '#BA3F53'
     }
-    return '#FFFFFF';
   }
   export const healColorAndTaken = (other: number) => {
     if (other >= 25) {
       return '#8BDFB7'
     }
-    return '#C8C8C8FF';
   }
 
  export const otherColor = (other: number) => {
@@ -60,7 +55,6 @@ export  const groupRateColor = (groupRate: number) => {
     } else if (other <= 15) {
       return '#BA3F53'
     }
-    return '#FFFFFF';
   }
   export const winRateColor = (winRate: number) => {
     if (winRate >= 57) {
@@ -68,7 +62,6 @@ export  const groupRateColor = (groupRate: number) => {
     } else if (winRate <= 49) {
       return '#BA3F53'
     }
-    return '#FFFFFF';
   }
   
 
