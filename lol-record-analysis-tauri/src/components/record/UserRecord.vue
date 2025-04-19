@@ -218,12 +218,12 @@
           <span class="stats-label"><n-icon>
             </n-icon> 胜率：</span>
           <n-flex>
-            <span style="width: 65px;" :style="{ color: winRateColor(winRate(recentData.wins,recentData.losses)) }"> <n-progress type="line"
-                :percentage="winRate(recentData.wins,recentData.losses)" :height="6" :show-indicator="false"
-                :color="winRateColor(winRate(recentData.wins,recentData.losses))" processing :stroke-width="10"
+            <span style="width: 65px;" :style="{ color: winRateColor(winRate(recentData.selectWins,recentData.selectLosses)) }"> <n-progress type="line"
+                :percentage="winRate(recentData.selectWins,recentData.selectLosses)" :height="6" :show-indicator="false"
+                :color="winRateColor(winRate(recentData.selectWins,recentData.selectLosses))" processing :stroke-width="10"
                 style="position: relative; top: 7px;"></n-progress>
             </span>
-            <span class="stats-value" :style="{ color: winRateColor(winRate(recentData.wins,recentData.losses)) }">{{ winRate(recentData.wins,recentData.losses)}}%</span>
+            <span class="stats-value" :style="{ color: winRateColor(winRate(recentData.selectWins,recentData.selectLosses)) }">{{ winRate(recentData.selectWins,recentData.selectLosses)}}%</span>
 
           </n-flex>
         </n-flex>
