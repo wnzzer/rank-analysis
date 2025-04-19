@@ -16,6 +16,7 @@
             </n-input>
         </div>
         <div style="width: 33%; ">
+
             <n-tooltip trigger="hover">
                 <template #trigger>
                     <n-button @click="openGithubLink" text
@@ -27,6 +28,22 @@
                 访问 wnzzer 的项目主页
             </n-tooltip>
             <n-divider vertical />
+            <n-switch :value="themeSwitch" @click="settingsStore.toggleTheme()" size="small"
+                style="margin-right: 10px;">
+                <template #checked>
+                    <n-icon>
+                        <sunny-outline />
+
+                    </n-icon>
+                </template>
+                <template #unchecked>
+                    <n-icon>
+                        <moon-outline />
+
+
+                    </n-icon>
+                </template>
+            </n-switch>
             <div class="window-controls">
                 <n-button text @click="minimizeWindow" class="window-control-btn">
                     <n-icon><remove-outline /></n-icon>
@@ -43,9 +60,11 @@
 </template>
 <script lang="ts" setup>
 import router from '../router';
-import { Search, LogoGithub, RemoveOutline, SquareOutline, CloseOutline } from '@vicons/ionicons5';
-import { ref } from 'vue';
+import { Search, LogoGithub, RemoveOutline, SquareOutline, CloseOutline, SunnyOutline, MoonOutline } from '@vicons/ionicons5';
+import { computed, ref } from 'vue';
 import { Window } from '@tauri-apps/api/window';
+import { useSettingsStore } from '@renderer/pinia/setting';
+import { darkTheme } from 'naive-ui';
 const currentWindow = Window.getCurrent();
 
 const openGithubLink = () => {
@@ -53,6 +72,11 @@ const openGithubLink = () => {
 }
 
 const value = ref('');
+const settingsStore = useSettingsStore()
+const themeSwitch = computed(() => {
+    return settingsStore.theme.name !== darkTheme.name
+})
+
 function onClinkSearch() {
     router.push({
         path: '/Record',

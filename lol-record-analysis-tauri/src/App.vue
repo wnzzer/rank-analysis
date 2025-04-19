@@ -1,5 +1,5 @@
 <template>
-  <n-config-provider :theme="theme">
+  <n-config-provider :theme="settingsStore.theme">
     <n-message-provider>
 
       <n-loading-bar-provider>
@@ -11,11 +11,10 @@
 </template>
 
 <script lang="ts" setup>
-import { darkTheme } from 'naive-ui'
-import { ref } from 'vue'
 import Framework from '../src/components/Framework.vue'
+import { useSettingsStore } from './pinia/setting';
 
-const theme = ref(darkTheme)
+const settingsStore = useSettingsStore()
 </script>
 <style lang="css">
 html,
