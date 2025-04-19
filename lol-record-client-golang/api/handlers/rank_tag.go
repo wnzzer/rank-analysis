@@ -364,8 +364,16 @@ func countWinAndLoss(matchHistory *api.MatchHistory, mode int) (int, int, int, i
 
 			}
 		}
-		if mode != 0 && games.QueueId == mode {
-			if games.Participants[0].Stats.Win == true {
+		if mode != 0 {
+			if games.QueueId == mode {
+				if games.Participants[0].Stats.Win {
+					selectWins++
+				} else {
+					selectLosses++
+				}
+			}
+		} else {
+			if games.Participants[0].Stats.Win {
 				selectWins++
 			} else {
 				selectLosses++
