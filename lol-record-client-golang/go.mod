@@ -1,12 +1,12 @@
 module lol-record-analysis
 
-go 1.20
+go 1.22
 
 require (
 	github.com/gin-gonic/gin v1.10.0
 	github.com/hashicorp/golang-lru v1.0.2
-	github.com/spf13/viper v1.20.1
-	golang.org/x/sys v0.32.0
+	github.com/spf13/viper v1.20.0
+	golang.org/x/sys v0.29.0
 )
 
 require (
