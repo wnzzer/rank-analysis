@@ -100,13 +100,25 @@
 </template>
 
 <script setup lang="ts">
-import { h, ref } from 'vue'
+import { h, onMounted, ref } from 'vue'
 import { useNotification } from 'naive-ui'
 import axios from 'axios'
-import pkg from '../../../package.json'
+import { app } from '@tauri-apps/api';
 
 // Component state
-const currentVersion = ref(pkg.version)
+const currentVersion = ref('');
+onMounted(() => {
+  fetchAppVersion()
+})
+async function fetchAppVersion() {
+  try {
+    const version = await app.getVersion();
+    currentVersion.value = version;
+  } catch (error) {
+    console.error('获取应用版本失败:', error);
+    currentVersion.value = '未知版本';
+  }
+}
 const latestVersion = ref('')
 const latestReleaseUrl = ref('')
 

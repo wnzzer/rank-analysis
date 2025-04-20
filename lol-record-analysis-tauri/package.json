@@ -1,7 +1,6 @@
 {
   "name": "lol-record-analysis-app",
   "private": true,
-  "version": "1.5.6",
   "description": "lol record analysis app",
   "type": "module",
   "author": "wnzzer",
@@ -15,7 +14,7 @@
     "typecheck": "vue-tsc --noEmit --composite false"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.0.0-alpha.11",
+    "@tauri-apps/api": "^2.5.0",
     "@tauri-apps/plugin-opener": "^2.0.0-alpha.3",
     "axios": "^1.7.9",
     "native-ui": "^0.0.1",
