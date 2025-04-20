@@ -5,7 +5,7 @@ import { resolve } from "path";
 const host = process.env.TAURI_DEV_HOST;
 
 // https://vitejs.dev/config/
-export default defineConfig(async () => ({
+export default defineConfig(() => ({
   plugins: [vue()],
 
   resolve: {
@@ -20,7 +20,7 @@ export default defineConfig(async () => ({
   // 构建优化配置
   build: {
     target: 'esnext',
-    minify: 'terser',
+    minify: "terser" as const,
     terserOptions: {
       compress: {
         drop_console: true,
