@@ -93,26 +93,7 @@
 
 ## 2. 分别编译
 
-### Electron 前端(已失效)
-
-1. 切换到 Electron 主程序目录：
-   ```bash
-   cd ./lol-record-analysis-app
-   ```
-2. 安装依赖：
-   ```bash
-   npm install
-   ```
-3. 开发模式运行：
-   ```bash
-   npm run dev
-   ```
-4. 构建 Windows 版本：
-   ```bash
-   npm run build:win
-   ```
-
-#### Tauri2 前端（可选）
+#### Tauri2 前端
 1. 切换到 Tauri 项目的根目录 `./lol-record-analysis-tauri`。
 2. 确保已安装 [Rust](https://www.rust-lang.org/) 环境 和 cpp 相关环境
 3. 运行一键编译脚本：
