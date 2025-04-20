@@ -101,13 +101,12 @@
 
 <script setup lang="ts">
 import { h, ref } from 'vue'
-import { 
-  useNotification
-} from 'naive-ui'
-import axios from 'axios' // Import axios for HTTP requests
+import { useNotification } from 'naive-ui'
+import axios from 'axios'
+import pkg from '../../../package.json'
 
 // Component state
-const currentVersion = ref(import.meta.env.VITE_APP_VERSION || '1.5.4')
+const currentVersion = ref(pkg.version)
 const latestVersion = ref('')
 const latestReleaseUrl = ref('')
 
