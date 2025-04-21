@@ -51,11 +51,10 @@
 # 使用方法
 
 1. 前往 [Release 页面](https://github.com/wnzzer/lol-rank-record-analysis/releases) 下载最新的构建版本压缩包。
-   > **版本选择建议**
-   > - Windows 10 1803 及以上版本推荐下载 Tauri 版本，性能更好，体积更小。
-   > - 更低版本的 Windows 系统请下载 Electron 版本。
-
+   > **版本选择建议**: Windows 10 1803 及以上版本推荐下载 Tauri 版本，性能更好，体积更小。
+   
 2. 解压后直接运行，无需管理员权限。
+
 3. 软件运行时会自动检测游戏客户端，无需考虑启动顺序，支持中途启动并保持稳定连接。
 
 > **注意**
@@ -81,17 +80,7 @@
 
 以下是通过源码构建 **Rank Analysis** 的步骤。
 
-
-### 1. 一键编译（已废弃）
->rank-analysis 内置了一键编译脚本，可以一键编译并生成 Windows 版本。
-
-1. 切换到前端项目的根目录 `./lol-record-analysis-app`。
-
-2. 运行一键编译脚本： `npm run build:win`
-
-3. 打开 `./lol-record-analysis-app/dist/win-unpacked` 目录，即可看到生成的 Windows 版本。
-
-## 2. 分别编译
+### 分别编译前端和后端
 
 #### Tauri2 前端
 1. 切换到 Tauri 项目的根目录 `./lol-record-analysis-tauri`。
@@ -113,7 +102,7 @@
    ```bash
    go build
    ```
-3(1). 将生成的 `lol-record-analysis.exe` 复制到以下路径：
+   3(1). 将生成的 `lol-record-analysis.exe` 复制到以下路径：
    ```
    ./lol-record-analysis-app/dist/win-unpacked/resources/backend/
    ```
