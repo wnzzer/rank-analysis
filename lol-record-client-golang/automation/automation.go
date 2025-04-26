@@ -19,16 +19,15 @@ func startAcceptMatchAutomation(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		default:
-			if config.Viper().GetBool("settings.auto.acceptMatchSwitch") {
-				curPhase, err := api.GetPhase()
-				if err != nil {
-					init_log.AppLog.Error(err.Error())
-					continue
-				}
-				if curPhase == constants.ReadyCheck {
-					api.PostAcceptMatch()
-				}
+			curPhase, err := api.GetPhase()
+			if err != nil {
+				init_log.AppLog.Error(err.Error())
+				continue
 			}
+			if curPhase == constants.ReadyCheck {
+				api.PostAcceptMatch()
+			}
+
 		}
 	}
 }
@@ -41,6 +40,8 @@ var (
 )
 
 func StartAutomation() {
+
+	initRunAutomation()
 
 	config.RegisterOnChangeCallback(func(key string, newValue interface{}) {
 		switch key {
@@ -84,4 +85,22 @@ func StartAutomation() {
 		}
 	})
 
+}
+func initRunAutomation() {
+	if config.Get[bool]("settings.auto.startMatchSwitch") {
+		startMatchCtx, startAcceptCancel = context.WithCancel(context.Background())
+		go startMatchAutomation(startMatchCtx)
+	}
+	if config.Get[bool]("settings.auto.acceptMatchSwitch") {
+		startAcceptMatchCtx, startAcceptCancel = context.WithCancel(context.Background())
+		go startAcceptMatchAutomation(startAcceptMatchCtx)
+	}
+	if config.Get[bool]("settings.auto.banChampionSwitch") {
+		startChampBanCtx, startChampBanCancel = context.WithCancel(context.Background())
+		go startChampBanAutomation(startChampBanCtx)
+	}
+	if config.Get[bool]("settings.auto.pickChampionSwitch") {
+		startChampSelectCtx, startChampSelectCancel = context.WithCancel(context.Background())
+		go startChampSelectAutomation(startChampSelectCtx)
+	}
 }

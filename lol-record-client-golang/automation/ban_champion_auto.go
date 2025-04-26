@@ -27,10 +27,6 @@ func startChampBanAutomation(ctx context.Context) {
 			}
 			init_log.AppLog.Info("Current phase: %s", curPhase)
 
-			if !config.Viper().GetBool("settings.auto.banChampionSwitch") {
-				init_log.AppLog.Info("ChampBanSwitch is disabled")
-				continue
-			}
 			if curPhase != constants.ChampSelect {
 				init_log.AppLog.Info("Current phase is not ChampSelect: %s", curPhase)
 				continue
@@ -58,7 +54,7 @@ func startBanChampion() error {
 	myCellId := selectSession.LocalPlayerCellId
 	init_log.AppLog.Info("My Cell ID: %d", myCellId)
 
-	myBanChampionIntSlice := config.Viper().GetIntSlice("settings.auto.banChampionSlice")
+	myBanChampionIntSlice := config.Get[[]int]("settings.auto.banChampionSlice")
 	init_log.AppLog.Info("Ban Champion Slice: %+v", myBanChampionIntSlice)
 
 	notBanChampionIdsMap := make(map[int]bool)

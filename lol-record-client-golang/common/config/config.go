@@ -111,8 +111,22 @@ func RegisterOnChangeCallback(callback func(key string, newValue interface{})) {
 	onChangeCallbackArr = append(onChangeCallbackArr, callback)
 }
 
-func Get(key string) interface{} {
-	return v.Get(key)
+func Get[T any](key string) T {
+	var result T
+	switch any(result).(type) {
+	case string:
+		return any(v.GetString(key)).(T)
+	case int:
+		return any(v.GetInt(key)).(T)
+	case []int:
+		return any(v.GetIntSlice(key)).(T)
+	case []string:
+		return any(v.GetStringSlice(key)).(T)
+	case bool:
+		return any(v.GetBool(key)).(T)
+	default:
+		return v.Get(key).(T)
+	}
 }
 
 // OverwriteConfig 覆盖当前配置到文件

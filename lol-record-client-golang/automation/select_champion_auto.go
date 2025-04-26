@@ -29,10 +29,7 @@ func startChampSelectAutomation(ctx context.Context) {
 				init_log.AppLog.Error("Failed to get current phase: " + err.Error())
 				continue
 			}
-			if !config.Viper().GetBool("settings.auto.pickChampionSwitch") {
-				init_log.AppLog.Info("Champion select automation is disabled")
-				continue
-			}
+
 			if curPhase != constants.ChampSelect {
 				init_log.AppLog.Info("Not in champion select phase")
 				continue
@@ -59,7 +56,7 @@ func startSelectChampion() error {
 	myCellId := selectSession.LocalPlayerCellId
 	init_log.AppLog.Info("Current player cell ID: ", myCellId)
 
-	myPickChampionIntSlice := config.Viper().GetIntSlice("settings.auto.pickChampionSlice")
+	myPickChampionIntSlice := config.Get[[]int]("settings.auto.pickChampionSlice")
 	init_log.AppLog.Info("Configured champion selection list: ", myPickChampionIntSlice)
 
 	notSelectChampionIdsMap := make(map[int]bool)

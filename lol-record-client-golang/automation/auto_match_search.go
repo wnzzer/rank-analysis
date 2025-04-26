@@ -2,7 +2,6 @@ package automation
 
 import (
 	"context"
-	"lol-record-analysis/common/config"
 	"lol-record-analysis/lcu/client/api"
 	"lol-record-analysis/lcu/client/constants"
 	"lol-record-analysis/util/init_log"
@@ -33,12 +32,6 @@ func startMatchAutomation(ctx context.Context) {
 
 			// 如果状态没变，跳过本次循环
 			if lastSearchState == curState {
-				continue
-			}
-
-			// 检查配置中的自动匹配开关
-			if !config.Viper().GetBool("settings.auto.startMatchSwitch") {
-				lastSearchState = curState
 				continue
 			}
 

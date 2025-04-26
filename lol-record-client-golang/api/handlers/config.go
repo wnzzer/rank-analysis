@@ -22,7 +22,7 @@ func GetConfig(c *gin.Context) {
 	key := c.Param("key")
 
 	// 根据类型自动获取值
-	value := config.Get(key)
+	value := config.Get[any](key)
 	if value == nil {
 		c.JSON(404, gin.H{"error": "配置项不存在"})
 		return
