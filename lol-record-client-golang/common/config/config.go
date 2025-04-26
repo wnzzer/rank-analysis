@@ -85,11 +85,6 @@ func setupConfigFile(v *viper.Viper, path string) error {
 	return nil
 }
 
-// Viper 获取原始 Viper 实例（用于操作复杂类型）
-func Viper() *viper.Viper {
-	return v
-}
-
 // GetAll 获取所有配置（用于全量导出）
 func GetAll() map[string]interface{} {
 	return v.AllSettings()

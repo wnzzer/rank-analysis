@@ -22,7 +22,7 @@ func GetConfig(c *gin.Context) {
 	key := c.Param("key")
 
 	// 根据类型自动获取值
-	value := config.Viper().Get(key)
+	value := config.Get(key)
 	if value == nil {
 		c.JSON(404, gin.H{"error": "配置项不存在"})
 		return
@@ -47,7 +47,7 @@ func UpdateConfig(c *gin.Context) {
 	}
 
 	// 安全更新配置
-	config.Viper().Set(key, value.Value)
+	config.Set(key, value.Value)
 
 	// 持久化到文件
 	if err := config.OverwriteConfig(); err != nil {
