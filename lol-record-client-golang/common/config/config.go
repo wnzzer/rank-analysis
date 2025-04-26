@@ -11,8 +11,9 @@ import (
 )
 
 var (
-	v    *viper.Viper
-	once sync.Once
+	v                   *viper.Viper
+	once                sync.Once
+	onChangeCallbackArr []func(key string, newValue interface{})
 )
 
 // Init 显式初始化配置（推荐替代init函数）
@@ -92,6 +93,31 @@ func Viper() *viper.Viper {
 // GetAll 获取所有配置（用于全量导出）
 func GetAll() map[string]interface{} {
 	return v.AllSettings()
+}
+
+// Set 设置配置值并触发回调
+func Set(key string, value interface{}) {
+	oldValue := v.Get(key)
+	if oldValue != value {
+		v.Set(key, value)
+		err := OverwriteConfig()
+		if err != nil {
+			return
+		}
+		// 调用回调函数
+		for _, onChangeCallback := range onChangeCallbackArr {
+			onChangeCallback(key, value)
+		}
+	}
+}
+
+// RegisterOnChangeCallback 注册配置变更回调函数
+func RegisterOnChangeCallback(callback func(key string, newValue interface{})) {
+	onChangeCallbackArr = append(onChangeCallbackArr, callback)
+}
+
+func Get(key string) interface{} {
+	return v.Get(key)
 }
 
 // OverwriteConfig 覆盖当前配置到文件

@@ -33,15 +33,55 @@ func startAcceptMatchAutomation(ctx context.Context) {
 	}
 }
 
-func StartAutomation() {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel() // 确保在函数返回时调用 cancel
+var (
+	startMatchCtx, starMatchCancel              = context.WithCancel(context.Background())
+	startAcceptMatchCtx, startAcceptCancel      = context.WithCancel(context.Background())
+	startChampSelectCtx, startChampSelectCancel = context.WithCancel(context.Background())
+	startChampBanCtx, startChampBanCancel       = context.WithCancel(context.Background())
+)
 
-	// 启动多个定时任务
-	go startMatchAutomation(ctx)
-	go startAcceptMatchAutomation(ctx)
-	go startChampSelectAutomation(ctx)
-	go startChampBanAutomation(ctx)
-	select {}
+func StartAutomation() {
+
+	config.RegisterOnChangeCallback(func(key string, newValue interface{}) {
+		switch key {
+		case "settings.auto.startMatchSwitch":
+			if newValue.(bool) {
+				init_log.AppLog.Info("Starting match automation")
+				startChampBanCtx, startChampBanCancel = context.WithCancel(context.Background())
+				go startMatchAutomation(startMatchCtx)
+			} else {
+				init_log.AppLog.Info("Stopping match automation")
+				starMatchCancel()
+			}
+
+		case "settings.auto.acceptMatchSwitch":
+			if newValue.(bool) {
+				startAcceptMatchCtx, startAcceptCancel = context.WithCancel(context.Background())
+				init_log.AppLog.Info("Starting accept match automation")
+				go startAcceptMatchAutomation(startAcceptMatchCtx)
+			} else {
+				init_log.AppLog.Info("Stopping accept match automation")
+				startAcceptCancel()
+			}
+		case "settings.auto.pickChampionSwitch":
+			if newValue.(bool) {
+				startChampSelectCtx, startChampSelectCancel = context.WithCancel(context.Background())
+				init_log.AppLog.Info("Starting champion select automation")
+				go startChampSelectAutomation(startChampSelectCtx)
+			} else {
+				init_log.AppLog.Info("Stopping champion select automation")
+				startChampSelectCancel()
+			}
+		case "settings.auto.banChampionSwitch":
+			if newValue.(bool) {
+				startChampBanCtx, startChampBanCancel = context.WithCancel(context.Background())
+				init_log.AppLog.Info("Starting champion ban automation")
+				go startChampBanAutomation(startChampBanCtx)
+			} else {
+				init_log.AppLog.Info("Stopping champion ban automation")
+				startChampBanCancel()
+			}
+		}
+	})
 
 }
