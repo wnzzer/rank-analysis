@@ -51,7 +51,8 @@
 # 使用方法
 
 1. 前往 [Release 页面](https://github.com/wnzzer/lol-rank-record-analysis/releases) 下载最新的构建版本压缩包。
-   > **版本选择建议**: Windows 10 1803 及以上版本推荐下载 Tauri 版本，性能更好，体积更小。
+   > **版本选择建议**: Windows 10 1803 及以上版本推荐
+   如果较低的系统版本可能由于缺少 webview2 导致无法运行
    
 2. 解压后直接运行，无需管理员权限。
 
@@ -102,12 +103,9 @@
    ```bash
    go build
    ```
-   3(1). 将生成的 `lol-record-analysis.exe` 复制到以下路径：
-   ```
-   ./lol-record-analysis-app/dist/win-unpacked/resources/backend/
-   ```
 
-3(2). 将生成的 `lol-record-analysis.exe` 复制到以下路径：
+
+3. 将生成的 `lol-record-analysis.exe` 复制到以下路径：
    ```
    ./lol-record-analysis-tauri/src-tauri/target
    ```
