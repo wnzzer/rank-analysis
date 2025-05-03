@@ -38,5 +38,4 @@ winapi = { version = "0.3.9", features = [
 ] }
 log = "0.4"
 env_logger = "0.10"
-devtools = "0.3.3"
 

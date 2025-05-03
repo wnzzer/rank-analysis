@@ -1,8 +1,8 @@
-use crate::lcu::util::get_auth;
 use reqwest::{Client, StatusCode};
 use serde::{de::DeserializeOwned, Serialize};
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
+use crate::lcu::util::token::get_auth;
 
 static HTTP_CLIENT: OnceLock<Client> = OnceLock::new();
 static AUTH: OnceLock<Mutex<(String, String)>> = OnceLock::new();
@@ -160,3 +160,4 @@ pub async fn lcu_get_img_as_binary(uri: &str) -> Result<(Vec<u8>, String), Strin
     }
     Err("图片二进制请求失败或认证失效".to_string())
 }
+

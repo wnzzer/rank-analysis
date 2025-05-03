@@ -1,3 +1,13 @@
+// src/lib.rs
+
+pub mod lcu {
+    pub mod util {
+        pub mod lcu_http;
+        pub mod token;
+    }
+}
+
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
