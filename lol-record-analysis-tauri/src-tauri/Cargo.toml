@@ -1,6 +1,6 @@
 [package]
 name = "lol-record-analysis-tauri"
-version = "0.1.0"
+version = "1.5.6"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
@@ -22,4 +22,21 @@ tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+regex = "1.10.3"
+winapi = { version = "0.3.9", features = [
+    "processthreadsapi",
+    "handleapi",
+    "tlhelp32",
+    "psapi",
+    "winbase",
+    "minwindef",
+    "ntdef",
+    "libloaderapi",
+    "memoryapi",
+    "winnt"  # 添加 winnt 特性
+] }
+log = "0.4"
+env_logger = "0.10"
+devtools = "0.3.3"
 

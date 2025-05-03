@@ -1,11 +1,12 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-
 use std::process::Command;
 use std::sync::Mutex;
 use tauri::Manager;
+
 // 添加这一行来导入 CommandExt trait
 use std::os::windows::process::CommandExt;
+
 
 struct BackendProcess(Mutex<Option<std::process::Child>>);
 
@@ -23,6 +24,7 @@ fn start_backend_process() -> std::process::Child {
 }
 
 fn main() {
+    lol_record_analysis_tauri_lib::run();
     tauri::Builder::default()
         .manage(BackendProcess(Mutex::new(None)))
         .setup(|app| {
@@ -34,7 +36,13 @@ fn main() {
         })
         .on_window_event(|app_handle, event| {
             if let tauri::WindowEvent::CloseRequested { .. } = event {
-                if let Some(mut process) = app_handle.state::<BackendProcess>().0.lock().unwrap().take() {
+                if let Some(mut process) = app_handle
+                    .state::<BackendProcess>()
+                    .0
+                    .lock()
+                    .unwrap()
+                    .take()
+                {
                     let _ = process.kill();
                 }
             }

@@ -22,7 +22,6 @@
         "center": true,
         "theme": "Dark",
         "dragDropEnabled": false
-
       }
     ],
     "security": {
@@ -31,7 +30,9 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": [
+      "nsis"
+    ],
     "icon": [
       "icons/ico.ico",
       "icons/32x32.png",
@@ -43,7 +44,9 @@
       "digestAlgorithm": "sha256",
       "timestampUrl": "http://timestamp.digicert.com",
       "wix": {
-        "language": ["zh-CN"]
+        "language": [
+          "zh-CN"
+        ]
       }
     }
   }

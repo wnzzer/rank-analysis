@@ -1,7 +1,7 @@
 <template>
     <n-flex justify="space-between" style="height: 90vh;" vertical>
 
-        <n-menu :collapsed="true" :collapsed-width="60" :collapsed-icon-size="20" @update:value="handleMenuClick" 
+        <n-menu :collapsed="true" :collapsed-width="60" :collapsed-icon-size="20" @update:value="handleMenuClick"
             :value="getFirstPath(router.currentRoute.value.path)" :options="menuOptions" />
         <div class="loadingIcon" style="margin-left: 13px;">
 
@@ -9,14 +9,12 @@
                 <template #trigger>
                     <n-button circle @click="toMe">
 
-                        <n-image width="20px" :src="assetPrefix + mySummoner?.profileIconKey"
-                        preview-disabled
-                        >
+                        <n-image width="20px" :src="assetPrefix + mySummoner?.profileIconKey" preview-disabled>
 
                             <template #error>
                                 <n-icon size="20" class="rotating-icon">
-                                <Reload />
-                            </n-icon>
+                                    <Reload />
+                                </n-icon>
                             </template>
                         </n-image>
                     </n-button> </template>
@@ -73,7 +71,6 @@ import { NIcon, useMessage } from 'naive-ui';
 import { Component, computed, h, onMounted, ref } from 'vue';
 import { defaultSummoner, Summoner } from './record/type';
 
-
 onMounted(() => {
     getGetMySummoner().then(() => {
         setInterval(() => {
@@ -96,6 +93,7 @@ async function getGetMySummoner() {
                 });
             }
         }
+
     } catch (error) {
         mySummoner.value = defaultSummoner();
 
@@ -136,7 +134,7 @@ const menuOptions = computed(() => [
         icon: renderIcon(SettingsOutline),
         show: !!mySummoner.value?.gameName,
     },
-    
+
 ]);
 const toMe = () => {
     router.push({
