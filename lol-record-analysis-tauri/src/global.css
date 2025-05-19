@@ -17,6 +17,6 @@
   
   /* 设置滚动条滑块在悬停时的样式 */
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(252, 252, 252, 0.7); /* 悬停时滑块颜色加深 */
+    background: rgba(111, 111, 111, 1); /* 悬停时滑块颜色加深 */
   }
   
