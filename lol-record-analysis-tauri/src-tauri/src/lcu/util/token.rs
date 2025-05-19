@@ -3,7 +3,6 @@ use ntapi::ntpsapi::{NtQueryInformationProcess, PROCESS_COMMAND_LINE_INFORMATION
 use regex::Regex;
 use std::collections::HashMap;
 use std::mem;
-use std::os::windows::ffi::OsStringExt;
 use winapi::shared::minwindef::{DWORD, FALSE};
 use winapi::shared::ntdef::UNICODE_STRING;
 use winapi::um::handleapi::{CloseHandle, INVALID_HANDLE_VALUE};

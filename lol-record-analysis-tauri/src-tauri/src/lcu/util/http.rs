@@ -1,4 +1,6 @@
+use base64::Engine;
 use reqwest::{Client, StatusCode};
+use base64::engine::general_purpose;
 use serde::{de::DeserializeOwned, Serialize};
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
@@ -117,7 +119,8 @@ pub async fn lcu_get_img_as_base64(uri: &str) -> Result<String, String> {
                     .headers()
                     .get("content-type")
                     .and_then(|v| v.to_str().ok())
-                    .unwrap_or("image/png");
+                    .unwrap_or("image/png")
+                    .to_string();
                 let bytes = r
                     .bytes()
                     .await

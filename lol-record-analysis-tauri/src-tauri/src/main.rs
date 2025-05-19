@@ -24,8 +24,10 @@ fn start_backend_process() -> std::process::Child {
 }
 
 fn main() {
-    lol_record_analysis_tauri_lib::run();
     tauri::Builder::default()
+        // 添加库的命令插件
+        .plugin(lol_record_analysis_tauri_lib::setup_commands())
+        // 添加进程管理
         .manage(BackendProcess(Mutex::new(None)))
         .setup(|app| {
             if !cfg!(debug_assertions) {

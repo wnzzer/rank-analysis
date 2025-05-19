@@ -2,7 +2,7 @@
 name = "lol-record-analysis-tauri"
 version = "1.5.6"
 description = "A Tauri App"
-authors = ["you"]
+authors = ["wnzzer"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -24,6 +24,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
 regex = "1.10.3"
+reqwest = { version = "0.11", features = ["json"] }
 winapi = { version = "0.3.9", features = [
     "processthreadsapi",
     "handleapi",
@@ -38,4 +39,4 @@ winapi = { version = "0.3.9", features = [
 ] }
 log = "0.4"
 env_logger = "0.10"
-
+base64 = "0.21"

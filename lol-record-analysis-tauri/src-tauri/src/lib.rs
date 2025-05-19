@@ -2,30 +2,37 @@
 
 pub mod lcu {
     pub mod util {
-        pub mod lcu_http;
+        pub mod http;
         pub mod token;
+    }
+    pub mod api {
+        pub mod asset;
     }
 }
 
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() {
-    tauri::Builder::default()
+// src/lib.rs
+
+// 删除原有的 run() 函数
+
+// 暴露命令配置方法
+pub fn setup_commands() -> tauri::plugin::TauriPlugin<tauri::Wry> {
+    tauri::plugin::Builder::new("custom_commands")
         .invoke_handler(tauri::generate_handler![
             my_custom_command,
-            another_command 
+            another_command
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build()
 }
 
-#[tauri::command]
+
+#[tauri::command(async)]	
 fn my_custom_command() -> String {
     println!("I was invoked from JavaScript!");
     "Hello from Rust!".to_string()
 }
 
-#[tauri::command]
+#[tauri::command(async)]	
 fn another_command(name: String) -> String {
     println!("Received name: {}", name);
     format!("Hello, {}!", name)
