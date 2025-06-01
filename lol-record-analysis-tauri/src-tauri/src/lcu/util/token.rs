@@ -7,7 +7,9 @@ use winapi::shared::minwindef::{DWORD, FALSE};
 use winapi::shared::ntdef::UNICODE_STRING;
 use winapi::um::handleapi::{CloseHandle, INVALID_HANDLE_VALUE};
 use winapi::um::processthreadsapi::OpenProcess;
-use winapi::um::tlhelp32::{CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS};
+use winapi::um::tlhelp32::{
+    CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
+};
 use winapi::um::winnt::{HANDLE, PROCESS_QUERY_LIMITED_INFORMATION};
 
 mod ntapi {
@@ -47,7 +49,10 @@ fn get_process_pid_by_name(name: &str) -> Result<Vec<DWORD>, String> {
     unsafe {
         let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
         if snapshot == INVALID_HANDLE_VALUE {
-            return Err(format!("无法创建进程快照: {}", std::io::Error::last_os_error()));
+            return Err(format!(
+                "无法创建进程快照: {}",
+                std::io::Error::last_os_error()
+            ));
         }
         let _snapshot_handle = ProcessHandle(snapshot);
 
@@ -55,14 +60,21 @@ fn get_process_pid_by_name(name: &str) -> Result<Vec<DWORD>, String> {
         entry.dwSize = mem::size_of::<PROCESSENTRY32W>() as u32;
 
         if Process32FirstW(snapshot, &mut entry) == FALSE {
-            return Err(format!("无法获取第一个进程: {}", std::io::Error::last_os_error()));
+            return Err(format!(
+                "无法获取第一个进程: {}",
+                std::io::Error::last_os_error()
+            ));
         }
 
         loop {
             let exe_file = &entry.szExeFile;
             let exe_name = String::from_utf16_lossy(
-                &exe_file[..exe_file.iter().position(|&x| x == 0).unwrap_or(exe_file.len())]
-            ).to_lowercase();
+                &exe_file[..exe_file
+                    .iter()
+                    .position(|&x| x == 0)
+                    .unwrap_or(exe_file.len())],
+            )
+            .to_lowercase();
 
             if exe_name.contains(&name_lower) {
                 pids.push(entry.th32ProcessID);
@@ -82,7 +94,11 @@ fn get_process_command_line(pid: DWORD) -> Result<String, String> {
     unsafe {
         let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
         if handle.is_null() {
-            return Err(format!("无法打开进程 {}: {}", pid, std::io::Error::last_os_error()));
+            return Err(format!(
+                "无法打开进程 {}: {}",
+                pid,
+                std::io::Error::last_os_error()
+            ));
         }
         println!("成功打开进程句柄");
         let _process_handle = ProcessHandle(handle);
@@ -110,10 +126,16 @@ fn get_process_command_line(pid: DWORD) -> Result<String, String> {
                     &mut return_size,
                 );
                 if status != 0 {
-                    return Err(format!("NtQueryInformationProcess 失败，状态码: {:#x}", status));
+                    return Err(format!(
+                        "NtQueryInformationProcess 失败，状态码: {:#x}",
+                        status
+                    ));
                 }
             } else {
-                return Err(format!("NtQueryInformationProcess 失败，状态码: {:#x}", status));
+                return Err(format!(
+                    "NtQueryInformationProcess 失败，状态码: {:#x}",
+                    status
+                ));
             }
         }
 
@@ -125,7 +147,10 @@ fn get_process_command_line(pid: DWORD) -> Result<String, String> {
 
         let ucs = &*(buffer.as_ptr() as *const UNICODE_STRING);
         if ucs.Buffer.is_null() || ucs.Length == 0 {
-            return Err(format!("无效的命令行数据，Buffer: {:?}, Length: {}", ucs.Buffer, ucs.Length));
+            return Err(format!(
+                "无效的命令行数据，Buffer: {:?}, Length: {}",
+                ucs.Buffer, ucs.Length
+            ));
         }
 
         let slice = std::slice::from_raw_parts(ucs.Buffer, (ucs.Length / 2) as usize);
@@ -142,17 +167,19 @@ fn auth_resolver(command_line: &str) -> Result<(String, String), String> {
 
     for cap in re.captures_iter(command_line) {
         let key = cap.get(1).map(|m| m.as_str()).unwrap_or("");
-        let value = cap.get(2).map(|m| m.as_str())
+        let value = cap
+            .get(2)
+            .map(|m| m.as_str())
             .or_else(|| cap.get(3).map(|m| m.as_str()))
             .unwrap_or("");
 
         params.insert(key.to_string(), value.to_string());
     }
 
-    let remoting_auth_token = params.get("remoting-auth-token")
+    let remoting_auth_token = params
+        .get("remoting-auth-token")
         .ok_or("命令行中未找到remoting-auth-token参数")?;
-    let app_port = params.get("app-port")
-        .ok_or("命令行中未找到app-port参数")?;
+    let app_port = params.get("app-port").ok_or("命令行中未找到app-port参数")?;
 
     if remoting_auth_token.is_empty() || app_port.is_empty() {
         return Err("命令行中未找到必要的认证参数".to_string());
@@ -198,7 +225,9 @@ pub fn get_auth() -> Result<(String, String), String> {
     }
 
     if !found_valid_process {
-        println!("未找到有效的命令行，尝试使用当前PID: {}", unsafe { CUR_PID });
+        println!("未找到有效的命令行，尝试使用当前PID: {}", unsafe {
+            CUR_PID
+        });
         unsafe {
             if CUR_PID > 0 {
                 cmd_line = get_process_command_line(CUR_PID)?;

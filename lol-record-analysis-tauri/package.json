@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@tauri-apps/api": "^2.5.0",
+    "@tauri-apps/plugin-http": "^2.4.4",
     "@tauri-apps/plugin-opener": "^2.0.0-alpha.3",
     "axios": "^1.7.9",
     "native-ui": "^0.0.1",

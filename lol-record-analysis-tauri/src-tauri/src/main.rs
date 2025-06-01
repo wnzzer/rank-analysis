@@ -1,12 +1,12 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+use lol_record_analysis_tauri_lib::lcu::api::asset;
 use std::process::Command;
 use std::sync::Mutex;
 use tauri::Manager;
 
 // 添加这一行来导入 CommandExt trait
 use std::os::windows::process::CommandExt;
-
 
 struct BackendProcess(Mutex<Option<std::process::Child>>);
 
@@ -25,8 +25,9 @@ fn start_backend_process() -> std::process::Child {
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_http::init())
         // 添加库的命令插件
-        .plugin(lol_record_analysis_tauri_lib::setup_commands())
+        .invoke_handler(tauri::generate_handler![asset::get_asset_base64,])
         // 添加进程管理
         .manage(BackendProcess(Mutex::new(None)))
         .setup(|app| {

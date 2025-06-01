@@ -1,10 +1,11 @@
+use crate::lcu::util::token::get_auth;
+use base64::engine::general_purpose;
 use base64::Engine;
 use reqwest::{Client, StatusCode};
-use base64::engine::general_purpose;
 use serde::{de::DeserializeOwned, Serialize};
+use std::any::TypeId;
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
-use crate::lcu::util::token::get_auth;
 
 static HTTP_CLIENT: OnceLock<Client> = OnceLock::new();
 static AUTH: OnceLock<Mutex<(String, String)>> = OnceLock::new();
@@ -42,18 +43,27 @@ fn build_url(uri: &str, token: &str, port: &str) -> String {
     format!("https://riot:{}@127.0.0.1:{}/{}", token, port, uri)
 }
 
-pub async fn lcu_get<T: DeserializeOwned>(uri: &str) -> Result<T, String> {
+pub async fn lcu_get<T: DeserializeOwned + 'static>(uri: &str) -> Result<T, String> {
     for _ in 0..2 {
         let (token, port) = get_auth_pair();
         let url = build_url(uri, &token, &port);
         let resp = get_client().get(&url).send().await;
         match resp {
             Ok(r) if r.status() == StatusCode::OK => {
-                let data = r
-                    .json::<T>()
-                    .await
-                    .map_err(|e| format!("反序列化失败: {}", e))?;
-                return Ok(data);
+                if TypeId::of::<T>() == TypeId::of::<String>() {
+                    // 返回原始字符串
+                    let text = r.text().await.map_err(|e| format!("读取文本失败: {}", e))?;
+                    // 类型转换
+                    let any = Box::new(text) as Box<dyn std::any::Any>;
+                    return Ok(*any.downcast::<T>().unwrap());
+                } else {
+                    // 自动反序列化
+                    let data = r
+                        .json::<T>()
+                        .await
+                        .map_err(|e| format!("反序列化失败: {}", e))?;
+                    return Ok(data);
+                }
             }
             _ => {
                 refresh_auth();
@@ -163,4 +173,3 @@ pub async fn lcu_get_img_as_binary(uri: &str) -> Result<(Vec<u8>, String), Strin
     }
     Err("图片二进制请求失败或认证失效".to_string())
 }
-
