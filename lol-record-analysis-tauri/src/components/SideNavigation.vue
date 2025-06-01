@@ -70,6 +70,7 @@ import { Reload, BarChart, Server, CopyOutline, SettingsOutline } from '@vicons/
 import { NIcon, useMessage } from 'naive-ui';
 import { Component, computed, h, onMounted, ref } from 'vue';
 import { defaultSummoner, Summoner } from './record/type';
+import { invoke } from '@tauri-apps/api/core';
 
 onMounted(() => {
     getGetMySummoner().then(() => {
@@ -83,7 +84,13 @@ onMounted(() => {
 const mySummoner = ref<Summoner>()
 async function getGetMySummoner() {
     console.log(router.currentRoute.value.path);
+    const summoner = await invoke<string>('get_summoner', {
+        sourceType: 'my',
+        sourceId: '12',
+    });
+    console.log("获取召唤师信息", summoner);
     try {
+
         const res = await http.get<Summoner>("/GetSummoner"); // 包裹在 try 中
         if (res.status === 200) {
             mySummoner.value = res.data;
