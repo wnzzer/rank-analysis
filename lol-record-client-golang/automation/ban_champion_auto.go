@@ -95,25 +95,13 @@ func startBanChampion() error {
 	for _, action := range selectSession.Actions {
 		if len(action) >= 1 && action[0].Type == "pick" {
 			for _, pick := range action {
-				if pick.ActorCellId != myCellId && pick.Completed {
+				if pick.ActorCellId != myCellId {
 					notBanChampionIdsMap[pick.ChampionId] = true
 				}
 			}
 		}
 	}
 	init_log.AppLog.Info("Updated Not Ban Champion IDs Map: %+v", notBanChampionIdsMap)
-
-	//去除已经ban的英雄
-	for _, action := range selectSession.Actions {
-		if len(action) >= 1 && action[0].Type == "ban" {
-			for _, ban := range action {
-				if ban.ChampionId != 0 && ban.Completed {
-					notBanChampionIdsMap[ban.ChampionId] = true
-				}
-			}
-		}
-	}
-	init_log.AppLog.Info("Final Not Ban Champion IDs Map: %+v", notBanChampionIdsMap)
 
 	patchJsonMap := make(map[string]interface{})
 	patchJsonMap["championId"] = 1

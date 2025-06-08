@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"log"
+	"lol-record-analysis/util/init_log"
 	"os"
 	"path/filepath"
 	"sync"
@@ -91,18 +92,19 @@ func GetAll() map[string]interface{} {
 }
 
 // Set 设置配置值并触发回调
-func Set(key string, value interface{}) {
-	oldValue := v.Get(key)
-	if oldValue != value {
-		v.Set(key, value)
-		err := OverwriteConfig()
-		if err != nil {
-			return
-		}
-		// 调用回调函数
-		for _, onChangeCallback := range onChangeCallbackArr {
-			onChangeCallback(key, value)
-		}
+func Set(key string, value any) {
+	// oldValue := v.Get(key) // 如果不比较，则不再需要
+
+	// 直接设置新值
+	v.Set(key, value)
+	err := OverwriteConfig()
+	if err != nil {
+		init_log.AppLog.Error(err.Error())
+		return
+	}
+	// 调用回调函数
+	for _, onChangeCallback := range onChangeCallbackArr {
+		onChangeCallback(key, value)
 	}
 }
 

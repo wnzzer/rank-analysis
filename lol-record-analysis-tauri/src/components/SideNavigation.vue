@@ -35,7 +35,7 @@
                                 <n-flex>
                                     <span style="font-size: medium;font-size: 14px; font-weight: 1000;">{{
                                         mySummoner?.gameName
-                                    }}</span>
+                                        }}</span>
                                     <n-button text style="font-size: 12px" @click="copy">
                                         <n-icon>
                                             <copy-outline></copy-outline>
@@ -46,7 +46,7 @@
 
                                 <n-flex>
                                     <span style="color: #676768; font-size: small;">#{{ mySummoner?.tagLine
-                                    }}</span>
+                                        }}</span>
                                     <n-icon :depth="3" color="dark" style="position: relative; top: 2px;">
                                         <server></server>
                                     </n-icon><span>{{ mySummoner?.platformIdCn }} </span>
@@ -70,7 +70,6 @@ import { Reload, BarChart, Server, CopyOutline, SettingsOutline } from '@vicons/
 import { NIcon, useMessage } from 'naive-ui';
 import { Component, computed, h, onMounted, ref } from 'vue';
 import { defaultSummoner, Summoner } from './record/type';
-import { invoke } from '@tauri-apps/api/core';
 
 onMounted(() => {
     getGetMySummoner().then(() => {
@@ -83,12 +82,7 @@ onMounted(() => {
 
 const mySummoner = ref<Summoner>()
 async function getGetMySummoner() {
-    console.log(router.currentRoute.value.path);
-    const summoner = await invoke<string>('get_summoner', {
-        sourceType: 'my',
-        sourceId: '12',
-    });
-    console.log("获取召唤师信息", summoner);
+
     try {
 
         const res = await http.get<Summoner>("/GetSummoner"); // 包裹在 try 中
