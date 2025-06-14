@@ -11,14 +11,14 @@ pub async fn get_summoner(source_type: &str, source_id: &str) -> Result<Summoner
         }
         "puuid" => {
             // 调用 async 函数时加上 .await
-            let summoner = Summoner::new_by_puuid(source_id)
+            let summoner = Summoner::get_summoner_by_puuid(source_id)
                 .await
                 .map_err(|e| e.to_string())?;
             Ok(summoner)
         }
         "name" => {
             // 调用 async 函数时加上 .await
-            let summoner = Summoner::new_by_name(source_id)
+            let summoner = Summoner::get_summoner_name(source_id)
                 .await
                 .map_err(|e| e.to_string())?;
             Ok(summoner)

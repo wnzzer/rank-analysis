@@ -7,7 +7,9 @@
       <n-space vertical>
         <div class="setting-item">
           <span class="setting-label">
-            <n-icon size="20" color="#2080f0"><Flash /></n-icon>
+            <n-icon size="20" color="#2080f0">
+              <Flash />
+            </n-icon>
             自动接受对局
           </span>
           <n-switch v-model:value="autoAccept" @update:value="updateAcceptSwitch" />
@@ -15,54 +17,58 @@
 
         <div class="setting-item">
           <span class="setting-label">
-            <n-icon size="20" color="#18a058"><CheckmarkCircle /></n-icon>
+            <n-icon size="20" color="#18a058">
+              <CheckmarkCircle />
+            </n-icon>
             自动选择英雄
           </span>
           <n-switch v-model:value="autoPick" @update:value="updatePickSwitch" />
         </div>
         <n-flex>
           <VueDraggable ref="el" v-model="myPickData">
-            <n-tag v-for="item in myPickData" round closable :bordered="false" @close="deletePickData(item)" style="margin-right: 15px; ">
+            <n-tag v-for="item in myPickData" round closable :bordered="false" @close="deletePickData(item)"
+              style="margin-right: 15px; ">
               {{ championHash[item]?.label || `英雄 ${item}` }}
               <template #avatar>
-                <n-avatar :src="assetPrefix + 'champion' + item" 
-                :fallback-src="assetPrefix + 'champion-1'"/>
+                <n-avatar :src="assetPrefix + 'champion' + item" :fallback-src="assetPrefix + 'champion-1'" />
               </template>
             </n-tag>
           </VueDraggable>
           <n-select v-model:value="selectPickChampionId" filterable :filter="filterChampionFunc" placeholder="添加英雄"
             :render-tag="renderSingleSelectTag" :render-label="renderLabel" :options="championOptions" size="small"
-            @update:value="addPickData"
-            style="width: 170px"  />
+            @update:value="addPickData" style="width: 170px" />
         </n-flex>
         <n-text depth="3" style="font-size: 12px">拖动可以改变选择英雄的优先级</n-text>
         <div class="setting-item">
           <span class="setting-label">
-            <n-icon size="20" color="#d03050"><Close /></n-icon>
+            <n-icon size="20" color="#d03050">
+              <Close />
+            </n-icon>
             自动禁止英雄
           </span>
           <n-switch v-model:value="autoBan" @update:value="updateBanSwitch" />
         </div>
         <n-flex>
           <VueDraggable ref="el" v-model="myBanData">
-          <n-tag v-for="item in myBanData" round closable @close="deleteBanData(item)" :bordered="false" style="margin-right: 15px;">
-            {{ championHash[item]?.label || `英雄 ${item}` }}
-            <template #avatar>
-              <n-avatar :src="assetPrefix + 'champion' + item"
-              :fallback-src="assetPrefix + 'champion-1'"/>
-            </template>
-          </n-tag>
-        </VueDraggable>
-        <n-select v-model:value="selectBanChampionId" filterable :filter="filterChampionFunc" placeholder="添加英雄"
-          :render-tag="renderSingleSelectTag" :render-label="renderLabel" :options="championOptions" size="small"
-          @update:value="addBanData"
-          style="width: 170px"  />
+            <n-tag v-for="item in myBanData" round closable @close="deleteBanData(item)" :bordered="false"
+              style="margin-right: 15px;">
+              {{ championHash[item]?.label || `英雄 ${item}` }}
+              <template #avatar>
+                <n-avatar :src="assetPrefix + 'champion' + item" :fallback-src="assetPrefix + 'champion-1'" />
+              </template>
+            </n-tag>
+          </VueDraggable>
+          <n-select v-model:value="selectBanChampionId" filterable :filter="filterChampionFunc" placeholder="添加英雄"
+            :render-tag="renderSingleSelectTag" :render-label="renderLabel" :options="championOptions" size="small"
+            @update:value="addBanData" style="width: 170px" />
         </n-flex>
         <n-text depth="3" style="font-size: 12px">拖动可以改变禁用英雄的优先级</n-text>
 
         <div class="setting-item">
           <span class="setting-label">
-            <n-icon size="20" color="#2080f0"><PlayCircle /></n-icon>
+            <n-icon size="20" color="#2080f0">
+              <PlayCircle />
+            </n-icon>
             自动开始匹配
           </span>
           <n-switch v-model:value="autoStart" @update:value="updateStartSwitch" />
@@ -79,7 +85,7 @@ import { onMounted, ref } from 'vue'
 import { renderSingleSelectTag, renderLabel, championOptions, filterChampionFunc } from '../../components/composition'
 import { CheckmarkCircle, Flash, Close, PlayCircle } from '@vicons/ionicons5'
 import http, { assetPrefix } from '../../services/http'
-import {championHash} from '../../components/composition'
+import { championHash } from '../../components/composition'
 
 onMounted(async () => {
   autoAccept.value = (await http.get<boolean>("/config/settings.auto.acceptMatchSwitch")).data
@@ -104,23 +110,23 @@ const myBanData = ref<number[]>([]);
 
 const updateAcceptSwitch = async () => {
 
-  await http.put("/config/settings.auto.acceptMatchSwitch", {value:autoAccept.value})
-} 
+  await http.put("/config/settings.auto.acceptMatchSwitch", { value: autoAccept.value })
+}
 
 const updatePickSwitch = async () => {
-  await http.put("/config/settings.auto.pickChampionSwitch", {value:autoPick.value})
+  await http.put("/config/settings.auto.pickChampionSwitch", { value: autoPick.value })
 }
 const updateBanSwitch = async () => {
-  await http.put("/config/settings.auto.banChampionSwitch", {value:autoBan.value})
+  await http.put("/config/settings.auto.banChampionSwitch", { value: autoBan.value })
 }
 const updatePickData = async () => {
-  await http.put("/config/settings.auto.pickChampionSlice", {value:myPickData.value})
+  await http.put("/config/settings.auto.pickChampionSlice", { value: myPickData.value })
 }
 const updateBanData = async () => {
-  await http.put("/config/settings.auto.banChampionSlice", {value:myBanData.value})
+  await http.put("/config/settings.auto.banChampionSlice", { value: myBanData.value })
 }
 const updateStartSwitch = async () => {
-  await http.put("/config/settings.auto.startMatchSwitch", {value:autoStart.value})
+  await http.put("/config/settings.auto.startMatchSwitch", { value: autoStart.value })
 }
 
 const deleteBanData = async (value: number) => {
@@ -132,19 +138,19 @@ const deletePickData = async (value: number) => {
   await updatePickData()
 }
 const addBanData = async (value: number) => {
-  if(value === 0) return
+  if (value === 0) return
 
   myBanData.value?.push(value)
   await updateBanData()
 }
 const addPickData = async (value: number) => {
-  if(value === 0){
+  if (value === 0) {
     myPickData.value = [
       0,
     ]
-    
-  }else{
-    if(myPickData.value.length >= 1 && myPickData.value[0] === 0){
+
+  } else {
+    if (myPickData.value.length >= 1 && myPickData.value[0] === 0) {
       myPickData.value = []
     }
     myPickData.value?.push(value)
