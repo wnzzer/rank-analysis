@@ -9,7 +9,8 @@
                 <template #trigger>
                     <n-button circle @click="toMe">
 
-                        <n-image width="20px" :src="assetPrefix + mySummoner?.profileIconKey" preview-disabled>
+                        <n-image width="20px" :src="assetPrefix + 'profile' + mySummoner?.profileIconId"
+                            preview-disabled>
 
                             <template #error>
                                 <n-icon size="20" class="rotating-icon">
@@ -25,7 +26,8 @@
                     <n-card :bordered="false" content-style="padding : 0px">
                         <n-flex>
                             <div style="position: relative;">
-                                <img width="35px" height="35px" :src="assetPrefix + mySummoner?.profileIconKey">
+                                <img width="35px" height="35px"
+                                    :src="assetPrefix + 'profile' + mySummoner?.profileIconId">
                                 <div
                                     style="position: absolute; bottom: 4px; right: 0; font-size: 10px; width: 20px; height: 10px; text-align: center; line-height: 20px; border-radius: 50%; color: white;">
                                     {{ mySummoner?.summonerLevel }}
@@ -64,12 +66,12 @@
 <script setup lang="ts">
 import router from '../router';
 import { getFirstPath } from '../router';
-import http from '../services/http';
 import { assetPrefix } from '../services/http';
 import { Reload, BarChart, Server, CopyOutline, SettingsOutline } from '@vicons/ionicons5'
 import { NIcon, useMessage } from 'naive-ui';
 import { Component, computed, h, onMounted, ref } from 'vue';
 import { defaultSummoner, Summoner } from './record/type';
+import { invoke } from '@tauri-apps/api/core';
 
 onMounted(() => {
     getGetMySummoner().then(() => {
@@ -85,15 +87,11 @@ async function getGetMySummoner() {
 
     try {
 
-        const res = await http.get<Summoner>("/GetSummoner"); // 包裹在 try 中
-        if (res.status === 200) {
-            mySummoner.value = res.data;
-            if (router.currentRoute.value.path == "/Loading") {
-                router.push({
-                    path: '/Record',
-                });
-            }
+        mySummoner.value = await invoke<Summoner>("get_summoner", {
+            sourceType: "my",
+            sourceId: "0",
         }
+        );
 
     } catch (error) {
         mySummoner.value = defaultSummoner();

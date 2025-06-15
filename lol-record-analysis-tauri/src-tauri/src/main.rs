@@ -26,9 +26,7 @@ fn start_backend_process() -> std::process::Child {
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_http::init())
-        // 添加库的命令插件
         .invoke_handler(tauri::generate_handler![ipc::get_summoner])
-        // 添加进程管理
         .manage(BackendProcess(Mutex::new(None)))
         .setup(|app| {
             if !cfg!(debug_assertions) {
