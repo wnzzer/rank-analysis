@@ -5,11 +5,11 @@ use reqwest::{Client, StatusCode};
 use serde::{de::DeserializeOwned, Serialize};
 use std::any::TypeId;
 use std::sync::{Mutex, OnceLock};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 static HTTP_CLIENT: OnceLock<Client> = OnceLock::new();
 static AUTH: OnceLock<Mutex<(String, String)>> = OnceLock::new();
-
+static LAST_REFRESH_TIME: OnceLock<Mutex<Instant>> = OnceLock::new();
 fn get_client() -> &'static Client {
     HTTP_CLIENT.get_or_init(|| {
         Client::builder()
@@ -31,6 +31,17 @@ fn get_auth_pair() -> (String, String) {
 }
 
 fn refresh_auth() -> (String, String) {
+    let last_refresh = LAST_REFRESH_TIME.get_or_init(|| Mutex::new(Instant::now()));
+    let mut last_refresh_guard = last_refresh.lock().unwrap();
+
+    let now = Instant::now();
+    if now.duration_since(*last_refresh_guard) < Duration::from_secs(3) {
+        let auth_guard = AUTH.get().expect("AUTH not initialized").lock().unwrap();
+        return auth_guard.clone();
+    }
+
+    *last_refresh_guard = now;
+
     let auth = AUTH.get_or_init(|| Mutex::new((String::new(), String::new())));
     let (token, port) = get_auth().expect("刷新LCU认证失败");
     let mut guard = auth.lock().unwrap();
