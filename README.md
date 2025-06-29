@@ -66,11 +66,11 @@
 
 # 软件预览
 
-![软件界面](./lol-record-analysis-app/public/one.png "软件主界面预览")
+![软件界面](./public/1.png "软件主界面预览")
 
-![分析功能](./lol-record-analysis-app/public/two.png "分析功能演示")
+![分析功能](./public/2.png "分析功能演示")
 
-![自动化功能](./lol-record-analysis-app/public/three.png "分析功能演示")
+![自动化功能](./public/3.png "分析功能演示")
 
 
 ---

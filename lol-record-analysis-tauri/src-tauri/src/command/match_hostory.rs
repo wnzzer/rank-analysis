@@ -31,7 +31,7 @@ pub async fn get_match_history_by_name(
     let mut match_hostory = get_match_history_cache(&puuid, begin_index, end_index).await?;
     match_hostory.begin_index = begin_index;
     match_hostory.end_index = end_index;
-    return Ok(match_hostory);
+    Ok(match_hostory)
 }
 
 pub async fn get_filter_match_history_by_name(
@@ -44,37 +44,30 @@ pub async fn get_filter_match_history_by_name(
     // 1. 获取 PUUID
     let puuid = Summoner::get_summoner_by_name(&name).await?.puuid;
 
-    let mut filtered_match_history = MatchHistory::default(); // 初始化一个空的 MatchHistory 结构体
-    let max_games = 10; // 设定最大筛选结果数，防止无限循环，与Go代码保持一致
-    let chunk_size = 50; // LCU通常每批次返回50个
+    let mut filtered_match_history = MatchHistory::default();
+    let max_games = 10;
+    let chunk_size = 50;
 
-    let mut current_end_index: i32; // 用于当前批次 LCU API 请求的结束索引
+    let mut current_end_index: i32;
 
-    // 循环直到达到请求的 end_index_param 或收集到足够的筛选结果
     while begin_index < end_index_param {
-        // 计算当前批次的结束索引
-        current_end_index = begin_index + chunk_size - 1; // LCU的end_index是包含的，所以要减1
+        current_end_index = begin_index + chunk_size - 1;
         if current_end_index >= end_index_param {
             current_end_index = end_index_param;
         }
 
-        let temp_match_history = match get_match_history_cache(
-            &puuid,
-            begin_index,
-            current_end_index, // 使用计算出的当前批次结束索引
-        )
-        .await
-        {
-            Ok(mh) => mh,
-            Err(e) => {
-                // 在Go代码中，如果API调用失败，会直接返回错误
-                // 这里也遵循这个逻辑
-                return Err(format!(
-                    "获取比赛历史失败 ({} - {}): {}",
-                    begin_index, current_end_index, e
-                ));
-            }
-        };
+        let temp_match_history =
+            match get_match_history_cache(&puuid, begin_index, current_end_index).await {
+                Ok(mh) => mh,
+                Err(e) => {
+                    // 在Go代码中，如果API调用失败，会直接返回错误
+                    // 这里也遵循这个逻辑
+                    return Err(format!(
+                        "获取比赛历史失败 ({} - {}): {}",
+                        begin_index, current_end_index, e
+                    ));
+                }
+            };
 
         let mut have_data_in_chunk = false; // 标记当前批次是否找到任何数据 (Go代码中的 haveData)
         let mut game_index_in_chunk = 0; // 用于记录当前批次中遍历到的游戏索引
@@ -133,7 +126,7 @@ static MATCH_HISTORY_CACHE: LazyLock<Cache<String, MatchHistory>> = LazyLock::ne
         .build()
 });
 
-async fn get_match_history_cache(
+pub async fn get_match_history_cache(
     puuid: &str,
     beg_index: i32,
     end_index: i32,
