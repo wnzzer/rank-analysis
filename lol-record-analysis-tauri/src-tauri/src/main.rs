@@ -1,6 +1,6 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-use lol_record_analysis_tauri_lib::ipc;
+use lol_record_analysis_tauri_lib::command;
 use std::process::Command;
 use std::sync::Mutex;
 use tauri::Manager;
@@ -26,7 +26,11 @@ fn start_backend_process() -> std::process::Child {
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_http::init())
-        .invoke_handler(tauri::generate_handler![ipc::get_summoner])
+        .invoke_handler(tauri::generate_handler![
+            command::get_summoner_by_puuid,
+            command::get_summoner_by_name,
+            command::get_my_summoner
+        ])
         .manage(BackendProcess(Mutex::new(None)))
         .setup(|app| {
             if !cfg!(debug_assertions) {
