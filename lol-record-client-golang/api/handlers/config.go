@@ -18,17 +18,21 @@ func GetFullConfig(c *gin.Context) {
 }
 
 // GetConfig 获取指定配置项
+// GetConfig 获取指定配置项
 func GetConfig(c *gin.Context) {
 	key := c.Param("key")
 
-	// 根据类型自动获取值
-	value := config.Get[any](key)
-	if value == nil {
-		c.JSON(404, gin.H{"error": "配置项不存在"})
+	// 先获取值到 interface{} 类型变量
+	untypedValue := config.Get[any](key)
+
+	// 然后检查 untypedValue 是否为 nil
+	if untypedValue == nil {
+		c.JSON(200, "")
 		return
 	}
 
-	c.JSON(200, value)
+	// 如果不是 nil，再将该值直接返回，Gin 的 JSON 处理会自动处理 interface{} 类型
+	c.JSON(200, untypedValue)
 }
 
 type UpdateConfigRequest struct {

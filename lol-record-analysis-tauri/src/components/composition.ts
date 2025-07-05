@@ -2,10 +2,11 @@ import { assetPrefix } from "../services/http";
 import { NAvatar, SelectRenderLabel, SelectRenderTag, useMessage } from "naive-ui";
 import { h } from "vue";
 import { championOption } from "./type";
+import { QueueInfo, Summoner } from "./record/type";
 
 export const useCopy = () => {
   const message = useMessage();
-  
+
   const copy = (nameId: string) => {
     navigator.clipboard.writeText(nameId)
       .then(() => {
@@ -15,12 +16,12 @@ export const useCopy = () => {
         message.error("复制失败");
       });
   }
-  
+
   return { copy };
 }
-export const championOptions:championOption[] = [
-  {label: '全部', value: 0, realName: '', nickname: ''},
-  {label: '黑暗之女', value: 1, realName: '安妮', nickname: '火女', },
+export const championOptions: championOption[] = [
+  { label: '全部', value: 0, realName: '', nickname: '' },
+  { label: '黑暗之女', value: 1, realName: '安妮', nickname: '火女', },
   { label: '狂战士', value: 2, realName: '奥拉夫', nickname: '大头' },
   { label: '正义巨像', value: 3, realName: '加里奥', nickname: '城墙' },
   { label: '卡牌大师', value: 4, realName: '崔斯特', nickname: '卡牌' },
@@ -193,11 +194,11 @@ export const championOptions:championOption[] = [
 ]
 
 
-export const championHash: Readonly<{[key: number]: championOption}> = Object.freeze(
+export const championHash: Readonly<{ [key: number]: championOption }> = Object.freeze(
   championOptions.reduce((acc, option) => {
     acc[option.value] = option;
     return acc;
-  }, {} as {[key: number]: championOption})
+  }, {} as { [key: number]: championOption })
 );
 
 export function filterChampionFunc(input: string, option: { label: string }) {
@@ -260,3 +261,10 @@ export const renderLabel: SelectRenderLabel = (option) => {
   )
 }
 
+export const divisionOrPoint = (queueInfo: QueueInfo) => {
+  const highTire = ["MASTER", "GRANDMASTER", "CHALLENGER"];
+  if (highTire.includes(queueInfo.tier)) {
+    return queueInfo.leaguePoints
+  }
+  return queueInfo.division
+}

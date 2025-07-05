@@ -8,14 +8,19 @@
                 <!-- 左侧部分 -->
 
                 <n-flex vertical justify="space-between" style="gap: 0; flex: 1; height: 100%;">
-                    <PlayerCard v-for="(sessionSummoner,i) of sessionData.teamOne" :key="'teamOne' + i" :session-summoner="sessionSummoner" :mode-type="sessionData.type" :type-cn="sessionData.typeCn" :img-url="comImgTier.teamOne[i]?.imgUrl" :tier-cn="comImgTier.teamOne[i]?.tierCn"></PlayerCard>
+                    <PlayerCard v-for="(sessionSummoner, i) of sessionData.teamOne" :key="'teamOne' + i"
+                        :session-summoner="sessionSummoner" :mode-type="sessionData.type" :type-cn="sessionData.typeCn"
+                        :img-url="comImgTier.teamOne[i]?.imgUrl" :tier-cn="comImgTier.teamOne[i]?.tierCn"></PlayerCard>
                 </n-flex>
 
                 <!-- 右侧部分 -->
                 <n-flex vertical justify="space-between" style="gap: 0; flex: 1; height: 100%;">
                     <n-flex vertical justify="space-between" style="gap: 0; flex: 1; height: 100%;">
-                    <PlayerCard v-for="(sessionSummoner,i) of sessionData.teamTwo" :key="'teamTwo' + i" :session-summoner="sessionSummoner" :mode-type="sessionData.type" :type-cn="sessionData.typeCn" :img-url="comImgTier.teamTwo[i]?.imgUrl" :tier-cn="comImgTier.teamTwo[i]?.tierCn"></PlayerCard>
-                </n-flex>
+                        <PlayerCard v-for="(sessionSummoner, i) of sessionData.teamTwo" :key="'teamTwo' + i"
+                            :session-summoner="sessionSummoner" :mode-type="sessionData.type"
+                            :type-cn="sessionData.typeCn" :img-url="comImgTier.teamTwo[i]?.imgUrl"
+                            :tier-cn="comImgTier.teamTwo[i]?.tierCn"></PlayerCard>
+                    </n-flex>
                 </n-flex>
             </n-flex>
         </div>
@@ -41,6 +46,7 @@ import emerald from '../assets/imgs/tier/emerald.png';
 import LoadingComponent from '../components/LoadingComponent.vue';
 import PlayerCard from '../components/gaming/PlayerCard.vue';
 import { SessionData } from '../components/gaming/type';
+import { divisionOrPoint } from '../components/composition';
 /**
 * Returns the image path for the given rank tier.
 * This function dynamically requires the image based on the provided tier string,
@@ -91,11 +97,11 @@ const comImgTier = computed(() => {
 
 
         let tierCn = sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.tierCn
-            ? sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.tierCn.slice(-2) + " " +  sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.division 
+            ? sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.tierCn.slice(-2) + " " + divisionOrPoint(sessionSummoner.rank.queueMap.RANKED_SOLO_5x5)
             : '无';
 
         if (sessionData.type === "RANKED_FLEX_SR" && sessionSummoner.rank.queueMap.RANKED_FLEX_SR.tierCn) {
-            tierCn = sessionSummoner.rank.queueMap.RANKED_FLEX_SR.tierCn.slice(-2) + " " +  sessionSummoner.rank.queueMap.RANKED_FLEX_SR.division;
+            tierCn = sessionSummoner.rank.queueMap.RANKED_FLEX_SR.tierCn.slice(-2) + " " + divisionOrPoint(sessionSummoner.rank.queueMap.RANKED_FLEX_SR);
         }
 
 
@@ -117,11 +123,11 @@ const comImgTier = computed(() => {
 
 
         let tierCn = sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.tierCn
-            ? sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.tierCn.slice(-2) + " " +  sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.division
+            ? sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.tierCn.slice(-2) + " " + divisionOrPoint(sessionSummoner.rank.queueMap.RANKED_SOLO_5x5)
             : '无';
 
         if (sessionData.type === "RANKED_FLEX_SR" && sessionSummoner.rank.queueMap.RANKED_FLEX_SR.tierCn) {
-            tierCn = sessionSummoner.rank.queueMap.RANKED_FLEX_SR.tierCn.slice(-2) + " " +  sessionSummoner.rank.queueMap.RANKED_FLEX_SR.division;
+            tierCn = sessionSummoner.rank.queueMap.RANKED_FLEX_SR.tierCn.slice(-2) + " " + divisionOrPoint(sessionSummoner.rank.queueMap.RANKED_FLEX_SR);
         }
 
 
@@ -239,6 +245,4 @@ async function GetSessionData() {
     color: #fff;
     /* 白色字体 */
 }
-
-
 </style>

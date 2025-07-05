@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 	"syscall"
+	"time"
 	"unsafe"
 )
 
@@ -185,7 +186,19 @@ var (
 	curPid = 0
 )
 
+var (
+	lastAuthCallTime time.Time
+)
+
 func GetAuth() (string, string, error) {
+	// 检查距离上次调用是否超过三秒
+	if time.Since(lastAuthCallTime) < 3*time.Second {
+		return "", "", fmt.Errorf("调用过于频繁，请稍后再试")
+	}
+
+	// 更新最后调用时间
+	lastAuthCallTime = time.Now()
+
 	pids, err := getProcessPidByName("LeagueClientUx.exe")
 	if err != nil {
 		return "", "", fmt.Errorf("无法获取进程ID: %v", err)

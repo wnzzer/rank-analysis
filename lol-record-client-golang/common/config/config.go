@@ -115,9 +115,13 @@ func RegisterOnChangeCallback(callback func(key string, newValue interface{})) {
 
 func Get[T any](key string) T {
 	var result T
+	value := v.Get(key)
+	if value == nil {
+		return result
+	}
 	switch any(result).(type) {
 	case string:
-		return any(v.GetString(key)).(T)
+		return value.(T)
 	case int:
 		return any(v.GetInt(key)).(T)
 	case []int:

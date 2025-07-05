@@ -37,7 +37,7 @@
                                 <n-flex>
                                     <span style="font-size: medium;font-size: 14px; font-weight: 1000;">{{
                                         mySummoner?.gameName
-                                        }}</span>
+                                    }}</span>
                                     <n-button text style="font-size: 12px" @click="copy">
                                         <n-icon>
                                             <copy-outline></copy-outline>
@@ -48,7 +48,7 @@
 
                                 <n-flex>
                                     <span style="color: #676768; font-size: small;">#{{ mySummoner?.tagLine
-                                        }}</span>
+                                    }}</span>
                                     <n-icon :depth="3" color="dark" style="position: relative; top: 2px;">
                                         <server></server>
                                     </n-icon><span>{{ mySummoner?.platformIdCn }} </span>
@@ -66,12 +66,11 @@
 <script setup lang="ts">
 import router from '../router';
 import { getFirstPath } from '../router';
-import { assetPrefix } from '../services/http';
+import http, { assetPrefix } from '../services/http';
 import { Reload, BarChart, Server, CopyOutline, SettingsOutline } from '@vicons/ionicons5'
 import { NIcon, useMessage } from 'naive-ui';
 import { Component, computed, h, onMounted, ref } from 'vue';
 import { defaultSummoner, Summoner } from './record/type';
-import { invoke } from '@tauri-apps/api/core';
 
 onMounted(() => {
     getGetMySummoner().then(() => {
@@ -87,11 +86,15 @@ async function getGetMySummoner() {
 
     try {
 
-        mySummoner.value = await invoke<Summoner>("get_summoner", {
-            sourceType: "my",
-            sourceId: "0",
+        const res = await http.get<Summoner>("/GetSummoner"); // 包裹在 try 中
+        if (res.status === 200) {
+            mySummoner.value = res.data;
+            if (router.currentRoute.value.path == "/Loading") {
+                router.push({
+                    path: '/Record',
+                });
+            }
         }
-        );
 
     } catch (error) {
         mySummoner.value = defaultSummoner();
@@ -105,6 +108,7 @@ async function getGetMySummoner() {
         }
     }
 }
+
 
 function renderIcon(icon: Component) {
     return () => h(NIcon, null, { default: () => h(icon) })

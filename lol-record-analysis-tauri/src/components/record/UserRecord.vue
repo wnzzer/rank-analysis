@@ -123,7 +123,9 @@
           </div>
           <div style="position: absolute; bottom: 10px; left: 25px;">
             <span style="font-size: 12px;">
-              {{ summoner.rank.queueMap.RANKED_SOLO_5x5.tierCn }} {{ summoner.rank.queueMap.RANKED_SOLO_5x5.division }}
+              {{ summoner.rank.queueMap.RANKED_SOLO_5x5.tierCn }} {{
+                divisionOrPoint(summoner.rank.queueMap.RANKED_SOLO_5x5)
+              }}
             </span>
           </div>
           <div style="width: 60%;">
@@ -157,7 +159,9 @@
           </div>
           <div style="position: absolute; bottom: 10px; left: 25px;">
             <span style="font-size: 12px;">
-              {{ summoner.rank.queueMap.RANKED_FLEX_SR.tierCn }} {{ summoner.rank.queueMap.RANKED_FLEX_SR.division }}
+              {{ summoner.rank.queueMap.RANKED_FLEX_SR.tierCn }} {{
+                divisionOrPoint(summoner.rank.queueMap.RANKED_FLEX_SR)
+              }}
             </span>
           </div>
           <div style="width: 60%;">
@@ -300,6 +304,7 @@ import RecordButton from './RecordButton.vue';
 import { useRoute } from 'vue-router';
 import { RankTag, RecentData, SummonerData, UserTag } from './type';
 import { winRate, kdaColor, deathsColor, assistsColor, otherColor, groupRateColor, killsColor, winRateColor, modeOptions } from './composition';
+import { divisionOrPoint } from '../composition'
 import unranked from '../../assets/imgs/tier/unranked.png';
 import bronze from '../../assets/imgs/tier/bronze.png';
 import silver from '../../assets/imgs/tier/silver.png';
@@ -363,8 +368,14 @@ let name = ""
 onMounted(() => {
   name = route.query.name as string
   getSummoner(name)
-  getTags(name, 0)
 })
+
+onMounted(() => {
+  http.get<number>("/config/settings.user.selectMode").then((res) => {
+    mode.value = modeOptions.find(option => option.key === res.data)?.label || "全部";
+    getTags(name, res.data);
+  });
+});
 
 const getSummoner = async (name: string) => {
   const res = await http.get<SummonerData>(
@@ -377,6 +388,9 @@ const getSummoner = async (name: string) => {
 
 const mode = ref("全部")
 const updateModel = (key: number, option: { label: string; }) => {
+  http.put("/config/settings.user.selectMode", {
+    value: key
+  })
   getTags(name, key)
   mode.value = option.label
 }
