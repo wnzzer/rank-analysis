@@ -1,17 +1,11 @@
-use moka::future::Cache;
-use std::{sync::LazyLock, time::Duration};
-
-use crate::lcu::api::{
-    match_history::{GamesWrapper, MatchHistory},
-    summoner::Summoner,
-};
+use crate::lcu::api::{match_history::MatchHistory, summoner::Summoner};
 pub async fn get_match_history(
     puuid: String,
     begin_index: i32,
     end_index: i32,
 ) -> Result<MatchHistory, String> {
     // This command specifically calls the get_match_history method
-    get_match_history_cache(&puuid, begin_index, end_index).await
+    MatchHistory::get_match_history_by_puuid(&puuid, begin_index, end_index).await
 }
 
 pub async fn get_match_history_by_puuid(
@@ -19,7 +13,7 @@ pub async fn get_match_history_by_puuid(
     begin_index: i32,
     end_index: i32,
 ) -> Result<MatchHistory, String> {
-    get_match_history_cache(&puuid, begin_index, end_index).await
+    MatchHistory::get_match_history_by_puuid(&puuid, begin_index, end_index).await
 }
 
 pub async fn get_match_history_by_name(
@@ -28,7 +22,8 @@ pub async fn get_match_history_by_name(
     end_index: i32,
 ) -> Result<MatchHistory, String> {
     let puuid = Summoner::get_summoner_by_name(&name).await?.puuid;
-    let mut match_hostory = get_match_history_cache(&puuid, begin_index, end_index).await?;
+    let mut match_hostory =
+        MatchHistory::get_match_history_by_puuid(&puuid, begin_index, end_index).await?;
     match_hostory.begin_index = begin_index;
     match_hostory.end_index = end_index;
     Ok(match_hostory)
@@ -36,151 +31,58 @@ pub async fn get_match_history_by_name(
 
 pub async fn get_filter_match_history_by_name(
     name: String,
-    mut begin_index: i32, // 注意这里是 mut，因为会在循环中修改
-    end_index_param: i32, // 使用不同的名称，避免与 Go 代码中的 end_index 混淆，这里是请求的最终结束索引
+    mut begin_index: i32,
+    end_index_param: i32,
     filter_queue_id: i32,
     filter_champ_id: i32,
 ) -> Result<MatchHistory, String> {
-    // 1. 获取 PUUID
     let puuid = Summoner::get_summoner_by_name(&name).await?.puuid;
 
-    let mut filtered_match_history = MatchHistory::default();
-    let max_games = 10;
-    let chunk_size = 50;
+    let mut res_match_history = MatchHistory::default();
+    let mut end_index = begin_index + 49; // 每次获取 50 条数据
 
-    let mut current_end_index: i32;
-
-    while begin_index < end_index_param {
-        current_end_index = begin_index + chunk_size - 1;
-        if current_end_index >= end_index_param {
-            current_end_index = end_index_param;
+    loop {
+        let match_history =
+            MatchHistory::get_match_history_by_puuid(&puuid, begin_index, end_index).await?;
+        if !have_record(&match_history, filter_champ_id, filter_queue_id) {
+            break;
         }
 
-        let temp_match_history =
-            match get_match_history_cache(&puuid, begin_index, current_end_index).await {
-                Ok(mh) => mh,
-                Err(e) => {
-                    // 在Go代码中，如果API调用失败，会直接返回错误
-                    // 这里也遵循这个逻辑
-                    return Err(format!(
-                        "获取比赛历史失败 ({} - {}): {}",
-                        begin_index, current_end_index, e
-                    ));
-                }
-            };
-
-        let mut have_data_in_chunk = false; // 标记当前批次是否找到任何数据 (Go代码中的 haveData)
-        let mut game_index_in_chunk = 0; // 用于记录当前批次中遍历到的游戏索引
-
-        for game in temp_match_history.games.games {
-            // 进行筛选：如果 filterChampId 和 filterQueueId 都匹配，才添加
-            let mut add_game = true;
-
-            if filter_champ_id != 0
-                && game.participants.get(0).map(|p| p.champion_id) != Some(filter_champ_id)
+        for game in match_history.games.games {
+            if (filter_queue_id == 0 || game.queue_id == filter_queue_id)
+                && (filter_champ_id == 0
+                    || game
+                        .participants
+                        .iter()
+                        .any(|p| p.champion_id == filter_champ_id))
             {
-                add_game = false;
+                res_match_history.games.games.push(game);
             }
-
-            if filter_queue_id != 0 && game.queue_id != filter_queue_id {
-                add_game = false;
-            }
-
-            if add_game {
-                filtered_match_history.games.games.push(game);
-                have_data_in_chunk = true;
-            }
-
-            // 如果筛选的比赛数量超出 maxGames，则提前返回
-            if filtered_match_history.games.games.len() >= max_games as usize {
-                // Go代码中返回的是 begIndex, begIndex + j
-                // 这里的 j 是 tempMatchHistory.Games.Games 的索引
-                // 所以我们需要记录当前批次的结束索引和遍历到的游戏索引
-                filtered_match_history.begin_index = begin_index;
-                filtered_match_history.end_index = begin_index + game_index_in_chunk as i32; // 模拟 Go 的 j
-                return Ok(filtered_match_history);
-            }
-            game_index_in_chunk += 1;
         }
 
-        if !have_data_in_chunk {
-            filtered_match_history.begin_index = begin_index;
-            filtered_match_history.end_index = current_end_index;
-            return Ok(filtered_match_history);
+        if res_match_history.games.games.len() >= end_index_param as usize {
+            break; // 达到请求的结束索引
         }
 
-        // 移动到下一个批次的开始索引
-        begin_index += chunk_size;
+        begin_index += 50;
+        end_index += 50;
     }
 
-    // 如果循环结束，将最终的 begin_index 和 end_index 设置到结果中
-    filtered_match_history.begin_index = begin_index;
-    filtered_match_history.end_index = end_index_param;
-    Ok(filtered_match_history)
+    res_match_history.begin_index = begin_index;
+    res_match_history.end_index = end_index;
+    Ok(res_match_history)
 }
 
-static MATCH_HISTORY_CACHE: LazyLock<Cache<String, MatchHistory>> = LazyLock::new(|| {
-    Cache::builder()
-        .time_to_live(Duration::from_secs(60))
-        .max_capacity(50)
-        .build()
-});
-
-pub async fn get_match_history_cache(
-    puuid: &str,
-    beg_index: i32,
-    end_index: i32,
-) -> Result<MatchHistory, String> {
-    let max_cache_end_index = 49;
-
-    // 参数验证
-    if beg_index < 0 || end_index < 0 {
-        return Err("索引不能为负数".to_string());
-    }
-
-    if beg_index >= end_index {
-        return Err("开始索引必须小于结束索引".to_string());
-    }
-
-    // 如果没有用户缓存，且在缓存范围内，则获取缓存
-    if !MATCH_HISTORY_CACHE.contains_key(puuid) && end_index <= max_cache_end_index {
-        let cache = MatchHistory::get_match_history_by_puuid(puuid, 0, max_cache_end_index).await?;
-        MATCH_HISTORY_CACHE.insert(puuid.to_string(), cache).await;
-    }
-
-    let res = if end_index <= max_cache_end_index {
-        let history = MATCH_HISTORY_CACHE
-            .get(puuid)
-            .await
-            .ok_or_else(|| format!("未找到缓存的比赛历史: {}", puuid))?
-            .clone();
-
-        let beg = beg_index as usize;
-        let end = end_index as usize;
-        let total_games = history.games.games.len();
-
-        if beg >= total_games {
-            return Err(format!(
-                "开始索引 {} 超出范围，总游戏数 {}",
-                beg, total_games
-            ));
-        }
-
-        let actual_end = std::cmp::min(end, total_games);
-
-        if beg >= actual_end {
-            return Err(format!("有效范围为空：{} >= {}", beg, actual_end));
-        }
-
-        MatchHistory {
-            games: GamesWrapper {
-                games: history.games.games[beg..actual_end].to_vec(),
-            },
-            ..history
-        }
-    } else {
-        MatchHistory::get_match_history_by_puuid(puuid, beg_index, end_index).await?
-    };
-
-    Ok(res)
+fn have_record(match_history: &MatchHistory, filter_champ_id: i32, filter_queue_id: i32) -> bool {
+    match_history.games.games.iter().any(|game| {
+        // 队列ID为0时不过滤，否则要求相等
+        let queue_ok = filter_queue_id == 0 || game.queue_id == filter_queue_id;
+        // 英雄ID为0时不过滤，否则要求有任意参与者相等
+        let champ_ok = filter_champ_id == 0
+            || game
+                .participants
+                .iter()
+                .any(|p| p.champion_id == filter_champ_id);
+        queue_ok && champ_ok
+    })
 }

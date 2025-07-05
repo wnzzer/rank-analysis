@@ -1,3 +1,6 @@
+use std::sync::LazyLock;
+
+use moka::future::Cache;
 use serde::{Deserialize, Serialize};
 
 use crate::lcu::api::model::{Participant, ParticipantIdentity};
@@ -32,11 +35,19 @@ pub struct GameDetailPlayer {
     #[serde(rename = "summonerId")]
     pub summoner_id: i64,
 }
-
+static GAME_DETAIL_CACHE: LazyLock<Cache<i32, GameDetail>> =
+    LazyLock::new(|| Cache::builder().max_capacity(500).build());
 impl GameDetail {
-    pub async fn get_game_detail_by_id(game_id: &str) -> Result<Self, String> {
+    pub async fn get_game_detail_by_id(game_id: &i32) -> Result<Self, String> {
+        if let Some(cached) = GAME_DETAIL_CACHE.get(game_id).await {
+            return Ok(cached);
+        }
         let uri = format!("lol-match-history/v1/games/{}", game_id);
         let game_detail = crate::lcu::util::http::lcu_get::<Self>(&uri).await?;
+        // 缓存游戏详情
+        GAME_DETAIL_CACHE
+            .insert(*game_id, game_detail.clone())
+            .await;
         Ok(game_detail)
     }
 }

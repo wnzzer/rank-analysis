@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "lol-record-analysis-app",
-  "version": "1.6.0",
+  "version": "1.5.9",
   "identifier": "com.lol-record-analysis-tauri.app",
   "build": {
     "beforeDevCommand": "npm run dev",
