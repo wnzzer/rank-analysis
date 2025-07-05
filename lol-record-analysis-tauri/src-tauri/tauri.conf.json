@@ -1,5 +1,4 @@
 {
-  "$schema": "https://schema.tauri.app/config/2",
   "productName": "lol-record-analysis-app",
   "version": "1.5.9",
   "identifier": "com.lol-record-analysis-tauri.app",
