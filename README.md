@@ -1,7 +1,7 @@
 <div align="center">
   <div>
     <img
-    src="./lol-record-analysis-app/public/assets/logo.png"
+    src="./lol-record-analysis-tauri/src-tauri/icons/256x256.png"
     width="128"
     height="128"
     />
