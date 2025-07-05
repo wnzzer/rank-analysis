@@ -2,7 +2,7 @@ import { assetPrefix } from "../services/http";
 import { NAvatar, SelectRenderLabel, SelectRenderTag, useMessage } from "naive-ui";
 import { h } from "vue";
 import { championOption } from "./type";
-import { QueueInfo, Summoner } from "./record/type";
+import { QueueInfo } from "./record/type";
 
 export const useCopy = () => {
   const message = useMessage();
