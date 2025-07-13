@@ -57,10 +57,6 @@ pub struct RecentData {
     pub kills: f64,
     pub deaths: f64,
     pub assists: f64,
-    pub wins: i32,
-    pub losses: i32,
-    pub flex_wins: i32,
-    pub flex_losses: i32,
     pub select_mode: i32,
     pub select_mode_cn: String,
     pub select_wins: i32,
@@ -82,7 +78,7 @@ pub struct UserTag {
 }
 
 pub async fn get_user_tag_by_puuid(puuid: &str, mode: i32) -> Result<UserTag, String> {
-    let mut match_history = MatchHistory::get_match_history_by_puuid(&puuid, 0, 19).await?;
+    let mut match_history = MatchHistory::get_match_history_by_puuid(puuid, 0, 19).await?;
     match_history.enrich_game_detail().await?;
 
     let mut tags = Vec::new();
@@ -124,8 +120,7 @@ pub async fn get_user_tag_by_puuid(puuid: &str, mode: i32) -> Result<UserTag, St
     let deaths = (deaths * 10.0).trunc() / 10.0;
     let assists = (assists * 10.0).trunc() / 10.0;
 
-    let (wins, losses, flex_wins, flex_losses, select_wins, select_losses) =
-        count_win_and_loss(&match_history, mode);
+    let (select_wins, select_losses) = count_win_and_loss(&match_history, mode);
     let (
         group_rate,
         average_gold,
@@ -145,10 +140,6 @@ pub async fn get_user_tag_by_puuid(puuid: &str, mode: i32) -> Result<UserTag, St
             kills,
             deaths,
             assists,
-            wins,
-            losses,
-            flex_wins,
-            flex_losses,
             select_mode: mode,
             select_mode_cn,
             select_wins,
@@ -165,7 +156,7 @@ pub async fn get_user_tag_by_puuid(puuid: &str, mode: i32) -> Result<UserTag, St
     };
 
     // 计算朋友组队胜率和冤家组队胜率
-    count_friend_and_dispute(&one_game_player_map, &mut user_tag.recent_data, &puuid).await;
+    count_friend_and_dispute(&one_game_player_map, &mut user_tag.recent_data, puuid).await;
 
     Ok(user_tag)
 }
@@ -395,40 +386,12 @@ fn count_gold_and_group_and_damage_dealt_to_champions(
     )
 }
 
-fn count_win_and_loss(match_history: &MatchHistory, mode: i32) -> (i32, i32, i32, i32, i32, i32) {
-    let mut wins = 0;
-    let mut losses = 0;
-    let mut flex_wins = 0;
-    let mut flex_losses = 0;
+fn count_win_and_loss(match_history: &MatchHistory, mode: i32) -> (i32, i32) {
     let mut select_wins = 0;
     let mut select_losses = 0;
 
     for game in &match_history.games.games {
-        if game.queue_id == QUEUE_SOLO_5X5 {
-            if game.participants[0].stats.win {
-                wins += 1;
-            } else {
-                losses += 1;
-            }
-        }
-
-        if game.queue_id == QUEUE_FLEX {
-            if game.participants[0].stats.win {
-                flex_wins += 1;
-            } else {
-                flex_losses += 1;
-            }
-        }
-
-        if mode != 0 {
-            if game.queue_id == mode {
-                if game.participants[0].stats.win {
-                    select_wins += 1;
-                } else {
-                    select_losses += 1;
-                }
-            }
-        } else {
+        if mode == 0 || game.queue_id == mode {
             if game.participants[0].stats.win {
                 select_wins += 1;
             } else {
@@ -437,14 +400,7 @@ fn count_win_and_loss(match_history: &MatchHistory, mode: i32) -> (i32, i32, i32
         }
     }
 
-    (
-        wins,
-        losses,
-        flex_wins,
-        flex_losses,
-        select_wins,
-        select_losses,
-    )
+    (select_wins, select_losses)
 }
 
 fn count_kda(match_history: &MatchHistory, mode: i32) -> (f64, f64, f64) {

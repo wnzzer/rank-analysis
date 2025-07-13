@@ -33,7 +33,7 @@ pub enum Value {
 }
 
 // Initialize cache with config data
-pub async fn init_config() -> Result<(), Box<dyn std::error::Error>> {
+pub async fn init_config() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     match read_config(CONFIG_PATH) {
         Ok(config) => {
             for (key, value) in config {
@@ -46,7 +46,9 @@ pub async fn init_config() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 // Read config file
-fn read_config(path: &str) -> Result<HashMap<String, Value>, Box<dyn std::error::Error>> {
+fn read_config(
+    path: &str,
+) -> Result<HashMap<String, Value>, Box<dyn std::error::Error + Send + Sync>> {
     let file = File::open(path)?;
     let reader = BufReader::new(file);
     let config: HashMap<String, Value> = serde_yaml::from_reader(reader)?;
@@ -54,7 +56,7 @@ fn read_config(path: &str) -> Result<HashMap<String, Value>, Box<dyn std::error:
 }
 
 // Write config to file
-async fn write_config() -> Result<(), Box<dyn std::error::Error>> {
+async fn write_config() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let config: HashMap<String, Value> = CACHE
         .iter()
         .map(|(k, v)| (k.as_ref().clone(), v.clone()))

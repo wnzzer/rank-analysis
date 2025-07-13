@@ -1,18 +1,18 @@
-use crate::config::Value;
 use crate::constant;
 use crate::lcu::api::rank::Rank;
 use crate::lcu::api::summoner::Summoner; // Import the Summoner struct from its module
 mod match_hostory;
 mod user_tag;
+use crate::config;
 use crate::lcu::api::match_history::MatchHistory;
 #[tauri::command]
-pub async fn put_config(key: String, value: Value) -> Result<(), String> {
-    crate::config::put_config(key, value).await
+pub async fn put_config(key: String, value: config::Value) -> Result<(), String> {
+    config::put_config(key, value).await
 }
 
 #[tauri::command]
-pub async fn get_config(key: String) -> Result<Value, String> {
-    crate::config::get_config(&key).await
+pub async fn get_config(key: String) -> Result<config::Value, String> {
+    config::get_config(&key).await
 }
 
 #[tauri::command]

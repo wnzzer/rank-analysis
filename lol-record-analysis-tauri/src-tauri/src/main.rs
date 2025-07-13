@@ -1,6 +1,7 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use lol_record_analysis_tauri_lib::command;
+use lol_record_analysis_tauri_lib::config;
 use std::process::Command;
 use std::sync::Mutex;
 use tauri::Manager;
@@ -27,6 +28,8 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_http::init())
         .invoke_handler(tauri::generate_handler![
+            command::put_config,
+            command::get_config,
             command::get_summoner_by_puuid,
             command::get_summoner_by_name,
             command::get_my_summoner,
@@ -39,6 +42,13 @@ fn main() {
         ])
         .manage(BackendProcess(Mutex::new(None)))
         .setup(|app| {
+            // 执行异步初始化
+            tauri::async_runtime::spawn(async move {
+                if let Err(e) = config::init_config().await {
+                    eprintln!("Failed to initialize config: {}", e);
+                }
+            });
+
             if !cfg!(debug_assertions) {
                 let process = start_backend_process();
                 *app.state::<BackendProcess>().0.lock().unwrap() = Some(process);
