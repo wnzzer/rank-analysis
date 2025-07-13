@@ -1,60 +1,60 @@
 <template>
 
-    <div class="ratio-container">
+  <div class="ratio-container">
 
-      <n-flex vertical class="content-wrapper" style="height: 100%; position: relative">
-        <n-flex>
-          <n-select v-model:value="filterQueueId" placeholder="按模式筛选" :options="modeOptions" size="small"
-            style="width: 100px" @update:value="handleUpdateValue" />
-          <n-select v-model:value="filterChampionId" filterable :filter="filterChampionFunc" placeholder="按英雄筛选"
-            :render-tag="renderSingleSelectTag" :render-label="renderLabel" :options="championOptions" size="small"
-            style="width: 170px" @update:value="handleUpdateValue" />
+    <n-flex vertical class="content-wrapper" style="height: 100%; position: relative">
+      <n-flex>
+        <n-select v-model:value="filterQueueId" placeholder="按模式筛选" :options="modeOptions" size="small"
+          style="width: 100px" @update:value="handleUpdateValue" />
+        <n-select v-model:value="filterChampionId" filterable :filter="filterChampionFunc" placeholder="按英雄筛选"
+          :render-tag="renderSingleSelectTag" :render-label="renderLabel" :options="championOptions" size="small"
+          style="width: 170px" @update:value="handleUpdateValue" />
 
-          <n-tooltip trigger="hover">
-            <template #trigger>
-              <n-button text style="font-size: 24px" @click="resetFilter">
-                <n-icon>
-                  <Repeat />
-                </n-icon>
-              </n-button>
-            </template>
-            复位
-          </n-tooltip>
-        </n-flex>
-
-        <RecordCard v-for="(game, index) in matchHistory?.games?.games || []" :key="index" :record-type="true"
-          :games="game">
-        </RecordCard>
-
-        <!-- 自定义分页组件 -->
-
-        <div class="pagination">
-          <n-pagination style="margin-top: 0px">
-            <template #prev>
-              <n-button size="tiny" :disabled="page == 1 || isRequestingMatchHostory" @click="prevPage">
-                <template #icon>
-                  <n-icon>
-                    <ArrowBack></ArrowBack>
-                  </n-icon>
-                </template>
-              </n-button>
-            </template>
-            <template #label>
-              <span>{{ page }}</span>
-            </template>
-            <template #next>
-              <n-button size="tiny" @click="nextPage" :disabled="isRequestingMatchHostory">
-                <template #icon>
-                  <n-icon>
-                    <ArrowForward></ArrowForward>
-                  </n-icon>
-                </template>
-              </n-button>
-            </template>
-          </n-pagination>
-        </div>
+        <n-tooltip trigger="hover">
+          <template #trigger>
+            <n-button text style="font-size: 24px" @click="resetFilter">
+              <n-icon>
+                <Repeat />
+              </n-icon>
+            </n-button>
+          </template>
+          复位
+        </n-tooltip>
       </n-flex>
-    </div>
+
+      <RecordCard v-for="(game, index) in matchHistory?.games?.games || []" :key="index" :record-type="true"
+        :games="game">
+      </RecordCard>
+
+      <!-- 自定义分页组件 -->
+
+      <div class="pagination">
+        <n-pagination style="margin-top: 0px">
+          <template #prev>
+            <n-button size="tiny" :disabled="page == 1 || isRequestingMatchHostory" @click="prevPage">
+              <template #icon>
+                <n-icon>
+                  <ArrowBack></ArrowBack>
+                </n-icon>
+              </template>
+            </n-button>
+          </template>
+          <template #label>
+            <span>{{ page }}</span>
+          </template>
+          <template #next>
+            <n-button size="tiny" @click="nextPage" :disabled="isRequestingMatchHostory">
+              <template #icon>
+                <n-icon>
+                  <ArrowForward></ArrowForward>
+                </n-icon>
+              </template>
+            </n-button>
+          </template>
+        </n-pagination>
+      </div>
+    </n-flex>
+  </div>
 
 </template>
 
@@ -65,7 +65,7 @@ import { ArrowBack, ArrowForward, Repeat } from '@vicons/ionicons5'
 import { onMounted, ref } from 'vue'
 import { useLoadingBar } from 'naive-ui'
 import { useRoute } from 'vue-router'
-import { renderSingleSelectTag,renderLabel,championOptions,filterChampionFunc } from '../composition'
+import { renderSingleSelectTag, renderLabel, championOptions, filterChampionFunc } from '../composition'
 
 const filterQueueId = ref(0)
 const filterChampionId = ref(0)
@@ -234,14 +234,9 @@ const getHistoryMatch = async (name: string, begIndex: number, endIndex: number)
     matchHistory.value = res.data
     curBegIndex = res.data.beginIndex
     curEndIndex = res.data.endIndex
-    loadingBar.finish()
-  } catch (error) {
-    // 兜底请求默认数据，避免页面空白
-    const res = await http.get<MatchHistory>('/GetMatchHistory')
-    matchHistory.value = res.data
-    loadingBar.error()
   } finally {
     isRequestingMatchHostory.value = false
+    loadingBar.finish()
   }
 }
 
