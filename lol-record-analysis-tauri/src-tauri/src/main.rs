@@ -29,7 +29,13 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             command::get_summoner_by_puuid,
             command::get_summoner_by_name,
-            command::get_my_summoner
+            command::get_my_summoner,
+            command::get_rank_by_name,
+            command::get_match_history_by_puuid,
+            command::get_match_history_by_name,
+            command::get_filter_match_history_by_name,
+            command::get_user_tag_by_name,
+            command::get_user_tag_by_puuid,
         ])
         .manage(BackendProcess(Mutex::new(None)))
         .setup(|app| {

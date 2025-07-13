@@ -22,6 +22,7 @@ tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+serde_yaml = "0.9"
 
 regex = "1.10.3"
 reqwest = { version = "0.11", features = ["json"] }
@@ -42,3 +43,9 @@ env_logger = "0.10"
 base64 = "0.21"
 tauri-plugin-http = "2"
 moka = { version = "0.12", features = ["future"] }
+phf = { version = "0.12", features = ["macros"] } # 用于静态配置编译期生成
+config = { version = "0.13", features = ["toml"] }
+toml = "0.8"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }
