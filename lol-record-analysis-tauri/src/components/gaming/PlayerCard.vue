@@ -49,7 +49,7 @@
 
                                     <img style="width: 16px;height: 16px ;" :src="imgUrl" />
                                     <span style="font-size: 8px;">{{ tierCn
-                                        }}</span>
+                                    }}</span>
                                 </span>
 
                             </n-flex>
@@ -189,7 +189,7 @@
                                     <n-flex>
                                         <span :style="{ color: kdaColor(sessionSummoner?.userTag.recentData.kda) }">{{
                                             sessionSummoner?.userTag.recentData.kda
-                                            }}</span>
+                                        }}</span>
                                         <span>
                                             <span
                                                 :style="{ color: killsColor(sessionSummoner?.userTag.recentData.kills) }">
@@ -213,7 +213,7 @@
                             </n-flex>
                             <n-flex class="stats-item" justify="space-between">
                                 <span class="stats-label"> 胜率（{{
-                                    sessionSummoner.userTag.recentData.selectModeCn}}）:</span>
+                                    sessionSummoner.userTag.recentData.selectModeCn }}）:</span>
 
                                 <n-flex>
                                     <span style="width: 65px;"
@@ -226,10 +226,11 @@
                                             style="position: relative; top: 7px;"></n-progress>
                                     </span>
                                     <span class="stats-value" :style="{
-                                        color: winRateColor(winRate(sessionSummoner?.userTag.recentData.wins, sessionSummoner?.userTag.recentData.losses))
+                                        color: winRateColor(winRate(sessionSummoner?.userTag.recentData.selectWins, sessionSummoner?.userTag.recentData.selectLosses))
                                     }">
                                         {{
-                                            winRate(sessionSummoner?.userTag.recentData.wins, sessionSummoner?.userTag.recentData.losses)
+                                            winRate(sessionSummoner?.userTag.recentData.selectWins,
+                                                sessionSummoner?.userTag.recentData.selectLosses)
                                         }}%
                                     </span>
 
@@ -289,8 +290,8 @@
 </template>
 <script lang="ts" setup>
 import MettingPlayersCard from './MettingPlayersCard.vue';
-import { useCopy} from '../composition';
-import { searchSummoner,winRate } from '../record/composition';
+import { useCopy } from '../composition';
+import { searchSummoner, winRate } from '../record/composition';
 import { kdaColor, killsColor, deathsColor, assistsColor, otherColor, winRateColor, groupRateColor, } from '../record/composition'
 import { SessionSummoner } from "../../components/gaming/type";
 import nullImg from "../../assets/imgs/item/null.png";
