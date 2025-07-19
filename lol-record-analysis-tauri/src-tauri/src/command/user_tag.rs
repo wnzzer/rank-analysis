@@ -1,4 +1,4 @@
-use crate::constant::{QUEUE_FLEX, QUEUE_ID_TO_CN, QUEUE_SOLO_5X5};
+use crate::constant::game::{QUEUE_FLEX, QUEUE_ID_TO_CN, QUEUE_SOLO_5X5};
 use crate::lcu::api::match_history::MatchHistory;
 use crate::lcu::api::summoner::Summoner;
 use serde::{Deserialize, Serialize};

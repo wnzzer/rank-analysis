@@ -1,10 +1,11 @@
 use crate::constant;
-use crate::lcu::api::rank::Rank;
 use crate::lcu::api::summoner::Summoner; // Import the Summoner struct from its module
 mod match_hostory;
+pub mod rank;
 mod user_tag;
 use crate::config;
 use crate::lcu::api::match_history::MatchHistory;
+
 #[tauri::command]
 pub async fn put_config(key: String, value: config::Value) -> Result<(), String> {
     config::put_config(key, value).await
@@ -28,13 +29,6 @@ pub async fn get_summoner_by_name(name: String) -> Result<Summoner, String> {
 #[tauri::command]
 pub async fn get_my_summoner() -> Result<Summoner, String> {
     Summoner::get_my_summoner().await
-}
-
-#[tauri::command]
-pub async fn get_rank_by_name(name: String) -> Result<Rank, String> {
-    let summoner = Summoner::get_summoner_by_name(&name).await?;
-    let rank = Rank::get_rank_by_puuid(&summoner.puuid).await?;
-    Ok(rank)
 }
 
 #[tauri::command]
@@ -77,7 +71,7 @@ pub async fn get_filter_match_history_by_name(
 #[tauri::command]
 pub async fn get_platform_name_by_name(name: String) -> Result<String, String> {
     let match_history = match_hostory::get_match_history_by_name(name, 0, 0).await?;
-    constant::SGP_SERVER_ID_TO_NAME
+    constant::game::SGP_SERVER_ID_TO_NAME
         .get(match_history.platform_id.as_str())
         .map(|&v| v.to_string())
         .ok_or_else(|| "未找到对应的服务器名称".to_string())

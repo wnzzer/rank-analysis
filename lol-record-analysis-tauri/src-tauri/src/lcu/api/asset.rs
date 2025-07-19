@@ -1,20 +1,79 @@
-use serde_json::{from_str, Value};
-use std::collections::HashMap;
-use std::sync::{Mutex, OnceLock};
+use crate::{
+    constant,
+    lcu::util::http::{self, lcu_get},
+};
+use moka::future::Cache;
+use serde::{Deserialize, Serialize};
+use std::sync::LazyLock;
 
-use crate::lcu::util::http;
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Champion {
+    pub id: i32,
+    pub name: String,
+    pub description: String,
+    pub alias: String,
+    pub content_id: String,
+    pub square_portrait_path: String,
+}
+#[derive(Serialize, Deserialize, Debug, Clone)]
 
-fn global_map() -> &'static std::sync::Mutex<HashMap<String, String>> {
-    static MAP: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
-    MAP.get_or_init(|| Mutex::new(HashMap::new()))
+pub struct Item {
+    pub id: i32,
+    pub icon_path: String,
+}
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Perk {
+    pub id: i32,
+    pub icon_path: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Spell {
+    pub id: i32,
+    pub icon_path: String,
+}
+
+static CHAMPION_CACHE: LazyLock<Cache<i32, Champion>> = LazyLock::new(|| Cache::builder().build());
+static ITEM_CACHE: LazyLock<Cache<i32, Item>> = LazyLock::new(|| Cache::builder().build());
+static PERK_CACHE: LazyLock<Cache<i32, Perk>> = LazyLock::new(|| Cache::builder().build());
+static SPELL_CACHE: LazyLock<Cache<i32, Spell>> = LazyLock::new(|| Cache::builder().build());
+static IDTOBASE64_CACHE: LazyLock<Cache<String, String>> =
+    LazyLock::new(|| Cache::builder().build());
+
+pub async fn init() {
+    let items = lcu_get::<Vec<Item>>(constant::api::ITEM_URI).await.unwrap();
+    let champions = lcu_get::<Vec<Champion>>(constant::api::CHAMPION_URI)
+        .await
+        .unwrap();
+    let spells = lcu_get::<Vec<Spell>>(constant::api::SPELL_URI)
+        .await
+        .unwrap();
+    let perks = lcu_get::<Vec<Perk>>(constant::api::PERK_URI).await.unwrap();
+
+    // 将数据存储到缓存中
+    for item in items {
+        ITEM_CACHE.insert(item.id, item).await;
+    }
+    for champion in champions {
+        CHAMPION_CACHE.insert(champion.id, champion).await;
+    }
+    for spell in spells {
+        SPELL_CACHE.insert(spell.id, spell).await;
+    }
+    for perk in perks {
+        PERK_CACHE.insert(perk.id, perk).await;
+    }
 }
 
 #[tauri::command]
 pub async fn get_asset_base64(type_string: String, id: i32) -> Result<String, String> {
-    if id < 0 {
-        return Err("ID must be a non-negative integer".to_string());
+    let cache_key = build_base64_key(&type_string, id);
+
+    if let Some(cached) = IDTOBASE64_CACHE.get(&cache_key).await {
+        return Ok(cached);
     }
-    match type_string.as_str() {
+
+    let result = match type_string.as_str() {
         // 将 String 转成 &str 用于模式匹配
         "champion" => match get_champion_base64(id).await {
             Ok(base64) => Ok(base64),
@@ -34,141 +93,53 @@ pub async fn get_asset_base64(type_string: String, id: i32) -> Result<String, St
             Err(e) => Err(format!("Failed to get profile base64: {}", e)),
         },
         _ => Err("Invalid type string".to_string()),
+    };
+
+    // 如果成功获取到base64数据，存入缓存
+    if let Ok(ref base64_data) = result {
+        IDTOBASE64_CACHE
+            .insert(cache_key, base64_data.clone())
+            .await;
     }
+
+    result
 }
+
+async fn fetch_base64(url: &str) -> Result<String, String> {
+    http::lcu_get_img_as_base64(url).await
+}
+
 async fn get_champion_base64(id: i32) -> Result<String, String> {
-    print!("get_champion_base64: {}", id);
-    let key = format!("base64_champion_{}", id);
-    // 先检查缓存
-    if !global_map().lock().unwrap().contains_key(&key) {
-        let json: String = http::lcu_get("lol-game-data/assets/v1/champion-summary.json").await?;
-        let paths = get_path_by_json(&json)?;
-        for path in paths {
-            let path_uri = if let Some(path_id) = path.get("id") {
-                format!("base64_champion_{}", path_id)
-            } else {
-                continue;
-            };
-            let base64: String = http::lcu_get_img_as_base64(&path_uri).await?;
-            // 每次插入都重新加锁
-            global_map().lock().unwrap().insert(key.clone(), base64);
-        }
+    if let Some(champion) = CHAMPION_CACHE.get(&id).await {
+        fetch_base64(&champion.square_portrait_path).await
+    } else {
+        Err(format!("Champion with id {} not found in cache", id))
     }
-    global_map()
-        .lock()
-        .unwrap()
-        .get(&key)
-        .cloned()
-        .ok_or("Champion base64 not found".to_string())
 }
 
 async fn get_item_base64(id: i32) -> Result<String, String> {
-    print!("get_item_base64: {}", id);
-    let key = format!("base64_item_{}", id);
-    if !global_map().lock().unwrap().contains_key(&key) {
-        let json: String = http::lcu_get("lol-game-data/assets/v1/items.json").await?;
-        let paths = get_path_by_json(&json)?;
-        for path in paths {
-            println!("get_item_base64 path: {:?}", path);
-            let path_uri = path.get("path").unwrap();
-            let base64: String = http::lcu_get_img_as_base64(&path_uri).await?;
-            // 每次插入都重新加锁，避免 MutexGuard 跨 await
-            global_map().lock().unwrap().insert(key.clone(), base64);
-        }
+    if let Some(item) = ITEM_CACHE.get(&id).await {
+        fetch_base64(&item.icon_path).await
+    } else {
+        Err(format!("Item with id {} not found in cache", id))
     }
-    global_map()
-        .lock()
-        .unwrap()
-        .get(&key)
-        .cloned()
-        .ok_or("Item base64 not found".to_string())
 }
 
 async fn get_spell_base64(id: i32) -> Result<String, String> {
-    print!("get_spell_base64: {}", id);
-    let key = format!("base64_spell_{}", id);
-    if !global_map().lock().unwrap().contains_key(&key) {
-        let json: String = http::lcu_get("lol-game-data/assets/v1/summoner-spells.json").await?;
-        let paths = get_path_by_json(&json)?;
-        println!("get_spell_base64 paths: {:?}", paths);
-        for path in paths {
-            let path_uri = format!("base64_spell_{}", path.get("id").unwrap());
-            let base64: String = http::lcu_get_img_as_base64(&path_uri).await?;
-            // 每次插入都重新加锁，避免 MutexGuard 跨 await
-            global_map().lock().unwrap().insert(key.clone(), base64);
-        }
+    if let Some(spell) = SPELL_CACHE.get(&id).await {
+        fetch_base64(&spell.icon_path).await
+    } else {
+        Err(format!("Spell with id {} not found in cache", id))
     }
-    global_map()
-        .lock()
-        .unwrap()
-        .get(&key)
-        .cloned()
-        .ok_or("Spell base64 not found".to_string())
 }
 
 async fn get_profile_base64(id: i32) -> Result<String, String> {
-    print!("get_profile_base64: {}", id);
-    let key = format!("base64_profile_{}", id);
-    if !global_map().lock().unwrap().contains_key(&key) {
-        let uri = format!("lol-game-data/assets/v1/profile-icons/{}.jpg", id);
-        let base64: String = http::lcu_get(&uri).await?;
-        // 每次插入都重新加锁
-        global_map().lock().unwrap().insert(key.clone(), base64);
-    }
-    global_map()
-        .lock()
-        .unwrap()
-        .get(&key)
-        .cloned()
-        .ok_or("Profile base64 not found".to_string())
+    // 这里需要根据你的实际需求来实现
+    // 可能需要从其他API获取用户头像路径
+    let profile_url = format!("/lol-game-data/assets/v1/profile-icons/{}.jpg", id);
+    fetch_base64(&profile_url).await
 }
 
-fn get_path_by_json(json: &str) -> Result<Vec<HashMap<String, String>>, String> {
-    let value: Value = match from_str(&json) {
-        Ok(v) => v,
-        Err(e) => return Err(format!("Failed to parse JSON: {}", e)),
-    };
-
-    // 确保JSON是一个数组
-    let array = match value.as_array() {
-        Some(arr) => arr,
-        None => return Err("Expected a JSON array".to_string()),
-    };
-
-    let mut result = Vec::new();
-
-    // 遍历数组中的每个对象
-    for item in array {
-        if let Some(obj) = item.as_object() {
-            let mut map = HashMap::new();
-
-            // 获取 id
-            if let Some(id) = obj.get("id") {
-                if let Some(id_str) = id.as_str() {
-                    map.insert("id".to_string(), id_str.to_string());
-                } else if let Some(id_num) = id.as_i64() {
-                    map.insert("id".to_string(), id_num.to_string());
-                }
-            }
-
-            // 查找键名包含"Path"的键
-            for (key, val) in obj {
-                if key.contains("Path") {
-                    if let Some(path) = val.as_str() {
-                        map.insert("path".to_string(), path.to_string());
-                    }
-                }
-            }
-
-            if !map.is_empty() {
-                result.push(map);
-            }
-        }
-    }
-
-    if result.is_empty() {
-        Err("No valid entries found".to_string())
-    } else {
-        Ok(result)
-    }
+fn build_base64_key(type_string: &str, id: i32) -> String {
+    format!("{}:{}", type_string, id)
 }

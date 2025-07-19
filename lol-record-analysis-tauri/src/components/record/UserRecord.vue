@@ -316,6 +316,7 @@ import grandmaster from '../../assets/imgs/tier/grandmaster.png';
 import challenger from '../../assets/imgs/tier/challenger.png';
 import iron from '../../assets/imgs/tier/iron.png';
 import emerald from '../../assets/imgs/tier/emerald.png';
+import { invoke } from '@tauri-apps/api/core';
 
 
 
@@ -370,11 +371,10 @@ onMounted(() => {
   getSummoner(name)
 })
 
-onMounted(() => {
-  http.get<number>("/config/settings.user.selectMode").then((res) => {
-    mode.value = modeOptions.find(option => option.key === res.data)?.label || "全部";
-    getTags(name, res.data);
-  });
+onMounted(async () => {
+  const modeValue = await invoke<number>("get_config", { key: "selectMode" });
+  mode.value = modeOptions.find(option => option.key === modeValue)?.label || "全部";
+  getTags(name, modeValue);
 });
 
 const getSummoner = async (name: string) => {
@@ -422,21 +422,21 @@ const recentData = ref<RecentData>({
 })
 const tags = ref<RankTag[]>([])
 const getTags = async (name: string, mode: number) => {
-  const res = await http.get<UserTag>(
-    "/GetTag", {
-    params: { name, mode }
+  const user_tag = await invoke<UserTag>(
+    "/get_user_tag", {
+    name, mode
   }
   )
-  recentData.value = res.data.recentData
-  tags.value = res.data.tag
-  if ((res.data.recentData.wins) && (res.data.recentData.losses)) {
-    summoner.value.rank.queueMap.RANKED_SOLO_5x5.wins = res.data.recentData.wins
-    summoner.value.rank.queueMap.RANKED_SOLO_5x5.losses = res.data.recentData.losses
-  }
-  if ((res.data.recentData.flexWins) && (res.data.recentData.flexLosses)) {
-    summoner.value.rank.queueMap.RANKED_FLEX_SR.wins = res.data.recentData.flexWins
-    summoner.value.rank.queueMap.RANKED_FLEX_SR.losses = res.data.recentData.flexLosses
-  }
+  recentData.value = user_tag.recentData
+  // tags.value = user_tag.tag
+  // if ((user_tag.recentData.wins) && (user_tag.recentData.losses)) {
+  //   summoner.value.rank.queueMap.RANKED_SOLO_5x5.wins = user_tag.recentData.wins
+  //   summoner.value.rank.queueMap.RANKED_SOLO_5x5.losses = user_tag.recentData.losses
+  // }
+  // if ((res.data.recentData.flexWins) && (res.data.recentData.flexLosses)) {
+  //   summoner.value.rank.queueMap.RANKED_FLEX_SR.wins = res.data.recentData.flexWins
+  //   summoner.value.rank.queueMap.RANKED_FLEX_SR.losses = res.data.recentData.flexLosses
+  // }
 
 }
 const getWinRate = (win: number, loss: number) => {
