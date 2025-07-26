@@ -134,8 +134,6 @@ async fn get_spell_base64(id: i32) -> Result<String, String> {
 }
 
 async fn get_profile_base64(id: i32) -> Result<String, String> {
-    // 这里需要根据你的实际需求来实现
-    // 可能需要从其他API获取用户头像路径
     let profile_url = format!("/lol-game-data/assets/v1/profile-icons/{}.jpg", id);
     fetch_base64(&profile_url).await
 }

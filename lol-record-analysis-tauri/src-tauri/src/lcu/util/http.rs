@@ -1,3 +1,4 @@
+use crate::lcu::util::single_flight::single_work;
 use crate::lcu::util::token::get_auth;
 use base64::engine::general_purpose;
 use base64::Engine;
@@ -58,7 +59,7 @@ pub async fn lcu_get<T: DeserializeOwned + 'static>(uri: &str) -> Result<T, Stri
     for _ in 0..2 {
         let (token, port) = get_auth_pair();
         let url = build_url(uri, &token, &port);
-        let resp = get_client().get(&url).send().await;
+        let resp = single_work(url, get_client().get(&url).send().await);
         match resp {
             Ok(r) if r.status() == StatusCode::OK => {
                 if TypeId::of::<T>() == TypeId::of::<String>() {

@@ -44,13 +44,6 @@ fn main() {
         ])
         .manage(BackendProcess(Mutex::new(None)))
         .setup(|app| {
-            // 执行异步初始化
-            tauri::async_runtime::spawn(async move {
-                if let Err(e) = config::init_config().await {
-                    eprintln!("Failed to initialize config: {}", e);
-                }
-            });
-
             if !cfg!(debug_assertions) {
                 let process = start_backend_process();
                 *app.state::<BackendProcess>().0.lock().unwrap() = Some(process);

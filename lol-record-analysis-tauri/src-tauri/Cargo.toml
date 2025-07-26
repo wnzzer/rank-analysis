@@ -46,6 +46,7 @@ moka = { version = "0.12", features = ["future"] }
 phf = { version = "0.12", features = ["macros"] } # 用于静态配置编译期生成
 config = { version = "0.13", features = ["toml"] }
 toml = "0.8"
-
-[dev-dependencies]
 tokio = { version = "1", features = ["full"] }
+crossbeam-utils = "0.8"
+hashbrown = "1.0"
+parking_lot = "0.12"
