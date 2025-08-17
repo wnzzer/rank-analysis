@@ -9,8 +9,8 @@
                 <template #trigger>
                     <n-button circle @click="toMe">
 
-                        <n-image width="20px" :src="assetPrefix + 'profile' + mySummoner?.profileIconId"
-                            preview-disabled>
+                        <n-image width="20px" :src="`${assetPrefix}/profile/${mySummoner?.profileIconId}`"
+                            style="border-radius: 50%;" preview-disabled>
 
                             <template #error>
                                 <n-icon size="20" class="rotating-icon">
@@ -27,7 +27,8 @@
                         <n-flex>
                             <div style="position: relative;">
                                 <img width="35px" height="35px"
-                                    :src="assetPrefix + 'profile' + mySummoner?.profileIconId">
+                                    :src="`${assetPrefix}/profile/${mySummoner?.profileIconId}`"
+                                    style="border-radius: 50%; border: 1px solid #ccc; box-shadow: 0 0 5px rgba(0,0,0,0.2);">
                                 <div
                                     style="position: absolute; bottom: 4px; right: 0; font-size: 10px; width: 20px; height: 10px; text-align: center; line-height: 20px; border-radius: 50%; color: white;">
                                     {{ mySummoner?.summonerLevel }}
@@ -37,7 +38,7 @@
                                 <n-flex>
                                     <span style="font-size: medium;font-size: 14px; font-weight: 1000;">{{
                                         mySummoner?.gameName
-                                    }}</span>
+                                        }}</span>
                                     <n-button text style="font-size: 12px" @click="copy">
                                         <n-icon>
                                             <copy-outline></copy-outline>
@@ -48,7 +49,7 @@
 
                                 <n-flex>
                                     <span style="color: #676768; font-size: small;">#{{ mySummoner?.tagLine
-                                    }}</span>
+                                        }}</span>
                                     <n-icon :depth="3" color="dark" style="position: relative; top: 2px;">
                                         <server></server>
                                     </n-icon><span>{{ mySummoner?.platformIdCn }} </span>
@@ -66,11 +67,12 @@
 <script setup lang="ts">
 import router from '../router';
 import { getFirstPath } from '../router';
-import http, { assetPrefix } from '../services/http';
 import { Reload, BarChart, Server, CopyOutline, SettingsOutline } from '@vicons/ionicons5'
 import { NIcon, useMessage } from 'naive-ui';
 import { Component, computed, h, onMounted, ref } from 'vue';
 import { defaultSummoner, Summoner } from './record/type';
+import { invoke } from '@tauri-apps/api/core';
+import { assetPrefix } from '@renderer/services/http';
 
 onMounted(() => {
     getGetMySummoner().then(() => {
@@ -81,19 +83,16 @@ onMounted(() => {
 });
 
 
-const mySummoner = ref<Summoner>()
+const mySummoner = ref<Summoner>({} as Summoner)
 async function getGetMySummoner() {
 
     try {
-
-        const res = await http.get<Summoner>("/GetSummoner"); // 包裹在 try 中
-        if (res.status === 200) {
-            mySummoner.value = res.data;
-            if (router.currentRoute.value.path == "/Loading") {
-                router.push({
-                    path: '/Record',
-                });
-            }
+        mySummoner.value = await invoke("get_my_summoner");
+        if (router.currentRoute.value.path == "/Loading") {
+            router.push({
+                path: '/Record',
+                query: { name: mySummoner.value.gameName + "#" + mySummoner.value.tagLine }
+            });
         }
 
     } catch (error) {
@@ -142,7 +141,7 @@ const menuOptions = computed(() => [
 const toMe = () => {
     router.push({
         path: '/Record',
-        query: { t: Date.now() }  // 添加动态时间戳作为查询参数
+        query: { name: mySummoner.value.gameName + "#" + mySummoner.value.tagLine }
     });
 }
 const message = useMessage();

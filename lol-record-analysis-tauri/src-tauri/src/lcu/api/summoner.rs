@@ -33,10 +33,11 @@ impl Summoner {
     }
 
     pub async fn get_summoner_by_name(name: &str) -> Result<Self, String> {
+        let url_encoding = urlencoding::encode(name);
         if let Some(cached) = SUMMONER_CACHE.get(name).await {
             return Ok(cached.clone());
         }
-        let uri = format!("lol-summoner/v1/summoners/?name={}", name);
+        let uri = format!("lol-summoner/v1/summoners/?name={}", url_encoding);
         let summoner = lcu_get::<Self>(&uri).await?;
         SUMMONER_CACHE
             .insert(name.to_string(), summoner.clone())

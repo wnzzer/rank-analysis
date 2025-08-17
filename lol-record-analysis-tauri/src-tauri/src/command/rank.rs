@@ -5,20 +5,32 @@ use crate::lcu::api::{match_history::MatchHistory, rank::Rank, summoner::Summone
 #[tauri::command]
 pub async fn get_rank_by_name(name: String) -> Result<Rank, String> {
     let summoner = Summoner::get_summoner_by_name(&name).await?;
-    let rank = Rank::get_rank_by_puuid(&summoner.puuid).await?;
-    Ok(rank)
+    match Rank::get_rank_by_puuid(&summoner.puuid).await {
+        Ok(mut rank) => {
+            rank.enrich_cn_info();
+            Ok(rank)
+        }
+        Err(e) => Err(format!("Failed to get rank by puuid: {}", e)),
+    }
 }
 
 #[tauri::command]
 pub async fn get_rank_by_puuid(puuid: String) -> Result<Rank, String> {
-    Rank::get_rank_by_puuid(&puuid).await
+    match Rank::get_rank_by_puuid(&puuid).await {
+        Ok(mut rank) => {
+            rank.enrich_cn_info();
+            Ok(rank)
+        }
+        Err(e) => Err(format!("Failed to get rank by puuid: {}", e)),
+    }
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct WinRate {
-    pub win: i32,
-    pub lose: i32,
-    pub win_rate: f32,
+    pub wins: i32,
+    pub losses: i32,
+    pub win_rate: i32,
 }
 #[tauri::command]
 pub async fn get_win_rate_by_name_mode(name: String, mode: i32) -> Result<WinRate, String> {
@@ -43,12 +55,12 @@ pub async fn get_win_rate_by_puuid_mode(puuid: String, mode: i32) -> Result<WinR
         }
     }
     Ok(WinRate {
-        win: win_games,
-        lose: loss_games,
+        wins: win_games,
+        losses: loss_games,
         win_rate: if total_games > 0 {
-            win_games as f32 / total_games as f32
+            (win_games as f32 / total_games as f32 * 100.0).round() as i32
         } else {
-            0.0
+            0
         },
     })
 }

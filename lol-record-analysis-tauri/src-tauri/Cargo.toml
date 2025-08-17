@@ -5,12 +5,7 @@ description = "A Tauri App"
 authors = ["wnzzer"]
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [lib]
-# The `_lib` suffix may seem redundant but it is necessary
-# to make the lib name unique and wouldn't conflict with the bin name.
-# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
 name = "lol_record_analysis_tauri_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
@@ -20,12 +15,15 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
+
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml = "0.9"
-
 regex = "1.10.3"
-reqwest = { version = "0.11", features = ["json"] }
+reqwest = { version = "0.11", features = [
+    "json",
+] } # http client 用于访问 lcu 接口的客户端
+actix-web = "4" # http server 支持图片显示
 winapi = { version = "0.3.9", features = [
     "processthreadsapi",
     "handleapi",
@@ -36,17 +34,13 @@ winapi = { version = "0.3.9", features = [
     "ntdef",
     "libloaderapi",
     "memoryapi",
-    "winnt",             # 添加 winnt 特性
-] }
-log = "0.4"
-env_logger = "0.10"
+    "winnt",
+] } # 用于 Windows api，用于获取lol进程信息
+log = "0.4.0"
+env_logger = "0.9"
 base64 = "0.21"
 tauri-plugin-http = "2"
 moka = { version = "0.12", features = ["future"] }
 phf = { version = "0.12", features = ["macros"] } # 用于静态配置编译期生成
-config = { version = "0.13", features = ["toml"] }
-toml = "0.8"
 tokio = { version = "1", features = ["full"] }
-crossbeam-utils = "0.8"
-hashbrown = "1.0"
-parking_lot = "0.12"
+urlencoding = "2.1.3" # 用于 URL 编码

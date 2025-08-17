@@ -2,13 +2,14 @@ use crate::{
     constant,
     lcu::util::http::{self, lcu_get},
 };
-use moka::future::Cache;
 use serde::{Deserialize, Serialize};
-use std::sync::LazyLock;
+use std::collections::HashMap;
+use std::sync::{LazyLock, RwLock};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct Champion {
-    pub id: i32,
+    pub id: i64,
     pub name: String,
     pub description: String,
     pub alias: String,
@@ -16,31 +17,47 @@ pub struct Champion {
     pub square_portrait_path: String,
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
-
+#[serde(rename_all = "camelCase")]
 pub struct Item {
-    pub id: i32,
+    pub id: i64,
     pub icon_path: String,
 }
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct Perk {
-    pub id: i32,
+    pub id: i64,
     pub icon_path: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct Spell {
-    pub id: i32,
+    pub id: i64,
     pub icon_path: String,
 }
 
-static CHAMPION_CACHE: LazyLock<Cache<i32, Champion>> = LazyLock::new(|| Cache::builder().build());
-static ITEM_CACHE: LazyLock<Cache<i32, Item>> = LazyLock::new(|| Cache::builder().build());
-static PERK_CACHE: LazyLock<Cache<i32, Perk>> = LazyLock::new(|| Cache::builder().build());
-static SPELL_CACHE: LazyLock<Cache<i32, Spell>> = LazyLock::new(|| Cache::builder().build());
-static IDTOBASE64_CACHE: LazyLock<Cache<String, String>> =
-    LazyLock::new(|| Cache::builder().build());
+// NOTE: switched from moka::Cache to RwLock<HashMap<..>> to support direct iteration.
+// If TTL/size-based eviction is later required, consider wrapping with moka again or
+// implementing a lightweight LRU.
+pub static CHAMPION_CACHE: LazyLock<RwLock<HashMap<i64, Champion>>> =
+    LazyLock::new(|| RwLock::new(HashMap::new()));
+static ITEM_CACHE: LazyLock<RwLock<HashMap<i64, Item>>> =
+    LazyLock::new(|| RwLock::new(HashMap::new()));
+// static PERK_CACHE: LazyLock<RwLock<HashMap<i64, Perk>>> = LazyLock::new(|| RwLock::new(HashMap::new()));
+static SPELL_CACHE: LazyLock<RwLock<HashMap<i64, Spell>>> =
+    LazyLock::new(|| RwLock::new(HashMap::new()));
+
+// Keep binary cache as moka for weighted size-based eviction (still useful) - optional future refactor.
+use moka::future::Cache; // retained only for BINARY_CACHE
+static BINARY_CACHE: LazyLock<Cache<String, (Vec<u8>, String)>> = LazyLock::new(|| {
+    Cache::builder()
+        .weigher(|_k: &String, v: &(Vec<u8>, String)| v.0.len() as u32)
+        .build()
+});
 
 pub async fn init() {
+    log::info!("Initializing asset API caches");
     let items = lcu_get::<Vec<Item>>(constant::api::ITEM_URI).await.unwrap();
     let champions = lcu_get::<Vec<Champion>>(constant::api::CHAMPION_URI)
         .await
@@ -48,96 +65,102 @@ pub async fn init() {
     let spells = lcu_get::<Vec<Spell>>(constant::api::SPELL_URI)
         .await
         .unwrap();
-    let perks = lcu_get::<Vec<Perk>>(constant::api::PERK_URI).await.unwrap();
+    // let perks = lcu_get::<Vec<Perk>>(constant::api::PERK_URI).await.unwrap();
+
+    // 先记录长度，避免后续 move
+    let item_count = items.len();
+    let champion_count = champions.len();
+    let spell_count = spells.len();
+    // let perk_count = perks.len();
 
     // 将数据存储到缓存中
-    for item in items {
-        ITEM_CACHE.insert(item.id, item).await;
+    {
+        let mut map = ITEM_CACHE.write().unwrap();
+        for item in items {
+            map.insert(item.id, item);
+        }
     }
-    for champion in champions {
-        CHAMPION_CACHE.insert(champion.id, champion).await;
+    {
+        let mut map = CHAMPION_CACHE.write().unwrap();
+        for champion in champions {
+            map.insert(champion.id, champion);
+        }
     }
-    for spell in spells {
-        SPELL_CACHE.insert(spell.id, spell).await;
+    {
+        let mut map = SPELL_CACHE.write().unwrap();
+        for spell in spells {
+            map.insert(spell.id, spell);
+        }
     }
-    for perk in perks {
-        PERK_CACHE.insert(perk.id, perk).await;
-    }
+    // {
+    //     let mut map = PERK_CACHE.write().unwrap();
+    //     for perk in perks { map.insert(perk.id, perk); }
+    // }
+    log::info!("item count: {}", item_count);
+    log::info!("champion count: {}", champion_count);
+    log::info!("spell count: {}", spell_count);
+    // log::info!("perk count: {}", perk_count);
+    log::info!("Asset API caches initialized successfully");
 }
 
-#[tauri::command]
-pub async fn get_asset_base64(type_string: String, id: i32) -> Result<String, String> {
-    let cache_key = build_base64_key(&type_string, id);
-
-    if let Some(cached) = IDTOBASE64_CACHE.get(&cache_key).await {
-        return Ok(cached);
+// 新增：返回二进制与 content-type，便于通过 HTTP 下发
+pub async fn get_asset_binary(type_string: String, id: i64) -> Result<(Vec<u8>, String), String> {
+    let cache_key = build_asset_key(&type_string, id);
+    if let Some(hit) = BINARY_CACHE.get(&cache_key).await {
+        return Ok(hit);
     }
 
     let result = match type_string.as_str() {
-        // 将 String 转成 &str 用于模式匹配
-        "champion" => match get_champion_base64(id).await {
-            Ok(base64) => Ok(base64),
-            Err(e) => Err(format!("Failed to get champion base64: {}", e)),
-        },
-        "item" => match get_item_base64(id).await {
-            Ok(base64) => Ok(base64),
-            Err(e) => Err(format!("Failed to get item base64: {}", e)),
-        },
-        "spell" => match get_spell_base64(id).await {
-            Ok(base64) => Ok(base64),
-            Err(e) => Err(format!("Failed to get spell base64: {}", e)),
-        },
-        // "perk" => Ok(format!("base64_perk_{}", id)),
-        "profile" => match get_profile_base64(id).await {
-            Ok(base64) => Ok(base64),
-            Err(e) => Err(format!("Failed to get profile base64: {}", e)),
-        },
+        "champion" => get_champion_binary(id).await,
+        "item" => get_item_binary(id).await,
+        "spell" => get_spell_binary(id).await,
+        "profile" => get_profile_binary(id).await,
         _ => Err("Invalid type string".to_string()),
-    };
+    }?;
 
-    // 如果成功获取到base64数据，存入缓存
-    if let Ok(ref base64_data) = result {
-        IDTOBASE64_CACHE
-            .insert(cache_key, base64_data.clone())
-            .await;
-    }
-
-    result
+    // 写入缓存
+    BINARY_CACHE.insert(cache_key, result.clone()).await;
+    Ok(result)
 }
 
-async fn fetch_base64(url: &str) -> Result<String, String> {
-    http::lcu_get_img_as_base64(url).await
+async fn fetch_binary(url: &str) -> Result<(Vec<u8>, String), String> {
+    http::lcu_get_img_as_binary(url).await
 }
 
-async fn get_champion_base64(id: i32) -> Result<String, String> {
-    if let Some(champion) = CHAMPION_CACHE.get(&id).await {
-        fetch_base64(&champion.square_portrait_path).await
+// 新增：各类型的二进制获取
+async fn get_champion_binary(id: i64) -> Result<(Vec<u8>, String), String> {
+    if let Some(champion) = CHAMPION_CACHE.read().unwrap().get(&id).cloned() {
+        log::info!("Getting champion binary for id {}", id);
+        fetch_binary(&champion.square_portrait_path).await
     } else {
         Err(format!("Champion with id {} not found in cache", id))
     }
 }
 
-async fn get_item_base64(id: i32) -> Result<String, String> {
-    if let Some(item) = ITEM_CACHE.get(&id).await {
-        fetch_base64(&item.icon_path).await
+async fn get_item_binary(id: i64) -> Result<(Vec<u8>, String), String> {
+    if let Some(item) = ITEM_CACHE.read().unwrap().get(&id).cloned() {
+        log::info!("Getting item binary for id {}", id);
+        fetch_binary(&item.icon_path).await
     } else {
         Err(format!("Item with id {} not found in cache", id))
     }
 }
 
-async fn get_spell_base64(id: i32) -> Result<String, String> {
-    if let Some(spell) = SPELL_CACHE.get(&id).await {
-        fetch_base64(&spell.icon_path).await
+async fn get_spell_binary(id: i64) -> Result<(Vec<u8>, String), String> {
+    if let Some(spell) = SPELL_CACHE.read().unwrap().get(&id).cloned() {
+        log::info!("Getting spell binary for id {}", id);
+        fetch_binary(&spell.icon_path).await
     } else {
         Err(format!("Spell with id {} not found in cache", id))
     }
 }
 
-async fn get_profile_base64(id: i32) -> Result<String, String> {
+async fn get_profile_binary(id: i64) -> Result<(Vec<u8>, String), String> {
+    log::info!("Getting profile binary for id {}", id);
     let profile_url = format!("/lol-game-data/assets/v1/profile-icons/{}.jpg", id);
-    fetch_base64(&profile_url).await
+    fetch_binary(&profile_url).await
 }
 
-fn build_base64_key(type_string: &str, id: i32) -> String {
+fn build_asset_key(type_string: &str, id: i64) -> String {
     format!("{}:{}", type_string, id)
 }

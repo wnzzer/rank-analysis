@@ -218,7 +218,7 @@ export const renderSingleSelectTag: SelectRenderTag = ({ option }) => {
     [
       h(NAvatar, {
         // Replace the hardcoded URL with a dynamic URL based on champion ID
-        src: option.value !== 0 ? `${assetPrefix}champion${option.value}` : `${assetPrefix}champion-1`,
+        src: option.value !== 0 ? `${assetPrefix}/champion/${option.value}` : `${assetPrefix}/champion/-1`,
         round: true,
         size: 24,
         style: {
@@ -240,7 +240,7 @@ export const renderLabel: SelectRenderLabel = (option) => {
     },
     [
       h(NAvatar, {
-        src: option.value !== 0 ? `${assetPrefix}champion${option.value}` : `${assetPrefix}champion-1`,
+        src: option.value !== 0 ? `${assetPrefix}/champion/${option.value}` : `${assetPrefix}/champion/-1`,
         round: true,
         size: 'small'
       }),

@@ -21,7 +21,7 @@
             </n-flex>
             <div style="height: 100%; position: relative;">
 
-                <img style="height: 100%;" :src="assetPrefix + games.participants[0].championKey" />
+                <img style="height: 100%;" :src="`${assetPrefix}/champion/${games.participants[0].championId}`" />
                 <template v-if="!!games.mvp">
                     <div style="position: absolute; left: 0; bottom: 0;" class="mvp-box"
                         :style="{ backgroundColor: games.mvp == 'MVP' ? '#FFD700' : '#FFFFFF' }">
@@ -57,56 +57,43 @@
                     </span>
                     <span style="margin-left: 20px;">
 
-                        <img :src="assetPrefix + games.participants[0].spell1Key ? assetPrefix + games.participants[0].spell1Key : itemNull"
+                        <img :src="assetPrefix + '/spell/' + games.participants[0].spell1Id ? assetPrefix + '/spell/' + games.participants[0].spell1Id : itemNull"
                             style="width: 23px; height: 23px;" alt="item image" />
-                        <img :src="assetPrefix + games.participants[0].spell2Key ? assetPrefix + games.participants[0].spell2Key : itemNull"
+                        <img :src="assetPrefix + '/spell/' + games.participants[0].spell2Id ? assetPrefix + '/spell/' + games.participants[0].spell2Id : itemNull"
                             style="width: 23px; height: 23px;" alt="item image" />
 
                     </span>
 
                 </n-flex>
                 <n-flex style="gap: 2px;">
-                    <n-image width="23px" :src="assetPrefix + games.participants[0].stats?.item0Key"
-                    preview-disabled
-
-                    :fallback-src="itemNull">
+                    <n-image width="23px" :src="assetPrefix + '/item/' + games.participants[0].stats?.item0"
+                        preview-disabled :fallback-src="itemNull">
 
                     </n-image>
-                    <n-image width="23px" :src="assetPrefix + games.participants[0].stats?.item1Key"
-                    preview-disabled
-
-                    :fallback-src="itemNull">
+                    <n-image width="23px" :src="assetPrefix + '/item/' + games.participants[0].stats?.item1"
+                        preview-disabled :fallback-src="itemNull">
 
                     </n-image>
-                    <n-image width="23px" :src="assetPrefix + games.participants[0].stats?.item2Key"
-                    preview-disabled
-
-                    :fallback-src="itemNull">
+                    <n-image width="23px" :src="assetPrefix + '/item/' + games.participants[0].stats?.item2"
+                        preview-disabled :fallback-src="itemNull">
 
                     </n-image>
-                    <n-image width="23px" :src="assetPrefix + games.participants[0].stats?.item3Key"
-                    preview-disabled
-
-                    :fallback-src="itemNull">
+                    <n-image width="23px" :src="assetPrefix + '/item/' + games.participants[0].stats?.item3"
+                        preview-disabled :fallback-src="itemNull">
 
                     </n-image>
-                    <n-image width="23px" :src="assetPrefix + games.participants[0].stats?.item4Key"
-                    preview-disabled
-
-                    :fallback-src="itemNull">
+                    <n-image width="23px" :src="assetPrefix + '/item/' + games.participants[0].stats?.item4"
+                        preview-disabled :fallback-src="itemNull">
 
                     </n-image>
-                    <n-image width="23px" :src="assetPrefix + games.participants[0].stats?.item5Key"
-                    preview-disabled
-
-                        fallback-src="https://07akioni.oss-cn-beijing.aliyuncs.com/07akioni.jpeg">
+                    <n-image width="23px" :src="assetPrefix + '/item/' + games.participants[0].stats?.item5"
+                        preview-disabled fallback-src="https://07akioni.oss-cn-beijing.aliyuncs.com/07akioni.jpeg">
                         <template #error>
                             <img :src="itemNull">
                         </template>
                     </n-image>
-                    <n-image width="23px" :src="assetPrefix + games.participants[0].stats?.item6Key"
-                    preview-disabled
-                        :fallback-src="itemNull">
+                    <n-image width="23px" :src="assetPrefix + '/item/' + games.participants[0].stats?.item6"
+                        preview-disabled :fallback-src="itemNull">
                     </n-image>
                 </n-flex>
 
@@ -170,7 +157,7 @@
                                     <n-button text
                                         @click="toNameRecord(games.gameDetail.participantIdentities[i - 1].player.gameName + '#' + games.gameDetail.participantIdentities[i - 1].player.tagLine)">
                                         <n-avatar :bordered="true"
-                                            :src="assetPrefix + games.gameDetail.participants[i - 1]?.championKey"
+                                            :src="assetPrefix + '/champion/' + games.gameDetail.participants[i - 1]?.championId"
                                             :fallback-src="itemNull"
                                             :style="{ borderColor: getIsMeBorderedColor(games.gameDetail.participantIdentities[i - 1]?.player.gameName + '#' + games.gameDetail.participantIdentities[i - 1]?.player.tagLine) }" />
                                     </n-button>
@@ -190,11 +177,9 @@
                                 <template #trigger>
                                     <n-button text
                                         @click="toNameRecord(games.gameDetail.participantIdentities[i + 4]?.player.gameName + '#' + games.gameDetail.participantIdentities[i + 4]?.player.tagLine)">
-                                        <!-- 这里确保不会访问越界 -->
                                         <n-avatar :bordered="true"
-                                            :src="assetPrefix + games.gameDetail.participants[i + 4]?.championKey"
+                                            :src="assetPrefix + '/champion/' + games.gameDetail.participants[i + 4]?.championId"
                                             :fallback-src="itemNull"
-
                                             :style="{ borderColor: getIsMeBorderedColor(games.gameDetail.participantIdentities[i + 4]?.player.gameName + '#' + games.gameDetail.participantIdentities[i + 4]?.player.tagLine) }" />
                                     </n-button>
                                 </template>
@@ -286,7 +271,7 @@ function toNameRecord(name: string) {
     /* 添加平滑过渡效果 */
     transition: border-color 0.3s ease, color 0.3s ease;
     /* 为边框颜色和文本颜色添加过渡 */
-    
+
 }
 
 .defeat-class {

@@ -84,18 +84,16 @@ import { VueDraggable } from 'vue-draggable-plus'
 import { onMounted, ref } from 'vue'
 import { renderSingleSelectTag, renderLabel, championOptions, filterChampionFunc } from '../../components/composition'
 import { CheckmarkCircle, Flash, Close, PlayCircle } from '@vicons/ionicons5'
-import http, { assetPrefix } from '../../services/http'
 import { championHash } from '../../components/composition'
+import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 
 onMounted(async () => {
-  autoAccept.value = (await http.get<boolean>("/config/settings.auto.acceptMatchSwitch")).data
-  autoPick.value = (await http.get<boolean>("/config/settings.auto.pickChampionSwitch")).data
-  autoBan.value = (await http.get<boolean>("/config/settings.auto.banChampionSwitch")).data
-  myPickData.value = (await http.get<number[]>("/config/settings.auto.pickChampionSlice")).data
-  console.log('Pick Data:', myPickData.value) // 添加调试日志
-  myBanData.value = (await http.get<number[]>("/config/settings.auto.banChampionSlice")).data
-  console.log('Ban Data:', myBanData.value) // 添加调试日志
-  autoStart.value = (await http.get<boolean>("/config/settings.auto.startMatchSwitch")).data
+  autoAccept.value = (await getConfigByIpc<boolean>("settings.auto.acceptMatchSwitch"))
+  autoPick.value = (await getConfigByIpc<boolean>("settings.auto.pickChampionSwitch"))
+  autoBan.value = (await getConfigByIpc<boolean>("settings.auto.banChampionSwitch"))
+  myPickData.value = (await getConfigByIpc<number[]>("settings.auto.pickChampionSlice"))
+  myBanData.value = (await getConfigByIpc<number[]>("settings.auto.banChampionSlice"))
+  autoStart.value = (await getConfigByIpc<boolean>("settings.auto.startMatchSwitch"))
 });
 const autoAccept = ref(false)
 const autoPick = ref(false)
@@ -110,23 +108,23 @@ const myBanData = ref<number[]>([]);
 
 const updateAcceptSwitch = async () => {
 
-  await http.put("/config/settings.auto.acceptMatchSwitch", { value: autoAccept.value })
+  await putConfigByIpc("settings.auto.acceptMatchSwitch", { value: autoAccept.value })
 }
 
 const updatePickSwitch = async () => {
-  await http.put("/config/settings.auto.pickChampionSwitch", { value: autoPick.value })
+  await putConfigByIpc("settings.auto.pickChampionSwitch", { value: autoPick.value })
 }
 const updateBanSwitch = async () => {
-  await http.put("/config/settings.auto.banChampionSwitch", { value: autoBan.value })
+  await putConfigByIpc("settings.auto.banChampionSwitch", { value: autoBan.value })
 }
 const updatePickData = async () => {
-  await http.put("/config/settings.auto.pickChampionSlice", { value: myPickData.value })
+  await putConfigByIpc("settings.auto.pickChampionSlice", { value: myPickData.value })
 }
 const updateBanData = async () => {
-  await http.put("/config/settings.auto.banChampionSlice", { value: myBanData.value })
+  await putConfigByIpc("settings.auto.banChampionSlice", { value: myBanData.value })
 }
 const updateStartSwitch = async () => {
-  await http.put("/config/settings.auto.startMatchSwitch", { value: autoStart.value })
+  await putConfigByIpc("settings.auto.startMatchSwitch", { value: autoStart.value })
 }
 
 const deleteBanData = async (value: number) => {

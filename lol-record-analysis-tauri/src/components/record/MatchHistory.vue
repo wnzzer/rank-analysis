@@ -59,16 +59,19 @@
 </template>
 
 <script setup lang="ts">
-import http from '../../services/http'
 import RecordCard from './RecordCard.vue'
 import { ArrowBack, ArrowForward, Repeat } from '@vicons/ionicons5'
 import { onMounted, ref } from 'vue'
 import { useLoadingBar } from 'naive-ui'
 import { useRoute } from 'vue-router'
-import { renderSingleSelectTag, renderLabel, championOptions, filterChampionFunc } from '../composition'
+import { renderSingleSelectTag, renderLabel, filterChampionFunc } from '../composition'
+import { invoke } from '@tauri-apps/api/core'
+import { championOption } from '../type'
+
+const championOptions = ref<championOption[]>()
 
 const filterQueueId = ref(0)
-const filterChampionId = ref(0)
+const filterChampionId = ref(-1)
 const modeOptions = [
   { label: '全部', value: 0 },
   { label: '单双排', value: 420 },
@@ -91,7 +94,7 @@ const resetFilter = () => {
 }
 const handleUpdateValue = () => {
   page.value = 1
-  if (filterChampionId.value != 0 || filterQueueId.value != 0) {
+  if (filterChampionId.value > 0 || filterQueueId.value > 0) {
     getHistoryMatch(route.query.name as string, 0, 800)
   } else {
     getHistoryMatch(route.query.name as string, 0, 9)
@@ -115,7 +118,6 @@ export interface GameDetail {
     teamId: number
     participantId: number
     championId: number
-    championKey: string
     summonerName: string
     summonerId: string
   }[]
@@ -130,17 +132,8 @@ export interface ParticipantStats {
   item4: number
   item5: number
   item6: number
-  item0Key: string
-  item1Key: string
-  item2Key: string
-  item3Key: string
-  item4Key: string
-  item5Key: string
-  item6Key: string
   perkPrimaryStyle: number
   perkSubStyle: number
-  perkPrimaryStyleKey: string
-  perkSubStyleKey: string
   kills: number
   deaths: number
   assists: number
@@ -163,11 +156,8 @@ export interface Participant {
   participantId: number
   teamId: number
   championId: number
-  championKey: string
   spell1Id: number
-  spell1Key: string
   spell2Id: number
-  spell2Key: string
   stats: ParticipantStats
 }
 
@@ -197,7 +187,7 @@ export interface Game {
 
 export interface MatchHistory {
   platformId: string
-  beginIndex: number
+  begIndex: number
   endIndex: number
   games: {
     gameDetail: GameDetail
@@ -222,18 +212,26 @@ const getHistoryMatch = async (name: string, begIndex: number, endIndex: number)
   loadingBar.start()
   isRequestingMatchHostory.value = true
   try {
-    const res = await http.get<MatchHistory>('/GetMatchHistory', {
-      params: {
-        filterQueueId: filterQueueId.value,
-        filterChampionId: filterChampionId.value,
+    if (filterChampionId.value > 0 || filterQueueId.value > 0) {
+      matchHistory.value = await invoke("get_filter_match_history_by_name", {
+        name,
         begIndex,
         endIndex,
+        filterQueueId: filterQueueId.value,
+        filterChampionId: filterChampionId.value
+      })
+    } else {
+      matchHistory.value = await invoke("get_match_history_by_name", {
         name,
-      },
-    })
-    matchHistory.value = res.data
-    curBegIndex = res.data.beginIndex
-    curEndIndex = res.data.endIndex
+        begIndex,
+        endIndex
+      })
+    }
+    if (matchHistory.value) {
+      curBegIndex = matchHistory.value.begIndex
+      curEndIndex = matchHistory.value.endIndex
+      console.log(matchHistory.value)
+    }
   } finally {
     isRequestingMatchHostory.value = false
     loadingBar.finish()
@@ -269,6 +267,10 @@ const prevPage = async () => {
   await getHistoryMatch(name, lastPage.begIndex, lastPage.endIndex)
   page.value = Math.max(1, page.value - 1)
 }
+
+onMounted(async () => {
+  championOptions.value = await invoke("get_champion_options")
+})
 
 onMounted(async () => {
   name = route.query.name as string

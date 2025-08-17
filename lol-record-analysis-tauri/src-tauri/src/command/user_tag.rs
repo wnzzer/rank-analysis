@@ -8,7 +8,7 @@ use std::collections::HashMap;
 #[serde(rename_all = "camelCase")]
 pub struct OneGamePlayer {
     pub index: i32,
-    pub game_id: i32,
+    pub game_id: i64,
     pub puuid: String,
     pub game_created_at: String,
     pub is_my_team: bool,
@@ -77,7 +77,15 @@ pub struct UserTag {
     pub tag: Vec<RankTag>,
 }
 
+#[tauri::command]
+pub async fn get_user_tag_by_name(name: &str, mode: i32) -> Result<UserTag, String> {
+    let summoner = Summoner::get_summoner_by_name(name).await?;
+    get_user_tag_by_puuid(&summoner.puuid, mode).await
+}
+
+#[tauri::command]
 pub async fn get_user_tag_by_puuid(puuid: &str, mode: i32) -> Result<UserTag, String> {
+    log::info!("get_user_tag_by_puuid: {}, mode: {}", puuid, mode);
     let mut match_history = MatchHistory::get_match_history_by_puuid(puuid, 0, 19).await?;
     match_history.enrich_game_detail().await?;
 

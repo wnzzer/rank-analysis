@@ -1,4 +1,3 @@
-use crate::lcu::util::single_flight::single_work;
 use crate::lcu::util::token::get_auth;
 use base64::engine::general_purpose;
 use base64::Engine;
@@ -50,7 +49,7 @@ fn refresh_auth() -> (String, String) {
     (token, port)
 }
 
-fn build_url(uri: &str, token: &str, port: &str) -> String {
+fn build_url(token: &str, uri: &str, port: &str) -> String {
     let uri = uri.trim_start_matches('/');
     format!("https://riot:{}@127.0.0.1:{}/{}", token, port, uri)
 }
@@ -58,8 +57,9 @@ fn build_url(uri: &str, token: &str, port: &str) -> String {
 pub async fn lcu_get<T: DeserializeOwned + 'static>(uri: &str) -> Result<T, String> {
     for _ in 0..2 {
         let (token, port) = get_auth_pair();
-        let url = build_url(uri, &token, &port);
-        let resp = single_work(url, get_client().get(&url).send().await);
+        let url = build_url(&token, uri, &port);
+        log::info!("LCU GET URL: {}", url);
+        let resp = get_client().get(&url).send().await;
         match resp {
             Ok(r) if r.status() == StatusCode::OK => {
                 if TypeId::of::<T>() == TypeId::of::<String>() {
@@ -88,7 +88,7 @@ pub async fn lcu_get<T: DeserializeOwned + 'static>(uri: &str) -> Result<T, Stri
 pub async fn lcu_post<T: DeserializeOwned, D: Serialize>(uri: &str, data: &D) -> Result<T, String> {
     for _ in 0..2 {
         let (token, port) = get_auth_pair();
-        let url = build_url(uri, &token, &port);
+        let url = build_url(&token, uri, &port);
         let resp = get_client().post(&url).json(data).send().await;
         match resp {
             Ok(r) if r.status().is_success() => {
@@ -112,7 +112,7 @@ pub async fn lcu_patch<T: DeserializeOwned, D: Serialize>(
 ) -> Result<T, String> {
     for _ in 0..2 {
         let (token, port) = get_auth_pair();
-        let url = build_url(uri, &token, &port);
+        let url = build_url(&token, uri, &port);
         let resp = get_client().patch(&url).json(data).send().await;
         match resp {
             Ok(r) if r.status().is_success() => {
@@ -133,7 +133,7 @@ pub async fn lcu_patch<T: DeserializeOwned, D: Serialize>(
 pub async fn lcu_get_img_as_base64(uri: &str) -> Result<String, String> {
     for _ in 0..2 {
         let (token, port) = get_auth_pair();
-        let url = build_url(uri, &token, &port);
+        let url = build_url(&token, uri, &port);
         let resp = get_client().get(&url).send().await;
         match resp {
             Ok(r) if r.status() == StatusCode::OK => {
@@ -161,7 +161,8 @@ pub async fn lcu_get_img_as_base64(uri: &str) -> Result<String, String> {
 pub async fn lcu_get_img_as_binary(uri: &str) -> Result<(Vec<u8>, String), String> {
     for _ in 0..2 {
         let (token, port) = get_auth_pair();
-        let url = build_url(uri, &token, &port);
+        let url = build_url(&token, uri, &port);
+        log::info!("LCU GET Binary URL: {}", url);
         let resp = get_client().get(&url).send().await;
         match resp {
             Ok(r) if r.status() == StatusCode::OK => {

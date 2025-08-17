@@ -35,10 +35,10 @@ pub struct GameDetailPlayer {
     #[serde(rename = "summonerId")]
     pub summoner_id: i64,
 }
-static GAME_DETAIL_CACHE: LazyLock<Cache<i32, GameDetail>> =
+static GAME_DETAIL_CACHE: LazyLock<Cache<i64, GameDetail>> =
     LazyLock::new(|| Cache::builder().max_capacity(500).build());
 impl GameDetail {
-    pub async fn get_game_detail_by_id(game_id: &i32) -> Result<Self, String> {
+    pub async fn get_game_detail_by_id(game_id: &i64) -> Result<Self, String> {
         if let Some(cached) = GAME_DETAIL_CACHE.get(game_id).await {
             return Ok(cached);
         }

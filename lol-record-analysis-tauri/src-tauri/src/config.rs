@@ -88,13 +88,24 @@ async fn write_config() -> Result<(), Box<dyn std::error::Error + Send + Sync>> 
     Ok(())
 }
 
+// Choose a reasonable zero-value by key convention
+fn zero_value_for_key(key: &str) -> Value {
+    if key.ends_with("Switch") || key.ends_with("Enabled") {
+        Value::Boolean(false)
+    } else if key.ends_with("Slice") || key.ends_with("List") || key.ends_with("Array") {
+        Value::List(vec![])
+    } else {
+        // default to empty string for other scalar-like values
+        Value::String(String::new())
+    }
+}
+
 // Get config value from cache
 pub async fn get_config(key: &str) -> Result<Value, String> {
-    get_cache()
-        .await
-        .get(key)
-        .await
-        .ok_or_else(|| format!("Config not found: {}", key))
+    match get_cache().await.get(key).await {
+        Some(v) => Ok(v),
+        None => Ok(zero_value_for_key(key)),
+    }
 }
 
 // Put config into cache and persist

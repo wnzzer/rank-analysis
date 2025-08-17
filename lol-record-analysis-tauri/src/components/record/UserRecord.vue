@@ -3,17 +3,17 @@
     <n-card :bordered="false">
       <n-flex>
         <div style="position: relative;">
-          <img width="50px" height="50px" :src="assetPrefix + summoner.summoner.profileIconKey" />
+          <img width="50px" height="50px" :src="`${assetPrefix}/profile/${summoner?.profileIconId}`" />
           <div
             style="position: absolute; bottom: 0; right: 0; font-size: 10px; width: 25px; height: 10px; text-align: center; line-height: 20px; border-radius: 50%; color: white;">
-            {{ summoner.summoner.summonerLevel }}
+            {{ summoner.summonerLevel }}
           </div>
         </div>
         <n-flex vertical>
           <n-flex>
             <span style="font-size: medium; font-weight: 1000;">
               <n-ellipsis style="max-width: 128px">
-                {{ summoner.summoner.gameName }}
+                {{ summoner.gameName }}
               </n-ellipsis>
             </span>
             <n-button text style="font-size: 12px" @click="copy">
@@ -24,10 +24,10 @@
           </n-flex>
 
           <n-flex>
-            <span style="color: #676768; font-size: small;">#{{ summoner.summoner.tagLine }}</span>
+            <span style="color: #676768; font-size: small;">#{{ summoner.tagLine }}</span>
             <n-icon :depth="3" color="dark">
               <server></server>
-            </n-icon><span>{{ summoner.summoner.platformIdCn }} </span>
+            </n-icon><span>{{ summoner.platformIdCn }} </span>
           </n-flex>
         </n-flex>
       </n-flex>
@@ -58,7 +58,7 @@
     <!-- 宿敌和好友 -->
     <n-flex style="display: flex;">
       <n-flex vertical style="flex: 1">
-        <div v-if="recentData.friendAndDispute.friendsSummoner" style="font-weight: 800; color:#8BDFB7;">
+        <div v-if="recentData.friendAndDispute.friendsSummoner.length > 0" style="font-weight: 800; color:#8BDFB7;">
           <n-icon>
             <Accessibility />
           </n-icon>
@@ -81,7 +81,7 @@
         </n-popover>
       </n-flex>
       <n-flex vertical style="flex: 1">
-        <div v-if="recentData.friendAndDispute.disputeSummoner" style="font-weight: 800; color:#C9606F;">
+        <div v-if="recentData.friendAndDispute.disputeSummoner.length > 0" style="font-weight: 800; color:#C9606F;">
           <n-icon>
             <Skull />
           </n-icon>
@@ -118,25 +118,23 @@
         </div>
         <n-flex>
           <div>
-            <img width="70px" height="70px"
-              :src="requireImg(summoner.rank.queueMap.RANKED_SOLO_5x5.tier.toLocaleLowerCase())" />
+            <img width="70px" height="70px" :src="requireImg(rank.queueMap.RANKED_SOLO_5x5.tier.toLocaleLowerCase())" />
           </div>
           <div style="position: absolute; bottom: 10px; left: 25px;">
             <span style="font-size: 12px;">
-              {{ summoner.rank.queueMap.RANKED_SOLO_5x5.tierCn }} {{
-                divisionOrPoint(summoner.rank.queueMap.RANKED_SOLO_5x5)
+              {{ rank.queueMap.RANKED_SOLO_5x5.tierCn }} {{
+                divisionOrPoint(rank.queueMap.RANKED_SOLO_5x5)
               }}
             </span>
           </div>
           <div style="width: 60%;">
             <n-flex vertical>
               <RecordButton
-                :record-type="getRecordType(summoner.rank.queueMap.RANKED_SOLO_5x5.wins, summoner.rank.queueMap.RANKED_SOLO_5x5.losses)">
-                胜率：{{ getWinRate(summoner.rank.queueMap.RANKED_SOLO_5x5.wins,
-                  summoner.rank.queueMap.RANKED_SOLO_5x5.losses) }}
+                :record-type="solo5v5RecentWinRate.winRate >= 58 ? 'good' : solo5v5RecentWinRate.winRate <= 49 ? 'bad' : ''">
+                胜率：{{ solo5v5RecentWinRate.winRate }}%
               </RecordButton>
-              <n-button size="tiny">胜场：{{ summoner.rank.queueMap.RANKED_SOLO_5x5.wins }}</n-button>
-              <n-button size="tiny">负场：{{ summoner.rank.queueMap.RANKED_SOLO_5x5.losses }}</n-button>
+              <n-button size="tiny">胜场：{{ solo5v5RecentWinRate.wins }}</n-button>
+              <n-button size="tiny">负场：{{ solo5v5RecentWinRate.losses }}</n-button>
             </n-flex>
           </div>
         </n-flex>
@@ -154,25 +152,25 @@
             </span>
           </div>
           <div>
-            <img width="70px" height="70px"
-              :src="requireImg(summoner.rank.queueMap.RANKED_FLEX_SR.tier.toLocaleLowerCase())" />
+            <img width="70px" height="70px" :src="requireImg(rank.queueMap.RANKED_FLEX_SR.tier.toLocaleLowerCase())" />
           </div>
           <div style="position: absolute; bottom: 10px; left: 25px;">
             <span style="font-size: 12px;">
-              {{ summoner.rank.queueMap.RANKED_FLEX_SR.tierCn }} {{
-                divisionOrPoint(summoner.rank.queueMap.RANKED_FLEX_SR)
+              {{ rank.queueMap.RANKED_FLEX_SR.tierCn }} {{
+                divisionOrPoint(rank.queueMap.RANKED_FLEX_SR)
               }}
             </span>
           </div>
           <div style="width: 60%;">
             <n-flex vertical>
               <RecordButton
-                :record-type="getRecordType(summoner.rank.queueMap.RANKED_FLEX_SR.wins, summoner.rank.queueMap.RANKED_FLEX_SR.losses)">
+                :record-type="flexRecentWinRate.winRate >= 58 ? 'good' : flexRecentWinRate.winRate <= 49 ? 'bad' : ''">
                 胜率：{{
-                  getWinRate(summoner.rank.queueMap.RANKED_FLEX_SR.wins, summoner.rank.queueMap.RANKED_FLEX_SR.losses) }}
+                  flexRecentWinRate.winRate
+                }}%
               </RecordButton>
-              <n-button size="tiny">胜场：{{ summoner.rank.queueMap.RANKED_FLEX_SR.wins }}</n-button>
-              <n-button size="tiny">负场：{{ summoner.rank.queueMap.RANKED_FLEX_SR.losses }}</n-button>
+              <n-button size="tiny">胜场：{{ flexRecentWinRate.wins }}</n-button>
+              <n-button size="tiny">负场：{{ flexRecentWinRate.losses }}</n-button>
             </n-flex>
 
           </div>
@@ -294,7 +292,6 @@
 </template>
 
 <script lang="ts" setup>
-import http from '../../services/http';
 import { assetPrefix } from '../../services/http';
 import { CopyOutline, Server, Accessibility, Skull } from '@vicons/ionicons5'
 import { onMounted, ref } from 'vue';
@@ -302,7 +299,7 @@ import MettingPlayersCard from '../gaming/MettingPlayersCard.vue'
 import { NCard, NFlex, NButton, NIcon, useMessage } from 'naive-ui';
 import RecordButton from './RecordButton.vue';
 import { useRoute } from 'vue-router';
-import { RankTag, RecentData, SummonerData, UserTag } from './type';
+import { defaultRank, defaultRecentData, defaultRecentWinRate, defaultSummoner, Rank, RankTag, RecentData, RecentWinRate, Summoner, UserTag } from './type';
 import { winRate, kdaColor, deathsColor, assistsColor, otherColor, groupRateColor, killsColor, winRateColor, modeOptions } from './composition';
 import { divisionOrPoint } from '../composition'
 import unranked from '../../assets/imgs/tier/unranked.png';
@@ -320,166 +317,56 @@ import { invoke } from '@tauri-apps/api/core';
 
 
 
+const summoner = ref<Summoner>(defaultSummoner());
+const rank = ref<Rank>(defaultRank());
+const solo5v5RecentWinRate = ref<RecentWinRate>(defaultRecentWinRate());
+const flexRecentWinRate = ref<RecentWinRate>(defaultRecentWinRate());
+const recentData = ref<RecentData>(defaultRecentData());
 
-const summoner = ref<SummonerData>({
-  summoner: {
-    gameName: "",
-    tagLine: "",
-    summonerLevel: 0,
-    profileIconId: 0,
-    profileIconKey: "",
-    puuid: "",
-    platformIdCn: ''
-  },
-  rank: {
-    queueMap: {
-      RANKED_SOLO_5x5: {
-        queueType: "",
-        queueTypeCn: "",
-        division: "",
-        tier: "",
-        tierCn: "",
-        highestDivision: "",
-        highestTier: "",
-        isProvisional: false,
-        leaguePoints: 0,
-        losses: 0,
-        wins: 0,
-      },
-      RANKED_FLEX_SR: {
-        queueType: "",
-        queueTypeCn: "",
-        division: "",
-        tier: "",
-        tierCn: "",
-        highestDivision: "",
-        highestTier: "",
-        isProvisional: false,
-        leaguePoints: 0,
-        losses: 0,
-        wins: 0,
-      },
-    },
-  },
-})
 
 const route = useRoute()
 let name = ""
 
-onMounted(() => {
+onMounted(async () => {
   name = route.query.name as string
-  getSummoner(name)
+  summoner.value = await invoke<Summoner>("get_summoner_by_name", { 'name': name })
+  rank.value = await invoke<Rank>("get_rank_by_name", { name })
+  const modeValue = await invoke<number>("get_config", { key: "selectMode" }) || 0;
+  mode.value = modeOptions.find(option => option.key === modeValue)?.label || "全部";
+
+  // 获取最近50场数据rank胜率
+  solo5v5RecentWinRate.value = await invoke<RecentWinRate>("get_win_rate_by_name_mode", {
+    name, mode: 420
+  });
+  flexRecentWinRate.value = await invoke<RecentWinRate>("get_win_rate_by_name_mode", {
+    name, mode: 440
+  });
+
+  getTags(name, modeValue);
+
 })
 
-onMounted(async () => {
-  const modeValue = await invoke<number>("get_config", { key: "selectMode" });
-  mode.value = modeOptions.find(option => option.key === modeValue)?.label || "全部";
-  getTags(name, modeValue);
-});
 
-const getSummoner = async (name: string) => {
-  const res = await http.get<SummonerData>(
-    "/GetSummonerAndRank", {
-    params: { name }
-  }
-  )
-  summoner.value = res.data
-}
 
 const mode = ref("全部")
-const updateModel = (key: number, option: { label: string; }) => {
-  http.put("/config/settings.user.selectMode", {
-    value: key
+const updateModel = (value: number, option: { label: string; }) => {
+  invoke("put_config", {
+    key: "settings.user.selectMode",
+    value: value
   })
-  getTags(name, key)
+  getTags(name, value)
   mode.value = option.label
 }
-const recentData = ref<RecentData>({
-  kda: 0,
-  kills: 0,
-  deaths: 0,
-  assists: 0,
-  wins: 0,
-  losses: 0,
-  flexWins: 0,
-  flexLosses: 0,
-  groupRate: 0,
-  averageGold: 0,
-  goldRate: 0,
-  averageDamageDealtToChampions: 0,
-  damageDealtToChampionsRate: 0,
-  oneGamePlayers: {},
-  friendAndDispute: {
-    friendsRate: 0,
-    friendsSummoner: [],
-    disputeRate: 0,
-    disputeSummoner: []
-  },
-  selectMode: 0,
-  selectModeCn: '',
-  selectWins: 0,
-  selectLosses: 0
-})
 const tags = ref<RankTag[]>([])
 const getTags = async (name: string, mode: number) => {
   const user_tag = await invoke<UserTag>(
-    "/get_user_tag", {
+    "get_user_tag_by_name", {
     name, mode
   }
   )
+  tags.value = user_tag.tag
   recentData.value = user_tag.recentData
-  // tags.value = user_tag.tag
-  // if ((user_tag.recentData.wins) && (user_tag.recentData.losses)) {
-  //   summoner.value.rank.queueMap.RANKED_SOLO_5x5.wins = user_tag.recentData.wins
-  //   summoner.value.rank.queueMap.RANKED_SOLO_5x5.losses = user_tag.recentData.losses
-  // }
-  // if ((res.data.recentData.flexWins) && (res.data.recentData.flexLosses)) {
-  //   summoner.value.rank.queueMap.RANKED_FLEX_SR.wins = res.data.recentData.flexWins
-  //   summoner.value.rank.queueMap.RANKED_FLEX_SR.losses = res.data.recentData.flexLosses
-  // }
-
 }
-const getWinRate = (win: number, loss: number) => {
-
-  // 首先检查是否有比赛记录，如果没有则胜率为0
-  if (win + loss === 0) {
-    return 0;
-  }
-  // 计算胜率并转换为百分比形式
-  const winRate = (win / (win + loss)) * 100;
-  // 返回胜率，保留整数部分
-  const value = Math.round(winRate) == 100 ? "--" : Math.round(winRate) + "%";
-  return value;
-};
-const getRecordType = (win: number, loss: number) => {
-
-  // 首先检查是否有比赛记录，如果没有则胜率为0
-  if (loss === 0) {
-    return '';
-  }
-  // 计算胜率并转换为百分比形式
-  const winRate = (win / (win + loss)) * 100;
-  if (loss === 0) {
-    return ''
-  }
-
-  if (winRate >= 58) {
-    return 'good'
-  } else if (winRate <= 49) {
-    return 'bad'
-  } else {
-    return ''
-  }
-
-}
-/**
-* Returns the image path for the given rank tier.
-* This function dynamically requires the image based on the provided tier string,
-* converting it to lowercase to ensure correct file name matching.
-*
-* @param {string} tier - The rank tier to get the image for.
-* @returns {string} - The path to the rank tier image.
-*/
 const requireImg = (tier: string) => {
   const tierImages: { [key: string]: any } = {
     unranked: unranked,
@@ -495,16 +382,14 @@ const requireImg = (tier: string) => {
     emerald: emerald,
   };
 
-  // 处理tier为空或为null的情况
   const tierNormalized = tier ? tier.toLocaleLowerCase() : 'unranked';
 
-  // 返回对应图片路径，如果没有匹配到返回 unranked 图片
   return tierImages[tierNormalized] || unranked;
 };
 
 const message = useMessage();
 const copy = () => {
-  navigator.clipboard.writeText(summoner.value.summoner.gameName + "#" + summoner.value.summoner.tagLine)
+  navigator.clipboard.writeText(summoner.value.gameName + "#" + summoner.value.tagLine)
     .then(() => {
       message.success("复制成功");
     })
@@ -512,6 +397,8 @@ const copy = () => {
       message.error("复制失败");
     });
 }
+
+
 
 
 </script>

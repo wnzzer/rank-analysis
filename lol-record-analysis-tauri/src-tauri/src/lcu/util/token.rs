@@ -90,7 +90,7 @@ fn get_process_pid_by_name(name: &str) -> Result<Vec<DWORD>, String> {
 }
 
 fn get_process_command_line(pid: DWORD) -> Result<String, String> {
-    println!("尝试获取进程 {} 的命令行", pid);
+    log::info!("尝试获取进程 {} 的命令行", pid);
     unsafe {
         let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
         if handle.is_null() {
@@ -100,7 +100,7 @@ fn get_process_command_line(pid: DWORD) -> Result<String, String> {
                 std::io::Error::last_os_error()
             ));
         }
-        println!("成功打开进程句柄");
+        log::info!("成功打开进程句柄");
         let _process_handle = ProcessHandle(handle);
 
         let initial_size = 8192u32;
@@ -156,7 +156,7 @@ fn get_process_command_line(pid: DWORD) -> Result<String, String> {
         let slice = std::slice::from_raw_parts(ucs.Buffer, (ucs.Length / 2) as usize);
         let cmd_line = String::from_utf16_lossy(slice);
 
-        println!("成功获取命令行: {}", cmd_line);
+        log::info!("成功获取命令行: {}", cmd_line);
         Ok(cmd_line)
     }
 }
@@ -191,10 +191,10 @@ fn auth_resolver(command_line: &str) -> Result<(String, String), String> {
 static mut CUR_PID: DWORD = 0;
 
 pub fn get_auth() -> Result<(String, String), String> {
-    println!("开始查找英雄联盟客户端进程...");
+    log::info!("开始查找英雄联盟客户端进程...");
     let pids = get_process_pid_by_name("LeagueClientUx.exe")?;
 
-    println!("找到 {} 个进程", pids.len());
+    log::info!("找到 {} 个进程", pids.len());
     if pids.is_empty() {
         return Err("未找到英雄联盟客户端进程".to_string());
     }
@@ -205,27 +205,27 @@ pub fn get_auth() -> Result<(String, String), String> {
     for &pid in &pids {
         unsafe {
             if pid == CUR_PID {
-                println!("跳过当前PID: {}", pid);
+                log::info!("跳过当前PID: {}", pid);
                 continue;
             }
 
-            println!("正在检查PID: {}", pid);
+            log::info!("正在检查PID: {}", pid);
             match get_process_command_line(pid) {
                 Ok(temp_cmd_line) if !temp_cmd_line.is_empty() => {
                     cmd_line = temp_cmd_line;
                     CUR_PID = pid;
                     found_valid_process = true;
-                    println!("找到有效进程，PID: {}", pid);
+                    log::info!("找到有效进程，PID: {}", pid);
                     break;
                 }
-                Err(e) => println!("获取进程 {} 的命令行失败: {}", pid, e),
-                _ => println!("进程 {} 的命令行为空", pid),
+                Err(e) => log::info!("获取进程 {} 的命令行失败: {}", pid, e),
+                _ => log::info!("进程 {} 的命令行为空", pid),
             }
         }
     }
 
     if !found_valid_process {
-        println!("未找到有效的命令行，尝试使用当前PID: {}", unsafe {
+        log::info!("未找到有效的命令行，尝试使用当前PID: {}", unsafe {
             CUR_PID
         });
         unsafe {

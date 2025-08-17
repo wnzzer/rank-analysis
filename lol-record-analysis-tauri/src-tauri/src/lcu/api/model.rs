@@ -74,15 +74,15 @@ pub struct Stats {
     // you might not include them in the struct for deserialization,
     // or make them Option<i32> if they might be missing.
     // However, if they *are* in the JSON, keep them.
-    #[serde(rename = "groupRate")]
+    #[serde(rename = "groupRate", default)]
     pub group_rate: i32,
-    #[serde(rename = "goldEarnedRate")]
+    #[serde(rename = "goldEarnedRate", default)]
     pub gold_earned_rate: i32,
-    #[serde(rename = "damageDealtToChampionsRate")]
+    #[serde(rename = "damageDealtToChampionsRate", default)]
     pub damage_dealt_to_champions_rate: i32,
-    #[serde(rename = "damageTakenRate")]
+    #[serde(rename = "damageTakenRate", default)]
     pub damage_taken_rate: i32,
-    #[serde(rename = "healRate")]
+    #[serde(rename = "healRate", default)]
     pub heal_rate: i32,
 }
 

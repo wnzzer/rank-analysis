@@ -110,7 +110,7 @@ impl Lobby {
     }
 
     pub async fn post_match_search() -> Result<(), String> {
-        let uri = "lol-lobby/v2/lobby/match-search";
+        let uri = "lol-lobby/v2/lobby/matchmaking/search";
         let empty_json_body = EmptyJsonBody {};
         crate::lcu::util::http::lcu_post::<(), _>(uri, &empty_json_body).await?;
         Ok(())
