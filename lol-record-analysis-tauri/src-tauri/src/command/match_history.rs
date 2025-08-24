@@ -1,4 +1,7 @@
-use crate::lcu::api::{match_history::MatchHistory, summoner::Summoner};
+use crate::lcu::api::{
+    match_history::{Game, MatchHistory},
+    summoner::Summoner,
+};
 
 #[tauri::command]
 pub async fn get_match_history(
@@ -39,57 +42,82 @@ pub async fn get_match_history_by_name(
 #[tauri::command]
 pub async fn get_filter_match_history_by_name(
     name: String,
-    mut beg_index: i32,
-    end_index_param: i32,
+    beg_index: i32,
+    mut end_index: i32,
     filter_queue_id: i32,
-    filter_champ_id: i32,
+    filter_champion_id: i32,
 ) -> Result<MatchHistory, String> {
+    // 可能是bug，超过49的记录无法查询，目前截断一下
+    if end_index > 49 {
+        end_index = 49;
+    }
+    // --- Configuration with named constants for improved readability ---
+    const MAX_RESULTS_TO_FIND: usize = 10;
+    const PAGE_SIZE: i32 = 50; // Fetch 50 matches per API request.
 
-    let mut res_match_history = MatchHistory::default();
-    let mut end_index = beg_index + 49; // 每次获取 50 条数据
+    // --- State Initialization ---
+    let mut result_history = MatchHistory::default();
+    let mut current_start_index = beg_index;
+    let search_depth_limit = end_index;
 
-    loop {
-        let match_history =
-            get_match_history_by_name(name.clone(), beg_index, end_index).await?;
-        if !have_record(&match_history, filter_champ_id, filter_queue_id) {
+    'outer: loop {
+        // Stop if the next search would exceed the specified depth limit.
+        if current_start_index >= search_depth_limit {
             break;
         }
 
-        for game in match_history.games.games {
-            if (filter_queue_id == 0 || game.queue_id == filter_queue_id)
-                && (filter_champ_id == 0
-                    || game
-                        .participants
-                        .iter()
-                        .any(|p| p.champion_id == filter_champ_id))
-            {
-                res_match_history.games.games.push(game);
+        let mut current_end_index = current_start_index + PAGE_SIZE - 1;
+        if current_end_index > 49 {
+            current_end_index = 49;
+        }
+
+        // Fetch a "page" of match history from the data source.
+        let page =
+            get_match_history_by_name(name.clone(), current_start_index, current_end_index).await?;
+
+        // If the API returns no more games, we've reached the end of the user's history.
+        if page.games.games.is_empty() {
+            break;
+        }
+
+        // --- Filter and collect matches from the fetched page ---
+        for (i, game) in page.games.games.iter().enumerate() {
+            if game_matches_filters(game, filter_queue_id, filter_champion_id) {
+                result_history.games.games.push(game.clone());
+
+                // If we've found the desired number of matches, the search is complete.
+                if result_history.games.games.len() >= MAX_RESULTS_TO_FIND {
+                    // Record the exact index where the search stopped.
+                    result_history.end_index = current_start_index + i as i32;
+                    break 'outer; // Exit both the inner and outer loops.
+                }
             }
         }
 
-        if res_match_history.games.games.len() >= end_index_param as usize {
-            break; // 达到请求的结束索引
-        }
-
-        beg_index += 50;
-        end_index += 50;
+        // --- Pagination: Prepare for the next iteration ---
+        current_start_index += PAGE_SIZE;
     }
-    res_match_history.enrich_game_detail().await?;
-    res_match_history.beg_index = beg_index;
-    res_match_history.end_index = end_index;
-    Ok(res_match_history)
+
+    // --- Finalization ---
+    // If the loop terminated without `break 'outer'`, it means we either hit the
+    // search depth limit or the end of the match history. In that case, the
+    // end_index should be the last index we successfully queried.
+    if result_history.end_index == 0 {
+        result_history.end_index = current_start_index.min(search_depth_limit) - 1;
+    }
+    result_history.beg_index = beg_index;
+
+    result_history.enrich_game_detail().await?;
+    Ok(result_history)
 }
 
-fn have_record(match_history: &MatchHistory, filter_champ_id: i32, filter_queue_id: i32) -> bool {
-    match_history.games.games.iter().any(|game| {
-        // 队列ID为0时不过滤，否则要求相等
-        let queue_ok = filter_queue_id == 0 || game.queue_id == filter_queue_id;
-        // 英雄ID为0时不过滤，否则要求有任意参与者相等
-        let champ_ok = filter_champ_id == 0
-            || game
-                .participants
-                .iter()
-                .any(|p| p.champion_id == filter_champ_id);
-        queue_ok && champ_ok
-    })
+fn game_matches_filters(game: &Game, filter_queue_id: i32, filter_champion_id: i32) -> bool {
+    let queue_matches = filter_queue_id <= 0 || game.queue_id == filter_queue_id;
+    let champion_matches = filter_champion_id <= 0
+        || game
+            .participants
+            .iter()
+            .any(|p| p.champion_id == filter_champion_id);
+
+    queue_matches && champion_matches
 }

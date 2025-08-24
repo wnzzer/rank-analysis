@@ -27,7 +27,7 @@
             <span style="color: #676768; font-size: small;">#{{ summoner.tagLine }}</span>
             <n-icon :depth="3" color="dark">
               <server></server>
-            </n-icon><span>{{ summoner.platformIdCn }} </span>
+            </n-icon><span>{{ platformIdCn }} </span>
           </n-flex>
         </n-flex>
       </n-flex>
@@ -316,7 +316,7 @@ import emerald from '../../assets/imgs/tier/emerald.png';
 import { invoke } from '@tauri-apps/api/core';
 
 
-
+const platformIdCn = ref("未知")
 const summoner = ref<Summoner>(defaultSummoner());
 const rank = ref<Rank>(defaultRank());
 const solo5v5RecentWinRate = ref<RecentWinRate>(defaultRecentWinRate());
@@ -333,6 +333,8 @@ onMounted(async () => {
   rank.value = await invoke<Rank>("get_rank_by_name", { name })
   const modeValue = await invoke<number>("get_config", { key: "selectMode" }) || 0;
   mode.value = modeOptions.find(option => option.key === modeValue)?.label || "全部";
+  platformIdCn.value = await invoke("get_platform_name_by_name", { name })
+
 
   // 获取最近50场数据rank胜率
   solo5v5RecentWinRate.value = await invoke<RecentWinRate>("get_win_rate_by_name_mode", {

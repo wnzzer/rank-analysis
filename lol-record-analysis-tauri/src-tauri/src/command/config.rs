@@ -24,22 +24,17 @@ pub async fn get_http_server_port(state: tauri::State<'_, AppState>) -> Result<i
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ChampionOption {
     pub label: String,
     pub value: i64,
     pub real_name: String,
-    pub nick_name: String,
+    pub nickname: String,
 }
 
 #[tauri::command]
 pub fn get_champion_options() -> Result<Vec<ChampionOption>, String> {
     let mut options = vec![];
-    options.push(ChampionOption {
-        label: "全部".to_string(),
-        value: -1,
-        real_name: "全部".to_string(),
-        nick_name: "全部".to_string(),
-    });
     for (id, item) in asset::CHAMPION_CACHE.read().unwrap().iter() {
         let champion = item.clone();
         let known_alias = constant::game::CHAMPION_MAP
@@ -50,7 +45,7 @@ pub fn get_champion_options() -> Result<Vec<ChampionOption>, String> {
             label: champion.name,
             value: champion.id,
             real_name: champion.description,
-            nick_name: format!("{} ({})", known_alias, champion.alias),
+            nickname: format!("{} ({})", known_alias, champion.alias),
         });
     }
 

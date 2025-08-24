@@ -43,7 +43,7 @@
             <span>{{ page }}</span>
           </template>
           <template #next>
-            <n-button size="tiny" @click="nextPage" :disabled="isRequestingMatchHostory">
+            <n-button size="tiny" @click="nextPage" :disabled="page == 5 || isRequestingMatchHostory">
               <template #icon>
                 <n-icon>
                   <ArrowForward></ArrowForward>
@@ -68,10 +68,12 @@ import { renderSingleSelectTag, renderLabel, filterChampionFunc } from '../compo
 import { invoke } from '@tauri-apps/api/core'
 import { championOption } from '../type'
 
-const championOptions = ref<championOption[]>()
 
 const filterQueueId = ref(0)
 const filterChampionId = ref(-1)
+const championOptions = ref<championOption[]>(
+)
+
 const modeOptions = [
   { label: '全部', value: 0 },
   { label: '单双排', value: 420 },
@@ -89,13 +91,13 @@ const modeOptions = [
 const resetFilter = () => {
   pageHistory.value = []
   filterQueueId.value = 0
-  filterChampionId.value = 0
+  filterChampionId.value = -1
   handleUpdateValue()
 }
 const handleUpdateValue = () => {
   page.value = 1
   if (filterChampionId.value > 0 || filterQueueId.value > 0) {
-    getHistoryMatch(route.query.name as string, 0, 800)
+    getHistoryMatch(route.query.name as string, 0, 49)
   } else {
     getHistoryMatch(route.query.name as string, 0, 9)
   }
@@ -230,7 +232,6 @@ const getHistoryMatch = async (name: string, begIndex: number, endIndex: number)
     if (matchHistory.value) {
       curBegIndex = matchHistory.value.begIndex
       curEndIndex = matchHistory.value.endIndex
-      console.log(matchHistory.value)
     }
   } finally {
     isRequestingMatchHostory.value = false
@@ -244,9 +245,9 @@ const nextPage = async () => {
   let endIndex = 0
   pageHistory.value.push({ begIndex: curBegIndex, endIndex: curEndIndex })
 
-  if (filterQueueId.value !== 0 || filterChampionId.value !== 0) {
+  if (filterQueueId.value > 0 || filterChampionId.value > 0) {
     begIndex = curEndIndex + 1
-    endIndex = begIndex + 799
+    endIndex = 49
   } else {
     begIndex = page.value * 10
     endIndex = begIndex + 9
@@ -259,7 +260,6 @@ const nextPage = async () => {
 // 上一页
 const prevPage = async () => {
   const lastPage = pageHistory.value.pop()
-  console.log(lastPage)
 
   if (!lastPage) {
     throw new Error("无上一页数据")
@@ -269,13 +269,14 @@ const prevPage = async () => {
 }
 
 onMounted(async () => {
-  championOptions.value = await invoke("get_champion_options")
+  championOptions.value = await invoke<championOption[]>("get_champion_options")
 })
 
 onMounted(async () => {
   name = route.query.name as string
   await getHistoryMatch(name, 0, 9)
 })
+
 
 </script>
 

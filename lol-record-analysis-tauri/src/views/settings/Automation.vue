@@ -28,14 +28,14 @@
           <VueDraggable ref="el" v-model="myPickData">
             <n-tag v-for="item in myPickData" round closable :bordered="false" @close="deletePickData(item)"
               style="margin-right: 15px; ">
-              {{ championHash[item]?.label || `英雄 ${item}` }}
+              {{options.filter(option => option.value === item)?.[0]?.label || `英雄 ${item}`}}
               <template #avatar>
-                <n-avatar :src="assetPrefix + 'champion' + item" :fallback-src="assetPrefix + 'champion-1'" />
+                <n-avatar :src="assetPrefix + '/champion/' + item" :fallback-src="assetPrefix + 'champion-1'" />
               </template>
             </n-tag>
           </VueDraggable>
           <n-select v-model:value="selectPickChampionId" filterable :filter="filterChampionFunc" placeholder="添加英雄"
-            :render-tag="renderSingleSelectTag" :render-label="renderLabel" :options="championOptions" size="small"
+            :render-tag="renderSingleSelectTag" :render-label="renderLabel" :options="options" size="small"
             @update:value="addPickData" style="width: 170px" />
         </n-flex>
         <n-text depth="3" style="font-size: 12px">拖动可以改变选择英雄的优先级</n-text>
@@ -52,14 +52,14 @@
           <VueDraggable ref="el" v-model="myBanData">
             <n-tag v-for="item in myBanData" round closable @close="deleteBanData(item)" :bordered="false"
               style="margin-right: 15px;">
-              {{ championHash[item]?.label || `英雄 ${item}` }}
+              {{options.filter(option => option.value === item)?.[0]?.label || `英雄 ${item}`}}
               <template #avatar>
-                <n-avatar :src="assetPrefix + 'champion' + item" :fallback-src="assetPrefix + 'champion-1'" />
+                <n-avatar :src="assetPrefix + '/champion/' + item" :fallback-src="assetPrefix + 'champion-1'" />
               </template>
             </n-tag>
           </VueDraggable>
           <n-select v-model:value="selectBanChampionId" filterable :filter="filterChampionFunc" placeholder="添加英雄"
-            :render-tag="renderSingleSelectTag" :render-label="renderLabel" :options="championOptions" size="small"
+            :render-tag="renderSingleSelectTag" :render-label="renderLabel" :options="options" size="small"
             @update:value="addBanData" style="width: 170px" />
         </n-flex>
         <n-text depth="3" style="font-size: 12px">拖动可以改变禁用英雄的优先级</n-text>
@@ -82,19 +82,25 @@
 <script setup lang="ts">
 import { VueDraggable } from 'vue-draggable-plus'
 import { onMounted, ref } from 'vue'
-import { renderSingleSelectTag, renderLabel, championOptions, filterChampionFunc } from '../../components/composition'
+import { renderSingleSelectTag, renderLabel, filterChampionFunc } from '../../components/composition'
 import { CheckmarkCircle, Flash, Close, PlayCircle } from '@vicons/ionicons5'
-import { championHash } from '../../components/composition'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
+import { assetPrefix } from '@renderer/services/http'
+import { championOption } from '@renderer/components/type'
+import { invoke } from '@tauri-apps/api/core'
 
 onMounted(async () => {
+  const opts = await invoke<championOption[]>('get_champion_options');
+  options.value = opts.filter(opt => opt.value > 0);
   autoAccept.value = (await getConfigByIpc<boolean>("settings.auto.acceptMatchSwitch"))
   autoPick.value = (await getConfigByIpc<boolean>("settings.auto.pickChampionSwitch"))
   autoBan.value = (await getConfigByIpc<boolean>("settings.auto.banChampionSwitch"))
-  myPickData.value = (await getConfigByIpc<number[]>("settings.auto.pickChampionSlice"))
-  myBanData.value = (await getConfigByIpc<number[]>("settings.auto.banChampionSlice"))
+  myPickData.value = (await getConfigByIpc<number[]>("settings.auto.pickChampionSlice")) || []
+  myBanData.value = (await getConfigByIpc<number[]>("settings.auto.banChampionSlice")) || []
   autoStart.value = (await getConfigByIpc<boolean>("settings.auto.startMatchSwitch"))
 });
+
+const options = ref<championOption[]>([])
 const autoAccept = ref(false)
 const autoPick = ref(false)
 const autoBan = ref(false)
@@ -136,24 +142,14 @@ const deletePickData = async (value: number) => {
   await updatePickData()
 }
 const addBanData = async (value: number) => {
-  if (value === 0) return
-
+  if (value === 0 || myBanData.value.includes(value)) return
   myBanData.value?.push(value)
   await updateBanData()
 }
 const addPickData = async (value: number) => {
-  if (value === 0) {
-    myPickData.value = [
-      0,
-    ]
-
-  } else {
-    if (myPickData.value.length >= 1 && myPickData.value[0] === 0) {
-      myPickData.value = []
-    }
-    myPickData.value?.push(value)
-  }
-
+  console.log('addPickData', value)
+  if (myPickData.value.includes(value) || value === 0) return
+  myPickData.value?.push(value)
   await updatePickData()
 }
 

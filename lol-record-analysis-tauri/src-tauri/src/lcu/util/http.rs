@@ -14,7 +14,7 @@ fn get_client() -> &'static Client {
     HTTP_CLIENT.get_or_init(|| {
         Client::builder()
             .danger_accept_invalid_certs(true)
-            .timeout(Duration::from_secs(10))
+            .timeout(Duration::from_secs(50))
             .build()
             .expect("Failed to build reqwest client")
     })
@@ -35,7 +35,7 @@ fn refresh_auth() -> (String, String) {
     let mut last_refresh_guard = last_refresh.lock().unwrap();
 
     let now = Instant::now();
-    if now.duration_since(*last_refresh_guard) < Duration::from_secs(3) {
+    if now.duration_since(*last_refresh_guard) < Duration::from_secs(1) {
         let auth_guard = AUTH.get().expect("AUTH not initialized").lock().unwrap();
         return auth_guard.clone();
     }

@@ -108,7 +108,6 @@
 <script setup lang="ts">
 import { h, onMounted, ref } from 'vue'
 import { useNotification } from 'naive-ui'
-import axios from 'axios'
 import { app } from '@tauri-apps/api';
 
 // Component state
@@ -136,9 +135,10 @@ const notification = useNotification()
 const checkForUpdates = async () => {
   console.log('Checking for updates...')
   try {
-    const response = await axios.get('https://api.github.com/repos/wnzzer/rank-analysis/releases/latest')
-    latestVersion.value = response.data.tag_name
-    latestReleaseUrl.value = response.data.html_url
+    const response = await fetch('https://api.github.com/repos/wnzzer/rank-analysis/releases/latest')
+    const data = await response.json()
+    latestVersion.value = data.tag_name
+    latestReleaseUrl.value = data.html_url
     if (!latestVersion.value.includes(currentVersion.value)) {
       notification.success({
         title: '有更新可用',

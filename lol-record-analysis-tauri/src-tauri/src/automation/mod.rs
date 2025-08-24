@@ -454,37 +454,37 @@ pub async fn start_automation() {
         match key {
             "settings.auto.startMatchSwitch" => {
                 if let Value::Boolean(true) = new_value {
-                    println!("Starting match automation");
+                    log::info!("Starting match automation");
                     manager.start_task("start_match", start_match_automation());
                 } else {
-                    println!("Stopping match automation");
+                    log::info!("Stopping match automation");
                     manager.stop_task("start_match");
                 }
             }
             "settings.auto.acceptMatchSwitch" => {
                 if let Value::Boolean(true) = new_value {
-                    println!("Starting accept match automation");
+                    log::info!("Starting accept match automation");
                     manager.start_task("accept_match", start_accept_match_automation());
                 } else {
-                    println!("Stopping accept match automation");
+                    log::info!("Stopping accept match automation");
                     manager.stop_task("accept_match");
                 }
             }
             "settings.auto.pickChampionSwitch" => {
                 if let Value::Boolean(true) = new_value {
-                    println!("Starting champion select automation");
+                    log::info!("Starting champion select automation");
                     manager.start_task("pick_champion", start_champion_select_automation());
                 } else {
-                    println!("Stopping champion select automation");
+                    log::info!("Stopping champion select automation");
                     manager.stop_task("pick_champion");
                 }
             }
             "settings.auto.banChampionSwitch" => {
                 if let Value::Boolean(true) = new_value {
-                    println!("Starting champion ban automation");
+                    log::info!("Starting champion ban automation");
                     manager.start_task("ban_champion", start_champion_ban_automation());
                 } else {
-                    println!("Stopping champion ban automation");
+                    log::info!("Stopping champion ban automation");
                     manager.stop_task("ban_champion");
                 }
             }

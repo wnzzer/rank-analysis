@@ -38,7 +38,7 @@
                                 <n-flex>
                                     <span style="font-size: medium;font-size: 14px; font-weight: 1000;">{{
                                         mySummoner?.gameName
-                                        }}</span>
+                                    }}</span>
                                     <n-button text style="font-size: 12px" @click="copy">
                                         <n-icon>
                                             <copy-outline></copy-outline>
@@ -49,7 +49,7 @@
 
                                 <n-flex>
                                     <span style="color: #676768; font-size: small;">#{{ mySummoner?.tagLine
-                                        }}</span>
+                                    }}</span>
                                     <n-icon :depth="3" color="dark" style="position: relative; top: 2px;">
                                         <server></server>
                                     </n-icon><span>{{ mySummoner?.platformIdCn }} </span>
@@ -114,7 +114,10 @@ function renderIcon(icon: Component) {
 }
 function handleMenuClick(key: string) {
     // 跳转到对应路由
-    router.push({ name: key });
+    router.push({
+        name: key,
+        query: { name: mySummoner.value.gameName + "#" + mySummoner.value.tagLine }
+    });
 }
 
 const menuOptions = computed(() => [

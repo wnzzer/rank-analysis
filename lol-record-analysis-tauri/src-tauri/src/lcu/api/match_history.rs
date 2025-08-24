@@ -137,7 +137,7 @@ impl MatchHistory {
 
             MatchHistory {
                 games: GamesWrapper {
-                    games: history.games.games[beg..actual_end].to_vec(),
+                    games: history.games.games[beg..actual_end + 1].to_vec(),
                 },
                 ..history
             }

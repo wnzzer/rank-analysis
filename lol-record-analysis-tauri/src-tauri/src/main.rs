@@ -4,9 +4,9 @@
 use actix_web::http::header::{CACHE_CONTROL, CONTENT_TYPE};
 use actix_web::{web, App, HttpResponse, HttpServer};
 use log::info;
-use lol_record_analysis_tauri_lib::command;
 use lol_record_analysis_tauri_lib::lcu::api::asset as asset_api;
 use lol_record_analysis_tauri_lib::state::AppState;
+use lol_record_analysis_tauri_lib::{automation, command};
 use std::io::Result;
 use tauri::Manager;
 
@@ -44,11 +44,11 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         rt.block_on(async move {
             // Initialize asset caches BEFORE starting HTTP server so routes can serve assets immediately.
             asset_api::init().await; // logs: Initializing ... + counts
-
             if let Err(e) = start_http_server(tx).await {
                 log::error!("HTTP server error: {}", e);
             }
         });
+        tokio::spawn(async { automation::start_automation().await });
     });
 
     let mut app_builder = tauri::Builder::default()
@@ -70,6 +70,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             command::match_history::get_filter_match_history_by_name,
             command::user_tag::get_user_tag_by_puuid,
             command::user_tag::get_user_tag_by_name,
+            command::info::get_platform_name_by_name,
         ]);
 
     // In setup, set the HTTP port once received

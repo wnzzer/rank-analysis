@@ -9,7 +9,10 @@ export async function putConfigByIpc(key: string, value: any) {
     await invoke('put_config', { key, value });
 }
 
-
+interface ConfigValue {
+    value: any;
+}
 export async function getConfigByIpc<T>(key: string) {
-    return await invoke<T>('get_config', { key });
+    const configValue = await invoke<ConfigValue>('get_config', { key });
+    return configValue.value as T;
 }
