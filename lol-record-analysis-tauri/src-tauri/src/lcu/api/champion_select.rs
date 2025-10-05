@@ -26,13 +26,18 @@ pub struct Action {
     pub action_type: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Timer {
+    #[serde(default)]
     pub adjusted_time_left_in_phase: f64,
+    #[serde(default)]
     pub internal_now_in_phase: f64,
+    #[serde(default)]
     pub is_infinite: bool,
+    #[serde(default)]
     pub phase: String,
+    #[serde(default)]
     pub total_time_in_phase: f64,
 }
 

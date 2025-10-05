@@ -3,7 +3,6 @@ use base64::engine::general_purpose;
 use base64::Engine;
 use reqwest::{Client, StatusCode};
 use serde::{de::DeserializeOwned, Serialize};
-use std::any::TypeId;
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -62,20 +61,12 @@ pub async fn lcu_get<T: DeserializeOwned + 'static>(uri: &str) -> Result<T, Stri
         let resp = get_client().get(&url).send().await;
         match resp {
             Ok(r) if r.status() == StatusCode::OK => {
-                if TypeId::of::<T>() == TypeId::of::<String>() {
-                    // 返回原始字符串
-                    let text = r.text().await.map_err(|e| format!("读取文本失败: {}", e))?;
-                    // 类型转换
-                    let any = Box::new(text) as Box<dyn std::any::Any>;
-                    return Ok(*any.downcast::<T>().unwrap());
-                } else {
-                    // 自动反序列化
-                    let data = r
-                        .json::<T>()
-                        .await
-                        .map_err(|e| format!("反序列化失败: {}", e))?;
-                    return Ok(data);
-                }
+                // 统一使用 JSON 反序列化，这样可以正确处理 JSON 字符串（去掉引号）
+                let data = r
+                    .json::<T>()
+                    .await
+                    .map_err(|e| format!("反序列化失败: {}", e))?;
+                return Ok(data);
             }
             _ => {
                 refresh_auth();

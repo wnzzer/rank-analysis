@@ -27,15 +27,23 @@ static CACHE: OnceCell<Cache<String, Value>> = OnceCell::const_new();
 pub async fn get_cache() -> &'static Cache<String, Value> {
     CACHE
         .get_or_init(|| async {
-            println!("Initializing cache asynchronously...");
+            log::info!("Initializing config cache...");
             let cache = Cache::builder().build();
 
-            if let Ok(config) = read_config(CONFIG_PATH) {
-                for (k, v) in config {
-                    // 在 async 块中可以自由 .await
-                    cache.insert(k, v).await;
+            match read_config(CONFIG_PATH) {
+                Ok(config) => {
+                    log::info!("Loaded {} config entries from {}", config.len(), CONFIG_PATH);
+                    for (k, v) in config {
+                        // 在 async 块中可以自由 .await
+                        cache.insert(k.clone(), v.clone()).await;
+                        log::debug!("Config loaded: {} = {:?}", k, v);
+                    }
+                }
+                Err(e) => {
+                    log::error!("Failed to load config from {}: {}", CONFIG_PATH, e);
                 }
             }
+            log::info!("Config cache initialized");
             cache
         })
         .await
@@ -100,11 +108,34 @@ fn zero_value_for_key(key: &str) -> Value {
     }
 }
 
+// Helper function to extract boolean value from Value enum
+// Handles both direct Boolean and Map({"value": Boolean(...)}) formats
+pub fn extract_bool(value: &Value) -> Option<bool> {
+    match value {
+        Value::Boolean(b) => Some(*b),
+        Value::Map(m) => {
+            if let Some(Value::Boolean(b)) = m.get("value") {
+                Some(*b)
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
 // Get config value from cache
 pub async fn get_config(key: &str) -> Result<Value, String> {
     match get_cache().await.get(key).await {
-        Some(v) => Ok(v),
-        None => Ok(zero_value_for_key(key)),
+        Some(v) => {
+            log::debug!("Config get: {} = {:?}", key, v);
+            Ok(v)
+        }
+        None => {
+            let zero_val = zero_value_for_key(key);
+            log::debug!("Config get (default): {} = {:?}", key, zero_val);
+            Ok(zero_val)
+        }
     }
 }
 

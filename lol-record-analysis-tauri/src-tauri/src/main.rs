@@ -29,8 +29,37 @@ async fn asset_route(path: web::Path<(String, i64)>) -> actix_web::Result<HttpRe
 
 // NOTE: main is no longer async
 fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
-    env_logger::init();
+    // 初始化日志，默认 info 级别，可通过 RUST_LOG 环境变量覆盖
+    if std::env::var("RUST_LOG").is_err() {
+        std::env::set_var("RUST_LOG", "info");
+    }
+    
+    // 配置日志格式，显示时间、级别、文件名、行号和消息
+    env_logger::Builder::from_default_env()
+        .format_timestamp_millis()
+        .format(|buf, record| {
+            use std::io::Write;
+            // 提取文件名（不含路径）
+            let file = record.file().unwrap_or("unknown");
+            let file_name = file.split(['/', '\\']).last().unwrap_or(file);
+            
+            writeln!(
+                buf,
+                "[{} {} {}:{}] {}",
+                buf.timestamp_millis(),
+                record.level(),
+                file_name,
+                record.line().unwrap_or(0),
+                record.args()
+            )
+        })
+        .init();
+    
+    info!("========================================");
     info!("Starting Tauri application with HTTP server");
+    info!("Current working directory: {:?}", std::env::current_dir());
+    info!("Config file path: config.yaml");
+    info!("========================================");
 
     // Create a channel to send the discovered port from the HTTP server thread to the main thread
     let (tx, rx) = std::sync::mpsc::sync_channel::<u16>(1);
@@ -42,13 +71,22 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             .unwrap();
 
         rt.block_on(async move {
+            // 先启动自动化系统（会初始化配置）
+            log::info!("Starting automation system...");
+            tokio::spawn(async { 
+                automation::start_automation().await;
+            });
+
+            // 等待一小段时间确保自动化系统初始化完成
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
             // Initialize asset caches BEFORE starting HTTP server so routes can serve assets immediately.
             asset_api::init().await; // logs: Initializing ... + counts
+            
             if let Err(e) = start_http_server(tx).await {
                 log::error!("HTTP server error: {}", e);
             }
         });
-        tokio::spawn(async { automation::start_automation().await });
     });
 
     let mut app_builder = tauri::Builder::default()
