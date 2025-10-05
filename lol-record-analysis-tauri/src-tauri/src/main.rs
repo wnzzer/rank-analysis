@@ -117,6 +117,14 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             let state = app.state::<AppState>();
             let _ = state.http_port.set(port);
         }
+
+        // 启动游戏状态监听器
+        let app_handle = app.handle().clone();
+        tauri::async_runtime::spawn(async move {
+            lol_record_analysis_tauri_lib::game_state_monitor::start_game_state_monitor(app_handle)
+                .await;
+        });
+
         Ok(())
     });
 

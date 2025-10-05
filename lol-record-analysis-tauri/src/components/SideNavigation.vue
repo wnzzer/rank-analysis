@@ -69,44 +69,24 @@ import router from '../router';
 import { getFirstPath } from '../router';
 import { Reload, BarChart, Server, CopyOutline, SettingsOutline } from '@vicons/ionicons5'
 import { NIcon, useMessage } from 'naive-ui';
-import { Component, computed, h, onMounted, ref } from 'vue';
-import { defaultSummoner, Summoner } from './record/type';
-import { invoke } from '@tauri-apps/api/core';
+import { Component, computed, h, ref, watch } from 'vue';
+import { Summoner } from './record/type';
 import { assetPrefix } from '@renderer/services/http';
+import { useGameState } from '@renderer/composables/useGameState';
 
-onMounted(() => {
-    getGetMySummoner().then(() => {
-        setInterval(() => {
-            getGetMySummoner();
-        }, 10000);
-    })
-});
+// 使用游戏状态监听 - 自动切换路由
+const { isConnected, summoner: gameStateSummoner } = useGameState();
 
+// 将后端数据转换为前端 Summoner 类型
+const mySummoner = ref<Summoner>({} as Summoner);
 
-const mySummoner = ref<Summoner>({} as Summoner)
-async function getGetMySummoner() {
-
-    try {
-        mySummoner.value = await invoke("get_my_summoner");
-        if (router.currentRoute.value.path == "/Loading") {
-            router.push({
-                path: '/Record',
-                query: { name: mySummoner.value.gameName + "#" + mySummoner.value.tagLine }
-            });
-        }
-
-    } catch (error) {
-        mySummoner.value = defaultSummoner();
-
-        // 捕获 http 请求失败的情况
-        console.error("请求失败或网络异常", error);
-        if (router.currentRoute.value.path != "/Loading") {
-            router.push({
-                path: '/Loading',
-            });
-        }
+watch(gameStateSummoner, (newSummoner) => {
+    if (newSummoner) {
+        mySummoner.value = newSummoner as unknown as Summoner;
+    } else {
+        mySummoner.value = {} as Summoner;
     }
-}
+}, { immediate: true });
 
 
 function renderIcon(icon: Component) {
