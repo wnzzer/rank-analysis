@@ -41,6 +41,11 @@ pub fn get_champion_options() -> Result<Vec<ChampionOption>, String> {
             .get(&(*id as u16))
             .map(|c| c.nickname.to_string())
             .unwrap_or_else(|| champion.alias.clone());
+
+        // 末日人机不加入选项
+        if champion.name.contains("末日人机"){
+            continue;
+        }
         options.push(ChampionOption {
             label: champion.name,
             value: champion.id,

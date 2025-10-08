@@ -301,30 +301,34 @@ async fn start_select_champion() -> Result<(), String> {
     let my_cell_id = select_session.local_player_cell_id;
     log::info!("Current player cell ID: {}", my_cell_id);
 
-    let mut my_pick_champion_slice = match get_config("settings.auto.pickChampionSlice").await {
-        Ok(Value::List(list)) => list
-            .iter()
-            .filter_map(|v| match v {
-                Value::Integer(i) => Some(*i as i32),
-                _ => None,
-            })
-            .collect::<Vec<i32>>(),
+    let my_pick_champion_slice = match get_config("settings.auto.pickChampionSlice").await {
+        Ok(Value::Map(m)) => {
+            // Handle nested structure: { "value": [list] }
+            if let Some(Value::List(list)) = m.get("value") {
+                list.iter()
+                    .filter_map(|v| match v {
+                        Value::Integer(i) => Some(*i as i32),
+                        _ => None,
+                    })
+                    .collect::<Vec<i32>>()
+            } else {
+                vec![]
+            }
+        }
+        Ok(Value::List(list)) => {
+            // Handle direct list structure (for backwards compatibility)
+            list.iter()
+                .filter_map(|v| match v {
+                    Value::Integer(i) => Some(*i as i32),
+                    _ => None,
+                })
+                .collect::<Vec<i32>>()
+        }
         _ => vec![],
     };
 
     log::info!("Configured champion selection list: {:?}", my_pick_champion_slice);
 
-    // 如果是全部选择的选项,即第一项为 0,默认选择所有英雄
-    if !my_pick_champion_slice.is_empty() && my_pick_champion_slice[0] == 0 {
-        use crate::lcu::api::asset::CHAMPION_CACHE;
-        my_pick_champion_slice = CHAMPION_CACHE
-            .read()
-            .unwrap()
-            .keys()
-            .map(|&id| id as i32)
-            .collect();
-        log::info!("Using all available champions, total: {}", my_pick_champion_slice.len());
-    }
 
     let mut not_select_champion_ids = HashMap::new();
 
@@ -455,13 +459,28 @@ async fn start_ban_champion() -> Result<(), String> {
     log::info!("Current player cell ID: {}", my_cell_id);
 
     let my_ban_champion_slice = match get_config("settings.auto.banChampionSlice").await {
-        Ok(Value::List(list)) => list
-            .iter()
-            .filter_map(|v| match v {
-                Value::Integer(i) => Some(*i as i32),
-                _ => None,
-            })
-            .collect::<Vec<i32>>(),
+        Ok(Value::Map(m)) => {
+            // Handle nested structure: { "value": [list] }
+            if let Some(Value::List(list)) = m.get("value") {
+                list.iter()
+                    .filter_map(|v| match v {
+                        Value::Integer(i) => Some(*i as i32),
+                        _ => None,
+                    })
+                    .collect::<Vec<i32>>()
+            } else {
+                vec![]
+            }
+        }
+        Ok(Value::List(list)) => {
+            // Handle direct list structure (for backwards compatibility)
+            list.iter()
+                .filter_map(|v| match v {
+                    Value::Integer(i) => Some(*i as i32),
+                    _ => None,
+                })
+                .collect::<Vec<i32>>()
+        }
         _ => vec![],
     };
 
