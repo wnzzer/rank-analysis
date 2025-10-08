@@ -11,7 +11,7 @@
                 <n-card :bordered="false" content-style="padding: 0;">
                     <n-flex>
                         <div style="position: relative;">
-                            <n-image width="32px" :src="assetPrefix + sessionSummoner.championKey" preview-disabled
+                            <n-image width="32px" :src="assetPrefix + '/champion/'+ sessionSummoner.championId" preview-disabled
                                 :fallback-src="nullImg" />
 
                             <div
@@ -71,7 +71,7 @@
                             }"> {{ game.participants[0].stats.win ? '胜' : '负' }}
 
                             </span>
-                            <img :src="assetPrefix + game.participants[0]?.championKey"
+                            <img :src="assetPrefix +'/champion/'+ game.participants[0]?.championId"
                                 style="width: auto; height: 24px;       vertical-align: middle;" />
                             <span style=" font-size: 12px;">
                                 <span style="font-weight: 500; font-size: 12px;color: #8BDFB7">
@@ -114,7 +114,7 @@
                             }"> {{ game.participants[0].stats.win ? '胜' : '负' }}
 
                             </span>
-                            <img :src="assetPrefix + game.participants[0]?.championKey"
+                            <img :src="assetPrefix + '/champion/' + game.participants[0]?.championId"
                                 style="width: auto; height: 24px;       vertical-align: middle;" />
                             <span style=" font-size: 12px;">
                                 <span style="font-weight: 500; font-size: 12px;color: #8BDFB7">
@@ -219,7 +219,7 @@
                                     <span style="width: 65px;"
                                         :style="{ color: groupRateColor(sessionSummoner?.userTag.recentData.groupRate) }">
                                         <n-progress type="line"
-                                            :percentage="winRate(sessionSummoner?.userTag.recentData.wins, sessionSummoner?.userTag.recentData.losses)"
+                                            :percentage="winRate(sessionSummoner?.userTag.recentData.selectWins, sessionSummoner?.userTag.recentData.selectLosses)"
                                             :height="6" :show-indicator="false"
                                             :color="winRateColor(winRate(sessionSummoner?.userTag.recentData.wins, sessionSummoner?.userTag.recentData.losses))"
                                             processing :stroke-width="10"

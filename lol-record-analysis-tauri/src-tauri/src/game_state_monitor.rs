@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 use tauri::{AppHandle, Emitter};
 use tokio::sync::RwLock;
 use tokio::time::interval;
@@ -20,6 +20,7 @@ static GAME_STATE_MONITOR: tokio::sync::OnceCell<Arc<RwLock<GameStateMonitor>>> 
 pub struct GameStateMonitor {
     app_handle: AppHandle,
     last_state: GameStateEvent,
+    last_push_time: SystemTime,
 }
 
 impl GameStateMonitor {
@@ -31,6 +32,7 @@ impl GameStateMonitor {
                 phase: None,
                 summoner: None,
             },
+            last_push_time: SystemTime::now()
         }
     }
 
@@ -48,8 +50,10 @@ impl GameStateMonitor {
         // 检查状态是否改变
         let state_changed = new_state.connected != self.last_state.connected
             || new_state.phase != self.last_state.phase;
+        let now = SystemTime::now();
+        let diff_time = now.duration_since(self.last_push_time).unwrap();
 
-        if state_changed {
+        if state_changed || diff_time > Duration::from_secs(10) {
             log::info!(
                 "Game state changed: connected={}, phase={:?}",
                 new_state.connected,

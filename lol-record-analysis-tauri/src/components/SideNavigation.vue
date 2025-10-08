@@ -75,7 +75,7 @@ import { assetPrefix } from '@renderer/services/http';
 import { useGameState } from '@renderer/composables/useGameState';
 
 // 使用游戏状态监听 - 自动切换路由
-const { isConnected, summoner: gameStateSummoner } = useGameState();
+const { summoner: gameStateSummoner } = useGameState();
 
 // 将后端数据转换为前端 Summoner 类型
 const mySummoner = ref<Summoner>({} as Summoner);

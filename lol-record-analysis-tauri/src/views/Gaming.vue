@@ -29,8 +29,9 @@
 
 <script lang="ts" setup>
 
-import http from '../services/http';
 import { computed, onMounted, onUnmounted, reactive } from 'vue';
+import { listen } from '@tauri-apps/api/event';
+import { invoke } from '@tauri-apps/api/core';
 
 import unranked from '../assets/imgs/tier/unranked.png';
 import bronze from '../assets/imgs/tier/bronze.png';
@@ -80,10 +81,6 @@ const comImgTier = computed(() => {
         iron: iron,
         emerald: emerald,
     };
-
-
-
-
 
     // 处理 teamOne
     for (const sessionSummoner of sessionData.teamOne) {
@@ -151,53 +148,85 @@ const sessionData = reactive<SessionData>(
     },
 
 );
-let timer: ReturnType<typeof setInterval> | null = null;
-var isRequesting = false;
+
+let unlistenSessionComplete: (() => void) | null = null;
+let unlistenPlayerUpdateTeamOne: (() => void) | null = null;
+let unlistenPlayerUpdateTeamTwo: (() => void) | null = null;
+let unlistenSessionError: (() => void) | null = null;
+let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
 onMounted(async () => {
-    // 第一次请求
-    await GetSessionData();
-
-    // 启动定时器
-    timer = setInterval(async () => {
-        if (!isRequesting) {
-            try {
-                isRequesting = true; // 设置为请求中
-                await GetSessionData(); // 等待请求完成
-            } catch (error) {
-                console.error('请求失败', error);
-                // 错误处理，例如重试机制等
-            } finally {
-                isRequesting = false; // 请求完成，允许下一个请求
-            }
+    // 监听 session 完成事件
+    unlistenSessionComplete = await listen<SessionData>('session-complete', (event) => {
+        const data = event.payload;
+        console.log('📦 Session complete:', data);
+        
+        if (data.phase) {
+            sessionData.phase = data.phase;
+            sessionData.type = data.type;
+            sessionData.typeCn = data.typeCn;
+            sessionData.teamOne = Array.isArray(data.teamOne) ? data.teamOne : [];
+            sessionData.teamTwo = Array.isArray(data.teamTwo) ? data.teamTwo : [];
         }
+    });
+
+    // 监听玩家更新事件（队伍一）
+    unlistenPlayerUpdateTeamOne = await listen('session-player-update-team-one', (event: any) => {
+        const { index, total, player } = event.payload;
+        console.log(`✅ Player ${index + 1}/${total} (Team One) loaded:`, player.summoner.gameName);
+    });
+
+    // 监听玩家更新事件（队伍二）
+    unlistenPlayerUpdateTeamTwo = await listen('session-player-update-team-two', (event: any) => {
+        const { index, total, player } = event.payload;
+        console.log(`✅ Player ${index + 1}/${total} (Team Two) loaded:`, player.summoner.gameName);
+    });
+
+    // 监听错误事件
+    unlistenSessionError = await listen<string>('session-error', (event) => {
+        console.error('❌ Session error:', event.payload);
+    });
+
+    // 第一次请求
+    await requestSessionData();
+
+    // 启动定时器，每5秒刷新一次
+    refreshTimer = setInterval(async () => {
+        await requestSessionData();
     }, 5000);
+
+    console.log('✅ Gaming page mounted, event listeners registered');
 });
 
 onUnmounted(() => {
-    if (timer) {
-        clearInterval(timer); // 在组件卸载时清理定时器
+    // 清理所有事件监听器
+    if (unlistenSessionComplete) {
+        unlistenSessionComplete();
     }
-});
-async function GetSessionData() {
+    if (unlistenPlayerUpdateTeamOne) {
+        unlistenPlayerUpdateTeamOne();
+    }
+    if (unlistenPlayerUpdateTeamTwo) {
+        unlistenPlayerUpdateTeamTwo();
+    }
+    if (unlistenSessionError) {
+        unlistenSessionError();
+    }
 
-    const res = await http.get<SessionData>("/GetSessionData");
-    if (res.status == 200) {
-        if (res.data.phase != "") {
-            sessionData.phase = res.data.phase;
-            sessionData.type = res.data.type;
-            sessionData.typeCn = res.data.typeCn;
-            if (Array.isArray(res.data.teamOne)) {
-                sessionData.teamOne = res.data.teamOne;
-            } else {
-                sessionData.teamOne = [];
-            }
-            if (Array.isArray(res.data.teamTwo)) {
-                sessionData.teamTwo = res.data.teamTwo;
-            } else {
-                sessionData.teamTwo = [];
-            }
-        }
+    // 清理定时器
+    if (refreshTimer) {
+        clearInterval(refreshTimer);
+    }
+
+    console.log('🧹 Gaming page unmounted, cleaned up listeners');
+});
+
+async function requestSessionData() {
+    try {
+        // 调用 Tauri 命令，后端会通过事件推送数据
+        await invoke('get_session_data');
+    } catch (error) {
+        console.error('Failed to request session data:', error);
     }
 }
 

@@ -2,6 +2,7 @@ pub mod config;
 pub mod info;
 pub mod match_history;
 pub mod rank;
+pub mod session;
 pub mod user_tag;
 
 use crate::lcu::api::summoner::Summoner;

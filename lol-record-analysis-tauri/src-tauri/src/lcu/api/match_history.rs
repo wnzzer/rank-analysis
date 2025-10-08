@@ -129,7 +129,7 @@ impl MatchHistory {
                 ));
             }
 
-            let actual_end = std::cmp::min(end, total_games);
+            let actual_end = std::cmp::min(end + 1, total_games);
 
             if beg >= actual_end {
                 return Err(format!("有效范围为空：{} >= {}", beg, actual_end));
@@ -137,7 +137,7 @@ impl MatchHistory {
 
             MatchHistory {
                 games: GamesWrapper {
-                    games: history.games.games[beg..actual_end + 1].to_vec(),
+                    games: history.games.games[beg..actual_end].to_vec(),
                 },
                 ..history
             }

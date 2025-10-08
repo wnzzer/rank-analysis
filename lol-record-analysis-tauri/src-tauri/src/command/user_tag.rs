@@ -50,7 +50,7 @@ pub struct FriendAndDispute {
     pub dispute_summoner: Vec<OneGamePlayerSummoner>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct RecentData {
     pub kda: f64,
@@ -70,7 +70,7 @@ pub struct RecentData {
     pub one_game_players_map: Option<HashMap<String, Vec<OneGamePlayer>>>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct UserTag {
     pub recent_data: RecentData,

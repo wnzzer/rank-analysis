@@ -1,12 +1,12 @@
 use crate::constant::game;
 use serde::{Deserialize, Serialize};
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 #[serde(rename_all = "camelCase")] // Apply camelCase deserialization to 'queueMap'
 pub struct Rank {
     pub queue_map: QueueMap,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 #[serde(rename_all = "camelCase")] // Apply camelCase deserialization to all fields
 pub struct QueueInfo {
     // QueueType 表示队列类型，例如 "RANKED_SOLO_5x5"。
@@ -40,7 +40,7 @@ pub struct QueueInfo {
     pub wins: i32,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct QueueMap {
     #[serde(rename = "RANKED_SOLO_5x5")]
     pub ranked_solo_5x5: QueueInfo,
