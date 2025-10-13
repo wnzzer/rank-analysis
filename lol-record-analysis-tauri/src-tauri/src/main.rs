@@ -109,6 +109,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             command::user_tag::get_user_tag_by_puuid,
             command::user_tag::get_user_tag_by_name,
             command::info::get_platform_name_by_name,
+            command::session::get_session_data,
         ]);
 
     // In setup, set the HTTP port once received

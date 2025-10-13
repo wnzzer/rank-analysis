@@ -156,17 +156,38 @@ let unlistenSessionError: (() => void) | null = null;
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
 onMounted(async () => {
+    console.log('🔧 [DEBUG] Gaming page mounting...');
+    
     // 监听 session 完成事件
     unlistenSessionComplete = await listen<SessionData>('session-complete', (event) => {
         const data = event.payload;
-        console.log('📦 Session complete:', data);
+        console.log('📦 [DEBUG] Session complete received:', data);
+        console.log('📊 [DEBUG] Data structure check:', {
+            hasPhase: !!data.phase,
+            phase: data.phase,
+            hasType: !!data.type,
+            type: data.type,
+            teamOneLength: data.teamOne?.length || 0,
+            teamTwoLength: data.teamTwo?.length || 0,
+            firstPlayerTeamOne: data.teamOne?.[0]?.summoner?.gameName || 'none'
+        });
         
         if (data.phase) {
+            console.log('✅ [DEBUG] Updating sessionData...');
             sessionData.phase = data.phase;
             sessionData.type = data.type;
             sessionData.typeCn = data.typeCn;
             sessionData.teamOne = Array.isArray(data.teamOne) ? data.teamOne : [];
             sessionData.teamTwo = Array.isArray(data.teamTwo) ? data.teamTwo : [];
+            
+            console.log('✅ [DEBUG] SessionData updated:', {
+                phase: sessionData.phase,
+                type: sessionData.type,
+                teamOneCount: sessionData.teamOne.length,
+                teamTwoCount: sessionData.teamTwo.length
+            });
+        } else {
+            console.warn('⚠️ [DEBUG] Received empty data (not in game)');
         }
     });
 
@@ -187,15 +208,19 @@ onMounted(async () => {
         console.error('❌ Session error:', event.payload);
     });
 
+    console.log('✅ [DEBUG] All event listeners registered');
+    
     // 第一次请求
+    console.log('🔧 [DEBUG] Requesting initial session data...');
     await requestSessionData();
 
     // 启动定时器，每5秒刷新一次
     refreshTimer = setInterval(async () => {
+        console.log('🔄 [DEBUG] Auto refresh triggered');
         await requestSessionData();
     }, 5000);
 
-    console.log('✅ Gaming page mounted, event listeners registered');
+    console.log('✅ [DEBUG] Gaming page fully mounted');
 });
 
 onUnmounted(() => {
@@ -223,10 +248,12 @@ onUnmounted(() => {
 
 async function requestSessionData() {
     try {
+        console.log('📡 [DEBUG] Invoking get_session_data...');
         // 调用 Tauri 命令，后端会通过事件推送数据
         await invoke('get_session_data');
+        console.log('✅ [DEBUG] get_session_data invoked successfully');
     } catch (error) {
-        console.error('Failed to request session data:', error);
+        console.error('❌ [DEBUG] Failed to request session data:', error);
     }
 }
 
