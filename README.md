@@ -81,34 +81,16 @@
 
 以下是通过源码构建 **Rank Analysis** 的步骤。
 
-### 分别编译前端和后端
 
-#### Tauri2 前端
+#### Tauri2
 1. 切换到 Tauri 项目的根目录 `./lol-record-analysis-tauri`。
 2. 确保已安装 [Rust](https://www.rust-lang.org/) 环境 和 cpp 相关环境
 3. 运行一键编译脚本：
 ```bash
  npm run tauri build
 ```
-4. 打开 `./lol-record-analysis-tauri/src-tauri/target/release/bundle` 目录，即可看到生成的安装包。
+4. 打开 `./lol-record-analysis-tauri/src-tauri/target/release/bundle` 目录，即可看到生成的二进制文件。
 
-
-### Golang 后端
-
-1. 切换到 Golang 主程序目录：
-   ```bash
-   cd ./lol-record-client-golang
-   ```
-2. 编译为二进制版本：
-   ```bash
-   go build
-   ```
-
-
-3. 将生成的 `lol-record-analysis.exe` 复制到以下路径：
-   ```
-   ./lol-record-analysis-tauri/src-tauri/target
-   ```
 
 ## 提供反馈
 
