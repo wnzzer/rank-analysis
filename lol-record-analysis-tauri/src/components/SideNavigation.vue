@@ -28,7 +28,7 @@
                             <div style="position: relative;">
                                 <img width="35px" height="35px"
                                     :src="`${assetPrefix}/profile/${mySummoner?.profileIconId}`"
-                                    style="border-radius: 50%; border: 1px solid #ccc; box-shadow: 0 0 5px rgba(0,0,0,0.2);">
+                                    style="border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 0 5px rgba(0,0,0,0.2);">
                                 <div
                                     style="position: absolute; bottom: 4px; right: 0; font-size: 10px; width: 20px; height: 10px; text-align: center; line-height: 20px; border-radius: 50%; color: white;">
                                     {{ mySummoner?.summonerLevel }}
@@ -38,7 +38,7 @@
                                 <n-flex>
                                     <span style="font-size: medium;font-size: 14px; font-weight: 1000;">{{
                                         mySummoner?.gameName
-                                    }}</span>
+                                        }}</span>
                                     <n-button text style="font-size: 12px" @click="copy">
                                         <n-icon>
                                             <copy-outline></copy-outline>
@@ -49,7 +49,7 @@
 
                                 <n-flex>
                                     <span style="color: #676768; font-size: small;">#{{ mySummoner?.tagLine
-                                    }}</span>
+                                        }}</span>
                                     <n-icon :depth="3" color="dark" style="position: relative; top: 2px;">
                                         <server></server>
                                     </n-icon><span>{{ mySummoner?.platformIdCn }} </span>

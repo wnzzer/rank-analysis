@@ -15,12 +15,11 @@
           <n-layout-sider collapse-mode="width" class="left" style="width: 60px; ">
             <SideNavigation />
           </n-layout-sider>
-          <n-divider vertical
-            style="margin: 0 1px; line-height: 5px; height: 100%; border-color: #ccc; border-width: 2px;" />
+          <n-divider vertical :style="dividerStyle" />
           <!-- 内容区域 -->
-          <n-layout-content>
+          <n-layout-content :style="contentStyle">
 
-              <router-view :key="$route.fullPath"></router-view>
+            <router-view :key="$route.fullPath"></router-view>
 
           </n-layout-content>
         </n-layout>
@@ -32,7 +31,23 @@
 <script lang="ts" setup>
 import Header from './Header.vue';
 import SideNavigation from './SideNavigation.vue';
+import { useSettingsStore } from '../pinia/setting';
+import { computed } from 'vue';
 
+const settingsStore = useSettingsStore();
+const isDark = computed(() => settingsStore.theme?.name === 'dark');
+
+const contentStyle = computed(() => ({
+  backgroundColor: isDark.value ? '#101014' : '#f5f7fa'
+}));
+
+const dividerStyle = computed(() => ({
+  margin: '0 1px',
+  lineHeight: '5px',
+  height: '100%',
+  borderColor: isDark.value ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)',
+  borderWidth: '2px'
+}));
 </script>
 <style scoped>
 .full-container {

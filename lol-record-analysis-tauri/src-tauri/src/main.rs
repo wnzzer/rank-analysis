@@ -81,7 +81,10 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
             // Initialize asset caches BEFORE starting HTTP server so routes can serve assets immediately.
-            asset_api::init().await; // logs: Initializing ... + counts
+            // asset_api::init().await; // logs: Initializing ... + counts
+            tokio::spawn(async {
+                asset_api::init().await;
+            });
             
             if let Err(e) = start_http_server(tx).await {
                 log::error!("HTTP server error: {}", e);

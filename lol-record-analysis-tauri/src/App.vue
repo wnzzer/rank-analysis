@@ -4,7 +4,7 @@
 
       <n-loading-bar-provider>
         <Framework></Framework>
-        </n-loading-bar-provider>
+      </n-loading-bar-provider>
 
     </n-message-provider>
   </n-config-provider>
@@ -29,7 +29,7 @@ body {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background-color: black;
+  background-color: #101014;
   color: white;
 }
 
@@ -44,7 +44,7 @@ body {
   /* 标题栏始终在最顶层（避免后续被 Modal 之类的覆盖） */
   z-index: 9999;
 
-  background-color: #23272e;
+  background-color: #18181c;
   color: white;
   padding-left: 12px;
   font-size: 14px;

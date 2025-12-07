@@ -70,6 +70,7 @@ pub static QUEUE_ID_TO_CN: phf::Map<u32, &'static str> = phf_map! {
     900u32 => "无限乱斗",
     1700u32 => "斗魂竞技场",
     1900u32 => "无限火力",
+    2400u32 => "海克斯乱斗",
     0u32 => "其他",
 };
 

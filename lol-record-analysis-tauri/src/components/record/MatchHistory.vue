@@ -84,7 +84,8 @@ const modeOptions = [
   { label: '人机', value: 890 },
   { label: '无限乱斗', value: 900 },
   { label: '斗魂竞技场', value: 1700 },
-  { label: '无限火力', value: 1900 }
+  { label: '无限火力', value: 1900 },
+  { label: '海克斯乱斗', value: 2400 }
 ]
 
 

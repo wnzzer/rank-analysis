@@ -1,11 +1,12 @@
 <template>
-    <n-card content-style="padding: 2px;" class="win-class"
-        :class="{ 'defeat-class': !games.participants[0].stats.win }">
-        <n-flex style="height: 53px;" justify="space-between">
+    <n-card content-style="padding: 8px 12px;" class="win-class"
+        :class="{ 'defeat-class': !games.participants[0].stats.win }" :style="cardStyle">
+        <n-flex align="center" justify="space-between">
             <n-flex vertical style="gap: 1px;">
-                <span :style="{
-                    fontWeight: '600',
-                    color: games.participants[0].stats.win ? '#8BDFB7' : '#BA3F53',
+                <span class="font-number" :style="{
+                    fontWeight: '700',
+                    fontSize: '14px',
+                    color: games.participants[0].stats.win ? themeColors.win : themeColors.loss,
                     marginLeft: '4px',
                     marginTop: '2px'
                 }"> {{ games.participants[0].stats.win ? '胜利' : '失败' }}
@@ -19,9 +20,9 @@
                     </n-icon>{{ Math.ceil(games.gameDuration / 60) }}分
                 </span>
             </n-flex>
-            <div style="height: 100%; position: relative;">
+            <div style="height: 42px; position: relative;">
 
-                <img style="height: 100%;" :src="`${assetPrefix}/champion/${games.participants[0].championId}`" />
+                <img style="height: 42px;" :src="`${assetPrefix}/champion/${games.participants[0].championId}`" />
                 <template v-if="!!games.mvp">
                     <div style="position: absolute; left: 0; bottom: 0;" class="mvp-box"
                         :style="{ backgroundColor: games.mvp == 'MVP' ? '#FFD700' : '#FFFFFF' }">
@@ -32,7 +33,7 @@
             </div>
 
             <n-flex vertical>
-                <span style="font-size: 13px;font-weight: 500;">{{ games.queueName }}</span>
+                <span class="font-number" style="font-size: 14px;font-weight: 700;">{{ games.queueName }}</span>
                 <span style="color: #676768; font-size: 11px;">
                     <n-icon style="margin-right: 1px;">
                         <CalendarNumber></CalendarNumber>
@@ -42,16 +43,16 @@
 
             <n-flex justify="space-between" vertical style="gap: 0px; ">
                 <n-flex justify="space-between">
-                    <span>
-                        <span style="font-weight: 500; font-size: 13px;color: #8BDFB7">
+                    <span class="font-number">
+                        <span :style="{ fontWeight: '500', fontSize: '13px', color: themeColors.kill }">
                             {{ games.participants[0].stats?.kills }}
                         </span>
                         /
-                        <span style="font-weight: 500;font-size: 13px; color: #BA3F53">
+                        <span :style="{ fontWeight: '500', fontSize: '13px', color: themeColors.death }">
                             {{ games.participants[0].stats?.deaths }}
                         </span>
                         /
-                        <span style="font-weight: 500;font-size: 13px; color: #D38B2A">
+                        <span :style="{ fontWeight: '500', fontSize: '13px', color: themeColors.assist }">
                             {{ games.participants[0].stats?.assists }}
                         </span>
                     </span>
@@ -99,51 +100,59 @@
 
 
             </n-flex>
-            <n-flex vertical justify="space-between" style="gap: 0px; font-size: 11px;">
-                <n-flex :style="{ color: otherColor(games.participants[0].stats?.damageDealtToChampionsRate) }">
+            <n-flex vertical justify="space-between" style="gap: 6px; font-size: 11px;">
+                <n-flex align="center"
+                    :style="{ gap: '8px', color: otherColor(games.participants[0].stats?.damageDealtToChampionsRate) }">
                     <n-icon size="13" color="#EEB43E">
                         <Flame></Flame>
                     </n-icon>
-                    <span style="width: 50px;"> <n-progress type="line"
+                    <span style="width: 60px;"> <n-progress type="line"
                             :percentage="games.participants[0].stats?.damageDealtToChampionsRate" :height="6"
                             :show-indicator="false" processing :stroke-width="13"
                             :color="otherColor(games.participants[0].stats?.damageDealtToChampionsRate)"
-                            style="position: relative; top: 4px;"></n-progress>
+                            style="position: relative; top: 2px;"></n-progress>
                     </span>
-                    <span>
+                    <span class="font-number" style="width: 30px; text-align: right;">
                         {{ Math.round(games.participants[0].stats?.totalDamageDealtToChampions / 1000) }}k
                     </span>
-                    <span>
+                    <span class="font-number" style="width: 30px; text-align: right;">
                         {{ games.participants[0].stats?.damageDealtToChampionsRate }}%
                     </span>
                 </n-flex>
 
-                <n-flex :style="{ color: healColorAndTaken(games.participants[0].stats?.damageTakenRate) }">
+                <n-flex align="center"
+                    :style="{ gap: '8px', color: healColorAndTaken(games.participants[0].stats?.damageTakenRate) }">
                     <n-icon size="13" color="#5CA3EA">
                         <Shield></Shield>
                     </n-icon>
-                    <span style="width: 50px;"> <n-progress type="line"
+                    <span style="width: 60px;"> <n-progress type="line"
                             :percentage="games.participants[0].stats?.damageTakenRate" :height="6"
                             :show-indicator="false" processing :stroke-width="13"
                             :color="healColorAndTaken(games.participants[0].stats?.damageTakenRate)"
-                            style="position: relative; top: 4px;"></n-progress>
+                            style="position: relative; top: 2px;"></n-progress>
                     </span>
-                    <span>{{ Math.round(games.participants[0].stats?.totalDamageTaken / 1000) }}k</span>
-                    <span>{{ games.participants[0].stats?.damageTakenRate }}%</span>
+                    <span class="font-number" style="width: 30px; text-align: right;">{{
+                        Math.round(games.participants[0].stats?.totalDamageTaken / 1000) }}k</span>
+                    <span class="font-number" style="width: 30px; text-align: right;">{{
+                        games.participants[0].stats?.damageTakenRate }}%</span>
 
                 </n-flex>
-                <n-flex :style="{ color: healColorAndTaken(games.participants[0].stats?.healRate) }">
+                <n-flex align="center"
+                    :style="{ gap: '8px', color: healColorAndTaken(games.participants[0].stats?.healRate) }">
                     <n-icon size="13" color="#58B66D">
                         <Heart></Heart>
                     </n-icon>
-                    <span style="width: 50px;"> <n-progress type="line"
+                    <span style="width: 60px;"> <n-progress type="line"
                             :percentage="games.participants[0].stats?.healRate" :height="6" :show-indicator="false"
                             processing :stroke-width="13"
                             :color="healColorAndTaken(games.participants[0].stats?.healRate)"
-                            style="position: relative; top: 4px;"></n-progress>
+                            style="position: relative; top: 2px;"></n-progress>
                     </span>
-                    <span>{{ Math.round(games.participants[0].stats?.totalHeal / 1000) }}k</span>
-                    <span>{{ games.participants[0].stats?.healRate }}%</span>
+                    <span class="font-number" style="width: 30px; text-align: right;">{{
+                        Math.round(games.participants[0].stats?.totalHeal / 1000) }}k</span>
+                    <span class="font-number" style="width: 30px; text-align: right;">{{
+                        games.participants[0].stats?.healRate
+                        }}%</span>
                 </n-flex>
 
             </n-flex>
@@ -205,6 +214,33 @@ import { Game, } from './MatchHistory.vue';
 import { useRouter } from 'vue-router';
 import { healColorAndTaken, otherColor } from './composition';
 import { assetPrefix } from '../../services/http'
+import { useSettingsStore } from '../../pinia/setting';
+
+const settingsStore = useSettingsStore();
+const isDark = computed(() => settingsStore.theme?.name === 'dark');
+
+const themeColors = computed(() => ({
+    win: isDark.value ? '#50E3C2' : '#18a058',
+    loss: isDark.value ? '#FF5C5C' : '#d03050',
+    kill: isDark.value ? '#50E3C2' : '#18a058',
+    death: isDark.value ? '#FF5C5C' : '#d03050',
+    assist: isDark.value ? '#D38B2A' : '#f0a020'
+}));
+
+const cardStyle = computed(() => {
+    const isWin = props.games.participants[0].stats.win;
+    if (isDark.value) {
+        return {};
+    }
+    // Light Mode Styles
+    return {
+        backgroundColor: '#ffffff',
+        boxShadow: '0 2px 6px rgba(0, 0, 0, 0.06)', // Softer, more diffused shadow
+        border: 'none', // Remove full border
+        borderLeft: `4px solid ${isWin ? '#18a058' : '#d03050'}`, // Left accent strip
+        borderRadius: '4px'
+    };
+});
 
 const router = useRouter();
 // 接收 props

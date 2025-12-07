@@ -1,22 +1,38 @@
+:root {
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.font-number {
+  font-family: 'Oswald', sans-serif;
+  letter-spacing: 0.5px;
+}
+
 /* 设置滚动条的宽度和颜色 */
 ::-webkit-scrollbar {
-    width: 8px; /* 滚动条宽度 */
-    height: 8px; /* 滚动条高度 */
-  }
-  
-  /* 设置滚动条轨道的样式 */
-  ::-webkit-scrollbar-track {
-    background: transparent; /* 轨道背景透明 */
-  }
-  
-  /* 设置滚动条滑块的样式 */
-  ::-webkit-scrollbar-thumb {
-    background: rgba(111, 111, 111, 0.5); /* 滑块颜色为半透明黑色 */
-    border-radius: 4px; /* 滑块圆角 */
-  }
-  
-  /* 设置滚动条滑块在悬停时的样式 */
-  ::-webkit-scrollbar-thumb:hover {
-    background: rgba(111, 111, 111, 1); /* 悬停时滑块颜色加深 */
-  }
-  
+  width: 8px;
+  /* 滚动条宽度 */
+  height: 8px;
+  /* 滚动条高度 */
+}
+
+/* 设置滚动条轨道的样式 */
+::-webkit-scrollbar-track {
+  background: transparent;
+  /* 轨道背景透明 */
+}
+
+/* 设置滚动条滑块的样式 */
+::-webkit-scrollbar-thumb {
+  background: rgba(111, 111, 111, 0.5);
+  /* 滑块颜色为半透明黑色 */
+  border-radius: 4px;
+  /* 滑块圆角 */
+}
+
+/* 设置滚动条滑块在悬停时的样式 */
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(111, 111, 111, 1);
+  /* 悬停时滑块颜色加深 */
+}
