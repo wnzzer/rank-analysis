@@ -36,8 +36,8 @@ fn refresh_auth() -> Result<(String, String), String> {
     let now = Instant::now();
     if now.duration_since(*last_refresh_guard) < Duration::from_secs(1) {
         if let Some(auth_mutex) = AUTH.get() {
-             let auth_guard = auth_mutex.lock().unwrap();
-             return Ok(auth_guard.clone());
+            let auth_guard = auth_mutex.lock().unwrap();
+            return Ok(auth_guard.clone());
         }
         // If AUTH not initialized, fall through to get_auth
     }
