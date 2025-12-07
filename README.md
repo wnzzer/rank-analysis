@@ -1,138 +1,127 @@
 <div align="center">
-  <div>
-    <img
-    src="./lol-record-analysis-tauri/src-tauri/icons/256x256.png"
-    width="128"
-    height="128"
-    />
-  </div>
-  <h1>基于 LCU API 的英雄联盟排位分析工具</h1>
+  <img src="./lol-record-analysis-tauri/src-tauri/icons/256x256.png" width="128" height="128" alt="Logo" />
+  <h1>Rank Analysis</h1>
+  <p>基于 LCU API 的英雄联盟排位分析工具</p>
+
+  <!-- Badges -->
+  <p>
+    <a href="https://tauri.app/">
+      <img src="https://img.shields.io/badge/Tauri-2.0-FFC131?style=flat-square&logo=tauri&logoColor=black" alt="Tauri" />
+    </a>
+    <a href="https://www.rust-lang.org/">
+      <img src="https://img.shields.io/badge/Rust-1.70+-000000?style=flat-square&logo=rust&logoColor=white" alt="Rust" />
+    </a>
+    <a href="https://vuejs.org/">
+      <img src="https://img.shields.io/badge/Vue.js-3.x-4FC08D?style=flat-square&logo=vue.js&logoColor=white" alt="Vue" />
+    </a>
+    <a href="https://www.typescriptlang.org/">
+      <img src="https://img.shields.io/badge/TypeScript-5.x-3178C6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript" />
+    </a>
+    <img src="https://img.shields.io/badge/Platform-Windows-0078D6?style=flat-square&logo=windows&logoColor=white" alt="Windows" />
+    <a href="./LICENSE">
+      <img src="https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square" alt="License" />
+    </a>
+  </p>
+
+  <!-- Stats -->
+  <p>
+    <a href="https://github.com/wnzzer/lol-rank-record-analysis/releases">
+      <img src="https://img.shields.io/github/v/release/wnzzer/lol-rank-record-analysis?style=flat-square&color=blue" alt="Latest Release">
+    </a>
+    <a href="https://github.com/wnzzer/lol-rank-record-analysis/releases">
+      <img src="https://img.shields.io/github/downloads/wnzzer/lol-rank-record-analysis/total?style=flat-square&color=success" alt="Downloads">
+    </a>
+    <a href="https://github.com/wnzzer/lol-rank-record-analysis/stargazers">
+      <img src="https://img.shields.io/github/stars/wnzzer/lol-rank-record-analysis?style=flat-square&color=orange" alt="Stars">
+    </a>
+  </p>
 </div>
 
-<p align="center">
-    <a href="https://github.com/wnzzer/lol-rank-record-analysis/releases"><img src="https://img.shields.io/github/release/wnzzer/lol-rank-record-analysis.svg?style=flat-square&maxAge=600" alt="最新版本"></a>
-    <a href="https://github.com/wnzzer/lol-rank-record-analysis/releases"><img src="https://img.shields.io/github/downloads/wnzzer/lol-rank-record-analysis/total?style=flat&label=%e4%b8%8b%e8%bd%bd%e6%ac%a1%e6%95%b0%0a"></a>
-    <a href="https://github.com/wnzzer/lol-rank-record-analysis/stargazers"><img src="https://img.shields.io/github/stars/wnzzer/lol-rank-record-analysis?style=flat&label=GitHub Stars"></a>
-</p>
-
 ---
 
-# 简介
+## 📖 简介
 
-**Rank Analysis** 是一个基于 Riot 提供的 LCU API 的英雄联盟排位数据分析工具，致力于帮助玩家轻松查询战绩并进行深度对局分析，使用tauri2 打造最精简，性能最好的战绩查询工具。
+**Rank Analysis** 是一个基于 Riot 提供的 LCU API 开发的英雄联盟排位数据分析工具。致力于帮助玩家轻松查询战绩并进行深度对局分析。本项目使用 **Tauri 2.0** 构建，结合 Rust 的高性能与 Web 前端的灵活性，打造最精简、性能最好的战绩查询体验。
 
----
+## ✨ 功能特点
 
-# 功能特点
+### 📊 战绩查询
+- **高低胜率高亮**：直观展示队友近期表现。
+- **MVP 显示**：快速识别大腿玩家。
+- **玩家标签**：自动标记连胜、连败、非排位玩家。
+- **关系显示**：识别宿敌与好友。
 
-## 已支持功能
+### 🔍 对局分析
+- **预组队检测**：标记预先组队的玩家（开黑检测）。
+- **历史遭遇**：标记曾经遇见过的玩家。
 
-### 战绩查询
+### 🤖 自动化辅助
+- **自动匹配**：自动开始寻找对局。
+- **自动接受**：匹配成功后自动接受。
+- **自动 BP**：自动选择和禁用预设英雄。
 
-1. 高低胜率高亮显示
-2. Mvp 显示
-3. 打标签：对连胜、连败、非排位玩家进行标记 
-4. 宿敌/好友 显示
+## 📸 软件预览
 
-### 对局分析
+<div align="center">
+  <img src="./public/1.png" alt="软件主界面预览" width="45%" />
+  <img src="./public/1-2.png" alt="软件主界面预览" width="45%" />
+</div>
+<div align="center">
+  <img src="./public/2.png" alt="分析功能演示" width="45%" />
+  <img src="./public/3.png" alt="自动化功能演示" width="45%" />
+</div>
 
-1. 预先组队标记
-2. 遇见过的玩家标记
+## 🚀 使用方法
 
-### 自动化
+1. **下载**：前往 [Release 页面](https://github.com/wnzzer/lol-rank-record-analysis/releases) 下载最新的构建版本压缩包。
+   > **系统要求**: Windows 10 1803 及以上版本（需支持 WebView2）。
 
-1. 自动开始匹配
-2. 自动接受匹配
-3. 自动 pick/ban 英雄
+2. **运行**：解压后直接运行可执行文件，无需管理员权限。
 
+3. **连接**：软件运行时会自动检测游戏客户端。
+   > **注意**: 
+   > - 当前仅支持腾讯服务器。
+   > - 支持在游戏启动后中途打开软件，会自动连接。
 
----
+## 🛠️ 开发与构建
 
-# 使用方法
+如果你想自己编译本项目，请按照以下步骤操作：
 
-1. 前往 [Release 页面](https://github.com/wnzzer/lol-rank-record-analysis/releases) 下载最新的构建版本压缩包。
-   > **版本选择建议**: Windows 10 1803 及以上版本推荐
-   如果较低的系统版本可能由于缺少 webview2 导致无法运行
-   
-2. 解压后直接运行，无需管理员权限。
+### 环境准备
+- [Node.js](https://nodejs.org/) (推荐 LTS 版本)
+- [Rust](https://www.rust-lang.org/)
+- C++ 构建环境 (Visual Studio C++ Build Tools)
 
-3. 软件运行时会自动检测游戏客户端，无需考虑启动顺序，支持中途启动并保持稳定连接。
+### 构建步骤
 
-> **注意**
-> - 当前仅支持腾讯服务器。
-> - 若游戏客户端正在运行，软件会自动连接并获取相关数据。
+1. 克隆项目并进入 Tauri 目录：
+   ```bash
+   cd lol-record-analysis-tauri
+   ```
 
----
+2. 安装依赖：
+   ```bash
+   npm install
+   ```
 
-# 软件预览
+3. 运行开发模式：
+   ```bash
+   npm run tauri dev
+   ```
 
-![软件界面](./public/1.png "软件主界面预览")
-![软件界面](./public/1-2.png "软件主界面预览")
-![分析功能](./public/2.png "分析功能演示")
-![自动化功能](./public/3.png "分析功能演示")
+4. 编译生产版本：
+   ```bash
+   npm run tauri build
+   ```
+   构建完成后，可执行文件位于 `src-tauri/target/release/bundle` 目录下。
 
+## 🤝 参与贡献
 
----
+欢迎提交 Issue 和 Pull Request！
 
-# 安装与开发
+- **反馈问题**: 通过 [GitHub Issues](https://github.com/wnzzer/lol-rank-record-analysis/issues) 提交。
+- **提交代码**: 欢迎改进代码或增加新功能。
 
-## 编译与构建
+## 📄 开源协议
 
-以下是通过源码构建 **Rank Analysis** 的步骤。
-
-
-#### Tauri2
-1. 切换到 Tauri 项目的根目录 `./lol-record-analysis-tauri`。
-2. 确保已安装 [Rust](https://www.rust-lang.org/) 环境 和 cpp 相关环境
-3. 运行一键编译脚本：
-```bash
- npm run tauri build
-```
-4. 打开 `./lol-record-analysis-tauri/src-tauri/target/release/bundle` 目录，即可看到生成的二进制文件。
-
-
-## 提供反馈
-
-- 通过 [GitHub Issues](https://github.com/wnzzer/lol-rank-record-analysis/issues) 提交问题或建议。
-- 请尽可能详细地描述问题或需求，以便开发者快速定位和解决问题。
-
-## 提交代码
-
-- Fork 项目并创建新分支。
-- 添加您实现的功能或修复的 Bug。
-- 提交 Pull Request 并附上详细描述。
-
----
-
-# 致谢与免责声明
-
-## 致谢
-
-**Rank Analysis** 的开发参考了以下优秀的开源项目，在此对这些项目的贡献者表示衷心感谢：
-
-| 项目名称                                                                                                   | 描述             |
-| ------------------------------------------------------------------------------------------------------ | -------------- |
-| ⭐⭐⭐ [LeagueAkari](https://github.com/Hanxven/LeagueAkari)                                              | 游戏风格与设计思路参考    |
-| ⭐⭐⭐ [League of Legends LCU and Riot Client API Docs](https://github.com/KebsCS/lcu-and-riotclient-api) | LCU API 文档参考   |
-| ⭐⭐ [Seraphine](https://github.com/Zzaphkiel/Seraphine)                                                 | 集成思路参考         |
-| ⭐ [LCU API](https://www.mingweisamuel.com/lcu-schema/tool/#/)                                          | LCU API 早期文档参考 |
-
-## 免责声明
-
-本软件作为基于 Riot 提供的 League Client Update (LCU) API 开发的辅助工具，由于其设计和实施均未采用侵入性技术手段，理论上不会直接干预或修改游戏数据。
-
-然而需明确指出：
-
-1. 未来腾讯可能更新反作弊系统或其他保护服务，可能会对本软件的使用产生兼容性问题。
-2. 使用本软件可能带来包括但不限于游戏账户封禁、数据损坏或其他负面后果。
-
-使用本软件的用户需自行承担由此产生的所有风险与后果。开发者对可能的损失不承担任何责任。
-
-> **提示：**
-> 请遵守相关游戏规则，维护健康公平的游戏环境。
-
----
-
-# Star 趋势
-
-[![Star History Chart](https://api.star-history.com/svg?repos=wnzzer/rank-analysis&type=Date)](https://star-history.com/#wnzzer/rank-analysis&Date)
+本项目基于 [MIT License](./LICENSE) 开源。
