@@ -1,0 +1,84 @@
+name: Release Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release Version (e.g. v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+      notes:
+        description: 'Release Notes'
+        required: true
+        default: 'Update details...'
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: ./lol-record-analysis-tauri
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: lol-record-analysis-tauri/package-lock.json
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Tauri App
+        run: npm run tauri build
+
+      - name: Rename Binary
+        id: rename
+        shell: pwsh
+        run: |
+          $version = "${{ github.event.inputs.version }}"
+          # Remove 'v' prefix if present for filename usage
+          $cleanVersion = $version -replace '^v',''
+          
+          # Define the source path where Tauri outputs the Windows installer
+          # Usually in src-tauri/target/release/bundle/nsis/
+          $sourceDir = "src-tauri/target/release/bundle/nsis"
+          
+          # Find the setup .exe file
+          $files = Get-ChildItem -Path $sourceDir -Filter "*.exe"
+          
+          if ($files.Count -eq 0) {
+             Write-Error "No installer found in $sourceDir"
+             exit 1
+          }
+          
+          # Take the first one found (there should usually be only one)
+          $file = $files[0]
+          
+          # Define the new name
+          $newName = "lol-record-analysis-app-$cleanVersion-setup.exe"
+          $newPath = Join-Path -Path $file.DirectoryName -ChildPath $newName
+          
+          # Rename
+          Rename-Item -Path $file.FullName -NewName $newName
+          
+          Write-Host "Renamed $($file.Name) to $newName"
+          
+          # Output the path for the upload step
+          echo "artifact_path=$newPath" >> $env:GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.event.inputs.version }}
+          name: Release ${{ github.event.inputs.version }}
+          body: ${{ github.event.inputs.notes }}
+          files: ${{ steps.rename.outputs.artifact_path }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

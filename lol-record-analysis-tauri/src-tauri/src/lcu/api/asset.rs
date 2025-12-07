@@ -58,27 +58,13 @@ static BINARY_CACHE: LazyLock<Cache<String, (Vec<u8>, String)>> = LazyLock::new(
 
 pub async fn init() {
     log::info!("Initializing asset API caches");
-    let items = match lcu_get::<Vec<Item>>(constant::api::ITEM_URI).await {
-        Ok(v) => v,
-        Err(e) => {
-            log::warn!("Failed to fetch items: {}", e);
-            Vec::new()
-        }
-    };
-    let champions = match lcu_get::<Vec<Champion>>(constant::api::CHAMPION_URI).await {
-        Ok(v) => v,
-        Err(e) => {
-            log::warn!("Failed to fetch champions: {}", e);
-            Vec::new()
-        }
-    };
-    let spells = match lcu_get::<Vec<Spell>>(constant::api::SPELL_URI).await {
-        Ok(v) => v,
-        Err(e) => {
-            log::warn!("Failed to fetch spells: {}", e);
-            Vec::new()
-        }
-    };
+    let items = lcu_get::<Vec<Item>>(constant::api::ITEM_URI).await.unwrap();
+    let champions = lcu_get::<Vec<Champion>>(constant::api::CHAMPION_URI)
+        .await
+        .unwrap();
+    let spells = lcu_get::<Vec<Spell>>(constant::api::SPELL_URI)
+        .await
+        .unwrap();
     // let perks = lcu_get::<Vec<Perk>>(constant::api::PERK_URI).await.unwrap();
 
     // 先记录长度，避免后续 move
