@@ -48,5 +48,16 @@
         ]
       }
     }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDM2Mzg1MkEyODFGMTdBNTAKUldSUWV2R0JvbEk0TnF1VGlJT1lWUjhTRFRZWjRzTjcxWVNrTjRsbGl4N3g1M0xqQ25UY21DN1MK",
+      "endpoints": [
+        "http://api.upgrade.toolsetlink.com/v1/tauri/upgrade?tauriKey=tyEi-iLVFxnRhGc9c_xApw&versionName={{current_version}}&appointVersionName=&devModelKey=&devKey=&target={{target}}&arch={{arch}}",
+        "https://github.com/wnzzer/rank-analysis/releases/latest/download/latest.json"
+      ],
+      "createUpdaterArtifacts": true,
+      "dangerousInsecureTransportProtocol": true
+    }
   }
 }

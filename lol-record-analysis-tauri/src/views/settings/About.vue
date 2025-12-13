@@ -108,7 +108,9 @@
 <script setup lang="ts">
 import { h, onMounted, ref } from 'vue'
 import { useNotification } from 'naive-ui'
-import { app } from '@tauri-apps/api';
+import { getVersion } from '@tauri-apps/api/app';
+import { check } from '@tauri-apps/plugin-updater';
+import { relaunch } from '@tauri-apps/plugin-process';
 
 // Component state
 const currentVersion = ref('');
@@ -117,7 +119,7 @@ onMounted(() => {
 })
 async function fetchAppVersion() {
   try {
-    const version = await app.getVersion();
+    const version = await getVersion();
     currentVersion.value = version;
   } catch (error) {
     console.error('获取应用版本失败:', error);
@@ -135,45 +137,63 @@ const notification = useNotification()
 const checkForUpdates = async () => {
   console.log('Checking for updates...')
   try {
-    const response = await fetch('https://api.github.com/repos/wnzzer/rank-analysis/releases/latest')
-    const data = await response.json()
-    latestVersion.value = data.tag_name
-    latestReleaseUrl.value = data.html_url
-    if (!latestVersion.value.includes(currentVersion.value)) {
+    const update = await check();
+    if (update) {
+      console.log(`found update ${update.version} from ${update.date} with notes ${update.body}`);
+      latestVersion.value = update.version;
+      // latestReleaseUrl.value = data.html_url // Updater doesn't give URL directly usually, but we can infer or just use the update object
+
       notification.success({
         title: '有更新可用',
         content: () => {
           return h('div', [
-            `新版本可用: ${latestVersion.value}`,
+            `新版本可用: ${update.version}`,
             h('br'),
-            h('a',
-              {
-                href: latestReleaseUrl.value,
-                onclick: (e: MouseEvent) => {
-                  e.preventDefault()
-                  window.open(latestReleaseUrl.value, '_blank')
-                },
-                style: 'color: #1890ff; text-decoration: underline; cursor: pointer;'
-              },
-              '点击此处下载最新版本'
-            )
+            h('div', { style: 'margin-top: 8px' }, [
+              h('button', {
+                style: 'cursor: pointer; color: #1890ff; background: none; border: none; padding: 0; text-decoration: underline;',
+                onClick: async () => {
+                  let downloaded = 0;
+                  let contentLength = 0;
+                  // You could add a progress indicator here
+                  await update.downloadAndInstall((event) => {
+                    switch (event.event) {
+                      case 'Started':
+                        contentLength = event.data.contentLength || 0;
+                        console.log(`started downloading ${contentLength} bytes`);
+                        break;
+                      case 'Progress':
+                        downloaded += event.data.chunkLength;
+                        console.log(`downloaded ${downloaded} from ${contentLength}`);
+                        break;
+                      case 'Finished':
+                        console.log('download finished');
+                        break;
+                    }
+                  });
+
+                  console.log('update installed');
+                  await relaunch();
+                }
+              }, '立即更新并重启')
+            ])
           ])
         },
-        duration: 10000 // 10 seconds
+        duration: 10000
       })
     } else {
       notification.info({
         title: '没有更新',
         content: '您使用的是最新版本。',
-        duration: 10000 // 10 seconds
+        duration: 10000
       })
     }
   } catch (error) {
     console.error('Error checking for updates:', error)
     notification.error({
       title: '更新检查失败',
-      content: '检查更新时出错。',
-      duration: 10000 // 10 seconds
+      content: '检查更新时出错: ' + error,
+      duration: 10000
     })
   }
 }

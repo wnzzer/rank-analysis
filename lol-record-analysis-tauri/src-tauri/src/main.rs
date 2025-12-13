@@ -42,6 +42,8 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     info!("========================================");
 
     let mut app_builder = tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_http::init())
         .register_uri_scheme_protocol("asset", move |_app, request| {
             let path = request.uri().path();

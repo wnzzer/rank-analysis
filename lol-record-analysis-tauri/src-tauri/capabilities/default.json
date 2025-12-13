@@ -16,6 +16,9 @@
     "core:window:allow-show",
     "core:window:allow-hide",
     "core:window:allow-start-dragging",
+    "updater:default",
+    "process:default",
+    "process:allow-restart",
     "http:default",
     {
       "identifier": "http:default",

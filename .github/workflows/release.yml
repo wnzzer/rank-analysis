@@ -40,6 +40,9 @@ jobs:
 
       - name: Build Tauri App
         run: npm run tauri build
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_KEY_PASSWORD }}
 
       - name: Rename and Compress Binary
         id: rename
@@ -76,11 +79,17 @@ jobs:
           
           # Construct the path relative to the repository root for action-gh-release
           $artifactPath = "lol-record-analysis-tauri/$targetDir/$7zName"
+          $exePath = "lol-record-analysis-tauri/$targetDir/$newName"
           
           Write-Host "Compressed $newName to $7zName"
           Write-Host "Artifact path for upload: $artifactPath"
+          Write-Host "Exe path for upload: $exePath"
+          
+          $latestJsonPath = "lol-record-analysis-tauri/$targetDir/latest.json"
           
           echo "artifact_path=$artifactPath" >> $env:GITHUB_OUTPUT
+          echo "exe_path=$exePath" >> $env:GITHUB_OUTPUT
+          echo "latest_json_path=$latestJsonPath" >> $env:GITHUB_OUTPUT
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
@@ -88,6 +97,23 @@ jobs:
           tag_name: ${{ github.event.inputs.version }}
           name: Release ${{ github.event.inputs.version }}
           body: ${{ github.event.inputs.notes }}
-          files: ${{ steps.rename.outputs.artifact_path }}
+          files: |
+            ${{ steps.rename.outputs.artifact_path }}
+            ${{ steps.rename.outputs.exe_path }}
+            ${{ steps.rename.outputs.latest_json_path }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  upgradeLink-upload:
+    needs: build-and-release
+    permissions:
+      contents: write 
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send a request to UpgradeLink
+        uses: toolsetlink/upgradelink-action@v5
+        with:
+          source-url: 'https://github.com/wnzzer/rank-analysis/releases/download/${{ github.event.inputs.version }}/latest.json'
+          access-key: ${{ secrets.UPGRADE_LINK_ACCESS_KEY }}
+          tauri-key: ${{ secrets.UPGRADE_LINK_TAURI_KEY }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
