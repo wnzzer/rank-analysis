@@ -111,6 +111,25 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Generate latest.json
+        run: |
+          cat > latest.json <<EOF
+          {
+            "version": "${{ github.event.inputs.version }}",
+            "url": "https://github.com/wnzzer/rank-analysis/releases/download/${{ github.event.inputs.version }}/lol-record-analysis-app-${{ github.event.inputs.version }}-setup.exe",
+            "sha256": "$(sha256sum src-tauri/target/release/bundle/nsis/*.exe | awk '{print $1}')"
+          }
+          EOF
+        shell: bash
+
+      - name: Upload latest.json
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: latest.json
+          asset_name: latest.json
+          tag: ${{ github.event.inputs.version }}
+
   upgradeLink-upload:
     needs: build-and-release
     permissions:
@@ -127,3 +146,5 @@ jobs:
           access-key: ${{ secrets.UPGRADE_LINK_ACCESS_KEY }}
           tauri-key: ${{ secrets.UPGRADE_LINK_TAURI_KEY }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
+
+
