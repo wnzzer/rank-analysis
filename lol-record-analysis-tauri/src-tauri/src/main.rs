@@ -13,7 +13,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     if std::env::var("RUST_LOG").is_err() {
         std::env::set_var("RUST_LOG", "info");
     }
-    
+
     // 配置日志格式，显示时间、级别、文件名、行号和消息
     env_logger::Builder::from_default_env()
         .format_timestamp_millis()
@@ -22,7 +22,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             // 提取文件名（不含路径）
             let file = record.file().unwrap_or("unknown");
             let file_name = file.split(['/', '\\']).last().unwrap_or(file);
-            
+
             writeln!(
                 buf,
                 "[{} {} {}:{}] {}",
@@ -34,7 +34,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             )
         })
         .init();
-    
+
     info!("========================================");
     info!("Starting Tauri application with Asset Protocol");
     info!("Current working directory: {:?}", std::env::current_dir());
@@ -44,46 +44,44 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     let mut app_builder = tauri::Builder::default()
         .plugin(tauri_plugin_http::init())
         .register_uri_scheme_protocol("asset", move |_app, request| {
-             let path = request.uri().path();
-             // path is like /champion/123
-             let parts: Vec<&str> = path.trim_start_matches('/').split('/').collect();
-             
-             if parts.len() < 2 {
-                 return tauri::http::Response::builder()
+            let path = request.uri().path();
+            // path is like /champion/123
+            let parts: Vec<&str> = path.trim_start_matches('/').split('/').collect();
+
+            if parts.len() < 2 {
+                return tauri::http::Response::builder()
                     .status(404)
                     .body(Vec::new())
                     .unwrap();
-             }
-             
-             let kind = parts[0].to_string();
-             let id_str = parts[1];
-             let id = match id_str.parse::<i64>() {
-                 Ok(i) => i,
-                 Err(_) => return tauri::http::Response::builder()
-                    .status(400)
-                    .body(Vec::new())
+            }
+
+            let kind = parts[0].to_string();
+            let id_str = parts[1];
+            let id = match id_str.parse::<i64>() {
+                Ok(i) => i,
+                Err(_) => {
+                    return tauri::http::Response::builder()
+                        .status(400)
+                        .body(Vec::new())
+                        .unwrap()
+                }
+            };
+
+            let result = tauri::async_runtime::block_on(async move {
+                asset_api::get_asset_binary(kind, id).await
+            });
+
+            match result {
+                Ok((bytes, mime)) => tauri::http::Response::builder()
+                    .header("Content-Type", mime)
+                    .header("Cache-Control", "public, max-age=86400")
+                    .body(bytes)
                     .unwrap(),
-             };
-
-             let result = tauri::async_runtime::block_on(async move {
-                 asset_api::get_asset_binary(kind, id).await
-             });
-
-             match result {
-                 Ok((bytes, mime)) => {
-                     tauri::http::Response::builder()
-                        .header("Content-Type", mime)
-                        .header("Cache-Control", "public, max-age=86400")
-                        .body(bytes)
-                        .unwrap()
-                 },
-                 Err(e) => {
-                     tauri::http::Response::builder()
-                        .status(404)
-                        .body(e.into_bytes())
-                        .unwrap()
-                 }
-             }
+                Err(e) => tauri::http::Response::builder()
+                    .status(404)
+                    .body(e.into_bytes())
+                    .unwrap(),
+            }
         })
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
@@ -110,10 +108,10 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         // 启动自动化系统
         tauri::async_runtime::spawn(async move {
             log::info!("Starting automation system...");
-            tokio::spawn(async { 
+            tokio::spawn(async {
                 automation::start_automation().await;
             });
-            
+
             // Initialize asset caches
             asset_api::init().await;
         });
