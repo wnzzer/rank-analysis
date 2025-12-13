@@ -1,6 +1,6 @@
 {
   "productName": "lol-record-analysis-app",
-  "version": "1.6.2",
+  "version": "1.6.1",
   "identifier": "com.lol-record-analysis-tauri.app",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -42,16 +42,16 @@
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",
       "timestampUrl": "http://timestamp.digicert.com",
-      "nsis": {
-        "installerIcon": "icons/ico.ico",
-        "headerIcon": "icons/ico.ico",
-        "sidebarIcon": "icons/ico.ico",
-        "installMode": "currentUser",
-        "language": "SimpChinese"
-      },
       "wix": {
         "language": [
           "zh-CN"
+        ]
+      },
+      "nsis": {
+        "installerIcon": "icons/ico.ico",
+        "installMode": "currentUser",
+        "languages": [
+          "SimpChinese"
         ]
       }
     }
