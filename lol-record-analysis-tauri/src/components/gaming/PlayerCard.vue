@@ -1,303 +1,230 @@
 <template>
-    <n-card style="flex: 1; height: 100%;" content-style="padding: 0; margin:5px">
-        <div v-if="!sessionSummoner.summoner.gameName" style="position: relative; width: 100%; height: 100%;">
-            <n-spin size="small" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);" />
+    <n-card class="player-card" :class="{ 'light-mode-strip': settingsStore.theme?.name === 'Light' }" size="small"
+        :bordered="true" content-style="padding: 8px;">
+        <div v-if="!sessionSummoner.summoner.gameName" class="loading-container">
+            <n-spin size="small" />
         </div>
 
-        <n-flex style="gap: 1px;">
-            <!-- 左侧卡片内容 -->
-            <n-flex vertical style="flex: 3.1; gap: 4px;">
-                <!-- 个人概览 -->
-                <n-card :bordered="false" content-style="padding: 0;">
-                    <n-flex>
-                        <div style="position: relative;">
-                            <n-image width="32px" :src="assetPrefix + '/champion/'+ sessionSummoner.championId" preview-disabled
-                                :fallback-src="nullImg" />
-
-                            <div
-                                style="position: absolute; bottom: 9px; right: 0; font-size: 10px; width: 20px; height: 10px; text-align: center; line-height: 20px; border-radius: 50%; color: white;">
-                                {{ sessionSummoner?.summoner.summonerLevel }}
-                            </div>
+        <n-flex v-else style="height: 100%;" :wrap="false">
+            <!-- Left Side: Profile & History -->
+            <div class="left-section">
+                <!-- Profile -->
+                <div class="profile-section">
+                    <n-flex align="center" :wrap="false" style="gap: 10px;">
+                        <div class="avatar-wrapper">
+                            <n-image width="40" :src="assetPrefix + '/champion/' + sessionSummoner.championId"
+                                preview-disabled :fallback-src="nullImg" class="champion-img" />
+                            <div class="level-badge">{{ sessionSummoner?.summoner.summonerLevel }}</div>
                         </div>
-                        <n-flex vertical style="gap: 0;">
-                            <n-flex>
-                                <n-button text>
 
-                                    <n-button text
-                                        @click="searchSummoner(sessionSummoner?.summoner.gameName + '#' + sessionSummoner?.summoner.tagLine)">
-                                        <n-ellipsis style="max-width: 110px">
-                                            <span style="font-size: 13px; font-weight: bold;">
-                                                {{ sessionSummoner?.summoner.gameName }}
-                                            </span> </n-ellipsis>
-
-                                    </n-button>
+                        <div class="info-wrapper">
+                            <n-flex align="center" style="gap: 4px;">
+                                <n-button text
+                                    @click="searchSummoner(sessionSummoner?.summoner.gameName + '#' + sessionSummoner?.summoner.tagLine)">
+                                    <n-ellipsis style="max-width: 110px; font-size: 13px; font-weight: 700;">
+                                        {{ sessionSummoner?.summoner.gameName }}
+                                    </n-ellipsis>
                                 </n-button>
-
-                            </n-flex>
-
-                            <n-flex style="gap: 5px;">
-                                <span style="color: #676768; font-size: 11px; margin-top: 2px;">
-                                    #{{ sessionSummoner?.summoner.tagLine }}
-                                </span>
-                                <n-button text style="font-size: 12px; position: relative; bottom: 2px;"
+                                <n-button text size="tiny" class="copy-btn"
                                     @click="copy(sessionSummoner.summoner.gameName + '#' + sessionSummoner.summoner.tagLine)">
-                                    <n-icon>
-                                        <copy-outline></copy-outline>
-                                    </n-icon>
+                                    <n-icon><copy-outline /></n-icon>
                                 </n-button>
-                                <span>
-
-                                    <img style="width: 16px;height: 16px ;" :src="imgUrl" />
-                                    <span style="font-size: 8px;">{{ tierCn
-                                    }}</span>
-                                </span>
-
                             </n-flex>
-                        </n-flex>
+
+                            <n-flex align="center" style="gap: 6px;">
+                                <span class="tag-line">#{{ sessionSummoner?.summoner.tagLine }}</span>
+                                <n-flex align="center" style="gap: 4px;">
+                                    <img class="tier-icon" :src="imgUrl" />
+                                    <span class="tier-text">{{ tierCn }}</span>
+                                </n-flex>
+                            </n-flex>
+                        </div>
                     </n-flex>
-                </n-card>
-                <!-- 战绩 -->
-
-
-                <div>
-                    <n-card v-for="(game, index) in sessionSummoner?.matchHistory.games.games.slice(0, 4)" :key="index"
-                        content-style="padding: 0;  margin-left:5px;margin-right:5px" footer-style="padding:0">
-                        <n-flex justify="space-between" style="gap: 0px; align-items: center;">
-                            <span :style="{
-                                fontWeight: '600',
-                                color: game.participants[0].stats.win ? '#8BDFB7' : '#BA3F53',
-
-
-                            }"> {{ game.participants[0].stats.win ? '胜' : '负' }}
-
-                            </span>
-                            <img :src="assetPrefix +'/champion/'+ game.participants[0]?.championId"
-                                style="width: auto; height: 24px;       vertical-align: middle;" />
-                            <span style=" font-size: 12px;">
-                                <span style="font-weight: 500; font-size: 12px;color: #8BDFB7">
-                                    {{ game.participants[0].stats?.kills }}
-                                </span>
-                                /
-                                <span style="font-weight: 500;font-size: 12px; color: #BA3F53">
-                                    {{ game.participants[0].stats?.deaths }}
-                                </span>
-                                /
-
-                                <span style="font-weight: 500;font-size: 12px; color: #D38B2A">
-                                    {{ game.participants[0].stats?.assists }}
-                                </span>
-
-                            </span>
-                            <span style="font-size: 9px;margin-right: 3px;">
-                                {{ game.queueName ? game.queueName : '其他' }}
-                            </span>
-
-                        </n-flex>
-                    </n-card>
                 </div>
-            </n-flex>
-            <n-flex vertical style="flex: 3.1; gap: 4px; margin-right: 5px; margin-top: 11px;">
 
-                <!-- 战绩 -->
-
-
-                <div>
-                    <n-card v-for="(game, index) in sessionSummoner?.matchHistory.games.games.slice(4, 9)"
-                        :key="index + 4" content-style="padding: 0;  margin-left:5px;margin-right:5px"
-                        footer-style="padding:0">
-                        <n-flex justify="space-between" style="gap: 0px; align-items: center;">
-                            <span :style="{
-                                fontWeight: '600',
-                                color: game.participants[0].stats.win ? '#8BDFB7' : '#BA3F53',
-
-
-                            }"> {{ game.participants[0].stats.win ? '胜' : '负' }}
-
+                <!-- Match History Grid -->
+                <div class="history-grid">
+                    <div v-for="(game, index) in sessionSummoner?.matchHistory.games.games.slice(0, 8)" :key="index"
+                        class="history-item" :class="{ 'is-win': game.participants[0].stats.win }">
+                        <n-flex justify="space-between" align="center" :wrap="false">
+                            <span class="win-status" :class="{ 'is-win': game.participants[0].stats.win }">
+                                {{ game.participants[0].stats.win ? '胜' : '负' }}
                             </span>
                             <img :src="assetPrefix + '/champion/' + game.participants[0]?.championId"
-                                style="width: auto; height: 24px;       vertical-align: middle;" />
-                            <span style=" font-size: 12px;">
-                                <span style="font-weight: 500; font-size: 12px;color: #8BDFB7">
-                                    {{ game.participants[0].stats?.kills }}
-                                </span>
-                                /
-                                <span style="font-weight: 500;font-size: 12px; color: #BA3F53">
-                                    {{ game.participants[0].stats?.deaths }}
-                                </span>
-                                /
-
-                                <span style="font-weight: 500;font-size: 12px; color: #D38B2A">
-                                    {{ game.participants[0].stats?.assists }}
-                                </span>
-
-                            </span>
-                            <span style="font-size: 9px;margin-right: 3px;">
-                                {{ game.queueName ? game.queueName : '其他' }}
-                            </span>
-
-                        </n-flex>
-                    </n-card>
-                </div>
-            </n-flex>
-
-            <!-- 中间部分 -->
-            <div style="flex: 4;">
-                <n-flex vertical style="gap: 0px;">
-                    <div style="margin-bottom: 2px;">
-
-                        <n-flex>
-                            <n-tag v-if="sessionSummoner.preGroupMarkers?.name" size="small"
-                                :type="sessionSummoner.preGroupMarkers.type">
-                                {{ sessionSummoner.preGroupMarkers.name }}
-                            </n-tag>
-                            <n-tag v-if="sessionSummoner.meetGames?.length > 0" type="warning" size="small" round>
-                                <n-popover trigger="hover">
-                                    <template #trigger>
-                                        遇见过
-                                    </template>
-                                    <MettingPlayersCard :meet-games="sessionSummoner.meetGames"></MettingPlayersCard>
-                                </n-popover>
-                            </n-tag>
-                            <n-tooltip trigger="hover" v-for="tag in sessionSummoner?.userTag.tag">
+                                class="history-champ-img" />
+                            <div class="kda-text">
+                                <span class="kill">{{ game.participants[0].stats?.kills }}</span>/
+                                <span class="death">{{ game.participants[0].stats?.deaths }}</span>/
+                                <span class="assist">{{ game.participants[0].stats?.assists }}</span>
+                            </div>
+                            <n-tooltip trigger="hover">
                                 <template #trigger>
-                                    <n-button size="tiny" :type="tag.good ? 'primary' : 'error'">
-                                        {{ tag.tagName }}
-                                    </n-button> </template>
-                                <span>{{ tag.tagDesc }}</span>
+                                    <span class="queue-name">{{ game.queueName || '其他' }}</span>
+                                </template>
+                                {{ game.queueName || '其他' }}
                             </n-tooltip>
-
-
-
                         </n-flex>
                     </div>
-                    <!-- 20场统计 -->
-                    <n-card class="recent-card" :bordered="false" content-style="padding:5px">
-                        <n-flex vertical style="position: relative; gap: 5px; ">
+                </div>
+            </div>
 
-                            <n-flex class="stats-item" justify="space-between">
+            <!-- Right Side: Tags & Stats -->
+            <div class="right-section">
+                <!-- Tags -->
+                <div class="tags-container">
+                    <n-flex size="small" style="gap: 4px; flex-wrap: wrap; justify-content: flex-end;">
+                        <n-tag v-if="sessionSummoner.preGroupMarkers?.name" size="small"
+                            :type="sessionSummoner.preGroupMarkers.type">
+                            {{ sessionSummoner.preGroupMarkers.name }}
+                        </n-tag>
+                        <n-tag v-if="sessionSummoner.meetGames?.length > 0" type="warning" size="small" round>
+                            <n-popover trigger="hover">
+                                <template #trigger>遇见过</template>
+                                <MettingPlayersCard :meet-games="sessionSummoner.meetGames"></MettingPlayersCard>
+                            </n-popover>
+                        </n-tag>
+                        <n-tooltip trigger="hover" v-for="tag in sessionSummoner?.userTag.tag" :key="tag.tagName">
+                            <template #trigger>
+                                <n-tag size="small" :type="tag.good ? 'success' : 'error'" :bordered="false">
+                                    {{ tag.tagName }}
+                                </n-tag>
+                            </template>
+                            <span>{{ tag.tagDesc }}</span>
+                        </n-tooltip>
+                    </n-flex>
+                </div>
 
-                                <span class="stats-label">
-                                    <n-flex style="gap: 5px;">
-                                        <n-progress style=" width: 10px; position: relative; bottom: 5px; "
-                                            type="circle" :show-indicator="false" :percentage="70" :height="24"
-                                            status="success" color="bule" />
+                <!-- Collapsible Stats Card -->
+                <div class="stats-container">
+                    <div class="stats-card" :class="{ 'is-expanded': showStats }">
+                        <!-- Header / Toggle -->
+                        <div class="stats-header" @click="showStats = !showStats">
+                            <span class="stats-title">近期数据</span>
+                            <n-icon size="14" class="toggle-icon">
+                                <chevron-down v-if="!showStats" />
+                                <chevron-up v-else />
+                            </n-icon>
+                        </div>
 
-                                        <span>KDA:</span>
-                                    </n-flex>
+                        <!-- Compact Content (Always Visible in Compact Mode) -->
+                        <div v-if="!showStats" class="stats-compact" @click="showStats = true">
+                            <div class="compact-row">
+                                <span class="label">模式</span>
+                                <span class="value">{{ sessionSummoner?.userTag.recentData.selectModeCn }}</span>
+                            </div>
+                            <div class="compact-row">
+                                <span class="label">KDA</span>
+                                <span class="value"
+                                    :style="{ color: kdaColor(sessionSummoner?.userTag.recentData.kda) }">
+                                    {{ sessionSummoner?.userTag.recentData.kda }}
                                 </span>
-                                <span class="stats-value">
-                                    <n-flex>
-                                        <span :style="{ color: kdaColor(sessionSummoner?.userTag.recentData.kda) }">{{
-                                            sessionSummoner?.userTag.recentData.kda
-                                        }}</span>
-                                        <span>
-                                            <span
-                                                :style="{ color: killsColor(sessionSummoner?.userTag.recentData.kills) }">
-                                                {{ sessionSummoner?.userTag.recentData.kills
-                                                }}
-                                            </span>
-                                            /
-                                            <span
-                                                :style="{ color: deathsColor(sessionSummoner?.userTag.recentData.deaths) }">{{
-                                                    sessionSummoner?.userTag.recentData.deaths
-                                                }}</span>
-                                            /
-                                            <span
-                                                :style="{ color: assistsColor(sessionSummoner?.userTag.recentData.assists) }">{{
-                                                    sessionSummoner?.userTag.recentData.assists
-                                                }}</span>
-                                        </span>
-
-                                    </n-flex>
+                            </div>
+                            <div class="compact-row">
+                                <span class="label">胜率</span>
+                                <span class="value"
+                                    :style="{ color: winRateColor(winRate(sessionSummoner?.userTag.recentData.wins, sessionSummoner?.userTag.recentData.losses)) }">
+                                    {{ winRate(sessionSummoner?.userTag.recentData.selectWins,
+                                        sessionSummoner?.userTag.recentData.selectLosses) }}%
                                 </span>
-                            </n-flex>
-                            <n-flex class="stats-item" justify="space-between">
-                                <span class="stats-label"> 胜率（{{
-                                    sessionSummoner.userTag.recentData.selectModeCn }}）:</span>
+                            </div>
+                        </div>
 
-                                <n-flex>
-                                    <span style="width: 65px;"
+                        <!-- Expanded Content -->
+                        <div v-else class="stats-full">
+                            <!-- Mode -->
+                            <div class="stats-row">
+                                <span class="label">模式</span>
+                                <span class="value" style="font-weight: 600;">{{
+                                    sessionSummoner?.userTag.recentData.selectModeCn
+                                    }}</span>
+                            </div>
+                            <!-- KDA -->
+                            <div class="stats-row">
+                                <span class="label">KDA</span>
+                                <div class="value-group">
+                                    <span :style="{ color: kdaColor(sessionSummoner?.userTag.recentData.kda) }"
+                                        style="font-weight: bold; margin-right: 4px;">
+                                        {{ sessionSummoner?.userTag.recentData.kda }}
+                                    </span>
+                                    <span class="kda-detail">
+                                        <span
+                                            :style="{ color: killsColor(sessionSummoner?.userTag.recentData.kills) }">{{
+                                                sessionSummoner?.userTag.recentData.kills }}</span>/
+                                        <span
+                                            :style="{ color: deathsColor(sessionSummoner?.userTag.recentData.deaths) }">{{
+                                                sessionSummoner?.userTag.recentData.deaths }}</span>/
+                                        <span
+                                            :style="{ color: assistsColor(sessionSummoner?.userTag.recentData.assists) }">{{
+                                                sessionSummoner?.userTag.recentData.assists }}</span>
+                                    </span>
+                                </div>
+                            </div>
+                            <!-- Win Rate -->
+                            <div class="stats-row">
+                                <span class="label">胜率</span>
+                                <div class="progress-wrapper">
+                                    <n-progress type="line"
+                                        :percentage="winRate(sessionSummoner?.userTag.recentData.selectWins, sessionSummoner?.userTag.recentData.selectLosses)"
+                                        :height="6" :show-indicator="false"
+                                        :color="winRateColor(winRate(sessionSummoner?.userTag.recentData.wins, sessionSummoner?.userTag.recentData.losses))"
+                                        processing />
+                                    <span class="progress-text"
+                                        :style="{ color: winRateColor(winRate(sessionSummoner?.userTag.recentData.selectWins, sessionSummoner?.userTag.recentData.selectLosses)) }">
+                                        {{ winRate(sessionSummoner?.userTag.recentData.selectWins,
+                                            sessionSummoner?.userTag.recentData.selectLosses) }}%
+                                    </span>
+                                </div>
+                            </div>
+                            <!-- Group Rate -->
+                            <div class="stats-row">
+                                <span class="label">参团</span>
+                                <div class="progress-wrapper">
+                                    <n-progress type="line" :percentage="sessionSummoner?.userTag.recentData.groupRate"
+                                        :height="6" :show-indicator="false"
+                                        :color="groupRateColor(sessionSummoner?.userTag.recentData.groupRate)"
+                                        processing />
+                                    <span class="progress-text"
                                         :style="{ color: groupRateColor(sessionSummoner?.userTag.recentData.groupRate) }">
-                                        <n-progress type="line"
-                                            :percentage="winRate(sessionSummoner?.userTag.recentData.selectWins, sessionSummoner?.userTag.recentData.selectLosses)"
-                                            :height="6" :show-indicator="false"
-                                            :color="winRateColor(winRate(sessionSummoner?.userTag.recentData.wins, sessionSummoner?.userTag.recentData.losses))"
-                                            processing :stroke-width="10"
-                                            style="position: relative; top: 7px;"></n-progress>
+                                        {{ sessionSummoner?.userTag.recentData.groupRate }}%
                                     </span>
-                                    <span class="stats-value" :style="{
-                                        color: winRateColor(winRate(sessionSummoner?.userTag.recentData.selectWins, sessionSummoner?.userTag.recentData.selectLosses))
-                                    }">
-                                        {{
-                                            winRate(sessionSummoner?.userTag.recentData.selectWins,
-                                                sessionSummoner?.userTag.recentData.selectLosses)
-                                        }}%
+                                </div>
+                            </div>
+                            <!-- Damage -->
+                            <div class="stats-row">
+                                <span class="label">伤害</span>
+                                <div class="progress-wrapper">
+                                    <n-progress type="line"
+                                        :percentage="sessionSummoner?.userTag.recentData.damageDealtToChampionsRate"
+                                        :color="otherColor(sessionSummoner?.userTag.recentData.damageDealtToChampionsRate)"
+                                        :height="6" :show-indicator="false" processing />
+                                    <span class="progress-text"
+                                        :style="{ color: otherColor(sessionSummoner?.userTag.recentData.damageDealtToChampionsRate) }">
+                                        {{ sessionSummoner?.userTag.recentData.damageDealtToChampionsRate }}%
                                     </span>
-
-                                </n-flex>
-                            </n-flex>
-                            <n-flex class="stats-item" justify="space-between">
-                                <span class="stats-label"> 参团率：</span>
-                                <n-flex>
-                                    <span style="width: 65px;"
-                                        :style="{ color: groupRateColor(sessionSummoner?.userTag.recentData.groupRate) }">
-                                        <n-progress type="line"
-                                            :percentage="sessionSummoner?.userTag.recentData.groupRate" :height="6"
-                                            :show-indicator="false"
-                                            :color="groupRateColor(sessionSummoner?.userTag.recentData.groupRate)"
-                                            processing :stroke-width="10"
-                                            style="position: relative; top: 7px;"></n-progress>
-                                    </span>
-                                    <span class="stats-value"
-                                        :style="{ color: groupRateColor(sessionSummoner?.userTag.recentData.groupRate) }">{{
-                                            sessionSummoner?.userTag.recentData.groupRate
-                                        }}%</span>
-
-                                </n-flex>
-                            </n-flex>
-                            <n-flex class="stats-item" justify="space-between">
-                                <span class="stats-label"> 伤害/占比：</span>
-                                <span class="stats-value">
-                                    <n-flex>
-                                        <span>
-                                            {{ sessionSummoner?.userTag.recentData.averageDamageDealtToChampions }}
-                                        </span>
-                                        <span style="width: 45px;"> <n-progress type="line"
-                                                :percentage="sessionSummoner?.userTag.recentData.damageDealtToChampionsRate"
-                                                :color="otherColor(sessionSummoner?.userTag.recentData.damageDealtToChampionsRate)"
-                                                :height="6" :show-indicator="false" processing :stroke-width="13"
-                                                style="position: relative; top: 7px;"></n-progress>
-                                        </span>
-                                        <span class="stats-value"
-                                            :style="{ color: otherColor(sessionSummoner?.userTag.recentData.damageDealtToChampionsRate) }">
-                                            {{ sessionSummoner?.userTag.recentData.damageDealtToChampionsRate }}%
-
-                                        </span>
-                                    </n-flex>
-                                </span>
-                            </n-flex>
-
-
-
-
-
-                        </n-flex>
-                    </n-card>
-                </n-flex>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </n-flex>
     </n-card>
 </template>
 <script lang="ts" setup>
+import { ref } from 'vue';
 import MettingPlayersCard from './MettingPlayersCard.vue';
 import { useCopy } from '../composition';
 import { searchSummoner, winRate } from '../record/composition';
 import { kdaColor, killsColor, deathsColor, assistsColor, otherColor, winRateColor, groupRateColor, } from '../record/composition'
 import { SessionSummoner } from "../../components/gaming/type";
 import nullImg from "../../assets/imgs/item/null.png";
-import { CopyOutline } from '@vicons/ionicons5';
+import { CopyOutline, ChevronDown, ChevronUp } from '@vicons/ionicons5';
 import { assetPrefix } from '../../services/http';
+import { useSettingsStore } from '../../pinia/setting';
+
+const settingsStore = useSettingsStore();
 const copy = useCopy().copy;
+const showStats = ref(false);
 defineProps<{
     sessionSummoner: SessionSummoner
     typeCn: string
@@ -308,40 +235,274 @@ defineProps<{
 
 </script>
 <style lang="css" scoped>
+.player-card {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.light-mode-strip {
+    border-left: 4px solid #666;
+}
+
+.loading-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.left-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+
+.right-section {
+    width: 100px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-left: 8px;
+}
+
+.profile-section {
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--n-divider-color);
+}
+
+.avatar-wrapper {
+    position: relative;
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+}
+
 .champion-img {
     width: 100%;
-    ;
-    /* 限制图片宽度不超过容器 */
     height: 100%;
-    /* 限制图片高度不超过容器 */
     object-fit: cover;
-    /* 保持图片的比例并裁剪溢出的部分 */
-    display: inline-block;
+    border-radius: 4px;
+    display: block;
+}
 
+.level-badge {
+    position: absolute;
+    bottom: -6px;
+    right: -6px;
+    font-size: 10px;
+    background: rgba(0, 0, 0, 0.7);
+    padding: 0 4px;
+    border-radius: 4px;
+    color: white;
+    line-height: 14px;
+}
+
+.info-wrapper {
+    flex: 1;
+    min-width: 0;
+}
+
+.copy-btn {
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+
+.copy-btn:hover {
+    opacity: 1;
+}
+
+.tag-line {
+    color: var(--n-text-color-3);
+    font-size: 12px;
+}
+
+.tier-icon {
+    width: 16px;
+    height: 16px;
+}
+
+.tier-text {
+    font-size: 12px;
+    color: var(--n-text-color-2);
+}
+
+.history-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 4px;
+    flex: 1;
+    overflow-y: auto;
+}
+
+.history-item {
+    background: var(--n-action-color);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 12px;
+    border-left: 3px solid #BA3F53;
+}
+
+.history-item.is-win {
+    border-left: 3px solid #8BDFB7;
+}
+
+.win-status {
+    font-weight: 600;
+    color: #BA3F53;
+    width: 20px;
+}
+
+.win-status.is-win {
+    color: #8BDFB7;
+}
+
+.history-champ-img {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.kda-text {
+    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-weight: 700;
+    font-size: 12px;
+    min-width: 60px;
+    text-align: center;
+}
+
+.kill {
+    color: #8BDFB7;
+}
+
+.death {
+    color: #BA3F53;
+}
+
+.assist {
+    color: #D38B2A;
+}
+
+.queue-name {
+    font-size: 10px;
+    color: var(--n-text-color-3);
+    width: 40px;
+    text-align: right;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tags-container {
+    min-height: 24px;
+}
+
+.stats-container {
+    position: relative;
+}
+
+.stats-card {
+    background: var(--n-action-color);
+    border-radius: 6px;
+    padding: 6px;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+}
+
+.stats-card.is-expanded {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 240px;
+    z-index: 100;
+    background: var(--n-color);
+    border-color: var(--n-primary-color);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+.stats-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    margin-bottom: 4px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--n-divider-color);
 }
 
 .stats-title {
-    font-weight: bold;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--n-text-color-2);
 }
 
-.stats-item {
+.toggle-icon {
+    opacity: 0.7;
+}
+
+.stats-compact {
+    cursor: pointer;
+}
+
+.compact-row {
     display: flex;
     justify-content: space-between;
+    font-size: 11px;
+    margin-bottom: 2px;
 }
 
-.stats-label {
-    font-size: 10px;
+.stats-full {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-top: 4px;
+}
+
+.stats-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+}
+
+.label {
     color: var(--n-text-color-3);
 }
 
-.stats-value {
-    font-size: 10px;
-    color: var(--n-text-color);
+.value-group {
+    display: flex;
+    align-items: center;
 }
 
-.recent-card {
-    background: var(--n-color);
-    border-radius: 8px;
-    color: var(--n-text-color);
+.kda-detail {
+    font-size: 11px;
+    opacity: 0.9;
+    margin-left: 4px;
+}
+
+.progress-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    justify-content: flex-end;
+    margin-left: 8px;
+}
+
+.progress-wrapper .n-progress {
+    flex: 1;
+    max-width: 120px;
+}
+
+.progress-text {
+    font-size: 11px;
+    min-width: 35px;
+    text-align: right;
 }
 </style>

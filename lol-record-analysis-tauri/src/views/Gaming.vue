@@ -3,19 +3,19 @@
         <LoadingComponent>等待加入游戏...</LoadingComponent>
     </template>
     <template v-else>
-        <div>
-            <n-flex justify="space-between" style="height: 93vh;;">
+        <div style="padding: 10px; height: 100vh; box-sizing: border-box;">
+            <n-flex justify="space-between" style="height: 100%; gap: 16px;">
                 <!-- 左侧部分 -->
 
-                <n-flex vertical justify="space-between" style="gap: 0; flex: 1; height: 100%;">
+                <n-flex vertical justify="space-between" style="gap: 8px; flex: 1; height: 100%;">
                     <PlayerCard v-for="(sessionSummoner, i) of sessionData.teamOne" :key="'teamOne' + i"
                         :session-summoner="sessionSummoner" :mode-type="sessionData.type" :type-cn="sessionData.typeCn"
                         :img-url="comImgTier.teamOne[i]?.imgUrl" :tier-cn="comImgTier.teamOne[i]?.tierCn"></PlayerCard>
                 </n-flex>
 
                 <!-- 右侧部分 -->
-                <n-flex vertical justify="space-between" style="gap: 0; flex: 1; height: 100%;">
-                    <n-flex vertical justify="space-between" style="gap: 0; flex: 1; height: 100%;">
+                <n-flex vertical justify="space-between" style="gap: 8px; flex: 1; height: 100%;">
+                    <n-flex vertical justify="space-between" style="gap: 8px; flex: 1; height: 100%;">
                         <PlayerCard v-for="(sessionSummoner, i) of sessionData.teamTwo" :key="'teamTwo' + i"
                             :session-summoner="sessionSummoner" :mode-type="sessionData.type"
                             :type-cn="sessionData.typeCn" :img-url="comImgTier.teamTwo[i]?.imgUrl"
@@ -157,7 +157,7 @@ let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
 onMounted(async () => {
     console.log('🔧 [DEBUG] Gaming page mounting...');
-    
+
     // 监听 session 完成事件
     unlistenSessionComplete = await listen<SessionData>('session-complete', (event) => {
         const data = event.payload;
@@ -171,7 +171,7 @@ onMounted(async () => {
             teamTwoLength: data.teamTwo?.length || 0,
             firstPlayerTeamOne: data.teamOne?.[0]?.summoner?.gameName || 'none'
         });
-        
+
         if (data.phase) {
             console.log('✅ [DEBUG] Updating sessionData...');
             sessionData.phase = data.phase;
@@ -179,7 +179,7 @@ onMounted(async () => {
             sessionData.typeCn = data.typeCn;
             sessionData.teamOne = Array.isArray(data.teamOne) ? data.teamOne : [];
             sessionData.teamTwo = Array.isArray(data.teamTwo) ? data.teamTwo : [];
-            
+
             console.log('✅ [DEBUG] SessionData updated:', {
                 phase: sessionData.phase,
                 type: sessionData.type,
@@ -209,7 +209,7 @@ onMounted(async () => {
     });
 
     console.log('✅ [DEBUG] All event listeners registered');
-    
+
     // 第一次请求
     console.log('🔧 [DEBUG] Requesting initial session data...');
     await requestSessionData();
