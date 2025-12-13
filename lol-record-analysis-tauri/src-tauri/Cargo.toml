@@ -39,6 +39,7 @@ log = "0.4.0"
 env_logger = "0.9"
 base64 = "0.21"
 tauri-plugin-http = "2"
+tauri-plugin-process = "2"
 moka = { version = "0.12", features = ["future"] }
 phf = { version = "0.12", features = ["macros"] } # 用于静态配置编译期生成
 tokio = { version = "1", features = ["full"] }
