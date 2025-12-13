@@ -127,7 +127,6 @@ async function fetchAppVersion() {
   }
 }
 const latestVersion = ref('')
-const latestReleaseUrl = ref('')
 
 // Notification
 const notification = useNotification()
