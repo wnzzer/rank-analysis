@@ -126,7 +126,7 @@ jobs:
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: latest.json
+          file: lol-record-analysis-tauri/latest.json
           asset_name: latest.json
           tag: ${{ github.event.inputs.version }}
 
