@@ -300,7 +300,7 @@ import { NCard, NFlex, NButton, NIcon, useMessage } from 'naive-ui';
 import RecordButton from './RecordButton.vue';
 import { useRoute } from 'vue-router';
 import { defaultRank, defaultRecentData, defaultRecentWinRate, defaultSummoner, Rank, RankTag, RecentData, RecentWinRate, Summoner, UserTag } from './type';
-import { winRate, kdaColor, deathsColor, assistsColor, otherColor, groupRateColor, killsColor, winRateColor, modeOptions } from './composition';
+import { winRate, kdaColor, deathsColor, assistsColor, otherColor, groupRateColor, killsColor, winRateColor, modeOptions, initModeOptions } from './composition';
 import { divisionOrPoint } from '../composition'
 import unranked from '../../assets/imgs/tier/unranked.png';
 import bronze from '../../assets/imgs/tier/bronze.png';
@@ -328,11 +328,12 @@ const route = useRoute()
 let name = ""
 
 onMounted(async () => {
+  await initModeOptions();
   name = route.query.name as string
   summoner.value = await invoke<Summoner>("get_summoner_by_name", { 'name': name })
   rank.value = await invoke<Rank>("get_rank_by_name", { name })
   const modeValue = await invoke<number>("get_config", { key: "selectMode" }) || 0;
-  mode.value = modeOptions.find(option => option.key === modeValue)?.label || "全部";
+  mode.value = modeOptions.value.find(option => option.key === modeValue)?.label || "全部";
   platformIdCn.value = await invoke("get_platform_name_by_name", { name })
 
 

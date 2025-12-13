@@ -43,7 +43,7 @@ pub fn get_champion_options() -> Result<Vec<ChampionOption>, String> {
             .unwrap_or_else(|| champion.alias.clone());
 
         // 末日人机不加入选项
-        if champion.name.contains("末日人机"){
+        if champion.name.contains("末日人机") {
             continue;
         }
         options.push(ChampionOption {
@@ -55,4 +55,33 @@ pub fn get_champion_options() -> Result<Vec<ChampionOption>, String> {
     }
 
     Ok(options)
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GameModeOption {
+    pub label: String,
+    pub value: i32,
+}
+
+#[tauri::command]
+pub fn get_game_modes() -> Vec<GameModeOption> {
+    let mut options = vec![GameModeOption {
+        label: "全部".to_string(),
+        value: 0,
+    }];
+
+    let mut modes: Vec<GameModeOption> = constant::game::QUEUE_ID_TO_CN
+        .entries()
+        .filter(|&(k, _)| *k != 0)
+        .map(|(k, v)| GameModeOption {
+            label: v.to_string(),
+            value: *k as i32,
+        })
+        .collect();
+
+    modes.sort_by_key(|k| k.value);
+    options.extend(modes);
+
+    options
 }

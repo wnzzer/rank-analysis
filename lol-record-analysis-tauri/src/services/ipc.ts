@@ -16,3 +16,7 @@ export async function getConfigByIpc<T>(key: string) {
     const configValue = await invoke<ConfigValue>('get_config', { key });
     return configValue.value as T;
 }
+
+export async function getGameModesByIpc() {
+    return await invoke<{ label: string; value: number }[]>('get_game_modes');
+}

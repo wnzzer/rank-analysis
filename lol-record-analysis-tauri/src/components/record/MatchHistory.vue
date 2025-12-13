@@ -65,6 +65,7 @@ import { onMounted, ref } from 'vue'
 import { useLoadingBar } from 'naive-ui'
 import { useRoute } from 'vue-router'
 import { renderSingleSelectTag, renderLabel, filterChampionFunc } from '../composition'
+import { modeOptions, initModeOptions } from './composition'
 import { invoke } from '@tauri-apps/api/core'
 import { championOption } from '../type'
 
@@ -73,20 +74,6 @@ const filterQueueId = ref(0)
 const filterChampionId = ref(-1)
 const championOptions = ref<championOption[]>(
 )
-
-const modeOptions = [
-  { label: '全部', value: 0 },
-  { label: '单双排', value: 420 },
-  { label: '匹配', value: 430 },
-  { label: '灵活排', value: 440 },
-  { label: '大乱斗', value: 450 },
-  { label: '匹配', value: 490 },
-  { label: '人机', value: 890 },
-  { label: '无限乱斗', value: 900 },
-  { label: '斗魂竞技场', value: 1700 },
-  { label: '无限火力', value: 1900 },
-  { label: '海克斯乱斗', value: 2400 }
-]
 
 
 const resetFilter = () => {
@@ -270,6 +257,7 @@ const prevPage = async () => {
 }
 
 onMounted(async () => {
+  await initModeOptions()
   championOptions.value = await invoke<championOption[]>("get_champion_options")
 })
 

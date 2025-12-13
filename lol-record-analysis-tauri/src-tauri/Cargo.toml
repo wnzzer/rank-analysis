@@ -1,12 +1,12 @@
 [package]
-name = "lol-record-analysis-tauri"
+name = "lol-record-analysis-app"
 version = "1.6.2"
 description = "A Tauri App"
 authors = ["wnzzer"]
 edition = "2021"
 
 [lib]
-name = "lol_record_analysis_tauri_lib"
+name = "lol_record_analysis_app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

@@ -2,9 +2,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use log::info;
-use lol_record_analysis_tauri_lib::lcu::api::asset as asset_api;
-use lol_record_analysis_tauri_lib::state::AppState;
-use lol_record_analysis_tauri_lib::{automation, command};
+use lol_record_analysis_app_lib::lcu::api::asset as asset_api;
+use lol_record_analysis_app_lib::state::AppState;
+use lol_record_analysis_app_lib::{automation, command};
 use tauri::Manager;
 
 // NOTE: main is no longer async
@@ -92,6 +92,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             command::config::get_config,
             // command::config::get_http_server_port,
             command::config::get_champion_options,
+            command::config::get_game_modes,
             command::get_summoner_by_puuid,
             command::get_summoner_by_name,
             command::get_my_summoner,
@@ -122,7 +123,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         // 启动游戏状态监听器
         let app_handle = app.handle().clone();
         tauri::async_runtime::spawn(async move {
-            lol_record_analysis_tauri_lib::game_state_monitor::start_game_state_monitor(app_handle)
+            lol_record_analysis_app_lib::game_state_monitor::start_game_state_monitor(app_handle)
                 .await;
         });
 
