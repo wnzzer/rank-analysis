@@ -52,43 +52,50 @@ jobs:
           # Remove 'v' prefix if present
           $cleanVersion = $version -replace '^v',''
           
+          # --- 1. 处理安装版 (Setup) ---
           # Path relative to the working directory (lol-record-analysis-tauri)
-          $targetDir = "src-tauri/target/release/bundle/nsis"
+          $nsisDir = "src-tauri/target/release/bundle/nsis"
           
           # Find the setup .exe file
-          $files = Get-ChildItem -Path $targetDir -Filter "*.exe"
+          $files = Get-ChildItem -Path $nsisDir -Filter "*.exe"
           
           if ($files.Count -eq 0) {
-             Write-Error "No installer found in $targetDir"
+             Write-Error "No installer found in $nsisDir"
              exit 1
           }
           
           $file = $files[0]
-          $newName = "lol-record-analysis-app-$cleanVersion-setup.exe"
+          $setupName = "lol-record-analysis-app-$cleanVersion-setup.exe"
           
           # Rename the file
-          Rename-Item -Path $file.FullName -NewName $newName
+          Rename-Item -Path $file.FullName -NewName $setupName
           
-          # Compress to 7z
-          $7zName = "lol-record-analysis-app-$cleanVersion-setup.7z"
+          # --- 2. 处理绿色版 (Portable) ---
+          $releaseDir = "src-tauri/target/release"
+          $exeName = "lol-record-analysis-app.exe"
+          $portable7zName = "lol-record-analysis-app-$cleanVersion-portable.7z"
           
-          # Switch to target directory to compress without path structure
-          Push-Location $targetDir
-          7z a $7zName $newName
+          if (!(Test-Path "$releaseDir/$exeName")) {
+             Write-Error "Main executable not found at $releaseDir/$exeName"
+             exit 1
+          }
+          
+          # 压缩绿色版 (仅包含主程序，如果有其他依赖需一并添加)
+          Push-Location $releaseDir
+          7z a $portable7zName $exeName
           Pop-Location
-          
+
+          # --- 3. 输出路径 ---
           # Construct the path relative to the repository root for action-gh-release
-          $artifactPath = "lol-record-analysis-tauri/$targetDir/$7zName"
-          $exePath = "lol-record-analysis-tauri/$targetDir/$newName"
+          $setupPath = "lol-record-analysis-tauri/$nsisDir/$setupName"
+          $portablePath = "lol-record-analysis-tauri/$releaseDir/$portable7zName"
+          $latestJsonPath = "lol-record-analysis-tauri/$nsisDir/latest.json"
           
-          Write-Host "Compressed $newName to $7zName"
-          Write-Host "Artifact path for upload: $artifactPath"
-          Write-Host "Exe path for upload: $exePath"
+          Write-Host "Setup path: $setupPath"
+          Write-Host "Portable path: $portablePath"
           
-          $latestJsonPath = "lol-record-analysis-tauri/$targetDir/latest.json"
-          
-          echo "artifact_path=$artifactPath" >> $env:GITHUB_OUTPUT
-          echo "exe_path=$exePath" >> $env:GITHUB_OUTPUT
+          echo "setup_path=$setupPath" >> $env:GITHUB_OUTPUT
+          echo "portable_path=$portablePath" >> $env:GITHUB_OUTPUT
           echo "latest_json_path=$latestJsonPath" >> $env:GITHUB_OUTPUT
 
       - name: Create Release
@@ -98,8 +105,8 @@ jobs:
           name: Release ${{ github.event.inputs.version }}
           body: ${{ github.event.inputs.notes }}
           files: |
-            ${{ steps.rename.outputs.artifact_path }}
-            ${{ steps.rename.outputs.exe_path }}
+            ${{ steps.rename.outputs.setup_path }}
+            ${{ steps.rename.outputs.portable_path }}
             ${{ steps.rename.outputs.latest_json_path }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -110,6 +117,9 @@ jobs:
       contents: write 
     runs-on: ubuntu-latest
     steps:
+      - name: Wait for Release Assets
+        run: sleep 30 # 等待 30 秒，确保 GitHub Release 资源分发就绪
+
       - name: Send a request to UpgradeLink
         uses: toolsetlink/upgradelink-action@v5
         with:
