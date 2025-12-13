@@ -125,3 +125,7 @@
 ## 📄 开源协议
 
 本项目基于 [MIT License](./LICENSE) 开源。
+
+## Star 趋势
+
+[![Star History Chart](https://api.star-history.com/svg?repos=wnzzer/lol-rank-record-analysis&type=Date)](https://star-history.com/#wnzzer/lol-rank-record-analysis&Date)
