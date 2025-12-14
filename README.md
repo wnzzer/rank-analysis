@@ -75,7 +75,7 @@
 
 1. **下载**：
    - 前往 [Release 页面](https://github.com/wnzzer/lol-rank-record-analysis/releases) 下载最新的构建版本压缩包。
-   - 使用 UpgradeLink[下载地址](https://api.upgrade.toolsetlink.com/v1/tauri/download?tauriKey=rX76p0GShXom2yNnlsSDYw&target=windows&arch=x86_64)为开源者的免费 CDN 地址下载
+   - 使用 UpgradeLink提供的 [CDN下载地址](https://api.upgrade.toolsetlink.com/v1/tauri/download?tauriKey=rX76p0GShXom2yNnlsSDYw&target=windows&arch=x86_64)下载
    > **系统要求**: Windows 10 1803 及以上版本（需支持 WebView2）。
 
 
