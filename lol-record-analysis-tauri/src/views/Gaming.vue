@@ -46,7 +46,7 @@ import iron from '../assets/imgs/tier/iron.png';
 import emerald from '../assets/imgs/tier/emerald.png';
 import LoadingComponent from '../components/LoadingComponent.vue';
 import PlayerCard from '../components/gaming/PlayerCard.vue';
-import { SessionData } from '../components/gaming/type';
+import { SessionData, SessionSummoner } from '../components/gaming/type';
 import { divisionOrPoint } from '../components/composition';
 /**
 * Returns the image path for the given rank tier.
@@ -155,6 +155,22 @@ let unlistenPlayerUpdateTeamTwo: (() => void) | null = null;
 let unlistenSessionError: (() => void) | null = null;
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
+function mergeTeamData(currentTeam: SessionSummoner[], newTeam: SessionSummoner[]): SessionSummoner[] {
+    if (!currentTeam || currentTeam.length === 0) return newTeam;
+
+    return newTeam.map((newPlayer, index) => {
+        const oldPlayer = currentTeam[index];
+        // 如果是同一个玩家（PUUID相同）
+        if (oldPlayer && oldPlayer.summoner.puuid === newPlayer.summoner.puuid) {
+            // 如果新数据是加载中，但旧数据已经加载完成，则保留旧数据
+            if (newPlayer.isLoading && !oldPlayer.isLoading) {
+                return oldPlayer;
+            }
+        }
+        return newPlayer;
+    });
+}
+
 onMounted(async () => {
     console.log('🔧 [DEBUG] Gaming page mounting...');
 
@@ -177,8 +193,12 @@ onMounted(async () => {
             sessionData.phase = data.phase;
             sessionData.type = data.type;
             sessionData.typeCn = data.typeCn;
-            sessionData.teamOne = Array.isArray(data.teamOne) ? data.teamOne : [];
-            sessionData.teamTwo = Array.isArray(data.teamTwo) ? data.teamTwo : [];
+
+            const newTeamOne = Array.isArray(data.teamOne) ? data.teamOne : [];
+            const newTeamTwo = Array.isArray(data.teamTwo) ? data.teamTwo : [];
+
+            sessionData.teamOne = mergeTeamData(sessionData.teamOne, newTeamOne);
+            sessionData.teamTwo = mergeTeamData(sessionData.teamTwo, newTeamTwo);
 
             console.log('✅ [DEBUG] SessionData updated:', {
                 phase: sessionData.phase,
@@ -195,12 +215,18 @@ onMounted(async () => {
     unlistenPlayerUpdateTeamOne = await listen('session-player-update-team-one', (event: any) => {
         const { index, total, player } = event.payload;
         console.log(`✅ Player ${index + 1}/${total} (Team One) loaded:`, player.summoner.gameName);
+        if (sessionData.teamOne && sessionData.teamOne.length > index) {
+            sessionData.teamOne[index] = player;
+        }
     });
 
     // 监听玩家更新事件（队伍二）
     unlistenPlayerUpdateTeamTwo = await listen('session-player-update-team-two', (event: any) => {
         const { index, total, player } = event.payload;
         console.log(`✅ Player ${index + 1}/${total} (Team Two) loaded:`, player.summoner.gameName);
+        if (sessionData.teamTwo && sessionData.teamTwo.length > index) {
+            sessionData.teamTwo[index] = player;
+        }
     });
 
     // 监听错误事件

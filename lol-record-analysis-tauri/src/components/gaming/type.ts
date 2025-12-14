@@ -22,4 +22,5 @@ export interface SessionSummoner {
     rank: Rank
     meetGames: OneGamePlayer[]
     preGroupMarkers: PreGroupMarkers
+    isLoading?: boolean
 }

@@ -1,7 +1,14 @@
 <template>
     <n-card class="player-card" :class="{ 'light-mode-strip': settingsStore.theme?.name === 'Light' }" size="small"
         :bordered="true" content-style="padding: 8px;">
-        <div v-if="!sessionSummoner.summoner.gameName" class="loading-container">
+        <div v-if="sessionSummoner.isLoading" class="loading-container"
+            style="height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 8px;">
+            <n-spin size="medium" />
+            <span v-if="sessionSummoner.summoner.gameName" style="font-size: 12px; color: #aaa;">
+                {{ sessionSummoner.summoner.gameName }}
+            </span>
+        </div>
+        <div v-else-if="!sessionSummoner.summoner.gameName" class="loading-container">
             <n-spin size="small" />
         </div>
 
@@ -136,7 +143,7 @@
                                 <span class="label">模式</span>
                                 <span class="value" style="font-weight: 600;">{{
                                     sessionSummoner?.userTag.recentData.selectModeCn
-                                    }}</span>
+                                }}</span>
                             </div>
                             <!-- KDA -->
                             <div class="stats-row">
