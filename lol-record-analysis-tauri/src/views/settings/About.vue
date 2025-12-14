@@ -133,11 +133,18 @@ const notification = useNotification()
 const dialog = useDialog()
 
 
+// 自定义check
+
 // Methods
 const checkForUpdates = async () => {
   console.log('Checking for updates...')
   try {
-    const update = await check();
+    const update = await check({
+      timeout: 10000, // 10秒超时
+      headers: {
+        'X-AccessKey': 'lOXOaX9CLhNEop-SsrONLQ'
+      }
+    });;
     if (update) {
       console.log(`found update ${update.version} from ${update.date} with notes ${update.body}`);
       latestVersion.value = update.version;

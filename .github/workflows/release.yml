@@ -1,193 +1,253 @@
 name: Release Build
 
 on:
+  # 允许手动触发。version 输入项改为非必须，因为我们会自动读取。
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Release Version (e.g. v1.0.0)'
-        required: true
-        default: 'v1.0.0'
       notes:
         description: 'Release Notes'
         required: true
         default: 'Update details...'
+      # 保留 version 字段但设置为非必须，以便在特殊情况下手动覆盖
+      version_override:
+        description: 'Optional: Override App Version (e.g. v1.0.0)'
+        required: false
+        default: ''
 
+# 授予工作流写入内容的权限
 permissions:
   contents: write
 
 jobs:
   build-and-release:
+    name: Build & Upload Assets (Windows)
     runs-on: windows-latest
+    
+    # 统一设置工作目录
     defaults:
       run:
         working-directory: ./lol-record-analysis-tauri
 
     steps:
-      - uses: actions/checkout@v4
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: 🛠️ Setup Node.js (v20)
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: lol-record-analysis-tauri/package-lock.json
 
-      - name: Install Rust
+      - name: 🦀 Install Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install dependencies
+      - name: 📦 Install dependencies
         run: npm ci
 
-      - name: Build Tauri App
+      # 新增步骤：从配置文件中读取版本号
+      - name: 🔍 Get App Version
+        id: get_version
+        shell: pwsh
+        run: |
+          $overrideVersion = "${{ github.event.inputs.version_override }}"
+          
+          if ($overrideVersion) {
+              Write-Host "Using override version: $overrideVersion"
+              $tauriVersion = $overrideVersion
+          } else {
+              $configPath = "src-tauri/tauri.conf.json"
+              $configJson = Get-Content $configPath | Out-String | ConvertFrom-Json
+              
+              # 尝试从 tauri.conf.json 的 package.version 字段读取
+              $tauriVersion = $configJson.package.version
+
+              if ([string]::IsNullOrEmpty($tauriVersion)) {
+                  Write-Host "tauri.conf.json version field is empty. Attempting to read Cargo.toml..."
+                  
+                  # 如果没有配置，回退到 Cargo.toml
+                  $tomlPath = "src-tauri/Cargo.toml"
+                  $tomlContent = Get-Content $tomlPath | Select-String -Pattern '^version\s*=\s*"(.+?)"' 
+                  
+                  if ($tomlContent) {
+                      $tauriVersion = $tomlContent.Matches[0].Groups[1].Value
+                  } else {
+                      Write-Error "Could not find version in tauri.conf.json or Cargo.toml."
+                      exit 1
+                  }
+              }
+              Write-Host "Detected Tauri Version: $tauriVersion"
+          }
+
+          # 确保版本带有 'v' 前缀，这是 GitHub Release 的习惯用法
+          if ($tauriVersion -notlike 'v*') {
+              $tauriVersion = "v$tauriVersion"
+          }
+          
+          # 将最终版本设置为输出变量
+          echo "tauri_version=$tauriVersion" >> $env:GITHUB_OUTPUT
+          
+      # 核心构建步骤
+      - name: 🔨 Build Tauri App (Signed)
         run: npm run tauri build
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_KEY_PASSWORD }}
 
-      - name: Rename and Compress Binary
-        id: rename
+      # 整合文件处理、重命名和压缩逻辑
+      - name: 📝 Rename, Compress, and Set Paths
+        id: prepare_assets
         shell: pwsh
         run: |
-          $version = "${{ github.event.inputs.version }}"
-          # Remove 'v' prefix if present
-          $cleanVersion = $version -replace '^v',''
+          # **从上一步骤的输出中获取版本号**
+          $version = "${{ steps.get_version.outputs.tauri_version }}" 
+          $cleanVersion = $version -replace '^v','' # 移除 'v' 前缀用于文件名
           
-          # --- 1. 处理安装版 (Setup) ---
-          # Path relative to the working directory (lol-record-analysis-tauri)
+          # 定义主要路径
           $nsisDir = "src-tauri/target/release/bundle/nsis"
-          
-          # Find the setup .exe file
-          $files = Get-ChildItem -Path $nsisDir -Filter "*.exe"
-          
-          if ($files.Count -eq 0) {
-             Write-Error "No installer found in $nsisDir"
-             exit 1
-          }
-          
-          $file = $files[0]
-          $setupName = "lol-record-analysis-app-$cleanVersion-setup.exe"
-          
-          # Rename the file
-          Rename-Item -Path $file.FullName -NewName $setupName
-
-          # --- Handle Signature ---
-          $sigFiles = Get-ChildItem -Path $nsisDir -Filter "*.sig"
-          if ($sigFiles.Count -gt 0) {
-             $sigFile = $sigFiles[0]
-             $sigName = "$setupName.sig"
-             Rename-Item -Path $sigFile.FullName -NewName $sigName
-          }
-          
-          # --- 2. 处理绿色版 (Portable) ---
           $releaseDir = "src-tauri/target/release"
-          $exeName = "lol-record-analysis-app.exe"
-          $portable7zName = "lol-record-analysis-app-$cleanVersion-portable.7z"
+          $appName = "lol-record-analysis-app"
+
+          # --- 1. 处理安装版 (Setup .exe) 和签名 (.sig) ---
+          $installerFile = Get-ChildItem -Path $nsisDir -Filter "*.exe" -ErrorAction Stop
+          $sigFile = Get-ChildItem -Path $nsisDir -Filter "*.sig" -ErrorAction SilentlyContinue
+
+          if ($installerFile.Count -ne 1) { exit 1 }
           
-          if (!(Test-Path "$releaseDir/$exeName")) {
-             Write-Error "Main executable not found at $releaseDir/$exeName"
-             exit 1
+          $setupName = "$appName-$cleanVersion-setup.exe"
+          Rename-Item -Path $installerFile[0].FullName -NewName $setupName
+
+          $sigPath = "" # 初始化签名路径
+          if ($sigFile.Count -gt 0) {
+              $sigName = "$setupName.sig"
+              Rename-Item -Path $sigFile[0].FullName -NewName $sigName
+              # 设置签名文件的完整路径
+              $sigPath = "$($env:GITHUB_WORKSPACE)/lol-record-analysis-tauri/$nsisDir/$sigName" 
           }
+
+          # --- 2. 处理绿色版 (Portable .7z) ---
+          $exeName = "$appName.exe"
+          $portable7zName = "$appName-$cleanVersion-portable.7z"
           
-          # 压缩绿色版 (仅包含主程序，如果有其他依赖需一并添加)
           Push-Location $releaseDir
-          7z a $portable7zName $exeName
+          7z a -t7z $portable7zName $exeName
           Pop-Location
 
-          # --- 3. 输出路径 ---
-          # Construct the path relative to the repository root for action-gh-release
-          $setupPath = "lol-record-analysis-tauri/$nsisDir/$setupName"
-          $portablePath = "lol-record-analysis-tauri/$releaseDir/$portable7zName"
-          $latestJsonPath = "lol-record-analysis-tauri/$nsisDir/latest.json"
-          
-          Write-Host "Setup path: $setupPath"
-          Write-Host "Portable path: $portablePath"
+          # --- 3. 输出路径 (相对仓库根目录) ---
+          $setupPath = "$($env:GITHUB_WORKSPACE)/lol-record-analysis-tauri/$nsisDir/$setupName"
+          $portablePath = "$($env:GITHUB_WORKSPACE)/lol-record-analysis-tauri/$releaseDir/$portable7zName"
           
           echo "setup_path=$setupPath" >> $env:GITHUB_OUTPUT
           echo "portable_path=$portablePath" >> $env:GITHUB_OUTPUT
-          echo "latest_json_path=$latestJsonPath" >> $env:GITHUB_OUTPUT
+          echo "sig_path=$sigPath" >> $env:GITHUB_OUTPUT 
 
-      - name: Create Release
-        uses: svenstaro/upload-release-action@v2
+      # 创建 Release 并上传安装包和绿色版
+      - name: 🚀 Create GitHub Release and Upload Assets
+        uses: softprops/action-gh-release@v2
         with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          tag: ${{ github.event.inputs.version }}
-          release_name: Release ${{ github.event.inputs.version }}
+          # **使用自动读取的版本**
+          tag_name: ${{ steps.get_version.outputs.tauri_version }} 
+          name: Release ${{ steps.get_version.outputs.tauri_version }}
           body: ${{ github.event.inputs.notes }}
-          file: |
-            ${{ steps.rename.outputs.setup_path }}
-            ${{ steps.rename.outputs.portable_path }}
-          overwrite: true
+          files: |
+            ${{ steps.prepare_assets.outputs.setup_path }}
+            ${{ steps.prepare_assets.outputs.portable_path }}
+          draft: false
+          prerelease: false
 
-      - name: Generate latest.json
-        env:
-          VERSION: ${{ github.event.inputs.version }}
-          NOTES: ${{ github.event.inputs.notes }}
+      # 生成 latest.json
+      - name: 📝 Generate latest.json
         run: |
           node -e '
             const fs = require("fs");
             const path = require("path");
             
+            // 使用自动读取的版本
             const version = process.env.VERSION;
             const notes = process.env.NOTES;
-            const nsisDir = "src-tauri/target/release/bundle/nsis";
             
-            const files = fs.readdirSync(nsisDir);
-            const exeFile = files.find(f => f.endsWith(".exe"));
-            const sigFile = files.find(f => f.endsWith(".sig"));
+            const setupPath = process.env.SETUP_PATH;
+            const sigPath = process.env.SIG_PATH;
             
-            if (!exeFile) {
-              console.error("No exe found");
-              process.exit(1);
-            }
+            // 提取文件名
+            const exeFile = path.basename(setupPath);
             
-            const url = `https://github.com/wnzzer/rank-analysis/releases/download/${version}/${exeFile}`;
             let signature = "";
             
-            if (sigFile) {
-              signature = fs.readFileSync(path.join(nsisDir, sigFile), "utf8");
+            // 读取签名文件内容，确保 latest.json 中的 signature 字段有值
+            if (fs.existsSync(sigPath)) {
+                signature = fs.readFileSync(sigPath, "utf8");
             } else {
-              console.warn("No signature file found");
+                console.warn("Signature file not found, latest.json will have empty signature.");
             }
             
             const data = {
-              version: version,
-              notes: notes,
-              pub_date: new Date().toISOString(),
-              platforms: {
-                "windows-x86_64": {
-                  signature: signature,
-                  url: url
+                version: version,
+                notes: notes,
+                pub_date: new Date().toISOString(),
+                platforms: {
+                    "windows-x86_64": {
+                        signature: signature,
+                        // 构造 URL
+                        url: `https://github.com/wnzzer/rank-analysis/releases/download/${version}/${exeFile}`
+                    }
                 }
-              }
             };
             
+            // 在工作目录的根目录生成 latest.json 
             fs.writeFileSync("latest.json", JSON.stringify(data, null, 2));
           '
-
-      - name: Upload latest.json
-        uses: svenstaro/upload-release-action@v2
+        env:
+          VERSION: ${{ steps.get_version.outputs.tauri_version }} # 使用自动读取的版本
+          NOTES: ${{ github.event.inputs.notes }}
+          SETUP_PATH: ${{ steps.prepare_assets.outputs.setup_path }}
+          SIG_PATH: ${{ steps.prepare_assets.outputs.sig_path }}
+          
+      # 上传 latest.json 到 Release
+      - name: ⬆️ Upload latest.json Asset
+        uses: softprops/action-gh-release@v2 
         with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: lol-record-analysis-tauri/latest.json
-          asset_name: latest.json
-          tag: ${{ github.event.inputs.version }}
+          tag_name: ${{ steps.get_version.outputs.tauri_version }}
+          files: lol-record-analysis-tauri/latest.json
           overwrite: true
-
-  upgradeLink-upload:
+          
+  # --- 第二个 Job: 更新外部链接 ---
+  upgradelink-upload:
+    name: Notify UpgradeLink Service
     needs: build-and-release
     permissions:
       contents: write 
     runs-on: ubuntu-latest
+    
     steps:
-      - name: Wait for Release Assets
-        run: sleep 30 # 等待 30 秒，确保 GitHub Release 资源分发就绪
-
-      - name: Send a request to UpgradeLink
+      - name: ⏳ Wait for Release Assets
+        run: sleep 30 
+      
+      # ⚠️ 注意：这里必须使用步骤 get_version 的输出
+      - name: 🔗 Send a request to UpgradeLink
         uses: toolsetlink/upgradelink-action@v5
         with:
-          source-url: 'https://github.com/wnzzer/rank-analysis/releases/download/${{ github.event.inputs.version }}/latest.json'
+          # 从上一个 Job 引用版本号
+          source-url: 'https://github.com/wnzzer/rank-analysis/releases/download/${{ needs.build-and-release.outputs.tauri_version }}/latest.json'
           access-key: ${{ secrets.UPGRADE_LINK_ACCESS_KEY }}
           tauri-key: ${{ secrets.UPGRADE_LINK_TAURI_KEY }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          
+# 必须定义输出，以便在第二个 Job 中使用
+# (因为 get_version.outputs.tauri_version 在第一个 Job 中)
+on:
+  workflow_dispatch:
+    inputs:
+      # ... (inputs 保持不变)
+      
+# ... (permissions 保持不变)
 
-
+jobs:
+  build-and-release:
+    name: Build & Upload Assets (Windows)
+    runs-on: windows-latest
+    # **新增 job 输出，将版本号传递给下一个 job**
+    outputs:
+      tauri_version: ${{ steps.get_version.outputs.tauri_version }}
+      
+# ... (Steps 保持不变)
