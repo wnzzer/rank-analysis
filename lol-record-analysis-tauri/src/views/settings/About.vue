@@ -106,8 +106,8 @@
 </template>
 
 <script setup lang="ts">
-import { h, onMounted, ref } from 'vue'
-import { useNotification } from 'naive-ui'
+import { onMounted, ref } from 'vue'
+import { useNotification, useDialog } from 'naive-ui'
 import { getVersion } from '@tauri-apps/api/app';
 import { check } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
@@ -130,6 +130,7 @@ const latestVersion = ref('')
 
 // Notification
 const notification = useNotification()
+const dialog = useDialog()
 
 
 // Methods
@@ -140,51 +141,52 @@ const checkForUpdates = async () => {
     if (update) {
       console.log(`found update ${update.version} from ${update.date} with notes ${update.body}`);
       latestVersion.value = update.version;
-      // latestReleaseUrl.value = data.html_url // Updater doesn't give URL directly usually, but we can infer or just use the update object
 
-      notification.success({
-        title: '有更新可用',
-        content: () => {
-          return h('div', [
-            `新版本可用: ${update.version}`,
-            h('br'),
-            h('div', { style: 'margin-top: 8px' }, [
-              h('button', {
-                style: 'cursor: pointer; color: #1890ff; background: none; border: none; padding: 0; text-decoration: underline;',
-                onClick: async () => {
-                  let downloaded = 0;
-                  let contentLength = 0;
-                  // You could add a progress indicator here
-                  await update.downloadAndInstall((event) => {
-                    switch (event.event) {
-                      case 'Started':
-                        contentLength = event.data.contentLength || 0;
-                        console.log(`started downloading ${contentLength} bytes`);
-                        break;
-                      case 'Progress':
-                        downloaded += event.data.chunkLength;
-                        console.log(`downloaded ${downloaded} from ${contentLength}`);
-                        break;
-                      case 'Finished':
-                        console.log('download finished');
-                        break;
-                    }
-                  });
+      dialog.info({
+        title: '发现新版本',
+        content: `检测到新版本 ${update.version}，是否立即更新？`,
+        positiveText: '立即更新',
+        negativeText: '稍后',
+        onPositiveClick: async () => {
+          const d = dialog.info({
+            title: '正在更新',
+            content: '正在下载并安装更新，请稍候...',
+            closable: false,
+            maskClosable: false,
+            closeOnEsc: false,
+          })
 
-                  console.log('update installed');
-                  await relaunch();
-                }
-              }, '立即更新并重启')
-            ])
-          ])
-        },
-        duration: 10000
+          try {
+            let downloaded = 0;
+            let contentLength = 0;
+            await update.downloadAndInstall((event) => {
+              switch (event.event) {
+                case 'Started':
+                  contentLength = event.data.contentLength || 0;
+                  console.log(`started downloading ${contentLength} bytes`);
+                  break;
+                case 'Progress':
+                  downloaded += event.data.chunkLength;
+                  console.log(`downloaded ${downloaded} from ${contentLength}`);
+                  break;
+                case 'Finished':
+                  console.log('download finished');
+                  break;
+              }
+            });
+            d.content = '更新完成，正在重启...'
+            await relaunch();
+          } catch (e) {
+            d.destroy()
+            notification.error({ title: '更新失败', content: String(e) })
+          }
+        }
       })
     } else {
       notification.info({
         title: '没有更新',
         content: '您使用的是最新版本。',
-        duration: 10000
+        duration: 3000
       })
     }
   } catch (error) {
@@ -192,7 +194,7 @@ const checkForUpdates = async () => {
     notification.error({
       title: '更新检查失败',
       content: '检查更新时出错: ' + error,
-      duration: 10000
+      duration: 5000
     })
   }
 }

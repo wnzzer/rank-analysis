@@ -1,11 +1,13 @@
 <template>
   <n-config-provider :theme="settingsStore.theme">
     <n-message-provider>
-
-      <n-loading-bar-provider>
-        <Framework></Framework>
-      </n-loading-bar-provider>
-
+      <n-notification-provider>
+        <n-dialog-provider>
+          <n-loading-bar-provider>
+            <Framework></Framework>
+          </n-loading-bar-provider>
+        </n-dialog-provider>
+      </n-notification-provider>
     </n-message-provider>
   </n-config-provider>
 </template>
