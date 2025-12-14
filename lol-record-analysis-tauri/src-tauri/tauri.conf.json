@@ -60,7 +60,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDM2Mzg1MkEyODFGMTdBNTAKUldSUWV2R0JvbEk0TnF1VGlJT1lWUjhTRFRZWjRzTjcxWVNrTjRsbGl4N3g1M0xqQ25UY21DN1MK",
       "endpoints": [
-        "https://api.upgrade.toolsetlink.com/v1/tauri/download?tauriKey=rX76p0GShXom2yNnlsSDYw&target=windows&arch=x86_64",
+        "https://api.upgrade.toolsetlink.com/v1/tauri/upgrade?tauriKey=rX76p0GShXom2yNnlsSDYw&versionName={{current_version}}&target={{target}}&arch={{arch}}",
         "https://github.com/wnzzer/rank-analysis/releases/latest/download/latest.json"
       ],
       "createUpdaterArtifacts": true,
