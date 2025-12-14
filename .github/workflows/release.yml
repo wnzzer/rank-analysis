@@ -107,17 +107,16 @@ jobs:
           echo "latest_json_path=$latestJsonPath" >> $env:GITHUB_OUTPUT
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: svenstaro/upload-release-action@v2
         with:
-          tag_name: ${{ github.event.inputs.version }}
-          name: Release ${{ github.event.inputs.version }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ github.event.inputs.version }}
+          release_name: Release ${{ github.event.inputs.version }}
           body: ${{ github.event.inputs.notes }}
-          files: |
+          file: |
             ${{ steps.rename.outputs.setup_path }}
             ${{ steps.rename.outputs.portable_path }}
-            ${{ steps.rename.outputs.latest_json_path }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          overwrite: true
 
       - name: Generate latest.json
         env:
@@ -172,6 +171,7 @@ jobs:
           file: lol-record-analysis-tauri/latest.json
           asset_name: latest.json
           tag: ${{ github.event.inputs.version }}
+          overwrite: true
 
   upgradeLink-upload:
     needs: build-and-release
