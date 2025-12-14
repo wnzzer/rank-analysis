@@ -88,12 +88,33 @@ jobs:
           Write-Host "Final Release Version: $tauriVersion"
           echo "tauri_version=$tauriVersion" >> $env:GITHUB_OUTPUT
 
+      - name: 🕵️ Debug Secrets (Safe)
+        shell: pwsh
+        run: |
+          if ($env:MY_KEY) { 
+              Write-Host "✅ Private Key is detected! Length: $($env:MY_KEY.Length)" 
+          } else { 
+              Write-Error "❌ Private Key is MISSING or EMPTY!" 
+          }
+          
+          if ($env:MY_PWD) { 
+              Write-Host "✅ Password is detected!" 
+          } else { 
+              Write-Warning "⚠️ Password is MISSING (If you have no password, ignore this)" 
+          }
+        env:
+          MY_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          MY_PWD: ${{ secrets.TAURI_SIGNING_KEY_PASSWORD }}
+
+          
       # --- 构建并签名 ---
       - name: 🔨 Build Tauri App (Signed)
         run: npm run tauri build
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }} # 兼容旧版
           TAURI_SIGNING_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_KEY_PASSWORD }}
+          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_KEY_PASSWORD }} # 兼容旧版
 
       # --- 文件重命名、压缩与路径整理 ---
       - name: 📝 Rename, Compress, and Set Paths
