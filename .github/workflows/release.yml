@@ -93,6 +93,12 @@ jobs:
         run: |
           if ($env:MY_KEY) { 
               Write-Host "✅ Private Key is detected! Length: $($env:MY_KEY.Length)" 
+              # Check if it looks like a minisign key
+              if ($env:MY_KEY -match "untrusted comment:") {
+                  Write-Host "✅ Key format looks correct (contains 'untrusted comment')."
+              } else {
+                  Write-Warning "⚠️ Key format might be incorrect. It should usually start with 'untrusted comment:'."
+              }
           } else { 
               Write-Error "❌ Private Key is MISSING or EMPTY!" 
           }
@@ -106,15 +112,23 @@ jobs:
           MY_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           MY_PWD: ${{ secrets.TAURI_SIGNING_KEY_PASSWORD }}
 
-          
       # --- 构建并签名 ---
       - name: 🔨 Build Tauri App (Signed)
         run: npm run tauri build
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_KEY_PASSWORD }}
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }} # 兼容旧版
+          TAURI_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_KEY_PASSWORD }}
           TAURI_SIGNING_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_KEY_PASSWORD }}
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_KEY_PASSWORD }} # 兼容旧版
+
+      - name: 📂 List Build Artifacts (Debug)
+        shell: pwsh
+        run: |
+          Write-Host "Listing src-tauri/target/release/bundle/nsis:"
+          Get-ChildItem -Path "src-tauri/target/release/bundle/nsis" -Recurse | Format-Table Name, Length, LastWriteTime
+
 
       # --- 文件重命名、压缩与路径整理 ---
       - name: 📝 Rename, Compress, and Set Paths
@@ -142,14 +156,41 @@ jobs:
           Rename-Item -Path $installerFile[0].FullName -NewName $setupName
 
           $sigPath = ""
-          if ($sigFile.Count -gt 0) {
-              $sigName = "$setupName.sig"
+            $sigName = "$setupName.sig"
+            if ($sigFile.Count -gt 0) {
+              # 如果 tauri build 已经生成了签名文件，统一改名为与安装包一致
               Rename-Item -Path $sigFile[0].FullName -NewName $sigName
-              # 记录签名文件的绝对路径，供后续 Node 脚本读取内容
+            } else {
+              # 一些 Tauri / bundler 组合不会在 NSIS 目录下自动输出 .sig
+              # 这里显式对“安装包文件本身”生成 updater 用的 minisign 签名
+              Write-Host "No .sig found in NSIS output. Generating with 'tauri signer sign'..."
+
+              $installerPath = Join-Path $nsisDir $setupName
+              if (-not (Test-Path $installerPath)) {
+                Write-Error "Installer not found at $installerPath"
+                exit 1
+              }
+
+              if ([string]::IsNullOrEmpty($env:TAURI_PRIVATE_KEY)) {
+                Write-Error "TAURI_PRIVATE_KEY is missing; cannot sign installer."
+                exit 1
+              }
+
+              # 如果你的 key 是空密码，这里保证变量存在，避免 CLI 交互提示
+              if ($null -eq $env:TAURI_PRIVATE_KEY_PASSWORD) {
+                $env:TAURI_PRIVATE_KEY_PASSWORD = ""
+              }
+
+              npx tauri signer sign "$installerPath"
+            }
+
+            $sigCandidate = Join-Path $nsisDir $sigName
+            if (Test-Path $sigCandidate) {
               $sigPath = "$($env:GITHUB_WORKSPACE)/lol-record-analysis-tauri/$nsisDir/$sigName"
-          } else {
-              Write-Warning "No .sig file found. Check your TAURI_SIGNING secrets."
-          }
+            } else {
+                Write-Error "Signature file missing: $sigCandidate"
+                exit 1
+            }
 
           # 2. 处理绿色版 (Portable .7z)
           $exeName = "$appName.exe"
@@ -171,6 +212,9 @@ jobs:
           echo "setup_path=$setupPath" >> $env:GITHUB_OUTPUT
           echo "portable_path=$portablePath" >> $env:GITHUB_OUTPUT
           echo "sig_path=$sigPath" >> $env:GITHUB_OUTPUT 
+        env:
+          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_KEY_PASSWORD }}
 
       # --- 创建 Release 并上传资源 ---
       - name: 🚀 Create GitHub Release and Upload Assets
@@ -234,7 +278,7 @@ jobs:
         with:
           tag_name: ${{ steps.get_version.outputs.tauri_version }}
           files: lol-record-analysis-tauri/latest.json
-          overwrite: true
+
 
   # --- 任务二：通知 UpgradeLink ---
   upgradelink-upload:
