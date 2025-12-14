@@ -5,7 +5,6 @@ use log::info;
 use lol_record_analysis_app_lib::lcu::api::asset as asset_api;
 use lol_record_analysis_app_lib::state::AppState;
 use lol_record_analysis_app_lib::{automation, command};
-use tauri::Manager;
 
 // NOTE: main is no longer async
 fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {

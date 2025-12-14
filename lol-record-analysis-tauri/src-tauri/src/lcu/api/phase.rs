@@ -23,7 +23,7 @@ static PHASE_CACHE: LazyLock<Mutex<PhaseCache>> = LazyLock::new(|| Mutex::new(Ph
 /// 获取游戏阶段，使用缓存机制
 pub async fn get_phase() -> Result<String, String> {
     {
-        let mut cache = PHASE_CACHE.lock().unwrap();
+        let cache = PHASE_CACHE.lock().unwrap();
 
         // 检查缓存是否在2秒内
         if let Some(last_fetch_time) = cache.last_fetch_time {

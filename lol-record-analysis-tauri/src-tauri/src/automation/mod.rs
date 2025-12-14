@@ -17,7 +17,7 @@ static AUTOMATION_MANAGER: OnceLock<AutomationManager> = OnceLock::new();
 
 #[derive(Debug)]
 struct AutomationTask {
-    name: String,
+    _name: String,
     handle: Option<JoinHandle<()>>,
     shutdown_tx: Option<watch::Sender<bool>>,
 }
@@ -66,7 +66,7 @@ impl AutomationManager {
         tasks.insert(
             name.to_string(),
             AutomationTask {
-                name: name.to_string(),
+                _name: name.to_string(),
                 handle: Some(handle),
                 shutdown_tx: Some(shutdown_tx),
             },
