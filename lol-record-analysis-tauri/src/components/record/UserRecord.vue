@@ -68,12 +68,12 @@
           <template #trigger>
             <n-tag round :bordered="false" :color="{ textColor: winRateColor(friend.winRate) }">
               <n-ellipsis style="max-width: 150px">
-                {{ friend.Summoner.gameName }}
+                {{ friend?.Summoner?.gameName }}
               </n-ellipsis>
 
               <span style="font-size: 13px; margin-left: 5px;">{{ friend.winRate }}</span>
               <template #avatar>
-                <n-avatar :src="assetPrefix + friend.Summoner.profileIconKey" />
+                <n-avatar :src="`${assetPrefix}/profile/${friend?.Summoner?.profileIconId}`" />
               </template>
             </n-tag>
           </template>
@@ -91,11 +91,11 @@
           <template #trigger>
             <n-tag round :bordered="false" :color="{ textColor: winRateColor(dispute.winRate) }">
               <n-ellipsis style="max-width: 150px">
-                {{ dispute.Summoner.gameName }}
+                {{ dispute?.Summoner?.gameName }}
               </n-ellipsis>
               <span style="font-size: 13px; margin-left: 5px;">{{ dispute.winRate }}</span>
               <template #avatar>
-                <n-avatar :src="assetPrefix + dispute.Summoner.profileIconKey" />
+                <n-avatar :src="`${assetPrefix}/profile/${dispute?.Summoner?.profileIconId}`" />
               </template>
             </n-tag>
           </template>

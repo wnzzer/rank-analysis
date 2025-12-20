@@ -29,7 +29,9 @@ pub struct OneGamePlayerSummoner {
     pub win_rate: i32,
     pub wins: i32,
     pub losses: i32,
+    #[serde(rename = "Summoner")]
     pub summoner: Summoner,
+    #[serde(rename = "OneGamePlayer")]
     pub one_game_player: Vec<OneGamePlayer>,
 }
 
@@ -178,14 +180,11 @@ fn get_one_game_players(match_history: &MatchHistory) -> HashMap<String, Vec<One
         for (i, participant_identity) in game.game_detail.participant_identities.iter().enumerate()
         {
             // 跳过机器人和没有puuid的玩家
-            if participant_identity.player.summoner_name.is_empty() {
+            if participant_identity.player.puuid.is_empty() {
                 continue;
             }
 
-            let puuid = format!(
-                "{}#{}",
-                participant_identity.player.game_name, participant_identity.player.tag_line
-            );
+            let puuid = participant_identity.player.puuid.clone();
 
             if let Some(participant) = game.game_detail.participants.get(i) {
                 let queue_id_cn = QUEUE_ID_TO_CN
@@ -250,7 +249,7 @@ async fn count_friend_and_dispute(
     let mut friends_loss = 0;
 
     for games in friends_arr {
-        if let Ok(summoner) = Summoner::get_summoner_by_name(&games[0].game_name).await {
+        if let Ok(summoner) = Summoner::get_summoner_by_puuid(&games[0].puuid).await {
             let mut wins = 0;
             let mut losses = 0;
 
@@ -292,7 +291,7 @@ async fn count_friend_and_dispute(
     let mut dispute_loss = 0;
 
     for games in dispute_arr {
-        if let Ok(summoner) = Summoner::get_summoner_by_name(&games[0].game_name).await {
+        if let Ok(summoner) = Summoner::get_summoner_by_puuid(&games[0].puuid).await {
             let mut wins = 0;
             let mut losses = 0;
 

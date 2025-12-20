@@ -14,6 +14,8 @@ pub struct Player {
     pub tag_line: String,
     #[serde(rename = "summonerId")]
     pub summoner_id: i64, // Use i64 for summoner IDs to be safe
+    #[serde(rename = "puuid", default)]
+    pub puuid: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]

@@ -127,7 +127,6 @@ export interface OneGamePlayer {
   gameName: string;
   tagLine: string;
   championId: number;
-  championKey: string;
   win: boolean;
   kills: number;
   deaths: number;
@@ -144,7 +143,6 @@ export function defaultOneGamePlayer(): OneGamePlayer {
     gameName: "",
     tagLine: "",
     championId: 0,
-    championKey: "",
     win: false,
     kills: 0,
     deaths: 0,
