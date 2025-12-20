@@ -341,7 +341,7 @@ async fn process_team(
         };
 
         if let Err(e) = app_handle.emit(event_name, &update) {
-            log::error!("Failed to emit player update event: {}", e.to_string());
+            log::error!("Failed to emit player update event: {}", e);
         } else {
             log::info!("Emitted player update: {} of {}", index + 1, team.len());
         }
@@ -437,7 +437,7 @@ fn add_pre_group_markers(session_data: &mut SessionData) {
     let merged_teams = remove_subsets(&all_maybe_teams);
 
     // 标记预组队信息
-    let pre_group_maker_consts = vec![
+    let pre_group_maker_consts = [
         PreGroupMarker {
             name: "队伍1".to_string(),
             marker_type: "success".to_string(),
@@ -540,7 +540,7 @@ fn delete_meet_gamers_record(session_data: &mut SessionData) {
 fn remove_subsets(arrays: &[Vec<String>]) -> Vec<Vec<String>> {
     let mut sorted_arrays: Vec<Vec<String>> = arrays.to_vec();
     // 按数组长度排序，确保先处理较大的数组
-    sorted_arrays.sort_by(|a, b| b.len().cmp(&a.len()));
+    sorted_arrays.sort_by_key(|b| std::cmp::Reverse(b.len()));
 
     let mut result: Vec<Vec<String>> = Vec::new();
     for arr in sorted_arrays {

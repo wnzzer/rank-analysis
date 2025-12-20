@@ -129,29 +129,45 @@ async fn fetch_binary(url: &str) -> Result<(Vec<u8>, String), String> {
 
 // 新增：各类型的二进制获取
 async fn get_champion_binary(id: i64) -> Result<(Vec<u8>, String), String> {
-    if let Some(champion) = CHAMPION_CACHE.read().unwrap().get(&id).cloned() {
-        log::info!("Getting champion binary for id {}", id);
-        fetch_binary(&champion.square_portrait_path).await
-    } else {
-        Err(format!("Champion with id {} not found in cache", id))
+    let chapmpion = {
+        let cache = CHAMPION_CACHE.read().unwrap();
+        cache.get(&id).cloned()
+    };
+    match chapmpion {
+        Some(champion) => {
+            log::info!("Getting champion binary for id {}", id);
+            fetch_binary(&champion.square_portrait_path).await
+        }
+        None => Err(format!("Champion with id {} not found in cache", id)), 
+        
     }
 }
 
 async fn get_item_binary(id: i64) -> Result<(Vec<u8>, String), String> {
-    if let Some(item) = ITEM_CACHE.read().unwrap().get(&id).cloned() {
-        log::info!("Getting item binary for id {}", id);
-        fetch_binary(&item.icon_path).await
-    } else {
-        Err(format!("Item with id {} not found in cache", id))
+    let item = {
+        let cache = ITEM_CACHE.read().unwrap();
+        cache.get(&id).cloned()
+    };
+    match item {
+        Some(item) => {
+            log::info!("Getting item binary for id {}", id);
+            fetch_binary(&item.icon_path).await
+        }
+        None => Err(format!("Item with id {} not found in cache", id)),
     }
 }
 
 async fn get_spell_binary(id: i64) -> Result<(Vec<u8>, String), String> {
-    if let Some(spell) = SPELL_CACHE.read().unwrap().get(&id).cloned() {
-        log::info!("Getting spell binary for id {}", id);
-        fetch_binary(&spell.icon_path).await
-    } else {
-        Err(format!("Spell with id {} not found in cache", id))
+    let spell = {
+        let cache = SPELL_CACHE.read().unwrap();
+        cache.get(&id).cloned()
+    };
+    match spell {
+        Some(spell) => {
+            log::info!("Getting spell binary for id {}", id);
+            fetch_binary(&spell.icon_path).await
+        }
+        None => Err(format!("Spell with id {} not found in cache", id)),
     }
 }
 
