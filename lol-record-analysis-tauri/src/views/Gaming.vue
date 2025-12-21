@@ -46,7 +46,7 @@ import iron from '../assets/imgs/tier/iron.png';
 import emerald from '../assets/imgs/tier/emerald.png';
 import LoadingComponent from '../components/LoadingComponent.vue';
 import PlayerCard from '../components/gaming/PlayerCard.vue';
-import { SessionData, SessionSummoner } from '../components/gaming/type';
+import { SessionData, SessionSummoner, PreGroupMarkers } from '../components/gaming/type';
 import { divisionOrPoint } from '../components/composition';
 /**
 * Returns the image path for the given rank tier.
@@ -150,25 +150,114 @@ const sessionData = reactive<SessionData>(
 );
 
 let unlistenSessionComplete: (() => void) | null = null;
+let unlistenSessionBasicInfo: (() => void) | null = null;
+let unlistenSessionPreGroup: (() => void) | null = null;
 let unlistenPlayerUpdateTeamOne: (() => void) | null = null;
 let unlistenPlayerUpdateTeamTwo: (() => void) | null = null;
 let unlistenSessionError: (() => void) | null = null;
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
-function mergeTeamData(currentTeam: SessionSummoner[], newTeam: SessionSummoner[]): SessionSummoner[] {
-    if (!currentTeam || currentTeam.length === 0) return newTeam;
-
-    return newTeam.map((newPlayer, index) => {
-        const oldPlayer = currentTeam[index];
-        // 如果是同一个玩家（PUUID相同）
-        if (oldPlayer && oldPlayer.summoner.puuid === newPlayer.summoner.puuid) {
-            // 如果新数据是加载中，但旧数据已经加载完成，则保留旧数据
-            if (newPlayer.isLoading && !oldPlayer.isLoading) {
-                return oldPlayer;
+function updatePreGroupMarkers(team: SessionSummoner[], markers: Record<string, PreGroupMarkers>) {
+    for (const player of team) {
+        const marker = markers[player.summoner.puuid];
+        if (marker) {
+            if (JSON.stringify(player.preGroupMarkers) !== JSON.stringify(marker)) {
+                 player.preGroupMarkers = marker;
             }
         }
-        return newPlayer;
-    });
+    }
+}
+
+function updatePlayerAtIndex(team: SessionSummoner[], index: number, newPlayer: SessionSummoner) {
+    if (!team || index >= team.length) return;
+    
+    const oldPlayer = team[index];
+    
+    // 如果是同一个玩家，保留那些在后端最后阶段才计算的字段（meetGames, preGroupMarkers）
+    // 因为 session-player-update 事件中的这些字段是空的，直接覆盖会导致闪烁
+    if (oldPlayer && oldPlayer.summoner.puuid === newPlayer.summoner.puuid) {
+        newPlayer.meetGames = oldPlayer.meetGames;
+        newPlayer.preGroupMarkers = oldPlayer.preGroupMarkers;
+    }
+    
+    team[index] = newPlayer;
+}
+
+function updateBasicInfo(currentTeam: SessionSummoner[], newTeam: SessionSummoner[]) {
+    if (!newTeam || newTeam.length === 0) return;
+
+    // 基础信息更新：只更新名字、英雄等，保留段位和战绩
+    for (let i = 0; i < newTeam.length; i++) {
+        const newPlayer = newTeam[i];
+        
+        if (i < currentTeam.length) {
+            const oldPlayer = currentTeam[i];
+            
+            // 如果是同一个玩家
+            if (oldPlayer && oldPlayer.summoner.puuid === newPlayer.summoner.puuid) {
+                // 只更新基础字段
+                oldPlayer.championId = newPlayer.championId;
+                oldPlayer.championKey = newPlayer.championKey;
+                oldPlayer.summoner = newPlayer.summoner;
+                // 保持 rank, matchHistory, userTag, meetGames 等不变
+            } else {
+                // 玩家变了，直接替换（此时会丢失 rank，但这是正确的，因为是新玩家）
+                currentTeam[i] = newPlayer;
+            }
+        } else {
+            currentTeam.push(newPlayer);
+        }
+    }
+    
+    // 移除多余的
+    if (currentTeam.length > newTeam.length) {
+        currentTeam.splice(newTeam.length);
+    }
+}
+
+function updateTeamData(currentTeam: SessionSummoner[], newTeam: SessionSummoner[]) {
+    // 如果新数据为空，清空当前数据
+    if (!newTeam || newTeam.length === 0) {
+        if (currentTeam.length > 0) {
+            currentTeam.splice(0, currentTeam.length);
+        }
+        return;
+    }
+
+    // 更新或添加元素
+    for (let i = 0; i < newTeam.length; i++) {
+        const newPlayer = newTeam[i];
+        
+        if (i < currentTeam.length) {
+            const oldPlayer = currentTeam[i];
+            
+            // 逻辑判断：是否需要更新
+            let shouldUpdate = true;
+            
+            if (oldPlayer && oldPlayer.summoner.puuid === newPlayer.summoner.puuid) {
+                // 如果新数据是加载中，但旧数据已经加载完成，则保留旧数据（不更新）
+                if (newPlayer.isLoading && !oldPlayer.isLoading) {
+                    shouldUpdate = false;
+                }
+                // 如果数据完全一致，则保留旧数据（不更新）
+                else if (JSON.stringify(newPlayer) === JSON.stringify(oldPlayer)) {
+                    shouldUpdate = false;
+                }
+            }
+            
+            if (shouldUpdate) {
+                currentTeam[i] = newPlayer;
+            }
+        } else {
+            // 超出当前长度，直接添加
+            currentTeam.push(newPlayer);
+        }
+    }
+
+    // 如果当前长度多于新数据长度，移除多余部分
+    if (currentTeam.length > newTeam.length) {
+        currentTeam.splice(newTeam.length);
+    }
 }
 
 onMounted(async () => {
@@ -197,8 +286,8 @@ onMounted(async () => {
             const newTeamOne = Array.isArray(data.teamOne) ? data.teamOne : [];
             const newTeamTwo = Array.isArray(data.teamTwo) ? data.teamTwo : [];
 
-            sessionData.teamOne = mergeTeamData(sessionData.teamOne, newTeamOne);
-            sessionData.teamTwo = mergeTeamData(sessionData.teamTwo, newTeamTwo);
+            updateTeamData(sessionData.teamOne, newTeamOne);
+            updateTeamData(sessionData.teamTwo, newTeamTwo);
 
             console.log('✅ [DEBUG] SessionData updated:', {
                 phase: sessionData.phase,
@@ -211,22 +300,44 @@ onMounted(async () => {
         }
     });
 
+    // 监听基础信息更新事件
+    unlistenSessionBasicInfo = await listen<SessionData>('session-basic-info', (event) => {
+        const data = event.payload;
+        console.log('📦 [DEBUG] Session basic info received');
+        
+        if (data.phase) {
+            sessionData.phase = data.phase;
+            sessionData.type = data.type;
+            sessionData.typeCn = data.typeCn;
+
+            const newTeamOne = Array.isArray(data.teamOne) ? data.teamOne : [];
+            const newTeamTwo = Array.isArray(data.teamTwo) ? data.teamTwo : [];
+
+            updateBasicInfo(sessionData.teamOne, newTeamOne);
+            updateBasicInfo(sessionData.teamTwo, newTeamTwo);
+        }
+    });
+
+    // 监听预组队信息更新
+    unlistenSessionPreGroup = await listen<Record<string, PreGroupMarkers>>('session-pre-group', (event) => {
+        const markers = event.payload;
+        console.log('📦 [DEBUG] Session pre-group markers received:', markers);
+        updatePreGroupMarkers(sessionData.teamOne, markers);
+        updatePreGroupMarkers(sessionData.teamTwo, markers);
+    });
+
     // 监听玩家更新事件（队伍一）
     unlistenPlayerUpdateTeamOne = await listen('session-player-update-team-one', (event: any) => {
         const { index, total, player } = event.payload;
         console.log(`✅ Player ${index + 1}/${total} (Team One) loaded:`, player.summoner.gameName);
-        if (sessionData.teamOne && sessionData.teamOne.length > index) {
-            sessionData.teamOne[index] = player;
-        }
+        updatePlayerAtIndex(sessionData.teamOne, index, player);
     });
 
     // 监听玩家更新事件（队伍二）
     unlistenPlayerUpdateTeamTwo = await listen('session-player-update-team-two', (event: any) => {
         const { index, total, player } = event.payload;
         console.log(`✅ Player ${index + 1}/${total} (Team Two) loaded:`, player.summoner.gameName);
-        if (sessionData.teamTwo && sessionData.teamTwo.length > index) {
-            sessionData.teamTwo[index] = player;
-        }
+        updatePlayerAtIndex(sessionData.teamTwo, index, player);
     });
 
     // 监听错误事件
@@ -253,6 +364,12 @@ onUnmounted(() => {
     // 清理所有事件监听器
     if (unlistenSessionComplete) {
         unlistenSessionComplete();
+    }
+    if (unlistenSessionBasicInfo) {
+        unlistenSessionBasicInfo();
+    }
+    if (unlistenSessionPreGroup) {
+        unlistenSessionPreGroup();
     }
     if (unlistenPlayerUpdateTeamOne) {
         unlistenPlayerUpdateTeamOne();

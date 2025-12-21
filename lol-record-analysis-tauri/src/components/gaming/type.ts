@@ -9,7 +9,7 @@ export interface SessionData {
     teamTwo: SessionSummoner[];
 
 }
-interface PreGroupMarkers {
+export interface PreGroupMarkers {
     name: string
     type: string
 }

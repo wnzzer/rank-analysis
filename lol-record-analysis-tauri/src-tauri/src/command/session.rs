@@ -156,6 +156,25 @@ async fn process_session_data(app_handle: AppHandle) -> Result<(), String> {
     // 标记预组队
     add_pre_group_markers(&mut session_data);
 
+    // 推送预组队信息
+    let mut markers: HashMap<String, PreGroupMarker> = HashMap::new();
+    for p in &session_data.team_one {
+        if !p.pre_group_markers.name.is_empty() {
+            markers.insert(p.summoner.puuid.clone(), p.pre_group_markers.clone());
+        }
+    }
+    for p in &session_data.team_two {
+        if !p.pre_group_markers.name.is_empty() {
+            markers.insert(p.summoner.puuid.clone(), p.pre_group_markers.clone());
+        }
+    }
+
+    if !markers.is_empty() {
+        app_handle
+            .emit("session-pre-group", &markers)
+            .map_err(|e| e.to_string())?;
+    }
+
     // 处理遇到过的玩家标签
     insert_meet_gamers_record(&mut session_data, &my_summoner.puuid);
 
@@ -204,7 +223,7 @@ async fn push_basic_info(
     session_data.team_two = get_basic_team(&session.game_data.team_two).await;
 
     app_handle
-        .emit("session-complete", &session_data)
+        .emit("session-basic-info", &session_data)
         .map_err(|e| e.to_string())?;
 
     // 清空数据以便后续处理
