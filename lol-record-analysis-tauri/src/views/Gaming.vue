@@ -162,7 +162,7 @@ function updatePreGroupMarkers(team: SessionSummoner[], markers: Record<string, 
         const marker = markers[player.summoner.puuid];
         if (marker) {
             if (JSON.stringify(player.preGroupMarkers) !== JSON.stringify(marker)) {
-                 player.preGroupMarkers = marker;
+                player.preGroupMarkers = marker;
             }
         }
     }
@@ -170,16 +170,16 @@ function updatePreGroupMarkers(team: SessionSummoner[], markers: Record<string, 
 
 function updatePlayerAtIndex(team: SessionSummoner[], index: number, newPlayer: SessionSummoner) {
     if (!team || index >= team.length) return;
-    
+
     const oldPlayer = team[index];
-    
+
     // 如果是同一个玩家，保留那些在后端最后阶段才计算的字段（meetGames, preGroupMarkers）
     // 因为 session-player-update 事件中的这些字段是空的，直接覆盖会导致闪烁
     if (oldPlayer && oldPlayer.summoner.puuid === newPlayer.summoner.puuid) {
         newPlayer.meetGames = oldPlayer.meetGames;
         newPlayer.preGroupMarkers = oldPlayer.preGroupMarkers;
     }
-    
+
     team[index] = newPlayer;
 }
 
@@ -189,10 +189,10 @@ function updateBasicInfo(currentTeam: SessionSummoner[], newTeam: SessionSummone
     // 基础信息更新：只更新名字、英雄等，保留段位和战绩
     for (let i = 0; i < newTeam.length; i++) {
         const newPlayer = newTeam[i];
-        
+
         if (i < currentTeam.length) {
             const oldPlayer = currentTeam[i];
-            
+
             // 如果是同一个玩家
             if (oldPlayer && oldPlayer.summoner.puuid === newPlayer.summoner.puuid) {
                 // 只更新基础字段
@@ -208,7 +208,7 @@ function updateBasicInfo(currentTeam: SessionSummoner[], newTeam: SessionSummone
             currentTeam.push(newPlayer);
         }
     }
-    
+
     // 移除多余的
     if (currentTeam.length > newTeam.length) {
         currentTeam.splice(newTeam.length);
@@ -227,13 +227,13 @@ function updateTeamData(currentTeam: SessionSummoner[], newTeam: SessionSummoner
     // 更新或添加元素
     for (let i = 0; i < newTeam.length; i++) {
         const newPlayer = newTeam[i];
-        
+
         if (i < currentTeam.length) {
             const oldPlayer = currentTeam[i];
-            
+
             // 逻辑判断：是否需要更新
             let shouldUpdate = true;
-            
+
             if (oldPlayer && oldPlayer.summoner.puuid === newPlayer.summoner.puuid) {
                 // 如果新数据是加载中，但旧数据已经加载完成，则保留旧数据（不更新）
                 if (newPlayer.isLoading && !oldPlayer.isLoading) {
@@ -244,7 +244,7 @@ function updateTeamData(currentTeam: SessionSummoner[], newTeam: SessionSummoner
                     shouldUpdate = false;
                 }
             }
-            
+
             if (shouldUpdate) {
                 currentTeam[i] = newPlayer;
             }
@@ -304,7 +304,7 @@ onMounted(async () => {
     unlistenSessionBasicInfo = await listen<SessionData>('session-basic-info', (event) => {
         const data = event.payload;
         console.log('📦 [DEBUG] Session basic info received');
-        
+
         if (data.phase) {
             sessionData.phase = data.phase;
             sessionData.type = data.type;
