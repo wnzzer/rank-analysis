@@ -14,7 +14,7 @@
 
 <script lang="ts" setup>
 import Framework from '../src/components/Framework.vue'
-import { useSettingsStore } from './pinia/setting';
+import { useSettingsStore } from './pinia/setting'
 
 const settingsStore = useSettingsStore()
 </script>

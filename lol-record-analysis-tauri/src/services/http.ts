@@ -4,11 +4,9 @@
 // const port = await invoke<number>("get_http_server_port");
 
 // Base URL for the local HTTP server
-const baseURL = ``;
+const baseURL = ``
 
 // Public assets prefix (no trailing slash to avoid double slashes)
-export const assetPrefix = `http://asset.localhost`;
+export const assetPrefix = `http://asset.localhost`
 
-
-
-export { baseURL };
+export { baseURL }

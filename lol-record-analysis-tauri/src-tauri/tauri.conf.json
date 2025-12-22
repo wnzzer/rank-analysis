@@ -29,30 +29,19 @@
   },
   "bundle": {
     "active": true,
-    "targets": [
-      "nsis"
-    ],
-    "icon": [
-      "icons/ico.ico",
-      "icons/32x32.png",
-      "icons/128x128.png",
-      "icons/256x256.png"
-    ],
+    "targets": ["nsis"],
+    "icon": ["icons/ico.ico", "icons/32x32.png", "icons/128x128.png", "icons/256x256.png"],
     "windows": {
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",
       "timestampUrl": "http://timestamp.digicert.com",
       "wix": {
-        "language": [
-          "zh-CN"
-        ]
+        "language": ["zh-CN"]
       },
       "nsis": {
         "installerIcon": "icons/ico.ico",
         "installMode": "currentUser",
-        "languages": [
-          "SimpChinese"
-        ]
+        "languages": ["SimpChinese"]
       }
     }
   },

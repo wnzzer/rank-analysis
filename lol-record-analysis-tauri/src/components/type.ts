@@ -1,6 +1,6 @@
-export interface championOption{
-    label:string,
-    realName:string,
-    value:number,
-    nickname:string
+export interface championOption {
+  label: string
+  realName: string
+  value: number
+  nickname: string
 }
