@@ -22,8 +22,7 @@
         </span>
 
         <span style="color: #676768; font-size: 11px">
-          <n-icon style="margin-right: 1px">
-            <Time></Time> </n-icon
+          <n-icon style="margin-right: 1px"> <Time></Time> </n-icon
           >{{ Math.ceil(games.gameDuration / 60) }}分
         </span>
       </n-flex>

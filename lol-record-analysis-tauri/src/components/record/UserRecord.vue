@@ -41,8 +41,7 @@
 
           <n-flex>
             <span style="color: #676768; font-size: small">#{{ summoner.tagLine }}</span>
-            <n-icon :depth="3" color="dark">
-              <server></server> </n-icon
+            <n-icon :depth="3" color="dark"> <server></server> </n-icon
             ><span>{{ platformIdCn }} </span>
           </n-flex>
         </n-flex>
