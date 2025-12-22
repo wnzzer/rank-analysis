@@ -91,8 +91,9 @@ jobs:
           node-version: '20'
 
       - name: Run npm audit
-        run: npm audit --audit-level=moderate
-        continue-on-error: true
+        run: |
+          echo "Running npm security audit..."
+          npm audit --audit-level=moderate || echo "::warning::Security vulnerabilities found in npm dependencies. Please review."
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -101,6 +102,7 @@ jobs:
         run: cargo install cargo-audit
 
       - name: Run cargo audit
-        run: cargo audit
+        run: |
+          echo "Running cargo security audit..."
+          cargo audit || echo "::warning::Security vulnerabilities found in Rust dependencies. Please review."
         working-directory: ./lol-record-analysis-tauri/src-tauri
-        continue-on-error: true
