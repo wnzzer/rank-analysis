@@ -95,7 +95,7 @@ import { championOption } from '../type'
 
 const filterQueueId = ref(0)
 const filterChampionId = ref(-1)
-const championOptions = ref<championOption[]>()
+const championOptions = ref<championOption[]>([])
 
 const resetFilter = () => {
   pageHistory.value = []

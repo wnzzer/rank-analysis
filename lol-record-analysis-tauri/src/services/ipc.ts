@@ -1,8 +1,8 @@
 import { invoke } from '@tauri-apps/api/core'
 
 export async function getImgBase64ByIpc(typeString: string, id: number) {
-  const basse64 = await invoke<string>('get_asset_base64', { typeString, id })
-  return basse64
+  const base64 = await invoke<string>('get_asset_base64', { typeString, id })
+  return base64
 }
 
 export async function putConfigByIpc(key: string, value: any) {
