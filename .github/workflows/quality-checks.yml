@@ -6,10 +6,15 @@ on:
   pull_request:
     branches: [ main, develop ]
 
+permissions:
+  contents: read
+
 jobs:
   frontend-quality:
     name: Frontend Code Quality
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: ./lol-record-analysis-tauri
@@ -39,6 +44,8 @@ jobs:
   rust-quality:
     name: Rust Code Quality
     runs-on: windows-latest
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: ./lol-record-analysis-tauri/src-tauri
@@ -78,6 +85,8 @@ jobs:
   security-audit:
     name: Security Audit
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: ./lol-record-analysis-tauri
