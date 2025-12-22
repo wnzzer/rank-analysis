@@ -1,164 +1,185 @@
 <template>
-    <n-flex justify="space-between" style="height: 90vh;" vertical>
+  <n-flex justify="space-between" style="height: 90vh" vertical>
+    <n-menu
+      :collapsed="true"
+      :collapsed-width="60"
+      :collapsed-icon-size="20"
+      @update:value="handleMenuClick"
+      :value="getFirstPath(router.currentRoute.value.path)"
+      :options="menuOptions"
+    />
+    <div class="loadingIcon" style="margin-left: 13px">
+      <n-popover trigger="hover">
+        <template #trigger>
+          <n-button circle @click="toMe">
+            <n-image
+              width="20px"
+              :src="`${assetPrefix}/profile/${mySummoner?.profileIconId}`"
+              style="border-radius: 50%"
+              preview-disabled
+            >
+              <template #error>
+                <n-icon size="20" class="rotating-icon">
+                  <Reload />
+                </n-icon>
+              </template>
+            </n-image>
+          </n-button>
+        </template>
+        <template v-if="!mySummoner || mySummoner?.tagLine == ''"> 等待连接服务器 </template>
+        <template v-else>
+          <n-card :bordered="false" content-style="padding : 0px">
+            <n-flex>
+              <div style="position: relative">
+                <img
+                  width="35px"
+                  height="35px"
+                  :src="`${assetPrefix}/profile/${mySummoner?.profileIconId}`"
+                  style="
+                    border-radius: 50%;
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                    box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+                  "
+                />
+                <div
+                  style="
+                    position: absolute;
+                    bottom: 4px;
+                    right: 0;
+                    font-size: 10px;
+                    width: 20px;
+                    height: 10px;
+                    text-align: center;
+                    line-height: 20px;
+                    border-radius: 50%;
+                    color: white;
+                  "
+                >
+                  {{ mySummoner?.summonerLevel }}
+                </div>
+              </div>
+              <n-flex vertical style="gap: 0px">
+                <n-flex>
+                  <span style="font-size: medium; font-size: 14px; font-weight: 1000">{{
+                    mySummoner?.gameName
+                  }}</span>
+                  <n-button text style="font-size: 12px" @click="copy">
+                    <n-icon>
+                      <copy-outline></copy-outline>
+                    </n-icon>
+                  </n-button>
+                </n-flex>
 
-        <n-menu :collapsed="true" :collapsed-width="60" :collapsed-icon-size="20" @update:value="handleMenuClick"
-            :value="getFirstPath(router.currentRoute.value.path)" :options="menuOptions" />
-        <div class="loadingIcon" style="margin-left: 13px;">
-
-            <n-popover trigger="hover">
-                <template #trigger>
-                    <n-button circle @click="toMe">
-
-                        <n-image width="20px" :src="`${assetPrefix}/profile/${mySummoner?.profileIconId}`"
-                            style="border-radius: 50%;" preview-disabled>
-
-                            <template #error>
-                                <n-icon size="20" class="rotating-icon">
-                                    <Reload />
-                                </n-icon>
-                            </template>
-                        </n-image>
-                    </n-button> </template>
-                <template v-if="!mySummoner || mySummoner?.tagLine == ''">
-                    等待连接服务器
-                </template>
-                <template v-else>
-                    <n-card :bordered="false" content-style="padding : 0px">
-                        <n-flex>
-                            <div style="position: relative;">
-                                <img width="35px" height="35px"
-                                    :src="`${assetPrefix}/profile/${mySummoner?.profileIconId}`"
-                                    style="border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 0 5px rgba(0,0,0,0.2);">
-                                <div
-                                    style="position: absolute; bottom: 4px; right: 0; font-size: 10px; width: 20px; height: 10px; text-align: center; line-height: 20px; border-radius: 50%; color: white;">
-                                    {{ mySummoner?.summonerLevel }}
-                                </div>
-                            </div>
-                            <n-flex vertical style="gap: 0px;">
-                                <n-flex>
-                                    <span style="font-size: medium;font-size: 14px; font-weight: 1000;">{{
-                                        mySummoner?.gameName
-                                        }}</span>
-                                    <n-button text style="font-size: 12px" @click="copy">
-                                        <n-icon>
-                                            <copy-outline></copy-outline>
-                                        </n-icon>
-                                    </n-button>
-
-                                </n-flex>
-
-                                <n-flex>
-                                    <span style="color: #676768; font-size: small;">#{{ mySummoner?.tagLine
-                                        }}</span>
-                                    <n-icon :depth="3" color="dark" style="position: relative; top: 2px;">
-                                        <server></server>
-                                    </n-icon><span>{{ mySummoner?.platformIdCn }} </span>
-                                </n-flex>
-                            </n-flex>
-                        </n-flex>
-                    </n-card>
-                </template>
-
-            </n-popover>
-        </div>
-    </n-flex>
+                <n-flex>
+                  <span style="color: #676768; font-size: small">#{{ mySummoner?.tagLine }}</span>
+                  <n-icon :depth="3" color="dark" style="position: relative; top: 2px">
+                    <server></server> </n-icon
+                  ><span>{{ mySummoner?.platformIdCn }} </span>
+                </n-flex>
+              </n-flex>
+            </n-flex>
+          </n-card>
+        </template>
+      </n-popover>
+    </div>
+  </n-flex>
 </template>
 
 <script setup lang="ts">
-import router from '../router';
-import { getFirstPath } from '../router';
+import router from '../router'
+import { getFirstPath } from '../router'
 import { Reload, BarChart, Server, CopyOutline, SettingsOutline } from '@vicons/ionicons5'
-import { NIcon, useMessage } from 'naive-ui';
-import { Component, computed, h, ref, watch } from 'vue';
-import { Summoner } from './record/type';
-import { assetPrefix } from '@renderer/services/http';
-import { useGameState } from '@renderer/composables/useGameState';
+import { NIcon, useMessage } from 'naive-ui'
+import { Component, computed, h, ref, watch } from 'vue'
+import { Summoner } from './record/type'
+import { assetPrefix } from '@renderer/services/http'
+import { useGameState } from '@renderer/composables/useGameState'
 
 // 使用游戏状态监听 - 自动切换路由
-const { summoner: gameStateSummoner } = useGameState();
+const { summoner: gameStateSummoner } = useGameState()
 
 // 将后端数据转换为前端 Summoner 类型
-const mySummoner = ref<Summoner>({} as Summoner);
+const mySummoner = ref<Summoner>({} as Summoner)
 
-watch(gameStateSummoner, (newSummoner) => {
+watch(
+  gameStateSummoner,
+  newSummoner => {
     if (newSummoner) {
-        mySummoner.value = newSummoner as unknown as Summoner;
+      mySummoner.value = newSummoner as unknown as Summoner
     } else {
-        mySummoner.value = {} as Summoner;
+      mySummoner.value = {} as Summoner
     }
-}, { immediate: true });
-
+  },
+  { immediate: true }
+)
 
 function renderIcon(icon: Component) {
-    return () => h(NIcon, null, { default: () => h(icon) })
+  return () => h(NIcon, null, { default: () => h(icon) })
 }
 function handleMenuClick(key: string) {
-    // 跳转到对应路由
-    router.push({
-        name: key,
-        query: { name: mySummoner.value.gameName + "#" + mySummoner.value.tagLine }
-    });
+  // 跳转到对应路由
+  router.push({
+    name: key,
+    query: { name: mySummoner.value.gameName + '#' + mySummoner.value.tagLine }
+  })
 }
 
 const menuOptions = computed(() => [
-    {
-        label: '战绩',
-        key: 'Record',
-        icon: renderIcon(BarChart),
-        show: !!mySummoner.value?.gameName,
-    },
-    {
-        label: '对局',
-        key: 'Gaming',
-        icon: renderIcon(Reload),
-        show: !!mySummoner.value?.gameName,
-    },
-    {
-        label: '设置',
-        key: 'Settings',
-        icon: renderIcon(SettingsOutline),
-        show: !!mySummoner.value?.gameName,
-    },
-
-]);
+  {
+    label: '战绩',
+    key: 'Record',
+    icon: renderIcon(BarChart),
+    show: !!mySummoner.value?.gameName
+  },
+  {
+    label: '对局',
+    key: 'Gaming',
+    icon: renderIcon(Reload),
+    show: !!mySummoner.value?.gameName
+  },
+  {
+    label: '设置',
+    key: 'Settings',
+    icon: renderIcon(SettingsOutline),
+    show: !!mySummoner.value?.gameName
+  }
+])
 const toMe = () => {
-    router.push({
-        path: '/Record',
-        query: { name: mySummoner.value.gameName + "#" + mySummoner.value.tagLine }
-    });
+  router.push({
+    path: '/Record',
+    query: { name: mySummoner.value.gameName + '#' + mySummoner.value.tagLine }
+  })
 }
-const message = useMessage();
+const message = useMessage()
 const copy = () => {
-    navigator.clipboard.writeText(mySummoner.value?.gameName + "#" + mySummoner.value?.tagLine)
-        .then(() => {
-            message.success("复制成功");
-        })
-        .catch(() => {
-            message.error("复制失败");
-        });
+  navigator.clipboard
+    .writeText(mySummoner.value?.gameName + '#' + mySummoner.value?.tagLine)
+    .then(() => {
+      message.success('复制成功')
+    })
+    .catch(() => {
+      message.error('复制失败')
+    })
 }
-
 </script>
 
 <style lang="css" scoped>
 .left-container {
-    width: 60px;
-    height: 100%;
+  width: 60px;
+  height: 100%;
 }
 
 @keyframes rotate {
-    0% {
-        transform: rotate(0deg);
-    }
+  0% {
+    transform: rotate(0deg);
+  }
 
-    100% {
-        transform: rotate(360deg);
-    }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
-
-
 .rotating-icon {
-    animation: rotate 2s linear infinite;
+  animation: rotate 2s linear infinite;
 }
 </style>

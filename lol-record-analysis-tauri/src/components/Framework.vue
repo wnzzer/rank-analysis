@@ -7,20 +7,18 @@
         <n-layout-header class="header">
           <Header></Header>
         </n-layout-header>
-        <n-divider style="margin: 1px 0; line-height: 1px;" />
+        <n-divider style="margin: 1px 0; line-height: 1px" />
 
         <!-- 中间部分：左侧导航 + 内容区域 -->
-        <n-layout has-sider class="content" style="width: 100%; ">
+        <n-layout has-sider class="content" style="width: 100%">
           <!-- 左侧导航 -->
-          <n-layout-sider collapse-mode="width" class="left" style="width: 60px; ">
+          <n-layout-sider collapse-mode="width" class="left" style="width: 60px">
             <SideNavigation />
           </n-layout-sider>
           <n-divider vertical :style="dividerStyle" />
           <!-- 内容区域 -->
           <n-layout-content :style="contentStyle">
-
             <router-view :key="$route.fullPath"></router-view>
-
           </n-layout-content>
         </n-layout>
       </n-layout>
@@ -29,17 +27,17 @@
 </template>
 
 <script lang="ts" setup>
-import Header from './Header.vue';
-import SideNavigation from './SideNavigation.vue';
-import { useSettingsStore } from '../pinia/setting';
-import { computed } from 'vue';
+import Header from './Header.vue'
+import SideNavigation from './SideNavigation.vue'
+import { useSettingsStore } from '../pinia/setting'
+import { computed } from 'vue'
 
-const settingsStore = useSettingsStore();
-const isDark = computed(() => settingsStore.theme?.name === 'dark');
+const settingsStore = useSettingsStore()
+const isDark = computed(() => settingsStore.theme?.name === 'dark')
 
 const contentStyle = computed(() => ({
   backgroundColor: isDark.value ? '#101014' : '#f5f7fa'
-}));
+}))
 
 const dividerStyle = computed(() => ({
   margin: '0 1px',
@@ -47,7 +45,7 @@ const dividerStyle = computed(() => ({
   height: '100%',
   borderColor: isDark.value ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)',
   borderWidth: '2px'
-}));
+}))
 </script>
 <style scoped>
 .full-container {
@@ -57,7 +55,6 @@ const dividerStyle = computed(() => ({
   /* 占满整个高度 */
   margin: 0;
   padding: 0;
-
 }
 
 .header {

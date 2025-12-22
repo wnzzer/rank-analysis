@@ -1,14 +1,27 @@
 <template>
-
   <div class="ratio-container">
-
     <n-flex vertical class="content-wrapper" style="height: 100%; position: relative">
       <n-flex>
-        <n-select v-model:value="filterQueueId" placeholder="按模式筛选" :options="modeOptions" size="small"
-          style="width: 100px" @update:value="handleUpdateValue" />
-        <n-select v-model:value="filterChampionId" filterable :filter="filterChampionFunc" placeholder="按英雄筛选"
-          :render-tag="renderSingleSelectTag" :render-label="renderLabel" :options="championOptions" size="small"
-          style="width: 170px" @update:value="handleUpdateValue" />
+        <n-select
+          v-model:value="filterQueueId"
+          placeholder="按模式筛选"
+          :options="modeOptions"
+          size="small"
+          style="width: 100px"
+          @update:value="handleUpdateValue"
+        />
+        <n-select
+          v-model:value="filterChampionId"
+          filterable
+          :filter="filterChampionFunc"
+          placeholder="按英雄筛选"
+          :render-tag="renderSingleSelectTag"
+          :render-label="renderLabel"
+          :options="championOptions"
+          size="small"
+          style="width: 170px"
+          @update:value="handleUpdateValue"
+        />
 
         <n-tooltip trigger="hover">
           <template #trigger>
@@ -22,8 +35,12 @@
         </n-tooltip>
       </n-flex>
 
-      <RecordCard v-for="(game, index) in matchHistory?.games?.games || []" :key="index" :record-type="true"
-        :games="game">
+      <RecordCard
+        v-for="(game, index) in matchHistory?.games?.games || []"
+        :key="index"
+        :record-type="true"
+        :games="game"
+      >
       </RecordCard>
 
       <!-- 自定义分页组件 -->
@@ -31,7 +48,11 @@
       <div class="pagination">
         <n-pagination style="margin-top: 0px">
           <template #prev>
-            <n-button size="tiny" :disabled="page == 1 || isRequestingMatchHostory" @click="prevPage">
+            <n-button
+              size="tiny"
+              :disabled="page == 1 || isRequestingMatchHostory"
+              @click="prevPage"
+            >
               <template #icon>
                 <n-icon>
                   <ArrowBack></ArrowBack>
@@ -43,7 +64,11 @@
             <span>{{ page }}</span>
           </template>
           <template #next>
-            <n-button size="tiny" @click="nextPage" :disabled="page == 5 || isRequestingMatchHostory">
+            <n-button
+              size="tiny"
+              @click="nextPage"
+              :disabled="page == 5 || isRequestingMatchHostory"
+            >
               <template #icon>
                 <n-icon>
                   <ArrowForward></ArrowForward>
@@ -55,7 +80,6 @@
       </div>
     </n-flex>
   </div>
-
 </template>
 
 <script setup lang="ts">
@@ -69,12 +93,9 @@ import { modeOptions, initModeOptions } from './composition'
 import { invoke } from '@tauri-apps/api/core'
 import { championOption } from '../type'
 
-
 const filterQueueId = ref(0)
 const filterChampionId = ref(-1)
-const championOptions = ref<championOption[]>(
-)
-
+const championOptions = ref<championOption[]>()
 
 const resetFilter = () => {
   pageHistory.value = []
@@ -203,7 +224,7 @@ const getHistoryMatch = async (name: string, begIndex: number, endIndex: number)
   isRequestingMatchHostory.value = true
   try {
     if (filterChampionId.value > 0 || filterQueueId.value > 0) {
-      matchHistory.value = await invoke("get_filter_match_history_by_name", {
+      matchHistory.value = await invoke('get_filter_match_history_by_name', {
         name,
         begIndex,
         endIndex,
@@ -211,7 +232,7 @@ const getHistoryMatch = async (name: string, begIndex: number, endIndex: number)
         filterChampionId: filterChampionId.value
       })
     } else {
-      matchHistory.value = await invoke("get_match_history_by_name", {
+      matchHistory.value = await invoke('get_match_history_by_name', {
         name,
         begIndex,
         endIndex
@@ -250,7 +271,7 @@ const prevPage = async () => {
   const lastPage = pageHistory.value.pop()
 
   if (!lastPage) {
-    throw new Error("无上一页数据")
+    throw new Error('无上一页数据')
   }
   await getHistoryMatch(name, lastPage.begIndex, lastPage.endIndex)
   page.value = Math.max(1, page.value - 1)
@@ -258,15 +279,13 @@ const prevPage = async () => {
 
 onMounted(async () => {
   await initModeOptions()
-  championOptions.value = await invoke<championOption[]>("get_champion_options")
+  championOptions.value = await invoke<championOption[]>('get_champion_options')
 })
 
 onMounted(async () => {
   name = route.query.name as string
   await getHistoryMatch(name, 0, 9)
 })
-
-
 </script>
 
 <style lang="css" scoped>
