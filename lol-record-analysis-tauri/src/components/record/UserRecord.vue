@@ -42,7 +42,7 @@
           </div>
           <div>
 
-            <n-tooltip trigger="hover" v-for="tag in tags">
+            <n-tooltip trigger="hover" v-for="tag in tags" :key="tag.tagName">
               <template #trigger>
                 <n-button style="margin: 5px;" size="tiny" :type="tag.good ? 'primary' : 'error'">
                   {{ tag.tagName }}
@@ -64,7 +64,7 @@
           </n-icon>
           好友/胜率
         </div>
-        <n-popover trigger="hover" v-for="friend in recentData.friendAndDispute.friendsSummoner">
+        <n-popover trigger="hover" v-for="friend in recentData.friendAndDispute.friendsSummoner" :key="friend.Summoner.puuid">
           <template #trigger>
             <n-tag round :bordered="false" :color="{ textColor: winRateColor(friend.winRate) }">
               <n-ellipsis style="max-width: 150px">
@@ -87,7 +87,7 @@
           </n-icon>
           宿敌/胜率
         </div>
-        <n-popover trigger="hover" v-for="dispute in recentData.friendAndDispute.disputeSummoner">
+        <n-popover trigger="hover" v-for="dispute in recentData.friendAndDispute.disputeSummoner" :key="dispute.Summoner.puuid">
           <template #trigger>
             <n-tag round :bordered="false" :color="{ textColor: winRateColor(dispute.winRate) }">
               <n-ellipsis style="max-width: 150px">

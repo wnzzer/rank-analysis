@@ -17,7 +17,9 @@
 vendor/
 
 # IDE 和编辑器配置文件
-.vscode/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
 .idea/
 *.iml
 

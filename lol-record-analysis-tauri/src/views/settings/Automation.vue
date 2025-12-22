@@ -26,7 +26,7 @@
         </div>
         <n-flex>
           <VueDraggable ref="el" v-model="myPickData">
-            <n-tag v-for="item in myPickData" round closable :bordered="false" @close="deletePickData(item)"
+            <n-tag v-for="item in myPickData" :key="item" round closable :bordered="false" @close="deletePickData(item)"
               style="margin-right: 15px; ">
               {{options.filter(option => option.value === item)?.[0]?.label || `英雄 ${item}`}}
               <template #avatar>
@@ -50,7 +50,7 @@
         </div>
         <n-flex>
           <VueDraggable ref="el" v-model="myBanData">
-            <n-tag v-for="item in myBanData" round closable @close="deleteBanData(item)" :bordered="false"
+            <n-tag v-for="item in myBanData" :key="item" round closable @close="deleteBanData(item)" :bordered="false"
               style="margin-right: 15px;">
               {{options.filter(option => option.value === item)?.[0]?.label || `英雄 ${item}`}}
               <template #avatar>
