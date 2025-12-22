@@ -264,13 +264,13 @@ async fn start_match_automation() {
 /// 判断当前用户是否是房主
 async fn is_leader(members: &[crate::lcu::api::lobby::Member]) -> Result<bool, String> {
     use crate::lcu::api::summoner::Summoner;
-    
+
     // 获取当前用户信息
     let my_summoner = Summoner::get_my_summoner().await?;
     let my_puuid = &my_summoner.puuid;
-    
+
     log::debug!("My PUUID: {}", my_puuid);
-    
+
     // 检查当前用户是否是房主
     let am_leader = members.iter().any(|member| {
         let is_me_and_leader = member.puuid == *my_puuid && member.is_leader;
@@ -279,7 +279,7 @@ async fn is_leader(members: &[crate::lcu::api::lobby::Member]) -> Result<bool, S
         }
         is_me_and_leader
     });
-    
+
     Ok(am_leader)
 }
 
@@ -662,7 +662,7 @@ pub async fn start_automation() {
 
     register_on_change_callback(|key: &str, new_value: &Value| {
         log::info!("Config changed: {} = {:?}", key, new_value);
-        
+
         // 确保 manager 已经初始化
         let manager = match AUTOMATION_MANAGER.get() {
             Some(m) => m,
