@@ -191,7 +191,6 @@ fn auth_resolver(command_line: &str) -> Result<(String, String), String> {
 static mut CUR_PID: DWORD = 0;
 
 pub fn get_auth() -> Result<(String, String), String> {
-    
     log::info!("开始查找英雄联盟客户端进程...");
     let pids = get_process_pid_by_name("LeagueClientUx.exe")?;
 
