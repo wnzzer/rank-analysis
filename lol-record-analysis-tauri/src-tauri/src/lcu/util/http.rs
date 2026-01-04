@@ -19,33 +19,33 @@ fn get_client() -> &'static Client {
     })
 }
 
-fn get_auth_pair() -> (String, String) {
+fn get_auth_pair() -> Result<(String, String), String> {
     let auth = AUTH.get_or_init(|| Mutex::new((String::new(), String::new())));
     let mut guard = auth.lock().unwrap();
     if guard.0.is_empty() || guard.1.is_empty() {
-        let (token, port) = get_auth().expect("获取LCU认证失败");
+        let (token, port) = get_auth()?;
         *guard = (token, port);
     }
-    guard.clone()
+    Ok(guard.clone())
 }
 
-fn refresh_auth() -> (String, String) {
+fn refresh_auth() -> Result<(String, String), String> {
     let last_refresh = LAST_REFRESH_TIME.get_or_init(|| Mutex::new(Instant::now()));
     let mut last_refresh_guard = last_refresh.lock().unwrap();
 
     let now = Instant::now();
     if now.duration_since(*last_refresh_guard) < Duration::from_secs(1) {
         let auth_guard = AUTH.get().expect("AUTH not initialized").lock().unwrap();
-        return auth_guard.clone();
+        return Ok(auth_guard.clone());
     }
 
     *last_refresh_guard = now;
 
     let auth = AUTH.get_or_init(|| Mutex::new((String::new(), String::new())));
-    let (token, port) = get_auth().expect("刷新LCU认证失败");
+    let (token, port) = get_auth()?;
     let mut guard = auth.lock().unwrap();
     *guard = (token.clone(), port.clone());
-    (token, port)
+    Ok((token, port))
 }
 fn build_url(token: &str, uri: &str, port: &str) -> String {
     let uri = uri.trim_start_matches('/');
@@ -54,7 +54,13 @@ fn build_url(token: &str, uri: &str, port: &str) -> String {
 
 pub async fn lcu_get<T: DeserializeOwned + 'static>(uri: &str) -> Result<T, String> {
     for _ in 0..2 {
-        let (token, port) = get_auth_pair();
+        let (token, port) = match get_auth_pair() {
+            Ok(auth) => auth,
+            Err(e) => {
+                log::warn!("Failed to get auth: {}", e);
+                return Err(e);
+            }
+        };
         let url = build_url(&token, uri, &port);
         log::info!("LCU GET URL: {}", url);
         let resp = get_client().get(&url).send().await;
@@ -68,7 +74,10 @@ pub async fn lcu_get<T: DeserializeOwned + 'static>(uri: &str) -> Result<T, Stri
                 return Ok(data);
             }
             _ => {
-                refresh_auth();
+                if let Err(e) = refresh_auth() {
+                    log::warn!("Failed to refresh auth: {}", e);
+                    return Err(e);
+                }
             }
         }
     }
@@ -77,7 +86,13 @@ pub async fn lcu_get<T: DeserializeOwned + 'static>(uri: &str) -> Result<T, Stri
 
 pub async fn lcu_post<T: DeserializeOwned, D: Serialize>(uri: &str, data: &D) -> Result<T, String> {
     for _ in 0..2 {
-        let (token, port) = get_auth_pair();
+        let (token, port) = match get_auth_pair() {
+            Ok(auth) => auth,
+            Err(e) => {
+                log::warn!("Failed to get auth: {}", e);
+                return Err(e);
+            }
+        };
         let url = build_url(&token, uri, &port);
         let resp = get_client().post(&url).json(data).send().await;
         match resp {
@@ -89,7 +104,10 @@ pub async fn lcu_post<T: DeserializeOwned, D: Serialize>(uri: &str, data: &D) ->
                 return Ok(data);
             }
             _ => {
-                refresh_auth();
+                if let Err(e) = refresh_auth() {
+                    log::warn!("Failed to refresh auth: {}", e);
+                    return Err(e);
+                }
             }
         }
     }
@@ -101,7 +119,13 @@ pub async fn lcu_patch<T: DeserializeOwned, D: Serialize>(
     data: &D,
 ) -> Result<T, String> {
     for _ in 0..2 {
-        let (token, port) = get_auth_pair();
+        let (token, port) = match get_auth_pair() {
+            Ok(auth) => auth,
+            Err(e) => {
+                log::warn!("Failed to get auth: {}", e);
+                return Err(e);
+            }
+        };
         let url = build_url(&token, uri, &port);
         let resp = get_client().patch(&url).json(data).send().await;
         match resp {
@@ -113,7 +137,10 @@ pub async fn lcu_patch<T: DeserializeOwned, D: Serialize>(
                 return Ok(data);
             }
             _ => {
-                refresh_auth();
+                if let Err(e) = refresh_auth() {
+                    log::warn!("Failed to refresh auth: {}", e);
+                    return Err(e);
+                }
             }
         }
     }
@@ -122,7 +149,13 @@ pub async fn lcu_patch<T: DeserializeOwned, D: Serialize>(
 
 pub async fn lcu_get_img_as_base64(uri: &str) -> Result<String, String> {
     for _ in 0..2 {
-        let (token, port) = get_auth_pair();
+        let (token, port) = match get_auth_pair() {
+            Ok(auth) => auth,
+            Err(e) => {
+                log::warn!("Failed to get auth: {}", e);
+                return Err(e);
+            }
+        };
         let url = build_url(&token, uri, &port);
         let resp = get_client().get(&url).send().await;
         match resp {
@@ -141,7 +174,10 @@ pub async fn lcu_get_img_as_base64(uri: &str) -> Result<String, String> {
                 return Ok(format!("data:{};base64,{}", content_type, base64_str));
             }
             _ => {
-                refresh_auth();
+                if let Err(e) = refresh_auth() {
+                    log::warn!("Failed to refresh auth: {}", e);
+                    return Err(e);
+                }
             }
         }
     }
@@ -150,7 +186,13 @@ pub async fn lcu_get_img_as_base64(uri: &str) -> Result<String, String> {
 
 pub async fn lcu_get_img_as_binary(uri: &str) -> Result<(Vec<u8>, String), String> {
     for _ in 0..2 {
-        let (token, port) = get_auth_pair();
+        let (token, port) = match get_auth_pair() {
+            Ok(auth) => auth,
+            Err(e) => {
+                log::warn!("Failed to get auth: {}", e);
+                return Err(e);
+            }
+        };
         let url = build_url(&token, uri, &port);
         log::info!("LCU GET Binary URL: {}", url);
         let resp = get_client().get(&url).send().await;
@@ -170,7 +212,10 @@ pub async fn lcu_get_img_as_binary(uri: &str) -> Result<(Vec<u8>, String), Strin
                 return Ok((bytes, content_type));
             }
             _ => {
-                refresh_auth();
+                if let Err(e) = refresh_auth() {
+                    log::warn!("Failed to refresh auth: {}", e);
+                    return Err(e);
+                }
             }
         }
     }
