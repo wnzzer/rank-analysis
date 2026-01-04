@@ -32,7 +32,7 @@ impl GameStateMonitor {
                 phase: None,
                 summoner: None,
             },
-            last_push_time: SystemTime::now()
+            last_push_time: SystemTime::now(),
         }
     }
 
@@ -66,6 +66,7 @@ impl GameStateMonitor {
             }
 
             self.last_state = new_state;
+            self.last_push_time = now;
         }
     }
 }
