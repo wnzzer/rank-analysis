@@ -44,6 +44,22 @@
                                     <img class="tier-icon" :src="imgUrl" />
                                     <span class="tier-text">{{ tierCn }}</span>
                                 </n-flex>
+                                <!-- ARAM Balance Tags -->
+                                <n-popover trigger="hover" v-if="balanceTags.length > 0 && isAramMode"
+                                    style="padding: 5px;">
+                                    <template #trigger>
+                                        <n-tag size="small" :type="overallBalanceStatus.type" :bordered="false" round
+                                            style="height: 18px; padding: 0 6px; font-size: 11px; cursor: help;">
+                                            {{ overallBalanceStatus.label }}
+                                        </n-tag>
+                                    </template>
+                                    <n-flex vertical size="small" style="gap: 4px;">
+                                        <n-tag v-for="tag in balanceTags" :key="tag.label" size="small" :type="tag.type"
+                                            :bordered="false">
+                                            {{ tag.label }}
+                                        </n-tag>
+                                    </n-flex>
+                                </n-popover>
                             </n-flex>
                         </div>
                     </n-flex>
@@ -51,7 +67,7 @@
 
                 <!-- Match History Grid -->
                 <div class="history-grid">
-                    <div v-for="(game, index) in sessionSummoner?.matchHistory.games.games.slice(0, 8)" :key="index"
+                    <div v-for="(game, index) in sessionSummoner?.matchHistory.games.games" :key="index"
                         class="history-item" :class="{ 'is-win': game.participants[0].stats.win }">
                         <n-flex justify="space-between" align="center" :wrap="false">
                             <span class="win-status" :class="{ 'is-win': game.participants[0].stats.win }">
@@ -98,6 +114,8 @@
                             </template>
                             <span>{{ tag.tagDesc }}</span>
                         </n-tooltip>
+
+                        <!-- ARAM Balance Tags -->
                     </n-flex>
                 </div>
 
@@ -218,7 +236,8 @@
     </n-card>
 </template>
 <script lang="ts" setup>
-import { ref } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
+import { invoke } from '@tauri-apps/api/core';
 import MettingPlayersCard from './MettingPlayersCard.vue';
 import { useCopy } from '../composition';
 import { searchSummoner, winRate } from '../record/composition';
@@ -232,13 +251,145 @@ import { useSettingsStore } from '../../pinia/setting';
 const settingsStore = useSettingsStore();
 const copy = useCopy().copy;
 const showStats = ref(false);
-defineProps<{
+const props = defineProps<{
     sessionSummoner: SessionSummoner
     typeCn: string
     modeType: string
     imgUrl: string
     tierCn: string
+    queueId: number
 }>();
+
+interface AramBalanceData {
+    dmg_dealt?: number;
+    dmg_taken?: number;
+    healing?: number;
+    shielding?: number;
+    ability_haste?: number;
+    mana_regen?: number;
+    energy_regen?: number;
+    attack_speed?: number;
+    movement_speed?: number;
+    tenacity?: number;
+}
+
+const aramBalance = ref<AramBalanceData | null>(null);
+
+const isAramMode = computed(() => {
+    return props.queueId === 450 || props.queueId === 2400; // 450: ARAM, 2400: Hextech ARAM
+});
+
+const fetchAramBalance = async () => {
+    if (props.sessionSummoner.championId && isAramMode.value) {
+        try {
+            const data = await invoke<AramBalanceData | null>('get_aram_balance', { id: props.sessionSummoner.championId });
+            aramBalance.value = data;
+        } catch (e) {
+            console.error('Failed to fetch aram balance', e);
+        }
+    }
+};
+
+watch(() => props.sessionSummoner.championId, () => {
+    fetchAramBalance();
+});
+
+watch(() => isAramMode.value, () => {
+    fetchAramBalance();
+});
+
+onMounted(() => {
+    fetchAramBalance();
+});
+
+interface BalanceTag {
+    label: string;
+    desc: string;
+    type: 'success' | 'error';
+    isBuff: boolean;
+}
+
+const balanceTags = computed<BalanceTag[]>(() => {
+    if (!aramBalance.value) return [];
+
+    const tags: BalanceTag[] = [];
+    const b = aramBalance.value;
+
+    const formatPct = (val: number) => {
+        const diff = val - 1;
+        return (diff > 0 ? '+' : '') + Math.round(diff * 100) + '%';
+    };
+
+    // Only show: Damage Dealt, Damage Taken, Healing, Shielding, Ability Haste
+    // And exclude values that are essentially 1.0 (or 0 for haste)
+
+    if (typeof b.dmg_dealt === 'number' && Math.abs(b.dmg_dealt - 1.0) > 0.001) {
+        tags.push({
+            label: `输出 ${formatPct(b.dmg_dealt)}`,
+            desc: '造成伤害修正',
+            type: b.dmg_dealt > 1.0 ? 'success' : 'error',
+            isBuff: b.dmg_dealt > 1.0
+        });
+    }
+    if (typeof b.dmg_taken === 'number' && Math.abs(b.dmg_taken - 1.0) > 0.001) {
+        tags.push({
+            label: `承伤 ${formatPct(b.dmg_taken)}`,
+            desc: '承受伤害修正',
+            type: b.dmg_taken < 1.0 ? 'success' : 'error',
+            isBuff: b.dmg_taken < 1.0
+        });
+    }
+    if (typeof b.healing === 'number' && Math.abs(b.healing - 1.0) > 0.001) {
+        tags.push({
+            label: `治疗 ${formatPct(b.healing)}`,
+            desc: '治疗效果修正',
+            type: b.healing > 1 ? 'success' : 'error',
+            isBuff: b.healing > 1.0
+        });
+    }
+    if (typeof b.shielding === 'number' && Math.abs(b.shielding - 1.0) > 0.001) {
+        tags.push({
+            label: `护盾 ${formatPct(b.shielding)}`,
+            desc: '护盾效果修正',
+            type: b.shielding > 1 ? 'success' : 'error',
+            isBuff: b.shielding > 1.0
+        });
+    }
+    if (typeof b.ability_haste === 'number' && b.ability_haste !== 0) {
+        tags.push({
+            label: `急速 ${b.ability_haste > 0 ? '+' : ''}${b.ability_haste}`,
+            desc: '技能急速修正',
+            type: b.ability_haste > 0 ? 'success' : 'error',
+            isBuff: b.ability_haste > 0
+        });
+    }
+    // Filtered out: Mana, Energy, AS, MS, Tenacity
+
+    return tags;
+});
+
+const overallBalanceStatus = computed(() => {
+    const tags = balanceTags.value;
+    if (tags.length === 0) {
+        return { label: '平衡', type: 'default' };
+    }
+
+    let buffCount = 0;
+    let nerfCount = 0;
+
+    for (const tag of tags) {
+        if (tag.isBuff) buffCount++;
+        else nerfCount++;
+    }
+
+    if (buffCount > nerfCount) {
+        return { label: '增强', type: 'success' };
+    } else if (nerfCount > buffCount) {
+        return { label: '削弱', type: 'error' };
+    } else {
+        return { label: '调整', type: 'warning' };
+    }
+});
 
 </script>
 <style lang="css" scoped>

@@ -5,6 +5,7 @@ export interface SessionData {
     phase: string;
     type: string;
     typeCn: string;
+    queueId: number;
     teamOne: SessionSummoner[];
     teamTwo: SessionSummoner[];
 

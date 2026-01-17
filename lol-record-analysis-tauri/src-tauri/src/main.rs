@@ -5,6 +5,7 @@ use log::info;
 use lol_record_analysis_app_lib::lcu::api::asset as asset_api;
 use lol_record_analysis_app_lib::state::AppState;
 use lol_record_analysis_app_lib::{automation, command};
+use tauri::Manager;
 
 // NOTE: main is no longer async
 fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
@@ -105,6 +106,8 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             command::user_tag::get_user_tag_by_name,
             command::info::get_platform_name_by_name,
             command::session::get_session_data,
+            command::fandom::update_fandom_data,
+            command::fandom::get_aram_balance,
         ]);
 
     app_builder = app_builder.setup(move |app| {
@@ -124,6 +127,27 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         tauri::async_runtime::spawn(async move {
             lol_record_analysis_app_lib::game_state_monitor::start_game_state_monitor(app_handle)
                 .await;
+        });
+
+        // Start Fandom data update schedule (every 2 hours)
+        let fandom_handle = app.handle().clone();
+        tauri::async_runtime::spawn(async move {
+            loop {
+                match lol_record_analysis_app_lib::fandom::api::fetch_aram_balance_data().await {
+                    Ok(data) => {
+                        let state = fandom_handle.state::<AppState>();
+                        let count = data.len();
+                        for (id, balance) in data {
+                            state.fandom_cache.insert(id, balance).await;
+                        }
+                        info!("Updated Fandom ARAM balance data. Count: {}", count);
+                    }
+                    Err(e) => {
+                        log::error!("Failed to update Fandom data: {}", e);
+                    }
+                }
+                tokio::time::sleep(tokio::time::Duration::from_secs(2 * 60 * 60)).await;
+            }
         });
 
         Ok(())

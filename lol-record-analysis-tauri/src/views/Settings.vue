@@ -10,7 +10,7 @@
             <n-layout-content content-style="padding: 24px;">
                 <n-notification-provider>
 
-                <router-view></router-view>
+                    <router-view></router-view>
                 </n-notification-provider>
             </n-layout-content>
         </n-layout>
@@ -24,7 +24,8 @@ import { NIcon } from 'naive-ui'
 import {
     FlashOutline,
     // BulbOutline
-    AlertCircleOutline
+    AlertCircleOutline,
+    SettingsOutline
 } from '@vicons/ionicons5'
 
 const collapsed = ref(false)
@@ -39,6 +40,11 @@ function handleMenuSelect(key: string) {
 }
 
 const menuOptions = [
+    {
+        label: '常规设置',
+        key: 'General',
+        icon: renderIcon(SettingsOutline)
+    },
     {
         label: '自动化',
         key: 'Automation',

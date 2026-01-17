@@ -1,4 +1,5 @@
 pub mod config;
+pub mod fandom;
 pub mod info;
 pub mod match_history;
 pub mod rank;

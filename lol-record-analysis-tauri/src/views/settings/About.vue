@@ -111,6 +111,7 @@ import { useNotification, useDialog } from 'naive-ui'
 import { getVersion } from '@tauri-apps/api/app';
 import { check } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
+import { openUrl } from '@tauri-apps/plugin-opener';
 
 // Component state
 const currentVersion = ref('');
@@ -206,21 +207,20 @@ const checkForUpdates = async () => {
   }
 }
 
-const openUpdateLog = () => {
-  window.open('https://github.com/wnzzer/rank-analysis/releases', '_blank')
-
+const openUpdateLog = async () => {
+  await openUrl('https://github.com/wnzzer/rank-analysis/releases');
 }
 
-const openOfficialWebsite = () => {
-  window.open('https://github.com/wnzzer/rank-analysis', '_blank')
+const openOfficialWebsite = async () => {
+  await openUrl('https://github.com/wnzzer/rank-analysis');
 }
 
-const openFeedback = () => {
-  window.open('https://github.com/wnzzer/rank-analysis/issues', '_blank')
+const openFeedback = async () => {
+  await openUrl('https://github.com/wnzzer/rank-analysis/issues');
 }
 
-const openLicense = () => {
-  window.open('https://github.com/wnzzer/rank-analysis/blob/main/LICENSE', '_blank')
+const openLicense = async () => {
+  await openUrl('https://github.com/wnzzer/rank-analysis/blob/main/LICENSE');
 }
 
 const sendEmail = () => {

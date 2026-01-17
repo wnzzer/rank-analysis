@@ -3,14 +3,30 @@
         <LoadingComponent>等待加入游戏...</LoadingComponent>
     </template>
     <template v-else>
-        <div style="padding: 10px; height: 100vh; box-sizing: border-box;">
+        <div style="padding: 10px; height: 100vh; box-sizing: border-box; position: relative">
+            <n-button circle secondary type="primary"
+                style="position: absolute; right: 0px; top: 50%; transform: translateY(-50%); z-index: 100; opacity: 0.5;"
+                @click="showConfig = true" class="config-btn">
+                <template #icon>
+                    <n-icon><settings-outline /></n-icon>
+                </template>
+            </n-button>
+
+            <n-modal v-model:show="showConfig" preset="card" title="显示设置" style="width: 400px">
+                <n-form-item label="战绩显示数量">
+                    <n-input-number v-model:value="matchCount" :min="1" :max="20" @update:value="handleUpdateConfig" />
+                </n-form-item>
+                <span style="font-size: 12px; color: #999">设置将在下一次刷新或对局时生效</span>
+            </n-modal>
+
             <n-flex justify="space-between" style="height: 100%; gap: 16px;">
                 <!-- 左侧部分 -->
 
                 <n-flex vertical justify="space-between" style="gap: 8px; flex: 1; height: 100%;">
                     <PlayerCard v-for="(sessionSummoner, i) of sessionData.teamOne" :key="'teamOne' + i"
                         :session-summoner="sessionSummoner" :mode-type="sessionData.type" :type-cn="sessionData.typeCn"
-                        :img-url="comImgTier.teamOne[i]?.imgUrl" :tier-cn="comImgTier.teamOne[i]?.tierCn"></PlayerCard>
+                        :queue-id="sessionData.queueId" :img-url="comImgTier.teamOne[i]?.imgUrl"
+                        :tier-cn="comImgTier.teamOne[i]?.tierCn"></PlayerCard>
                 </n-flex>
 
                 <!-- 右侧部分 -->
@@ -18,8 +34,9 @@
                     <n-flex vertical justify="space-between" style="gap: 8px; flex: 1; height: 100%;">
                         <PlayerCard v-for="(sessionSummoner, i) of sessionData.teamTwo" :key="'teamTwo' + i"
                             :session-summoner="sessionSummoner" :mode-type="sessionData.type"
-                            :type-cn="sessionData.typeCn" :img-url="comImgTier.teamTwo[i]?.imgUrl"
-                            :tier-cn="comImgTier.teamTwo[i]?.tierCn"></PlayerCard>
+                            :type-cn="sessionData.typeCn" :queue-id="sessionData.queueId"
+                            :img-url="comImgTier.teamTwo[i]?.imgUrl" :tier-cn="comImgTier.teamTwo[i]?.tierCn">
+                        </PlayerCard>
                     </n-flex>
                 </n-flex>
             </n-flex>
@@ -29,9 +46,11 @@
 
 <script lang="ts" setup>
 
-import { computed, onMounted, onUnmounted, reactive } from 'vue';
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
+import { SettingsOutline } from '@vicons/ionicons5';
+import { useMessage } from 'naive-ui';
 
 import unranked from '../assets/imgs/tier/unranked.png';
 import bronze from '../assets/imgs/tier/bronze.png';
@@ -137,16 +156,42 @@ const comImgTier = computed(() => {
     return comImgTier;
 });
 
+const showConfig = ref(false);
+const matchCount = ref(4);
+const message = useMessage();
+
+const handleUpdateConfig = async (value: number | null) => {
+    if (!value) return;
+    try {
+        await invoke('put_config', { key: 'matchHistoryCount', value });
+        message.success('设置已保存');
+    } catch (e) {
+        message.error('保存失败');
+    }
+};
+
+onMounted(async () => {
+    try {
+        const val = await invoke('get_config', { key: 'matchHistoryCount' });
+        if (typeof val === 'number') {
+            matchCount.value = val;
+        } else if (typeof val === 'string' && val) {
+            matchCount.value = parseInt(val) || 4;
+        }
+    } catch (e) {
+        console.error(e);
+    }
+});
+
 const sessionData = reactive<SessionData>(
     {
         phase: "",
         type: "",
         typeCn: "",
+        queueId: 0,
         teamOne: [],
         teamTwo: [],
-
     },
-
 );
 
 let unlistenSessionComplete: (() => void) | null = null;
@@ -282,6 +327,7 @@ onMounted(async () => {
             sessionData.phase = data.phase;
             sessionData.type = data.type;
             sessionData.typeCn = data.typeCn;
+            sessionData.queueId = data.queueId;
 
             const newTeamOne = Array.isArray(data.teamOne) ? data.teamOne : [];
             const newTeamTwo = Array.isArray(data.teamTwo) ? data.teamTwo : [];
@@ -309,6 +355,7 @@ onMounted(async () => {
             sessionData.phase = data.phase;
             sessionData.type = data.type;
             sessionData.typeCn = data.typeCn;
+            sessionData.queueId = data.queueId;
 
             const newTeamOne = Array.isArray(data.teamOne) ? data.teamOne : [];
             const newTeamTwo = Array.isArray(data.teamTwo) ? data.teamTwo : [];

@@ -27,6 +27,11 @@ const routes: Array<RouteRecordRaw> = [
         redirect: '/Settings/Automation',
         children: [
             {
+                path: '/Settings/General',
+                name: 'General',
+                component: () => import('../views/settings/General.vue'), // 懒加载
+            },
+            {
                 path: '/Settings/Automation',
                 name: 'Automation',
                 component: () => import('../views/settings/Automation.vue'), // 懒加载
@@ -47,7 +52,7 @@ const router = createRouter({
     routes,
 });
 
-export function getFirstPath(currentPath:string) {
+export function getFirstPath(currentPath: string) {
     return currentPath.split('/')[1];
 }
 

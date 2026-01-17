@@ -17,6 +17,7 @@ pub struct SessionData {
     #[serde(rename = "type")]
     pub queue_type: String,
     pub type_cn: String,
+    pub queue_id: i32,
     pub team_one: Vec<SessionSummoner>,
     pub team_two: Vec<SessionSummoner>,
 }
@@ -110,6 +111,7 @@ async fn process_session_data(app_handle: AppHandle) -> Result<(), String> {
             .get(session.game_data.queue.queue_type.as_str())
             .unwrap_or(&"其他")
             .to_string(),
+        queue_id: session.game_data.queue.id,
         team_one: Vec::new(),
         team_two: Vec::new(),
     };
@@ -264,8 +266,15 @@ async fn process_team(
         };
 
         // 获取战绩
+        // Default to 4 if not configured
+        let count = match crate::config::get_config("matchHistoryCount").await {
+            Ok(crate::config::Value::Integer(v)) => v as i32,
+            Ok(crate::config::Value::String(s)) => s.parse().unwrap_or(4),
+            _ => 4,
+        };
+
         let match_history =
-            match MatchHistory::get_match_history_by_puuid(&player.puuid, 0, 8).await {
+            match MatchHistory::get_match_history_by_puuid(&player.puuid, 0, count - 1).await {
                 Ok(mut mh) => {
                     mh.enrich_info_cn().ok();
                     mh
