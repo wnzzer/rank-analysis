@@ -21,7 +21,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             use std::io::Write;
             // 提取文件名（不含路径）
             let file = record.file().unwrap_or("unknown");
-            let file_name = file.split(['/', '\\']).last().unwrap_or(file);
+            let file_name = file.split(['/', '\\']).next_back().unwrap_or(file);
 
             writeln!(
                 buf,
