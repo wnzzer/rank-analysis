@@ -138,8 +138,7 @@ async fn get_champion_binary(id: i64) -> Result<(Vec<u8>, String), String> {
             log::info!("Getting champion binary for id {}", id);
             fetch_binary(&champion.square_portrait_path).await
         }
-        None => Err(format!("Champion with id {} not found in cache", id)), 
-        
+        None => Err(format!("Champion with id {} not found in cache", id)),
     }
 }
 

@@ -17,6 +17,9 @@ pub async fn update_fandom_data(state: State<'_, AppState>) -> Result<String, St
 }
 
 #[tauri::command]
-pub async fn get_aram_balance(id: i32, state: State<'_, AppState>) -> Result<Option<AramBalanceData>, String> {
+pub async fn get_aram_balance(
+    id: i32,
+    state: State<'_, AppState>,
+) -> Result<Option<AramBalanceData>, String> {
     Ok(state.fandom_cache.get(&id).await)
 }

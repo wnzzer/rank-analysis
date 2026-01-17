@@ -1,6 +1,6 @@
-use std::sync::OnceLock;
-use moka::future::Cache;
 use crate::fandom::data::AramBalanceData;
+use moka::future::Cache;
+use std::sync::OnceLock;
 use std::time::Duration;
 
 // Shared application state managed by Tauri

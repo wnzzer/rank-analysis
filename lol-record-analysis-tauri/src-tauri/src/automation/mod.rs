@@ -341,8 +341,10 @@ async fn start_select_champion() -> Result<(), String> {
         _ => vec![],
     };
 
-    log::info!("Configured champion selection list: {:?}", my_pick_champion_slice);
-
+    log::info!(
+        "Configured champion selection list: {:?}",
+        my_pick_champion_slice
+    );
 
     let mut not_select_champion_ids = HashMap::new();
 
@@ -411,12 +413,18 @@ async fn start_select_champion() -> Result<(), String> {
 
     log::info!(
         "Action ID: {}, Is In Progress: {}, Completed: {}, My Picked Champion ID: {}",
-        action_id, is_in_progress, completed, my_picked_champion_id
+        action_id,
+        is_in_progress,
+        completed,
+        my_picked_champion_id
     );
 
     if action_id != -1 {
         if is_in_progress && !completed {
-            log::info!("Completing champion selection with ID: {}", will_select_champion_id);
+            log::info!(
+                "Completing champion selection with ID: {}",
+                will_select_champion_id
+            );
             patch_session_action(action_id, will_select_champion_id, "pick".to_string(), true)
                 .await?;
             log::info!("Champion selection completed successfully");
@@ -547,7 +555,10 @@ async fn start_ban_champion() -> Result<(), String> {
         }
     }
 
-    log::info!("Champions unavailable for ban: {:?}", not_ban_champion_ids.keys().collect::<Vec<_>>());
+    log::info!(
+        "Champions unavailable for ban: {:?}",
+        not_ban_champion_ids.keys().collect::<Vec<_>>()
+    );
 
     let will_ban_champion_id = if my_ban_champion_slice.is_empty() {
         log::warn!("No champions configured in banChampionSlice, using default ID: 1");
@@ -582,7 +593,11 @@ async fn start_ban_champion() -> Result<(), String> {
         }
     }
 
-    log::info!("Action ID: {}, Is In Progress: {}", action_id, is_in_progress);
+    log::info!(
+        "Action ID: {}, Is In Progress: {}",
+        action_id,
+        is_in_progress
+    );
 
     if action_id != -1 && is_in_progress {
         log::info!("Banning champion with ID: {}", will_ban_champion_id);
