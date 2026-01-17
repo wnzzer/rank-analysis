@@ -1,11 +1,11 @@
 // src/types/preload.d.ts
 
-export {};
+export {}
 
 declare global {
-    interface Window {
-        api: {
-            OpenGithub: () => void;
-        };
+  interface Window {
+    api: {
+      OpenGithub: () => void
     }
+  }
 }

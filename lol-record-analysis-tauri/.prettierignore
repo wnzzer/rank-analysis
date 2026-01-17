@@ -1,0 +1,28 @@
+# Dependencies
+node_modules
+dist
+dist-ssr
+*.local
+
+# Build outputs
+src-tauri/target
+src-tauri/Cargo.lock
+
+# IDE
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Logs
+*.log
+
+# Lock files
+package-lock.json
+pnpm-lock.yaml
+yarn.lock

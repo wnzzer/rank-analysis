@@ -1,6 +1,6 @@
-import router from "../../router";
-import { ref } from 'vue';
-import { getGameModesByIpc } from '../../services/ipc';
+import router from '../../router'
+import { ref } from 'vue'
+import { getGameModesByIpc } from '../../services/ipc'
 
 export const kdaColor = (kda: number) => {
   if (kda >= 2.6) {
@@ -8,7 +8,7 @@ export const kdaColor = (kda: number) => {
   } else if (kda <= 1.3) {
     return '#BA3F53'
   }
-  return '#FFFFFF';
+  return '#FFFFFF'
 }
 /**
  * Returns a color based on the number of kills.
@@ -66,34 +66,29 @@ export const winRateColor = (winRate: number) => {
   }
 }
 export function winRate(wins: number, losses: number) {
-
   const totalFlexGames = wins + losses
   if (totalFlexGames === 0) {
-    return 0; // 或者可以选择返回 null、-1、或者其他你认为合适的值
+    return 0 // 或者可以选择返回 null、-1、或者其他你认为合适的值
   }
-  return Math.round(wins / totalFlexGames * 100);
-
+  return Math.round((wins / totalFlexGames) * 100)
 }
-
 
 export function searchSummoner(nameId: string) {
   router.push({
     path: '/Record',
-    query: { name: nameId, t: Date.now() }  // 添加动态时间戳作为查询参数
+    query: { name: nameId, t: Date.now() } // 添加动态时间戳作为查询参数
   })
 }
 
-export const modeOptions = ref([
-  { label: '全部', value: 0, key: 0 },
-]);
+export const modeOptions = ref([{ label: '全部', value: 0, key: 0 }])
 
 export async function initModeOptions() {
   try {
-    const modes = await getGameModesByIpc();
+    const modes = await getGameModesByIpc()
     // Ensure '全部' is always there if backend doesn't provide it, or just overwrite.
     // Backend provides '全部' (value 0).
-    modeOptions.value = modes.map(m => ({ ...m, key: m.value }));
+    modeOptions.value = modes.map(m => ({ ...m, key: m.value }))
   } catch (e) {
-    console.error("Failed to fetch game modes", e);
+    console.error('Failed to fetch game modes', e)
   }
 }

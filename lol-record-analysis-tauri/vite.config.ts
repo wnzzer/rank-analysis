@@ -1,8 +1,8 @@
-import { defineConfig } from "vite";
-import vue from "@vitejs/plugin-vue";
-import { resolve } from "path";
+import { defineConfig } from 'vite'
+import vue from '@vitejs/plugin-vue'
+import { resolve } from 'path'
 
-const host = process.env.TAURI_DEV_HOST;
+const host = process.env.TAURI_DEV_HOST
 
 // https://vitejs.dev/config/
 export default defineConfig(() => ({
@@ -10,8 +10,8 @@ export default defineConfig(() => ({
 
   resolve: {
     alias: {
-      '@renderer': resolve(__dirname, './src'),
-    },
+      '@renderer': resolve(__dirname, './src')
+    }
   },
 
   // 添加 JSON 导入支持
@@ -20,7 +20,7 @@ export default defineConfig(() => ({
   // 构建优化配置
   build: {
     target: 'esnext',
-    minify: "terser" as const,
+    minify: 'terser' as const,
     terserOptions: {
       compress: {
         drop_console: true,
@@ -29,12 +29,12 @@ export default defineConfig(() => ({
     },
     rollupOptions: {
       input: {
-        main: resolve(__dirname, 'index.html'),
+        main: resolve(__dirname, 'index.html')
       },
       output: {
         manualChunks: {
-          'vendor': ['vue', 'vue-router', 'pinia'],
-          'ui': ['naive-ui']
+          vendor: ['vue', 'vue-router', 'pinia'],
+          ui: ['naive-ui']
         }
       }
     },
@@ -44,14 +44,7 @@ export default defineConfig(() => ({
 
   // 依赖预构建配置
   optimizeDeps: {
-    include: [
-      'vue',
-      'vue-router',
-      'pinia',
-      'naive-ui',
-      '@vicons/ionicons5',
-      '@tauri-apps/api'
-    ]
+    include: ['vue', 'vue-router', 'pinia', 'naive-ui', '@vicons/ionicons5', '@tauri-apps/api']
   },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
@@ -65,14 +58,14 @@ export default defineConfig(() => ({
     host: host || false,
     hmr: host
       ? {
-          protocol: "ws",
+          protocol: 'ws',
           host,
-          port: 1421,
+          port: 1421
         }
       : undefined,
     watch: {
       // 3. tell vite to ignore watching `src-tauri`
-      ignored: ["**/src-tauri/**"],
-    },
-  },
-}));
+      ignored: ['**/src-tauri/**']
+    }
+  }
+}))

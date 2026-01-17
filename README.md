@@ -122,6 +122,37 @@
    ```
    构建完成后，可执行文件位于 `src-tauri/target/release/bundle` 目录下。
 
+## 📊 代码质量
+
+本项目采用现代化的开发工具链，确保代码质量和一致性：
+
+### 质量工具
+- **ESLint**: 静态代码分析
+- **Prettier**: 代码格式化
+- **TypeScript**: 严格类型检查
+- **Clippy**: Rust 代码 Lint
+- **Rustfmt**: Rust 代码格式化
+- **GitHub Actions**: 自动化 CI/CD
+
+### 质量检查命令
+
+```bash
+# 前端代码检查
+cd lol-record-analysis-tauri
+npm run lint          # ESLint 检查
+npm run format        # Prettier 格式化
+npm run typecheck     # TypeScript 类型检查
+
+# 后端代码检查 (需要 Windows 环境)
+cd src-tauri
+cargo fmt             # 格式化
+cargo clippy          # Lint 检查
+```
+
+详细的代码质量标准和贡献指南，请参阅：
+- [代码质量标准](./CODE_QUALITY.md)
+- [贡献指南](./CONTRIBUTING.md)
+
 ## 🤝 参与贡献
 
 欢迎提交 Issue 和 Pull Request！

@@ -26,17 +26,36 @@
         </div>
         <n-flex>
           <VueDraggable ref="el" v-model="myPickData">
-            <n-tag v-for="item in myPickData" round closable :bordered="false" @close="deletePickData(item)"
-              style="margin-right: 15px; ">
-              {{options.filter(option => option.value === item)?.[0]?.label || `英雄 ${item}`}}
+            <n-tag
+              v-for="item in myPickData"
+              :key="item"
+              round
+              closable
+              :bordered="false"
+              @close="deletePickData(item)"
+              style="margin-right: 15px"
+            >
+              {{ options.filter(option => option.value === item)?.[0]?.label || `英雄 ${item}` }}
               <template #avatar>
-                <n-avatar :src="assetPrefix + '/champion/' + item" :fallback-src="assetPrefix + 'champion-1'" />
+                <n-avatar
+                  :src="assetPrefix + '/champion/' + item"
+                  :fallback-src="assetPrefix + 'champion-1'"
+                />
               </template>
             </n-tag>
           </VueDraggable>
-          <n-select v-model:value="selectPickChampionId" filterable :filter="filterChampionFunc" placeholder="添加英雄"
-            :render-tag="renderSingleSelectTag" :render-label="renderLabel" :options="options" size="small"
-            @update:value="addPickData" style="width: 170px" />
+          <n-select
+            v-model:value="selectPickChampionId"
+            filterable
+            :filter="filterChampionFunc"
+            placeholder="添加英雄"
+            :render-tag="renderSingleSelectTag"
+            :render-label="renderLabel"
+            :options="options"
+            size="small"
+            @update:value="addPickData"
+            style="width: 170px"
+          />
         </n-flex>
         <n-text depth="3" style="font-size: 12px">拖动可以改变选择英雄的优先级</n-text>
         <div class="setting-item">
@@ -50,17 +69,36 @@
         </div>
         <n-flex>
           <VueDraggable ref="el" v-model="myBanData">
-            <n-tag v-for="item in myBanData" round closable @close="deleteBanData(item)" :bordered="false"
-              style="margin-right: 15px;">
-              {{options.filter(option => option.value === item)?.[0]?.label || `英雄 ${item}`}}
+            <n-tag
+              v-for="item in myBanData"
+              :key="item"
+              round
+              closable
+              @close="deleteBanData(item)"
+              :bordered="false"
+              style="margin-right: 15px"
+            >
+              {{ options.filter(option => option.value === item)?.[0]?.label || `英雄 ${item}` }}
               <template #avatar>
-                <n-avatar :src="assetPrefix + '/champion/' + item" :fallback-src="assetPrefix + 'champion-1'" />
+                <n-avatar
+                  :src="assetPrefix + '/champion/' + item"
+                  :fallback-src="assetPrefix + 'champion-1'"
+                />
               </template>
             </n-tag>
           </VueDraggable>
-          <n-select v-model:value="selectBanChampionId" filterable :filter="filterChampionFunc" placeholder="添加英雄"
-            :render-tag="renderSingleSelectTag" :render-label="renderLabel" :options="options" size="small"
-            @update:value="addBanData" style="width: 170px" />
+          <n-select
+            v-model:value="selectBanChampionId"
+            filterable
+            :filter="filterChampionFunc"
+            placeholder="添加英雄"
+            :render-tag="renderSingleSelectTag"
+            :render-label="renderLabel"
+            :options="options"
+            size="small"
+            @update:value="addBanData"
+            style="width: 170px"
+          />
         </n-flex>
         <n-text depth="3" style="font-size: 12px">拖动可以改变禁用英雄的优先级</n-text>
 
@@ -73,16 +111,18 @@
           </span>
           <n-switch v-model:value="autoStart" @update:value="updateStartSwitch" />
         </div>
-
       </n-space>
     </n-card>
-
   </n-space>
 </template>
 <script setup lang="ts">
 import { VueDraggable } from 'vue-draggable-plus'
 import { onMounted, ref } from 'vue'
-import { renderSingleSelectTag, renderLabel, filterChampionFunc } from '../../components/composition'
+import {
+  renderSingleSelectTag,
+  renderLabel,
+  filterChampionFunc
+} from '../../components/composition'
 import { CheckmarkCircle, Flash, Close, PlayCircle } from '@vicons/ionicons5'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import { assetPrefix } from '@renderer/services/http'
@@ -90,15 +130,15 @@ import { championOption } from '@renderer/components/type'
 import { invoke } from '@tauri-apps/api/core'
 
 onMounted(async () => {
-  const opts = await invoke<championOption[]>('get_champion_options');
-  options.value = opts.filter(opt => opt.value > 0);
-  autoAccept.value = (await getConfigByIpc<boolean>("settings.auto.acceptMatchSwitch"))
-  autoPick.value = (await getConfigByIpc<boolean>("settings.auto.pickChampionSwitch"))
-  autoBan.value = (await getConfigByIpc<boolean>("settings.auto.banChampionSwitch"))
-  myPickData.value = (await getConfigByIpc<number[]>("settings.auto.pickChampionSlice")) || []
-  myBanData.value = (await getConfigByIpc<number[]>("settings.auto.banChampionSlice")) || []
-  autoStart.value = (await getConfigByIpc<boolean>("settings.auto.startMatchSwitch"))
-});
+  const opts = await invoke<championOption[]>('get_champion_options')
+  options.value = opts.filter(opt => opt.value > 0)
+  autoAccept.value = await getConfigByIpc<boolean>('settings.auto.acceptMatchSwitch')
+  autoPick.value = await getConfigByIpc<boolean>('settings.auto.pickChampionSwitch')
+  autoBan.value = await getConfigByIpc<boolean>('settings.auto.banChampionSwitch')
+  myPickData.value = (await getConfigByIpc<number[]>('settings.auto.pickChampionSlice')) || []
+  myBanData.value = (await getConfigByIpc<number[]>('settings.auto.banChampionSlice')) || []
+  autoStart.value = await getConfigByIpc<boolean>('settings.auto.startMatchSwitch')
+})
 
 const options = ref<championOption[]>([])
 const autoAccept = ref(false)
@@ -109,36 +149,35 @@ const autoStart = ref(false)
 const selectPickChampionId = ref(null)
 const selectBanChampionId = ref(null)
 
-const myPickData = ref<number[]>([]);
-const myBanData = ref<number[]>([]);
+const myPickData = ref<number[]>([])
+const myBanData = ref<number[]>([])
 
 const updateAcceptSwitch = async () => {
-
-  await putConfigByIpc("settings.auto.acceptMatchSwitch", { value: autoAccept.value })
+  await putConfigByIpc('settings.auto.acceptMatchSwitch', { value: autoAccept.value })
 }
 
 const updatePickSwitch = async () => {
-  await putConfigByIpc("settings.auto.pickChampionSwitch", { value: autoPick.value })
+  await putConfigByIpc('settings.auto.pickChampionSwitch', { value: autoPick.value })
 }
 const updateBanSwitch = async () => {
-  await putConfigByIpc("settings.auto.banChampionSwitch", { value: autoBan.value })
+  await putConfigByIpc('settings.auto.banChampionSwitch', { value: autoBan.value })
 }
 const updatePickData = async () => {
-  await putConfigByIpc("settings.auto.pickChampionSlice", { value: myPickData.value })
+  await putConfigByIpc('settings.auto.pickChampionSlice', { value: myPickData.value })
 }
 const updateBanData = async () => {
-  await putConfigByIpc("settings.auto.banChampionSlice", { value: myBanData.value })
+  await putConfigByIpc('settings.auto.banChampionSlice', { value: myBanData.value })
 }
 const updateStartSwitch = async () => {
-  await putConfigByIpc("settings.auto.startMatchSwitch", { value: autoStart.value })
+  await putConfigByIpc('settings.auto.startMatchSwitch', { value: autoStart.value })
 }
 
 const deleteBanData = async (value: number) => {
-  myBanData.value = myBanData.value.filter((item) => item !== value)
+  myBanData.value = myBanData.value.filter(item => item !== value)
   await updateBanData()
 }
 const deletePickData = async (value: number) => {
-  myPickData.value = myPickData.value.filter((item) => item !== value)
+  myPickData.value = myPickData.value.filter(item => item !== value)
   await updatePickData()
 }
 const addBanData = async (value: number) => {
@@ -152,7 +191,6 @@ const addPickData = async (value: number) => {
   myPickData.value?.push(value)
   await updatePickData()
 }
-
 </script>
 
 <style scoped>
