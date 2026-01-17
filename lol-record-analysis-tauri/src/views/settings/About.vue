@@ -152,7 +152,7 @@ const checkForUpdates = async () => {
 
       dialog.info({
         title: '发现新版本',
-        content: `检测到新版本 ${update.version}，是否立即更新？`,
+        content: `检测到新版本 ${update.version}，是否立即更新？\n\n更新内容：\n${update.body || '暂无更新日志'}`,
         positiveText: '立即更新',
         negativeText: '稍后',
         onPositiveClick: async () => {
