@@ -226,6 +226,7 @@ jobs:
         shell: pwsh
         run: |
           $notes = "${{ github.event.inputs.notes }}"
+          # 现在的 CHANGELOG.md 就在当前的工作目录中 (lol-record-analysis-tauri)
           $changelog = Get-Content CHANGELOG.md -Raw
           
           if (-not [string]::IsNullOrWhiteSpace($notes)) {
@@ -240,7 +241,7 @@ jobs:
         with:
           tag_name: ${{ steps.get_version.outputs.tauri_version }}
           name: Release ${{ steps.get_version.outputs.tauri_version }}
-          body_path: RELEASE_BODY.md
+          body_path: lol-record-analysis-tauri/RELEASE_BODY.md
           files: |
             ${{ steps.prepare_assets.outputs.setup_path }}
             ${{ steps.prepare_assets.outputs.portable_path }}
@@ -255,10 +256,22 @@ jobs:
             const path = require("path");
             
             const version = process.env.VERSION;
-            const notes = process.env.NOTES || "For details, please check the GitHub Release page.";
             const setupPath = process.env.SETUP_PATH;
             const sigPath = process.env.SIG_PATH;
             
+            // 尝试读取自动生成的 RELEASE_BODY.md
+            let autoNotes = "";
+            try {
+                if (fs.existsSync("RELEASE_BODY.md")) {
+                    autoNotes = fs.readFileSync("RELEASE_BODY.md", "utf8");
+                }
+            } catch (e) {
+                console.warn("Could not read RELEASE_BODY.md", e);
+            }
+
+            // 优先使用生成的 body（包含手动输入+自动日志），其次回退
+            const notes = autoNotes || process.env.NOTES || "For details, please check the GitHub Release page.";
+
             const exeFile = path.basename(setupPath);
             let signature = "";
             
