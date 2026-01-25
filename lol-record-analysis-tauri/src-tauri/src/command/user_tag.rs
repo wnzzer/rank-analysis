@@ -446,5 +446,3 @@ fn count_kda(match_history: &MatchHistory, mode: i32) -> (f64, f64, f64) {
         assists as f64 / count as f64,
     )
 }
-
-
