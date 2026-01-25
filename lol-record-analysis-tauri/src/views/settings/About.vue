@@ -110,12 +110,15 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, h } from 'vue'
 import { useNotification, useDialog } from 'naive-ui'
 import { getVersion } from '@tauri-apps/api/app'
 import { check } from '@tauri-apps/plugin-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { openUrl } from '@tauri-apps/plugin-opener'
+import MarkdownIt from 'markdown-it'
+
+const md = new MarkdownIt()
 
 // Component state
 const currentVersion = ref('')
@@ -155,7 +158,18 @@ const checkForUpdates = async () => {
 
       dialog.info({
         title: '发现新版本',
-        content: `检测到新版本 ${update.version}，是否立即更新？\n\n更新内容：\n${update.body || '暂无更新日志'}`,
+        // 使用渲染函数来支持 Markdown
+        content: () =>
+          h('div', [
+            h('p', `检测到新版本 ${update.version}，是否立即更新？`),
+            h('div', { style: 'margin-top: 12px; font-weight: bold;' }, '更新内容：'),
+            h('div', {
+              // 添加样式使 Markdown 内容更易读，并限制高度防止弹窗过长
+              style:
+                'max-height: 300px; overflow-y: auto; background: rgba(0,0,0,0.05); padding: 12px; border-radius: 4px; margin-top: 8px; line-height: 1.6;',
+              innerHTML: md.render(update.body || '暂无更新日志')
+            })
+          ]),
         positiveText: '立即更新',
         negativeText: '稍后',
         onPositiveClick: async () => {
