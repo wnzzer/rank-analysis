@@ -217,7 +217,8 @@ jobs:
           tool: git-cliff
 
       - name: 📝 Generate Changelog
-        run: git-cliff --config .github/cliff.toml --verbose --latest --strip header --output CHANGELOG.md
+        working-directory: .
+        run: git-cliff --config .github/cliff.toml --verbose --latest --strip header --output lol-record-analysis-tauri/CHANGELOG.md
 
       - name: 📄 Prepare Release Body
         shell: pwsh
