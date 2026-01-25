@@ -106,11 +106,7 @@ async fn write_config() -> Result<(), Box<dyn std::error::Error + Send + Sync>> 
 fn zero_value_for_key(key: &str) -> Value {
     if key.ends_with("Switch") || key.ends_with("Enabled") {
         Value::Boolean(false)
-    } else if key.ends_with("Slice")
-        || key.ends_with("List")
-        || key.ends_with("Array")
-        || key.ends_with("Tags")
-    {
+    } else if key.ends_with("Slice") || key.ends_with("List") || key.ends_with("Array") {
         Value::List(vec![])
     } else {
         // default to empty string for other scalar-like values
