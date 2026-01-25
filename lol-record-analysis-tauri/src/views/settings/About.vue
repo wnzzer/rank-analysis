@@ -167,7 +167,18 @@ const checkForUpdates = async () => {
               // 添加样式使 Markdown 内容更易读，并限制高度防止弹窗过长
               style:
                 'max-height: 300px; overflow-y: auto; background: rgba(0,0,0,0.05); padding: 12px; border-radius: 4px; margin-top: 8px; line-height: 1.6;',
-              innerHTML: md.render(update.body || '暂无更新日志')
+              class: 'update-log-content',
+              innerHTML: md.render(update.body || '暂无更新日志'),
+              onClick: (e: MouseEvent) => {
+                const target = e.target as HTMLElement
+                if (target.tagName === 'A') {
+                  e.preventDefault()
+                  const href = target.getAttribute('href')
+                  if (href) {
+                    openUrl(href)
+                  }
+                }
+              }
             })
           ]),
         positiveText: '立即更新',
@@ -325,5 +336,16 @@ const sendEmail = () => {
 
 .spacer {
   flex: 1;
+}
+</style>
+
+<style>
+.update-log-content a {
+  color: #4096ff !important;
+  text-decoration: none;
+  cursor: pointer;
+}
+.update-log-content a:hover {
+  text-decoration: underline;
 }
 </style>
