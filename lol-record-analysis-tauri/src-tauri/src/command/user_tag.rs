@@ -1,4 +1,5 @@
-use crate::constant::game::{QUEUE_FLEX, QUEUE_ID_TO_CN, QUEUE_SOLO_5X5};
+use crate::command::user_tag_config;
+use crate::constant::game::QUEUE_ID_TO_CN;
 use crate::lcu::api::match_history::MatchHistory;
 use crate::lcu::api::summoner::Summoner;
 use serde::{Deserialize, Serialize};
@@ -93,6 +94,17 @@ pub async fn get_user_tag_by_puuid(puuid: &str, mode: i32) -> Result<UserTag, St
 
     let mut tags = Vec::new();
 
+    // Update: Use dynamic tag configuration
+    let configs = user_tag_config::load_config().await;
+    for config in configs {
+        if let Some(tag) = config.evaluate(&match_history, mode) {
+            tags.push(tag);
+        }
+    }
+
+    // The following old hardcoded tag logic is replaced by the config system above.
+    // Keeping this comment for reference.
+    /*
     // 判断是否是连胜
     let streak_tag = is_streak_tag(&match_history);
     if !streak_tag.tag_name.is_empty() {
@@ -114,6 +126,7 @@ pub async fn get_user_tag_by_puuid(puuid: &str, mode: i32) -> Result<UserTag, St
     // 判断是否是特殊玩家
     let special_player_tags = is_special_player_tag(&match_history);
     tags.extend(special_player_tags);
+    */
 
     // 获取该玩家局内的所有玩家
     let one_game_player_map = get_one_game_players(&match_history);
@@ -432,168 +445,4 @@ fn count_kda(match_history: &MatchHistory, mode: i32) -> (f64, f64, f64) {
         deaths as f64 / count as f64,
         assists as f64 / count as f64,
     )
-}
-
-fn is_streak_tag(match_history: &MatchHistory) -> RankTag {
-    let desc = "最近胜率较高的大腿玩家哦";
-    let mut i = 0;
-
-    for game in &match_history.games.games {
-        // 不是排位不算
-        if game.queue_id != QUEUE_SOLO_5X5 && game.queue_id != QUEUE_FLEX {
-            continue;
-        }
-
-        if !game.participants[0].stats.win {
-            break;
-        }
-
-        i += 1;
-    }
-
-    if i >= 3 {
-        RankTag {
-            good: true,
-            tag_name: format!("{}连胜", number_to_chinese(i)),
-            tag_desc: desc.to_string(),
-        }
-    } else {
-        RankTag {
-            good: false,
-            tag_name: String::new(),
-            tag_desc: String::new(),
-        }
-    }
-}
-
-fn is_losing_tag(match_history: &MatchHistory) -> RankTag {
-    let desc = "最近连败的玩家哦";
-    let mut i = 0;
-
-    for game in &match_history.games.games {
-        if game.queue_id != QUEUE_SOLO_5X5 && game.queue_id != QUEUE_FLEX {
-            continue;
-        }
-
-        if game.participants[0].stats.win {
-            break;
-        }
-
-        i += 1;
-    }
-
-    if i >= 3 {
-        RankTag {
-            good: false,
-            tag_name: format!("{}连败", number_to_chinese(i)),
-            tag_desc: desc.to_string(),
-        }
-    } else {
-        RankTag {
-            good: false,
-            tag_name: String::new(),
-            tag_desc: String::new(),
-        }
-    }
-}
-
-fn is_casual_tag(match_history: &MatchHistory) -> RankTag {
-    let desc = "排位比例较少的玩家哦,请宽容一点";
-    let mut i = 0;
-
-    for game in &match_history.games.games {
-        if game.queue_id != QUEUE_SOLO_5X5 && game.queue_id != QUEUE_FLEX {
-            i += 1;
-        }
-    }
-
-    if i > 10 {
-        RankTag {
-            good: false,
-            tag_name: "娱乐".to_string(),
-            tag_desc: desc.to_string(),
-        }
-    } else {
-        RankTag {
-            good: false,
-            tag_name: String::new(),
-            tag_desc: String::new(),
-        }
-    }
-}
-
-fn is_special_player_tag(match_history: &MatchHistory) -> Vec<RankTag> {
-    let mut tags = Vec::new();
-    let bad_special_champion: HashMap<i32, &str> = [(901, "小火龙"), (141, "凯隐"), (10, "天使")]
-        .iter()
-        .cloned()
-        .collect();
-
-    let desc = "该玩家使用上述英雄比例较高(由于英雄特殊定位,风评相对糟糕的英雄玩家)";
-
-    let mut bad_special_champion_select_map = HashMap::new();
-
-    for game in &match_history.games.games {
-        if game.queue_id != QUEUE_SOLO_5X5 && game.queue_id != QUEUE_FLEX {
-            continue;
-        }
-
-        if let Some(&champion_name) = bad_special_champion.get(&game.participants[0].champion_id) {
-            *bad_special_champion_select_map
-                .entry(champion_name.to_string())
-                .or_insert(0) += 1;
-        }
-    }
-
-    for (tag_name, use_count) in bad_special_champion_select_map {
-        if use_count >= 5 {
-            tags.push(RankTag {
-                good: false,
-                tag_name,
-                tag_desc: desc.to_string(),
-            });
-        }
-    }
-
-    tags
-}
-
-fn number_to_chinese(num: i32) -> String {
-    let chinese_digits = ["零", "一", "二", "三", "四", "五", "六", "七", "八", "九"];
-    let chinese_units = ["", "十", "百", "千", "万", "亿"];
-
-    if num == 0 {
-        return chinese_digits[0].to_string();
-    }
-
-    let mut result = Vec::new();
-    let mut num = num;
-    let mut unit_pos = 0;
-    let mut zero_flag = false;
-
-    while num > 0 {
-        let digit = (num % 10) as usize;
-        if digit == 0 {
-            if !zero_flag && !result.is_empty() {
-                result.push(chinese_digits[0].to_string());
-            }
-            zero_flag = true;
-        } else {
-            result.push(format!(
-                "{}{}",
-                chinese_digits[digit], chinese_units[unit_pos]
-            ));
-            zero_flag = false;
-        }
-        num /= 10;
-        unit_pos += 1;
-    }
-
-    // 处理"一十" -> "十"
-    if result.len() > 1 && result[result.len() - 1] == chinese_units[1] {
-        result.pop();
-    }
-
-    result.reverse();
-    result.join("")
 }

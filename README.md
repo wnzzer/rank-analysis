@@ -70,6 +70,9 @@
   <img src="./public/2.png" alt="分析功能演示" width="45%" />
   <img src="./public/3.png" alt="自动化功能演示" width="45%" />
 </div>
+<div align="center">
+  <img src="./public/4.png" alt="标签管理" width="45%" />
+</div>
 
 ## 🚀 使用方法
 

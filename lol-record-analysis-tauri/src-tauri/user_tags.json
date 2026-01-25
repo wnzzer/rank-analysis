@@ -1,0 +1,157 @@
+[
+  {
+    "id": "default_streak_win",
+    "name": "{N}连胜",
+    "desc": "最近胜率较高的大腿玩家哦",
+    "good": true,
+    "enabled": true,
+    "scope": "global",
+    "triggers": [
+      [
+        {
+          "winStreak": {
+            "min": 3,
+            "mode_filter": null,
+            "champion_id": null
+          }
+        }
+      ]
+    ],
+    "isDefault": true
+  },
+  {
+    "id": "default_streak_loss",
+    "name": "{N}连败",
+    "desc": "最近连败的玩家哦",
+    "good": false,
+    "enabled": true,
+    "scope": "global",
+    "triggers": [
+      [
+        {
+          "loseStreak": {
+            "min": 3,
+            "mode_filter": null,
+            "champion_id": null
+          }
+        }
+      ]
+    ],
+    "isDefault": true
+  },
+  {
+    "id": "default_casual",
+    "name": "娱乐",
+    "desc": "排位比例较少的玩家哦,请宽容一点",
+    "good": false,
+    "enabled": true,
+    "scope": "global",
+    "triggers": [
+      [
+        {
+          "stat": {
+            "metric": "gameCount",
+            "operator": ">",
+            "value": 10.0,
+            "championId": null,
+            "modeFilter": null,
+            "modeExclude": [420, 440]
+          }
+        }
+      ]
+    ],
+    "isDefault": true
+  },
+  {
+    "id": "default_special_smolder",
+    "name": "小火龙",
+    "desc": "该玩家使用上述英雄比例较高",
+    "good": false,
+    "enabled": true,
+    "scope": "global",
+    "triggers": [
+      [
+        {
+          "stat": {
+            "metric": "championGames",
+            "operator": ">=",
+            "value": 5.0,
+            "championId": 901,
+            "modeFilter": [420, 440],
+            "modeExclude": null
+          }
+        }
+      ]
+    ],
+    "isDefault": true
+  },
+  {
+    "id": "default_special_kayn",
+    "name": "凯隐",
+    "desc": "该玩家使用上述英雄比例较高",
+    "good": false,
+    "enabled": true,
+    "scope": "global",
+    "triggers": [
+      [
+        {
+          "stat": {
+            "metric": "championGames",
+            "operator": ">=",
+            "value": 5.0,
+            "championId": 141,
+            "modeFilter": [420, 440],
+            "modeExclude": null
+          }
+        }
+      ]
+    ],
+    "isDefault": true
+  },
+  {
+    "id": "default_special_kayle",
+    "name": "天使",
+    "desc": "该玩家使用上述英雄比例较高",
+    "good": false,
+    "enabled": true,
+    "scope": "global",
+    "triggers": [
+      [
+        {
+          "stat": {
+            "metric": "championGames",
+            "operator": ">=",
+            "value": 5.0,
+            "championId": 10,
+            "modeFilter": [420, 440],
+            "modeExclude": null
+          }
+        }
+      ]
+    ],
+    "isDefault": true
+  },
+  {
+    "id": "aa7181b0-eb00-4401-9c5b-6564cddba17a",
+    "name": "尼垃高手",
+    "desc": "尼垃高手",
+    "good": true,
+    "enabled": true,
+    "scope": "global",
+    "triggers": [
+      [
+        {
+          "stat": {
+            "metric": "gameCount",
+            "operator": ">=",
+            "value": 1.0,
+            "championId": 895,
+            "modeFilter": null,
+            "modeExclude": null
+          }
+        }
+      ]
+    ],
+    "isDefault": false
+  }
+]

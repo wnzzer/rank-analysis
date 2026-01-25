@@ -37,6 +37,11 @@ const routes: Array<RouteRecordRaw> = [
         component: () => import('../views/settings/Automation.vue') // 懒加载
       },
       {
+        path: '/Settings/Tags',
+        name: 'Tags',
+        component: () => import('../views/settings/Tags.vue')
+      },
+      {
         path: '/Settings/About',
         name: 'About',
         component: () => import('../views/settings/About.vue') // 懒加载
