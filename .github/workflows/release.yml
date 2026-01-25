@@ -28,6 +28,8 @@ jobs:
     steps:
       - name: 📥 Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: 🛠️ Setup Node.js (v20)
         uses: actions/setup-node@v4
@@ -209,13 +211,33 @@ jobs:
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_KEY_PASSWORD }}
 
+      - name: 📝 Generate Changelog
+        id: git_cliff
+        uses: orhun/git-cliff-action@v3
+        with:
+          config: .github/cliff.toml
+          args: --verbose --latest --strip header
+          OUTPUT: CHANGELOG.md
+
+      - name: 📄 Prepare Release Body
+        shell: pwsh
+        run: |
+          $notes = "${{ github.event.inputs.notes }}"
+          $changelog = Get-Content CHANGELOG.md -Raw
+          
+          if (-not [string]::IsNullOrWhiteSpace($notes)) {
+              Set-Content -Path RELEASE_BODY.md -Value "$notes`n`n$changelog"
+          } else {
+              Set-Content -Path RELEASE_BODY.md -Value $changelog
+          }
+        
       # --- 创建 Release 并上传资源 ---
       - name: 🚀 Create GitHub Release and Upload Assets
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.get_version.outputs.tauri_version }}
           name: Release ${{ steps.get_version.outputs.tauri_version }}
-          generate_release_notes: true
+          body_path: RELEASE_BODY.md
           files: |
             ${{ steps.prepare_assets.outputs.setup_path }}
             ${{ steps.prepare_assets.outputs.portable_path }}

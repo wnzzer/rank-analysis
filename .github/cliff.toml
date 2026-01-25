@@ -1,0 +1,49 @@
+[changelog]
+header = """
+## 📅 Changes
+"""
+body = """
+{% if version %}\
+    {% if previous.version %}\
+        ### [{{ version | trim_start_matches(pat="v") }}](https://github.com/{{ remote.github.owner }}/{{ remote.github.repo }}/compare/{{ previous.version }}...{{ version }})
+    {% else %}\
+        ### {{ version | trim_start_matches(pat="v") }}
+    {% endif %}\
+{% else %}\
+    ### [unreleased]
+{% endif %}\
+
+{% for group, commits in commits | group_by(attribute="group") %}
+    #### {{ group | upper_first }}
+    {% for commit in commits %}
+        - {{ commit.message | upper_first }} ([{{ commit.id | truncate(length=7, end="") }}](https://github.com/{{ remote.github.owner }}/{{ remote.github.repo }}/commit/{{ commit.id }}))\
+          {% if commit.github.username %} by @{{ commit.github.username }}{%- endif -%}
+    {% endfor %}
+{% endfor %}
+"""
+trim = true
+footer = """
+"""
+
+[git]
+conventional_commits = true
+filter_unconventional = false
+split_commits = false
+commit_parsers = [
+    { message = "^feat", group = "🚀 Features" },
+    { message = "^fix", group = "🐛 Bug Fixes" },
+    { message = "^doc", group = "📚 Documentation" },
+    { message = "^perf", group = "⚡ Performance" },
+    { message = "^refactor", group = "🛠 Refactor" },
+    { message = "^style", group = "🎨 Styling" },
+    { message = "^test", group = "🧪 Testing" },
+    { message = "^chore\\(release\\): prepare for", skip = true },
+    { message = "^chore", group = "⚙️ Miscellaneous" },
+    { body = ".*security", group = "🛡️ Security" },
+]
+protect_breaking_commits = false
+filter_commits = false
+tag_pattern = "v[0-9].*"
+skip_tags = "beta|alpha"
+ignore_tags = ""
+sort_commits = "oldest"
