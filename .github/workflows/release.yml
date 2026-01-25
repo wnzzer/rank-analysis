@@ -51,8 +51,12 @@ jobs:
           # 读取 JSON 配置
           $configJson = Get-Content $configPath | Out-String | ConvertFrom-Json
           
-          # 尝试读取 package.version
-          $tauriVersion = $configJson.package.version
+          # 尝试读取 version (适配 Tauri v1 package.version 和 Tauri v2 top-level version)
+          if ($configJson.version) {
+              $tauriVersion = $configJson.version
+          } elseif ($configJson.package.version) {
+              $tauriVersion = $configJson.package.version
+          }
 
           # 如果为空，尝试读取 Cargo.toml
           if ([string]::IsNullOrEmpty($tauriVersion)) {
