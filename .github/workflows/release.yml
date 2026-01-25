@@ -211,13 +211,13 @@ jobs:
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_KEY_PASSWORD }}
 
-      - name: 📝 Generate Changelog
-        id: git_cliff
-        uses: orhun/git-cliff-action@v3
+      - name: ⚡ Install git-cliff
+        uses: taiki-e/install-action@v2
         with:
-          config: .github/cliff.toml
-          args: --verbose --latest --strip header
-          OUTPUT: CHANGELOG.md
+          tool: git-cliff
+
+      - name: 📝 Generate Changelog
+        run: git-cliff --config .github/cliff.toml --verbose --latest --strip header --output CHANGELOG.md
 
       - name: 📄 Prepare Release Body
         shell: pwsh
