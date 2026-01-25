@@ -4,11 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       notes:
-        description: 'Release Notes'
-        required: true
-        default: 'Update details...'
-      version_override:
-        description: 'Optional: Override App Version (e.g. v1.0.0). Leave empty to use tauri.conf.json'
+        description: 'Release Notes (optional)'
         required: false
         default: ''
 
@@ -51,34 +47,27 @@ jobs:
         id: get_version
         shell: pwsh
         run: |
-          $overrideVersion = "${{ github.event.inputs.version_override }}"
+          $configPath = "src-tauri/tauri.conf.json"
+          # 读取 JSON 配置
+          $configJson = Get-Content $configPath | Out-String | ConvertFrom-Json
           
-          if ($overrideVersion) {
-              Write-Host "Using override version: $overrideVersion"
-              $tauriVersion = $overrideVersion
-          } else {
-              $configPath = "src-tauri/tauri.conf.json"
-              # 读取 JSON 配置
-              $configJson = Get-Content $configPath | Out-String | ConvertFrom-Json
-              
-              # 尝试读取 package.version
-              $tauriVersion = $configJson.package.version
+          # 尝试读取 package.version
+          $tauriVersion = $configJson.package.version
 
-              # 如果为空，尝试读取 Cargo.toml
-              if ([string]::IsNullOrEmpty($tauriVersion)) {
-                  Write-Host "tauri.conf.json version is empty. Checking Cargo.toml..."
-                  $tomlPath = "src-tauri/Cargo.toml"
-                  $tomlContent = Get-Content $tomlPath | Select-String -Pattern '^version\s*=\s*"(.+?)"' 
-                  
-                  if ($tomlContent) {
-                      $tauriVersion = $tomlContent.Matches[0].Groups[1].Value
-                  } else {
-                      Write-Error "Could not find version in tauri.conf.json or Cargo.toml"
-                      exit 1
-                  }
+          # 如果为空，尝试读取 Cargo.toml
+          if ([string]::IsNullOrEmpty($tauriVersion)) {
+              Write-Host "tauri.conf.json version is empty. Checking Cargo.toml..."
+              $tomlPath = "src-tauri/Cargo.toml"
+              $tomlContent = Get-Content $tomlPath | Select-String -Pattern '^version\s*=\s*"(.+?)"' 
+              
+              if ($tomlContent) {
+                  $tauriVersion = $tomlContent.Matches[0].Groups[1].Value
+              } else {
+                  Write-Error "Could not find version in tauri.conf.json or Cargo.toml"
+                  exit 1
               }
-              Write-Host "Detected Tauri Version: $tauriVersion"
           }
+          Write-Host "Detected Tauri Version: $tauriVersion"
 
           # 确保版本号以 'v' 开头 (GitHub Release 惯例)
           if ($tauriVersion -notlike 'v*') {
@@ -222,7 +211,7 @@ jobs:
         with:
           tag_name: ${{ steps.get_version.outputs.tauri_version }}
           name: Release ${{ steps.get_version.outputs.tauri_version }}
-          body: ${{ github.event.inputs.notes }}
+          generate_release_notes: true
           files: |
             ${{ steps.prepare_assets.outputs.setup_path }}
             ${{ steps.prepare_assets.outputs.portable_path }}
@@ -237,7 +226,7 @@ jobs:
             const path = require("path");
             
             const version = process.env.VERSION;
-            const notes = process.env.NOTES;
+            const notes = process.env.NOTES || "For details, please check the GitHub Release page.";
             const setupPath = process.env.SETUP_PATH;
             const sigPath = process.env.SIG_PATH;
             
