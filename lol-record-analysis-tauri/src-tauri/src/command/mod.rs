@@ -5,6 +5,7 @@ pub mod match_history;
 pub mod rank;
 pub mod session;
 pub mod user_tag;
+pub mod user_tag_config;
 
 use crate::lcu::api::summoner::Summoner;
 

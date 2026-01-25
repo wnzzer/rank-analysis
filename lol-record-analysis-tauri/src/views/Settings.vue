@@ -35,7 +35,8 @@ import {
   FlashOutline,
   // BulbOutline
   AlertCircleOutline,
-  SettingsOutline
+  SettingsOutline,
+  PricetagOutline
 } from '@vicons/ionicons5'
 
 const collapsed = ref(false)
@@ -59,6 +60,11 @@ const menuOptions = [
     label: '自动化',
     key: 'Automation',
     icon: renderIcon(FlashOutline)
+  },
+  {
+    label: '标签管理',
+    key: 'Tags',
+    icon: renderIcon(PricetagOutline)
   },
   // {
   //     label: 'AI能力',

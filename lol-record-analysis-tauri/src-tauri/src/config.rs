@@ -9,8 +9,10 @@ use tokio::sync::OnceCell;
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(untagged)]
 pub enum Value {
+    Null,
     String(String),
     Integer(i64),
+    Float(f64),
     Boolean(bool),
     List(Vec<Value>),
     Map(HashMap<String, Value>),
@@ -104,7 +106,11 @@ async fn write_config() -> Result<(), Box<dyn std::error::Error + Send + Sync>> 
 fn zero_value_for_key(key: &str) -> Value {
     if key.ends_with("Switch") || key.ends_with("Enabled") {
         Value::Boolean(false)
-    } else if key.ends_with("Slice") || key.ends_with("List") || key.ends_with("Array") {
+    } else if key.ends_with("Slice")
+        || key.ends_with("List")
+        || key.ends_with("Array")
+        || key.ends_with("Tags")
+    {
         Value::List(vec![])
     } else {
         // default to empty string for other scalar-like values
