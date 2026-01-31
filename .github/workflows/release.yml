@@ -218,7 +218,7 @@ jobs:
 
       - name: 📝 Generate Changelog
         working-directory: .
-        run: git-cliff --config .github/cliff.toml --verbose --tag ${{ steps.get_version.outputs.tauri_version }} --unreleased --strip header --output lol-record-analysis-tauri/CHANGELOG.md
+        run: git-cliff --config .github/cliff.toml --verbose --tag ${{ steps.get_version.outputs.tauri_version }} --latest --strip header --output lol-record-analysis-tauri/CHANGELOG.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -332,7 +332,7 @@ jobs:
             {
               "app_type": "tauri",
               "request": {
-                "app_key": "${{ secrets.UPGRADE_LINK_APP_KEY }}",
-                "latest_json_url": "https://github.com/${{ github.repository }}/releases/download/${{ needs.build-and-release.outputs.tauri_version }}/latest.json"
+                "app_key": "${{ secrets.UPGRADE_LINK_TAURI_KEY }}",
+                "latest_json_url": "https://github.com/wnzzer/rank-analysis/releases/download/${{ needs.build-and-release.outputs.tauri_version }}/latest.json"
               }
             }
