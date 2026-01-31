@@ -1,5 +1,5 @@
 import { assetPrefix } from '../services/http'
-import { NAvatar, SelectRenderLabel, SelectRenderTag, useMessage } from 'naive-ui'
+import { NAvatar, SelectOption, SelectRenderLabel, SelectRenderTag, useMessage } from 'naive-ui'
 import { h } from 'vue'
 import { championOption } from './type'
 import { QueueInfo } from './record/type'
@@ -22,10 +22,11 @@ export const useCopy = () => {
 }
 
 // 后端已统一 camelCase，仅匹配 label / realName / nickname
-export function filterChampionFunc(input: string, option: championOption) {
+export function filterChampionFunc(input: string, option: SelectOption) {
   if (!input) return true
   const kw = input.toLowerCase()
-  return [option.label, option.realName, option.nickname].some(
+  const opt = option as unknown as championOption
+  return [opt.label, opt.realName, opt.nickname].some(
     t => t && t.toLowerCase().includes(kw)
   )
 }

@@ -126,6 +126,19 @@ pub const QUEUE_MATCH2: i32 = 490;
 pub const QUEUE_OD: i32 = 900;
 pub const QUEUE_TFT: i32 = 1700;
 pub const QUEUE_URF: i32 = 1900;
+pub const QUEUE_HEXAKILL: i32 = 2400;
+
+pub static QUEUE_IDS: [i32; 9] = [
+    QUEUE_SOLO_5X5,
+    QUEUE_MATCH,
+    QUEUE_FLEX,
+    QUEUE_ARAM,
+    QUEUE_MATCH2,
+    QUEUE_OD,
+    QUEUE_TFT,
+    QUEUE_URF,
+    QUEUE_HEXAKILL,
+];
 
 // 游戏状态常量
 pub const MATCHMAKING: &str = "Matchmaking"; // 正在匹配

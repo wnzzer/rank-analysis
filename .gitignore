@@ -68,3 +68,4 @@ desktop.ini
 config.yaml
 
 app.log.*
+.vscode/settings.json
