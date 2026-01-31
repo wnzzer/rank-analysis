@@ -326,8 +326,13 @@ jobs:
       - name: 🔗 Send a request to UpgradeLink
         uses: toolsetlink/upgradelink-action@3.0.2
         with:
-          # 使用 needs.build-and-release.outputs.tauri_version 获取版本号
-          source-url: 'https://github.com/wnzzer/rank-analysis/releases/download/${{ needs.build-and-release.outputs.tauri_version }}/latest.json'
-          access-key: ${{ secrets.UPGRADE_LINK_ACCESS_KEY }}
-          tauri-key: ${{ secrets.UPGRADE_LINK_TAURI_KEY }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          access_key: ${{ secrets.UPGRADE_LINK_ACCESS_KEY }}
+          access_secret: ${{ secrets.UPGRADE_LINK_ACCESS_SECRET }}
+          config: |
+            {
+              "app_type": "tauri",
+              "request": {
+                "app_key": "${{ secrets.UPGRADE_LINK_APP_KEY }}",
+                "latest_json_url": "https://github.com/wnzzer/rank-analysis/releases/download/${{ needs.build-and-release.outputs.tauri_version }}/latest.json"
+              }
+            }
