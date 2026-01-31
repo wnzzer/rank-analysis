@@ -324,7 +324,7 @@ jobs:
         run: sleep 30 
 
       - name: 🔗 Send a request to UpgradeLink
-        uses: toolsetlink/upgradelink-action@v5
+        uses: toolsetlink/upgradelink-action@3.0.2
         with:
           # 使用 needs.build-and-release.outputs.tauri_version 获取版本号
           source-url: 'https://github.com/wnzzer/rank-analysis/releases/download/${{ needs.build-and-release.outputs.tauri_version }}/latest.json'
