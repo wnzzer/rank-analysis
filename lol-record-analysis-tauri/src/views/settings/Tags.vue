@@ -31,18 +31,17 @@
         <n-divider title-placement="left">触发条件 (Logic Tree)</n-divider>
 
         <div class="condition-editor-container">
-            <TagConditionNode 
-               v-if="currentTag.condition"
-               v-model="currentTag.condition" 
-               :is-root="true"
-               :mode-options="modeOptions"
-               :champion-options="championOptions"
-            />
-            <div v-else class="empty-root">
-                <n-button @click="initRootCondition">初始化条件</n-button>
-            </div>
+          <TagConditionNode
+            v-if="currentTag.condition"
+            v-model="currentTag.condition"
+            :is-root="true"
+            :mode-options="modeOptions"
+            :champion-options="championOptions"
+          />
+          <div v-else class="empty-root">
+            <n-button @click="initRootCondition">初始化条件</n-button>
+          </div>
         </div>
-
       </n-form>
       <template #footer>
         <n-flex justify="end">
@@ -56,7 +55,23 @@
 
 <script setup lang="ts">
 import { ref, onMounted, h } from 'vue'
-import { NTag, NButton, NPopconfirm, useMessage, NSpace, NSwitch, NModal, NForm, NFormItem, NInput, NDivider, NCard, NDataTable, NFlex, useThemeVars } from 'naive-ui'
+import {
+  NTag,
+  NButton,
+  NPopconfirm,
+  useMessage,
+  NSpace,
+  NSwitch,
+  NModal,
+  NForm,
+  NFormItem,
+  NInput,
+  NDivider,
+  NCard,
+  NDataTable,
+  NFlex,
+  useThemeVars
+} from 'naive-ui'
 import { invoke } from '@tauri-apps/api/core'
 import TagConditionNode from './TagConditionNode.vue'
 import { championOption } from '../../components/type'
@@ -80,12 +95,12 @@ const loading = ref(false)
 const showModal = ref(false)
 // Initialize with empty object matching interface partially
 const currentTag = ref<TagConfig>({
-    id: '',
-    name: '',
-    desc: '',
-    good: false,
-    enabled: true,
-    condition: null
+  id: '',
+  name: '',
+  desc: '',
+  good: false,
+  enabled: true,
+  condition: null
 })
 
 const modeOptions = ref<{ label: string; value: number }[]>([])
@@ -194,7 +209,7 @@ async function toggleEnabled(row: TagConfig, val: boolean) {
     message.success(val ? '已启用' : '已禁用')
   } catch (e: any) {
     message.error(e)
-    row.enabled = !val 
+    row.enabled = !val
   }
 }
 
@@ -206,25 +221,26 @@ function openCreateModal() {
     good: true,
     isDefault: false,
     enabled: true,
-    condition: { // Default root: OR group
-        type: 'or',
-        conditions: [
-            {
-                type: 'history',
-                 filters: [{ type: 'queue', ids: [420, 440] }], // Ranked
-                 refresh: { type: 'streak', kind: 'win', min: 3 }
-            }
-        ]
+    condition: {
+      // Default root: OR group
+      type: 'or',
+      conditions: [
+        {
+          type: 'history',
+          filters: [{ type: 'queue', ids: [420, 440] }], // Ranked
+          refresh: { type: 'streak', kind: 'win', min: 3 }
+        }
+      ]
     }
   }
   showModal.value = true
 }
 
 function initRootCondition() {
-    currentTag.value.condition = {
-        type: 'or',
-        conditions: []
-    }
+  currentTag.value.condition = {
+    type: 'or',
+    conditions: []
+  }
 }
 
 function openEditModal(row: any) {
@@ -244,14 +260,14 @@ async function saveTag() {
   }
 
   const tagToSave = { ...currentTag.value }
-  
+
   // Update list
   let newTags = [...tags.value]
   const idx = newTags.findIndex(t => t.id === tagToSave.id)
   if (idx >= 0) {
-      newTags[idx] = tagToSave
+    newTags[idx] = tagToSave
   } else {
-      newTags.push(tagToSave)
+    newTags.push(tagToSave)
   }
 
   try {
@@ -278,14 +294,14 @@ async function deleteTag(id: string) {
 
 <style scoped>
 .condition-editor-container {
-    max-height: 500px;
-    overflow-y: auto;
-    padding: 10px;
-    border: 1px solid v-bind('themeVars.borderColor');
-    border-radius: 4px;
+  max-height: 500px;
+  overflow-y: auto;
+  padding: 10px;
+  border: 1px solid v-bind('themeVars.borderColor');
+  border-radius: 4px;
 }
 .empty-root {
-    text-align: center;
-    padding: 20px;
+  text-align: center;
+  padding: 20px;
 }
 </style>

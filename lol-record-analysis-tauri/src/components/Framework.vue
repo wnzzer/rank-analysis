@@ -4,20 +4,18 @@
       <!-- 整体布局 -->
       <n-layout>
         <!-- 顶部区域 -->
-        <n-layout-header class="header">
+        <n-layout-header class="header" bordered>
           <Header></Header>
         </n-layout-header>
-        <n-divider style="margin: 1px 0; line-height: 1px" />
 
         <!-- 中间部分：左侧导航 + 内容区域 -->
         <n-layout has-sider class="content" style="width: 100%">
           <!-- 左侧导航 -->
-          <n-layout-sider collapse-mode="width" class="left" style="width: 60px">
+          <n-layout-sider collapse-mode="width" class="left" style="width: 60px" bordered>
             <SideNavigation />
           </n-layout-sider>
-          <n-divider vertical :style="dividerStyle" />
           <!-- 内容区域 -->
-          <n-layout-content :style="contentStyle">
+          <n-layout-content :content-style="contentStyle">
             <router-view :key="$route.fullPath"></router-view>
           </n-layout-content>
         </n-layout>
@@ -33,19 +31,15 @@ import { useSettingsStore } from '../pinia/setting'
 import { computed } from 'vue'
 
 const settingsStore = useSettingsStore()
-const isDark = computed(() => settingsStore.theme?.name === 'dark')
 
-const contentStyle = computed(() => ({
-  backgroundColor: isDark.value ? '#101014' : '#f5f7fa'
-}))
-
-const dividerStyle = computed(() => ({
-  margin: '0 1px',
-  lineHeight: '5px',
-  height: '100%',
-  borderColor: isDark.value ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)',
-  borderWidth: '2px'
-}))
+const contentStyle = computed(() => {
+  const themeName = settingsStore.theme?.name
+  const isDark = themeName === 'Dark' || themeName === 'dark'
+  return {
+    backgroundColor: isDark ? '#101014' : undefined,
+    height: '100%'
+  }
+})
 </script>
 <style scoped>
 .full-container {

@@ -200,7 +200,7 @@ struct EvalContext<'a> {
     current_champion: Option<i32>,
 }
 
-impl<'a> EvalContext<'a> {
+impl EvalContext<'_> {
     fn evaluate_node(&self, condition: &TagCondition) -> bool {
         match condition {
             TagCondition::And { conditions } => conditions.iter().all(|c| self.evaluate_node(c)),

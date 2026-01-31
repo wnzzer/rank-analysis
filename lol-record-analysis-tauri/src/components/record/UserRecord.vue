@@ -1,251 +1,268 @@
 <template>
-  <n-flex vertical style="display: flex; position: relative; height: 100%">
-    <n-card :bordered="false">
-      <n-flex>
-        <div style="position: relative">
-          <img
-            width="50px"
-            height="50px"
+  <n-flex vertical class="user-record-container" :size="12">
+    <!-- User Info Card -->
+    <n-card :bordered="false" size="small" content-style="padding: 12px">
+      <n-flex align="center" :size="12">
+        <div class="avatar-wrapper">
+          <n-avatar
+            round
+            :size="58"
             :src="`${assetPrefix}/profile/${summoner?.profileIconId}`"
+            fallback-src="https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png"
           />
-          <div
-            style="
-              position: absolute;
-              bottom: 0;
-              right: 0;
-              font-size: 10px;
-              width: 25px;
-              height: 10px;
-              text-align: center;
-              line-height: 20px;
-              border-radius: 50%;
-              color: white;
-            "
-          >
+          <div class="level-badge">
             {{ summoner.summonerLevel }}
           </div>
         </div>
-        <n-flex vertical>
-          <n-flex>
-            <span style="font-size: medium; font-weight: 1000">
-              <n-ellipsis style="max-width: 128px">
-                {{ summoner.gameName }}
-              </n-ellipsis>
-            </span>
-            <n-button text style="font-size: 12px" @click="copy">
-              <n-icon>
-                <copy-outline></copy-outline>
-              </n-icon>
+        <n-flex vertical :size="2" style="flex: 1; min-width: 0">
+          <n-flex align="center" :size="4" :wrap="false">
+            <n-ellipsis style="max-width: 100%; font-weight: 700; font-size: 16px">
+              {{ summoner.gameName }}
+            </n-ellipsis>
+            <n-button text size="tiny" @click="copy">
+              <template #icon>
+                <n-icon><copy-outline /></n-icon>
+              </template>
             </n-button>
           </n-flex>
-
-          <n-flex>
-            <span style="color: #676768; font-size: small">#{{ summoner.tagLine }}</span>
-            <n-icon :depth="3" color="dark"> <server></server> </n-icon
-            ><span>{{ platformIdCn }} </span>
+          <n-flex align="center" :size="6">
+            <n-text depth="3" style="font-size: 12px">#{{ summoner.tagLine }}</n-text>
+            <n-popover trigger="hover" v-if="serverDescription">
+              <template #trigger>
+                <n-tag
+                  size="small"
+                  :bordered="false"
+                  type="default"
+                  style="font-size: 10px; padding: 0 4px; height: 18px"
+                >
+                  {{ platformIdCn }}
+                </n-tag>
+              </template>
+              <span>{{ serverDescription }}</span>
+            </n-popover>
+            <n-tag
+              v-else
+              size="small"
+              :bordered="false"
+              type="default"
+              style="font-size: 10px; padding: 0 4px; height: 18px"
+            >
+              {{ platformIdCn }}
+            </n-tag>
           </n-flex>
         </n-flex>
+      </n-flex>
+
+      <!-- Tags -->
+      <n-flex v-if="tags.length > 0" style="margin-top: 12px" :size="6" wrap>
+        <n-tooltip trigger="hover" v-for="tag in tags" :key="tag.tagName">
+          <template #trigger>
+            <n-tag size="small" :type="tag.good ? 'primary' : 'error'" :bordered="false" round>
+              {{ tag.tagName }}
+            </n-tag>
+          </template>
+          <span>{{ tag.tagDesc }}</span>
+        </n-tooltip>
       </n-flex>
     </n-card>
 
-    <div style="position: relative">
-      <n-card :bordered="false" content-style="padding-top:0px">
-        <n-flex>
-          <div></div>
-          <div>
-            <n-tooltip trigger="hover" v-for="tag in tags" :key="tag.tagName">
-              <template #trigger>
-                <n-button style="margin: 5px" size="tiny" :type="tag.good ? 'primary' : 'error'">
-                  {{ tag.tagName }}
-                </n-button>
-              </template>
-              <span>{{ tag.tagDesc }}</span>
-            </n-tooltip>
-          </div>
-        </n-flex>
-      </n-card>
-    </div>
-    <!-- 宿敌和好友 -->
-    <n-flex style="display: flex">
-      <n-flex vertical style="flex: 1">
-        <div
-          v-if="recentData.friendAndDispute.friendsSummoner.length > 0"
-          style="font-weight: 800; color: #8bdfb7"
-        >
-          <n-icon>
-            <Accessibility />
-          </n-icon>
-          好友/胜率
+    <!-- Friends & Rivals -->
+    <n-flex :wrap="false" align="stretch" :size="12">
+      <div class="relationship-col">
+        <div class="section-header good-color">
+          <n-icon><Accessibility /></n-icon>
+          <span>好友/胜率</span>
         </div>
-        <n-popover
-          trigger="hover"
-          v-for="friend in recentData.friendAndDispute.friendsSummoner"
-          :key="friend.Summoner.puuid"
-        >
-          <template #trigger>
-            <n-tag round :bordered="false" :color="{ textColor: winRateColor(friend.winRate) }">
-              <n-ellipsis style="max-width: 150px">
-                {{ friend?.Summoner?.gameName }}
-              </n-ellipsis>
+        <div class="relationship-list">
+          <n-empty
+            v-if="recentData.friendAndDispute.friendsSummoner.length === 0"
+            description="暂无数据"
+            size="small"
+          ></n-empty>
+          <n-popover
+            trigger="hover"
+            placement="right"
+            v-for="friend in recentData.friendAndDispute.friendsSummoner"
+            :key="friend.Summoner.puuid"
+          >
+            <template #trigger>
+              <div class="relationship-item">
+                <n-avatar
+                  round
+                  :size="24"
+                  :src="`${assetPrefix}/profile/${friend?.Summoner?.profileIconId}`"
+                />
+                <n-ellipsis style="flex: 1; margin: 0 6px; font-size: 12px">{{
+                  friend?.Summoner?.gameName
+                }}</n-ellipsis>
+                <span
+                  :style="{
+                    color: winRateColor(friend.winRate),
+                    fontWeight: 'bold',
+                    fontSize: '12px'
+                  }"
+                  >{{ friend.winRate }}</span
+                >
+              </div>
+            </template>
+            <MettingPlayersCard :meet-games="friend.OneGamePlayer"></MettingPlayersCard>
+          </n-popover>
+        </div>
+      </div>
 
-              <span style="font-size: 13px; margin-left: 5px">{{ friend.winRate }}</span>
-              <template #avatar>
-                <n-avatar :src="`${assetPrefix}/profile/${friend?.Summoner?.profileIconId}`" />
-              </template>
-            </n-tag>
-          </template>
-          <MettingPlayersCard :meet-games="friend.OneGamePlayer"></MettingPlayersCard>
-        </n-popover>
-      </n-flex>
-      <n-flex vertical style="flex: 1">
-        <div
-          v-if="recentData.friendAndDispute.disputeSummoner.length > 0"
-          style="font-weight: 800; color: #c9606f"
-        >
-          <n-icon>
-            <Skull />
-          </n-icon>
-          宿敌/胜率
+      <div class="relationship-col">
+        <div class="section-header bad-color">
+          <n-icon><Flash /></n-icon>
+          <span>宿敌/胜率</span>
         </div>
-        <n-popover
-          trigger="hover"
-          v-for="dispute in recentData.friendAndDispute.disputeSummoner"
-          :key="dispute.Summoner.puuid"
-        >
-          <template #trigger>
-            <n-tag round :bordered="false" :color="{ textColor: winRateColor(dispute.winRate) }">
-              <n-ellipsis style="max-width: 150px">
-                {{ dispute?.Summoner?.gameName }}
-              </n-ellipsis>
-              <span style="font-size: 13px; margin-left: 5px">{{ dispute.winRate }}</span>
-              <template #avatar>
-                <n-avatar :src="`${assetPrefix}/profile/${dispute?.Summoner?.profileIconId}`" />
-              </template>
-            </n-tag>
-          </template>
-          <MettingPlayersCard :meet-games="dispute.OneGamePlayer"></MettingPlayersCard>
-        </n-popover>
-      </n-flex>
+        <div class="relationship-list">
+          <n-empty
+            v-if="recentData.friendAndDispute.disputeSummoner.length === 0"
+            description="暂无数据"
+            size="small"
+          ></n-empty>
+          <n-popover
+            trigger="hover"
+            placement="right"
+            v-for="dispute in recentData.friendAndDispute.disputeSummoner"
+            :key="dispute.Summoner.puuid"
+          >
+            <template #trigger>
+              <div class="relationship-item">
+                <n-avatar
+                  round
+                  :size="24"
+                  :src="`${assetPrefix}/profile/${dispute?.Summoner?.profileIconId}`"
+                />
+                <n-ellipsis style="flex: 1; margin: 0 6px; font-size: 12px">{{
+                  dispute?.Summoner?.gameName
+                }}</n-ellipsis>
+                <span
+                  :style="{
+                    color: winRateColor(dispute.winRate),
+                    fontWeight: 'bold',
+                    fontSize: '12px'
+                  }"
+                  >{{ dispute.winRate }}</span
+                >
+              </div>
+            </template>
+            <MettingPlayersCard :meet-games="dispute.OneGamePlayer"></MettingPlayersCard>
+          </n-popover>
+        </div>
+      </div>
     </n-flex>
 
-    <div style="position: relative">
-      <n-card :bordered="false">
-        <div style="position: absolute; left: 0; top: 0">
-          <span> 单双排 </span>
-        </div>
-        <n-flex>
-          <div>
+    <!-- Rank Cards -->
+    <n-flex vertical :size="12">
+      <!-- Solo Rank -->
+      <n-card :bordered="false" size="small" content-style="padding: 10px">
+        <div class="rank-card-content">
+          <div class="rank-icon-wrapper">
+            <span class="rank-type-label">单双排</span>
             <img
-              width="70px"
-              height="70px"
               :src="requireImg(rank.queueMap.RANKED_SOLO_5x5.tier.toLocaleLowerCase())"
+              class="rank-img"
             />
-          </div>
-          <div style="position: absolute; bottom: 10px; left: 25px">
-            <span style="font-size: 12px">
+            <div class="rank-tier-text">
               {{ rank.queueMap.RANKED_SOLO_5x5.tierCn }}
               {{ divisionOrPoint(rank.queueMap.RANKED_SOLO_5x5) }}
-            </span>
+            </div>
           </div>
-          <div style="width: 60%">
-            <n-flex vertical>
-              <RecordButton
-                :record-type="
-                  solo5v5RecentWinRate.winRate >= 58
-                    ? 'good'
-                    : solo5v5RecentWinRate.winRate <= 49
-                      ? 'bad'
-                      : ''
-                "
+          <div class="rank-stats">
+            <div
+              class="win-rate-badge"
+              :class="
+                solo5v5RecentWinRate.winRate >= 58
+                  ? 'good'
+                  : solo5v5RecentWinRate.winRate <= 49
+                    ? 'bad'
+                    : 'normal'
+              "
+            >
+              胜率 {{ solo5v5RecentWinRate.winRate }}%
+            </div>
+            <n-flex justify="space-between" size="small" style="width: 100%; margin-top: 4px">
+              <span style="font-size: 11px; color: var(--n-text-color-3)"
+                >胜场: {{ solo5v5RecentWinRate.wins }}</span
               >
-                胜率：{{ solo5v5RecentWinRate.winRate }}%
-              </RecordButton>
-              <n-button size="tiny">胜场：{{ solo5v5RecentWinRate.wins }}</n-button>
-              <n-button size="tiny">负场：{{ solo5v5RecentWinRate.losses }}</n-button>
+              <span style="font-size: 11px; color: var(--n-text-color-3)"
+                >负场: {{ solo5v5RecentWinRate.losses }}</span
+              >
             </n-flex>
           </div>
-        </n-flex>
+        </div>
       </n-card>
-    </div>
-    <div style="position: relative">
-      <n-card :bordered="false">
-        <n-flex>
-          <div style="position: absolute; left: 0; top: 0">
-            <span> 灵活组排 </span>
-          </div>
-          <div>
+
+      <!-- Flex Rank -->
+      <n-card :bordered="false" size="small" content-style="padding: 10px">
+        <div class="rank-card-content">
+          <div class="rank-icon-wrapper">
+            <span class="rank-type-label">灵活组排</span>
             <img
-              width="70px"
-              height="70px"
               :src="requireImg(rank.queueMap.RANKED_FLEX_SR.tier.toLocaleLowerCase())"
+              class="rank-img"
             />
-          </div>
-          <div style="position: absolute; bottom: 10px; left: 25px">
-            <span style="font-size: 12px">
+            <div class="rank-tier-text">
               {{ rank.queueMap.RANKED_FLEX_SR.tierCn }}
               {{ divisionOrPoint(rank.queueMap.RANKED_FLEX_SR) }}
-            </span>
+            </div>
           </div>
-          <div style="width: 60%">
-            <n-flex vertical>
-              <RecordButton
-                :record-type="
-                  flexRecentWinRate.winRate >= 58
-                    ? 'good'
-                    : flexRecentWinRate.winRate <= 49
-                      ? 'bad'
-                      : ''
-                "
-              >
-                胜率：{{ flexRecentWinRate.winRate }}%
-              </RecordButton>
-              <n-button size="tiny">胜场：{{ flexRecentWinRate.wins }}</n-button>
-              <n-button size="tiny">负场：{{ flexRecentWinRate.losses }}</n-button>
-            </n-flex>
-          </div>
-        </n-flex>
-      </n-card>
-    </div>
-    <!-- 20场统计 -->
-    <n-card class="recent-card" :bordered="false" content-style="padding:10px">
-      <n-flex vertical style="position: relative">
-        <n-flex>
-          <div class="stats-title">最近表现</div>
-          <div>
-            <n-dropdown
-              trigger="hover"
-              :options="modeOptions"
-              :on-select="updateModel"
-              :show-arrow="false"
+          <div class="rank-stats">
+            <div
+              class="win-rate-badge"
+              :class="
+                flexRecentWinRate.winRate >= 58
+                  ? 'good'
+                  : flexRecentWinRate.winRate <= 49
+                    ? 'bad'
+                    : 'normal'
+              "
             >
-              <n-button round size="tiny">{{ mode }}</n-button>
-            </n-dropdown>
-          </div>
-        </n-flex>
-
-        <n-flex class="stats-item" justify="space-between">
-          <span class="stats-label">
-            <n-flex style="gap: 5px">
-              <n-progress
-                style="width: 12px; position: relative; bottom: 5px"
-                type="circle"
-                :show-indicator="false"
-                :percentage="70"
-                :height="24"
-                status="success"
-                color="bule"
-              />
-
-              <span>KDA:</span>
+              胜率 {{ flexRecentWinRate.winRate }}%
+            </div>
+            <n-flex justify="space-between" size="small" style="width: 100%; margin-top: 4px">
+              <span style="font-size: 11px; color: var(--n-text-color-3)"
+                >胜场: {{ flexRecentWinRate.wins }}</span
+              >
+              <span style="font-size: 11px; color: var(--n-text-color-3)"
+                >负场: {{ flexRecentWinRate.losses }}</span
+              >
             </n-flex>
-          </span>
-          <span class="stats-value">
-            <n-flex>
-              <span :style="{ color: kdaColor(recentData.kda) }">{{ recentData.kda }}</span>
-              <span>
-                <span :style="{ color: killsColor(recentData.kills) }">
-                  {{ recentData.kills }}
-                </span>
+          </div>
+        </div>
+      </n-card>
+    </n-flex>
+
+    <!-- Recent Stats -->
+    <n-card :bordered="false" size="small" content-style="padding: 12px">
+      <n-flex justify="space-between" align="center" style="margin-bottom: 12px">
+        <span class="section-header" style="margin-bottom: 0">最近表现</span>
+        <n-dropdown
+          trigger="hover"
+          :options="modeOptions"
+          :on-select="updateModel"
+          :show-arrow="false"
+        >
+          <n-button round size="tiny" secondary type="primary">{{ mode }}</n-button>
+        </n-dropdown>
+      </n-flex>
+
+      <n-flex vertical :size="8">
+        <!-- KDA -->
+        <div class="stat-row">
+          <div class="stat-label-group">
+            <n-icon color="#18a058"><Pulse /></n-icon>
+            <span>KDA</span>
+          </div>
+          <div class="stat-value-group">
+            <div class="raw-value spacer"></div>
+            <div class="stat-center-content">
+              <span :style="{ color: kdaColor(recentData.kda), fontWeight: 'bold' }">{{
+                recentData.kda
+              }}</span>
+              <span class="kda-detail">
+                <span :style="{ color: killsColor(recentData.kills) }">{{ recentData.kills }}</span>
                 /
                 <span :style="{ color: deathsColor(recentData.deaths) }">{{
                   recentData.deaths
@@ -255,113 +272,104 @@
                   recentData.assists
                 }}</span>
               </span>
-            </n-flex>
-          </span>
-        </n-flex>
-        <n-flex class="stats-item" justify="space-between">
-          <span class="stats-label"><n-icon> </n-icon> 胜率：</span>
-          <n-flex>
-            <span
-              style="width: 65px"
-              :style="{
-                color: winRateColor(winRate(recentData.selectWins, recentData.selectLosses))
-              }"
-            >
+            </div>
+          </div>
+        </div>
+
+        <!-- Win Rate -->
+        <div class="stat-row">
+          <div class="stat-label-group">胜率</div>
+          <div class="stat-value-group">
+            <div class="raw-value spacer"></div>
+            <div class="stat-center-content">
               <n-progress
                 type="line"
                 :percentage="winRate(recentData.selectWins, recentData.selectLosses)"
                 :height="6"
                 :show-indicator="false"
                 :color="winRateColor(winRate(recentData.selectWins, recentData.selectLosses))"
-                processing
-                :stroke-width="10"
-                style="position: relative; top: 7px"
-              ></n-progress>
-            </span>
+                rail-color="rgba(255, 255, 255, 0.1)"
+              />
+            </div>
             <span
-              class="stats-value"
+              class="stat-value-text"
               :style="{
                 color: winRateColor(winRate(recentData.selectWins, recentData.selectLosses))
               }"
-              >{{ winRate(recentData.selectWins, recentData.selectLosses) }}%</span
             >
-          </n-flex>
-        </n-flex>
-        <n-flex class="stats-item" justify="space-between">
-          <span class="stats-label"
-            ><n-icon>
-              <Accessibility></Accessibility>
-            </n-icon>
-            参团率：</span
-          >
-          <n-flex>
-            <span style="width: 65px" :style="{ color: groupRateColor(recentData.groupRate) }">
+              {{ winRate(recentData.selectWins, recentData.selectLosses) }}%
+            </span>
+          </div>
+        </div>
+
+        <!-- Participation -->
+        <div class="stat-row">
+          <div class="stat-label-group">
+            <n-icon><Accessibility /></n-icon> 参团率
+          </div>
+          <div class="stat-value-group">
+            <div class="raw-value spacer"></div>
+            <div class="stat-center-content">
               <n-progress
                 type="line"
                 :percentage="recentData.groupRate"
                 :height="6"
                 :show-indicator="false"
                 :color="groupRateColor(recentData.groupRate)"
-                processing
-                :stroke-width="10"
-                style="position: relative; top: 7px"
-              ></n-progress>
+                rail-color="rgba(255, 255, 255, 0.1)"
+              />
+            </div>
+            <span class="stat-value-text" :style="{ color: groupRateColor(recentData.groupRate) }">
+              {{ recentData.groupRate }}%
             </span>
-            <span class="stats-value" :style="{ color: groupRateColor(recentData.groupRate) }"
-              >{{ recentData.groupRate }}%</span
-            >
-          </n-flex>
-        </n-flex>
-        <n-flex class="stats-item" justify="space-between">
-          <span class="stats-label"> 伤害/占比：</span>
-          <span class="stats-value">
-            <n-flex>
-              <span>
-                {{ recentData.averageDamageDealtToChampions }}
-              </span>
-              <span style="width: 45px">
-                <n-progress
-                  type="line"
-                  :percentage="recentData.damageDealtToChampionsRate"
-                  :color="otherColor(recentData.damageDealtToChampionsRate)"
-                  :height="6"
-                  :show-indicator="false"
-                  processing
-                  :stroke-width="13"
-                  style="position: relative; top: 7px"
-                ></n-progress>
-              </span>
-              <span
-                class="stats-value"
-                :style="{ color: otherColor(recentData.damageDealtToChampionsRate) }"
-              >
-                {{ recentData.damageDealtToChampionsRate }}%
-              </span>
-            </n-flex>
-          </span>
-        </n-flex>
-        <n-flex class="stats-item" justify="space-between">
-          <span class="stats-label"> 经济/占比：</span>
-          <n-flex>
-            <span class="stats-value">{{ recentData.averageGold }} </span>
+          </div>
+        </div>
 
-            <span style="width: 45px">
+        <!-- Damage -->
+        <div class="stat-row">
+          <div class="stat-label-group">伤害/占比</div>
+          <div class="stat-value-group">
+            <span class="raw-value">{{ recentData.averageDamageDealtToChampions }}</span>
+            <div class="stat-center-content">
+              <n-progress
+                type="line"
+                :percentage="recentData.damageDealtToChampionsRate"
+                :color="otherColor(recentData.damageDealtToChampionsRate)"
+                :height="6"
+                :show-indicator="false"
+                rail-color="rgba(255, 255, 255, 0.1)"
+              />
+            </div>
+            <span
+              class="stat-value-text"
+              :style="{ color: otherColor(recentData.damageDealtToChampionsRate) }"
+            >
+              {{ recentData.damageDealtToChampionsRate }}%
+            </span>
+          </div>
+        </div>
+
+        <!-- Gold -->
+        <div class="stat-row">
+          <div class="stat-label-group">经济/占比</div>
+          <div class="stat-value-group">
+            <span class="raw-value">{{ recentData.averageGold }}</span>
+            <div class="stat-center-content">
               <n-progress
                 type="line"
                 :percentage="recentData.goldRate"
-                :height="6"
                 :color="otherColor(recentData.goldRate)"
+                :height="6"
                 :show-indicator="false"
-                processing
-                :stroke-width="13"
-                style="position: relative; top: 7px"
-              ></n-progress>
-            </span>
-            <span class="stats-value" :style="{ color: otherColor(recentData.goldRate) }">
+                rail-color="rgba(255, 255, 255, 0.1)"
+                style="width: 40px; margin: 0 4px"
+              />
+            </div>
+            <span class="stat-value-text" :style="{ color: otherColor(recentData.goldRate) }">
               {{ recentData.goldRate }}%
             </span>
-          </n-flex>
-        </n-flex>
+          </div>
+        </div>
       </n-flex>
     </n-card>
   </n-flex>
@@ -369,11 +377,25 @@
 
 <script lang="ts" setup>
 import { assetPrefix } from '../../services/http'
-import { CopyOutline, Server, Accessibility, Skull } from '@vicons/ionicons5'
-import { onMounted, ref } from 'vue'
+import { CopyOutline, Accessibility, Flash, Pulse } from '@vicons/ionicons5'
+import { onMounted, ref, computed } from 'vue'
 import MettingPlayersCard from '../gaming/MettingPlayersCard.vue'
-import { NCard, NFlex, NButton, NIcon, useMessage } from 'naive-ui'
-import RecordButton from './RecordButton.vue'
+import {
+  NCard,
+  NFlex,
+  NButton,
+  NIcon,
+  useMessage,
+  NAvatar,
+  NEllipsis,
+  NText,
+  NTag,
+  NTooltip,
+  NPopover,
+  NEmpty,
+  NProgress,
+  NDropdown
+} from 'naive-ui'
 import { useRoute } from 'vue-router'
 import {
   defaultRank,
@@ -414,6 +436,19 @@ import emerald from '../../assets/imgs/tier/emerald.png'
 import { invoke } from '@tauri-apps/api/core'
 
 const platformIdCn = ref('未知')
+
+const serverDesc: Record<string, string> = {
+  联盟一区: '联盟一区：祖安、皮尔特沃夫、巨神峰、教育网、男爵领域、均衡教派、影流、守望之海',
+  联盟二区: '联盟二区：卡拉曼达、暗影岛、征服之海、诺克萨斯、战争学院、雷瑟守备',
+  联盟三区: '联盟三区：班德尔城、裁决之地、水晶之痕、钢铁烈阳、皮城警备',
+  联盟四区: '联盟四区：比尔吉沃特、弗雷尔卓德、扭曲丛林',
+  联盟五区: '联盟五区：德玛西亚、无畏先锋、恕瑞玛、巨龙之巢'
+}
+
+const serverDescription = computed(() => {
+  return serverDesc[platformIdCn.value]
+})
+
 const summoner = ref<Summoner>(defaultSummoner())
 const rank = ref<Rank>(defaultRank())
 const solo5v5RecentWinRate = ref<RecentWinRate>(defaultRecentWinRate())
@@ -446,13 +481,14 @@ onMounted(async () => {
 })
 
 const mode = ref('全部')
-const updateModel = (value: number, option: { label: string }) => {
+const updateModel = (value: string | number, option: any) => {
+  const selectMode = value as number
   invoke('put_config', {
     key: 'settings.user.selectMode',
-    value: value
+    value: selectMode
   })
-  getTags(name, value)
-  mode.value = option.label
+  getTags(name, selectMode)
+  mode.value = option.label as string
 }
 const tags = ref<RankTag[]>([])
 const getTags = async (name: string, mode: number) => {
@@ -497,45 +533,190 @@ const copy = () => {
 </script>
 
 <style lang="css" scoped>
-.user-record-card {
+.user-record-container {
   height: 100%;
 }
 
-.des-title {
-  font-size: 12px;
-  color: #888;
-}
-
-.recent-card {
-  background: var(--n-color);
-  border-radius: 8px;
-  font-size: 12px;
-  color: var(--n-text-color);
-}
-
-.stats-title {
-  font-weight: bold;
-  margin-bottom: 8px;
-}
-
-.stats-item {
+.avatar-wrapper {
+  position: relative;
   display: flex;
-  justify-content: space-between;
-  margin-bottom: 4px;
+  align-items: center;
+  justify-content: center;
 }
 
-.stats-label {
-  font-size: 12px;
+.level-badge {
+  position: absolute;
+  bottom: -6px;
+  background-color: var(--n-color-modal);
+  border: 1px solid var(--n-border-color);
+  padding: 0 6px;
+  height: 16px;
+  line-height: 14px;
+  border-radius: 8px;
+  font-size: 10px;
+  color: var(--n-text-color-2);
+  z-index: 1;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.relationship-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.section-header {
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.section-header.good-color {
+  color: #8bdfb7;
+}
+
+.section-header.bad-color {
+  color: #c9606f;
+}
+
+.relationship-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.relationship-item {
+  display: flex;
+  align-items: center;
+  background-color: rgba(255, 255, 255, 0.05);
+  padding: 4px;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.relationship-item:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.rank-card-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.rank-icon-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 70px;
+}
+
+.rank-type-label {
+  font-size: 10px;
   color: var(--n-text-color-3);
+  position: absolute;
+  top: -8px;
+  left: 0;
 }
 
-.stats-value {
-  font-size: 12px;
-  color: var(--n-text-color);
+.rank-img {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
 }
 
-.up {
-  color: var(--n-success-color);
+.rank-tier-text {
   font-size: 12px;
+  font-weight: bold;
+  text-align: center;
+  line-height: 1.1;
+  margin-top: -4px;
+}
+
+.rank-stats {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.win-rate-badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: bold;
+  background-color: rgba(128, 128, 128, 0.1);
+}
+
+.win-rate-badge.good {
+  color: #18a058;
+  background-color: rgba(24, 160, 88, 0.15);
+}
+
+.win-rate-badge.bad {
+  color: #d03050;
+  background-color: rgba(208, 48, 80, 0.15);
+}
+
+.win-rate-badge.normal {
+  color: var(--n-text-color-2);
+}
+
+.stat-row {
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  height: 24px;
+}
+
+.stat-label-group {
+  width: 75px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  color: var(--n-text-color-3);
+  gap: 6px;
+}
+
+.stat-value-group {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.kda-detail {
+  margin-left: 8px;
+  font-size: 11px;
+}
+
+.stat-center-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 0 4px;
+}
+
+.stat-value-text {
+  width: 36px;
+  text-align: right;
+  margin-left: 4px;
+  flex-shrink: 0;
+  font-family: inherit;
+}
+
+.raw-value {
+  width: 48px;
+  text-align: right;
+  margin-right: 8px;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
 }
 </style>

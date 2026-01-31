@@ -1,5 +1,5 @@
 <template>
-  <n-config-provider :theme="settingsStore.theme">
+  <n-config-provider :theme="settingsStore.theme" :theme-overrides="themeOverrides">
     <n-message-provider>
       <n-notification-provider>
         <n-dialog-provider>
@@ -15,8 +15,25 @@
 <script lang="ts" setup>
 import Framework from '../src/components/Framework.vue'
 import { useSettingsStore } from './pinia/setting'
+import { computed } from 'vue'
+import { GlobalThemeOverrides } from 'naive-ui'
 
 const settingsStore = useSettingsStore()
+
+const themeOverrides = computed<GlobalThemeOverrides>(() => {
+  const themeName = settingsStore.theme?.name
+  const isDark = themeName === 'Dark' || themeName === 'dark'
+
+  if (isDark) {
+    return {}
+  }
+
+  return {
+    Layout: {
+      color: '#f6f9f8'
+    }
+  }
+})
 </script>
 <style lang="css">
 html,

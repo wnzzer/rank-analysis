@@ -18,7 +18,7 @@
           @update:value="handleMenuSelect"
         />
       </n-layout-sider>
-      <n-layout-content content-style="padding: 24px;">
+      <n-layout-content :content-style="contentStyle">
         <n-notification-provider>
           <router-view></router-view>
         </n-notification-provider>
@@ -28,7 +28,7 @@
 </template>
 
 <script setup lang="ts">
-import { h, ref } from 'vue'
+import { h, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { NIcon } from 'naive-ui'
 import {
@@ -41,6 +41,13 @@ import {
 
 const collapsed = ref(false)
 const router = useRouter()
+
+const contentStyle = computed(() => {
+  return {
+    padding: '24px',
+    height: '100%'
+  }
+})
 
 function renderIcon(icon: any) {
   return () => h(NIcon, null, { default: () => h(icon) })

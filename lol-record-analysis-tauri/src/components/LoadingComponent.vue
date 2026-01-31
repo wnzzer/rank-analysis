@@ -1,13 +1,6 @@
 <template>
   <div
-    style="
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 95vh;
-      width: 95vw;
-      border: 1px solid black;
-    "
+    style="display: flex; justify-content: center; align-items: center; height: 100%; width: 100%"
   >
     <div style="position: relative">
       <span class="clip"><slot></slot></span>

@@ -26,9 +26,7 @@ export function filterChampionFunc(input: string, option: SelectOption) {
   if (!input) return true
   const kw = input.toLowerCase()
   const opt = option as unknown as championOption
-  return [opt.label, opt.realName, opt.nickname].some(
-    t => t && t.toLowerCase().includes(kw)
-  )
+  return [opt.label, opt.realName, opt.nickname].some(t => t && t.toLowerCase().includes(kw))
 }
 
 export const renderSingleSelectTag: SelectRenderTag = ({ option }) => {
