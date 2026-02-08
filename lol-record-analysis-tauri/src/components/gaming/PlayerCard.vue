@@ -8,6 +8,7 @@
   >
     <div
       v-if="sessionSummoner.isLoading"
+      key="loading-known"
       class="loading-container"
       style="
         height: 100%;
@@ -23,11 +24,30 @@
         {{ sessionSummoner.summoner.gameName }}
       </span>
     </div>
-    <div v-else-if="!sessionSummoner.summoner.gameName" class="loading-container">
+    <div
+      v-else-if="(!sessionSummoner.summoner.puuid || sessionSummoner.summoner.puuid === '') && sessionSummoner.championId"
+      key="hidden-record"
+      style="height: 100%; display: flex; justify-content: center; align-items: center;"
+    >
+      <n-flex vertical align="center" style="gap: 8px">
+        <n-avatar
+          round
+          :size="48"
+          :src="assetPrefix + '/champion/' + sessionSummoner.championId"
+          :fallback-src="nullImg"
+          style="border: 2px solid #444"
+        />
+        <span style="font-size: 13px; color: #777; font-weight: bold">战绩已隐藏</span>
+      </n-flex>
+    </div>
+    <div
+      v-else-if="!sessionSummoner.summoner.gameName"
+      key="loading-unknown"
+      class="loading-container"
+    >
       <n-spin size="small" />
     </div>
-
-    <n-flex v-else style="height: 100%" :wrap="false">
+    <n-flex v-else key="content" style="height: 100%" :wrap="false">
       <!-- Left Side: Profile & History -->
       <div class="left-section">
         <!-- Profile -->
