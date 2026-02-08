@@ -60,7 +60,7 @@ pub async fn fetch_aram_balance_data(
 
     for pair in table.pairs::<String, LuaTable>() {
         match pair {
-            Ok((name, champ_data)) => {
+            Ok((_name, champ_data)) => {
                 let id: Option<i32> = champ_data.get("id").ok();
                 if let Some(champ_id) = id {
                     if let Ok(stats) = champ_data.get::<_, LuaTable>("stats") {

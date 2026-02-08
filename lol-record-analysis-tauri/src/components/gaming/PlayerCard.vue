@@ -25,9 +25,12 @@
       </span>
     </div>
     <div
-      v-else-if="(!sessionSummoner.summoner.puuid || sessionSummoner.summoner.puuid === '') && sessionSummoner.championId"
+      v-else-if="
+        (!sessionSummoner.summoner.puuid || sessionSummoner.summoner.puuid === '') &&
+        sessionSummoner.championId
+      "
       key="hidden-record"
-      style="height: 100%; display: flex; justify-content: center; align-items: center;"
+      style="height: 100%; display: flex; justify-content: center; align-items: center"
     >
       <n-flex vertical align="center" style="gap: 8px">
         <n-avatar
