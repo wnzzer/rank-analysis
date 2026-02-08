@@ -1,6 +1,6 @@
 {
   "productName": "lol-record-analysis-app",
-  "version": "1.6.7",
+  "version": "1.6.8",
   "identifier": "com.lol-record-analysis-tauri.app",
   "build": {
     "beforeDevCommand": "npm run dev",
