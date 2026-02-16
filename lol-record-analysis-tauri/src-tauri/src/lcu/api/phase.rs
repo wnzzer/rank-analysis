@@ -1,3 +1,7 @@
+//! # LCU 游戏阶段 API
+//!
+//! 对应 `lol-gameflow/v1/gameflow-phase`，返回当前阶段（如 ChampSelect、InProgress、EndOfGame 等）；带短时缓存。
+
 use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, Instant};
 
@@ -20,7 +24,7 @@ impl PhaseCache {
 
 static PHASE_CACHE: LazyLock<Mutex<PhaseCache>> = LazyLock::new(|| Mutex::new(PhaseCache::new()));
 
-/// 获取游戏阶段，使用缓存机制
+/// 获取当前游戏流程阶段（2 秒内使用缓存）。
 pub async fn get_phase() -> Result<String, String> {
     {
         let cache = PHASE_CACHE.lock().unwrap();

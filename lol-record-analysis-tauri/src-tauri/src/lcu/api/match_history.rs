@@ -1,3 +1,7 @@
+//! # LCU 对局记录 API
+//!
+//! 对应 `lol-match-history`：按 PUUID/「me」分页获取对局列表；支持详情增强与中文信息。
+
 use std::{sync::LazyLock, time::Duration};
 
 use crate::{
@@ -9,6 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::lcu::{api::game_detail::GameDetail, util::http::lcu_get};
 
+/// 对局记录响应：平台 ID、索引范围、对局列表。
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct MatchHistory {
     #[serde(rename = "platformId")]
@@ -20,11 +25,13 @@ pub struct MatchHistory {
     pub games: GamesWrapper,
 }
 
+/// 对局列表包装（LCU 返回格式）。
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct GamesWrapper {
     pub games: Vec<Game>,
 }
 
+/// 单场对局摘要：ID、时间、时长、模式、队列、参与者等；可附带 game_detail 与中文名。
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Game {
     #[serde(rename = "mvp", default)] // 计算出的是否是本局的MVp
@@ -63,6 +70,7 @@ static MATCH_HISTORY_CACHE: LazyLock<Cache<String, MatchHistory>> = LazyLock::ne
 });
 
 impl MatchHistory {
+    /// 内部：按 PUUID 与索引范围请求 LCU 对局列表。
     async fn get_by_puuid(puuid: &str, begin_index: i32, end_index: i32) -> Result<Self, String> {
         let uri = format!(
             "lol-match-history/v1/products/lol/{}/matches?begIndex={}&endIndex={}",
@@ -74,6 +82,7 @@ impl MatchHistory {
         Ok(match_history)
     }
 
+    /// 获取当前登录账号的对局记录（LCU「me」接口）。
     pub async fn get_my_match_history(begin_index: i32, end_index: i32) -> Result<Self, String> {
         let uri = format!(
             "lol-match-history/v1/products/lol/me/matches?beginIndex={}%26endIndex={}",
@@ -83,6 +92,7 @@ impl MatchHistory {
         Ok(match_history)
     }
 
+    /// 按 PUUID 与索引范围获取对局记录；在 0..=49 范围内使用缓存。
     pub async fn get_match_history_by_puuid(
         puuid: &str,
         beg_index: i32,
@@ -148,6 +158,7 @@ impl MatchHistory {
         Ok(res)
     }
 
+    /// 为每条对局拉取详情（game_detail）并写入。
     pub async fn enrich_game_detail(&mut self) -> Result<(), String> {
         if self.games.games.is_empty() {
             return Ok(());
@@ -158,6 +169,8 @@ impl MatchHistory {
 
         Ok(())
     }
+
+    /// 为每条对局填充队列中文名（queue_name）。
     pub fn enrich_info_cn(&mut self) -> Result<(), String> {
         if self.games.games.is_empty() {
             return Ok(());

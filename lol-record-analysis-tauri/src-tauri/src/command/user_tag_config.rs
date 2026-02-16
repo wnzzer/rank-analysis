@@ -1,3 +1,7 @@
+//! # UserTagConfig 命令模块
+//!
+//! 用户标签配置的读写与解析：标签规则（筛选、刷新条件）、保存/加载。
+
 use crate::command::user_tag::RankTag;
 use crate::config;
 use crate::constant::game::{QUEUE_FLEX, QUEUE_IDS, QUEUE_SOLO_5X5};
@@ -5,11 +9,13 @@ use crate::lcu::api::match_history::MatchHistory;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// 获取当前所有标签配置。
 #[tauri::command]
 pub async fn get_all_tag_configs() -> Result<Vec<TagConfig>, String> {
     Ok(load_config().await)
 }
 
+/// 保存标签配置到本地。
 #[tauri::command]
 pub async fn save_tag_configs(configs: Vec<TagConfig>) -> Result<(), String> {
     let val = tags_to_value(&configs);

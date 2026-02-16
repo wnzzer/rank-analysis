@@ -1,7 +1,12 @@
+//! # Info 命令模块
+//!
+//! 提供与召唤师/对局相关的辅助信息，如根据名称解析服务器（平台）名称。
+
 use crate::constant;
 use crate::lcu::api::match_history::MatchHistory;
 use crate::lcu::api::summoner::Summoner;
 
+/// 根据召唤师名称获取其所在服务器（平台）的中文名称。
 #[tauri::command]
 pub async fn get_platform_name_by_name(name: String) -> Result<String, String> {
     let puuid = Summoner::get_summoner_by_name(&name).await?.puuid;

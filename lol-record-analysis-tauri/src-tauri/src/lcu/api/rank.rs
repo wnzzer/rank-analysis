@@ -1,11 +1,18 @@
+//! # LCU 段位 API
+//!
+//! 对应 `lol-ranked`：按 PUUID 获取排位统计；含单双排与灵活组排队列信息。
+
 use crate::constant::game;
 use serde::{Deserialize, Serialize};
+
+/// 段位概览：各队列的段位信息映射（如 RANKED_SOLO_5x5、RANKED_FLEX_SR）。
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 #[serde(rename_all = "camelCase")] // Apply camelCase deserialization to 'queueMap'
 pub struct Rank {
     pub queue_map: QueueMap,
 }
 
+/// 单队列段位信息：段位、 tier、历史最高、定级赛、LP、胜负场等。
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 #[serde(rename_all = "camelCase")] // Apply camelCase deserialization to all fields
 pub struct QueueInfo {
@@ -40,6 +47,7 @@ pub struct QueueInfo {
     pub wins: i32,
 }
 
+/// 各队列类型到段位信息的映射。
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct QueueMap {
     #[serde(rename = "RANKED_SOLO_5x5")]
@@ -49,12 +57,14 @@ pub struct QueueMap {
 }
 
 impl Rank {
+    /// 按 PUUID 获取段位数据（`lol-ranked/v1/ranked-stats/{puuid}`）。
     pub async fn get_rank_by_puuid(puuid: &str) -> Result<Self, String> {
         let uri = format!("lol-ranked/v1/ranked-stats/{}", puuid);
         let rank: Self = crate::lcu::util::http::lcu_get(&uri).await?;
         Ok(rank)
     }
 
+    /// 为队列类型与 tier 填充中文描述（queue_type_cn、tier_cn）。
     pub fn enrich_cn_info(&mut self) {
         // 为每个队列信息添加中文描述（Option<&str> -> String with default）
         self.queue_map.ranked_solo_5x5.queue_type_cn =

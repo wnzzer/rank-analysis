@@ -1,3 +1,8 @@
+//! # LCU HTTP 客户端
+//!
+//! 使用本地认证（token + port）向 LCU 发起 HTTPS 请求，支持 GET/POST/PATCH；
+//! 认证失败时自动刷新并重试一次。图片接口支持 Base64 或二进制返回。
+
 use crate::lcu::util::token::get_auth;
 use base64::engine::general_purpose;
 use base64::Engine;
@@ -52,6 +57,7 @@ fn build_url(token: &str, uri: &str, port: &str) -> String {
     format!("https://riot:{}@127.0.0.1:{}/{}", token, port, uri)
 }
 
+/// 向 LCU 发起 GET 请求，将响应 JSON 反序列化为 `T`。失败时刷新认证并重试一次。
 pub async fn lcu_get<T: DeserializeOwned + 'static>(uri: &str) -> Result<T, String> {
     for _ in 0..2 {
         let (token, port) = get_auth_pair();
@@ -75,6 +81,7 @@ pub async fn lcu_get<T: DeserializeOwned + 'static>(uri: &str) -> Result<T, Stri
     Err("请求失败或认证失效".to_string())
 }
 
+/// 向 LCU 发起 POST 请求，请求体为 JSON。失败时刷新认证并重试一次。
 pub async fn lcu_post<T: DeserializeOwned, D: Serialize>(uri: &str, data: &D) -> Result<T, String> {
     for _ in 0..2 {
         let (token, port) = get_auth_pair();
@@ -96,6 +103,7 @@ pub async fn lcu_post<T: DeserializeOwned, D: Serialize>(uri: &str, data: &D) ->
     Err("POST请求失败或认证失效".to_string())
 }
 
+/// 向 LCU 发起 PATCH 请求，请求体为 JSON。失败时刷新认证并重试一次。
 pub async fn lcu_patch<T: DeserializeOwned, D: Serialize>(
     uri: &str,
     data: &D,
@@ -120,6 +128,7 @@ pub async fn lcu_patch<T: DeserializeOwned, D: Serialize>(
     Err("PATCH请求失败或认证失效".to_string())
 }
 
+/// 请求 LCU 图片资源并返回 Data URL（data:content-type;base64,...）。
 pub async fn lcu_get_img_as_base64(uri: &str) -> Result<String, String> {
     for _ in 0..2 {
         let (token, port) = get_auth_pair();
@@ -148,6 +157,7 @@ pub async fn lcu_get_img_as_base64(uri: &str) -> Result<String, String> {
     Err("图片请求失败或认证失效".to_string())
 }
 
+/// 请求 LCU 图片资源并返回原始字节与 Content-Type。
 pub async fn lcu_get_img_as_binary(uri: &str) -> Result<(Vec<u8>, String), String> {
     for _ in 0..2 {
         let (token, port) = get_auth_pair();

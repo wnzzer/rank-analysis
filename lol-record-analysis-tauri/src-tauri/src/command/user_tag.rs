@@ -1,3 +1,7 @@
+//! # UserTag 命令模块
+//!
+//! 用户标签与近期数据：基于对局记录计算 KDA、胜率、好友/纠纷率等，生成标签与「遇到过的人」等。
+
 use crate::command::user_tag_config;
 use crate::constant::game::QUEUE_ID_TO_CN;
 use crate::lcu::api::match_history::MatchHistory;
@@ -5,6 +9,7 @@ use crate::lcu::api::summoner::Summoner;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// 单场对局中的一名玩家摘要（用于「遇到过的人」等展示）。
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct OneGamePlayer {

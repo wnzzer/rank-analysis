@@ -1,3 +1,7 @@
+//! # LCU 对局详情 API
+//!
+//! 对应 `lol-match-history/v1/games/{gameId}`，单场对局的详细数据（参与者、身份、结算等）；带缓存。
+
 use std::sync::LazyLock;
 
 use moka::future::Cache;
@@ -5,6 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::lcu::api::model::{Participant, ParticipantIdentity};
 
+/// 单场对局详情：结算结果、参与者身份与统计。
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct GameDetail {
     #[serde(rename = "endOfGameResult")]
@@ -37,7 +42,9 @@ pub struct GameDetailPlayer {
 }
 static GAME_DETAIL_CACHE: LazyLock<Cache<i64, GameDetail>> =
     LazyLock::new(|| Cache::builder().max_capacity(500).build());
+
 impl GameDetail {
+    /// 按对局 ID 获取对局详情（带缓存）。
     pub async fn get_game_detail_by_id(game_id: &i64) -> Result<Self, String> {
         if let Some(cached) = GAME_DETAIL_CACHE.get(game_id).await {
             return Ok(cached);

@@ -1,8 +1,13 @@
+//! # MatchHistory 命令模块
+//!
+//! 提供对局记录查询：按 PUUID/名称、分页、队列/英雄筛选，以及详情与中文信息增强。
+
 use crate::lcu::api::{
     match_history::{Game, MatchHistory},
     summoner::Summoner,
 };
 
+/// 根据 PUUID 与索引范围获取对局记录（原始数据，无详情增强）。
 #[tauri::command]
 pub async fn get_match_history(
     puuid: String,
@@ -13,6 +18,7 @@ pub async fn get_match_history(
     MatchHistory::get_match_history_by_puuid(&puuid, beg_index, end_index).await
 }
 
+/// 根据 PUUID 获取对局记录并增强详情与中文信息。
 #[tauri::command]
 pub async fn get_match_history_by_puuid(
     puuid: String,
@@ -29,6 +35,7 @@ pub async fn get_match_history_by_puuid(
     Ok(match_history)
 }
 
+/// 根据召唤师名称获取对局记录（内部转为 PUUID 后调用 get_match_history_by_puuid）。
 #[tauri::command]
 pub async fn get_match_history_by_name(
     name: String,
@@ -39,6 +46,7 @@ pub async fn get_match_history_by_name(
     get_match_history_by_puuid(puuid, beg_index, end_index).await
 }
 
+/// 根据名称、索引范围及队列/英雄筛选获取对局记录（最多返回指定条数）。
 #[tauri::command]
 pub async fn get_filter_match_history_by_name(
     name: String,

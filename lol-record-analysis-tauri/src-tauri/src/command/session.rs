@@ -1,3 +1,8 @@
+//! # Session 命令模块
+//!
+//! 提供对局会话数据：拉取 LCU 当前对局/选人阶段信息，合并召唤师、战绩、段位、用户标签等，
+//! 通过事件（session-basic-info、session-player-update-*、session-complete 等）推送给前端。
+
 use crate::command::user_tag::{OneGamePlayer, UserTag};
 use crate::constant::game::{QUEUE_ID_TO_CN, QUEUE_TYPE_TO_CN};
 use crate::lcu::api::champion_select::get_champion_select_session;
@@ -10,6 +15,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tauri::{AppHandle, Emitter};
 
+/// 对局会话的完整展示数据，包含阶段、队列、双方队伍及每个玩家的汇总信息。
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionData {
@@ -22,6 +28,7 @@ pub struct SessionData {
     pub team_two: Vec<SessionSummoner>,
 }
 
+/// 会话中单名玩家的展示数据：英雄、召唤师、战绩、段位、用户标签、预组队标记等。
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionSummoner {
@@ -36,6 +43,7 @@ pub struct SessionSummoner {
     pub is_loading: bool,
 }
 
+/// 预组队标记，用于标识同一预组队内的成员名称与类型。
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct PreGroupMarker {
@@ -44,7 +52,10 @@ pub struct PreGroupMarker {
     pub marker_type: String,
 }
 
-/// 获取 session 数据，使用事件推送模式
+/// 获取当前对局会话数据（事件推送模式）。
+///
+/// 在后台拉取 LCU 会话、选人、召唤师、战绩与段位等，通过 `session-basic-info`、
+/// `session-player-update-team-one/two`、`session-pre-group`、`session-complete` 等事件推送给前端。
 #[tauri::command]
 pub async fn get_session_data(app_handle: AppHandle) -> Result<(), String> {
     log::info!("get_session_data called");
@@ -66,6 +77,7 @@ pub async fn get_session_data(app_handle: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// 实际处理会话数据：拉取 phase/session、组队、补全玩家信息并依次推送事件。
 async fn process_session_data(app_handle: AppHandle) -> Result<(), String> {
     let my_summoner = Summoner::get_my_summoner().await?;
 

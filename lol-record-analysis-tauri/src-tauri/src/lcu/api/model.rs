@@ -1,5 +1,10 @@
+//! # LCU 通用数据模型
+//!
+//! 对局、参与者等共用的结构：Player、Participant、Stats、ParticipantIdentity 等。
+
 use serde::{Deserialize, Serialize};
 
+/// 玩家账号与身份信息（accountId、summonerName、gameName、tagLine、puuid 等）。
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Player {
     #[serde(rename = "accountId")]
@@ -18,6 +23,7 @@ pub struct Player {
     pub puuid: String,
 }
 
+/// 对局中单名参与者：队伍、英雄、召唤师技能、本局统计等。
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Participant {
     #[serde(rename = "participantId")]
@@ -33,6 +39,7 @@ pub struct Participant {
     pub stats: Stats,
 }
 
+/// 单局统计：胜负、装备、符文、KDA 等。
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Stats {
     pub win: bool,
@@ -88,6 +95,7 @@ pub struct Stats {
     pub heal_rate: i32,
 }
 
+/// 参与者身份：关联到 Player（账号/召唤师信息）。
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct ParticipantIdentity {
     pub player: Player,

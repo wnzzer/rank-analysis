@@ -1,18 +1,25 @@
+//! # Config 命令模块
+//!
+//! 提供配置读写、HTTP 服务端口查询、英雄/队列等选项数据。
+
 use crate::lcu::api::asset;
 use crate::state::AppState;
 use crate::{config, constant};
 use serde::Serialize;
 
+/// 写入配置项。
 #[tauri::command]
 pub async fn put_config(key: String, value: config::Value) -> Result<(), String> {
     config::put_config(key, value).await
 }
 
+/// 读取配置项。
 #[tauri::command]
 pub async fn get_config(key: String) -> Result<config::Value, String> {
     config::get_config(&key).await
 }
 
+/// 获取当前 HTTP 服务端口（用于前端请求静态资源等）。
 #[tauri::command]
 pub async fn get_http_server_port(state: tauri::State<'_, AppState>) -> Result<i32, String> {
     state
@@ -23,6 +30,7 @@ pub async fn get_http_server_port(state: tauri::State<'_, AppState>) -> Result<i
         .ok_or_else(|| "http_server_port not set".to_string())
 }
 
+/// 英雄选项，用于下拉/选择器：显示名、ID、真实名、昵称。
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChampionOption {
@@ -32,6 +40,7 @@ pub struct ChampionOption {
     pub nickname: String,
 }
 
+/// 获取所有英雄选项列表（用于筛选等）。
 #[tauri::command]
 pub fn get_champion_options() -> Result<Vec<ChampionOption>, String> {
     let mut options = vec![];
@@ -57,6 +66,7 @@ pub fn get_champion_options() -> Result<Vec<ChampionOption>, String> {
     Ok(options)
 }
 
+/// 对局模式选项：显示名与队列 ID，用于筛选等。
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GameModeOption {
@@ -64,6 +74,7 @@ pub struct GameModeOption {
     pub value: i32,
 }
 
+/// 获取所有对局模式选项（含「全部」及各队列中文名）。
 #[tauri::command]
 pub fn get_game_modes() -> Vec<GameModeOption> {
     let mut options = vec![GameModeOption {

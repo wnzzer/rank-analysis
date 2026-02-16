@@ -1,9 +1,14 @@
+//! # LCU 选人阶段 API
+//!
+//! 对应选人相关接口：当前选人会话（己方队伍、计时器、本地玩家位置等）。
+
 use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, Instant};
 
 use crate::lcu::util::http::{lcu_get, lcu_patch, lcu_post};
 use serde::{Deserialize, Serialize};
 
+/// 选人会话：己方队伍、行动列表、计时器、本地玩家格子 ID。
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SelectSession {

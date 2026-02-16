@@ -1,3 +1,8 @@
+//! # LCU 认证获取（Windows）
+//!
+//! 通过查找 `LeagueClientUx.exe` 进程并读取其命令行参数，解析出
+//! `remoting-auth-token` 与 `app-port`，用于后续 LCU HTTP 请求的认证。
+
 // Cargo.toml dependencies
 use ntapi::ntpsapi::{NtQueryInformationProcess, PROCESS_COMMAND_LINE_INFORMATION};
 use regex::Regex;
@@ -190,6 +195,10 @@ fn auth_resolver(command_line: &str) -> Result<(String, String), String> {
 
 static mut CUR_PID: DWORD = 0;
 
+/// 获取当前 LCU 认证信息。
+///
+/// 查找 LeagueClientUx.exe 进程，读取命令行中的 `remoting-auth-token` 与 `app-port`，
+/// 返回 `(token, port)`。未找到或解析失败则返回错误。
 pub fn get_auth() -> Result<(String, String), String> {
     log::info!("开始查找英雄联盟客户端进程...");
     let pids = get_process_pid_by_name("LeagueClientUx.exe")?;
