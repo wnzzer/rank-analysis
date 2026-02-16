@@ -17,7 +17,10 @@
           :disabled="!isConnected"
           @click="toMe"
         >
-          <span class="nav-status-dot nav-status-dot--green" :class="{ 'nav-status-dot--on': isConnected }" />
+          <span
+            class="nav-status-dot nav-status-dot--green"
+            :class="{ 'nav-status-dot--on': isConnected }"
+          />
           <span class="nav-status-label">已连接</span>
         </button>
         <button
@@ -26,7 +29,10 @@
           :class="{ 'nav-status-item--blue-on': isInGame }"
           @click="goGaming"
         >
-          <span class="nav-status-dot nav-status-dot--blue" :class="{ 'nav-status-dot--on': isInGame }" />
+          <span
+            class="nav-status-dot nav-status-dot--blue"
+            :class="{ 'nav-status-dot--on': isInGame }"
+          />
           <span class="nav-status-label">游戏中</span>
         </button>
       </div>
@@ -84,7 +90,7 @@ const isInGame = computed(() => {
 /** phase 进入对局时预加载 session 数据，加快进入对局页的加载速度 */
 watch(
   isInGame,
-  (inGame) => {
+  inGame => {
     if (inGame) {
       invoke('get_session_data').catch(() => {})
     }
@@ -124,7 +130,9 @@ const toMe = () => {
 const goGaming = () => {
   router.push({
     name: 'Gaming',
-    query: mySummoner.value?.gameName ? { name: mySummoner.value.gameName + '#' + mySummoner.value.tagLine } : undefined
+    query: mySummoner.value?.gameName
+      ? { name: mySummoner.value.gameName + '#' + mySummoner.value.tagLine }
+      : undefined
   })
 }
 </script>
@@ -163,7 +171,10 @@ const goGaming = () => {
   font-size: 10px;
   font-weight: 500;
   cursor: pointer;
-  transition: background var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast),
+    transform var(--transition-fast);
   text-align: left;
   -webkit-app-region: no-drag;
   letter-spacing: 0.02em;
@@ -211,7 +222,9 @@ const goGaming = () => {
   height: 5px;
   border-radius: 50%;
   flex-shrink: 0;
-  transition: box-shadow var(--transition-fast), opacity var(--transition-fast);
+  transition:
+    box-shadow var(--transition-fast),
+    opacity var(--transition-fast);
 }
 
 .nav-status-dot--green {

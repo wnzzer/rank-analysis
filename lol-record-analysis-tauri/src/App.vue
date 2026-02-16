@@ -33,26 +33,26 @@ const themeOverrides = computed<GlobalThemeOverrides>(() => {
   if (isDark.value) {
     return {
       common: {
-        borderRadius: 8,
-        borderRadiusSmall: 6
+        borderRadius: '8px',
+        borderRadiusSmall: '6px'
       },
       Card: {
-        borderRadius: 8,
+        borderRadius: '8px',
         color: '#1a1a1e',
         boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
         borderColor: 'rgba(255,255,255,0.06)'
       },
       Input: {
-        borderRadius: 8,
+        borderRadius: '8px',
         color: '#1a1a1e',
         border: '1px solid rgba(255,255,255,0.06)'
       },
       Button: {
-        borderRadiusSmall: 6,
-        borderRadiusMedium: 8
+        borderRadiusSmall: '6px',
+        borderRadiusMedium: '8px'
       },
       Select: {
-        borderRadius: 8
+        borderRadius: '8px'
       },
       Layout: {
         color: '#0d0d0f'
@@ -66,25 +66,25 @@ const themeOverrides = computed<GlobalThemeOverrides>(() => {
   }
   return {
     common: {
-      borderRadius: 8,
-      borderRadiusSmall: 6
+      borderRadius: '8px',
+      borderRadiusSmall: '6px'
     },
     Card: {
-      borderRadius: 8,
+      borderRadius: '8px',
       color: '#ffffff',
       boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
       borderColor: 'rgba(0,0,0,0.08)'
     },
     Input: {
-      borderRadius: 8,
+      borderRadius: '8px',
       border: '1px solid rgba(0,0,0,0.08)'
     },
     Button: {
-      borderRadiusSmall: 6,
-      borderRadiusMedium: 8
+      borderRadiusSmall: '6px',
+      borderRadiusMedium: '8px'
     },
     Select: {
-      borderRadius: 8
+      borderRadius: '8px'
     },
     Layout: {
       color: '#f6f9f8'

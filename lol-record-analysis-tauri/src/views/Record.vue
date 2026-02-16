@@ -6,11 +6,7 @@
     >
       <UserRecord></UserRecord>
     </n-layout-sider>
-    <n-layout-content
-      class="record-content"
-      style="flex: 3"
-      v-show="windowWidth >= 500"
-    >
+    <n-layout-content class="record-content" style="flex: 3" v-show="windowWidth >= 500">
       <div>
         <MatchHistory />
       </div>

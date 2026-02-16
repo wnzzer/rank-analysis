@@ -169,7 +169,9 @@ const closeWindow = () => {
   -webkit-app-region: no-drag;
   color: var(--text-secondary);
   border-radius: var(--radius-sm);
-  transition: background-color var(--transition-fast), color var(--transition-fast);
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
 }
 .header-icon-btn:hover {
   color: var(--text-primary);
@@ -199,7 +201,9 @@ const closeWindow = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: color var(--transition-fast), background-color var(--transition-fast);
+  transition:
+    color var(--transition-fast),
+    background-color var(--transition-fast);
   position: relative;
 }
 

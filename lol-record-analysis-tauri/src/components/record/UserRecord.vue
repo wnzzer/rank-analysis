@@ -157,7 +157,12 @@
     <!-- Rank Cards -->
     <n-flex vertical :size="12">
       <!-- Solo Rank -->
-      <n-card class="record-panel-card" :bordered="false" size="small" content-style="padding: 10px">
+      <n-card
+        class="record-panel-card"
+        :bordered="false"
+        size="small"
+        content-style="padding: 10px"
+      >
         <div class="rank-card-content">
           <div class="rank-icon-wrapper">
             <span class="rank-type-label">单双排</span>
@@ -192,7 +197,12 @@
       </n-card>
 
       <!-- Flex Rank -->
-      <n-card class="record-panel-card" :bordered="false" size="small" content-style="padding: 10px">
+      <n-card
+        class="record-panel-card"
+        :bordered="false"
+        size="small"
+        content-style="padding: 10px"
+      >
         <div class="rank-card-content">
           <div class="rank-icon-wrapper">
             <span class="rank-type-label">灵活组排</span>

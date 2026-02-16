@@ -14,8 +14,7 @@
     </div>
   </div>
 </template>
-<script lang="ts" setup>
-</script>
+<script lang="ts" setup></script>
 
 <style lang="css" scoped>
 .loading-wrap {
@@ -48,14 +47,7 @@
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  background: conic-gradient(
-    from 0deg,
-    #3d9b7a,
-    #22c3a6,
-    #38bdf8,
-    #0ea5e9,
-    #3d9b7a
-  );
+  background: conic-gradient(from 0deg, #3d9b7a, #22c3a6, #38bdf8, #0ea5e9, #3d9b7a);
   animation: loading-spin 1.6s linear infinite;
   filter: drop-shadow(0 0 10px rgba(61, 155, 122, 0.35))
     drop-shadow(0 0 20px rgba(56, 189, 248, 0.2));
@@ -145,16 +137,8 @@
 
 /* 亮色主题：降低亮度、保持对比 */
 .theme-light .loading-ring {
-  background: conic-gradient(
-    from 0deg,
-    #2d8a6c,
-    #0d9668,
-    #0284c7,
-    #0369a1,
-    #2d8a6c
-  );
-  filter: drop-shadow(0 0 8px rgba(45, 138, 108, 0.3))
-    drop-shadow(0 0 14px rgba(2, 132, 199, 0.2));
+  background: conic-gradient(from 0deg, #2d8a6c, #0d9668, #0284c7, #0369a1, #2d8a6c);
+  filter: drop-shadow(0 0 8px rgba(45, 138, 108, 0.3)) drop-shadow(0 0 14px rgba(2, 132, 199, 0.2));
 }
 
 .theme-light .loading-dot--1 {

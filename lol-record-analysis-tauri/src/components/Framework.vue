@@ -27,10 +27,7 @@
 <script lang="ts" setup>
 import Header from './Header.vue'
 import SideNavigation from './SideNavigation.vue'
-import { useSettingsStore } from '../pinia/setting'
 import { computed } from 'vue'
-
-const settingsStore = useSettingsStore()
 
 const contentStyle = computed(() => ({
   backgroundColor: 'var(--bg-base)',

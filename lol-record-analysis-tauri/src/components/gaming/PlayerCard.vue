@@ -29,11 +29,7 @@
       </span>
     </div>
     <!-- 仅返回英雄 id、无 summoner 有效信息时视为隐藏战绩，优先展示「战绩已隐藏」 -->
-    <div
-      v-else-if="isHiddenRecord"
-      key="hidden-record"
-      class="hidden-record-block"
-    >
+    <div v-else-if="isHiddenRecord" key="hidden-record" class="hidden-record-block">
       <n-flex vertical align="center" class="hidden-record-inner">
         <n-avatar
           round
@@ -430,7 +426,6 @@ const isHiddenRecord = computed(
     !!props.sessionSummoner.championId &&
     (!props.sessionSummoner.summoner?.gameName || !props.sessionSummoner.summoner?.puuid)
 )
-
 
 interface AramBalanceData {
   dmg_dealt?: number
