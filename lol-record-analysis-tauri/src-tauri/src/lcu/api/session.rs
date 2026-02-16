@@ -8,11 +8,20 @@ pub struct Session {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct PlayerChampionSelection {
+    pub champion_id: i32,
+    pub puuid: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")] // Apply camelCase deserialization to GameData fields
 pub struct GameData {
     pub game_id: i64, // Using i64 for gameId as it can be a large number
     pub is_custom_game: bool,
     pub queue: Queue,
+    #[serde(default)]
+    pub player_champion_selections: Vec<PlayerChampionSelection>,
     pub team_one: Vec<OnePlayer>, // Renamed from TeamOne to team_one
     pub team_two: Vec<OnePlayer>, // Renamed from TeamTwo to team_two
 }

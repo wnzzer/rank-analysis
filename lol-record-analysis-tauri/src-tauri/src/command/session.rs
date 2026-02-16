@@ -116,7 +116,8 @@ async fn process_session_data(app_handle: AppHandle) -> Result<(), String> {
         team_two: Vec::new(),
     };
 
-    // 确保自己在队伍1
+    // 红蓝队判定：己方始终在左（蓝队）。通过 LCU 当前召唤师 my_summoner 判断，
+    // 若当前用户不在 team_one 则交换 team_one/team_two，无需额外参数。
     let need_swap = !session
         .game_data
         .team_one
@@ -128,6 +129,29 @@ async fn process_session_data(app_handle: AppHandle) -> Result<(), String> {
             &mut session.game_data.team_one,
             &mut session.game_data.team_two,
         );
+    }
+
+    // LCU 有时某队少返回 1 人（如二队只有 4 个），用 playerChampionSelections 补全为 5 人
+    let selections = &session.game_data.player_champion_selections;
+    if selections.len() == 10 {
+        if session.game_data.team_one.len() < 5 {
+            session.game_data.team_one = selections[0..5]
+                .iter()
+                .map(|s| crate::lcu::api::session::OnePlayer {
+                    champion_id: s.champion_id,
+                    puuid: s.puuid.clone(),
+                })
+                .collect();
+        }
+        if session.game_data.team_two.len() < 5 {
+            session.game_data.team_two = selections[5..10]
+                .iter()
+                .map(|s| crate::lcu::api::session::OnePlayer {
+                    champion_id: s.champion_id,
+                    puuid: s.puuid.clone(),
+                })
+                .collect();
+        }
     }
 
     let mode = session.game_data.queue.id;
@@ -200,6 +224,18 @@ async fn push_basic_info(
         let mut result = Vec::new();
         for player in team {
             if player.puuid.is_empty() {
+                // 无 puuid（隐藏战绩）仍推送，前端展示「已移仓」
+                result.push(SessionSummoner {
+                    champion_id: player.champion_id,
+                    champion_key: format!("champion_{}", player.champion_id),
+                    summoner: Summoner::default(),
+                    match_history: MatchHistory::default(),
+                    user_tag: UserTag::default(),
+                    rank: Rank::default(),
+                    meet_games: Vec::new(),
+                    pre_group_markers: PreGroupMarker::default(),
+                    is_loading: false,
+                });
                 continue;
             }
             let summoner = Summoner::get_summoner_by_puuid(&player.puuid)
@@ -244,8 +280,42 @@ async fn process_team(
     is_team_one: bool,
 ) -> Result<(), String> {
     for (index, player) in team.iter().enumerate() {
-        // 若没有 puuid，则跳过
+        // 无 puuid（隐藏战绩）仍推送占位，前端展示「已移仓」
         if player.puuid.is_empty() {
+            let placeholder = SessionSummoner {
+                champion_id: player.champion_id,
+                champion_key: format!("champion_{}", player.champion_id),
+                summoner: Summoner::default(),
+                match_history: MatchHistory::default(),
+                user_tag: UserTag::default(),
+                rank: Rank::default(),
+                meet_games: Vec::new(),
+                pre_group_markers: PreGroupMarker::default(),
+                is_loading: false,
+            };
+            result.push(placeholder.clone());
+
+            let event_name = if is_team_one {
+                "session-player-update-team-one"
+            } else {
+                "session-player-update-team-two"
+            };
+            #[derive(Serialize)]
+            struct PlayerUpdate {
+                index: usize,
+                total: usize,
+                player: SessionSummoner,
+                is_team_one: bool,
+            }
+            let update = PlayerUpdate {
+                index,
+                total: team.len(),
+                player: placeholder,
+                is_team_one,
+            };
+            if let Err(e) = app_handle.emit(event_name, &update) {
+                log::error!("Failed to emit placeholder for empty puuid: {}", e);
+            }
             continue;
         }
 
