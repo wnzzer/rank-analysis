@@ -234,21 +234,8 @@ jobs:
           } else {
               Set-Content -Path RELEASE_BODY.md -Value $changelog
           }
-        
-      # --- 创建 Release 并上传资源 ---
-      - name: 🚀 Create GitHub Release and Upload Assets
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.get_version.outputs.tauri_version }}
-          name: Release ${{ steps.get_version.outputs.tauri_version }}
-          body_path: lol-record-analysis-tauri/RELEASE_BODY.md
-          files: |
-            ${{ steps.prepare_assets.outputs.setup_path }}
-            ${{ steps.prepare_assets.outputs.portable_path }}
-          draft: false
-          prerelease: false
 
-      # --- 生成 latest.json ---
+      # --- 生成 latest.json（必须在创建 Release 前完成，便于一次上传所有资源）---
       - name: 📝 Generate latest.json
         run: |
           node -e '
@@ -303,12 +290,19 @@ jobs:
           SETUP_PATH: ${{ steps.prepare_assets.outputs.setup_path }}
           SIG_PATH: ${{ steps.prepare_assets.outputs.sig_path }}
 
-      # --- 上传 latest.json ---
-      - name: ⬆️ Upload latest.json Asset
-        uses: softprops/action-gh-release@v2 
+      # --- 一次创建 Release 并上传所有资源（避免分两次调用导致 body/版本显示异常）---
+      - name: 🚀 Create GitHub Release and Upload Assets
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.get_version.outputs.tauri_version }}
-          files: lol-record-analysis-tauri/latest.json
+          name: Release ${{ steps.get_version.outputs.tauri_version }}
+          body_path: lol-record-analysis-tauri/RELEASE_BODY.md
+          files: |
+            ${{ steps.prepare_assets.outputs.setup_path }}
+            ${{ steps.prepare_assets.outputs.portable_path }}
+            lol-record-analysis-tauri/latest.json
+          draft: false
+          prerelease: false
 
 
   # --- 任务二：通知 UpgradeLink ---
