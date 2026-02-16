@@ -423,7 +423,7 @@ function emitUpdate() {
 .group-node {
   border: 1px dashed v-bind('themeVars.borderColor');
   padding: 8px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background-color: v-bind('themeVars.actionColor');
 }
 .not-node {
@@ -452,7 +452,7 @@ function emitUpdate() {
 .leaf-node {
   background-color: v-bind('themeVars.cardColor');
   border: 1px solid v-bind('themeVars.borderColor');
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
@@ -460,7 +460,7 @@ function emitUpdate() {
   background-color: v-bind('themeVars.tableHeaderColor');
   padding: 4px 8px;
   border-bottom: 1px solid v-bind('themeVars.dividerColor');
-  border-radius: 6px 6px 0 0;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
   height: 28px;
 }
 .leaf-title {

@@ -1,7 +1,11 @@
 <template>
   <n-card
     class="player-card"
-    :class="{ 'light-mode-strip': settingsStore.theme?.name === 'Light' }"
+    :class="[
+      { 'light-mode-strip': settingsStore.theme?.name === 'Light' },
+      props.team === 'blue' && 'player-card-team-blue',
+      props.team === 'red' && 'player-card-team-red'
+    ]"
     size="small"
     :bordered="true"
     content-style="padding: 8px;"
@@ -24,23 +28,21 @@
         {{ sessionSummoner.summoner.gameName }}
       </span>
     </div>
+    <!-- 仅返回英雄 id、无 summoner 有效信息时视为隐藏战绩，优先展示「战绩已隐藏」 -->
     <div
-      v-else-if="
-        (!sessionSummoner.summoner.puuid || sessionSummoner.summoner.puuid === '') &&
-        sessionSummoner.championId
-      "
+      v-else-if="isHiddenRecord"
       key="hidden-record"
-      style="height: 100%; display: flex; justify-content: center; align-items: center"
+      class="hidden-record-block"
     >
-      <n-flex vertical align="center" style="gap: 8px">
+      <n-flex vertical align="center" class="hidden-record-inner">
         <n-avatar
           round
           :size="48"
           :src="assetPrefix + '/champion/' + sessionSummoner.championId"
           :fallback-src="nullImg"
-          style="border: 2px solid #444"
+          class="hidden-record-avatar"
         />
-        <span style="font-size: 13px; color: #777; font-weight: bold">战绩已隐藏</span>
+        <span class="hidden-record-text">战绩已隐藏</span>
       </n-flex>
     </div>
     <div
@@ -93,13 +95,13 @@
                 </n-button>
               </n-flex>
 
-              <n-flex align="center" style="gap: 6px">
+              <n-flex align="center" style="gap: 6px; flex-wrap: wrap">
                 <span class="tag-line">#{{ sessionSummoner?.summoner.tagLine }}</span>
                 <n-flex align="center" style="gap: 4px">
                   <img class="tier-icon" :src="imgUrl" />
                   <span class="tier-text">{{ tierCn }}</span>
                 </n-flex>
-                <!-- ARAM Balance Tags -->
+                <!-- ARAM Balance Tags 增强/削弱 -->
                 <n-popover
                   trigger="hover"
                   v-if="balanceTags.length > 0 && isAramMode"
@@ -409,14 +411,26 @@ import { useSettingsStore } from '../../pinia/setting'
 const settingsStore = useSettingsStore()
 const copy = useCopy().copy
 const showStats = ref(false)
-const props = defineProps<{
-  sessionSummoner: SessionSummoner
-  typeCn: string
-  modeType: string
-  imgUrl: string
-  tierCn: string
-  queueId: number
-}>()
+const props = withDefaults(
+  defineProps<{
+    sessionSummoner: SessionSummoner
+    typeCn: string
+    modeType: string
+    imgUrl: string
+    tierCn: string
+    queueId: number
+    team?: 'blue' | 'red'
+  }>(),
+  { team: undefined }
+)
+
+/** 仅返回英雄 id、无有效 summoner 信息时视为隐藏战绩（后端约定） */
+const isHiddenRecord = computed(
+  () =>
+    !!props.sessionSummoner.championId &&
+    (!props.sessionSummoner.summoner?.gameName || !props.sessionSummoner.summoner?.puuid)
+)
+
 
 interface AramBalanceData {
   dmg_dealt?: number
@@ -562,10 +576,29 @@ const overallBalanceStatus = computed(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  transition: box-shadow var(--transition-fast);
+}
+
+.player-card:hover {
+  box-shadow: var(--shadow-card-hover);
+}
+
+.player-card-team-blue {
+  border-left: 2px solid var(--team-blue);
+  border-color: var(--border-subtle);
+  border-left-color: rgba(59, 130, 246, 0.6);
+}
+
+.player-card-team-red {
+  border-left: 2px solid var(--team-red);
+  border-color: var(--border-subtle);
+  border-left-color: rgba(239, 68, 68, 0.6);
 }
 
 .light-mode-strip {
-  border-left: 4px solid #666;
+  border-left: 4px solid var(--text-tertiary);
 }
 
 .loading-container {
@@ -575,6 +608,27 @@ const overallBalanceStatus = computed(() => {
   display: flex;
   justify-content: center;
   align-items: center;
+}
+
+.hidden-record-block {
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.hidden-record-inner {
+  gap: var(--space-8);
+}
+
+.hidden-record-avatar {
+  border: 2px solid var(--border-subtle);
+}
+
+.hidden-record-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-tertiary);
 }
 
 .left-section {
@@ -610,7 +664,7 @@ const overallBalanceStatus = computed(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   display: block;
 }
 
@@ -621,7 +675,7 @@ const overallBalanceStatus = computed(() => {
   font-size: 10px;
   background: rgba(0, 0, 0, 0.7);
   padding: 0 4px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   color: white;
   line-height: 14px;
 }
@@ -664,25 +718,29 @@ const overallBalanceStatus = computed(() => {
 }
 
 .history-item {
-  background: var(--n-action-color);
-  border-radius: 4px;
-  padding: 4px 8px;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-sm);
+  padding: var(--space-4) var(--space-8);
   font-size: 12px;
-  border-left: 3px solid #ba3f53;
+  border-left: 3px solid var(--semantic-loss);
+  border: 1px solid var(--border-subtle);
+  border-left-width: 3px;
+  border-left-color: var(--semantic-loss);
 }
 
 .history-item.is-win {
-  border-left: 3px solid #8bdfb7;
+  border-left-color: var(--semantic-win);
 }
 
 .win-status {
   font-weight: 600;
-  color: #ba3f53;
+  color: var(--semantic-loss);
   width: 20px;
+  flex-shrink: 0;
 }
 
 .win-status.is-win {
-  color: #8bdfb7;
+  color: var(--semantic-win);
 }
 
 .history-champ-img {
@@ -701,15 +759,15 @@ const overallBalanceStatus = computed(() => {
 }
 
 .kill {
-  color: #8bdfb7;
+  color: var(--semantic-win);
 }
 
 .death {
-  color: #ba3f53;
+  color: var(--semantic-loss);
 }
 
 .assist {
-  color: #d38b2a;
+  color: var(--text-secondary);
 }
 
 .queue-name {
@@ -732,7 +790,7 @@ const overallBalanceStatus = computed(() => {
 
 .stats-card {
   background: var(--n-action-color);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   padding: 6px;
   transition: all 0.2s ease;
   border: 1px solid transparent;

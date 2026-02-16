@@ -11,7 +11,7 @@
         <!-- 中间部分：左侧导航 + 内容区域 -->
         <n-layout has-sider class="content" style="width: 100%">
           <!-- 左侧导航 -->
-          <n-layout-sider collapse-mode="width" class="left" style="width: 60px" bordered>
+          <n-layout-sider collapse-mode="width" class="left" style="width: 68px" bordered>
             <SideNavigation />
           </n-layout-sider>
           <!-- 内容区域 -->
@@ -32,14 +32,10 @@ import { computed } from 'vue'
 
 const settingsStore = useSettingsStore()
 
-const contentStyle = computed(() => {
-  const themeName = settingsStore.theme?.name
-  const isDark = themeName === 'Dark' || themeName === 'dark'
-  return {
-    backgroundColor: isDark ? '#101014' : undefined,
-    height: '100%'
-  }
-})
+const contentStyle = computed(() => ({
+  backgroundColor: 'var(--bg-base)',
+  height: '100%'
+}))
 </script>
 <style scoped>
 .full-container {
@@ -53,21 +49,25 @@ const contentStyle = computed(() => {
 
 .header {
   user-select: none;
-  /* 设置该属性表明这是可拖拽区域，用来移动窗口 */
   -webkit-app-region: drag;
   pointer-events: auto;
   margin: 0;
-  height: 40px;
-  line-height: 40px;
+  height: 36px;
+  line-height: 36px;
   text-align: center;
+  background-color: var(--bg-surface) !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.06);
 }
 
 .content {
-  height: calc(100vh - 40px);
+  height: calc(100vh - 36px);
 }
 
 .left {
-  width: 60px;
-  min-width: 60px;
+  width: 68px;
+  min-width: 68px;
+  background-color: var(--bg-base) !important;
+  border-right: 1px solid var(--border-subtle) !important;
 }
 </style>

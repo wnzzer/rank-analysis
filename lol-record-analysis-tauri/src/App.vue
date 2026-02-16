@@ -1,5 +1,9 @@
 <template>
-  <n-config-provider :theme="settingsStore.theme" :theme-overrides="themeOverrides">
+  <n-config-provider
+    :theme="settingsStore.theme"
+    :theme-overrides="themeOverrides"
+    :class="{ 'theme-light': !isDark }"
+  >
     <n-message-provider>
       <n-notification-provider>
         <n-dialog-provider>
@@ -20,17 +24,75 @@ import { GlobalThemeOverrides } from 'naive-ui'
 
 const settingsStore = useSettingsStore()
 
+const isDark = computed(() => {
+  const name = settingsStore.theme?.name
+  return name === 'Dark' || name === 'dark'
+})
+
 const themeOverrides = computed<GlobalThemeOverrides>(() => {
-  const themeName = settingsStore.theme?.name
-  const isDark = themeName === 'Dark' || themeName === 'dark'
-
-  if (isDark) {
-    return {}
+  if (isDark.value) {
+    return {
+      common: {
+        borderRadius: 8,
+        borderRadiusSmall: 6
+      },
+      Card: {
+        borderRadius: 8,
+        color: '#1a1a1e',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+        borderColor: 'rgba(255,255,255,0.06)'
+      },
+      Input: {
+        borderRadius: 8,
+        color: '#1a1a1e',
+        border: '1px solid rgba(255,255,255,0.06)'
+      },
+      Button: {
+        borderRadiusSmall: 6,
+        borderRadiusMedium: 8
+      },
+      Select: {
+        borderRadius: 8
+      },
+      Layout: {
+        color: '#0d0d0f'
+      },
+      Menu: {
+        itemColorActive: 'rgba(255,255,255,0.1)',
+        itemColorActiveHover: 'rgba(255,255,255,0.14)',
+        itemBorderRadius: '8px'
+      }
+    }
   }
-
   return {
+    common: {
+      borderRadius: 8,
+      borderRadiusSmall: 6
+    },
+    Card: {
+      borderRadius: 8,
+      color: '#ffffff',
+      boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+      borderColor: 'rgba(0,0,0,0.08)'
+    },
+    Input: {
+      borderRadius: 8,
+      border: '1px solid rgba(0,0,0,0.08)'
+    },
+    Button: {
+      borderRadiusSmall: 6,
+      borderRadiusMedium: 8
+    },
+    Select: {
+      borderRadius: 8
+    },
     Layout: {
       color: '#f6f9f8'
+    },
+    Menu: {
+      itemColorActive: 'rgba(0,0,0,0.06)',
+      itemColorActiveHover: 'rgba(0,0,0,0.1)',
+      itemBorderRadius: '8px'
     }
   }
 })
@@ -44,27 +106,22 @@ body {
 }
 
 .root {
-  /* 使用 flex 来实现 */
   display: flex;
   flex-direction: column;
   height: 100%;
-  background-color: #101014;
-  color: white;
+  background-color: var(--bg-base);
+  color: var(--text-primary);
 }
 
 .custom-titlebar {
   display: flex;
   align-items: center;
-  /* 避免被收缩 */
   flex-shrink: 0;
-  /* 高度与 main.js 中 titleBarOverlay.height 一致  */
   height: 35px;
   width: 100%;
-  /* 标题栏始终在最顶层（避免后续被 Modal 之类的覆盖） */
   z-index: 9999;
-
-  background-color: #18181c;
-  color: white;
+  background-color: var(--bg-surface);
+  color: var(--text-primary);
   padding-left: 12px;
   font-size: 14px;
 }

@@ -1,13 +1,13 @@
 <template>
   <div class="ratio-container">
-    <n-flex vertical class="content-wrapper" style="height: 100%; position: relative">
-      <n-flex>
+    <n-flex vertical class="content-wrapper match-history-wrap">
+      <n-flex class="match-history-toolbar" align="center" :size="8">
         <n-select
           v-model:value="filterQueueId"
           placeholder="按模式筛选"
           :options="modeOptions"
           size="small"
-          style="width: 100px"
+          class="filter-select filter-mode"
           @update:value="handleUpdateValue"
         />
         <n-select
@@ -19,16 +19,13 @@
           :render-label="renderLabel"
           :options="championOptions"
           size="small"
-          style="width: 170px"
+          class="filter-select filter-champion"
           @update:value="handleUpdateValue"
         />
-
         <n-tooltip trigger="hover">
           <template #trigger>
-            <n-button text style="font-size: 24px" @click="resetFilter">
-              <n-icon>
-                <Repeat />
-              </n-icon>
+            <n-button quaternary circle size="small" class="toolbar-reset" @click="resetFilter">
+              <n-icon><RepeatOutline /></n-icon>
             </n-button>
           </template>
           复位
@@ -43,10 +40,8 @@
       >
       </RecordCard>
 
-      <!-- 自定义分页组件 -->
-
       <div class="pagination">
-        <n-pagination style="margin-top: 0px">
+        <n-pagination>
           <template #prev>
             <n-button
               size="tiny"
@@ -84,7 +79,7 @@
 
 <script setup lang="ts">
 import RecordCard from './RecordCard.vue'
-import { ArrowBack, ArrowForward, Repeat } from '@vicons/ionicons5'
+import { ArrowBack, ArrowForward, RepeatOutline } from '@vicons/ionicons5'
 import { onMounted, ref } from 'vue'
 import { useLoadingBar } from 'naive-ui'
 import { useRoute } from 'vue-router'
@@ -290,40 +285,57 @@ onMounted(async () => {
 
 <style lang="css" scoped>
 .ratio-container {
-  /* 维持1.1:1宽高比的核心容器 */
   width: 100%;
   height: 100%;
-  padding: 20px;
+  padding: 0;
   box-sizing: border-box;
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: flex-start;
+}
+
+.match-history-wrap.content-wrapper {
+  height: 100%;
+  position: relative;
+  gap: var(--space-16);
+}
+
+.match-history-toolbar {
+  flex-shrink: 0;
+}
+
+.filter-select.filter-mode {
+  width: 100px;
+}
+
+.filter-select.filter-champion {
+  width: 170px;
+}
+
+.toolbar-reset {
+  color: var(--text-secondary);
 }
 
 .content-wrapper {
-  /* 比例容器 */
   aspect-ratio: 1.1 / 1;
   width: 100%;
   max-width: calc(100vh * 1.1);
-  /* 防止过高 */
   max-height: calc(100vw / 1.1);
-  /* 防止过宽 */
   margin: auto;
   position: relative;
 }
 
 .scroll-area {
-  /* 滚动区域 */
   flex: 1;
   overflow-y: auto;
-  margin: 8px 0;
+  margin: var(--space-8) 0;
 }
 
 .pagination {
-  /* 分页固定底部 */
   position: sticky;
   bottom: 0;
-  background: var(--n-color);
-  padding: 8px 0;
+  background: var(--bg-base);
+  padding: var(--space-8) 0;
+  margin-top: var(--space-8);
 }
 </style>

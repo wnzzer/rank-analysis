@@ -62,7 +62,7 @@ defineProps<{
   display: flex;
   align-items: center;
   padding: 6px 8px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background-color: rgba(255, 255, 255, 0.03);
   border: 1px solid transparent;
   transition: all 0.2s ease;
@@ -93,7 +93,7 @@ defineProps<{
 .champion-img {
   width: 32px;
   height: 32px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   object-fit: cover;
 }
 
@@ -166,7 +166,7 @@ defineProps<{
 .relation-badge {
   font-size: 10px;
   padding: 1px 4px;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background-color: rgba(255, 255, 255, 0.1);
 }
 

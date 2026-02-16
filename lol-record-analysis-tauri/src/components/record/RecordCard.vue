@@ -21,9 +21,9 @@
           <n-divider style="margin: 1px 0; line-height: 1px" />
         </span>
 
-        <span style="color: #676768; font-size: 11px">
-          <n-icon style="margin-right: 1px"> <Time></Time> </n-icon
-          >{{ Math.ceil(games.gameDuration / 60) }}分
+        <span class="record-card-meta">
+          <n-icon style="margin-right: 1px"><Time /></n-icon>
+          {{ Math.ceil(games.gameDuration / 60) }}分
         </span>
       </n-flex>
       <div style="height: 42px; position: relative">
@@ -46,12 +46,10 @@
         <span class="font-number" style="font-size: 14px; font-weight: 700">{{
           games.queueName
         }}</span>
-        <span style="color: #676768; font-size: 11px">
-          <n-icon style="margin-right: 1px">
-            <CalendarNumber></CalendarNumber>
-          </n-icon>
-          {{ formattedDate }}</span
-        >
+        <span class="record-card-meta">
+          <n-icon style="margin-right: 1px"><CalendarNumber /></n-icon>
+          {{ formattedDate }}
+        </span>
       </n-flex>
 
       <n-flex justify="space-between" vertical style="gap: 0px">
@@ -69,15 +67,15 @@
               {{ games.participants[0].stats?.assists }}
             </span>
           </span>
-          <span style="margin-left: 20px">
+          <span class="record-card-spell-icons">
             <img
               :src="
                 assetPrefix + '/spell/' + games.participants[0].spell1Id
                   ? assetPrefix + '/spell/' + games.participants[0].spell1Id
                   : itemNull
               "
-              style="width: 23px; height: 23px"
-              alt="item image"
+              class="record-card-icon-slot"
+              alt="spell"
             />
             <img
               :src="
@@ -85,12 +83,12 @@
                   ? assetPrefix + '/spell/' + games.participants[0].spell2Id
                   : itemNull
               "
-              style="width: 23px; height: 23px"
-              alt="item image"
+              class="record-card-icon-slot"
+              alt="spell"
             />
           </span>
         </n-flex>
-        <n-flex style="gap: 2px">
+        <n-flex class="record-card-item-slots" style="gap: 2px">
           <n-image
             width="23px"
             :src="assetPrefix + '/item/' + games.participants[0].stats?.item0"
@@ -153,8 +151,8 @@
             color: otherColor(games.participants[0].stats?.damageDealtToChampionsRate)
           }"
         >
-          <n-icon size="13" color="#EEB43E">
-            <Flame></Flame>
+          <n-icon size="13" class="record-card-icon record-card-icon-damage">
+            <FlameOutline />
           </n-icon>
           <span style="width: 60px">
             <n-progress
@@ -183,8 +181,8 @@
             color: healColorAndTaken(games.participants[0].stats?.damageTakenRate)
           }"
         >
-          <n-icon size="13" color="#5CA3EA">
-            <Shield></Shield>
+          <n-icon size="13" class="record-card-icon record-card-icon-tank">
+            <ShieldOutline />
           </n-icon>
           <span style="width: 60px">
             <n-progress
@@ -209,8 +207,8 @@
           align="center"
           :style="{ gap: '8px', color: healColorAndTaken(games.participants[0].stats?.healRate) }"
         >
-          <n-icon size="13" color="#58B66D">
-            <Heart></Heart>
+          <n-icon size="13" class="record-card-icon record-card-icon-heal">
+            <HeartOutline />
           </n-icon>
           <span style="width: 60px">
             <n-progress
@@ -324,7 +322,7 @@
 </template>
 
 <script lang="ts" setup>
-import { Time, CalendarNumber, Flame, Shield, Heart } from '@vicons/ionicons5'
+import { Time, CalendarNumber, FlameOutline, ShieldOutline, HeartOutline } from '@vicons/ionicons5'
 import itemNull from '../../assets/imgs/item/null.png'
 import { computed } from 'vue'
 import { Game } from './MatchHistory.vue'
@@ -334,28 +332,33 @@ import { assetPrefix } from '../../services/http'
 import { useSettingsStore } from '../../pinia/setting'
 
 const settingsStore = useSettingsStore()
-const isDark = computed(() => settingsStore.theme?.name === 'dark')
+const isDark = computed(
+  () => settingsStore.theme?.name === 'Dark' || settingsStore.theme?.name === 'dark'
+)
 
 const themeColors = computed(() => ({
-  win: isDark.value ? '#50E3C2' : '#18a058',
-  loss: isDark.value ? '#FF5C5C' : '#d03050',
-  kill: isDark.value ? '#50E3C2' : '#18a058',
-  death: isDark.value ? '#FF5C5C' : '#d03050',
-  assist: isDark.value ? '#D38B2A' : '#f0a020'
+  win: '#3d9b7a',
+  loss: '#c45c5c',
+  kill: '#3d9b7a',
+  death: '#c45c5c',
+  assist: '#b8860b'
 }))
 
 const cardStyle = computed(() => {
   const isWin = props.games.participants[0].stats.win
+  const leftColor = isWin ? '#3d9b7a' : '#c45c5c'
   if (isDark.value) {
-    return {}
+    return {
+      borderLeft: `3px solid ${leftColor}`,
+      boxShadow: 'var(--shadow-card)'
+    }
   }
-  // Light Mode Styles
   return {
-    backgroundColor: '#ffffff',
-    boxShadow: '0 2px 6px rgba(0, 0, 0, 0.06)', // Softer, more diffused shadow
-    border: 'none', // Remove full border
-    borderLeft: `4px solid ${isWin ? '#18a058' : '#d03050'}`, // Left accent strip
-    borderRadius: '4px'
+    backgroundColor: 'var(--bg-elevated)',
+    boxShadow: 'var(--shadow-card)',
+    border: '1px solid var(--border-subtle)',
+    borderLeft: `3px solid ${leftColor}`,
+    borderRadius: 'var(--radius-md)'
   }
 })
 
@@ -414,33 +417,25 @@ function toNameRecord(name: string) {
 }
 
 .win-class {
-  /* 默认的边框颜色 */
-  --n-border: 1px solid #63e2b7;
-  /* 静态绿色边框 */
-  --n-border-hover: 1px solid #7fe7c4;
-  /* 悬停时的绿色边框 */
-  --n-border-pressed: 1px solid #5acea7;
+  --n-border: 1px solid var(--semantic-win);
+  --n-border-hover: 1px solid var(--semantic-win);
+  --n-border-pressed: 1px solid var(--semantic-win);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
 
-  /* 添加平滑过渡效果 */
-  transition:
-    border-color 0.3s ease,
-    color 0.3s ease;
-  /* 为边框颜色和文本颜色添加过渡 */
+.win-class:hover {
+  box-shadow: var(--shadow-card-hover);
 }
 
 .defeat-class {
-  /* 默认的边框颜色 */
-  --n-border: 1px solid #ba3f53;
-  /* 静态绿色边框 */
-  --n-border-hover: 1px solid #ba3f53;
-  /* 悬停时的绿色边框 */
-  --n-border-pressed: 1px solid #ba3f53;
+  --n-border: 1px solid var(--semantic-loss);
+  --n-border-hover: 1px solid var(--semantic-loss);
+  --n-border-pressed: 1px solid var(--semantic-loss);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
 
-  /* 添加平滑过渡效果 */
-  transition:
-    border-color 0.3s ease,
-    color 0.3s ease;
-  /* 为边框颜色和文本颜色添加过渡 */
+.defeat-class:hover {
+  box-shadow: var(--shadow-card-hover);
 }
 
 .bordered {
@@ -467,22 +462,62 @@ function toNameRecord(name: string) {
 .mvp-box {
   display: inline-block;
   width: 20px;
-  /* 调整宽度 */
   height: 11px;
-  /* 调整高度 */
   color: #000;
-  /* 黑色字体 */
   font-weight: bold;
-  /* 字体加粗 */
   font-size: 8px;
-  /* 小字体 */
   line-height: 11px;
-  /* 垂直居中 */
   text-align: center;
-  /* 水平居中 */
-  border-radius: 2px;
-  /* 圆角 */
+  border-radius: 3px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-  /* 添加阴影效果 */
+}
+
+.record-card-icon {
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+.record-card-icon-damage {
+  color: #e5a732;
+}
+.record-card-icon-tank {
+  color: #5ca3ea;
+}
+.record-card-icon-heal {
+  color: #58b66d;
+}
+
+.record-card-meta {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+/* 装备格与技能图标统一圆角与边框 */
+.record-card-item-slots :deep(.n-image),
+.record-card-item-slots :deep(.n-image img),
+.record-card-spell-icons .record-card-icon-slot {
+  width: 23px;
+  height: 23px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  box-sizing: border-box;
+  object-fit: contain;
+}
+.record-card-spell-icons {
+  display: inline-flex;
+  gap: 2px;
+}
+
+/* 对局玩家头像网格精致化 */
+:deep(.n-tag .n-avatar),
+:deep(.n-button .n-avatar) {
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  transition: box-shadow var(--transition-fast);
+}
+:deep(.n-tag .n-avatar:hover),
+:deep(.n-button .n-avatar:hover) {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.18);
 }
 </style>

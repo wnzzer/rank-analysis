@@ -166,7 +166,7 @@ const checkForUpdates = async () => {
             h('div', {
               // 添加样式使 Markdown 内容更易读，并限制高度防止弹窗过长
               style:
-                'max-height: 300px; overflow-y: auto; background: rgba(0,0,0,0.05); padding: 12px; border-radius: 4px; margin-top: 8px; line-height: 1.6;',
+                'max-height: 300px; overflow-y: auto; background: rgba(0,0,0,0.05); padding: 12px; border-radius: 6px; margin-top: 8px; line-height: 1.6;',
               class: 'update-log-content',
               innerHTML: md.render(update.body || '暂无更新日志'),
               onClick: (e: MouseEvent) => {
@@ -259,7 +259,7 @@ const sendEmail = () => {
 <style scoped>
 .about-card {
   max-width: 600px;
-  margin: 20px auto;
+  margin: var(--space-24) auto;
 }
 
 .header-container {
@@ -270,11 +270,12 @@ const sendEmail = () => {
 
 .title {
   font-size: 18px;
-  font-weight: bold;
+  font-weight: 700;
+  color: var(--text-primary);
 }
 
 .content-container {
-  padding: 10px 0;
+  padding: var(--space-12) 0;
 }
 
 .logo-section {
@@ -292,8 +293,8 @@ const sendEmail = () => {
 }
 
 .app-info p {
-  margin: 0 0 12px 0;
-  color: #666;
+  margin: 0 0 var(--space-12) 0;
+  color: var(--text-secondary);
 }
 
 .version-info {
@@ -305,7 +306,7 @@ const sendEmail = () => {
   background-color: #e8f4fd;
   color: #1890ff;
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 12px;
   margin-right: 10px;
 }
@@ -328,10 +329,10 @@ const sendEmail = () => {
 }
 
 .nav-icon {
-  margin-right: 12px;
+  margin-right: var(--space-12);
   display: flex;
   align-items: center;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .spacer {

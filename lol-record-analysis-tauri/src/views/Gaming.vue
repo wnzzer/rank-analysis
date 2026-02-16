@@ -3,21 +3,13 @@
     <LoadingComponent>等待加入游戏...</LoadingComponent>
   </template>
   <template v-else>
-    <div style="padding: 10px; height: 100vh; box-sizing: border-box; position: relative">
+    <div class="gaming-page">
       <n-button
         circle
         secondary
         type="primary"
-        style="
-          position: absolute;
-          right: 0px;
-          top: 50%;
-          transform: translateY(-50%);
-          z-index: 100;
-          opacity: 0.5;
-        "
+        class="gaming-config-btn"
         @click="showConfig = true"
-        class="config-btn"
       >
         <template #icon>
           <n-icon><settings-outline /></n-icon>
@@ -33,40 +25,39 @@
             @update:value="handleUpdateConfig"
           />
         </n-form-item>
-        <span style="font-size: 12px; color: #999">设置将在下一次刷新或对局时生效</span>
+        <span class="gaming-config-hint">设置将在下一次刷新或对局时生效</span>
       </n-modal>
 
-      <n-flex justify="space-between" style="height: 100%; gap: 16px">
-        <!-- 左侧部分 -->
-
-        <n-flex vertical justify="space-between" style="gap: 8px; flex: 1; height: 100%">
+      <!-- 蓝队=己方(左)，红队=敌方(右)。后端用 LCU 当前用户判断，己方固定为 teamOne，无需传参 -->
+      <n-flex justify="space-between" class="gaming-columns">
+        <n-flex vertical class="gaming-team-col gaming-team-blue">
+          <div class="team-label team-label-blue">蓝队</div>
           <PlayerCard
             v-for="(sessionSummoner, i) of sessionData.teamOne"
             :key="'teamOne' + i"
+            team="blue"
             :session-summoner="sessionSummoner"
             :mode-type="sessionData.type"
             :type-cn="sessionData.typeCn"
             :queue-id="sessionData.queueId"
             :img-url="comImgTier.teamOne[i]?.imgUrl"
             :tier-cn="comImgTier.teamOne[i]?.tierCn"
-          ></PlayerCard>
+          />
         </n-flex>
 
-        <!-- 右侧部分 -->
-        <n-flex vertical justify="space-between" style="gap: 8px; flex: 1; height: 100%">
-          <n-flex vertical justify="space-between" style="gap: 8px; flex: 1; height: 100%">
-            <PlayerCard
-              v-for="(sessionSummoner, i) of sessionData.teamTwo"
-              :key="'teamTwo' + i"
-              :session-summoner="sessionSummoner"
-              :mode-type="sessionData.type"
-              :type-cn="sessionData.typeCn"
-              :queue-id="sessionData.queueId"
-              :img-url="comImgTier.teamTwo[i]?.imgUrl"
-              :tier-cn="comImgTier.teamTwo[i]?.tierCn"
-            >
-            </PlayerCard>
-          </n-flex>
+        <n-flex vertical class="gaming-team-col gaming-team-red">
+          <div class="team-label team-label-red">红队</div>
+          <PlayerCard
+            v-for="(sessionSummoner, i) of sessionData.teamTwo"
+            :key="'teamTwo' + i"
+            team="red"
+            :session-summoner="sessionSummoner"
+            :mode-type="sessionData.type"
+            :type-cn="sessionData.typeCn"
+            :queue-id="sessionData.queueId"
+            :img-url="comImgTier.teamTwo[i]?.imgUrl"
+            :tier-cn="comImgTier.teamTwo[i]?.tierCn"
+          />
         </n-flex>
       </n-flex>
     </div>
@@ -496,43 +487,57 @@ async function requestSessionData() {
 }
 </script>
 <style lang="css" scoped>
-.champion-img {
-  width: 100%;
-  /* 限制图片宽度不超过容器 */
+.gaming-page {
+  padding: var(--space-16);
   height: 100%;
-  /* 限制图片高度不超过容器 */
-  object-fit: cover;
-  /* 保持图片的比例并裁剪溢出的部分 */
-  display: inline-block;
+  box-sizing: border-box;
+  position: relative;
 }
 
-.stats-title {
-  font-weight: bold;
+.gaming-config-btn {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 100;
+  opacity: 0.6;
 }
 
-.stats-item {
-  display: flex;
-  justify-content: space-between;
+.gaming-config-hint {
+  font-size: 12px;
+  color: var(--text-tertiary);
 }
 
-.stats-label {
-  font-size: 10px;
-
-  color: #ccc;
+.gaming-columns {
+  height: 100%;
+  gap: var(--space-16);
 }
 
-.stats-value {
-  font-size: 10px;
-  color: #ffffff;
-  /* 绿色表示积极数据 */
+.gaming-team-col {
+  flex: 1;
+  height: 100%;
+  gap: var(--space-8);
+  position: relative;
 }
 
-.recent-card {
-  background: #28282b;
-  /* 半透明背景 */
-  border-radius: 8px;
-  /* 圆角边框 */
-  color: #fff;
-  /* 白色字体 */
+.team-label {
+  font-size: 12px;
+  font-weight: 700;
+  padding: var(--space-4) var(--space-8);
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  width: fit-content;
+}
+
+.team-label-blue {
+  background: var(--team-blue);
+  color: var(--text-primary);
+  border: 1px solid rgba(59, 130, 246, 0.4);
+}
+
+.team-label-red {
+  background: var(--team-red);
+  color: var(--text-primary);
+  border: 1px solid rgba(239, 68, 68, 0.4);
 }
 </style>

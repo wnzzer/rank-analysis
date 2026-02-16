@@ -298,7 +298,7 @@ async function deleteTag(id: string) {
   overflow-y: auto;
   padding: 10px;
   border: 1px solid v-bind('themeVars.borderColor');
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 .empty-root {
   text-align: center;

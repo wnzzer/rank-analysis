@@ -1,14 +1,15 @@
 <template>
   <n-flex vertical class="user-record-container" :size="12">
     <!-- User Info Card -->
-    <n-card :bordered="false" size="small" content-style="padding: 12px">
+    <n-card class="record-panel-card" :bordered="false" size="small" content-style="padding: 12px">
       <n-flex align="center" :size="12">
-        <div class="avatar-wrapper">
+        <div class="avatar-wrapper user-record-avatar">
           <n-avatar
             round
             :size="58"
             :src="`${assetPrefix}/profile/${summoner?.profileIconId}`"
             fallback-src="https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png"
+            class="user-record-avatar-img"
           />
           <div class="level-badge">
             {{ summoner.summonerLevel }}
@@ -70,7 +71,7 @@
     <n-flex :wrap="false" align="stretch" :size="12">
       <div class="relationship-col">
         <div class="section-header good-color">
-          <n-icon><Accessibility /></n-icon>
+          <n-icon><AccessibilityOutline /></n-icon>
           <span>好友/胜率</span>
         </div>
         <div class="relationship-list">
@@ -112,7 +113,7 @@
 
       <div class="relationship-col">
         <div class="section-header bad-color">
-          <n-icon><Flash /></n-icon>
+          <n-icon><FlashOutline /></n-icon>
           <span>宿敌/胜率</span>
         </div>
         <div class="relationship-list">
@@ -156,7 +157,7 @@
     <!-- Rank Cards -->
     <n-flex vertical :size="12">
       <!-- Solo Rank -->
-      <n-card :bordered="false" size="small" content-style="padding: 10px">
+      <n-card class="record-panel-card" :bordered="false" size="small" content-style="padding: 10px">
         <div class="rank-card-content">
           <div class="rank-icon-wrapper">
             <span class="rank-type-label">单双排</span>
@@ -183,19 +184,15 @@
               胜率 {{ solo5v5RecentWinRate.winRate }}%
             </div>
             <n-flex justify="space-between" size="small" style="width: 100%; margin-top: 4px">
-              <span style="font-size: 11px; color: var(--n-text-color-3)"
-                >胜场: {{ solo5v5RecentWinRate.wins }}</span
-              >
-              <span style="font-size: 11px; color: var(--n-text-color-3)"
-                >负场: {{ solo5v5RecentWinRate.losses }}</span
-              >
+              <span class="rank-stat-text">胜场: {{ solo5v5RecentWinRate.wins }}</span>
+              <span class="rank-stat-text">负场: {{ solo5v5RecentWinRate.losses }}</span>
             </n-flex>
           </div>
         </div>
       </n-card>
 
       <!-- Flex Rank -->
-      <n-card :bordered="false" size="small" content-style="padding: 10px">
+      <n-card class="record-panel-card" :bordered="false" size="small" content-style="padding: 10px">
         <div class="rank-card-content">
           <div class="rank-icon-wrapper">
             <span class="rank-type-label">灵活组排</span>
@@ -222,12 +219,8 @@
               胜率 {{ flexRecentWinRate.winRate }}%
             </div>
             <n-flex justify="space-between" size="small" style="width: 100%; margin-top: 4px">
-              <span style="font-size: 11px; color: var(--n-text-color-3)"
-                >胜场: {{ flexRecentWinRate.wins }}</span
-              >
-              <span style="font-size: 11px; color: var(--n-text-color-3)"
-                >负场: {{ flexRecentWinRate.losses }}</span
-              >
+              <span class="rank-stat-text">胜场: {{ flexRecentWinRate.wins }}</span>
+              <span class="rank-stat-text">负场: {{ flexRecentWinRate.losses }}</span>
             </n-flex>
           </div>
         </div>
@@ -235,7 +228,7 @@
     </n-flex>
 
     <!-- Recent Stats -->
-    <n-card :bordered="false" size="small" content-style="padding: 12px">
+    <n-card class="record-panel-card" :bordered="false" size="small" content-style="padding: 12px">
       <n-flex justify="space-between" align="center" style="margin-bottom: 12px">
         <span class="section-header" style="margin-bottom: 0">最近表现</span>
         <n-dropdown
@@ -252,7 +245,7 @@
         <!-- KDA -->
         <div class="stat-row">
           <div class="stat-label-group">
-            <n-icon color="#18a058"><Pulse /></n-icon>
+            <n-icon class="stat-icon-kda"><PulseOutline /></n-icon>
             <span>KDA</span>
           </div>
           <div class="stat-value-group">
@@ -305,7 +298,7 @@
         <!-- Participation -->
         <div class="stat-row">
           <div class="stat-label-group">
-            <n-icon><Accessibility /></n-icon> 参团率
+            <n-icon><AccessibilityOutline /></n-icon> 参团率
           </div>
           <div class="stat-value-group">
             <div class="raw-value spacer"></div>
@@ -377,7 +370,7 @@
 
 <script lang="ts" setup>
 import { assetPrefix } from '../../services/http'
-import { CopyOutline, Accessibility, Flash, Pulse } from '@vicons/ionicons5'
+import { CopyOutline, AccessibilityOutline, FlashOutline, PulseOutline } from '@vicons/ionicons5'
 import { onMounted, ref, computed } from 'vue'
 import MettingPlayersCard from '../gaming/MettingPlayersCard.vue'
 import {
@@ -544,19 +537,33 @@ const copy = () => {
   justify-content: center;
 }
 
+.user-record-avatar {
+  flex-shrink: 0;
+}
+
+.user-record-avatar :deep(.n-avatar) {
+  background: transparent !important;
+  border: 1px solid var(--border-subtle);
+  box-shadow: none;
+}
+
+.user-record-avatar-img {
+  object-fit: cover;
+}
+
 .level-badge {
   position: absolute;
   bottom: -6px;
-  background-color: var(--n-color-modal);
-  border: 1px solid var(--n-border-color);
+  background-color: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
   padding: 0 6px;
   height: 16px;
   line-height: 14px;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   font-size: 10px;
-  color: var(--n-text-color-2);
+  color: var(--text-secondary);
   z-index: 1;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-card);
 }
 
 .relationship-col {
@@ -576,11 +583,11 @@ const copy = () => {
 }
 
 .section-header.good-color {
-  color: #8bdfb7;
+  color: var(--semantic-win);
 }
 
 .section-header.bad-color {
-  color: #c9606f;
+  color: var(--semantic-loss);
 }
 
 .relationship-list {
@@ -592,15 +599,16 @@ const copy = () => {
 .relationship-item {
   display: flex;
   align-items: center;
-  background-color: rgba(255, 255, 255, 0.05);
-  padding: 4px;
-  border-radius: 16px;
+  background-color: var(--bg-elevated);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-subtle);
   cursor: pointer;
-  transition: all 0.3s;
+  transition: background-color var(--transition-fast);
 }
 
 .relationship-item:hover {
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: rgba(255, 255, 255, 0.08);
 }
 
 .rank-card-content {
@@ -619,7 +627,7 @@ const copy = () => {
 
 .rank-type-label {
   font-size: 10px;
-  color: var(--n-text-color-3);
+  color: var(--text-tertiary);
   position: absolute;
   top: -8px;
   left: 0;
@@ -646,33 +654,38 @@ const copy = () => {
   align-items: flex-start;
 }
 
+.rank-stat-text {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
 .win-rate-badge {
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 12px;
   font-weight: bold;
   background-color: rgba(128, 128, 128, 0.1);
 }
 
 .win-rate-badge.good {
-  color: #18a058;
-  background-color: rgba(24, 160, 88, 0.15);
+  color: var(--semantic-win);
+  background-color: rgba(61, 155, 122, 0.2);
 }
 
 .win-rate-badge.bad {
-  color: #d03050;
-  background-color: rgba(208, 48, 80, 0.15);
+  color: var(--semantic-loss);
+  background-color: rgba(196, 92, 92, 0.2);
 }
 
 .win-rate-badge.normal {
-  color: var(--n-text-color-2);
+  color: var(--text-secondary);
 }
 
 .stat-row {
   display: flex;
   align-items: center;
   font-size: 12px;
-  height: 24px;
+  min-height: 26px;
 }
 
 .stat-label-group {
@@ -680,8 +693,8 @@ const copy = () => {
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  color: var(--n-text-color-3);
-  gap: 6px;
+  color: var(--text-tertiary);
+  gap: var(--space-8);
 }
 
 .stat-value-group {
@@ -718,5 +731,14 @@ const copy = () => {
   margin-right: 8px;
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
+}
+
+.stat-icon-kda {
+  color: var(--semantic-win);
+}
+
+.stat-center-content :deep(.n-progress) {
+  border-radius: 999px;
+  overflow: hidden;
 }
 </style>

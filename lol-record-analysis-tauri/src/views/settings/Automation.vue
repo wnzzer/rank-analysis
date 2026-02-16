@@ -7,8 +7,8 @@
       <n-space vertical>
         <div class="setting-item">
           <span class="setting-label">
-            <n-icon size="20" color="#2080f0">
-              <Flash />
+            <n-icon size="20" class="setting-item-icon setting-item-icon-accept">
+              <FlashOutline />
             </n-icon>
             自动接受对局
           </span>
@@ -17,8 +17,8 @@
 
         <div class="setting-item">
           <span class="setting-label">
-            <n-icon size="20" color="#18a058">
-              <CheckmarkCircle />
+            <n-icon size="20" class="setting-item-icon setting-item-icon-pick">
+              <CheckmarkCircleOutline />
             </n-icon>
             自动选择英雄
           </span>
@@ -104,8 +104,8 @@
 
         <div class="setting-item">
           <span class="setting-label">
-            <n-icon size="20" color="#2080f0">
-              <PlayCircle />
+            <n-icon size="20" class="setting-item-icon setting-item-icon-start">
+              <PlayCircleOutline />
             </n-icon>
             自动开始匹配
           </span>
@@ -123,7 +123,7 @@ import {
   renderLabel,
   filterChampionFunc
 } from '../../components/composition'
-import { CheckmarkCircle, Flash, Close, PlayCircle } from '@vicons/ionicons5'
+import { CheckmarkCircleOutline, FlashOutline, Close, PlayCircleOutline } from '@vicons/ionicons5'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import { assetPrefix } from '@renderer/services/http'
 import { championOption } from '@renderer/components/type'
@@ -196,28 +196,43 @@ const addPickData = async (value: any) => {
 <style scoped>
 .setting-title {
   font-size: 16px;
-  font-weight: bold;
-  margin-bottom: 16px;
+  font-weight: 700;
+  margin-bottom: var(--space-16);
+  color: var(--text-primary);
 }
 
 .setting-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 0;
+  padding: var(--space-8) 0;
 }
 
 .setting-label {
   font-size: 14px;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-4);
+  color: var(--text-primary);
 }
 
 .radio-label {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+.setting-item-icon {
+  flex-shrink: 0;
+}
+.setting-item-icon-accept {
+  color: #5ca3ea;
+}
+.setting-item-icon-pick {
+  color: var(--semantic-win);
+}
+.setting-item-icon-start {
+  color: #5ca3ea;
 }
 
 .icon {

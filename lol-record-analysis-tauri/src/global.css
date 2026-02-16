@@ -2,11 +2,64 @@
   font-family: 'Inter', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  /* ========== 设计 Token（深色主题） ========== */
+  --bg-base: #0d0d0f;
+  --bg-surface: #141418;
+  --bg-elevated: #1a1a1e;
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --text-primary: rgba(255, 255, 255, 0.92);
+  --text-secondary: rgba(255, 255, 255, 0.65);
+  --text-tertiary: rgba(255, 255, 255, 0.45);
+  --semantic-win: #3d9b7a;
+  --semantic-loss: #c45c5c;
+  --team-blue: rgba(59, 130, 246, 0.35);
+  --team-red: rgba(239, 68, 68, 0.35);
+
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.2);
+  --shadow-card-hover: 0 2px 8px rgba(0, 0, 0, 0.25);
+  --transition-fast: 0.2s ease;
+
+  --space-4: 4px;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-24: 24px;
+}
+
+/* 浅色主题 Token */
+.theme-light {
+  --bg-base: #f0f2f5;
+  --bg-surface: #f6f9f8;
+  --bg-elevated: #ffffff;
+  --border-subtle: rgba(0, 0, 0, 0.08);
+  --text-primary: rgba(0, 0, 0, 0.88);
+  --text-secondary: rgba(0, 0, 0, 0.6);
+  --text-tertiary: rgba(0, 0, 0, 0.45);
+  --semantic-win: #2d8a6c;
+  --semantic-loss: #b84242;
+  --team-blue: rgba(59, 130, 246, 0.25);
+  --team-red: rgba(239, 68, 68, 0.25);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-card-hover: 0 2px 8px rgba(0, 0, 0, 0.12);
 }
 
 .font-number {
   font-family: 'Oswald', sans-serif;
   letter-spacing: 0.5px;
+}
+
+/* 进度条统一精致化：圆角轨道与填充 */
+.n-progress .n-progress-graph-line,
+.n-progress .n-progress-graph-line-fill {
+  border-radius: 999px;
+}
+.n-progress .n-progress-graph-line {
+  overflow: hidden;
 }
 
 /* 设置滚动条的宽度和颜色 */
@@ -25,10 +78,8 @@
 
 /* 设置滚动条滑块的样式 */
 ::-webkit-scrollbar-thumb {
-  background: rgba(111, 111, 111, 0.5);
-  /* 滑块颜色为半透明黑色 */
-  border-radius: 4px;
-  /* 滑块圆角 */
+  background: rgba(111, 111, 111, 0.45);
+  border-radius: 6px;
 }
 
 /* 设置滚动条滑块在悬停时的样式 */

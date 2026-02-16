@@ -42,12 +42,10 @@ import {
 const collapsed = ref(false)
 const router = useRouter()
 
-const contentStyle = computed(() => {
-  return {
-    padding: '24px',
-    height: '100%'
-  }
-})
+const contentStyle = computed(() => ({
+  padding: 'var(--space-24)',
+  height: '100%'
+}))
 
 function renderIcon(icon: any) {
   return () => h(NIcon, null, { default: () => h(icon) })

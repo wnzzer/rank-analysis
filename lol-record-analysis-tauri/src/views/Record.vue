@@ -7,7 +7,8 @@
       <UserRecord></UserRecord>
     </n-layout-sider>
     <n-layout-content
-      style="flex: 3; padding-left: 5px; padding-right: 5x; padding-top: 5px; padding-bottom: 1px"
+      class="record-content"
+      style="flex: 3"
       v-show="windowWidth >= 500"
     >
       <div>
@@ -35,3 +36,9 @@ onUnmounted(() => {
   window.removeEventListener('resize', updateWidth)
 })
 </script>
+<style scoped>
+.record-content {
+  padding: var(--space-16);
+  padding-top: var(--space-12);
+}
+</style>
