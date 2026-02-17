@@ -158,7 +158,9 @@ const closeWindow = () => {
 }
 
 .header-search :deep(.n-input-wrapper) {
-  transition: box-shadow var(--transition-fast), border-color var(--transition-fast);
+  transition:
+    box-shadow var(--transition-fast),
+    border-color var(--transition-fast);
 }
 
 .header-center:focus-within .header-search :deep(.n-input-wrapper) {

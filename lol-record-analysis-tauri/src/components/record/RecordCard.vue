@@ -155,18 +155,35 @@
           </n-tooltip>
           <div
             class="record-card-stat-dots"
-            :style="{ '--stat-dot-color': otherColor(games.participants[0].stats?.damageDealtToChampionsRate) }"
+            :style="{
+              '--stat-dot-color': otherColor(
+                games.participants[0].stats?.damageDealtToChampionsRate,
+                isDark
+              )
+            }"
           >
             <span
               v-for="i in 5"
               :key="i"
               class="stat-dot"
-              :class="{ 'stat-dot-filled': i <= dotFillCount(games.participants[0].stats?.damageDealtToChampionsRate) }"
+              :class="{
+                'stat-dot-filled':
+                  i <= dotFillCount(games.participants[0].stats?.damageDealtToChampionsRate)
+              }"
             />
           </div>
           <div class="record-card-stat-values">
-            <span class="font-number">{{ Math.round(games.participants[0].stats?.totalDamageDealtToChampions / 1000) }}k</span>
-            <span class="font-number" :style="{ color: otherColor(games.participants[0].stats?.damageDealtToChampionsRate) }">
+            <span class="font-number"
+              >{{
+                Math.round(games.participants[0].stats?.totalDamageDealtToChampions / 1000)
+              }}k</span
+            >
+            <span
+              class="font-number"
+              :style="{
+                color: otherColor(games.participants[0].stats?.damageDealtToChampionsRate, isDark)
+              }"
+            >
               {{ games.participants[0].stats?.damageDealtToChampionsRate }}%
             </span>
           </div>
@@ -183,18 +200,32 @@
           </n-tooltip>
           <div
             class="record-card-stat-dots"
-            :style="{ '--stat-dot-color': healColorAndTaken(games.participants[0].stats?.damageTakenRate) }"
+            :style="{
+              '--stat-dot-color': healColorAndTaken(
+                games.participants[0].stats?.damageTakenRate,
+                isDark
+              )
+            }"
           >
             <span
               v-for="i in 5"
               :key="i"
               class="stat-dot"
-              :class="{ 'stat-dot-filled': i <= dotFillCount(games.participants[0].stats?.damageTakenRate) }"
+              :class="{
+                'stat-dot-filled': i <= dotFillCount(games.participants[0].stats?.damageTakenRate)
+              }"
             />
           </div>
           <div class="record-card-stat-values">
-            <span class="font-number">{{ Math.round(games.participants[0].stats?.totalDamageTaken / 1000) }}k</span>
-            <span class="font-number" :style="{ color: healColorAndTaken(games.participants[0].stats?.damageTakenRate) }">
+            <span class="font-number"
+              >{{ Math.round(games.participants[0].stats?.totalDamageTaken / 1000) }}k</span
+            >
+            <span
+              class="font-number"
+              :style="{
+                color: healColorAndTaken(games.participants[0].stats?.damageTakenRate, isDark)
+              }"
+            >
               {{ games.participants[0].stats?.damageTakenRate }}%
             </span>
           </div>
@@ -211,18 +242,27 @@
           </n-tooltip>
           <div
             class="record-card-stat-dots"
-            :style="{ '--stat-dot-color': healColorAndTaken(games.participants[0].stats?.healRate) }"
+            :style="{
+              '--stat-dot-color': healColorAndTaken(games.participants[0].stats?.healRate, isDark)
+            }"
           >
             <span
               v-for="i in 5"
               :key="i"
               class="stat-dot"
-              :class="{ 'stat-dot-filled': i <= dotFillCount(games.participants[0].stats?.healRate) }"
+              :class="{
+                'stat-dot-filled': i <= dotFillCount(games.participants[0].stats?.healRate)
+              }"
             />
           </div>
           <div class="record-card-stat-values">
-            <span class="font-number">{{ Math.round(games.participants[0].stats?.totalHeal / 1000) }}k</span>
-            <span class="font-number" :style="{ color: healColorAndTaken(games.participants[0].stats?.healRate) }">
+            <span class="font-number"
+              >{{ Math.round(games.participants[0].stats?.totalHeal / 1000) }}k</span
+            >
+            <span
+              class="font-number"
+              :style="{ color: healColorAndTaken(games.participants[0].stats?.healRate, isDark) }"
+            >
               {{ games.participants[0].stats?.healRate }}%
             </span>
           </div>
@@ -334,13 +374,25 @@ const isDark = computed(
   () => settingsStore.theme?.name === 'Dark' || settingsStore.theme?.name === 'dark'
 )
 
-const themeColors = computed(() => ({
-  win: '#3d9b7a',
-  loss: '#c45c5c',
-  kill: '#3d9b7a',
-  death: '#c45c5c',
-  assist: '#b8860b'
-}))
+/** 亮/暗两套主题色，默认情况也保证可见 */
+const themeColors = computed(() => {
+  if (isDark.value) {
+    return {
+      win: '#3d9b7a',
+      loss: '#c45c5c',
+      kill: '#3d9b7a',
+      death: '#c45c5c',
+      assist: '#b8860b'
+    }
+  }
+  return {
+    win: '#2d8a6c',
+    loss: '#b84242',
+    kill: '#2d8a6c',
+    death: '#b84242',
+    assist: '#b8860b'
+  }
+})
 
 const cardStyle = computed(() => {
   const isWin = props.games.participants[0].stats.win
@@ -375,6 +427,7 @@ const formattedDate = computed(() => {
   return `${month}/${day}`
 })
 
+/** 己方高亮边框 / 其他玩家用主题可见边框，防止暗色下看不见 */
 function getIsMeBorderedColor(name: string) {
   if (
     name ==
@@ -382,10 +435,9 @@ function getIsMeBorderedColor(name: string) {
       '#' +
       props.games.participantIdentities[0].player.tagLine
   ) {
-    return '#63e2b7'
-  } else {
-    return '#000000'
+    return isDark.value ? '#63e2b7' : '#0d9488'
   }
+  return isDark.value ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.25)'
 }
 function toNameRecord(name: string) {
   return router.push({
@@ -396,7 +448,7 @@ function toNameRecord(name: string) {
 
 /** 将占比 0–100 映射为 5 个圆点中填充的数量 */
 function dotFillCount(rate: number | undefined): number {
-  return Math.min(5, Math.max(0, Math.round((rate ?? 0) / 100 * 5)))
+  return Math.min(5, Math.max(0, Math.round(((rate ?? 0) / 100) * 5)))
 }
 </script>
 
@@ -576,6 +628,11 @@ function dotFillCount(rate: number | undefined): number {
   background: var(--border-subtle);
   flex-shrink: 0;
   transition: background 0.2s ease;
+}
+
+/* 亮色主题下五个点（未填充）可见 */
+.theme-light .stat-dot {
+  background: rgba(0, 0, 0, 0.28);
 }
 
 .stat-dot-filled {

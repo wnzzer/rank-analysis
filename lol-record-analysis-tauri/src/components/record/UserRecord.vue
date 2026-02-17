@@ -98,7 +98,7 @@
                 }}</n-ellipsis>
                 <span
                   :style="{
-                    color: winRateColor(friend.winRate),
+                    color: winRateColor(friend.winRate, isDark),
                     fontWeight: 'bold',
                     fontSize: '12px'
                   }"
@@ -140,7 +140,7 @@
                 }}</n-ellipsis>
                 <span
                   :style="{
-                    color: winRateColor(dispute.winRate),
+                    color: winRateColor(dispute.winRate, isDark),
                     fontWeight: 'bold',
                     fontSize: '12px'
                   }"
@@ -238,7 +238,12 @@
     </n-flex>
 
     <!-- Recent Stats -->
-    <n-card class="record-panel-card recent-stats-card" :bordered="false" size="small" content-style="padding: 12px">
+    <n-card
+      class="record-panel-card recent-stats-card"
+      :bordered="false"
+      size="small"
+      content-style="padding: 12px"
+    >
       <n-flex justify="space-between" align="center" class="recent-stats-header">
         <span class="recent-stats-title">最近表现</span>
         <n-dropdown
@@ -261,17 +266,19 @@
           <div class="stat-value-group">
             <div class="raw-value spacer"></div>
             <div class="stat-center-content stat-kda-value-wrap">
-              <span class="stat-kda-main" :style="{ color: kdaColor(recentData.kda) }">{{
+              <span class="stat-kda-main" :style="{ color: kdaColor(recentData.kda, isDark) }">{{
                 recentData.kda
               }}</span>
               <span class="kda-detail">
-                <span :style="{ color: killsColor(recentData.kills) }">{{ recentData.kills }}</span>
+                <span :style="{ color: killsColor(recentData.kills, isDark) }">{{
+                  recentData.kills
+                }}</span>
                 /
-                <span :style="{ color: deathsColor(recentData.deaths) }">{{
+                <span :style="{ color: deathsColor(recentData.deaths, isDark) }">{{
                   recentData.deaths
                 }}</span>
                 /
-                <span :style="{ color: assistsColor(recentData.assists) }">{{
+                <span :style="{ color: assistsColor(recentData.assists, isDark) }">{{
                   recentData.assists
                 }}</span>
               </span>
@@ -290,14 +297,16 @@
                 :percentage="winRate(recentData.selectWins, recentData.selectLosses)"
                 :height="8"
                 :show-indicator="false"
-                :color="winRateColor(winRate(recentData.selectWins, recentData.selectLosses))"
+                :color="
+                  winRateColor(winRate(recentData.selectWins, recentData.selectLosses), isDark)
+                "
                 rail-color="rgba(255, 255, 255, 0.1)"
               />
             </div>
             <span
               class="stat-value-text"
               :style="{
-                color: winRateColor(winRate(recentData.selectWins, recentData.selectLosses))
+                color: winRateColor(winRate(recentData.selectWins, recentData.selectLosses), isDark)
               }"
             >
               {{ winRate(recentData.selectWins, recentData.selectLosses) }}%
@@ -318,11 +327,14 @@
                 :percentage="recentData.groupRate"
                 :height="8"
                 :show-indicator="false"
-                :color="groupRateColor(recentData.groupRate)"
+                :color="groupRateColor(recentData.groupRate, isDark)"
                 rail-color="rgba(255, 255, 255, 0.1)"
               />
             </div>
-            <span class="stat-value-text" :style="{ color: groupRateColor(recentData.groupRate) }">
+            <span
+              class="stat-value-text"
+              :style="{ color: groupRateColor(recentData.groupRate, isDark) }"
+            >
               {{ recentData.groupRate }}%
             </span>
           </div>
@@ -337,7 +349,7 @@
               <n-progress
                 type="line"
                 :percentage="recentData.damageDealtToChampionsRate"
-                :color="otherColor(recentData.damageDealtToChampionsRate)"
+                :color="otherColor(recentData.damageDealtToChampionsRate, isDark)"
                 :height="8"
                 :show-indicator="false"
                 rail-color="rgba(255, 255, 255, 0.1)"
@@ -345,7 +357,7 @@
             </div>
             <span
               class="stat-value-text"
-              :style="{ color: otherColor(recentData.damageDealtToChampionsRate) }"
+              :style="{ color: otherColor(recentData.damageDealtToChampionsRate, isDark) }"
             >
               {{ recentData.damageDealtToChampionsRate }}%
             </span>
@@ -361,14 +373,17 @@
               <n-progress
                 type="line"
                 :percentage="recentData.goldRate"
-                :color="otherColor(recentData.goldRate)"
+                :color="otherColor(recentData.goldRate, isDark)"
                 :height="8"
                 :show-indicator="false"
                 rail-color="rgba(255, 255, 255, 0.1)"
                 style="width: 40px; margin: 0 4px"
               />
             </div>
-            <span class="stat-value-text" :style="{ color: otherColor(recentData.goldRate) }">
+            <span
+              class="stat-value-text"
+              :style="{ color: otherColor(recentData.goldRate, isDark) }"
+            >
               {{ recentData.goldRate }}%
             </span>
           </div>
@@ -400,6 +415,7 @@ import {
   NDropdown
 } from 'naive-ui'
 import { useRoute } from 'vue-router'
+import { useSettingsStore } from '../../pinia/setting'
 import {
   defaultRank,
   defaultRecentData,
@@ -437,6 +453,11 @@ import challenger from '../../assets/imgs/tier/challenger.png'
 import iron from '../../assets/imgs/tier/iron.png'
 import emerald from '../../assets/imgs/tier/emerald.png'
 import { invoke } from '@tauri-apps/api/core'
+
+const settingsStore = useSettingsStore()
+const isDark = computed(
+  () => settingsStore.theme?.name === 'Dark' || settingsStore.theme?.name === 'dark'
+)
 
 const platformIdCn = ref('未知')
 

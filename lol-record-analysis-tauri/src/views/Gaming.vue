@@ -30,14 +30,18 @@
 
       <!-- 左蓝队、右红队，由后端按 LCU 当前用户区分 -->
       <n-flex justify="space-between" class="gaming-columns">
-        <n-flex vertical class="gaming-team-col" :class="'gaming-team-' + (sessionData.teamOne.side || 'blue')">
+        <n-flex
+          vertical
+          class="gaming-team-col"
+          :class="'gaming-team-' + (sessionData.teamOne.side || 'blue')"
+        >
           <div class="team-label" :class="'team-label-' + (sessionData.teamOne.side || 'blue')">
             {{ sessionData.teamOne.side === 'red' ? '红队' : '蓝队' }}
           </div>
           <PlayerCard
             v-for="(sessionSummoner, i) of sessionData.teamOne.players"
             :key="'teamOne' + i"
-            :team="(sessionData.teamOne.side || 'blue') as 'blue' | 'red'"
+            :team="teamOneSide"
             :session-summoner="sessionSummoner"
             :mode-type="sessionData.type"
             :type-cn="sessionData.typeCn"
@@ -47,14 +51,18 @@
           />
         </n-flex>
 
-        <n-flex vertical class="gaming-team-col" :class="'gaming-team-' + (sessionData.teamTwo.side || 'red')">
+        <n-flex
+          vertical
+          class="gaming-team-col"
+          :class="'gaming-team-' + (sessionData.teamTwo.side || 'red')"
+        >
           <div class="team-label" :class="'team-label-' + (sessionData.teamTwo.side || 'red')">
             {{ sessionData.teamTwo.side === 'blue' ? '蓝队' : '红队' }}
           </div>
           <PlayerCard
             v-for="(sessionSummoner, i) of sessionData.teamTwo.players"
             :key="'teamTwo' + i"
-            :team="(sessionData.teamTwo.side || 'red') as 'blue' | 'red'"
+            :team="teamTwoSide"
             :session-summoner="sessionSummoner"
             :mode-type="sessionData.type"
             :type-cn="sessionData.typeCn"
@@ -233,6 +241,9 @@ const sessionData = reactive<SessionData>({
   teamOne: { side: 'blue', players: [] },
   teamTwo: { side: 'red', players: [] }
 })
+
+const teamOneSide = computed(() => (sessionData.teamOne.side || 'blue') as 'blue' | 'red')
+const teamTwoSide = computed(() => (sessionData.teamTwo.side || 'red') as 'blue' | 'red')
 
 let unlistenSessionComplete: (() => void) | null = null
 let unlistenSessionBasicInfo: (() => void) | null = null

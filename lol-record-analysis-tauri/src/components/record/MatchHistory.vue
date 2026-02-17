@@ -343,7 +343,9 @@ onMounted(async () => {
 
 .filter-select :deep(.n-input),
 .filter-select :deep(.n-input-wrapper) {
-  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
 }
 
 .filter-select:focus-within :deep(.n-input-wrapper) {
@@ -352,7 +354,9 @@ onMounted(async () => {
 
 .toolbar-reset {
   color: var(--text-secondary);
-  transition: transform var(--transition-fast), color var(--transition-fast);
+  transition:
+    transform var(--transition-fast),
+    color var(--transition-fast);
 }
 
 .toolbar-reset:hover {

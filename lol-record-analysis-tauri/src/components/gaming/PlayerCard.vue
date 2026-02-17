@@ -221,7 +221,7 @@
                 <span class="label">KDA</span>
                 <span
                   class="value"
-                  :style="{ color: kdaColor(sessionSummoner?.userTag.recentData.kda) }"
+                  :style="{ color: kdaColor(sessionSummoner?.userTag.recentData.kda, isDark) }"
                 >
                   {{ sessionSummoner?.userTag.recentData.kda }}
                 </span>
@@ -235,7 +235,8 @@
                       winRate(
                         sessionSummoner?.userTag.recentData.wins,
                         sessionSummoner?.userTag.recentData.losses
-                      )
+                      ),
+                      isDark
                     )
                   }"
                 >
@@ -263,22 +264,28 @@
                 <span class="label">KDA</span>
                 <div class="value-group">
                   <span
-                    :style="{ color: kdaColor(sessionSummoner?.userTag.recentData.kda) }"
+                    :style="{ color: kdaColor(sessionSummoner?.userTag.recentData.kda, isDark) }"
                     style="font-weight: bold; margin-right: 4px"
                   >
                     {{ sessionSummoner?.userTag.recentData.kda }}
                   </span>
                   <span class="kda-detail">
                     <span
-                      :style="{ color: killsColor(sessionSummoner?.userTag.recentData.kills) }"
+                      :style="{
+                        color: killsColor(sessionSummoner?.userTag.recentData.kills, isDark)
+                      }"
                       >{{ sessionSummoner?.userTag.recentData.kills }}</span
                     >/
                     <span
-                      :style="{ color: deathsColor(sessionSummoner?.userTag.recentData.deaths) }"
+                      :style="{
+                        color: deathsColor(sessionSummoner?.userTag.recentData.deaths, isDark)
+                      }"
                       >{{ sessionSummoner?.userTag.recentData.deaths }}</span
                     >/
                     <span
-                      :style="{ color: assistsColor(sessionSummoner?.userTag.recentData.assists) }"
+                      :style="{
+                        color: assistsColor(sessionSummoner?.userTag.recentData.assists, isDark)
+                      }"
                       >{{ sessionSummoner?.userTag.recentData.assists }}</span
                     >
                   </span>
@@ -303,7 +310,8 @@
                         winRate(
                           sessionSummoner?.userTag.recentData.wins,
                           sessionSummoner?.userTag.recentData.losses
-                        )
+                        ),
+                        isDark
                       )
                     "
                     processing
@@ -315,7 +323,8 @@
                         winRate(
                           sessionSummoner?.userTag.recentData.selectWins,
                           sessionSummoner?.userTag.recentData.selectLosses
-                        )
+                        ),
+                        isDark
                       )
                     }"
                   >
@@ -337,13 +346,13 @@
                     :percentage="sessionSummoner?.userTag.recentData.groupRate"
                     :height="6"
                     :show-indicator="false"
-                    :color="groupRateColor(sessionSummoner?.userTag.recentData.groupRate)"
+                    :color="groupRateColor(sessionSummoner?.userTag.recentData.groupRate, isDark)"
                     processing
                   />
                   <span
                     class="progress-text"
                     :style="{
-                      color: groupRateColor(sessionSummoner?.userTag.recentData.groupRate)
+                      color: groupRateColor(sessionSummoner?.userTag.recentData.groupRate, isDark)
                     }"
                   >
                     {{ sessionSummoner?.userTag.recentData.groupRate }}%
@@ -358,7 +367,10 @@
                     type="line"
                     :percentage="sessionSummoner?.userTag.recentData.damageDealtToChampionsRate"
                     :color="
-                      otherColor(sessionSummoner?.userTag.recentData.damageDealtToChampionsRate)
+                      otherColor(
+                        sessionSummoner?.userTag.recentData.damageDealtToChampionsRate,
+                        isDark
+                      )
                     "
                     :height="6"
                     :show-indicator="false"
@@ -368,7 +380,8 @@
                     class="progress-text"
                     :style="{
                       color: otherColor(
-                        sessionSummoner?.userTag.recentData.damageDealtToChampionsRate
+                        sessionSummoner?.userTag.recentData.damageDealtToChampionsRate,
+                        isDark
                       )
                     }"
                   >
@@ -405,6 +418,9 @@ import { assetPrefix } from '../../services/http'
 import { useSettingsStore } from '../../pinia/setting'
 
 const settingsStore = useSettingsStore()
+const isDark = computed(
+  () => settingsStore.theme?.name === 'Dark' || settingsStore.theme?.name === 'dark'
+)
 const copy = useCopy().copy
 const showStats = ref(false)
 const props = withDefaults(
