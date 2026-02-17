@@ -15,6 +15,15 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tauri::{AppHandle, Emitter};
 
+/// 一方队伍的数据：红/蓝队标记 + 玩家列表。
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct TeamSideData {
+    /// 队伍颜色： "blue" | "red"
+    pub side: String,
+    pub players: Vec<SessionSummoner>,
+}
+
 /// 对局会话的完整展示数据，包含阶段、队列、双方队伍及每个玩家的汇总信息。
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]
@@ -24,8 +33,8 @@ pub struct SessionData {
     pub queue_type: String,
     pub type_cn: String,
     pub queue_id: i32,
-    pub team_one: Vec<SessionSummoner>,
-    pub team_two: Vec<SessionSummoner>,
+    pub team_one: TeamSideData,
+    pub team_two: TeamSideData,
 }
 
 /// 会话中单名玩家的展示数据：英雄、召唤师、战绩、段位、用户标签、预组队标记等。
@@ -124,12 +133,18 @@ async fn process_session_data(app_handle: AppHandle) -> Result<(), String> {
             .unwrap_or(&"其他")
             .to_string(),
         queue_id: session.game_data.queue.id,
-        team_one: Vec::new(),
-        team_two: Vec::new(),
+        team_one: TeamSideData {
+            side: "blue".to_string(),
+            players: Vec::new(),
+        },
+        team_two: TeamSideData {
+            side: "red".to_string(),
+            players: Vec::new(),
+        },
     };
 
-    // 红蓝队判定：己方始终在左（蓝队）。通过 LCU 当前召唤师 my_summoner 判断，
-    // 若当前用户不在 team_one 则交换 team_one/team_two，无需额外参数。
+    // 红蓝队判定：左边为蓝队、右边为红队。通过 LCU 当前召唤师 my_summoner 判断，
+    // 若当前用户不在 team_one 则交换 team_one/team_two。
     let need_swap = !session
         .game_data
         .team_one
@@ -171,20 +186,20 @@ async fn process_session_data(app_handle: AppHandle) -> Result<(), String> {
     // 推送基础信息
     push_basic_info(&session, &mut session_data, &app_handle).await?;
 
-    // 处理队伍一
+    // 处理队伍一（蓝队）
     process_team(
         &session.game_data.team_one,
-        &mut session_data.team_one,
+        &mut session_data.team_one.players,
         mode,
         &app_handle,
         true, // is_team_one
     )
     .await?;
 
-    // 处理队伍二
+    // 处理队伍二（红队）
     process_team(
         &session.game_data.team_two,
-        &mut session_data.team_two,
+        &mut session_data.team_two.players,
         mode,
         &app_handle,
         false, // is_team_one
@@ -196,12 +211,12 @@ async fn process_session_data(app_handle: AppHandle) -> Result<(), String> {
 
     // 推送预组队信息
     let mut markers: HashMap<String, PreGroupMarker> = HashMap::new();
-    for p in &session_data.team_one {
+    for p in &session_data.team_one.players {
         if !p.pre_group_markers.name.is_empty() {
             markers.insert(p.summoner.puuid.clone(), p.pre_group_markers.clone());
         }
     }
-    for p in &session_data.team_two {
+    for p in &session_data.team_two.players {
         if !p.pre_group_markers.name.is_empty() {
             markers.insert(p.summoner.puuid.clone(), p.pre_group_markers.clone());
         }
@@ -269,16 +284,16 @@ async fn push_basic_info(
         result
     }
 
-    session_data.team_one = get_basic_team(&session.game_data.team_one).await;
-    session_data.team_two = get_basic_team(&session.game_data.team_two).await;
+    session_data.team_one.players = get_basic_team(&session.game_data.team_one).await;
+    session_data.team_two.players = get_basic_team(&session.game_data.team_two).await;
 
     app_handle
         .emit("session-basic-info", &session_data)
         .map_err(|e| e.to_string())?;
 
     // 清空数据以便后续处理
-    session_data.team_one.clear();
-    session_data.team_two.clear();
+    session_data.team_one.players.clear();
+    session_data.team_two.players.clear();
 
     Ok(())
 }
@@ -470,11 +485,13 @@ fn add_pre_group_markers(session_data: &mut SessionData) {
     let mut current_game_puuids: HashMap<String, bool> = HashMap::new();
     let team_one_puuids: Vec<String> = session_data
         .team_one
+        .players
         .iter()
         .map(|s| s.summoner.puuid.clone())
         .collect();
     let team_two_puuids: Vec<String> = session_data
         .team_two
+        .players
         .iter()
         .map(|s| s.summoner.puuid.clone())
         .collect();
@@ -486,8 +503,8 @@ fn add_pre_group_markers(session_data: &mut SessionData) {
         current_game_puuids.insert(puuid.clone(), true);
     }
 
-    // 处理 TeamOne
-    for session_summoner in &session_data.team_one {
+    // 处理 TeamOne（蓝队）
+    for session_summoner in &session_data.team_one.players {
         let mut the_teams = Vec::new();
 
         if let Some(ref one_game_players_map) =
@@ -515,8 +532,8 @@ fn add_pre_group_markers(session_data: &mut SessionData) {
         }
     }
 
-    // 处理 TeamTwo
-    for session_summoner in &session_data.team_two {
+    // 处理 TeamTwo（红队）
+    for session_summoner in &session_data.team_two.players {
         let mut the_teams = Vec::new();
 
         if let Some(ref one_game_players_map) =
@@ -574,7 +591,7 @@ fn add_pre_group_markers(session_data: &mut SessionData) {
         let intersection_team_two = intersection(&team, &team_two_puuids);
 
         if intersection_team_one.len() >= team_min_sum {
-            for session_summoner in &mut session_data.team_one {
+            for session_summoner in &mut session_data.team_one.players {
                 if one_in_arr(&session_summoner.summoner.puuid, &intersection_team_one)
                     && session_summoner.pre_group_markers.name.is_empty()
                 {
@@ -584,7 +601,7 @@ fn add_pre_group_markers(session_data: &mut SessionData) {
                 }
             }
         } else if intersection_team_two.len() >= team_min_sum {
-            for session_summoner in &mut session_data.team_two {
+            for session_summoner in &mut session_data.team_two.players {
                 if one_in_arr(&session_summoner.summoner.puuid, &intersection_team_two)
                     && session_summoner.pre_group_markers.name.is_empty()
                 {
@@ -609,13 +626,14 @@ fn insert_meet_gamers_record(session_data: &mut SessionData, my_puuid: &str) {
     // 获取自己的 SessionSummoner 并克隆 one_game_players_map 以避免借用冲突
     let my_one_game_players_map = session_data
         .team_one
+        .players
         .iter()
         .find(|s| s.summoner.puuid == my_puuid)
         .and_then(|s| s.user_tag.recent_data.one_game_players_map.clone());
 
     if let Some(my_map) = my_one_game_players_map {
-        // 遍历并修改 TeamOne
-        for session_summoner in &mut session_data.team_one {
+        // 遍历并修改蓝队
+        for session_summoner in &mut session_data.team_one.players {
             if session_summoner.summoner.puuid == my_puuid {
                 continue;
             }
@@ -624,8 +642,8 @@ fn insert_meet_gamers_record(session_data: &mut SessionData, my_puuid: &str) {
             }
         }
 
-        // 遍历并修改 TeamTwo
-        for session_summoner in &mut session_data.team_two {
+        // 遍历并修改红队
+        for session_summoner in &mut session_data.team_two.players {
             if session_summoner.summoner.puuid == my_puuid {
                 continue;
             }
@@ -638,10 +656,10 @@ fn insert_meet_gamers_record(session_data: &mut SessionData, my_puuid: &str) {
 
 /// 删除 Tag 标记中的 OneGamePlayersMap（减少传输数据量）
 fn delete_meet_gamers_record(session_data: &mut SessionData) {
-    for session_summoner in &mut session_data.team_one {
+    for session_summoner in &mut session_data.team_one.players {
         session_summoner.user_tag.recent_data.one_game_players_map = None;
     }
-    for session_summoner in &mut session_data.team_two {
+    for session_summoner in &mut session_data.team_two.players {
         session_summoner.user_tag.recent_data.one_game_players_map = None;
     }
 }
