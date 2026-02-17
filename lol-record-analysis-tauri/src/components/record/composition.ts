@@ -49,6 +49,7 @@ export const healColorAndTaken = (other: number) => {
   if (other >= 25) {
     return '#8BDFB7'
   }
+  return '#FFFFFF'
 }
 
 export const otherColor = (other: number) => {
@@ -57,6 +58,7 @@ export const otherColor = (other: number) => {
   } else if (other <= 15) {
     return '#BA3F53'
   }
+  return '#FFFFFF'
 }
 export const winRateColor = (winRate: number) => {
   if (winRate >= 57) {
