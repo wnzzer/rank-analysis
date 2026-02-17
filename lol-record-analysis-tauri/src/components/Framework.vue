@@ -16,7 +16,12 @@
           </n-layout-sider>
           <!-- 内容区域 -->
           <n-layout-content :content-style="contentStyle">
-            <router-view :key="$route.fullPath"></router-view>
+            <router-view v-slot="{ Component }">
+              <Transition v-if="!isSettingsRoute" name="page" mode="out-in">
+                <component :is="Component" :key="$route.fullPath" />
+              </Transition>
+              <component v-else :is="Component" :key="$route.fullPath" />
+            </router-view>
           </n-layout-content>
         </n-layout>
       </n-layout>
@@ -28,6 +33,10 @@
 import Header from './Header.vue'
 import SideNavigation from './SideNavigation.vue'
 import { computed } from 'vue'
+import { useRoute } from 'vue-router'
+
+const route = useRoute()
+const isSettingsRoute = computed(() => route.path.startsWith('/Settings'))
 
 const contentStyle = computed(() => ({
   backgroundColor: 'var(--bg-base)',
@@ -66,5 +75,23 @@ const contentStyle = computed(() => ({
   min-width: 68px;
   background-color: var(--bg-base) !important;
   border-right: 1px solid var(--border-subtle) !important;
+}
+
+/* 页面切换过渡 */
+.page-enter-active,
+.page-leave-active {
+  transition:
+    opacity var(--transition-normal),
+    transform var(--transition-normal);
+}
+
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.page-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 </style>

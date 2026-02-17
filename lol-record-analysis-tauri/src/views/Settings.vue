@@ -20,7 +20,11 @@
       </n-layout-sider>
       <n-layout-content :content-style="contentStyle">
         <n-notification-provider>
-          <router-view></router-view>
+          <router-view v-slot="{ Component }">
+            <Transition name="settings-content" mode="out-in">
+              <component :is="Component" :key="route.name" />
+            </Transition>
+          </router-view>
         </n-notification-provider>
       </n-layout-content>
     </n-layout>
@@ -29,7 +33,7 @@
 
 <script setup lang="ts">
 import { h, ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { NIcon } from 'naive-ui'
 import {
   FlashOutline,
@@ -41,6 +45,7 @@ import {
 
 const collapsed = ref(false)
 const router = useRouter()
+const route = useRoute()
 
 const contentStyle = computed(() => ({
   padding: 'var(--space-24)',
@@ -87,5 +92,23 @@ const menuOptions = [
 <style scoped>
 .n-layout {
   height: 100%;
+}
+
+/* 仅右侧内容区做过渡，左侧菜单保持静态 */
+.settings-content-enter-active,
+.settings-content-leave-active {
+  transition:
+    opacity var(--transition-normal),
+    transform var(--transition-normal);
+}
+
+.settings-content-enter-from {
+  opacity: 0;
+  transform: translateX(12px);
+}
+
+.settings-content-leave-to {
+  opacity: 0;
+  transform: translateX(-8px);
 }
 </style>

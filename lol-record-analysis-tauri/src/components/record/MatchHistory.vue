@@ -32,13 +32,16 @@
         </n-tooltip>
       </n-flex>
 
-      <RecordCard
-        v-for="(game, index) in matchHistory?.games?.games || []"
-        :key="index"
-        :record-type="true"
-        :games="game"
-      >
-      </RecordCard>
+      <TransitionGroup name="list" tag="div" class="match-history-list">
+        <div
+          v-for="(game, index) in matchHistory?.games?.games || []"
+          :key="game.gameId"
+          :style="{ '--stagger-i': index }"
+          class="list-item"
+        >
+          <RecordCard :record-type="true" :games="game" />
+        </div>
+      </TransitionGroup>
 
       <div class="pagination">
         <n-pagination>
@@ -304,6 +307,32 @@ onMounted(async () => {
   flex-shrink: 0;
 }
 
+.match-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+}
+
+.list-item {
+  /* TransitionGroup child; stagger via --stagger-i */
+}
+
+.list-enter-active {
+  transition:
+    opacity var(--transition-normal) var(--ease-out-expo),
+    transform var(--transition-normal) var(--ease-out-expo);
+  transition-delay: calc(var(--stagger-step) * var(--stagger-i, 0));
+}
+
+.list-enter-from {
+  opacity: 0;
+  transform: translateY(12px);
+}
+
+.list-move {
+  transition: transform var(--transition-normal);
+}
+
 .filter-select.filter-mode {
   width: 100px;
 }
@@ -312,8 +341,26 @@ onMounted(async () => {
   width: 170px;
 }
 
+.filter-select :deep(.n-input),
+.filter-select :deep(.n-input-wrapper) {
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.filter-select:focus-within :deep(.n-input-wrapper) {
+  box-shadow: 0 0 0 1px var(--border-subtle);
+}
+
 .toolbar-reset {
   color: var(--text-secondary);
+  transition: transform var(--transition-fast), color var(--transition-fast);
+}
+
+.toolbar-reset:hover {
+  transform: scale(1.05);
+}
+
+.toolbar-reset:active {
+  transform: scale(0.98);
 }
 
 .content-wrapper {
@@ -337,5 +384,17 @@ onMounted(async () => {
   background: var(--bg-base);
   padding: var(--space-8) 0;
   margin-top: var(--space-8);
+}
+
+.pagination :deep(.n-button) {
+  transition: transform var(--transition-fast);
+}
+
+.pagination :deep(.n-button:hover:not(:disabled)) {
+  transform: scale(1.05);
+}
+
+.pagination :deep(.n-button:active:not(:disabled)) {
+  transform: scale(0.98);
 }
 </style>

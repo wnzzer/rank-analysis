@@ -185,7 +185,7 @@ const goGaming = () => {
 .nav-status-item:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.06);
   color: var(--text-secondary);
-  transform: translateX(1px);
+  transform: translateX(2px);
 }
 
 .nav-status-item:active:not(:disabled) {
@@ -234,6 +234,7 @@ const goGaming = () => {
 .nav-status-dot--green.nav-status-dot--on {
   background: #4ade80;
   box-shadow: 0 0 6px rgba(74, 222, 128, 0.6);
+  animation: status-dot-pulse 2s ease-in-out infinite;
 }
 
 .nav-status-dot--blue {
@@ -243,6 +244,17 @@ const goGaming = () => {
 .nav-status-dot--blue.nav-status-dot--on {
   background: #38bdf8;
   box-shadow: 0 0 6px rgba(56, 189, 248, 0.5);
+  animation: status-dot-pulse 2s ease-in-out infinite;
+}
+
+@keyframes status-dot-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
 }
 
 .nav-status-label {

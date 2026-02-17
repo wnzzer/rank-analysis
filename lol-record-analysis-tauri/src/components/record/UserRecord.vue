@@ -545,6 +545,7 @@ const copy = () => {
   display: flex;
   align-items: center;
   justify-content: center;
+  animation: card-enter 0.4s var(--ease-out-expo) both;
 }
 
 .user-record-avatar {

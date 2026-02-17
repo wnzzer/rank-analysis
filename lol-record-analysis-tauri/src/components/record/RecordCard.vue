@@ -422,11 +422,13 @@ function toNameRecord(name: string) {
   --n-border-pressed: 1px solid var(--semantic-win);
   transition:
     border-color var(--transition-fast),
-    box-shadow var(--transition-fast);
+    box-shadow var(--transition-fast),
+    transform var(--transition-normal);
 }
 
 .win-class:hover {
   box-shadow: var(--shadow-card-hover);
+  transform: translateY(-2px);
 }
 
 .defeat-class {
@@ -435,11 +437,13 @@ function toNameRecord(name: string) {
   --n-border-pressed: 1px solid var(--semantic-loss);
   transition:
     border-color var(--transition-fast),
-    box-shadow var(--transition-fast);
+    box-shadow var(--transition-fast),
+    transform var(--transition-normal);
 }
 
 .defeat-class:hover {
   box-shadow: var(--shadow-card-hover);
+  transform: translateY(-2px);
 }
 
 .bordered {

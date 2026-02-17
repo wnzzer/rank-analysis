@@ -157,6 +157,18 @@ const closeWindow = () => {
   border-radius: var(--radius-md);
 }
 
+.header-search :deep(.n-input-wrapper) {
+  transition: box-shadow var(--transition-fast), border-color var(--transition-fast);
+}
+
+.header-center:focus-within .header-search :deep(.n-input-wrapper) {
+  box-shadow: 0 0 0 2px rgba(61, 155, 122, 0.25);
+}
+
+.theme-light .header-center:focus-within .header-search :deep(.n-input-wrapper) {
+  box-shadow: 0 0 0 2px rgba(45, 138, 108, 0.2);
+}
+
 .header-right {
   width: 33%;
   display: flex;
@@ -171,11 +183,13 @@ const closeWindow = () => {
   border-radius: var(--radius-sm);
   transition:
     background-color var(--transition-fast),
-    color var(--transition-fast);
+    color var(--transition-fast),
+    transform var(--transition-fast);
 }
 .header-icon-btn:hover {
   color: var(--text-primary);
   background-color: rgba(255, 255, 255, 0.06);
+  transform: scale(1.08);
 }
 
 .theme-light .header-icon-btn:hover {
@@ -203,13 +217,19 @@ const closeWindow = () => {
   justify-content: center;
   transition:
     color var(--transition-fast),
-    background-color var(--transition-fast);
+    background-color var(--transition-fast),
+    transform var(--transition-fast);
   position: relative;
 }
 
 .window-control-btn:hover {
   color: var(--text-primary);
   background-color: rgba(255, 255, 255, 0.06);
+  transform: scale(1.05);
+}
+
+.window-control-btn:active {
+  transform: scale(0.98);
 }
 
 .theme-light .window-control-btn:hover {

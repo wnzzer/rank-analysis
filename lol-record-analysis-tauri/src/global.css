@@ -23,6 +23,10 @@
   --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.2);
   --shadow-card-hover: 0 2px 8px rgba(0, 0, 0, 0.25);
   --transition-fast: 0.2s ease;
+  --transition-normal: 0.3s ease;
+  --transition-slow: 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --stagger-step: 0.05s;
 
   --space-4: 4px;
   --space-8: 8px;
@@ -53,13 +57,38 @@
   letter-spacing: 0.5px;
 }
 
-/* 进度条统一精致化：圆角轨道与填充 */
+/* 减少动效偏好：可访问性 */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --transition-fast: 0s;
+    --transition-normal: 0s;
+    --transition-slow: 0s;
+    --stagger-step: 0s;
+  }
+}
+
+/* 进度条统一精致化：圆角轨道与填充 + 填充动画 */
 .n-progress .n-progress-graph-line,
 .n-progress .n-progress-graph-line-fill {
   border-radius: 999px;
 }
 .n-progress .n-progress-graph-line {
   overflow: hidden;
+}
+.n-progress .n-progress-graph-line-fill {
+  transition: width var(--transition-slow) var(--ease-out-expo);
+}
+
+/* 入场动画：卡片/区块 */
+@keyframes card-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 /* 设置滚动条的宽度和颜色 */
