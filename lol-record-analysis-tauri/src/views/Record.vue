@@ -34,7 +34,7 @@ onUnmounted(() => {
 </script>
 <style scoped>
 .record-content {
-  padding: var(--space-16);
-  padding-top: var(--space-12);
+  padding: var(--space-20);
+  padding-top: var(--space-16);
 }
 </style>

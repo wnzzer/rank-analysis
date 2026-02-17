@@ -143,93 +143,91 @@
           </n-image>
         </n-flex>
       </n-flex>
-      <n-flex vertical justify="space-between" style="gap: 6px; font-size: 11px">
-        <n-flex
-          align="center"
-          :style="{
-            gap: '8px',
-            color: otherColor(games.participants[0].stats?.damageDealtToChampionsRate)
-          }"
-        >
-          <n-icon size="13" class="record-card-icon record-card-icon-damage">
-            <FlameOutline />
-          </n-icon>
-          <span style="width: 60px">
-            <n-progress
-              type="line"
-              :percentage="games.participants[0].stats?.damageDealtToChampionsRate"
-              :height="6"
-              :show-indicator="false"
-              processing
-              :stroke-width="13"
-              :color="otherColor(games.participants[0].stats?.damageDealtToChampionsRate)"
-              style="position: relative; top: 2px"
-            ></n-progress>
-          </span>
-          <span class="font-number" style="width: 30px; text-align: right">
-            {{ Math.round(games.participants[0].stats?.totalDamageDealtToChampions / 1000) }}k
-          </span>
-          <span class="font-number" style="width: 30px; text-align: right">
-            {{ games.participants[0].stats?.damageDealtToChampionsRate }}%
-          </span>
-        </n-flex>
+      <div class="record-card-stats-block">
+        <div class="record-card-stat-row">
+          <n-tooltip trigger="hover" placement="top">
+            <template #trigger>
+              <div class="record-card-stat-icon-wrap record-card-stat-icon-damage">
+                <n-icon size="11"><FlameOutline /></n-icon>
+              </div>
+            </template>
+            对英雄伤害占比
+          </n-tooltip>
+          <div
+            class="record-card-stat-dots"
+            :style="{ '--stat-dot-color': otherColor(games.participants[0].stats?.damageDealtToChampionsRate) }"
+          >
+            <span
+              v-for="i in 5"
+              :key="i"
+              class="stat-dot"
+              :class="{ 'stat-dot-filled': i <= dotFillCount(games.participants[0].stats?.damageDealtToChampionsRate) }"
+            />
+          </div>
+          <div class="record-card-stat-values">
+            <span class="font-number">{{ Math.round(games.participants[0].stats?.totalDamageDealtToChampions / 1000) }}k</span>
+            <span class="font-number" :style="{ color: otherColor(games.participants[0].stats?.damageDealtToChampionsRate) }">
+              {{ games.participants[0].stats?.damageDealtToChampionsRate }}%
+            </span>
+          </div>
+        </div>
 
-        <n-flex
-          align="center"
-          :style="{
-            gap: '8px',
-            color: healColorAndTaken(games.participants[0].stats?.damageTakenRate)
-          }"
-        >
-          <n-icon size="13" class="record-card-icon record-card-icon-tank">
-            <ShieldOutline />
-          </n-icon>
-          <span style="width: 60px">
-            <n-progress
-              type="line"
-              :percentage="games.participants[0].stats?.damageTakenRate"
-              :height="6"
-              :show-indicator="false"
-              processing
-              :stroke-width="13"
-              :color="healColorAndTaken(games.participants[0].stats?.damageTakenRate)"
-              style="position: relative; top: 2px"
-            ></n-progress>
-          </span>
-          <span class="font-number" style="width: 30px; text-align: right"
-            >{{ Math.round(games.participants[0].stats?.totalDamageTaken / 1000) }}k</span
+        <div class="record-card-stat-row">
+          <n-tooltip trigger="hover" placement="top">
+            <template #trigger>
+              <div class="record-card-stat-icon-wrap record-card-stat-icon-tank">
+                <n-icon size="11"><ShieldOutline /></n-icon>
+              </div>
+            </template>
+            承伤占比
+          </n-tooltip>
+          <div
+            class="record-card-stat-dots"
+            :style="{ '--stat-dot-color': healColorAndTaken(games.participants[0].stats?.damageTakenRate) }"
           >
-          <span class="font-number" style="width: 30px; text-align: right"
-            >{{ games.participants[0].stats?.damageTakenRate }}%</span
+            <span
+              v-for="i in 5"
+              :key="i"
+              class="stat-dot"
+              :class="{ 'stat-dot-filled': i <= dotFillCount(games.participants[0].stats?.damageTakenRate) }"
+            />
+          </div>
+          <div class="record-card-stat-values">
+            <span class="font-number">{{ Math.round(games.participants[0].stats?.totalDamageTaken / 1000) }}k</span>
+            <span class="font-number" :style="{ color: healColorAndTaken(games.participants[0].stats?.damageTakenRate) }">
+              {{ games.participants[0].stats?.damageTakenRate }}%
+            </span>
+          </div>
+        </div>
+
+        <div class="record-card-stat-row">
+          <n-tooltip trigger="hover" placement="top">
+            <template #trigger>
+              <div class="record-card-stat-icon-wrap record-card-stat-icon-heal">
+                <n-icon size="11"><HeartOutline /></n-icon>
+              </div>
+            </template>
+            治疗占比
+          </n-tooltip>
+          <div
+            class="record-card-stat-dots"
+            :style="{ '--stat-dot-color': healColorAndTaken(games.participants[0].stats?.healRate) }"
           >
-        </n-flex>
-        <n-flex
-          align="center"
-          :style="{ gap: '8px', color: healColorAndTaken(games.participants[0].stats?.healRate) }"
-        >
-          <n-icon size="13" class="record-card-icon record-card-icon-heal">
-            <HeartOutline />
-          </n-icon>
-          <span style="width: 60px">
-            <n-progress
-              type="line"
-              :percentage="games.participants[0].stats?.healRate"
-              :height="6"
-              :show-indicator="false"
-              processing
-              :stroke-width="13"
-              :color="healColorAndTaken(games.participants[0].stats?.healRate)"
-              style="position: relative; top: 2px"
-            ></n-progress>
-          </span>
-          <span class="font-number" style="width: 30px; text-align: right"
-            >{{ Math.round(games.participants[0].stats?.totalHeal / 1000) }}k</span
-          >
-          <span class="font-number" style="width: 30px; text-align: right"
-            >{{ games.participants[0].stats?.healRate }}%</span
-          >
-        </n-flex>
-      </n-flex>
+            <span
+              v-for="i in 5"
+              :key="i"
+              class="stat-dot"
+              :class="{ 'stat-dot-filled': i <= dotFillCount(games.participants[0].stats?.healRate) }"
+            />
+          </div>
+          <div class="record-card-stat-values">
+            <span class="font-number">{{ Math.round(games.participants[0].stats?.totalHeal / 1000) }}k</span>
+            <span class="font-number" :style="{ color: healColorAndTaken(games.participants[0].stats?.healRate) }">
+              {{ games.participants[0].stats?.healRate }}%
+            </span>
+          </div>
+        </div>
+      </div>
       <n-flex vertical justify="space-between" style="gap: 0px">
         <n-tag :bordered="false" size="small">
           <template #avatar>
@@ -395,6 +393,11 @@ function toNameRecord(name: string) {
     query: { name, t: Date.now() }
   }) // 添加动态时间戳作为查询参数
 }
+
+/** 将占比 0–100 映射为 5 个圆点中填充的数量 */
+function dotFillCount(rate: number | undefined): number {
+  return Math.min(5, Math.max(0, Math.round((rate ?? 0) / 100 * 5)))
+}
 </script>
 
 <style scoped>
@@ -480,18 +483,127 @@ function toNameRecord(name: string) {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
-.record-card-icon {
+/* 伤害/承伤/治疗统计块 - 保留表格、缩小高度 */
+.record-card-stats-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 4px 8px 5px;
+  background: rgba(0, 0, 0, 0.025);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  min-width: 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.theme-light .record-card-stats-block {
+  background: rgba(0, 0, 0, 0.02);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.record-card-stat-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 16px;
+  padding: 2px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  letter-spacing: 0.02em;
+}
+
+.record-card-stat-row:last-child {
+  border-bottom: none;
+}
+
+.theme-light .record-card-stat-row {
+  border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+
+.record-card-stat-icon-wrap {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
-  opacity: 0.9;
+  color: var(--stat-color);
 }
-.record-card-icon-damage {
-  color: #e5a732;
+
+.record-card-stat-icon-damage {
+  background: rgba(229, 167, 50, 0.18);
+  color: #c9941e;
 }
-.record-card-icon-tank {
-  color: #5ca3ea;
+
+.theme-light .record-card-stat-icon-damage {
+  background: rgba(229, 167, 50, 0.14);
+  color: #b8860b;
 }
-.record-card-icon-heal {
-  color: #58b66d;
+
+.record-card-stat-icon-tank {
+  background: rgba(92, 163, 234, 0.2);
+  color: #4a8fc9;
+}
+
+.theme-light .record-card-stat-icon-tank {
+  background: rgba(92, 163, 234, 0.12);
+  color: #0369a1;
+}
+
+.record-card-stat-icon-heal {
+  background: rgba(88, 182, 109, 0.2);
+  color: #3d9b5a;
+}
+
+.theme-light .record-card-stat-icon-heal {
+  background: rgba(88, 182, 109, 0.14);
+  color: #2d8a6c;
+}
+
+/* 圆点进度：5 个点表示占比 */
+.record-card-stat-dots {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.stat-dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--border-subtle);
+  flex-shrink: 0;
+  transition: background 0.2s ease;
+}
+
+.stat-dot-filled {
+  background: var(--stat-dot-color) !important;
+}
+
+.record-card-stat-values {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  flex-shrink: 0;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+/* 数值(53k)用次要色，占比(26%)用语义色，层次更清晰 */
+.record-card-stat-values .font-number:first-child {
+  color: var(--text-tertiary);
+  font-weight: 500;
+  width: 24px;
+  text-align: right;
+}
+
+.record-card-stat-values .font-number:last-child {
+  font-weight: 600;
+  width: 26px;
+  text-align: right;
 }
 
 .record-card-meta {

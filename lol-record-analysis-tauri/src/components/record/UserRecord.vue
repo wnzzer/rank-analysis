@@ -238,9 +238,9 @@
     </n-flex>
 
     <!-- Recent Stats -->
-    <n-card class="record-panel-card" :bordered="false" size="small" content-style="padding: 12px">
-      <n-flex justify="space-between" align="center" style="margin-bottom: 12px">
-        <span class="section-header" style="margin-bottom: 0">最近表现</span>
+    <n-card class="record-panel-card recent-stats-card" :bordered="false" size="small" content-style="padding: 12px">
+      <n-flex justify="space-between" align="center" class="recent-stats-header">
+        <span class="recent-stats-title">最近表现</span>
         <n-dropdown
           trigger="hover"
           :options="modeOptions"
@@ -251,7 +251,7 @@
         </n-dropdown>
       </n-flex>
 
-      <n-flex vertical :size="8">
+      <n-flex vertical class="recent-stats-rows">
         <!-- KDA -->
         <div class="stat-row">
           <div class="stat-label-group">
@@ -260,8 +260,8 @@
           </div>
           <div class="stat-value-group">
             <div class="raw-value spacer"></div>
-            <div class="stat-center-content">
-              <span :style="{ color: kdaColor(recentData.kda), fontWeight: 'bold' }">{{
+            <div class="stat-center-content stat-kda-value-wrap">
+              <span class="stat-kda-main" :style="{ color: kdaColor(recentData.kda) }">{{
                 recentData.kda
               }}</span>
               <span class="kda-detail">
@@ -288,7 +288,7 @@
               <n-progress
                 type="line"
                 :percentage="winRate(recentData.selectWins, recentData.selectLosses)"
-                :height="6"
+                :height="8"
                 :show-indicator="false"
                 :color="winRateColor(winRate(recentData.selectWins, recentData.selectLosses))"
                 rail-color="rgba(255, 255, 255, 0.1)"
@@ -316,7 +316,7 @@
               <n-progress
                 type="line"
                 :percentage="recentData.groupRate"
-                :height="6"
+                :height="8"
                 :show-indicator="false"
                 :color="groupRateColor(recentData.groupRate)"
                 rail-color="rgba(255, 255, 255, 0.1)"
@@ -338,7 +338,7 @@
                 type="line"
                 :percentage="recentData.damageDealtToChampionsRate"
                 :color="otherColor(recentData.damageDealtToChampionsRate)"
-                :height="6"
+                :height="8"
                 :show-indicator="false"
                 rail-color="rgba(255, 255, 255, 0.1)"
               />
@@ -362,7 +362,7 @@
                 type="line"
                 :percentage="recentData.goldRate"
                 :color="otherColor(recentData.goldRate)"
-                :height="6"
+                :height="8"
                 :show-indicator="false"
                 rail-color="rgba(255, 255, 255, 0.1)"
                 style="width: 40px; margin: 0 4px"
@@ -692,20 +692,36 @@ const copy = () => {
   color: var(--text-secondary);
 }
 
+.recent-stats-header {
+  margin-bottom: var(--space-12);
+}
+
+.recent-stats-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.02em;
+}
+
+.recent-stats-rows {
+  gap: var(--space-8);
+}
+
 .stat-row {
   display: flex;
   align-items: center;
-  font-size: 12px;
-  min-height: 26px;
+  font-size: 13px;
+  min-height: 28px;
 }
 
 .stat-label-group {
-  width: 75px;
+  width: 80px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  color: var(--text-tertiary);
-  gap: var(--space-8);
+  color: var(--text-secondary);
+  font-weight: 500;
+  gap: 6px;
 }
 
 .stat-value-group {
@@ -715,9 +731,26 @@ const copy = () => {
   min-width: 0;
 }
 
+/* KDA 单行不换行，用 Inter 收窄宽度 */
+.stat-kda-value-wrap {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.stat-kda-main {
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  letter-spacing: 0.02em;
+}
+
 .kda-detail {
-  margin-left: 8px;
+  margin-left: 6px;
   font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  font-family: inherit;
 }
 
 .stat-center-content {
@@ -725,31 +758,37 @@ const copy = () => {
   display: flex;
   align-items: center;
   min-width: 0;
-  padding: 0 4px;
-}
-
-.stat-value-text {
-  width: 36px;
-  text-align: right;
-  margin-left: 4px;
-  flex-shrink: 0;
-  font-family: inherit;
-}
-
-.raw-value {
-  width: 48px;
-  text-align: right;
-  margin-right: 8px;
-  flex-shrink: 0;
-  font-variant-numeric: tabular-nums;
-}
-
-.stat-icon-kda {
-  color: var(--semantic-win);
+  padding: 0 6px;
 }
 
 .stat-center-content :deep(.n-progress) {
   border-radius: 999px;
   overflow: hidden;
+}
+
+.stat-value-text {
+  width: 38px;
+  text-align: right;
+  margin-left: 4px;
+  flex-shrink: 0;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.raw-value {
+  width: 52px;
+  text-align: right;
+  margin-right: 8px;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  font-size: 13px;
+}
+
+.stat-icon-kda {
+  color: var(--semantic-win);
+  font-size: 16px;
 }
 </style>

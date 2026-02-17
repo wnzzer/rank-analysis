@@ -300,7 +300,7 @@ onMounted(async () => {
 .match-history-wrap.content-wrapper {
   height: 100%;
   position: relative;
-  gap: var(--space-16);
+  gap: var(--space-20);
 }
 
 .match-history-toolbar {
@@ -310,7 +310,7 @@ onMounted(async () => {
 .match-history-list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-16);
+  gap: var(--space-20);
 }
 
 .list-item {
