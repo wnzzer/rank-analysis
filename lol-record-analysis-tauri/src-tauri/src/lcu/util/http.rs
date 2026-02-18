@@ -25,7 +25,7 @@ fn get_client() -> &'static Client {
 }
 
 /// 对已毒化的 Mutex 恢复：取回内部值继续使用，避免先开软件再开游戏时一直 PoisonError。
-fn lock_or_recover<T>(m: &Mutex<T>) -> std::sync::MutexGuard<T> {
+fn lock_or_recover<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     match m.lock() {
         Ok(guard) => guard,
         Err(poisoned) => poisoned.into_inner(),
