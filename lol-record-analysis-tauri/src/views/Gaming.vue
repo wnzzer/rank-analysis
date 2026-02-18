@@ -47,17 +47,25 @@
 
         <n-flex vertical class="gaming-team-col gaming-team-red">
           <div class="team-label team-label-red">敌方</div>
-          <PlayerCard
-            v-for="(sessionSummoner, i) of sessionData.teamTwo"
-            :key="'teamTwo' + i"
-            team="red"
-            :session-summoner="sessionSummoner"
-            :mode-type="sessionData.type"
-            :type-cn="sessionData.typeCn"
-            :queue-id="sessionData.queueId"
-            :img-url="comImgTier.teamTwo[i]?.imgUrl"
-            :tier-cn="comImgTier.teamTwo[i]?.tierCn"
-          />
+          <!-- 选英雄阶段不显示敌方具体玩家，显示「选择中」 -->
+          <template v-if="sessionData.phase === 'ChampSelect'">
+            <div class="enemy-placeholder">
+              <n-text depth="2">选择中</n-text>
+            </div>
+          </template>
+          <template v-else>
+            <PlayerCard
+              v-for="(sessionSummoner, i) of sessionData.teamTwo"
+              :key="'teamTwo' + i"
+              team="red"
+              :session-summoner="sessionSummoner"
+              :mode-type="sessionData.type"
+              :type-cn="sessionData.typeCn"
+              :queue-id="sessionData.queueId"
+              :img-url="comImgTier.teamTwo[i]?.imgUrl"
+              :tier-cn="comImgTier.teamTwo[i]?.tierCn"
+            />
+          </template>
         </n-flex>
       </n-flex>
     </div>
@@ -539,5 +547,14 @@ async function requestSessionData() {
   background: var(--team-red);
   color: var(--text-primary);
   border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.enemy-placeholder {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+  font-size: 14px;
 }
 </style>
