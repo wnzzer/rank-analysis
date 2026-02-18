@@ -28,20 +28,14 @@
         <span class="gaming-config-hint">设置将在下一次刷新或对局时生效</span>
       </n-modal>
 
-      <!-- 左蓝队、右红队，由后端按 LCU 当前用户区分 -->
+      <!-- 左我方、右敌方，由后端按 LCU 当前用户交换保证 -->
       <n-flex justify="space-between" class="gaming-columns">
-        <n-flex
-          vertical
-          class="gaming-team-col"
-          :class="'gaming-team-' + (sessionData.teamOne.side || 'blue')"
-        >
-          <div class="team-label" :class="'team-label-' + (sessionData.teamOne.side || 'blue')">
-            {{ sessionData.teamOne.side === 'red' ? '红队' : '蓝队' }}
-          </div>
+        <n-flex vertical class="gaming-team-col gaming-team-blue">
+          <div class="team-label team-label-blue">我方</div>
           <PlayerCard
-            v-for="(sessionSummoner, i) of sessionData.teamOne.players"
+            v-for="(sessionSummoner, i) of sessionData.teamOne"
             :key="'teamOne' + i"
-            :team="teamOneSide"
+            team="blue"
             :session-summoner="sessionSummoner"
             :mode-type="sessionData.type"
             :type-cn="sessionData.typeCn"
@@ -51,18 +45,12 @@
           />
         </n-flex>
 
-        <n-flex
-          vertical
-          class="gaming-team-col"
-          :class="'gaming-team-' + (sessionData.teamTwo.side || 'red')"
-        >
-          <div class="team-label" :class="'team-label-' + (sessionData.teamTwo.side || 'red')">
-            {{ sessionData.teamTwo.side === 'blue' ? '蓝队' : '红队' }}
-          </div>
+        <n-flex vertical class="gaming-team-col gaming-team-red">
+          <div class="team-label team-label-red">敌方</div>
           <PlayerCard
-            v-for="(sessionSummoner, i) of sessionData.teamTwo.players"
+            v-for="(sessionSummoner, i) of sessionData.teamTwo"
             :key="'teamTwo' + i"
-            :team="teamTwoSide"
+            team="red"
             :session-summoner="sessionSummoner"
             :mode-type="sessionData.type"
             :type-cn="sessionData.typeCn"
@@ -131,8 +119,8 @@ const comImgTier = computed(() => {
     emerald: emerald
   }
 
-  // 处理 teamOne（蓝队）
-  for (const sessionSummoner of sessionData.teamOne.players) {
+  // 处理 teamOne（我方）
+  for (const sessionSummoner of sessionData.teamOne) {
     let tierNormalized = sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.tier
       ? tierImages[sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.tier.toLocaleLowerCase()]
       : unranked
@@ -167,8 +155,8 @@ const comImgTier = computed(() => {
     })
   }
 
-  // 处理 teamTwo（红队）
-  for (const sessionSummoner of sessionData.teamTwo.players) {
+  // 处理 teamTwo（敌方）
+  for (const sessionSummoner of sessionData.teamTwo) {
     let tierNormalized = sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.tier
       ? tierImages[sessionSummoner.rank.queueMap.RANKED_SOLO_5x5.tier.toLocaleLowerCase()]
       : unranked
@@ -238,12 +226,9 @@ const sessionData = reactive<SessionData>({
   type: '',
   typeCn: '',
   queueId: 0,
-  teamOne: { side: 'blue', players: [] },
-  teamTwo: { side: 'red', players: [] }
+  teamOne: [],
+  teamTwo: []
 })
-
-const teamOneSide = computed(() => (sessionData.teamOne.side || 'blue') as 'blue' | 'red')
-const teamTwoSide = computed(() => (sessionData.teamTwo.side || 'red') as 'blue' | 'red')
 
 let unlistenSessionComplete: (() => void) | null = null
 let unlistenSessionBasicInfo: (() => void) | null = null
@@ -368,9 +353,9 @@ onMounted(async () => {
       phase: data.phase,
       hasType: !!data.type,
       type: data.type,
-      teamOneLength: data.teamOne?.players?.length || 0,
-      teamTwoLength: data.teamTwo?.players?.length || 0,
-      firstPlayerTeamOne: data.teamOne?.players?.[0]?.summoner?.gameName || 'none'
+      teamOneLength: data.teamOne?.length || 0,
+      teamTwoLength: data.teamTwo?.length || 0,
+      firstPlayerTeamOne: data.teamOne?.[0]?.summoner?.gameName || 'none'
     })
 
     if (data.phase) {
@@ -379,20 +364,18 @@ onMounted(async () => {
       sessionData.type = data.type
       sessionData.typeCn = data.typeCn
       sessionData.queueId = data.queueId
-      if (data.teamOne) sessionData.teamOne.side = data.teamOne.side
-      if (data.teamTwo) sessionData.teamTwo.side = data.teamTwo.side
 
-      const newTeamOne = data.teamOne?.players ?? []
-      const newTeamTwo = data.teamTwo?.players ?? []
+      const newTeamOne = Array.isArray(data.teamOne) ? data.teamOne : []
+      const newTeamTwo = Array.isArray(data.teamTwo) ? data.teamTwo : []
 
-      updateTeamData(sessionData.teamOne.players, newTeamOne)
-      updateTeamData(sessionData.teamTwo.players, newTeamTwo)
+      updateTeamData(sessionData.teamOne, newTeamOne)
+      updateTeamData(sessionData.teamTwo, newTeamTwo)
 
       console.log('✅ [DEBUG] SessionData updated:', {
         phase: sessionData.phase,
         type: sessionData.type,
-        teamOneCount: sessionData.teamOne.players.length,
-        teamTwoCount: sessionData.teamTwo.players.length
+        teamOneCount: sessionData.teamOne.length,
+        teamTwoCount: sessionData.teamTwo.length
       })
     } else {
       console.warn('⚠️ [DEBUG] Received empty data (not in game)')
@@ -402,21 +385,19 @@ onMounted(async () => {
   // 监听基础信息更新事件
   unlistenSessionBasicInfo = await listen<SessionData>('session-basic-info', event => {
     const data = event.payload
-    console.log('📦 [DEBUG] Session basic info received')
+    console.log('📦 [DEBUG] Session basic info received, data:', data)
 
     if (data.phase) {
       sessionData.phase = data.phase
       sessionData.type = data.type
       sessionData.typeCn = data.typeCn
       sessionData.queueId = data.queueId
-      if (data.teamOne) sessionData.teamOne.side = data.teamOne.side
-      if (data.teamTwo) sessionData.teamTwo.side = data.teamTwo.side
 
-      const newTeamOne = data.teamOne?.players ?? []
-      const newTeamTwo = data.teamTwo?.players ?? []
+      const newTeamOne = Array.isArray(data.teamOne) ? data.teamOne : []
+      const newTeamTwo = Array.isArray(data.teamTwo) ? data.teamTwo : []
 
-      updateBasicInfo(sessionData.teamOne.players, newTeamOne)
-      updateBasicInfo(sessionData.teamTwo.players, newTeamTwo)
+      updateBasicInfo(sessionData.teamOne, newTeamOne)
+      updateBasicInfo(sessionData.teamTwo, newTeamTwo)
     }
   })
 
@@ -426,8 +407,8 @@ onMounted(async () => {
     event => {
       const markers = event.payload
       console.log('📦 [DEBUG] Session pre-group markers received:', markers)
-      updatePreGroupMarkers(sessionData.teamOne.players, markers)
-      updatePreGroupMarkers(sessionData.teamTwo.players, markers)
+      updatePreGroupMarkers(sessionData.teamOne, markers)
+      updatePreGroupMarkers(sessionData.teamTwo, markers)
     }
   )
 
@@ -435,14 +416,14 @@ onMounted(async () => {
   unlistenPlayerUpdateTeamOne = await listen('session-player-update-team-one', (event: any) => {
     const { index, total, player } = event.payload
     console.log(`✅ Player ${index + 1}/${total} (Team One) loaded:`, player.summoner.gameName)
-    updatePlayerAtIndex(sessionData.teamOne.players, index, player)
+    updatePlayerAtIndex(sessionData.teamOne, index, player)
   })
 
   // 监听玩家更新事件（队伍二）
   unlistenPlayerUpdateTeamTwo = await listen('session-player-update-team-two', (event: any) => {
     const { index, total, player } = event.payload
     console.log(`✅ Player ${index + 1}/${total} (Team Two) loaded:`, player.summoner.gameName)
-    updatePlayerAtIndex(sessionData.teamTwo.players, index, player)
+    updatePlayerAtIndex(sessionData.teamTwo, index, player)
   })
 
   // 监听错误事件

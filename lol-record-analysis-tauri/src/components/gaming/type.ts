@@ -1,19 +1,14 @@
 import { MatchHistory } from '../record/MatchHistory.vue'
 import { OneGamePlayer, Rank, Summoner, UserTag } from '../record/type'
 
-/** 一方队伍：红/蓝队标记 + 玩家列表 */
-export interface TeamSideData {
-  side: string // 'blue' | 'red'
-  players: SessionSummoner[]
-}
-
+/** 对局会话：teamOne = 我方（左），teamTwo = 敌方（右） */
 export interface SessionData {
   phase: string
   type: string
   typeCn: string
   queueId: number
-  teamOne: TeamSideData
-  teamTwo: TeamSideData
+  teamOne: SessionSummoner[]
+  teamTwo: SessionSummoner[]
 }
 export interface PreGroupMarkers {
   name: string
