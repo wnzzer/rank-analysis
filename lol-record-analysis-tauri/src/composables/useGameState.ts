@@ -32,6 +32,10 @@ export interface GameStateEvent {
   } | null
 }
 
+interface SessionData {
+  phase: string
+}
+
 /**
  * 游戏状态监听 Composable
  * 监听后端发送的游戏状态事件，自动切换路由
@@ -41,44 +45,59 @@ export function useGameState() {
   const currentPhase = ref<string | null>(null)
   const summoner = ref<GameStateEvent['summoner'] | null>(null)
 
-  let unlisten: UnlistenFn | null = null
+  let unlistenState: UnlistenFn | null = null
+  let unlistenSession: UnlistenFn | null = null
+  let lastPhase = ''
 
   onMounted(async () => {
-    // 监听后端发送的游戏状态变化事件
-    unlisten = await listen<GameStateEvent>('game-state-changed', event => {
+    // 1. 监听游戏状态 (连接/断开)
+    unlistenState = await listen<GameStateEvent>('game-state-changed', event => {
       const state = event.payload
-
       console.log('🎮 Game state changed:', state)
 
       isConnected.value = state.connected
       currentPhase.value = state.phase
       summoner.value = state.summoner
 
-      // 自动切换路由
-      handleRouteChange(state)
+      // 处理基础路由切换 (Loading <-> Record)
+      handleConnectionRoute(state)
     })
 
-    console.log('✅ Game state listener registered')
+    // 2. 监听会话状态 (选人/游戏中)
+    unlistenSession = await listen<SessionData>('session-complete', event => {
+      const data = event.payload
+      const phase = data.phase
+
+      if (phase !== lastPhase) {
+        if (
+          (phase === 'ChampSelect' || phase === 'InProgress' || phase === 'GameStart') &&
+          router.currentRoute.value.name !== 'Gaming'
+        ) {
+          console.log(`🎮 [Auto-Nav] Phase changed to ${phase}, navigating to Gaming...`)
+          router.push('/Gaming')
+        }
+        lastPhase = phase
+      }
+    })
+
+    console.log('✅ Game state listeners registered')
   })
 
   onUnmounted(() => {
-    // 组件卸载时清理监听器
-    if (unlisten) {
-      unlisten()
-      console.log('🧹 Game state listener cleaned up')
-    }
+    if (unlistenState) unlistenState()
+    if (unlistenSession) unlistenSession()
+    console.log('🧹 Game state listeners cleaned up')
   })
 
   /**
-   * 根据游戏状态自动切换路由
+   * 处理连接状态的路由切换
    */
-  function handleRouteChange(state: GameStateEvent) {
+  function handleConnectionRoute(state: GameStateEvent) {
     const currentPath = router.currentRoute.value.path
 
     if (state.connected && state.summoner) {
-      // 游戏客户端已连接
+      // 游戏客户端已连接，且当前在 Loading 页，则跳转首页 (Record)
       if (currentPath === '/Loading') {
-        // 从 Loading 页面跳转到 Record 页面
         router.push({
           path: '/Record',
           query: {
@@ -88,9 +107,8 @@ export function useGameState() {
         console.log('📍 Auto navigated to Record page')
       }
     } else {
-      // 游戏客户端断开连接
+      // 游戏客户端断开连接，跳转 Loading
       if (currentPath !== '/Loading') {
-        // 跳转到 Loading 页面
         router.push({
           path: '/Loading'
         })

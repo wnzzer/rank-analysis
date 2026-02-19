@@ -51,7 +51,28 @@ impl GameStateMonitor {
         let state_changed = new_state.connected != self.last_state.connected
             || new_state.phase != self.last_state.phase;
         let now = SystemTime::now();
-        let diff_time = now.duration_since(self.last_push_time).unwrap();
+        let diff_time = now.duration_since(self.last_push_time).unwrap_or(Duration::from_secs(0));
+
+        // 如果刚连接上（之前未连接，现在连接了），启动 WebSocket 监听
+        if new_state.connected && !self.last_state.connected {
+            log::info!("LCU 已连接，正在启动 WebSocket 监听...");
+            let app_handle = self.app_handle.clone();
+            tokio::spawn(async move {
+                match crate::lcu::util::token::get_auth() {
+                    Ok((token, port_str)) => {
+                        if let Ok(port) = port_str.parse::<u16>() {
+                            let listener = crate::lcu::listener::LcuListener::new(app_handle, port, token);
+                            listener.start().await;
+                        } else {
+                            log::error!("解析端口失败: {}", port_str);
+                        }
+                    }
+                    Err(e) => {
+                        log::error!("获取 LCU 认证信息失败: {}", e);
+                    }
+                }
+            });
+        }
 
         if state_changed || diff_time > Duration::from_secs(10) {
             log::info!(
@@ -66,6 +87,7 @@ impl GameStateMonitor {
             }
 
             self.last_state = new_state;
+            self.last_push_time = now;
         }
     }
 }

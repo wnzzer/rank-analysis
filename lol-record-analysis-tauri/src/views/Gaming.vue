@@ -244,7 +244,6 @@ let unlistenSessionPreGroup: (() => void) | null = null
 let unlistenPlayerUpdateTeamOne: (() => void) | null = null
 let unlistenPlayerUpdateTeamTwo: (() => void) | null = null
 let unlistenSessionError: (() => void) | null = null
-let refreshTimer: ReturnType<typeof setInterval> | null = null
 
 function updatePreGroupMarkers(team: SessionSummoner[], markers: Record<string, PreGroupMarkers>) {
   for (const player of team) {
@@ -445,12 +444,6 @@ onMounted(async () => {
   console.log('🔧 [DEBUG] Requesting initial session data...')
   await requestSessionData()
 
-  // 启动定时器，每5秒刷新一次
-  refreshTimer = setInterval(async () => {
-    console.log('🔄 [DEBUG] Auto refresh triggered')
-    await requestSessionData()
-  }, 5000)
-
   console.log('✅ [DEBUG] Gaming page fully mounted')
 })
 
@@ -476,9 +469,6 @@ onUnmounted(() => {
   }
 
   // 清理定时器
-  if (refreshTimer) {
-    clearInterval(refreshTimer)
-  }
 
   console.log('🧹 Gaming page unmounted, cleaned up listeners')
 })
