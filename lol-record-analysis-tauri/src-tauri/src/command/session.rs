@@ -190,15 +190,24 @@ async fn process_session_data(app_handle: AppHandle) -> Result<(), String> {
         }
     }
 
-    session.game_data.team_one.sort_by_key(|p| get_position_weight(&p.selected_position));
-    session.game_data.team_two.sort_by_key(|p| get_position_weight(&p.selected_position));
+    session
+        .game_data
+        .team_one
+        .sort_by_key(|p| get_position_weight(&p.selected_position));
+    session
+        .game_data
+        .team_two
+        .sort_by_key(|p| get_position_weight(&p.selected_position));
 
     let mode = session.game_data.queue.id;
 
     // 推送基础信息
     push_basic_info(&session, &mut session_data, &app_handle).await?;
 
-    log::info!("正在处理队伍一（我方），人数: {}", session.game_data.team_one.len());
+    log::info!(
+        "正在处理队伍一（我方），人数: {}",
+        session.game_data.team_one.len()
+    );
     // 并行处理队伍一（我方）
     process_team_parallel(
         &session.game_data.team_one,
@@ -209,7 +218,10 @@ async fn process_session_data(app_handle: AppHandle) -> Result<(), String> {
     )
     .await?;
 
-    log::info!("正在处理队伍二（敌方），人数: {}", session.game_data.team_two.len());
+    log::info!(
+        "正在处理队伍二（敌方），人数: {}",
+        session.game_data.team_two.len()
+    );
     // 并行处理队伍二（敌方）
     process_team_parallel(
         &session.game_data.team_two,
@@ -257,7 +269,6 @@ async fn process_session_data(app_handle: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-
 // 并发获取用户信息
 async fn push_basic_info(
     session: &Session,
@@ -267,7 +278,7 @@ async fn push_basic_info(
     async fn get_basic_team(team: &[crate::lcu::api::session::OnePlayer]) -> Vec<SessionSummoner> {
         let futures = team.iter().map(|player| async move {
             if player.puuid.is_empty() {
-                 return SessionSummoner {
+                return SessionSummoner {
                     champion_id: player.champion_id,
                     champion_key: format!("champion_{}", player.champion_id),
                     summoner: Summoner::default(),
@@ -295,7 +306,7 @@ async fn push_basic_info(
                 is_loading: true,
             }
         });
-        
+
         futures::future::join_all(futures).await
     }
 
@@ -313,7 +324,6 @@ async fn push_basic_info(
     Ok(())
 }
 
-
 /// 并行处理队伍的公共函数
 async fn process_team_parallel(
     team: &[crate::lcu::api::session::OnePlayer],
@@ -322,13 +332,12 @@ async fn process_team_parallel(
     app_handle: &AppHandle,
     is_team_one: bool,
 ) -> Result<(), String> {
-    
     // 定义获取单个玩家信息的异步任务
     let futures = team.iter().enumerate().map(|(_index, player)| async move {
-         // 无 puuid（隐藏战绩）仍推送占位
+        // 无 puuid（隐藏战绩）仍推送占位
         if player.puuid.is_empty() {
-             log::debug!("索引 {} 的玩家 PUUID 为空，跳过获取", _index);
-             return SessionSummoner {
+            log::debug!("索引 {} 的玩家 PUUID 为空，跳过获取", _index);
+            return SessionSummoner {
                 champion_id: player.champion_id,
                 champion_key: format!("champion_{}", player.champion_id),
                 summoner: Summoner::default(),
@@ -351,7 +360,7 @@ async fn process_team_parallel(
         };
 
         // 获取战绩
-         let count = match crate::config::get_config("matchHistoryCount").await {
+        let count = match crate::config::get_config("matchHistoryCount").await {
             Ok(crate::config::Value::Integer(v)) => v as i32,
             Ok(crate::config::Value::String(s)) => s.parse().unwrap_or(4),
             _ => 4,
@@ -375,7 +384,7 @@ async fn process_team_parallel(
                 Ok(tag) => tag,
                 Err(e) => {
                     log::warn!("Failed to get user tag for {}: {}", player.puuid, e);
-                     // 创建一个默认的 UserTag
+                    // 创建一个默认的 UserTag
                     UserTag {
                         recent_data: crate::command::user_tag::RecentData {
                             kda: 0.0,
@@ -414,7 +423,7 @@ async fn process_team_parallel(
             }
         };
 
-         SessionSummoner {
+        SessionSummoner {
             champion_id: player.champion_id,
             champion_key: format!("champion_{}", player.champion_id),
             summoner: summoner.clone(),
@@ -439,7 +448,7 @@ async fn process_team_parallel(
         } else {
             "session-player-update-team-two"
         };
-        
+
         #[derive(Serialize)]
         struct PlayerUpdate {
             index: usize,
@@ -455,7 +464,7 @@ async fn process_team_parallel(
             is_team_one,
         };
 
-         if let Err(e) = app_handle.emit(event_name, &update) {
+        if let Err(e) = app_handle.emit(event_name, &update) {
             log::error!("Failed to emit player update event: {}", e);
         } else {
             // log::info!("Emitted player update: {} of {}", index + 1, team.len());
