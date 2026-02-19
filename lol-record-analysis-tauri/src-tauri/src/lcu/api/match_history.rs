@@ -163,9 +163,19 @@ impl MatchHistory {
         if self.games.games.is_empty() {
             return Ok(());
         }
-        for game in &mut self.games.games {
-            game.game_detail = GameDetail::get_game_detail_by_id(&game.game_id).await?;
-        }
+
+        let futures = self.games.games.iter_mut().map(|game| async move {
+            match GameDetail::get_game_detail_by_id(&game.game_id).await {
+                Ok(detail) => {
+                    game.game_detail = detail;
+                }
+                Err(e) => {
+                    log::warn!("Failed to get game detail for {}: {}", game.game_id, e);
+                }
+            }
+        });
+
+        futures::future::join_all(futures).await;
 
         Ok(())
     }
