@@ -118,8 +118,8 @@ impl LcuListener {
 
     async fn handle_event(&self, event: &Value) {
         if let Some(uri) = event.get("uri").and_then(|v| v.as_str()) {
-             // 检查是否也是 data 字段，有些事件结构不一样
-             let _data = event.get("data");
+            // 检查是否也是 data 字段，有些事件结构不一样
+            let _data = event.get("data");
 
             // 分发事件
             // 根据需要的 URI 进行过滤，避免无效刷新
@@ -131,10 +131,12 @@ impl LcuListener {
                 log::info!("收到 LCU 事件: {}", uri);
 
                 // 触发后端的会话数据刷新逻辑
-                if let Err(e) = crate::command::session::get_session_data(self.app_handle.clone()).await {
-                     log::error!("通过 WebSocket 更新 Session 数据失败: {}", e);
+                if let Err(e) =
+                    crate::command::session::get_session_data(self.app_handle.clone()).await
+                {
+                    log::error!("通过 WebSocket 更新 Session 数据失败: {}", e);
                 } else {
-                     log::info!("通过 WebSocket 事件 [{}] 更新了 Session 数据", uri);
+                    log::info!("通过 WebSocket 事件 [{}] 更新了 Session 数据", uri);
                 }
             }
         }
