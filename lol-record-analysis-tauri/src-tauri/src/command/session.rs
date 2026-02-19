@@ -198,6 +198,7 @@ async fn process_session_data(app_handle: AppHandle) -> Result<(), String> {
     // 推送基础信息
     push_basic_info(&session, &mut session_data, &app_handle).await?;
 
+    log::info!("正在处理队伍一（我方），人数: {}", session.game_data.team_one.len());
     // 并行处理队伍一（我方）
     process_team_parallel(
         &session.game_data.team_one,
@@ -208,6 +209,7 @@ async fn process_session_data(app_handle: AppHandle) -> Result<(), String> {
     )
     .await?;
 
+    log::info!("正在处理队伍二（敌方），人数: {}", session.game_data.team_two.len());
     // 并行处理队伍二（敌方）
     process_team_parallel(
         &session.game_data.team_two,
@@ -325,6 +327,7 @@ async fn process_team_parallel(
     let futures = team.iter().enumerate().map(|(_index, player)| async move {
          // 无 puuid（隐藏战绩）仍推送占位
         if player.puuid.is_empty() {
+             log::debug!("索引 {} 的玩家 PUUID 为空，跳过获取", _index);
              return SessionSummoner {
                 champion_id: player.champion_id,
                 champion_key: format!("champion_{}", player.champion_id),
