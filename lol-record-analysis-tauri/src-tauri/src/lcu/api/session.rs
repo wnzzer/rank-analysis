@@ -48,6 +48,8 @@ pub struct Queue {
 pub struct OnePlayer {
     pub champion_id: i32,
     pub puuid: String,
+    #[serde(default)]
+    pub selected_position: String,
 }
 
 impl Session {

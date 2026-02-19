@@ -107,6 +107,7 @@ async fn process_session_data(app_handle: AppHandle) -> Result<(), String> {
                     .map(|p| crate::lcu::api::session::OnePlayer {
                         champion_id: p.champion_id,
                         puuid: p.puuid,
+                        selected_position: String::new(),
                     })
                     .collect();
                 session.game_data.team_two.clear(); // 选英雄阶段看不到对手
@@ -144,7 +145,7 @@ async fn process_session_data(app_handle: AppHandle) -> Result<(), String> {
         );
     }
 
-    // LCU 有时某队少返回 1 人（如二队只有 4 个），用 playerChampionSelections 补全为 5 人。
+    // LCU 有时某队少返回 1 人（如二队只有 4 个），用 playerChampionSelections 补全为 5 人。 这是因为隐藏了用户名 隐藏战绩是可以看的
     // selections 顺序固定为 [LCU 一队 5 人, LCU 二队 5 人]。若上面做过 need_swap，
     // 则当前 team_one=原 LCU 二队、team_two=原 LCU 一队，补全时需对调取用的区间。
     let selections = &session.game_data.player_champion_selections;
@@ -160,6 +161,7 @@ async fn process_session_data(app_handle: AppHandle) -> Result<(), String> {
                 .map(|s| crate::lcu::api::session::OnePlayer {
                     champion_id: s.champion_id,
                     puuid: s.puuid.clone(),
+                    selected_position: String::new(), // Default for champion selection
                 })
                 .collect();
         }
@@ -169,18 +171,35 @@ async fn process_session_data(app_handle: AppHandle) -> Result<(), String> {
                 .map(|s| crate::lcu::api::session::OnePlayer {
                     champion_id: s.champion_id,
                     puuid: s.puuid.clone(),
+                    selected_position: String::new(),
                 })
                 .collect();
         }
     }
+
+    // 排序逻辑：根据 selected_position 对队伍进行排序
+    // 顺序：TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY, 其他
+    fn get_position_weight(pos: &str) -> i32 {
+        match pos {
+            "TOP" => 1,
+            "JUNGLE" => 2,
+            "MIDDLE" => 3,
+            "BOTTOM" => 4,
+            "UTILITY" => 5,
+            _ => 99,
+        }
+    }
+
+    session.game_data.team_one.sort_by_key(|p| get_position_weight(&p.selected_position));
+    session.game_data.team_two.sort_by_key(|p| get_position_weight(&p.selected_position));
 
     let mode = session.game_data.queue.id;
 
     // 推送基础信息
     push_basic_info(&session, &mut session_data, &app_handle).await?;
 
-    // 处理队伍一（我方）
-    process_team(
+    // 并行处理队伍一（我方）
+    process_team_parallel(
         &session.game_data.team_one,
         &mut session_data.team_one,
         mode,
@@ -189,8 +208,8 @@ async fn process_session_data(app_handle: AppHandle) -> Result<(), String> {
     )
     .await?;
 
-    // 处理队伍二（敌方）
-    process_team(
+    // 并行处理队伍二（敌方）
+    process_team_parallel(
         &session.game_data.team_two,
         &mut session_data.team_two,
         mode,
@@ -202,6 +221,7 @@ async fn process_session_data(app_handle: AppHandle) -> Result<(), String> {
     // 标记预组队
     add_pre_group_markers(&mut session_data);
 
+    // ... (rest of the function remains same)
     // 推送预组队信息
     let mut markers: HashMap<String, PreGroupMarker> = HashMap::new();
     for p in &session_data.team_one {
@@ -235,17 +255,17 @@ async fn process_session_data(app_handle: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+
+// 并发获取用户信息
 async fn push_basic_info(
     session: &Session,
     session_data: &mut SessionData,
     app_handle: &AppHandle,
 ) -> Result<(), String> {
     async fn get_basic_team(team: &[crate::lcu::api::session::OnePlayer]) -> Vec<SessionSummoner> {
-        let mut result = Vec::new();
-        for player in team {
+        let futures = team.iter().map(|player| async move {
             if player.puuid.is_empty() {
-                // 无 puuid（隐藏战绩）仍推送
-                result.push(SessionSummoner {
+                 return SessionSummoner {
                     champion_id: player.champion_id,
                     champion_key: format!("champion_{}", player.champion_id),
                     summoner: Summoner::default(),
@@ -255,14 +275,13 @@ async fn push_basic_info(
                     meet_games: Vec::new(),
                     pre_group_markers: PreGroupMarker::default(),
                     is_loading: false,
-                });
-                continue;
+                };
             }
             let summoner = Summoner::get_summoner_by_puuid(&player.puuid)
                 .await
                 .unwrap_or_default();
 
-            result.push(SessionSummoner {
+            SessionSummoner {
                 champion_id: player.champion_id,
                 champion_key: format!("champion_{}", player.champion_id),
                 summoner,
@@ -272,9 +291,10 @@ async fn push_basic_info(
                 meet_games: Vec::new(),
                 pre_group_markers: PreGroupMarker::default(),
                 is_loading: true,
-            });
-        }
-        result
+            }
+        });
+        
+        futures::future::join_all(futures).await
     }
 
     session_data.team_one = get_basic_team(&session.game_data.team_one).await;
@@ -291,18 +311,21 @@ async fn push_basic_info(
     Ok(())
 }
 
-/// 处理队伍的公共函数，每完成一个玩家就推送一次
-async fn process_team(
+
+/// 并行处理队伍的公共函数
+async fn process_team_parallel(
     team: &[crate::lcu::api::session::OnePlayer],
     result: &mut Vec<SessionSummoner>,
     mode: i32,
     app_handle: &AppHandle,
     is_team_one: bool,
 ) -> Result<(), String> {
-    for (index, player) in team.iter().enumerate() {
-        // 无 puuid（隐藏战绩）仍推送占位，前端展示「已移仓」
+    
+    // 定义获取单个玩家信息的异步任务
+    let futures = team.iter().enumerate().map(|(_index, player)| async move {
+         // 无 puuid（隐藏战绩）仍推送占位
         if player.puuid.is_empty() {
-            let placeholder = SessionSummoner {
+             return SessionSummoner {
                 champion_id: player.champion_id,
                 champion_key: format!("champion_{}", player.champion_id),
                 summoner: Summoner::default(),
@@ -313,51 +336,19 @@ async fn process_team(
                 pre_group_markers: PreGroupMarker::default(),
                 is_loading: false,
             };
-            result.push(placeholder.clone());
-
-            let event_name = if is_team_one {
-                "session-player-update-team-one"
-            } else {
-                "session-player-update-team-two"
-            };
-            #[derive(Serialize)]
-            struct PlayerUpdate {
-                index: usize,
-                total: usize,
-                player: SessionSummoner,
-                is_team_one: bool,
-            }
-            let update = PlayerUpdate {
-                index,
-                total: team.len(),
-                player: placeholder,
-                is_team_one,
-            };
-            if let Err(e) = app_handle.emit(event_name, &update) {
-                log::error!("Failed to emit placeholder for empty puuid: {}", e);
-            }
-            continue;
         }
-
-        log::info!(
-            "Processing player {}/{}: {}",
-            index + 1,
-            team.len(),
-            player.puuid
-        );
 
         // 获取召唤师信息
         let summoner = match Summoner::get_summoner_by_puuid(&player.puuid).await {
             Ok(s) => s,
             Err(e) => {
                 log::warn!("Failed to get summoner for {}: {}", player.puuid, e);
-                continue;
+                Summoner::default()
             }
         };
 
         // 获取战绩
-        // Default to 4 if not configured
-        let count = match crate::config::get_config("matchHistoryCount").await {
+         let count = match crate::config::get_config("matchHistoryCount").await {
             Ok(crate::config::Value::Integer(v)) => v as i32,
             Ok(crate::config::Value::String(s)) => s.parse().unwrap_or(4),
             _ => 4,
@@ -381,7 +372,7 @@ async fn process_team(
                 Ok(tag) => tag,
                 Err(e) => {
                     log::warn!("Failed to get user tag for {}: {}", player.puuid, e);
-                    // 创建一个默认的 UserTag
+                     // 创建一个默认的 UserTag
                     UserTag {
                         recent_data: crate::command::user_tag::RecentData {
                             kda: 0.0,
@@ -420,8 +411,7 @@ async fn process_team(
             }
         };
 
-        // 构造 SessionSummoner 数据
-        let session_summoner = SessionSummoner {
+         SessionSummoner {
             champion_id: player.champion_id,
             champion_key: format!("champion_{}", player.champion_id),
             summoner: summoner.clone(),
@@ -431,18 +421,22 @@ async fn process_team(
             meet_games: Vec::new(),
             pre_group_markers: PreGroupMarker::default(),
             is_loading: false,
-        };
+        }
+    });
 
-        // 添加到结果队伍
+    // 并行执行所有任务
+    let fetched_players = futures::future::join_all(futures).await;
+
+    // 将结果添加到 result 并推送事件
+    for (index, session_summoner) in fetched_players.into_iter().enumerate() {
         result.push(session_summoner.clone());
 
-        // 每完成一个玩家就推送一次事件
         let event_name = if is_team_one {
             "session-player-update-team-one"
         } else {
             "session-player-update-team-two"
         };
-
+        
         #[derive(Serialize)]
         struct PlayerUpdate {
             index: usize,
@@ -458,10 +452,10 @@ async fn process_team(
             is_team_one,
         };
 
-        if let Err(e) = app_handle.emit(event_name, &update) {
+         if let Err(e) = app_handle.emit(event_name, &update) {
             log::error!("Failed to emit player update event: {}", e);
         } else {
-            log::info!("Emitted player update: {} of {}", index + 1, team.len());
+            // log::info!("Emitted player update: {} of {}", index + 1, team.len());
         }
     }
 
