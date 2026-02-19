@@ -447,6 +447,37 @@ onMounted(async () => {
   console.log('✅ [DEBUG] Gaming page fully mounted')
 })
 
+// 重试机制变量
+let retryCount = 0
+const maxRetries = 3
+
+async function checkAndRetryFetch() {
+  if (sessionData.phase === 'InProgress' || sessionData.phase === 'GameStart') {
+    // 如果敌方队伍为空或没有召唤师数据（例如名字为空），则重试
+    const enemyMissing = !sessionData.teamTwo || sessionData.teamTwo.length === 0 || sessionData.teamTwo.every(p => !p.summoner.gameName)
+    
+    if (enemyMissing && retryCount < maxRetries) {
+      retryCount++
+      console.log(`⚠️ [DEBUG] 游戏中敌方数据缺失 (尝试 ${retryCount}/${maxRetries}), 3秒后重试...`)
+      setTimeout(() => {
+        requestSessionData()
+        // 获取后再检查一次
+        setTimeout(checkAndRetryFetch, 4000) 
+      }, 3000)
+    }
+  }
+}
+
+// 监听阶段变化以重置重试计数
+import { watch } from 'vue'
+watch(() => sessionData.phase, (newVal, oldVal) => {
+  if (newVal === 'InProgress' && oldVal !== 'InProgress') {
+    retryCount = 0
+    // 状态切换后给 LCU 一点时间填充数据
+    setTimeout(checkAndRetryFetch, 2000)
+  }
+})
+
 onUnmounted(() => {
   // 清理所有事件监听器
   if (unlistenSessionComplete) {
