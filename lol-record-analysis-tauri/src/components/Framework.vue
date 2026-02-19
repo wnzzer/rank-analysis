@@ -32,11 +32,19 @@
 <script lang="ts" setup>
 import Header from './Header.vue'
 import SideNavigation from './SideNavigation.vue'
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { useGameState } from '../composables/useGameState'
 
 const route = useRoute()
 const isSettingsRoute = computed(() => route.path.startsWith('/Settings'))
+
+// 使用 GameState composable，其中包含了自动跳转逻辑
+useGameState()
+
+onMounted(() => {
+  // Framework mounted
+})
 
 const contentStyle = computed(() => ({
   backgroundColor: 'var(--bg-base)',

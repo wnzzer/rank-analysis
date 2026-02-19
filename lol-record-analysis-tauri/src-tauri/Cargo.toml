@@ -10,6 +10,13 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
+[profile.release]
+opt-level = "z"  # 优化级别设为 "z"，专注于大小优化
+lto = true       # 启用链接时优化
+codegen-units = 1  # 减少代码生成单元，提高优化效果
+panic = "abort"  # 恐慌时直接中止，减少错误处理代码
+strip = true     # 剥离符号信息，减小二进制大小
+
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
@@ -46,3 +53,8 @@ tauri-plugin-updater = "2.9.0"
 mlua = { version = "0.9", features = ["lua54", "vendored", "async"] }
 scraper = "0.22"
 futures = "0.3"
+tokio-tungstenite = { version = "0.20", features = ["native-tls", "connect", "handshake"] }
+futures-util = "0.3"
+native-tls = "0.2"
+tokio-native-tls = "0.3"
+url = "2.5"

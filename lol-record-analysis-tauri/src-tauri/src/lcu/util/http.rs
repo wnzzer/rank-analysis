@@ -72,7 +72,7 @@ pub async fn lcu_get<T: DeserializeOwned + 'static>(uri: &str) -> Result<T, Stri
     for _ in 0..2 {
         let (token, port) = get_auth_pair().map_err(|e| format!("LCU认证失败: {}", e))?;
         let url = build_url(&token, uri, &port);
-        log::info!("LCU GET URL: {}", url);
+        log::debug!("LCU GET URL: {}", url);
         let resp = get_client().get(&url).send().await;
         match resp {
             Ok(r) if r.status() == StatusCode::OK => {
@@ -180,7 +180,7 @@ pub async fn lcu_get_img_as_binary(uri: &str) -> Result<(Vec<u8>, String), Strin
     for _ in 0..2 {
         let (token, port) = get_auth_pair().map_err(|e| format!("LCU认证失败: {}", e))?;
         let url = build_url(&token, uri, &port);
-        log::info!("LCU GET Binary URL: {}", url);
+        log::debug!("LCU GET Binary URL: {}", url);
         let resp = get_client().get(&url).send().await;
         match resp {
             Ok(r) if r.status() == StatusCode::OK => {
