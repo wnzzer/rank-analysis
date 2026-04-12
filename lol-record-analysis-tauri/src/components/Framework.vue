@@ -126,10 +126,12 @@ const contentStyle = computed(() => ({
   overflow: hidden;
 }
 
-.left :deep(.n-layout-scroll-container),
-.left :deep(.n-scrollbar-container),
-.left :deep(.n-scrollbar-content) {
+.left :deep(.n-layout-sider-scroll-container) {
   overflow: hidden !important;
+}
+
+.left :deep(.n-scrollbar-rail) {
+  display: none !important;
 }
 
 /* 页面切换过渡 */
