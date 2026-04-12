@@ -88,10 +88,7 @@ async fn lcu_get_raw(uri: &str) -> Result<String, String> {
         let resp = get_client().get(&url).send().await;
         match resp {
             Ok(r) if r.status() == StatusCode::OK => {
-                let text = r
-                    .text()
-                    .await
-                    .map_err(|e| format!("读取响应失败: {}", e))?;
+                let text = r.text().await.map_err(|e| format!("读取响应失败: {}", e))?;
                 return Ok(text);
             }
             _ => {

@@ -283,7 +283,9 @@ onMounted(async () => {
 
 .toolbar-reset:hover {
   transform: scale(1.05) rotate(180deg);
-  transition: transform var(--dur-normal) var(--ease-expo), color var(--dur-fast) var(--ease-expo);
+  transition:
+    transform var(--dur-normal) var(--ease-expo),
+    color var(--dur-fast) var(--ease-expo);
   color: var(--text-primary);
 }
 
@@ -317,7 +319,9 @@ onMounted(async () => {
 .pagination :deep(.n-button) {
   background: var(--glass-bg-low) !important;
   border: 1px solid var(--glass-border) !important;
-  transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast) var(--ease-expo) !important;
+  transition:
+    transform var(--dur-fast) var(--ease-spring),
+    background var(--dur-fast) var(--ease-expo) !important;
 }
 
 .pagination :deep(.n-button:hover:not(:disabled)) {

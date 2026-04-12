@@ -1,7 +1,12 @@
 <template>
   <n-flex vertical class="user-record-container" :size="12">
     <!-- User Info Card -->
-    <n-card class="record-panel-card panel-glass" :bordered="false" size="small" content-style="padding: 12px">
+    <n-card
+      class="record-panel-card panel-glass"
+      :bordered="false"
+      size="small"
+      content-style="padding: 12px"
+    >
       <n-flex align="center" :size="12">
         <div class="avatar-wrapper user-record-avatar">
           <n-avatar

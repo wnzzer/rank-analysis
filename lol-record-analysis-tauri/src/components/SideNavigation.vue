@@ -1,21 +1,33 @@
 <template>
   <div class="sidenav-wrap">
     <div class="nav-items">
-      <button v-if="!!mySummoner?.gameName" type="button" class="nav-item"
+      <button
+        v-if="!!mySummoner?.gameName"
+        type="button"
+        class="nav-item"
         :class="{ 'nav-item--active': getFirstPath(router.currentRoute.value.path) === 'Record' }"
-        @click="handleMenuClick('Record')">
+        @click="handleMenuClick('Record')"
+      >
         <n-icon :size="18"><BarChartOutline /></n-icon>
         <span class="nav-item-label">战绩</span>
       </button>
-      <button v-if="!!mySummoner?.gameName" type="button" class="nav-item"
+      <button
+        v-if="!!mySummoner?.gameName"
+        type="button"
+        class="nav-item"
         :class="{ 'nav-item--active': getFirstPath(router.currentRoute.value.path) === 'Gaming' }"
-        @click="handleMenuClick('Gaming')">
+        @click="handleMenuClick('Gaming')"
+      >
         <n-icon :size="18"><GameControllerOutline /></n-icon>
         <span class="nav-item-label">对局</span>
       </button>
-      <button v-if="!!mySummoner?.gameName" type="button" class="nav-item"
+      <button
+        v-if="!!mySummoner?.gameName"
+        type="button"
+        class="nav-item"
         :class="{ 'nav-item--active': getFirstPath(router.currentRoute.value.path) === 'Settings' }"
-        @click="handleMenuClick('Settings')">
+        @click="handleMenuClick('Settings')"
+      >
         <n-icon :size="18"><SettingsOutline /></n-icon>
         <span class="nav-item-label">设置</span>
       </button>
@@ -23,20 +35,30 @@
     <div class="status-icons">
       <n-tooltip placement="right" :delay="200">
         <template #trigger>
-          <button type="button" class="status-icon-btn"
+          <button
+            type="button"
+            class="status-icon-btn"
             :class="{ 'status-icon-btn--on': isConnected }"
-            :disabled="!isConnected" @click="toMe">
+            :disabled="!isConnected"
+            @click="toMe"
+          >
             <n-icon :size="15"><LinkOutline /></n-icon>
-            <span class="status-dot" :class="isConnected ? 'status-dot--green' : 'status-dot--off'" />
+            <span
+              class="status-dot"
+              :class="isConnected ? 'status-dot--green' : 'status-dot--off'"
+            />
           </button>
         </template>
         {{ isConnected ? `已连接：${mySummoner.gameName}` : '未连接客户端' }}
       </n-tooltip>
       <n-tooltip placement="right" :delay="200">
         <template #trigger>
-          <button type="button" class="status-icon-btn"
+          <button
+            type="button"
+            class="status-icon-btn"
             :class="{ 'status-icon-btn--blue': isInGame }"
-            @click="goGaming">
+            @click="goGaming"
+          >
             <n-icon :size="15"><GameControllerOutline /></n-icon>
             <span class="status-dot" :class="isInGame ? 'status-dot--blue' : 'status-dot--off'" />
           </button>
@@ -50,7 +72,12 @@
 <script setup lang="ts">
 import router from '../router'
 import { getFirstPath } from '../router'
-import { BarChartOutline, GameControllerOutline, SettingsOutline, LinkOutline } from '@vicons/ionicons5'
+import {
+  BarChartOutline,
+  GameControllerOutline,
+  SettingsOutline,
+  LinkOutline
+} from '@vicons/ionicons5'
 import { computed, ref, watch } from 'vue'
 import { Summoner } from './record/type'
 import { useGameState } from '@renderer/composables/useGameState'
@@ -184,7 +211,9 @@ const goGaming = () => {
   box-shadow: 0 0 8px rgba(61, 155, 122, 0.4);
 }
 
-.nav-item-label { font-size: 9px; }
+.nav-item-label {
+  font-size: 9px;
+}
 
 /* Status icons */
 .status-icons {
