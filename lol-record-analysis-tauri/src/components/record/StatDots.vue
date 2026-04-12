@@ -157,4 +157,8 @@ const iconStyle = computed<CSSProperties>(() => ({
   width: 3px;
   height: 3px;
 }
+
+:deep(.n-progress-graph-line-fill) {
+  transition: width var(--dur-slow) var(--ease-expo) !important;
+}
 </style>

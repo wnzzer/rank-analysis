@@ -205,7 +205,15 @@ const addPickData = async (value: any) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: var(--space-8) 0;
+  background: var(--glass-bg-low);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  padding: var(--space-8) var(--space-12);
+  transition: background var(--dur-fast) var(--ease-expo);
+}
+
+.setting-item:hover {
+  background: var(--glass-bg-mid);
 }
 
 .setting-label {
@@ -237,5 +245,11 @@ const addPickData = async (value: any) => {
 
 .icon {
   font-style: normal;
+}
+
+:deep(.n-card) {
+  background: var(--glass-bg-mid) !important;
+  border: 1px solid var(--glass-border) !important;
+  box-shadow: var(--shadow-md), var(--glass-highlight) !important;
 }
 </style>
