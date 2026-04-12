@@ -8,12 +8,24 @@ use base64::engine::general_purpose;
 use base64::Engine;
 use reqwest::{Client, StatusCode};
 use serde::{de::DeserializeOwned, Serialize};
-use std::sync::{Mutex, OnceLock};
+use std::sync::{LazyLock, Mutex, OnceLock};
 use std::time::{Duration, Instant};
+use tokio::sync::Semaphore;
 
 static HTTP_CLIENT: OnceLock<Client> = OnceLock::new();
 static AUTH: OnceLock<Mutex<(String, String)>> = OnceLock::new();
 static LAST_REFRESH_TIME: OnceLock<Mutex<Instant>> = OnceLock::new();
+
+/// 最大并发 LCU GET 请求数
+static LCU_SEMAPHORE: LazyLock<Semaphore> = LazyLock::new(|| Semaphore::new(10));
+
+/// Singleflight：相同 URI 的并发 GET 请求只发一次，100ms TTL
+static SINGLEFLIGHT: LazyLock<moka::future::Cache<String, String>> = LazyLock::new(|| {
+    moka::future::Cache::builder()
+        .time_to_live(std::time::Duration::from_millis(100))
+        .max_capacity(200)
+        .build()
+});
 fn get_client() -> &'static Client {
     HTTP_CLIENT.get_or_init(|| {
         Client::builder()
@@ -67,8 +79,8 @@ fn build_url(token: &str, uri: &str, port: &str) -> String {
     format!("https://riot:{}@127.0.0.1:{}/{}", token, port, uri)
 }
 
-/// 向 LCU 发起 GET 请求，将响应 JSON 反序列化为 `T`。失败时刷新认证并重试一次。
-pub async fn lcu_get<T: DeserializeOwned + 'static>(uri: &str) -> Result<T, String> {
+/// 内部：发起真实 HTTP GET 请求，返回原始 JSON 字符串。
+async fn lcu_get_raw(uri: &str) -> Result<String, String> {
     for _ in 0..2 {
         let (token, port) = get_auth_pair().map_err(|e| format!("LCU认证失败: {}", e))?;
         let url = build_url(&token, uri, &port);
@@ -76,12 +88,11 @@ pub async fn lcu_get<T: DeserializeOwned + 'static>(uri: &str) -> Result<T, Stri
         let resp = get_client().get(&url).send().await;
         match resp {
             Ok(r) if r.status() == StatusCode::OK => {
-                // 统一使用 JSON 反序列化，这样可以正确处理 JSON 字符串（去掉引号）
-                let data = r
-                    .json::<T>()
+                let text = r
+                    .text()
                     .await
-                    .map_err(|e| format!("反序列化失败: {}", e))?;
-                return Ok(data);
+                    .map_err(|e| format!("读取响应失败: {}", e))?;
+                return Ok(text);
             }
             _ => {
                 if let Err(e) = refresh_auth() {
@@ -91,6 +102,29 @@ pub async fn lcu_get<T: DeserializeOwned + 'static>(uri: &str) -> Result<T, Stri
         }
     }
     Err("请求失败或认证失效".to_string())
+}
+
+/// 向 LCU 发起 GET 请求，将响应 JSON 反序列化为 `T`。
+/// 内置 singleflight（相同 URI 并发请求合并）和并发限制（最多 10 个同时请求）。
+pub async fn lcu_get<T: DeserializeOwned + 'static>(uri: &str) -> Result<T, String> {
+    let uri_owned = uri.to_string();
+
+    // singleflight：相同 URI 的并发请求只发一次
+    let raw_json = SINGLEFLIGHT
+        .try_get_with(uri_owned.clone(), async {
+            // 获取 semaphore permit（限制并发数）
+            let _permit = LCU_SEMAPHORE
+                .acquire()
+                .await
+                .map_err(|e| format!("Semaphore error: {}", e))?;
+
+            lcu_get_raw(&uri_owned).await
+        })
+        .await
+        .map_err(|e| format!("{}", e))?;
+
+    // 从 JSON 字符串反序列化为目标类型
+    serde_json::from_str::<T>(&raw_json).map_err(|e| format!("反序列化失败: {}", e))
 }
 
 /// 向 LCU 发起 POST 请求，请求体为 JSON。失败时刷新认证并重试一次。
