@@ -675,10 +675,6 @@ const copy = () => {
   flex-direction: column;
   align-items: center;
   width: 70px;
-  background: var(--glass-bg-mid);
-  border-radius: var(--radius-md);
-  padding: 4px 0;
-  border: 1px solid var(--glass-border);
 }
 
 .rank-type-label {
