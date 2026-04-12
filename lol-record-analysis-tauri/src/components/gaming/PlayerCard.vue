@@ -23,7 +23,7 @@
         gap: 8px;
       "
     >
-      <n-spin size="medium" />
+      <div class="custom-spin"></div>
       <span v-if="sessionSummoner.summoner.gameName" style="font-size: 12px; color: #aaa">
         {{ sessionSummoner.summoner.gameName }}
       </span>
@@ -37,6 +37,7 @@
           :src="assetPrefix + '/champion/' + sessionSummoner.championId"
           :fallback-src="nullImg"
           class="hidden-record-avatar"
+          style="opacity: 0.45"
         />
         <span class="hidden-record-text">战绩已隐藏</span>
       </n-flex>
@@ -46,7 +47,7 @@
       key="loading-unknown"
       class="loading-container"
     >
-      <n-spin size="small" />
+      <div class="custom-spin"></div>
     </div>
     <n-flex v-else key="content" style="height: 100%" :wrap="false">
       <!-- Left Side: Profile & History -->
@@ -701,12 +702,16 @@ onMounted(fetchAramBalance)
   display: flex;
   flex-direction: column;
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-card);
-  transition: box-shadow var(--transition-fast);
+  background: var(--glass-bg-mid) !important;
+  border: 1px solid var(--glass-border) !important;
+  box-shadow: var(--shadow-md), var(--glass-highlight) !important;
+  transition: box-shadow var(--dur-normal) var(--ease-expo);
+  animation: fade-up var(--dur-normal) var(--ease-expo) both;
+  animation-delay: calc(var(--stagger) * var(--stagger-i, 0));
 }
 
 .player-card:hover {
-  box-shadow: var(--shadow-card-hover);
+  box-shadow: var(--shadow-lg), var(--glass-highlight) !important;
 }
 
 .player-card-team-blue {
@@ -835,20 +840,19 @@ onMounted(fetchAramBalance)
 
 .history-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 4px;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
   flex: 1;
   overflow-y: auto;
 }
 
 .history-item {
-  background: var(--bg-elevated);
+  background: var(--glass-bg-low);
   border-radius: var(--radius-sm);
-  padding: var(--space-4) var(--space-8);
-  font-size: 12px;
-  border-left: 3px solid var(--semantic-loss);
-  border: 1px solid var(--border-subtle);
-  border-left-width: 3px;
+  padding: 3px 5px;
+  font-size: 10px;
+  border: 1px solid var(--glass-border);
+  border-left-width: 2px;
   border-left-color: var(--semantic-loss);
 }
 
@@ -913,11 +917,11 @@ onMounted(fetchAramBalance)
 }
 
 .stats-card {
-  background: var(--n-action-color);
+  background: var(--glass-bg-low);
   border-radius: var(--radius-md);
   padding: 6px;
-  transition: all 0.2s ease;
-  border: 1px solid transparent;
+  transition: all var(--dur-normal) var(--ease-expo);
+  border: 1px solid var(--glass-border);
 }
 
 .stats-card.is-expanded {
@@ -926,9 +930,9 @@ onMounted(fetchAramBalance)
   right: 0;
   width: 240px;
   z-index: 100;
-  background: var(--n-color);
-  border-color: var(--n-primary-color);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  background: var(--glass-bg-high);
+  border-color: rgba(61, 155, 122, 0.25);
+  box-shadow: var(--shadow-lg);
 }
 
 .stats-header {
@@ -1009,5 +1013,39 @@ onMounted(fetchAramBalance)
   font-size: 11px;
   min-width: 35px;
   text-align: right;
+}
+
+.custom-spin {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--border-subtle);
+  border-top-color: var(--semantic-win);
+  animation: player-spin 1s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes player-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+:deep(.n-tag--success-type) {
+  background: rgba(61, 155, 122, 0.12) !important;
+  color: var(--semantic-win) !important;
+  border: 1px solid rgba(61, 155, 122, 0.2) !important;
+}
+
+:deep(.n-tag--error-type) {
+  background: rgba(196, 92, 92, 0.1) !important;
+  color: var(--semantic-loss) !important;
+  border: 1px solid rgba(196, 92, 92, 0.18) !important;
+}
+
+:deep(.n-tag--warning-type) {
+  background: rgba(251, 191, 36, 0.1) !important;
+  color: #d97706 !important;
+  border: 1px solid rgba(251, 191, 36, 0.2) !important;
 }
 </style>

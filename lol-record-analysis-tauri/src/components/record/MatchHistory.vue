@@ -222,7 +222,7 @@ onMounted(async () => {
 .match-history-list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-20);
+  gap: 7px;
 }
 
 .list-item {
@@ -231,9 +231,9 @@ onMounted(async () => {
 
 .list-enter-active {
   transition:
-    opacity var(--transition-normal) var(--ease-out-expo),
-    transform var(--transition-normal) var(--ease-out-expo);
-  transition-delay: calc(var(--stagger-step) * var(--stagger-i, 0));
+    opacity var(--dur-normal) var(--ease-expo),
+    transform var(--dur-normal) var(--ease-expo);
+  transition-delay: calc(var(--stagger) * var(--stagger-i, 0));
 }
 
 .list-enter-from {
@@ -242,7 +242,7 @@ onMounted(async () => {
 }
 
 .list-move {
-  transition: transform var(--transition-normal);
+  transition: transform var(--dur-normal) var(--ease-expo);
 }
 
 .filter-select.filter-mode {
@@ -257,27 +257,38 @@ onMounted(async () => {
 .filter-select :deep(.n-input),
 .filter-select :deep(.n-input-wrapper) {
   transition:
-    border-color var(--transition-fast),
-    box-shadow var(--transition-fast);
+    border-color var(--dur-fast) var(--ease-expo),
+    box-shadow var(--dur-fast) var(--ease-expo);
 }
 
 .filter-select:focus-within :deep(.n-input-wrapper) {
   box-shadow: 0 0 0 1px var(--border-subtle);
 }
 
+.filter-select :deep(.n-base-selection) {
+  background: var(--glass-bg-low) !important;
+  border-color: var(--glass-border) !important;
+  transition: border-color var(--dur-fast) var(--ease-expo) !important;
+}
+.filter-select :deep(.n-base-selection:hover) {
+  border-color: var(--glass-bg-high) !important;
+}
+
 .toolbar-reset {
   color: var(--text-secondary);
   transition:
-    transform var(--transition-fast),
-    color var(--transition-fast);
+    transform var(--dur-fast) var(--ease-expo),
+    color var(--dur-fast) var(--ease-expo);
 }
 
 .toolbar-reset:hover {
-  transform: scale(1.05);
+  transform: scale(1.05) rotate(180deg);
+  transition: transform var(--dur-normal) var(--ease-expo), color var(--dur-fast) var(--ease-expo);
+  color: var(--text-primary);
 }
 
 .toolbar-reset:active {
-  transform: scale(0.98);
+  transform: scale(0.98) rotate(180deg);
 }
 
 .content-wrapper {
@@ -304,14 +315,18 @@ onMounted(async () => {
 }
 
 .pagination :deep(.n-button) {
-  transition: transform var(--transition-fast);
+  background: var(--glass-bg-low) !important;
+  border: 1px solid var(--glass-border) !important;
+  transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast) var(--ease-expo) !important;
 }
 
 .pagination :deep(.n-button:hover:not(:disabled)) {
   transform: scale(1.05);
+  background: var(--glass-bg-mid) !important;
 }
 
 .pagination :deep(.n-button:active:not(:disabled)) {
-  transform: scale(0.98);
+  transform: scale(0.97);
+  transition-duration: var(--dur-instant) !important;
 }
 </style>
