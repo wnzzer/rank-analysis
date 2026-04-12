@@ -251,6 +251,34 @@ impl MatchHistory {
             my_stats.damage_taken_rate =
                 ((my_damage_taken / total_damage_taken as f64) * 100.0) as i32;
             my_stats.heal_rate = ((my_heal / total_heal as f64) * 100.0) as i32;
+
+            // MVP/SVP 计算：同队 KDA 最高者标记
+            let my_participant_id = game.participants[0].participant_id;
+            let my_kda = (game.participants[0].stats.kills as f64
+                + game.participants[0].stats.assists as f64)
+                / (game.participants[0].stats.deaths.max(1) as f64);
+
+            let mut best_kda = my_kda;
+            let mut best_is_me = true;
+
+            for p in &game.game_detail.participants {
+                if p.team_id == team_id && p.participant_id != my_participant_id {
+                    let kda = (p.stats.kills as f64 + p.stats.assists as f64)
+                        / (p.stats.deaths.max(1) as f64);
+                    if kda > best_kda {
+                        best_kda = kda;
+                        best_is_me = false;
+                    }
+                }
+            }
+
+            if best_is_me {
+                game.mvp = if game.participants[0].stats.win {
+                    "MVP".to_string()
+                } else {
+                    "SVP".to_string()
+                };
+            }
         }
 
         Ok(())
