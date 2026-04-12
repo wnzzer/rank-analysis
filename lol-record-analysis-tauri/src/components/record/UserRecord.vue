@@ -841,9 +841,9 @@ const copy = () => {
 }
 
 .panel-glass {
-  background: var(--glass-bg-mid) !important;
-  border: 1px solid var(--glass-border) !important;
-  box-shadow: var(--shadow-md), var(--glass-highlight) !important;
+  background: transparent !important;
+  border: 1px solid var(--border-subtle) !important;
+  box-shadow: none !important;
 }
 
 .stat-row :deep(.n-progress-graph-line-fill) {
