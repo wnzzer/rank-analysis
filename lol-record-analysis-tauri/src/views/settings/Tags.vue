@@ -304,10 +304,4 @@ async function deleteTag(id: string) {
   text-align: center;
   padding: 20px;
 }
-
-:deep(.n-card) {
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-}
 </style>

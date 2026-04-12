@@ -326,15 +326,6 @@ const sendEmail = () => {
   display: flex;
   align-items: center;
   height: 40px;
-  background: var(--glass-bg-low);
-  border: 1px solid var(--glass-border);
-  border-radius: 8px;
-  transition: background var(--dur-fast) var(--ease-expo);
-  padding: 0 12px;
-}
-
-.nav-item:hover {
-  background: var(--glass-bg-mid);
 }
 
 .nav-icon {
@@ -346,12 +337,6 @@ const sendEmail = () => {
 
 .spacer {
   flex: 1;
-}
-
-:deep(.n-card) {
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
 }
 </style>
 
