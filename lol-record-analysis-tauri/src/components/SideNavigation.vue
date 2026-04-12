@@ -125,8 +125,8 @@ const goGaming = () => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 10px 0 8px;
-  overflow: hidden; /* CRITICAL: prevent any horizontal overflow */
+  padding: 6px 0 4px;
+  overflow: hidden;
 }
 
 .nav-items {
@@ -165,7 +165,7 @@ const goGaming = () => {
 }
 
 .nav-item:hover {
-  background: var(--glass-bg-high);
+  background: rgba(255, 255, 255, 0.06);
   color: var(--text-secondary);
   transform: scale(1.04);
 }
@@ -202,22 +202,22 @@ const goGaming = () => {
 .status-icons {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   padding: 0 8px;
   width: 100%;
-  margin-bottom: 4px;
+  flex-shrink: 0;
 }
 
 .status-icon-btn {
   width: 100%;
-  height: 32px;
-  border-radius: 8px;
+  height: 28px;
+  border-radius: 7px;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
   border: 1px solid transparent;
-  background: var(--glass-bg-low);
+  background: transparent;
   color: var(--text-tertiary);
   cursor: pointer;
   transition:
@@ -227,7 +227,7 @@ const goGaming = () => {
 }
 
 .status-icon-btn:hover:not(:disabled) {
-  background: var(--glass-bg-high);
+  background: rgba(255, 255, 255, 0.06);
   color: var(--text-secondary);
 }
 
@@ -273,7 +273,15 @@ const goGaming = () => {
   opacity: 0.5;
 }
 
-/* LIGHT THEME — override every dark-specific value */
+/* LIGHT THEME */
+.theme-light .nav-item:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.theme-light .status-icon-btn:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.05);
+}
+
 .theme-light .nav-item--active {
   background: rgba(45, 138, 108, 0.12);
   border-color: rgba(45, 138, 108, 0.18);
