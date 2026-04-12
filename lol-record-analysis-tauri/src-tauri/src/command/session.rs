@@ -532,76 +532,80 @@ async fn process_team_parallel(
             };
         }
 
-        // 获取召唤师信息
-        let summoner = match Summoner::get_summoner_by_puuid(&player.puuid).await {
-            Ok(s) => s,
-            Err(e) => {
-                log::warn!("Failed to get summoner for {}: {}", player.puuid, e);
-                Summoner::default()
-            }
-        };
-
-        // 获取战绩
+        // 读取配置（轻量操作，在 join 前执行）
         let count = match crate::config::get_config("matchHistoryCount").await {
             Ok(crate::config::Value::Integer(v)) => v as i32,
             Ok(crate::config::Value::String(s)) => s.parse().unwrap_or(4),
             _ => 4,
         };
+        let puuid = player.puuid.clone();
 
-        let match_history =
-            match MatchHistory::get_match_history_by_puuid(&player.puuid, 0, count - 1).await {
-                Ok(mut mh) => {
-                    mh.enrich_info_cn().ok();
-                    mh
-                }
-                Err(e) => {
-                    log::warn!("Failed to get match history for {}: {}", player.puuid, e);
-                    MatchHistory::default()
-                }
-            };
-
-        // 获取用户标签
-        let user_tag =
-            match crate::command::user_tag::get_user_tag_by_puuid(&player.puuid, mode).await {
-                Ok(tag) => tag,
-                Err(e) => {
-                    log::warn!("Failed to get user tag for {}: {}", player.puuid, e);
-                    // 创建一个默认的 UserTag
-                    UserTag {
-                        recent_data: crate::command::user_tag::RecentData {
-                            kda: 0.0,
-                            kills: 0.0,
-                            deaths: 0.0,
-                            assists: 0.0,
-                            select_mode: mode,
-                            select_mode_cn: QUEUE_ID_TO_CN
-                                .get(&(mode as u32))
-                                .unwrap_or(&"未知模式")
-                                .to_string(),
-                            select_wins: 0,
-                            select_losses: 0,
-                            group_rate: 0,
-                            average_gold: 0,
-                            gold_rate: 0,
-                            average_damage_dealt_to_champions: 0,
-                            damage_dealt_to_champions_rate: 0,
-                            friend_and_dispute: Default::default(),
-                            one_game_players_map: None,
-                        },
-                        tag: Vec::new(),
+        // 并行获取召唤师信息、战绩、段位
+        let (summoner, match_history, rank) = tokio::join!(
+            async {
+                match Summoner::get_summoner_by_puuid(&puuid).await {
+                    Ok(s) => s,
+                    Err(e) => {
+                        log::warn!("Failed to get summoner for {}: {}", puuid, e);
+                        Summoner::default()
                     }
                 }
-            };
-
-        // 获取段位信息
-        let rank = match Rank::get_rank_by_puuid(&player.puuid).await {
-            Ok(mut r) => {
-                r.enrich_cn_info();
-                r
+            },
+            async {
+                match MatchHistory::get_match_history_by_puuid(&puuid, 0, count - 1).await {
+                    Ok(mut mh) => {
+                        mh.enrich_info_cn().ok();
+                        mh
+                    }
+                    Err(e) => {
+                        log::warn!("Failed to get match history for {}: {}", puuid, e);
+                        MatchHistory::default()
+                    }
+                }
+            },
+            async {
+                match Rank::get_rank_by_puuid(&puuid).await {
+                    Ok(mut r) => {
+                        r.enrich_cn_info();
+                        r
+                    }
+                    Err(e) => {
+                        log::warn!("Failed to get rank for {}: {}", puuid, e);
+                        Rank::default()
+                    }
+                }
             }
+        );
+
+        // 获取用户标签（可能依赖 match_history 数据，顺序执行）
+        let user_tag = match crate::command::user_tag::get_user_tag_by_puuid(&puuid, mode).await {
+            Ok(tag) => tag,
             Err(e) => {
-                log::warn!("Failed to get rank for {}: {}", player.puuid, e);
-                Rank::default()
+                log::warn!("Failed to get user tag for {}: {}", puuid, e);
+                // 创建一个默认的 UserTag
+                UserTag {
+                    recent_data: crate::command::user_tag::RecentData {
+                        kda: 0.0,
+                        kills: 0.0,
+                        deaths: 0.0,
+                        assists: 0.0,
+                        select_mode: mode,
+                        select_mode_cn: QUEUE_ID_TO_CN
+                            .get(&(mode as u32))
+                            .unwrap_or(&"未知模式")
+                            .to_string(),
+                        select_wins: 0,
+                        select_losses: 0,
+                        group_rate: 0,
+                        average_gold: 0,
+                        gold_rate: 0,
+                        average_damage_dealt_to_champions: 0,
+                        damage_dealt_to_champions_rate: 0,
+                        friend_and_dispute: Default::default(),
+                        one_game_players_map: None,
+                    },
+                    tag: Vec::new(),
+                }
             }
         };
 

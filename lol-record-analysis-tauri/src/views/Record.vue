@@ -37,4 +37,15 @@ onUnmounted(() => {
   padding: var(--space-20);
   padding-top: var(--space-16);
 }
+
+/* UserRecord 面板隐藏滚动条 */
+:deep(.n-layout-sider .n-layout-scroll-container),
+:deep(.n-layout-sider .n-scrollbar-container) {
+  scrollbar-width: none;
+}
+
+:deep(.n-layout-sider .n-layout-scroll-container::-webkit-scrollbar),
+:deep(.n-layout-sider .n-scrollbar-container::-webkit-scrollbar) {
+  display: none;
+}
 </style>

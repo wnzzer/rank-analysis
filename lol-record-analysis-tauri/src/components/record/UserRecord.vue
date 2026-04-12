@@ -1,7 +1,12 @@
 <template>
   <n-flex vertical class="user-record-container" :size="12">
     <!-- User Info Card -->
-    <n-card class="record-panel-card" :bordered="false" size="small" content-style="padding: 12px">
+    <n-card
+      class="record-panel-card panel-glass"
+      :bordered="false"
+      size="small"
+      content-style="padding: 12px"
+    >
       <n-flex align="center" :size="12">
         <div class="avatar-wrapper user-record-avatar">
           <n-avatar
@@ -158,7 +163,7 @@
     <n-flex vertical :size="12">
       <!-- Solo Rank -->
       <n-card
-        class="record-panel-card"
+        class="record-panel-card panel-glass"
         :bordered="false"
         size="small"
         content-style="padding: 10px"
@@ -198,7 +203,7 @@
 
       <!-- Flex Rank -->
       <n-card
-        class="record-panel-card"
+        class="record-panel-card panel-glass"
         :bordered="false"
         size="small"
         content-style="padding: 10px"
@@ -656,11 +661,11 @@ const copy = () => {
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-subtle);
   cursor: pointer;
-  transition: background-color var(--transition-fast);
+  transition: background-color var(--dur-fast) var(--ease-expo);
 }
 
 .relationship-item:hover {
-  background-color: rgba(255, 255, 255, 0.08);
+  background-color: var(--glass-bg-high);
 }
 
 .rank-card-content {
@@ -716,17 +721,20 @@ const copy = () => {
   border-radius: var(--radius-sm);
   font-size: 12px;
   font-weight: bold;
-  background-color: rgba(128, 128, 128, 0.1);
+  background: var(--glass-bg-low);
+  border: 1px solid var(--glass-border);
 }
 
 .win-rate-badge.good {
   color: var(--semantic-win);
-  background-color: rgba(61, 155, 122, 0.2);
+  background: rgba(61, 155, 122, 0.14);
+  border-color: rgba(61, 155, 122, 0.22);
 }
 
 .win-rate-badge.bad {
   color: var(--semantic-loss);
-  background-color: rgba(196, 92, 92, 0.2);
+  background: rgba(196, 92, 92, 0.1);
+  border-color: rgba(196, 92, 92, 0.18);
 }
 
 .win-rate-badge.normal {
@@ -831,5 +839,15 @@ const copy = () => {
 .stat-icon-kda {
   color: var(--semantic-win);
   font-size: 16px;
+}
+
+.panel-glass {
+  background: transparent !important;
+  border: 1px solid var(--border-subtle) !important;
+  box-shadow: none !important;
+}
+
+.stat-row :deep(.n-progress-graph-line-fill) {
+  transition: width var(--dur-slow) var(--ease-expo) !important;
 }
 </style>

@@ -431,19 +431,14 @@ const themeColors = computed(() => {
 
 const cardStyle = computed(() => {
   const isWin = props.games.participants[0].stats.win
-  const leftColor = isWin ? '#3d9b7a' : '#c45c5c'
-  if (isDark.value) {
-    return {
-      borderLeft: `3px solid ${leftColor}`,
-      boxShadow: 'var(--shadow-card)'
-    }
-  }
   return {
-    backgroundColor: 'var(--bg-elevated)',
-    boxShadow: 'var(--shadow-card)',
-    border: '1px solid var(--border-subtle)',
-    borderLeft: `3px solid ${leftColor}`,
-    borderRadius: 'var(--radius-md)'
+    '--left-bar-bg': isWin
+      ? 'linear-gradient(180deg, #5ecfa4, #2d7a5e)'
+      : 'linear-gradient(180deg, #e07070, #994444)',
+    '--left-bar-glow': isWin
+      ? '2px 0 10px rgba(61,155,122,0.45)'
+      : '2px 0 10px rgba(196,92,92,0.35)',
+    position: 'relative' as const
   }
 })
 
@@ -537,57 +532,45 @@ function openDetail() {
   /* 根据需求可以选择 contain, cover 等 */
 }
 
-.win-class {
-  --n-border: 1px solid var(--semantic-win);
-  --n-border-hover: 1px solid var(--semantic-win);
-  --n-border-pressed: 1px solid var(--semantic-win);
-  cursor: pointer;
-  transition:
-    border-color var(--transition-fast),
-    box-shadow var(--transition-fast),
-    transform var(--transition-normal);
-}
-
-.win-class:hover {
-  box-shadow: var(--shadow-card-hover);
-  transform: translateY(-2px);
-}
-
+.win-class,
 .defeat-class {
-  --n-border: 1px solid var(--semantic-loss);
-  --n-border-hover: 1px solid var(--semantic-loss);
-  --n-border-pressed: 1px solid var(--semantic-loss);
   cursor: pointer;
+  overflow: hidden;
+  position: relative;
+  animation: fade-up var(--dur-normal) var(--ease-expo) both;
+  animation-delay: calc(var(--stagger) * var(--stagger-i, 0));
   transition:
-    border-color var(--transition-fast),
-    box-shadow var(--transition-fast),
-    transform var(--transition-normal);
+    transform var(--dur-normal) var(--ease-expo),
+    box-shadow var(--dur-normal) var(--ease-expo);
+  background: var(--glass-bg-mid) !important;
+  border: 1px solid var(--glass-border) !important;
+  box-shadow: var(--shadow-md), var(--glass-highlight) !important;
 }
 
+.win-class::before,
+.defeat-class::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--left-bar-bg);
+  box-shadow: var(--left-bar-glow);
+  border-radius: 10px 0 0 10px;
+  z-index: 1;
+}
+
+.win-class:hover,
 .defeat-class:hover {
-  box-shadow: var(--shadow-card-hover);
   transform: translateY(-2px);
+  box-shadow: var(--shadow-lg), var(--glass-highlight) !important;
 }
 
-.bordered {
-  border: red;
-  /* 边框宽度2px，实线，红色 */
-}
-
-.win-class:hover {
-  border: var(--n-border-hover);
-}
-
-.win-class:active {
-  border: var(--n-border-pressed);
-}
-
-.win-class:focus {
-  border: var(--n-border-focus);
-}
-
-.win-class:disabled {
-  border: var(--n-border-disabled);
+.win-class:active,
+.defeat-class:active {
+  transform: scale(0.995);
+  transition-duration: var(--dur-instant);
 }
 
 .mvp-box {
@@ -609,16 +592,11 @@ function openDetail() {
   flex-direction: column;
   gap: 0;
   padding: 4px 8px 5px;
-  background: rgba(0, 0, 0, 0.025);
-  border: 1px solid var(--border-subtle);
+  background: var(--glass-bg-low);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
   min-width: 0;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
-}
-
-.theme-light .record-card-stats-block {
-  background: rgba(0, 0, 0, 0.02);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--shadow-sm);
 }
 
 .record-card-meta {
@@ -630,21 +608,21 @@ function openDetail() {
 .record-card-item-slots :deep(.n-image),
 .record-card-item-slots :deep(.n-image img),
 .record-card-spell-icons .record-card-icon-slot {
-  width: 23px;
-  height: 23px;
+  width: 20px;
+  height: 20px;
   border-radius: var(--radius-sm);
   background: var(--bg-elevated);
-  border: 1px solid var(--border-subtle);
+  border: 1px solid var(--glass-border);
   box-sizing: border-box;
   object-fit: contain;
 }
 
 .record-card-item-slots .record-card-icon-slot {
-  width: 23px;
-  height: 23px;
+  width: 20px;
+  height: 20px;
   border-radius: var(--radius-sm);
   background: var(--bg-elevated);
-  border: 1px solid var(--border-subtle);
+  border: 1px solid var(--glass-border);
   box-sizing: border-box;
   object-fit: contain;
 }
@@ -661,29 +639,6 @@ function openDetail() {
   gap: 2px;
 }
 
-.record-card-augment-shell {
-  --augment-border: rgba(172, 185, 201, 0.42);
-  --augment-background: linear-gradient(180deg, rgba(56, 65, 78, 0.92), rgba(27, 32, 41, 0.96));
-  --augment-filter: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 23px;
-  height: 23px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--augment-border);
-  background: var(--augment-background);
-  box-sizing: border-box;
-  overflow: hidden;
-}
-
-.record-card-augment-icon {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  filter: var(--augment-filter);
-}
-
 /* 海克斯符文稀有度颜色 */
 .record-card-augment-shell {
   --augment-border: rgba(172, 185, 201, 0.42);
@@ -692,8 +647,8 @@ function openDetail() {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 23px;
-  height: 23px;
+  width: 20px;
+  height: 20px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--augment-border);
   background: var(--augment-background);
@@ -759,7 +714,7 @@ function openDetail() {
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-subtle);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
-  transition: box-shadow var(--transition-fast);
+  transition: box-shadow var(--dur-fast) var(--ease-expo);
 }
 
 :deep(.n-tag .n-avatar:hover),

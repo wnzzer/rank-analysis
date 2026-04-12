@@ -98,8 +98,8 @@ const menuOptions = [
 .settings-content-enter-active,
 .settings-content-leave-active {
   transition:
-    opacity var(--transition-normal),
-    transform var(--transition-normal);
+    opacity var(--dur-normal) var(--ease-expo),
+    transform var(--dur-normal) var(--ease-expo);
 }
 
 .settings-content-enter-from {
@@ -110,5 +110,21 @@ const menuOptions = [
 .settings-content-leave-to {
   opacity: 0;
   transform: translateX(-8px);
+}
+
+:deep(.n-layout-sider) {
+  background: var(--glass-bg-low) !important;
+  border-right: 1px solid var(--glass-border) !important;
+}
+
+:deep(.n-menu) {
+  background: transparent !important;
+}
+
+:deep(.n-menu-item-content--selected) {
+  background: rgba(61, 155, 122, 0.13) !important;
+  color: var(--semantic-win) !important;
+  font-weight: 700 !important;
+  border-radius: 8px !important;
 }
 </style>

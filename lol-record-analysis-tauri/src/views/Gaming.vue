@@ -60,6 +60,7 @@
           <PlayerCard
             v-for="(sessionSummoner, i) of sessionData.teamOne"
             :key="'teamOne' + i"
+            :style="{ '--stagger-i': i }"
             team="blue"
             :session-summoner="sessionSummoner"
             :mode-type="sessionData.type"
@@ -82,6 +83,7 @@
             <PlayerCard
               v-for="(sessionSummoner, i) of sessionData.teamTwo"
               :key="'teamTwo' + i"
+              :style="{ '--stagger-i': i }"
               team="red"
               :session-summoner="sessionSummoner"
               :mode-type="sessionData.type"

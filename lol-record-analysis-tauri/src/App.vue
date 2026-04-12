@@ -37,15 +37,15 @@ const themeOverrides = computed<GlobalThemeOverrides>(() => {
         borderRadiusSmall: '6px'
       },
       Card: {
-        borderRadius: '8px',
-        color: '#1a1a1e',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-        borderColor: 'rgba(255,255,255,0.06)'
+        borderRadius: '10px',
+        color: 'rgba(255,255,255,0.05)',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06)',
+        borderColor: 'rgba(255,255,255,0.09)'
       },
       Input: {
         borderRadius: '8px',
-        color: '#1a1a1e',
-        border: '1px solid rgba(255,255,255,0.06)'
+        color: 'rgba(255,255,255,0.05)',
+        border: '1px solid rgba(255,255,255,0.09)'
       },
       Button: {
         borderRadiusSmall: '6px',
@@ -55,12 +55,14 @@ const themeOverrides = computed<GlobalThemeOverrides>(() => {
         borderRadius: '8px'
       },
       Layout: {
-        color: '#0d0d0f'
+        color: '#0a0a0d'
       },
       Menu: {
-        itemColorActive: 'rgba(255,255,255,0.1)',
-        itemColorActiveHover: 'rgba(255,255,255,0.14)',
-        itemBorderRadius: '8px'
+        itemColorActive: 'rgba(61,155,122,0.14)',
+        itemColorActiveHover: 'rgba(61,155,122,0.18)',
+        itemBorderRadius: '10px',
+        itemTextColorActive: '#3d9b7a',
+        itemIconColorActive: '#3d9b7a'
       }
     }
   }
@@ -70,9 +72,9 @@ const themeOverrides = computed<GlobalThemeOverrides>(() => {
       borderRadiusSmall: '6px'
     },
     Card: {
-      borderRadius: '8px',
-      color: '#ffffff',
-      boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+      borderRadius: '10px',
+      color: 'rgba(0,0,0,0.035)',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.7)',
       borderColor: 'rgba(0,0,0,0.08)'
     },
     Input: {
@@ -87,12 +89,14 @@ const themeOverrides = computed<GlobalThemeOverrides>(() => {
       borderRadius: '8px'
     },
     Layout: {
-      color: '#f6f9f8'
+      color: '#f0f2f5'
     },
     Menu: {
-      itemColorActive: 'rgba(0,0,0,0.06)',
-      itemColorActiveHover: 'rgba(0,0,0,0.1)',
-      itemBorderRadius: '8px'
+      itemColorActive: 'rgba(45,138,108,0.12)',
+      itemColorActiveHover: 'rgba(45,138,108,0.18)',
+      itemBorderRadius: '10px',
+      itemTextColorActive: '#2d8a6c',
+      itemIconColorActive: '#2d8a6c'
     }
   }
 })
