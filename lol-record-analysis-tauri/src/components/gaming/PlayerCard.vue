@@ -930,7 +930,7 @@ onMounted(fetchAramBalance)
   right: 0;
   width: 240px;
   z-index: 100;
-  background: var(--glass-bg-high);
+  background: var(--bg-elevated);
   border-color: rgba(61, 155, 122, 0.25);
   box-shadow: var(--shadow-lg);
 }
