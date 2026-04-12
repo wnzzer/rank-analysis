@@ -206,6 +206,7 @@ const goGaming = () => {
   padding: 0 8px;
   width: 100%;
   flex-shrink: 0;
+  margin-bottom: 6px;
 }
 
 .status-icon-btn {

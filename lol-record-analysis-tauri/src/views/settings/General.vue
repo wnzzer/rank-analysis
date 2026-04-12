@@ -48,9 +48,9 @@ const handleUpdate = async (value: number | null) => {
 
 <style scoped>
 :deep(.n-card) {
-  background: var(--glass-bg-mid) !important;
-  border: 1px solid var(--glass-border) !important;
-  box-shadow: var(--shadow-md), var(--glass-highlight) !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
 :deep(.n-form-item) {
