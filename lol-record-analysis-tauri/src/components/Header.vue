@@ -1,7 +1,7 @@
 <template>
   <n-flex justify="space-between" class="header-inner">
     <div class="header-left">
-      <img src="../assets/logo.png" alt="Logo" class="header-logo" />
+      <div class="logo-badge">R</div>
       <span class="header-title">Rank Analysis</span>
     </div>
     <div class="header-center">
@@ -162,7 +162,10 @@ const closeWindow = (): void => {
 <style lang="css" scoped>
 .header-inner {
   width: 100%;
+  height: 100%;
   align-items: center;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .header-left {
@@ -174,9 +177,21 @@ const closeWindow = (): void => {
   padding-left: var(--space-12);
 }
 
-.header-logo {
+.logo-badge {
+  width: 22px;
   height: 22px;
-  display: block;
+  border-radius: 6px;
+  background: rgba(61, 155, 122, 0.18);
+  border: 1px solid rgba(61, 155, 122, 0.28);
+  box-shadow: 0 0 10px rgba(61, 155, 122, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--semantic-win);
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
 }
 
 .header-title {
@@ -207,12 +222,13 @@ const closeWindow = (): void => {
 
 .header-search :deep(.n-input-wrapper) {
   transition:
-    box-shadow var(--transition-fast),
-    border-color var(--transition-fast);
+    box-shadow var(--dur-fast) var(--ease-expo),
+    border-color var(--dur-fast) var(--ease-expo);
 }
 
 .header-center:focus-within .header-search :deep(.n-input-wrapper) {
-  box-shadow: 0 0 0 2px rgba(61, 155, 122, 0.25);
+  box-shadow: 0 0 0 2px rgba(61, 155, 122, 0.2);
+  border-color: rgba(61, 155, 122, 0.35) !important;
 }
 
 .theme-light .header-center:focus-within .header-search :deep(.n-input-wrapper) {
@@ -232,19 +248,15 @@ const closeWindow = (): void => {
   color: var(--text-secondary);
   border-radius: var(--radius-sm);
   transition:
-    background-color var(--transition-fast),
-    color var(--transition-fast),
-    transform var(--transition-fast);
+    background-color var(--dur-fast) var(--ease-expo),
+    color var(--dur-fast) var(--ease-expo),
+    transform var(--dur-fast) var(--ease-expo);
 }
 
 .header-icon-btn:hover {
   color: var(--text-primary);
-  background-color: rgba(255, 255, 255, 0.06);
+  background-color: var(--glass-bg-high);
   transform: scale(1.08);
-}
-
-.theme-light .header-icon-btn:hover {
-  background-color: rgba(0, 0, 0, 0.06);
 }
 
 .header-theme-switch {
@@ -267,15 +279,15 @@ const closeWindow = (): void => {
   align-items: center;
   justify-content: center;
   transition:
-    color var(--transition-fast),
-    background-color var(--transition-fast),
-    transform var(--transition-fast);
+    color var(--dur-fast) var(--ease-expo),
+    background-color var(--dur-fast) var(--ease-expo),
+    transform var(--dur-fast) var(--ease-expo);
   position: relative;
 }
 
 .window-control-btn:hover {
   color: var(--text-primary);
-  background-color: rgba(255, 255, 255, 0.06);
+  background-color: var(--glass-bg-high);
   transform: scale(1.05);
 }
 
@@ -283,12 +295,8 @@ const closeWindow = (): void => {
   transform: scale(0.98);
 }
 
-.theme-light .window-control-btn:hover {
-  background-color: rgba(0, 0, 0, 0.06);
-}
-
 .close-btn:hover {
-  background-color: #c45c5c;
+  background-color: rgba(196, 92, 92, 0.75);
   color: white;
 }
 
