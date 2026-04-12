@@ -54,7 +54,6 @@ import { BarChartOutline, GameControllerOutline, SettingsOutline, LinkOutline } 
 import { computed, ref, watch } from 'vue'
 import { Summoner } from './record/type'
 import { useGameState } from '@renderer/composables/useGameState'
-import { invoke } from '@tauri-apps/api/core'
 
 const { summoner: gameStateSummoner, currentPhase } = useGameState()
 
@@ -89,17 +88,6 @@ const isInGame = computed(() => {
   const p = currentPhase.value
   return !!p && VALID_GAME_PHASES.includes(p)
 })
-
-/** phase 进入对局时预加载 session 数据，加快进入对局页的加载速度 */
-watch(
-  isInGame,
-  inGame => {
-    if (inGame) {
-      invoke('get_session_data').catch(() => {})
-    }
-  },
-  { immediate: true }
-)
 
 const toMe = () => {
   if (!isConnected.value) return
