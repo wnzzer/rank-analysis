@@ -111,7 +111,9 @@ const contentStyle = computed(() => ({
   text-align: center;
   background-color: var(--glass-bg-low) !important;
   border-bottom: 1px solid var(--glass-border) !important;
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.15), var(--glass-highlight);
+  box-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.15),
+    var(--glass-highlight);
 }
 
 .content {

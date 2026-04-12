@@ -101,23 +101,34 @@
   width: 120px;
   height: 2px;
   border-radius: 99px;
-  background: linear-gradient(90deg,
+  background: linear-gradient(
+    90deg,
     rgba(61, 155, 122, 0) 0%,
     rgba(61, 155, 122, 0.5) 40%,
     rgba(61, 155, 122, 0.7) 50%,
     rgba(61, 155, 122, 0.5) 60%,
-    rgba(61, 155, 122, 0) 100%);
+    rgba(61, 155, 122, 0) 100%
+  );
   background-size: 200% 100%;
   animation: shimmer 1.8s ease-in-out infinite;
 }
 
 @keyframes loading-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes loading-pulse {
-  0%, 100% { transform: scale(0.95); opacity: 0.7; }
-  50%       { transform: scale(1.05); opacity: 1; }
+  0%,
+  100% {
+    transform: scale(0.95);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
 }
 
 /* 亮色主题 */
@@ -132,12 +143,14 @@
 }
 
 .theme-light .loading-shimmer-bar {
-  background: linear-gradient(90deg,
+  background: linear-gradient(
+    90deg,
     rgba(45, 138, 108, 0) 0%,
     rgba(45, 138, 108, 0.4) 40%,
     rgba(45, 138, 108, 0.6) 50%,
     rgba(45, 138, 108, 0.4) 60%,
-    rgba(45, 138, 108, 0) 100%);
+    rgba(45, 138, 108, 0) 100%
+  );
   background-size: 200% 100%;
 }
 </style>
