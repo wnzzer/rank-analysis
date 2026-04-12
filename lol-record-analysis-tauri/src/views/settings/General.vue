@@ -45,24 +45,3 @@ const handleUpdate = async (value: number | null) => {
   }
 }
 </script>
-
-<style scoped>
-:deep(.n-card) {
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-}
-
-:deep(.n-form-item) {
-  background: var(--glass-bg-low);
-  border: 1px solid var(--glass-border);
-  border-radius: 8px;
-  padding: 8px 12px;
-  margin-bottom: 4px;
-  transition: background var(--dur-fast) var(--ease-expo);
-}
-
-:deep(.n-form-item:hover) {
-  background: var(--glass-bg-mid);
-}
-</style>
