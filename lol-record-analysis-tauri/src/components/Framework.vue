@@ -109,9 +109,9 @@ const contentStyle = computed(() => ({
   height: 36px;
   line-height: 36px;
   text-align: center;
-  background-color: var(--bg-surface) !important;
-  border-bottom: 1px solid var(--border-subtle) !important;
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.06);
+  background-color: var(--glass-bg-low) !important;
+  border-bottom: 1px solid var(--glass-border) !important;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.15), var(--glass-highlight);
 }
 
 .content {
@@ -122,15 +122,16 @@ const contentStyle = computed(() => ({
   width: 68px;
   min-width: 68px;
   background-color: var(--bg-base) !important;
-  border-right: 1px solid var(--border-subtle) !important;
+  border-right: 1px solid var(--glass-border) !important;
+  overflow: hidden;
 }
 
 /* 页面切换过渡 */
 .page-enter-active,
 .page-leave-active {
   transition:
-    opacity var(--transition-normal),
-    transform var(--transition-normal);
+    opacity var(--dur-normal) var(--ease-expo),
+    transform var(--dur-normal) var(--ease-expo);
 }
 
 .page-enter-from {
