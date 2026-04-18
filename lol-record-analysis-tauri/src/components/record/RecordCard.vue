@@ -81,11 +81,7 @@
               v-for="(augmentId, _idx) in displayedAugmentIds"
               :key="`record-augment-${_idx}`"
             >
-              <n-tooltip
-                trigger="hover"
-                placement="top"
-                :disabled="!assets.detailOf('perk', augmentId)"
-              >
+              <n-tooltip trigger="hover" placement="top">
                 <template #trigger>
                   <span :class="['record-card-augment-shell', augmentRarityClass(augmentId)]">
                     <img
@@ -98,10 +94,11 @@
                   </span>
                 </template>
                 <AssetTooltipContent
-                  v-if="assets.detailOf('perk', augmentId)"
                   :icon-src="assets.srcOf('perk', augmentId)"
-                  :name="assets.detailOf('perk', augmentId)!.name"
-                  :description="assets.detailOf('perk', augmentId)!.description"
+                  :name="assets.detailOf('perk', augmentId)?.name ?? `海克斯 #${augmentId}`"
+                  :description="
+                    assets.detailOf('perk', augmentId)?.description ?? '资源加载中…'
+                  "
                 />
               </n-tooltip>
             </template>

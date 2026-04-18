@@ -182,7 +182,7 @@
                         :key="`${player.participantId}-perk-${perkId}-${index}`"
                         trigger="hover"
                         placement="top"
-                        :disabled="!assets.detailOf('perk', perkId)"
+                        :disabled="!usesAugments && !assets.detailOf('perk', perkId)"
                       >
                         <template #trigger>
                           <span
@@ -207,10 +207,14 @@
                           />
                         </template>
                         <AssetTooltipContent
-                          v-if="assets.detailOf('perk', perkId)"
                           :icon-src="assets.srcOf('perk', perkId)"
-                          :name="assets.detailOf('perk', perkId)?.name ?? ''"
-                          :description="assets.detailOf('perk', perkId)?.description ?? ''"
+                          :name="
+                            assets.detailOf('perk', perkId)?.name ??
+                            (usesAugments ? `海克斯 #${perkId}` : `符文 #${perkId}`)
+                          "
+                          :description="
+                            assets.detailOf('perk', perkId)?.description ?? '资源加载中…'
+                          "
                         />
                       </n-tooltip>
                     </div>
