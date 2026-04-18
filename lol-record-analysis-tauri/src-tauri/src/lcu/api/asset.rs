@@ -112,18 +112,35 @@ pub struct Perk {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
 pub struct CherryAugment {
     pub id: i64,
-    #[serde(rename = "nameTRA", default)]
+    /// LCU 不同版本/locale 下 name 字段名不一致：
+    /// - 老版本/繁体：nameTRA
+    /// - 新版本/通用：name
+    /// - 部分变体：nameCn / display_name
+    #[serde(
+        default,
+        alias = "nameTRA",
+        alias = "name",
+        alias = "nameCn",
+        alias = "displayName"
+    )]
     pub name_tra: String,
-    #[serde(rename = "descriptionTRA", default)]
+    /// 同上，描述字段名也不统一
+    #[serde(
+        default,
+        alias = "descriptionTRA",
+        alias = "desc",
+        alias = "description",
+        alias = "descTRA",
+        alias = "descriptionCn"
+    )]
     pub description_tra: String,
     #[serde(default)]
     pub tooltip: String,
-    #[serde(rename = "augmentSmallIconPath", default)]
+    #[serde(default, alias = "augmentSmallIconPath", alias = "iconSmall")]
     pub augment_small_icon_path: String,
-    #[serde(rename = "iconLargePath", default)]
+    #[serde(default, alias = "iconLargePath", alias = "iconLarge")]
     pub icon_large_path: String,
     #[serde(default, deserialize_with = "deserialize_rarity")]
     pub rarity: String,
@@ -227,14 +244,53 @@ pub async fn init() {
             Vec::new()
         }
     };
-    let cherry_augments =
-        match lcu_get::<Vec<CherryAugment>>(constant::api::CHERRY_AUGMENTS_URI).await {
-            Ok(augments) => augments,
+    // 先拿原始 JSON，出问题时 log 出样本，方便定位字段名/类型不一致
+    let cherry_augments_raw =
+        match lcu_get::<Vec<serde_json::Value>>(constant::api::CHERRY_AUGMENTS_URI).await {
+            Ok(v) => v,
             Err(error) => {
-                log::warn!("Failed to load cherry augments: {}", error);
+                log::warn!("Failed to fetch cherry augments raw JSON: {}", error);
                 Vec::new()
             }
         };
+
+    if let Some(first) = cherry_augments_raw.first() {
+        if let Some(obj) = first.as_object() {
+            let keys: Vec<&str> = obj.keys().map(|k| k.as_str()).collect();
+            log::info!(
+                "cherry-augments raw sample — total={}, keys={:?}",
+                cherry_augments_raw.len(),
+                keys
+            );
+            log::info!(
+                "cherry-augments first item: {}",
+                serde_json::to_string(first).unwrap_or_default()
+            );
+        }
+    } else {
+        log::warn!("cherry-augments response is empty");
+    }
+
+    let mut cherry_augments: Vec<CherryAugment> = Vec::with_capacity(cherry_augments_raw.len());
+    let mut parse_fail_count = 0usize;
+    for raw in &cherry_augments_raw {
+        match serde_json::from_value::<CherryAugment>(raw.clone()) {
+            Ok(a) => cherry_augments.push(a),
+            Err(e) => {
+                if parse_fail_count < 3 {
+                    log::warn!("cherry-augment parse failed: {} — raw={}", e, raw);
+                }
+                parse_fail_count += 1;
+            }
+        }
+    }
+    if parse_fail_count > 0 {
+        log::warn!(
+            "cherry-augments parse failed total: {} / {}",
+            parse_fail_count,
+            cherry_augments_raw.len()
+        );
+    }
     let perk_styles_only: Vec<Perk> = perk_styles
         .styles
         .into_iter()
@@ -586,5 +642,29 @@ mod tests {
     fn should_fallback_to_empty_for_unknown_integer() {
         let a = parse(r#"{"id":7,"rarity":99}"#);
         assert_eq!(a.rarity, "");
+    }
+
+    #[test]
+    fn should_accept_name_tra_primary() {
+        let a = parse(r#"{"id":8,"nameTRA":"末日"}"#);
+        assert_eq!(a.name_tra, "末日");
+    }
+
+    #[test]
+    fn should_accept_name_as_alias() {
+        let a = parse(r#"{"id":9,"name":"末日"}"#);
+        assert_eq!(a.name_tra, "末日");
+    }
+
+    #[test]
+    fn should_accept_description_tra_primary() {
+        let a = parse(r#"{"id":10,"descriptionTRA":"效果描述"}"#);
+        assert_eq!(a.description_tra, "效果描述");
+    }
+
+    #[test]
+    fn should_accept_desc_as_alias() {
+        let a = parse(r#"{"id":11,"desc":"效果描述"}"#);
+        assert_eq!(a.description_tra, "效果描述");
     }
 }
