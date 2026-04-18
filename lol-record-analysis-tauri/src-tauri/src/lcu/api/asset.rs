@@ -111,21 +111,53 @@ pub struct Perk {
     pub icon_path: String,
 }
 
-/// CommunityDragon 的 cdragon/arena/{locale}.json — LCU 自己不含海克斯描述，
-/// 必须走 CommunityDragon 才能拿到 `desc` / `tooltip` 文本。
-#[derive(Deserialize, Debug, Clone)]
-struct CDragonArenaResponse {
-    #[serde(default)]
-    augments: Vec<CDragonArenaAugment>,
+/// CommunityDragon 的 menu stringtable —— 单个 JSON 含 10w+ 键值对，
+/// cherry_<apiName>_{summary,tooltip,name} 就是海克斯描述的真正位置
+#[derive(Deserialize, Debug)]
+struct CDragonStringTable {
+    entries: HashMap<String, String>,
 }
 
-#[derive(Deserialize, Debug, Clone)]
-struct CDragonArenaAugment {
-    id: i64,
-    #[serde(default)]
-    desc: String,
-    #[serde(default)]
-    tooltip: String,
+/// 从 LCU augment 的 icon path 提取 apiName（stringtable 的 key 前缀）
+/// `/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/ADAPt_small.png` → `adapt`
+fn api_name_from_icon(icon_path: &str) -> Option<String> {
+    let filename = std::path::Path::new(icon_path)
+        .file_stem()
+        .and_then(|s| s.to_str())?;
+    let stripped = filename
+        .strip_suffix("_small")
+        .or_else(|| filename.strip_suffix("_large"))
+        .unwrap_or(filename);
+    if stripped.is_empty() {
+        None
+    } else {
+        Some(stripped.to_lowercase())
+    }
+}
+
+/// 从 stringtable 过滤出海克斯相关键，按 apiName 归拢 (summary, tooltip)。
+/// 同时覆盖 cherry_* 与 kiwi_aram_* 两大前缀（后者是从 ARAM 迁移过来的 passive augments）
+fn build_cherry_desc_map(table: &CDragonStringTable) -> HashMap<String, (String, String)> {
+    let mut by_api: HashMap<String, (String, String)> = HashMap::new();
+    for (key, value) in table.entries.iter() {
+        let (api, suffix) = match key
+            .strip_prefix("cherry_")
+            .or_else(|| key.strip_prefix("kiwi_aram_"))
+        {
+            Some(rest) => match rest.rsplit_once('_') {
+                Some((api, suffix)) => (api, suffix),
+                None => continue,
+            },
+            None => continue,
+        };
+        let entry = by_api.entry(api.to_string()).or_default();
+        match suffix {
+            "summary" => entry.0 = normalize_cdragon_desc(value),
+            "tooltip" => entry.1 = normalize_cdragon_desc(value),
+            _ => {}
+        }
+    }
+    by_api
 }
 
 /// 清理 cdragon 描述里的 XML-like 标签（`<spellName>xxx</spellName>` 等）与
@@ -134,8 +166,13 @@ fn normalize_cdragon_desc(raw: &str) -> String {
     if raw.trim().is_empty() {
         return String::new();
     }
-    // 去 XML 标签，保留内容
-    let no_tags = ASSET_TAG_REGEX.replace_all(raw, "").to_string();
+    // 先把 <br>/<br/> 替换为换行
+    let with_breaks = raw
+        .replace("<br/>", "\n")
+        .replace("<br />", "\n")
+        .replace("<br>", "\n");
+    // 去其他 XML 标签，保留内容
+    let no_tags = ASSET_TAG_REGEX.replace_all(&with_breaks, "").to_string();
     // 占位符 @xxx@ 在没有 dataValues 上下文时无意义，替换为 "?"
     let no_placeholders = CDRAGON_PLACEHOLDER_REGEX
         .replace_all(&no_tags, "?")
@@ -236,11 +273,13 @@ static ASSET_TAG_REGEX: LazyLock<Regex> =
 static CDRAGON_PLACEHOLDER_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"@[^@]+@").expect("valid cdragon placeholder regex"));
 
-/// CommunityDragon arena augments 数据（用于补齐 LCU 缺失的 desc/tooltip 文本）
-/// locale 与 LCU 客户端语言对齐：简中 → zh_cn
-const CDRAGON_ARENA_URL: &str = "https://raw.communitydragon.org/latest/cdragon/arena/zh_cn.json";
-const CDRAGON_ARENA_FALLBACK_URL: &str =
-    "https://raw.communitydragon.org/latest/cdragon/arena/en_us.json";
+/// CommunityDragon 的 menu stringtable —— LCU 不暴露海克斯描述文本，
+/// 只能从这个 26MB 的 JSON 里按 cherry_<apiName>_summary / _tooltip 键取。
+/// 被拉下来后会本地缓存，避免每次启动都拉整个文件。
+const CDRAGON_STRINGTABLE_URL: &str =
+    "https://raw.communitydragon.org/latest/game/zh_cn/data/menu/en_us/lol.stringtable.json";
+const CDRAGON_STRINGTABLE_FALLBACK_URL: &str =
+    "https://raw.communitydragon.org/latest/game/en_us/data/menu/en_us/lol.stringtable.json";
 
 // Keep binary cache as moka for weighted size-based eviction (still useful) - optional future refactor.
 use moka::future::Cache; // retained only for BINARY_CACHE
@@ -335,50 +374,53 @@ pub async fn init() {
             icon_path: perk_style.icon_path,
         })
         .collect();
-    // 并发从 CommunityDragon 拉描述文本；失败不致命，只让描述为空
-    let cdragon_desc_map: HashMap<i64, (String, String)> =
-        match external_get_json::<CDragonArenaResponse>(CDRAGON_ARENA_URL).await {
-            Ok(v) => v.augments,
+    // 从 CommunityDragon 拉 stringtable（26MB），按 cherry_<apiName>_summary/tooltip 取描述。
+    //
+    // 为什么必须走外部：LCU 不暴露 stringtable / fontconfig 文件（已探针确认）；
+    // LCU 的 cherry-augments.json 只含 id/nameTRA/rarity/icon，描述文本在游戏客户端的
+    // fontconfig stringtable 里，Riot 没把它挂到 LCU HTTP API。
+    //
+    // 26MB 的 JSON 一次过网络 + 解析成本较高（启动 +~2-3s），后续如果成为痛点再加磁盘缓存。
+    let cdragon_desc_map: HashMap<String, (String, String)> =
+        match external_get_json::<CDragonStringTable>(CDRAGON_STRINGTABLE_URL).await {
+            Ok(table) => build_cherry_desc_map(&table),
             Err(primary_err) => {
                 log::warn!(
-                    "CommunityDragon zh_cn 拉取失败，回退 en_us：{}",
+                    "CommunityDragon zh_cn stringtable 拉取失败，回退 en_us：{}",
                     primary_err
                 );
-                match external_get_json::<CDragonArenaResponse>(CDRAGON_ARENA_FALLBACK_URL).await {
-                    Ok(v) => v.augments,
+                match external_get_json::<CDragonStringTable>(CDRAGON_STRINGTABLE_FALLBACK_URL)
+                    .await
+                {
+                    Ok(table) => build_cherry_desc_map(&table),
                     Err(fallback_err) => {
-                        log::warn!("CommunityDragon en_us 也失败了：{}", fallback_err);
-                        Vec::new()
+                        log::warn!(
+                            "CommunityDragon en_us stringtable 也失败了：{}",
+                            fallback_err
+                        );
+                        HashMap::new()
                     }
                 }
             }
-        }
-        .into_iter()
-        .map(|a| {
-            (
-                a.id,
-                (
-                    normalize_cdragon_desc(&a.desc),
-                    normalize_cdragon_desc(&a.tooltip),
-                ),
-            )
-        })
-        .collect();
+        };
     log::info!(
-        "cdragon arena descriptions loaded: {}",
+        "cdragon stringtable cherry descriptions loaded: {}",
         cdragon_desc_map.len()
     );
 
     let cherry_augment_perks: Vec<Perk> = cherry_augments
         .into_iter()
         .map(|augment| {
-            let (cdragon_desc, cdragon_tooltip) = cdragon_desc_map
-                .get(&augment.id)
+            let api_name = api_name_from_icon(&augment.augment_small_icon_path)
+                .or_else(|| api_name_from_icon(&augment.icon_large_path));
+            let (cdragon_summary, cdragon_tooltip) = api_name
+                .as_deref()
+                .and_then(|n| cdragon_desc_map.get(n))
                 .cloned()
                 .unwrap_or_default();
-            // 描述优先级：cdragon.desc > cdragon.tooltip > LCU 自己的 descriptionTRA（几乎总空）
-            let long_desc = if !cdragon_desc.is_empty() {
-                cdragon_desc
+            // 描述优先级：cdragon.summary（简洁） > cdragon.tooltip（完整） > LCU 空值
+            let long_desc = if !cdragon_summary.is_empty() {
+                cdragon_summary
             } else if !cdragon_tooltip.is_empty() {
                 cdragon_tooltip.clone()
             } else {
@@ -774,5 +816,73 @@ mod tests {
     fn should_decode_html_entities() {
         let cleaned = normalize_cdragon_desc("A&nbsp;B&amp;C");
         assert_eq!(cleaned, "A B&C");
+    }
+
+    #[test]
+    fn should_extract_api_name_from_small_icon_path() {
+        let api = api_name_from_icon(
+            "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/Eureka_small.png",
+        );
+        assert_eq!(api.as_deref(), Some("eureka"));
+    }
+
+    #[test]
+    fn should_extract_api_name_from_large_icon_path() {
+        let api = api_name_from_icon(
+            "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/BigBrain_large.png",
+        );
+        assert_eq!(api.as_deref(), Some("bigbrain"));
+    }
+
+    #[test]
+    fn should_lowercase_api_name_with_mixed_case() {
+        // LCU 实际路径里大小写混乱（如 ADAPt_small.png），apiName 需要统一小写
+        let api = api_name_from_icon("/foo/bar/ADAPt_small.png");
+        assert_eq!(api.as_deref(), Some("adapt"));
+    }
+
+    #[test]
+    fn should_return_none_for_empty_icon() {
+        assert!(api_name_from_icon("").is_none());
+    }
+
+    #[test]
+    fn should_build_cherry_desc_map_from_stringtable() {
+        let mut entries = HashMap::new();
+        entries.insert("cherry_eureka_name".to_string(), "尤里卡".to_string());
+        entries.insert(
+            "cherry_eureka_summary".to_string(),
+            "获得相当于<scaleAP>@APToHasteConversion*100@%法术强度</scaleAP>的技能急速。"
+                .to_string(),
+        );
+        entries.insert(
+            "cherry_eureka_tooltip".to_string(),
+            "获得@APToHasteConversionCalc@技能急速。".to_string(),
+        );
+        // 其他 prefix
+        entries.insert(
+            "kiwi_aram_weightedpopoffs_name".to_string(),
+            "负重爆气".to_string(),
+        );
+        entries.insert(
+            "kiwi_aram_weightedpopoffs_summary".to_string(),
+            "你的冷却时间已缩短。".to_string(),
+        );
+        // 无关 key 应被忽略
+        entries.insert(
+            "game_mode_summoners_rift".to_string(),
+            "召唤师峡谷".to_string(),
+        );
+
+        let table = CDragonStringTable { entries };
+        let map = build_cherry_desc_map(&table);
+
+        let eureka = map.get("eureka").expect("eureka present");
+        assert!(eureka.0.contains("技能急速")); // summary
+        assert_eq!(eureka.1, "获得?技能急速。"); // tooltip with placeholder replaced
+
+        let weight = map.get("weightedpopoffs").expect("weightedpopoffs present");
+        assert_eq!(weight.0, "你的冷却时间已缩短。");
+        assert!(map.get("summoners_rift").is_none()); // 无关键不入
     }
 }
