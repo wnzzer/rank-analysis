@@ -1,6 +1,6 @@
 use crate::{
     constant,
-    lcu::util::http::{self, lcu_get},
+    lcu::util::http::{self, external_get_json, lcu_get},
 };
 use regex::Regex;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -111,6 +111,46 @@ pub struct Perk {
     pub icon_path: String,
 }
 
+/// CommunityDragon 的 cdragon/arena/{locale}.json — LCU 自己不含海克斯描述，
+/// 必须走 CommunityDragon 才能拿到 `desc` / `tooltip` 文本。
+#[derive(Deserialize, Debug, Clone)]
+struct CDragonArenaResponse {
+    #[serde(default)]
+    augments: Vec<CDragonArenaAugment>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+struct CDragonArenaAugment {
+    id: i64,
+    #[serde(default)]
+    desc: String,
+    #[serde(default)]
+    tooltip: String,
+}
+
+/// 清理 cdragon 描述里的 XML-like 标签（`<spellName>xxx</spellName>` 等）与
+/// @fN@ 类占位符，保留可读内容给前端展示
+fn normalize_cdragon_desc(raw: &str) -> String {
+    if raw.trim().is_empty() {
+        return String::new();
+    }
+    // 去 XML 标签，保留内容
+    let no_tags = ASSET_TAG_REGEX.replace_all(raw, "").to_string();
+    // 占位符 @xxx@ 在没有 dataValues 上下文时无意义，替换为 "?"
+    let no_placeholders = CDRAGON_PLACEHOLDER_REGEX
+        .replace_all(&no_tags, "?")
+        .to_string();
+    // 处理换行和多余空白
+    let decoded = no_placeholders
+        .replace("&nbsp;", " ")
+        .replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'");
+    decoded.trim().to_string()
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CherryAugment {
     pub id: i64,
@@ -193,6 +233,14 @@ static SPELL_CACHE: LazyLock<RwLock<HashMap<i64, Spell>>> =
     LazyLock::new(|| RwLock::new(HashMap::new()));
 static ASSET_TAG_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"<[^>]+>").expect("valid asset html regex"));
+static CDRAGON_PLACEHOLDER_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"@[^@]+@").expect("valid cdragon placeholder regex"));
+
+/// CommunityDragon arena augments 数据（用于补齐 LCU 缺失的 desc/tooltip 文本）
+/// locale 与 LCU 客户端语言对齐：简中 → zh_cn
+const CDRAGON_ARENA_URL: &str = "https://raw.communitydragon.org/latest/cdragon/arena/zh_cn.json";
+const CDRAGON_ARENA_FALLBACK_URL: &str =
+    "https://raw.communitydragon.org/latest/cdragon/arena/en_us.json";
 
 // Keep binary cache as moka for weighted size-based eviction (still useful) - optional future refactor.
 use moka::future::Cache; // retained only for BINARY_CACHE
@@ -287,28 +335,81 @@ pub async fn init() {
             icon_path: perk_style.icon_path,
         })
         .collect();
+    // 并发从 CommunityDragon 拉描述文本；失败不致命，只让描述为空
+    let cdragon_desc_map: HashMap<i64, (String, String)> =
+        match external_get_json::<CDragonArenaResponse>(CDRAGON_ARENA_URL).await {
+            Ok(v) => v.augments,
+            Err(primary_err) => {
+                log::warn!(
+                    "CommunityDragon zh_cn 拉取失败，回退 en_us：{}",
+                    primary_err
+                );
+                match external_get_json::<CDragonArenaResponse>(CDRAGON_ARENA_FALLBACK_URL).await {
+                    Ok(v) => v.augments,
+                    Err(fallback_err) => {
+                        log::warn!("CommunityDragon en_us 也失败了：{}", fallback_err);
+                        Vec::new()
+                    }
+                }
+            }
+        }
+        .into_iter()
+        .map(|a| {
+            (
+                a.id,
+                (
+                    normalize_cdragon_desc(&a.desc),
+                    normalize_cdragon_desc(&a.tooltip),
+                ),
+            )
+        })
+        .collect();
+    log::info!(
+        "cdragon arena descriptions loaded: {}",
+        cdragon_desc_map.len()
+    );
+
     let cherry_augment_perks: Vec<Perk> = cherry_augments
         .into_iter()
-        .map(|augment| Perk {
-            id: augment.id,
-            name: if augment.name_tra.is_empty() {
-                format!("Augment {}", augment.id)
+        .map(|augment| {
+            let (cdragon_desc, cdragon_tooltip) = cdragon_desc_map
+                .get(&augment.id)
+                .cloned()
+                .unwrap_or_default();
+            // 描述优先级：cdragon.desc > cdragon.tooltip > LCU 自己的 descriptionTRA（几乎总空）
+            let long_desc = if !cdragon_desc.is_empty() {
+                cdragon_desc
+            } else if !cdragon_tooltip.is_empty() {
+                cdragon_tooltip.clone()
             } else {
-                augment.name_tra
-            },
-            tooltip: augment.tooltip,
-            short_desc: String::new(),
-            long_desc: augment.description_tra,
-            rarity: if augment.rarity.is_empty() {
-                None
+                augment.description_tra
+            };
+            let tooltip = if !cdragon_tooltip.is_empty() {
+                cdragon_tooltip
             } else {
-                Some(augment.rarity)
-            },
-            icon_path: if augment.augment_small_icon_path.is_empty() {
-                augment.icon_large_path
-            } else {
-                augment.augment_small_icon_path
-            },
+                augment.tooltip
+            };
+            Perk {
+                id: augment.id,
+                name: if augment.name_tra.is_empty() {
+                    format!("Augment {}", augment.id)
+                } else {
+                    augment.name_tra
+                },
+                tooltip,
+                short_desc: String::new(),
+                long_desc,
+                rarity: if augment.rarity.is_empty() {
+                    None
+                } else {
+                    Some(augment.rarity)
+                },
+                icon_path: if augment.augment_small_icon_path.is_empty() {
+                    augment.icon_large_path
+                } else {
+                    augment.augment_small_icon_path
+                },
+            }
         })
         .collect();
 
@@ -649,5 +750,29 @@ mod tests {
     fn should_accept_desc_as_alias() {
         let a = parse(r#"{"id":11,"desc":"效果描述"}"#);
         assert_eq!(a.description_tra, "效果描述");
+    }
+
+    #[test]
+    fn should_strip_xml_tags_from_cdragon_desc() {
+        let cleaned = normalize_cdragon_desc("<spellName>技能</spellName>造成额外伤害");
+        assert_eq!(cleaned, "技能造成额外伤害");
+    }
+
+    #[test]
+    fn should_replace_cdragon_placeholders() {
+        let cleaned = normalize_cdragon_desc("每 @f1@ 秒恢复 @f2@ 生命");
+        assert_eq!(cleaned, "每 ? 秒恢复 ? 生命");
+    }
+
+    #[test]
+    fn should_return_empty_for_blank_cdragon_desc() {
+        assert_eq!(normalize_cdragon_desc(""), "");
+        assert_eq!(normalize_cdragon_desc("   "), "");
+    }
+
+    #[test]
+    fn should_decode_html_entities() {
+        let cleaned = normalize_cdragon_desc("A&nbsp;B&amp;C");
+        assert_eq!(cleaned, "A B&C");
     }
 }

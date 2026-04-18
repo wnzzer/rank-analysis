@@ -237,3 +237,18 @@ pub async fn lcu_get_img_as_binary(uri: &str) -> Result<(Vec<u8>, String), Strin
     }
     Err("图片二进制请求失败或认证失效".to_string())
 }
+
+/// 外部 HTTP GET + JSON 反序列化（不走 LCU 认证/限流，用于 CommunityDragon 等公开资源）
+pub async fn external_get_json<T: DeserializeOwned>(url: &str) -> Result<T, String> {
+    let resp = get_client()
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| format!("external GET failed: {}", e))?;
+    if !resp.status().is_success() {
+        return Err(format!("external GET non-2xx: {}", resp.status()));
+    }
+    resp.json::<T>()
+        .await
+        .map_err(|e| format!("external JSON 反序列化失败: {}", e))
+}
