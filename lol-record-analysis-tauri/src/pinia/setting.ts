@@ -6,23 +6,16 @@ import { invoke } from '@tauri-apps/api/core'
 export const useSettingsStore = defineStore('settings', () => {
   const theme = ref(darkTheme)
 
-  const initTheme = async () => {
+  /** 从持久化配置拉取主题，由 main.ts 在 app 启动时显式调用 */
+  async function initTheme() {
     try {
       const savedTheme = await invoke<string>('get_config', { key: 'theme' })
-      if (savedTheme === 'light') {
-        theme.value = lightTheme
-      } else {
-        theme.value = darkTheme
-      }
+      theme.value = savedTheme === 'light' ? lightTheme : darkTheme
     } catch (error) {
       console.error('Failed to load theme config:', error)
     }
   }
 
-  // Initialize theme
-  initTheme()
-
-  // 方法用于切换主题
   async function toggleTheme() {
     if (theme.value.name == 'dark') {
       theme.value = lightTheme
@@ -33,8 +26,5 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
-  return {
-    theme,
-    toggleTheme
-  }
+  return { theme, toggleTheme, initTheme }
 })

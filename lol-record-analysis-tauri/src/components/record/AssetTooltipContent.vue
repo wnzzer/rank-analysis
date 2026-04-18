@@ -1,7 +1,7 @@
 <template>
   <div class="asset-tooltip">
     <div class="asset-tooltip-header">
-      <img :src="iconSrc" :alt="name" class="asset-tooltip-icon" />
+      <img :src="iconSrc" :alt="name" class="asset-tooltip-icon" loading="lazy" decoding="async" />
       <div class="asset-tooltip-title">{{ name }}</div>
     </div>
     <div class="asset-tooltip-description" v-html="sanitizedDescription"></div>

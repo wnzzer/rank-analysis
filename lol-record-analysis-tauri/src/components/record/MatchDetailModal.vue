@@ -2,6 +2,7 @@
   <div v-if="game && mySummary" class="match-detail-page">
     <div class="match-detail-modal">
       <div class="match-detail-shell">
+        <!-- Header -->
         <div class="match-detail-header">
           <div>
             <div class="match-detail-title-row">
@@ -16,36 +17,20 @@
                 class="match-detail-hero"
                 :src="assetPrefix + '/champion/' + mySummary.championId"
                 alt="champion"
+                decoding="async"
               />
               <div class="match-detail-player-copy">
                 <div class="match-detail-player-name">{{ mySummary.displayName }}</div>
                 <div class="match-detail-player-kda">
-                  <span
-                    class="font-number"
-                    :style="{ color: killsColor(mySummary.stats.kills, isDark) }"
-                    >{{ mySummary.stats.kills }}</span
-                  >
+                  <span class="font-number" :style="{ color: killsColor(mySummary.stats.kills, isDark) }">{{ mySummary.stats.kills }}</span>
                   <span>/</span>
-                  <span
-                    class="font-number"
-                    :style="{ color: deathsColor(mySummary.stats.deaths, isDark) }"
-                    >{{ mySummary.stats.deaths }}</span
-                  >
+                  <span class="font-number" :style="{ color: deathsColor(mySummary.stats.deaths, isDark) }">{{ mySummary.stats.deaths }}</span>
                   <span>/</span>
-                  <span
-                    class="font-number"
-                    :style="{ color: assistsColor(mySummary.stats.assists, isDark) }"
-                    >{{ mySummary.stats.assists }}</span
-                  >
-                  <span
-                    class="font-number match-detail-kda-ratio"
-                    :style="{ color: kdaColor(kdaRatio(mySummary.stats), isDark) }"
-                  >
+                  <span class="font-number" :style="{ color: assistsColor(mySummary.stats.assists, isDark) }">{{ mySummary.stats.assists }}</span>
+                  <span class="font-number match-detail-kda-ratio" :style="{ color: kdaColor(kdaRatio(mySummary.stats), isDark) }">
                     {{ kdaRatioLabel(mySummary.stats) }}
                   </span>
-                  <span class="match-detail-meta"
-                    >{{ formatCompactNumber(mySummary.stats.goldEarned) }} 金币</span
-                  >
+                  <span class="match-detail-meta">{{ formatCompactNumber(mySummary.stats.goldEarned) }} 金币</span>
                   <span class="match-detail-meta">{{ totalCs(mySummary.stats) }} 补兵</span>
                 </div>
               </div>
@@ -79,17 +64,9 @@
                 <span class="match-detail-ai-title">AI 复盘</span>
                 <span class="match-detail-ai-subtitle">整局归因 + 单人责任分析</span>
               </div>
-              <n-button
-                size="small"
-                secondary
-                type="info"
-                :loading="aiLoading"
-                @click="handleOpenOverviewAnalysis"
-              >
+              <n-button size="small" secondary type="info" :loading="ai.aiLoading.value" @click="onOverview">
                 <template #icon>
-                  <n-icon>
-                    <SparklesOutline />
-                  </n-icon>
+                  <n-icon><SparklesOutline /></n-icon>
                 </template>
                 整局分析
               </n-button>
@@ -97,12 +74,9 @@
           </div>
         </div>
 
+        <!-- Team Sections -->
         <div class="match-detail-body">
-          <section
-            v-for="team in teamSections"
-            :key="team.teamId"
-            class="match-detail-team-section"
-          >
+          <section v-for="team in teamSections" :key="team.teamId" class="match-detail-team-section">
             <div class="match-detail-team-header" :class="team.headerClass">
               <div class="match-detail-team-title-wrap">
                 <span class="match-detail-team-title">{{ team.title }}</span>
@@ -112,8 +86,7 @@
                 </span>
               </div>
               <div class="match-detail-team-subtitle">
-                输出 {{ formatCompactNumber(team.damage) }} · 承伤
-                {{ formatCompactNumber(team.taken) }}
+                输出 {{ formatCompactNumber(team.damage) }} · 承伤 {{ formatCompactNumber(team.taken) }}
               </div>
             </div>
 
@@ -140,39 +113,28 @@
                       class="match-detail-player-avatar"
                       :src="assetPrefix + '/champion/' + player.championId"
                       alt="champion"
+                      loading="lazy"
+                      decoding="async"
                     />
                     <div class="match-detail-player-text">
                       <div class="match-detail-player-text-row">
                         <span class="match-detail-player-display">{{ player.displayName }}</span>
-                        <n-tag v-if="player.isMe" size="small" :bordered="false" type="info"
-                          >我</n-tag
-                        >
+                        <n-tag v-if="player.isMe" size="small" :bordered="false" type="info">我</n-tag>
                         <n-button
                           quaternary
                           size="tiny"
                           class="match-detail-player-ai-trigger"
-                          :loading="
-                            aiLoading &&
-                            aiMode === 'player' &&
-                            aiTargetParticipantId === player.participantId
-                          "
-                          @click.stop="handleOpenPlayerAnalysis(player.participantId)"
+                          :loading="ai.aiLoading.value && ai.aiMode.value === 'player' && ai.aiTargetParticipantId.value === player.participantId"
+                          @click.stop="ai.openPlayerAnalysis(player.participantId)"
                         >
                           <template #icon>
-                            <n-icon>
-                              <SparklesOutline />
-                            </n-icon>
+                            <n-icon><SparklesOutline /></n-icon>
                           </template>
                           分析
                         </n-button>
                       </div>
                       <div class="match-detail-badge-row">
-                        <n-tooltip
-                          v-for="badge in player.badges"
-                          :key="badge.key"
-                          trigger="hover"
-                          placement="top"
-                        >
+                        <n-tooltip v-for="badge in player.badges" :key="badge.key" trigger="hover" placement="top">
                           <template #trigger>
                             <span class="match-detail-badge-icon" :class="badge.className">
                               <n-icon :size="10">
@@ -195,20 +157,22 @@
                         :key="`${player.participantId}-spell-${spellId}-${index}`"
                         trigger="hover"
                         placement="top"
-                        :disabled="!assetDetail('spell', spellId)"
+                        :disabled="!assets.detailOf('spell', spellId)"
                       >
                         <template #trigger>
                           <img
-                            :src="spellSrc(spellId)"
+                            :src="assets.srcOf('spell', spellId)"
                             class="match-detail-spell-icon"
                             alt="spell"
+                            loading="lazy"
+                            decoding="async"
                           />
                         </template>
                         <AssetTooltipContent
-                          v-if="assetDetail('spell', spellId)"
-                          :icon-src="spellSrc(spellId)"
-                          :name="assetDetail('spell', spellId)?.name ?? ''"
-                          :description="assetDetail('spell', spellId)?.description ?? ''"
+                          v-if="assets.detailOf('spell', spellId)"
+                          :icon-src="assets.srcOf('spell', spellId)"
+                          :name="assets.detailOf('spell', spellId)?.name ?? ''"
+                          :description="assets.detailOf('spell', spellId)?.description ?? ''"
                         />
                       </n-tooltip>
                     </div>
@@ -218,34 +182,35 @@
                         :key="`${player.participantId}-perk-${perkId}-${index}`"
                         trigger="hover"
                         placement="top"
-                        :disabled="!assetDetail('perk', perkId)"
+                        :disabled="!assets.detailOf('perk', perkId)"
                       >
                         <template #trigger>
                           <span
                             v-if="usesAugments"
-                            :class="['match-detail-augment-icon-shell', augmentRarityClass(perkId)]"
+                            :class="['match-detail-augment-icon-shell', augmentRarityClass(assets.detailOf('perk', perkId)?.rarity, 'match-detail-augment')]"
                           >
                             <img
-                              :src="perkSrc(perkId)"
+                              :src="assets.srcOf('perk', perkId)"
                               class="match-detail-augment-icon"
                               alt="augment"
+                              loading="lazy"
+                              decoding="async"
                             />
                           </span>
                           <img
                             v-else
-                            :src="perkSrc(perkId)"
-                            :class="[
-                              'match-detail-perk-icon',
-                              { 'match-detail-perk-icon-sub': index === 1 }
-                            ]"
+                            :src="assets.srcOf('perk', perkId)"
+                            :class="['match-detail-perk-icon', { 'match-detail-perk-icon-sub': index === 1 }]"
                             alt="perk"
+                            loading="lazy"
+                            decoding="async"
                           />
                         </template>
                         <AssetTooltipContent
-                          v-if="assetDetail('perk', perkId)"
-                          :icon-src="perkSrc(perkId)"
-                          :name="assetDetail('perk', perkId)?.name ?? ''"
-                          :description="assetDetail('perk', perkId)?.description ?? ''"
+                          v-if="assets.detailOf('perk', perkId)"
+                          :icon-src="assets.srcOf('perk', perkId)"
+                          :name="assets.detailOf('perk', perkId)?.name ?? ''"
+                          :description="assets.detailOf('perk', perkId)?.description ?? ''"
                         />
                       </n-tooltip>
                     </div>
@@ -256,33 +221,33 @@
                       :key="`${player.participantId}-${index}`"
                       trigger="hover"
                       placement="top"
-                      :disabled="!assetDetail('item', itemId)"
+                      :disabled="!assets.detailOf('item', itemId)"
                     >
                       <template #trigger>
-                        <img :src="itemSrc(itemId)" class="match-detail-item-icon" alt="item" />
+                        <img
+                          :src="assets.srcOf('item', itemId)"
+                          class="match-detail-item-icon"
+                          alt="item"
+                          loading="lazy"
+                          decoding="async"
+                        />
                       </template>
                       <AssetTooltipContent
-                        v-if="assetDetail('item', itemId)"
-                        :icon-src="itemSrc(itemId)"
-                        :name="assetDetail('item', itemId)?.name ?? ''"
-                        :description="assetDetail('item', itemId)?.description ?? ''"
+                        v-if="assets.detailOf('item', itemId)"
+                        :icon-src="assets.srcOf('item', itemId)"
+                        :name="assets.detailOf('item', itemId)?.name ?? ''"
+                        :description="assets.detailOf('item', itemId)?.description ?? ''"
                       />
                     </n-tooltip>
                   </div>
                 </div>
 
                 <div class="match-detail-value-cell font-number match-detail-kda-value-cell">
-                  <span :style="{ color: killsColor(player.stats.kills, isDark) }">{{
-                    player.stats.kills
-                  }}</span>
+                  <span :style="{ color: killsColor(player.stats.kills, isDark) }">{{ player.stats.kills }}</span>
                   <span class="match-detail-kda-separator">/</span>
-                  <span :style="{ color: deathsColor(player.stats.deaths, isDark) }">{{
-                    player.stats.deaths
-                  }}</span>
+                  <span :style="{ color: deathsColor(player.stats.deaths, isDark) }">{{ player.stats.deaths }}</span>
                   <span class="match-detail-kda-separator">/</span>
-                  <span :style="{ color: assistsColor(player.stats.assists, isDark) }">{{
-                    player.stats.assists
-                  }}</span>
+                  <span :style="{ color: assistsColor(player.stats.assists, isDark) }">{{ player.stats.assists }}</span>
                 </div>
                 <div class="match-detail-value-cell font-number">
                   {{ formatCompactNumber(player.stats.goldEarned) }}
@@ -297,9 +262,7 @@
                     :icon="FlameOutline"
                     tooltip="对英雄伤害，占己方总和百分比"
                     :color="otherColor(player.teamRelative.damage, isDark)"
-                    :icon-background="
-                      isDark ? 'rgba(229, 167, 50, 0.18)' : 'rgba(229, 167, 50, 0.14)'
-                    "
+                    :icon-background="isDark ? 'rgba(229, 167, 50, 0.18)' : 'rgba(229, 167, 50, 0.14)'"
                     :value="formatCompactNumber(player.stats.totalDamageDealtToChampions)"
                     :percent="player.teamRelative.damage"
                     compact
@@ -308,9 +271,7 @@
                     :icon="ShieldOutline"
                     tooltip="承受伤害，占己方总和百分比"
                     :color="healColorAndTaken(player.teamRelative.taken, isDark)"
-                    :icon-background="
-                      isDark ? 'rgba(92, 163, 234, 0.2)' : 'rgba(92, 163, 234, 0.12)'
-                    "
+                    :icon-background="isDark ? 'rgba(92, 163, 234, 0.2)' : 'rgba(92, 163, 234, 0.12)'"
                     :value="formatCompactNumber(player.stats.totalDamageTaken)"
                     :percent="player.teamRelative.taken"
                     compact
@@ -319,9 +280,7 @@
                     :icon="HeartOutline"
                     tooltip="治疗量，占己方总和百分比"
                     :color="healColorAndTaken(player.teamRelative.heal, isDark)"
-                    :icon-background="
-                      isDark ? 'rgba(88, 182, 109, 0.2)' : 'rgba(88, 182, 109, 0.14)'
-                    "
+                    :icon-background="isDark ? 'rgba(88, 182, 109, 0.2)' : 'rgba(88, 182, 109, 0.14)'"
                     :value="formatCompactNumber(player.stats.totalHeal)"
                     :percent="player.teamRelative.heal"
                     compact
@@ -334,30 +293,18 @@
       </div>
     </div>
 
-    <n-modal v-model:show="showAiModal" preset="card" title="AI 复盘" style="width: 780px">
-      <div class="match-detail-ai-modal-body">
-        <div class="match-detail-ai-controls">
-          <n-radio-group v-model:value="aiMode" size="small">
-            <n-radio-button value="overview">整局总览</n-radio-button>
-            <n-radio-button value="player">单人复盘</n-radio-button>
-          </n-radio-group>
-
-          <n-select
-            v-if="aiMode === 'player'"
-            v-model:value="aiTargetParticipantId"
-            class="match-detail-ai-player-select"
-            :options="aiPlayerOptions"
-          />
-
-          <n-button tertiary type="primary" :loading="aiLoading" @click="runCurrentAiAnalysis">
-            重新分析
-          </n-button>
-        </div>
-
-        <div v-if="aiResult" class="match-detail-ai-result" v-html="renderedAiResult"></div>
-        <div v-else class="match-detail-ai-empty">选择分析类型后即可生成复盘结果。</div>
-      </div>
-    </n-modal>
+    <MatchAIPanel
+      :show="ai.showAiModal.value"
+      :mode="ai.aiMode.value"
+      :target-participant-id="ai.aiTargetParticipantId.value"
+      :loading="ai.aiLoading.value"
+      :rendered-result="ai.renderedAiResult.value"
+      :player-options="aiPlayerOptions"
+      @update:show="ai.showAiModal.value = $event"
+      @update:mode="ai.aiMode.value = $event"
+      @update:target-participant-id="ai.aiTargetParticipantId.value = $event"
+      @rerun="ai.runCurrentAiAnalysis"
+    />
   </div>
   <div v-else class="match-detail-empty-state">
     <span class="match-detail-empty-title">暂无对局详情</span>
@@ -366,282 +313,91 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, ref, watch, onMounted, type Component } from 'vue'
+import { computed, ref, watch, onMounted, toRef } from 'vue'
 import {
-  FlagOutline,
-  CashOutline,
   FlameOutline,
-  FootstepsOutline,
   HeartOutline,
-  PeopleOutline,
-  SparklesOutline,
   ShieldOutline,
-  SkullOutline
+  SparklesOutline
 } from '@vicons/ionicons5'
-import { useMessage } from 'naive-ui'
-import MarkdownIt from 'markdown-it'
-import { useSettingsStore } from '../../pinia/setting'
-import { assetPrefix } from '../../services/http'
-import itemNull from '../../assets/imgs/item/null.png'
-import type { Game, ParticipantStats } from './match'
-import { getAssetDetailsByIpc, type AssetDetail } from '../../services/ipc'
+import { NButton, NIcon, NTag, NTooltip } from 'naive-ui'
+import { invoke } from '@tauri-apps/api/core'
+
+import { useSettingsStore } from '@renderer/pinia/setting'
+import { assetPrefix } from '@renderer/services/http'
+import type { Game, ParticipantStats } from '@renderer/types/domain/match'
+import type { Summoner } from '@renderer/types/domain/player'
 import AssetTooltipContent from './AssetTooltipContent.vue'
 import StatDots from './StatDots.vue'
+import MatchAIPanel from './MatchAIPanel.vue'
 import {
   assistsColor,
   deathsColor,
-  formatCompactNumber,
   healColorAndTaken,
   kdaColor,
   killsColor,
-  otherColor,
-  safeRelativePercent
-} from './composition'
-import { analyzeMatchDetailWithAIStream, type MatchDetailAnalysisMode } from '../../services/ai'
-import { invoke } from '@tauri-apps/api/core'
-import type { Summoner } from './type'
+  otherColor
+} from '@renderer/utils/colors'
+import { formatCompactNumber } from '@renderer/utils/format'
+import { augmentRarityClass } from '@renderer/utils/augment'
+import { useRecordAssets } from '@renderer/composables/useRecordAssets'
+import { useMatchDetailPlayers } from '@renderer/composables/useMatchDetailPlayers'
+import { useMatchAIAnalysis } from '@renderer/composables/useMatchAIAnalysis'
 
-interface PlayerBadge {
-  key: string
-  label: string
-  icon: Component
-  className: string
-}
-
-interface DetailPlayer {
-  participantId: number
-  teamId: number
-  championId: number
-  spell1Id: number
-  spell2Id: number
-  stats: ParticipantStats
-  displayName: string
-  isMe: boolean
-  win: boolean
-  badges: PlayerBadge[]
-  teamRelative: {
-    damage: number
-    taken: number
-    heal: number
-  }
-}
-
-const props = defineProps<{
-  game: Game | null
-}>()
-
-// 当前登录用户信息
-const currentSummoner = ref<Summoner | null>(null)
+const props = defineProps<{ game: Game | null }>()
 
 const settingsStore = useSettingsStore()
-const message = useMessage()
 const isDark = computed(
   () => settingsStore.theme?.name === 'Dark' || settingsStore.theme?.name === 'dark'
 )
-const md = new MarkdownIt({
-  html: true,
-  breaks: true,
-  linkify: true
-})
 
-// 使用当前登录用户的 gameName#tagLine 来匹配"我"
+const currentSummoner = ref<Summoner | null>(null)
+
+/** 优先使用当前登录用户匹配"我"，未获取到则回退到 game 的第一个参与者 */
 const currentPlayerKey = computed(() => {
   if (currentSummoner.value) {
     return `${currentSummoner.value.gameName}#${currentSummoner.value.tagLine}`
   }
-  // 如果还未获取到当前用户，尝试从 game 的第一个参与者获取（兼容旧逻辑）
   const identity = props.game?.participantIdentities?.[0]?.player
-  if (!identity) {
-    return ''
-  }
+  if (!identity) return ''
   return `${identity.gameName}#${identity.tagLine}`
 })
+
+const gameRef = toRef(() => props.game)
+const { detailPlayers, mySummary, teamSections } = useMatchDetailPlayers(gameRef, currentPlayerKey)
+const ai = useMatchAIAnalysis(gameRef)
+const assets = useRecordAssets()
 
 function totalCs(stats: ParticipantStats) {
   return stats.totalMinionsKilled + stats.neutralMinionsKilled
 }
-
 function kdaRatio(stats: ParticipantStats) {
   return (stats.kills + stats.assists) / Math.max(1, stats.deaths)
 }
-
 function kdaRatioLabel(stats: ParticipantStats) {
   return `${kdaRatio(stats).toFixed(1)} KDA`
 }
-
-const detailPlayers = computed<DetailPlayer[]>(() => {
-  if (!props.game) {
-    return []
+function itemIds(stats: ParticipantStats) {
+  return [stats.item0, stats.item1, stats.item2, stats.item3, stats.item4, stats.item5, stats.item6]
+}
+function playerAugmentIds(stats: ParticipantStats) {
+  return [
+    stats.playerAugment1,
+    stats.playerAugment2,
+    stats.playerAugment3,
+    stats.playerAugment4
+  ].filter(id => id > 0)
+}
+function displayedPerkIds(stats: ParticipantStats) {
+  if (usesAugments.value) {
+    const ids = playerAugmentIds(stats)
+    if (ids.length > 0) return ids
   }
-
-  const participants = props.game.gameDetail?.participants?.length
-    ? props.game.gameDetail.participants
-    : props.game.participants
-  const identities = props.game.gameDetail?.participantIdentities?.length
-    ? props.game.gameDetail.participantIdentities
-    : props.game.participantIdentities
-
-  const teamTotals = new Map<number, { damage: number; taken: number; heal: number }>()
-
-  for (const participant of participants) {
-    const current = teamTotals.get(participant.teamId) ?? { damage: 0, taken: 0, heal: 0 }
-    current.damage += participant.stats.totalDamageDealtToChampions
-    current.taken += participant.stats.totalDamageTaken
-    current.heal += participant.stats.totalHeal
-    teamTotals.set(participant.teamId, current)
-  }
-
-  const markerConfigs = [
-    {
-      key: 'kills',
-      label: '杀人最多',
-      icon: SkullOutline,
-      className: 'match-detail-badge-kills',
-      value: (stats: ParticipantStats) => stats.kills
-    },
-    {
-      key: 'assists',
-      label: '助攻最多',
-      icon: PeopleOutline,
-      className: 'match-detail-badge-assists',
-      value: (stats: ParticipantStats) => stats.assists
-    },
-    {
-      key: 'turrets',
-      label: '推塔最多',
-      icon: FlagOutline,
-      className: 'match-detail-badge-turrets',
-      value: (stats: ParticipantStats) => stats.damageDealtToTurrets
-    },
-    {
-      key: 'gold',
-      label: '钱最多',
-      icon: CashOutline,
-      className: 'match-detail-badge-gold',
-      value: (stats: ParticipantStats) => stats.goldEarned
-    },
-    {
-      key: 'taken',
-      label: '承伤最多',
-      icon: ShieldOutline,
-      className: 'match-detail-badge-taken',
-      value: (stats: ParticipantStats) => stats.totalDamageTaken
-    },
-    {
-      key: 'cs',
-      label: '补兵最多',
-      icon: FootstepsOutline,
-      className: 'match-detail-badge-cs',
-      value: (stats: ParticipantStats) => totalCs(stats)
-    }
-  ]
-
-  const markerWinners = new Map<string, Set<number>>()
-
-  for (const config of markerConfigs) {
-    const maxValue = participants.reduce((max, participant) => {
-      return Math.max(max, config.value(participant.stats))
-    }, 0)
-
-    if (maxValue <= 0) {
-      continue
-    }
-
-    markerWinners.set(
-      config.label,
-      new Set(
-        participants
-          .filter(participant => config.value(participant.stats) === maxValue)
-          .map(participant => participant.participantId)
-      )
-    )
-  }
-
-  return [...participants]
-    .sort((left, right) => left.participantId - right.participantId)
-    .map((participant, index) => {
-      const identity = identities[participant.participantId - 1] ?? identities[index]
-      const displayName = identity
-        ? `${identity.player.gameName}#${identity.player.tagLine}`
-        : `玩家${participant.participantId}`
-      const totalValues = teamTotals.get(participant.teamId) ?? { damage: 0, taken: 0, heal: 0 }
-
-      return {
-        participantId: participant.participantId,
-        teamId: participant.teamId,
-        championId: participant.championId,
-        spell1Id: participant.spell1Id,
-        spell2Id: participant.spell2Id,
-        stats: participant.stats,
-        displayName,
-        isMe: displayName === currentPlayerKey.value,
-        win: participant.stats.win,
-        badges: markerConfigs
-          .filter(config => markerWinners.get(config.label)?.has(participant.participantId))
-          .map(config => ({
-            key: config.key,
-            label: config.label,
-            icon: config.icon,
-            className: config.className
-          })),
-        teamRelative: {
-          damage: safeRelativePercent(
-            participant.stats.totalDamageDealtToChampions,
-            totalValues.damage
-          ),
-          taken: safeRelativePercent(participant.stats.totalDamageTaken, totalValues.taken),
-          heal: safeRelativePercent(participant.stats.totalHeal, totalValues.heal)
-        }
-      }
-    })
-})
-
-const mySummary = computed(
-  () => detailPlayers.value.find(player => player.isMe) ?? detailPlayers.value[0]
-)
-
-const teamSections = computed(() => {
-  const teamMap = new Map<number, DetailPlayer[]>()
-  for (const player of detailPlayers.value) {
-    const current = teamMap.get(player.teamId) ?? []
-    current.push(player)
-    teamMap.set(player.teamId, current)
-  }
-
-  return [...teamMap.entries()]
-    .map(([teamId, players]) => {
-      const totals = players.reduce(
-        (acc, player) => {
-          acc.kills += player.stats.kills
-          acc.deaths += player.stats.deaths
-          acc.assists += player.stats.assists
-          acc.gold += player.stats.goldEarned
-          acc.damage += player.stats.totalDamageDealtToChampions
-          acc.taken += player.stats.totalDamageTaken
-          return acc
-        },
-        { kills: 0, deaths: 0, assists: 0, gold: 0, damage: 0, taken: 0 }
-      )
-      const won = players[0]?.win ?? false
-
-      return {
-        teamId,
-        players,
-        title: won ? '胜方' : '败方',
-        headerClass: won ? 'match-detail-team-header-win' : 'match-detail-team-header-loss',
-        ...totals
-      }
-    })
-    .sort(
-      (left, right) =>
-        Number(right.players[0]?.win ?? false) - Number(left.players[0]?.win ?? false)
-    )
-})
+  return [stats.perk0, stats.perkSubStyle].filter(id => id > 0)
+}
 
 const formattedDate = computed(() => {
-  if (!props.game) {
-    return ''
-  }
+  if (!props.game) return ''
   return new Intl.DateTimeFormat('zh-CN', {
     month: '2-digit',
     day: '2-digit',
@@ -652,9 +408,7 @@ const formattedDate = computed(() => {
 })
 
 const durationLabel = computed(() => {
-  if (!props.game) {
-    return ''
-  }
+  if (!props.game) return ''
   const minutes = Math.floor(props.game.gameDuration / 60)
   const seconds = props.game.gameDuration % 60
   return `${minutes}分${seconds.toString().padStart(2, '0')}秒`
@@ -662,276 +416,53 @@ const durationLabel = computed(() => {
 
 const augmentQueueIds = new Set([1700, 2400])
 const usesAugments = computed(() => {
-  if (!props.game || !augmentQueueIds.has(props.game.queueId)) {
-    return false
-  }
-
-  return detailPlayers.value.some(player => playerAugmentIds(player.stats).length > 0)
-})
-
-const assetDetails = ref<Record<string, AssetDetail>>({})
-const showAiModal = ref(false)
-const aiLoading = ref(false)
-const aiResult = ref('')
-const aiMode = ref<MatchDetailAnalysisMode>('overview')
-const aiTargetParticipantId = ref<number | null>(null)
-
-const renderedAiResult = computed(() => {
-  if (!aiResult.value) {
-    return ''
-  }
-
-  return md.render(aiResult.value)
+  if (!props.game || !augmentQueueIds.has(props.game.queueId)) return false
+  return detailPlayers.value.some(p => playerAugmentIds(p.stats).length > 0)
 })
 
 const aiPlayerOptions = computed(() =>
-  detailPlayers.value.map(player => ({
-    label: player.displayName,
-    value: player.participantId
-  }))
+  detailPlayers.value.map(p => ({ label: p.displayName, value: p.participantId }))
 )
 
-const assetIds = computed(() => {
+function onOverview() {
+  ai.openOverviewAnalysis(mySummary.value?.participantId ?? detailPlayers.value[0]?.participantId ?? null)
+}
+
+function loadAssetsIfNeeded() {
+  if (!props.game) return
   const itemIdsToLoad = new Set<number>()
   const perkIdsToLoad = new Set<number>()
   const spellIdsToLoad = new Set<number>()
-
   for (const player of detailPlayers.value) {
-    for (const itemId of itemIds(player.stats)) {
-      if (itemId > 0) {
-        itemIdsToLoad.add(itemId)
-      }
-    }
-
-    for (const perkId of displayedPerkIds(player.stats)) {
-      perkIdsToLoad.add(perkId)
-    }
-
-    // 收集召唤师技能ID
-    if (player.spell1Id > 0) {
-      spellIdsToLoad.add(player.spell1Id)
-    }
-    if (player.spell2Id > 0) {
-      spellIdsToLoad.add(player.spell2Id)
-    }
+    for (const id of itemIds(player.stats)) if (id > 0) itemIdsToLoad.add(id)
+    for (const id of displayedPerkIds(player.stats)) perkIdsToLoad.add(id)
+    if (player.spell1Id > 0) spellIdsToLoad.add(player.spell1Id)
+    if (player.spell2Id > 0) spellIdsToLoad.add(player.spell2Id)
   }
+  assets.preload([
+    { kind: 'item', ids: [...itemIdsToLoad] },
+    { kind: 'perk', ids: [...perkIdsToLoad] },
+    { kind: 'spell', ids: [...spellIdsToLoad] }
+  ])
+}
 
-  return {
-    itemIds: [...itemIdsToLoad],
-    perkIds: [...perkIdsToLoad],
-    spellIds: [...spellIdsToLoad]
-  }
-})
-
-/** 延迟加载资源详情，避免阻塞渲染 */
 onMounted(async () => {
-  // 获取当前登录用户信息，用于正确匹配"我"
   try {
     currentSummoner.value = await invoke<Summoner>('get_my_summoner')
   } catch (error) {
     console.error('获取当前用户信息失败:', error)
   }
-
-  // 初始加载
   loadAssetsIfNeeded()
 })
 
-/** 监听game变化，重新加载资源 */
 watch(
   () => props.game?.gameId,
   () => {
-    loadAssetsIfNeeded()
-  },
-  { immediate: false }
-)
-
-/** 加载资源（如果game存在） */
-function loadAssetsIfNeeded() {
-  if (!props.game) return
-
-  const { itemIds, perkIds, spellIds } = assetIds.value
-  if (itemIds.length === 0 && perkIds.length === 0 && spellIds.length === 0) return
-
-  // 使用 requestAnimationFrame 延迟到渲染完成后加载
-  requestAnimationFrame(() => {
-    loadAssetDetails(itemIds, perkIds, spellIds)
-  })
-}
-
-async function loadAssetDetails(itemIds: number[], perkIds: number[], spellIds: number[]) {
-  if (!props.game) return
-
-  try {
-    const [items, perks, spells] = await Promise.all([
-      itemIds.length ? getAssetDetailsByIpc('item', itemIds) : Promise.resolve([]),
-      perkIds.length ? getAssetDetailsByIpc('perk', perkIds) : Promise.resolve([]),
-      spellIds.length ? getAssetDetailsByIpc('spell', spellIds) : Promise.resolve([])
-    ])
-
-    const nextDetails: Record<string, AssetDetail> = {}
-    for (const item of items) {
-      nextDetails[assetDetailKey('item', item.id)] = item
-    }
-    for (const perk of perks) {
-      nextDetails[assetDetailKey('perk', perk.id)] = perk
-    }
-    for (const spell of spells) {
-      nextDetails[assetDetailKey('spell', spell.id)] = spell
-    }
-    assetDetails.value = nextDetails
-  } catch (error) {
-    console.error('failed to load asset details', error)
-  }
-}
-
-function itemIds(stats: ParticipantStats) {
-  return [stats.item0, stats.item1, stats.item2, stats.item3, stats.item4, stats.item5, stats.item6]
-}
-
-function itemSrc(itemId: number) {
-  return itemId > 0 ? `${assetPrefix}/item/${itemId}` : itemNull
-}
-
-function spellSrc(spellId: number) {
-  return spellId > 0 ? `${assetPrefix}/spell/${spellId}` : itemNull
-}
-
-function perkSrc(perkId: number) {
-  return perkId > 0 ? `${assetPrefix}/perk/${perkId}` : itemNull
-}
-
-function augmentRarity(perkId: number) {
-  return assetDetail('perk', perkId)?.rarity ?? ''
-}
-
-function augmentRarityClass(perkId: number) {
-  switch (augmentRarity(perkId)) {
-    case 'kPrismatic':
-      return 'match-detail-augment-prismatic'
-    case 'kGold':
-      return 'match-detail-augment-gold'
-    case 'kSilver':
-      return 'match-detail-augment-silver'
-    case 'kBronze':
-      return 'match-detail-augment-bronze'
-    default:
-      return 'match-detail-augment-default'
-  }
-}
-
-function playerAugmentIds(stats: ParticipantStats) {
-  return [
-    stats.playerAugment1,
-    stats.playerAugment2,
-    stats.playerAugment3,
-    stats.playerAugment4
-  ].filter(perkId => perkId > 0)
-}
-
-function displayedPerkIds(stats: ParticipantStats) {
-  if (usesAugments.value) {
-    const augmentIds = playerAugmentIds(stats)
-    if (augmentIds.length > 0) {
-      return augmentIds
-    }
-  }
-
-  return [stats.perk0, stats.perkSubStyle].filter(perkId => perkId > 0)
-}
-
-function assetDetailKey(type: 'item' | 'perk' | 'spell', id: number) {
-  return `${type}:${id}`
-}
-
-function assetDetail(type: 'item' | 'perk' | 'spell', id: number) {
-  if (id <= 0) {
-    return null
-  }
-  return assetDetails.value[assetDetailKey(type, id)] ?? null
-}
-
-watch(
-  [aiMode, aiTargetParticipantId],
-  ([mode, participantId], [previousMode, previousParticipantId]) => {
-    if (!showAiModal.value || !props.game) {
-      return
-    }
-
-    if (mode === previousMode && participantId === previousParticipantId) {
-      return
-    }
-
-    void runCurrentAiAnalysis()
-  }
-)
-
-watch(
-  () => props.game?.gameId,
-  () => {
-    aiResult.value = ''
-    aiMode.value = 'overview'
-    aiTargetParticipantId.value =
-      mySummary.value?.participantId ?? detailPlayers.value[0]?.participantId ?? null
-    // 当game变化时重新加载资源
+    ai.resetOnGameChange(mySummary.value?.participantId ?? detailPlayers.value[0]?.participantId ?? null)
     loadAssetsIfNeeded()
   },
   { immediate: true }
 )
-
-async function handleOpenOverviewAnalysis() {
-  aiMode.value = 'overview'
-  aiTargetParticipantId.value =
-    mySummary.value?.participantId ?? detailPlayers.value[0]?.participantId ?? null
-  showAiModal.value = true
-  await runCurrentAiAnalysis()
-}
-
-async function handleOpenPlayerAnalysis(participantId: number) {
-  aiMode.value = 'player'
-  aiTargetParticipantId.value = participantId
-  showAiModal.value = true
-  await runCurrentAiAnalysis()
-}
-
-async function runCurrentAiAnalysis() {
-  if (!props.game || aiLoading.value) {
-    return
-  }
-
-  if (aiMode.value === 'player' && !aiTargetParticipantId.value) {
-    message.warning('请选择要分析的玩家')
-    return
-  }
-
-  aiLoading.value = true
-  aiResult.value = ''
-
-  try {
-    await analyzeMatchDetailWithAIStream(
-      props.game,
-      {
-        onChunk: (chunk: string) => {
-          aiResult.value += chunk
-        },
-        onDone: () => {
-          aiLoading.value = false
-        },
-        onError: (error: string) => {
-          message.error('AI 分析出错: ' + error)
-          aiLoading.value = false
-        }
-      },
-      {
-        mode: aiMode.value,
-        participantId:
-          aiMode.value === 'player' ? (aiTargetParticipantId.value ?? undefined) : undefined
-      }
-    )
-  } catch (error: any) {
-    message.error('AI 分析出错: ' + (error.message || '未知错误'))
-    aiLoading.value = false
-  }
-}
 </script>
 
 <style scoped>
@@ -955,7 +486,8 @@ async function runCurrentAiAnalysis() {
   color: var(--text-primary);
   background:
     radial-gradient(circle at top left, rgba(61, 155, 122, 0.14), transparent 28%),
-    radial-gradient(circle at top right, rgba(92, 163, 234, 0.16), transparent 32%), var(--bg-base);
+    radial-gradient(circle at top right, rgba(92, 163, 234, 0.16), transparent 32%),
+    var(--bg-base);
 }
 
 .match-detail-shell {
@@ -1153,10 +685,7 @@ async function runCurrentAiAnalysis() {
 .match-detail-column-header,
 .match-detail-row {
   display: grid;
-  grid-template-columns: minmax(188px, 1.22fr) minmax(214px, 1.36fr) 72px 68px 62px 68px minmax(
-      198px,
-      1.3fr
-    );
+  grid-template-columns: minmax(188px, 1.22fr) minmax(214px, 1.36fr) 72px 68px 62px 68px minmax(198px, 1.3fr);
   gap: 6px;
   align-items: center;
 }
@@ -1256,35 +785,12 @@ async function runCurrentAiAnalysis() {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
-.match-detail-badge-kills {
-  color: #f2bf63;
-  background: rgba(242, 191, 99, 0.14);
-}
-
-.match-detail-badge-assists {
-  color: #63d8b4;
-  background: rgba(99, 216, 180, 0.14);
-}
-
-.match-detail-badge-turrets {
-  color: #59b5ff;
-  background: rgba(89, 181, 255, 0.14);
-}
-
-.match-detail-badge-gold {
-  color: #f7d35f;
-  background: rgba(247, 211, 95, 0.14);
-}
-
-.match-detail-badge-taken {
-  color: #ef7d7d;
-  background: rgba(239, 125, 125, 0.14);
-}
-
-.match-detail-badge-cs {
-  color: #7eb8ff;
-  background: rgba(126, 184, 255, 0.14);
-}
+.match-detail-badge-kills { color: #f2bf63; background: rgba(242, 191, 99, 0.14); }
+.match-detail-badge-assists { color: #63d8b4; background: rgba(99, 216, 180, 0.14); }
+.match-detail-badge-turrets { color: #59b5ff; background: rgba(89, 181, 255, 0.14); }
+.match-detail-badge-gold { color: #f7d35f; background: rgba(247, 211, 95, 0.14); }
+.match-detail-badge-taken { color: #ef7d7d; background: rgba(239, 125, 125, 0.14); }
+.match-detail-badge-cs { color: #7eb8ff; background: rgba(126, 184, 255, 0.14); }
 
 .match-detail-build-cell {
   display: flex;
@@ -1347,29 +853,25 @@ async function runCurrentAiAnalysis() {
 .match-detail-augment-prismatic {
   --augment-border: rgba(187, 125, 255, 0.92);
   --augment-background: linear-gradient(180deg, rgba(123, 82, 214, 0.9), rgba(55, 34, 110, 0.98));
-  --augment-filter: brightness(0) saturate(100%) invert(79%) sepia(31%) saturate(2173%)
-    hue-rotate(225deg) brightness(102%) contrast(101%);
+  --augment-filter: brightness(0) saturate(100%) invert(79%) sepia(31%) saturate(2173%) hue-rotate(225deg) brightness(102%) contrast(101%);
 }
 
 .match-detail-augment-gold {
   --augment-border: rgba(244, 198, 88, 0.92);
   --augment-background: linear-gradient(180deg, rgba(121, 90, 18, 0.9), rgba(62, 46, 8, 0.98));
-  --augment-filter: brightness(0) saturate(100%) invert(82%) sepia(51%) saturate(590%)
-    hue-rotate(354deg) brightness(103%) contrast(104%);
+  --augment-filter: brightness(0) saturate(100%) invert(82%) sepia(51%) saturate(590%) hue-rotate(354deg) brightness(103%) contrast(104%);
 }
 
 .match-detail-augment-silver {
   --augment-border: rgba(191, 205, 227, 0.88);
   --augment-background: linear-gradient(180deg, rgba(86, 103, 126, 0.9), rgba(39, 48, 61, 0.98));
-  --augment-filter: brightness(0) saturate(100%) invert(93%) sepia(10%) saturate(418%)
-    hue-rotate(176deg) brightness(103%) contrast(99%);
+  --augment-filter: brightness(0) saturate(100%) invert(93%) sepia(10%) saturate(418%) hue-rotate(176deg) brightness(103%) contrast(99%);
 }
 
 .match-detail-augment-bronze {
   --augment-border: rgba(197, 132, 89, 0.9);
   --augment-background: linear-gradient(180deg, rgba(118, 67, 35, 0.9), rgba(59, 33, 17, 0.98));
-  --augment-filter: brightness(0) saturate(100%) invert(76%) sepia(31%) saturate(740%)
-    hue-rotate(338deg) brightness(98%) contrast(94%);
+  --augment-filter: brightness(0) saturate(100%) invert(76%) sepia(31%) saturate(740%) hue-rotate(338deg) brightness(98%) contrast(94%);
 }
 
 .match-detail-augment-default {
@@ -1408,55 +910,6 @@ async function runCurrentAiAnalysis() {
   display: flex;
   flex-direction: column;
   gap: 2px;
-}
-
-.match-detail-ai-modal-body {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.match-detail-ai-controls {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.match-detail-ai-player-select {
-  min-width: 240px;
-}
-
-.match-detail-ai-result {
-  max-height: 70vh;
-  overflow-y: auto;
-  padding: 8px 4px;
-  line-height: 1.8;
-  font-size: 14px;
-}
-
-.match-detail-ai-result :deep(h2) {
-  margin: 16px 0 8px;
-  font-size: 17px;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-.match-detail-ai-result :deep(ul) {
-  padding-left: 20px;
-}
-
-.match-detail-ai-result :deep(li) {
-  margin: 6px 0;
-}
-
-.match-detail-ai-result :deep(p) {
-  margin: 8px 0;
-}
-
-.match-detail-ai-empty {
-  padding: 24px 8px;
-  text-align: center;
-  color: var(--text-secondary);
 }
 
 .match-detail-empty-state {
@@ -1502,10 +955,6 @@ async function runCurrentAiAnalysis() {
 
   .match-detail-row {
     gap: 10px;
-  }
-
-  .match-detail-ai-controls {
-    flex-wrap: wrap;
   }
 }
 </style>

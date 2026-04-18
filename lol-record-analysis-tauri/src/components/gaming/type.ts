@@ -1,27 +1,5 @@
-import type { MatchHistory } from '../record/match'
-import { OneGamePlayer, Rank, Summoner, UserTag } from '../record/type'
+/**
+ * @deprecated 请从 @renderer/types/domain/gaming 导入
+ */
 
-/** 对局会话：teamOne = 我方（左），teamTwo = 敌方（右） */
-export interface SessionData {
-  phase: string
-  type: string
-  typeCn: string
-  queueId: number
-  teamOne: SessionSummoner[]
-  teamTwo: SessionSummoner[]
-}
-export interface PreGroupMarkers {
-  name: string
-  type: string
-}
-export interface SessionSummoner {
-  championId: number
-  championKey: string
-  summoner: Summoner
-  matchHistory: MatchHistory
-  userTag: UserTag
-  rank: Rank
-  meetGames: OneGamePlayer[]
-  preGroupMarkers: PreGroupMarkers
-  isLoading?: boolean
-}
+export type { PreGroupMarkers, SessionSummoner, SessionData } from '@renderer/types/domain/gaming'

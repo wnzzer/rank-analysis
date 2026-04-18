@@ -9,7 +9,12 @@
         >
           <!-- Left: Champion -->
           <div class="champion-section">
-            <img :src="assetPrefix + '/champion/' + meetGame.championId" class="champion-img" />
+            <img
+              :src="assetPrefix + '/champion/' + meetGame.championId"
+              class="champion-img"
+              loading="lazy"
+              decoding="async"
+            />
           </div>
 
           <!-- Middle: Stats & Info -->

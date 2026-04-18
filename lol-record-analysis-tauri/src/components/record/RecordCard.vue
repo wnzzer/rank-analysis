@@ -34,6 +34,8 @@
         <img
           style="height: 42px"
           :src="`${assetPrefix}/champion/${games.participants[0].championId}`"
+          loading="lazy"
+          decoding="async"
         />
         <template v-if="!!games.mvp">
           <div
@@ -79,21 +81,27 @@
               v-for="(augmentId, _idx) in displayedAugmentIds"
               :key="`record-augment-${_idx}`"
             >
-              <n-tooltip trigger="hover" placement="top" :disabled="!augmentDetail(augmentId)">
+              <n-tooltip
+                trigger="hover"
+                placement="top"
+                :disabled="!assets.detailOf('perk', augmentId)"
+              >
                 <template #trigger>
                   <span :class="['record-card-augment-shell', augmentRarityClass(augmentId)]">
                     <img
-                      :src="augmentSrc(augmentId)"
+                      :src="assets.srcOf('perk', augmentId)"
                       class="record-card-augment-icon"
                       alt="augment"
+                      loading="lazy"
+                      decoding="async"
                     />
                   </span>
                 </template>
                 <AssetTooltipContent
-                  v-if="augmentDetail(augmentId)"
-                  :icon-src="augmentSrc(augmentId)"
-                  :name="augmentDetail(augmentId)!.name"
-                  :description="augmentDetail(augmentId)!.description"
+                  v-if="assets.detailOf('perk', augmentId)"
+                  :icon-src="assets.srcOf('perk', augmentId)"
+                  :name="assets.detailOf('perk', augmentId)!.name"
+                  :description="assets.detailOf('perk', augmentId)!.description"
                 />
               </n-tooltip>
             </template>
@@ -111,16 +119,22 @@
               :key="`record-spell-${index}`"
               trigger="hover"
               placement="top"
-              :disabled="!spellDetail(spellId)"
+              :disabled="!assets.detailOf('spell', spellId)"
             >
               <template #trigger>
-                <img :src="spellSrc(spellId)" class="record-card-icon-slot" alt="spell" />
+                <img
+                  :src="assets.srcOf('spell', spellId)"
+                  class="record-card-icon-slot"
+                  alt="spell"
+                  loading="lazy"
+                  decoding="async"
+                />
               </template>
               <AssetTooltipContent
-                v-if="spellDetail(spellId)"
-                :icon-src="spellSrc(spellId)"
-                :name="spellDetail(spellId)?.name ?? ''"
-                :description="spellDetail(spellId)?.description ?? ''"
+                v-if="assets.detailOf('spell', spellId)"
+                :icon-src="assets.srcOf('spell', spellId)"
+                :name="assets.detailOf('spell', spellId)?.name ?? ''"
+                :description="assets.detailOf('spell', spellId)?.description ?? ''"
               />
             </n-tooltip>
           </n-flex>
@@ -128,20 +142,26 @@
         <!-- 装备区域（所有模式都显示） -->
         <n-flex class="record-card-item-slots" style="gap: 2px">
           <n-tooltip
-            v-for="(itemId, index) in itemIds(games.participants[0].stats)"
+            v-for="(itemId, index) in itemIds"
             :key="`record-item-${index}`"
             trigger="hover"
             placement="top"
-            :disabled="!assetDetail(itemId)"
+            :disabled="!assets.detailOf('item', itemId)"
           >
             <template #trigger>
-              <img :src="itemSrc(itemId)" class="record-card-icon-slot" alt="item" />
+              <img
+                :src="assets.srcOf('item', itemId)"
+                class="record-card-icon-slot"
+                alt="item"
+                loading="lazy"
+                decoding="async"
+              />
             </template>
             <AssetTooltipContent
-              v-if="assetDetail(itemId)"
-              :icon-src="itemSrc(itemId)"
-              :name="assetDetail(itemId)?.name ?? ''"
-              :description="assetDetail(itemId)?.description ?? ''"
+              v-if="assets.detailOf('item', itemId)"
+              :icon-src="assets.srcOf('item', itemId)"
+              :name="assets.detailOf('item', itemId)?.name ?? ''"
+              :description="assets.detailOf('item', itemId)?.description ?? ''"
             />
           </n-tooltip>
         </n-flex>
@@ -175,91 +195,22 @@
         />
       </div>
       <n-flex vertical justify="space-between" style="gap: 0px">
-        <n-tag :bordered="false" size="small">
-          <template #avatar>
-            <n-flex>
-              <n-popover v-for="i in 5" :key="i" trigger="hover">
-                <template #trigger>
-                  <n-button
-                    text
-                    @click.stop="
-                      toNameRecord(
-                        games.gameDetail.participantIdentities[i - 1].player.gameName +
-                          '#' +
-                          games.gameDetail.participantIdentities[i - 1].player.tagLine
-                      )
-                    "
-                  >
-                    <n-avatar
-                      :bordered="true"
-                      :src="
-                        assetPrefix +
-                        '/champion/' +
-                        games.gameDetail.participants[i - 1]?.championId
-                      "
-                      :fallback-src="itemNull"
-                      :style="{
-                        borderColor: getIsMeBorderedColor(
-                          games.gameDetail.participantIdentities[i - 1]?.player.gameName +
-                            '#' +
-                            games.gameDetail.participantIdentities[i - 1]?.player.tagLine
-                        )
-                      }"
-                    />
-                  </n-button>
-                </template>
-                <span>{{
-                  games.gameDetail.participantIdentities[i - 1].player.gameName +
-                  '#' +
-                  games.gameDetail.participantIdentities[i - 1].player.tagLine
-                }}</span>
-              </n-popover>
-            </n-flex>
-          </template>
-        </n-tag>
-
-        <n-tag :bordered="false" size="small">
-          <template #avatar>
-            <n-flex>
-              <n-popover v-for="i in 5" :key="i + 5" trigger="hover">
-                <template #trigger>
-                  <n-button
-                    text
-                    @click.stop="
-                      toNameRecord(
-                        games.gameDetail.participantIdentities[i + 4]?.player.gameName +
-                          '#' +
-                          games.gameDetail.participantIdentities[i + 4]?.player.tagLine
-                      )
-                    "
-                  >
-                    <n-avatar
-                      :bordered="true"
-                      :src="
-                        assetPrefix +
-                        '/champion/' +
-                        games.gameDetail.participants[i + 4]?.championId
-                      "
-                      :fallback-src="itemNull"
-                      :style="{
-                        borderColor: getIsMeBorderedColor(
-                          games.gameDetail.participantIdentities[i + 4]?.player.gameName +
-                            '#' +
-                            games.gameDetail.participantIdentities[i + 4]?.player.tagLine
-                        )
-                      }"
-                    />
-                  </n-button>
-                </template>
-                <span>{{
-                  games.gameDetail.participantIdentities[i + 4]?.player.gameName +
-                  '#' +
-                  games.gameDetail.participantIdentities[i + 4]?.player.tagLine
-                }}</span>
-              </n-popover>
-            </n-flex>
-          </template>
-        </n-tag>
+        <TeamAvatarGroup
+          :identities="games.gameDetail.participantIdentities"
+          :participants="games.gameDetail.participants"
+          :team-offset="0"
+          :current-player-key="currentPlayerKey"
+          :is-dark="isDark"
+          @nav-to-name="toNameRecord"
+        />
+        <TeamAvatarGroup
+          :identities="games.gameDetail.participantIdentities"
+          :participants="games.gameDetail.participants"
+          :team-offset="5"
+          :current-player-key="currentPlayerKey"
+          :is-dark="isDark"
+          @nav-to-name="toNameRecord"
+        />
       </n-flex>
     </n-flex>
   </n-card>
@@ -267,17 +218,28 @@
 
 <script lang="ts" setup>
 import { Time, CalendarNumber, FlameOutline, ShieldOutline, HeartOutline } from '@vicons/ionicons5'
-import itemNull from '../../assets/imgs/item/null.png'
-import { computed, ref, onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { formatCompactNumber, healColorAndTaken, otherColor } from './composition'
-import { assetPrefix } from '../../services/http'
-import { useSettingsStore } from '../../pinia/setting'
-import type { Game } from './match'
-import type { ParticipantStats } from './match'
+import { formatCompactNumber } from '@renderer/utils/format'
+import { healColorAndTaken, otherColor } from '@renderer/utils/colors'
+import { assetPrefix } from '@renderer/services/http'
+import { useSettingsStore } from '@renderer/pinia/setting'
+import type { Game } from '@renderer/types/domain/match'
 import AssetTooltipContent from './AssetTooltipContent.vue'
-import { getAssetDetailsByIpc, type AssetDetail } from '../../services/ipc'
 import StatDots from './StatDots.vue'
+import TeamAvatarGroup from './TeamAvatarGroup.vue'
+import { inject } from 'vue'
+import { useRecordAssets } from '@renderer/composables/useRecordAssets'
+import { recordAssetsKey } from '@renderer/composables/recordAssetsKey'
+
+const props = defineProps<{
+  recordType?: boolean
+  games: Game
+}>()
+
+const emit = defineEmits<{
+  'open-detail': []
+}>()
 
 const settingsStore = useSettingsStore()
 const isDark = computed(
@@ -286,113 +248,45 @@ const isDark = computed(
 
 /** 海克斯乱斗模式 queueId: 1700(斗魂竞技场), 2400(海克斯大乱斗) */
 const augmentQueueIds = new Set([1700, 2400])
+const usesAugments = computed(() => augmentQueueIds.has(props.games.queueId))
 
-/** 判断当前是否为海克斯乱斗模式 */
-const usesAugments = computed(() => {
-  return augmentQueueIds.has(props.games.queueId)
-})
-
-/** 获取所有海克斯符文ID */
 const augmentIds = computed(() => {
-  const stats = props.games.participants[0].stats
-  return [
-    stats.playerAugment1,
-    stats.playerAugment2,
-    stats.playerAugment3,
-    stats.playerAugment4
-  ].filter(id => id > 0)
-})
-
-/** 只显示前4个海克斯 */
-const displayedAugmentIds = computed(() => {
-  return augmentIds.value.slice(0, 4)
-})
-
-/** 隐藏的海克斯数量 */
-const hiddenAugmentCount = computed(() => {
-  return Math.max(0, augmentIds.value.length - 4)
-})
-
-/** 海克斯符文详情缓存 */
-const augmentDetails = ref<Record<number, AssetDetail>>({})
-/** 召唤师技能详情缓存 */
-const spellDetails = ref<Record<number, AssetDetail>>({})
-
-/** 延迟加载详情，避免阻塞渲染 */
-onMounted(() => {
-  // 加载海克斯详情
-  const aIds = augmentIds.value
-  if (aIds.length) {
-    requestAnimationFrame(() => {
-      loadAugmentDetails(aIds)
-    })
-  }
-
-  // 加载召唤师技能详情
-  const sIds = [props.games.participants[0].spell1Id, props.games.participants[0].spell2Id].filter(
+  const s = props.games.participants[0].stats
+  return [s.playerAugment1, s.playerAugment2, s.playerAugment3, s.playerAugment4].filter(
     id => id > 0
   )
-  if (sIds.length) {
-    requestAnimationFrame(() => {
-      loadSpellDetails(sIds)
-    })
-  }
-
-  // 加载装备详情
-  const iIds = itemIds(props.games.participants[0].stats).filter(id => id > 0)
-  if (iIds.length) {
-    requestAnimationFrame(() => {
-      loadItemDetails(iIds)
-    })
-  }
 })
 
-async function loadAugmentDetails(ids: number[]) {
-  try {
-    const details = await getAssetDetailsByIpc('perk', ids)
-    const newDetails = Object.fromEntries(details.map(detail => [detail.id, detail]))
-    augmentDetails.value = newDetails
-  } catch (error) {
-    console.error('failed to load augment details', error)
-  }
-}
+const displayedAugmentIds = computed(() => augmentIds.value.slice(0, 4))
+const hiddenAugmentCount = computed(() => Math.max(0, augmentIds.value.length - 4))
 
-async function loadSpellDetails(ids: number[]) {
-  try {
-    const details = await getAssetDetailsByIpc('spell', ids)
-    const newDetails = Object.fromEntries(details.map(detail => [detail.id, detail]))
-    spellDetails.value = newDetails
-  } catch (error) {
-    console.error('failed to load spell details', error)
-  }
-}
+const itemIds = computed(() => {
+  const s = props.games.participants[0].stats
+  return [s.item0, s.item1, s.item2, s.item3, s.item4, s.item5, s.item6]
+})
 
-async function loadItemDetails(ids: number[]) {
-  try {
-    const details = await getAssetDetailsByIpc('item', ids)
-    const newDetails = Object.fromEntries(details.map(detail => [detail.id, detail]))
-    itemDetails.value = newDetails
-  } catch (error) {
-    console.error('failed to load item details', error)
-  }
-}
+/**
+ * 优先使用父级（MatchHistory）批量预加载的资源 —— 同一页 N 张卡共享一次 IPC
+ * 独立使用时（无 inject）退回自己的 preload
+ */
+const injected = inject(recordAssetsKey, null)
+const assets = injected ?? useRecordAssets()
 
-/** 获取海克斯符文图片地址 */
-function augmentSrc(augmentId: number) {
-  return augmentId > 0 ? `${assetPrefix}/perk/${augmentId}` : itemNull
-}
+onMounted(() => {
+  if (injected) return
+  assets.preload([
+    { kind: 'perk', ids: augmentIds.value },
+    {
+      kind: 'spell',
+      ids: [props.games.participants[0].spell1Id, props.games.participants[0].spell2Id]
+    },
+    { kind: 'item', ids: itemIds.value }
+  ])
+})
 
-/** 获取海克斯符文详情 */
-function augmentDetail(augmentId: number) {
-  if (augmentId <= 0) {
-    return null
-  }
-  return augmentDetails.value[augmentId] ?? null
-}
-
-/** 获取海克斯符文稀有度样式类 */
+/** 海克斯符文稀有度样式类 */
 function augmentRarityClass(augmentId: number) {
-  const rarity = augmentDetail(augmentId)?.rarity ?? ''
+  const rarity = assets.detailOf('perk', augmentId)?.rarity ?? ''
   switch (rarity) {
     case 'kPrismatic':
       return 'record-card-augment-prismatic'
@@ -407,24 +301,11 @@ function augmentRarityClass(augmentId: number) {
   }
 }
 
-/** 亮/暗两套主题色，默认情况也保证可见 */
 const themeColors = computed(() => {
   if (isDark.value) {
-    return {
-      win: '#3d9b7a',
-      loss: '#c45c5c',
-      kill: '#3d9b7a',
-      death: '#c45c5c',
-      assist: '#b8860b'
-    }
+    return { win: '#3d9b7a', loss: '#c45c5c', kill: '#3d9b7a', death: '#c45c5c', assist: '#b8860b' }
   }
-  return {
-    win: '#2d8a6c',
-    loss: '#b84242',
-    kill: '#2d8a6c',
-    death: '#b84242',
-    assist: '#b8860b'
-  }
+  return { win: '#2d8a6c', loss: '#b84242', kill: '#2d8a6c', death: '#b84242', assist: '#b8860b' }
 })
 
 const cardStyle = computed(() => {
@@ -441,69 +322,24 @@ const cardStyle = computed(() => {
 })
 
 const router = useRouter()
-// 接收 props
-const props = defineProps<{
-  recordType?: boolean // 确保这里是 boolean 类型
-  games: Game
-}>()
-
-const emit = defineEmits<{
-  'open-detail': []
-}>()
 
 const formattedDate = computed(() => {
   const date = new Date(props.games.gameCreationDate)
-  // const year = date.getFullYear();
-  const month = (date.getMonth() + 1).toString().padStart(2, '0') // 月份从0开始，所以加1
-  const day = date.getDate().toString().padStart(2, '0') // 确保两位数格式
+  const month = (date.getMonth() + 1).toString().padStart(2, '0')
+  const day = date.getDate().toString().padStart(2, '0')
   return `${month}/${day}`
 })
 
-/** 己方高亮边框 / 其他玩家用主题可见边框，防止暗色下看不见 */
-function getIsMeBorderedColor(name: string) {
-  if (
-    name ==
-    props.games.participantIdentities[0].player.gameName +
-      '#' +
-      props.games.participantIdentities[0].player.tagLine
-  ) {
-    return isDark.value ? '#63e2b7' : '#0d9488'
-  }
-  return isDark.value ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.25)'
-}
+const currentPlayerKey = computed(() => {
+  const p = props.games.participantIdentities[0].player
+  return `${p.gameName}#${p.tagLine}`
+})
+
 function toNameRecord(name: string) {
   return router.push({
     path: '/Record',
     query: { name, t: Date.now() }
-  }) // 添加动态时间戳作为查询参数
-}
-
-function spellSrc(spellId: number) {
-  return spellId > 0 ? `${assetPrefix}/spell/${spellId}` : itemNull
-}
-
-function itemSrc(itemId: number) {
-  return itemId > 0 ? `${assetPrefix}/item/${itemId}` : itemNull
-}
-
-function itemIds(stats: ParticipantStats) {
-  return [stats.item0, stats.item1, stats.item2, stats.item3, stats.item4, stats.item5, stats.item6]
-}
-
-const itemDetails = ref<Record<number, AssetDetail>>({})
-
-function assetDetail(itemId: number) {
-  if (itemId <= 0) {
-    return null
-  }
-  return itemDetails.value[itemId] ?? null
-}
-
-function spellDetail(spellId: number) {
-  if (spellId <= 0) {
-    return null
-  }
-  return spellDetails.value[spellId] ?? null
+  })
 }
 
 function openDetail() {
@@ -512,7 +348,6 @@ function openDetail() {
 </script>
 
 <style scoped>
-/* 默认背景颜色，避免没有 recordType 时出现空白 */
 .record-card {
   background: linear-gradient(120deg, rgb(133, 133, 133) 30%, rgba(44, 44, 44, 0.5));
 }
@@ -525,9 +360,7 @@ function openDetail() {
 
 .responsive-img {
   width: auto;
-  /* 保持宽高比 */
   object-fit: contain;
-  /* 根据需求可以选择 contain, cover 等 */
 }
 
 .win-class,
@@ -584,7 +417,6 @@ function openDetail() {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
-/* 伤害/承伤/治疗统计块 - 保留表格、缩小高度 */
 .record-card-stats-block {
   display: flex;
   flex-direction: column;
@@ -602,7 +434,6 @@ function openDetail() {
   font-size: 11px;
 }
 
-/* 装备格与技能图标统一圆角与边框 */
 .record-card-item-slots :deep(.n-image),
 .record-card-item-slots :deep(.n-image img),
 .record-card-spell-icons .record-card-icon-slot {
@@ -630,14 +461,12 @@ function openDetail() {
   gap: 2px;
 }
 
-/* 海克斯符文相关样式 - 与战绩详情页颜色保持一致 */
 .record-card-augments {
   display: flex;
   align-items: center;
   gap: 2px;
 }
 
-/* 海克斯符文稀有度颜色 */
 .record-card-augment-shell {
   --augment-border: rgba(172, 185, 201, 0.42);
   --augment-background: linear-gradient(180deg, rgba(56, 65, 78, 0.92), rgba(27, 32, 41, 0.96));
@@ -695,7 +524,6 @@ function openDetail() {
   --augment-filter: none;
 }
 
-/* 更多海克斯提示 */
 .record-card-augments-more {
   font-size: 11px;
   font-weight: 600;
@@ -706,7 +534,6 @@ function openDetail() {
   border: 1px solid var(--border-subtle);
 }
 
-/* 对局玩家头像网格精致化 */
 :deep(.n-tag .n-avatar),
 :deep(.n-button .n-avatar) {
   border-radius: var(--radius-sm);

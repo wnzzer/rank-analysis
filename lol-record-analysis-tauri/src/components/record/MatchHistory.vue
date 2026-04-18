@@ -83,7 +83,7 @@
 <script setup lang="ts">
 import RecordCard from './RecordCard.vue'
 import { ArrowBack, ArrowForward, RepeatOutline } from '@vicons/ionicons5'
-import { onMounted, ref } from 'vue'
+import { onMounted, provide, ref, watch } from 'vue'
 import { useLoadingBar } from 'naive-ui'
 import { useRoute } from 'vue-router'
 import { renderSingleSelectTag, renderLabel, filterChampionFunc } from '../composition'
@@ -92,6 +92,39 @@ import { invoke } from '@tauri-apps/api/core'
 import { championOption } from '../type'
 import type { Game, MatchHistory } from './match'
 import { openMatchDetailWindow } from './detailWindow'
+import { useRecordAssets } from '@renderer/composables/useRecordAssets'
+import { recordAssetsKey } from '@renderer/composables/recordAssetsKey'
+
+/**
+ * 父级批量加载：一次性收集当前页所有战绩的 item/spell/perk ID 去重后下发 IPC
+ * 子 RecordCard 通过 inject 共享，跳过自身 preload
+ */
+const recordAssets = useRecordAssets()
+provide(recordAssetsKey, recordAssets)
+
+function collectAssetIds(games: Game[] | undefined) {
+  const items = new Set<number>()
+  const spells = new Set<number>()
+  const perks = new Set<number>()
+  for (const g of games ?? []) {
+    const s = g.participants[0]?.stats
+    if (!s) continue
+    ;[s.item0, s.item1, s.item2, s.item3, s.item4, s.item5, s.item6].forEach(id => {
+      if (id > 0) items.add(id)
+    })
+    ;[g.participants[0].spell1Id, g.participants[0].spell2Id].forEach(id => {
+      if (id > 0) spells.add(id)
+    })
+    ;[s.playerAugment1, s.playerAugment2, s.playerAugment3, s.playerAugment4].forEach(id => {
+      if (id > 0) perks.add(id)
+    })
+  }
+  return {
+    items: [...items],
+    spells: [...spells],
+    perks: [...perks]
+  }
+}
 
 const filterQueueId = ref(0)
 const filterChampionId = ref(-1)
@@ -157,6 +190,18 @@ const getHistoryMatch = async (name: string, begIndex: number, endIndex: number)
     loadingBar.finish()
   }
 }
+
+watch(
+  () => matchHistory.value,
+  mh => {
+    const { items, spells, perks } = collectAssetIds(mh?.games?.games)
+    recordAssets.preload([
+      { kind: 'item', ids: items },
+      { kind: 'spell', ids: spells },
+      { kind: 'perk', ids: perks }
+    ])
+  }
+)
 
 // 下一页
 const nextPage = async () => {

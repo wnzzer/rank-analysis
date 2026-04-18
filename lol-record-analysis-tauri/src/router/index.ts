@@ -1,6 +1,5 @@
 import { createRouter, createWebHashHistory, RouteRecordRaw } from 'vue-router'
 
-// 定义路由记录
 const routes: Array<RouteRecordRaw> = [
   {
     path: '/',
@@ -9,56 +8,64 @@ const routes: Array<RouteRecordRaw> = [
   {
     path: '/Record',
     name: 'Record',
-    component: () => import('../views/Record.vue') // 懒加载
+    component: () => import('@renderer/views/Record.vue'),
+    meta: { title: '战绩查询' }
   },
   {
     path: '/MatchDetail',
     name: 'MatchDetail',
-    component: () => import('../views/MatchDetail.vue')
+    component: () => import('@renderer/views/MatchDetail.vue'),
+    meta: { title: '对局详情' }
   },
   {
     path: '/Gaming',
     name: 'Gaming',
-    component: () => import('../views/Gaming.vue') // 懒加载
+    component: () => import('@renderer/views/Gaming.vue'),
+    meta: { title: '对局分析' }
   },
   {
     path: '/Loading',
     name: 'Loading',
-    component: () => import('../views/Loading.vue') // 懒加载
+    component: () => import('@renderer/views/Loading.vue'),
+    meta: { title: '加载中' }
   },
   {
     path: '/Settings',
     name: 'Settings',
     redirect: '/Settings/Automation',
+    component: () => import('@renderer/views/Settings.vue'),
+    meta: { title: '设置' },
     children: [
       {
         path: '/Settings/General',
         name: 'General',
-        component: () => import('../views/settings/General.vue') // 懒加载
+        component: () => import('@renderer/views/settings/General.vue'),
+        meta: { title: '常规设置' }
       },
       {
         path: '/Settings/Automation',
         name: 'Automation',
-        component: () => import('../views/settings/Automation.vue') // 懒加载
+        component: () => import('@renderer/views/settings/Automation.vue'),
+        meta: { title: '自动化' }
       },
       {
         path: '/Settings/Tags',
         name: 'Tags',
-        component: () => import('../views/settings/Tags.vue')
+        component: () => import('@renderer/views/settings/Tags.vue'),
+        meta: { title: '标签管理' }
       },
       {
         path: '/Settings/About',
         name: 'About',
-        component: () => import('../views/settings/About.vue') // 懒加载
+        component: () => import('@renderer/views/settings/About.vue'),
+        meta: { title: '关于' }
       }
-    ],
-    component: () => import('../views/Settings.vue') // 懒加载
+    ]
   }
 ]
 
-// 创建路由实例
 const router = createRouter({
-  history: createWebHashHistory(), // 使用 WebHashHistory 模式
+  history: createWebHashHistory(),
   routes
 })
 
