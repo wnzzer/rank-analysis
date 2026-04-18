@@ -119,6 +119,16 @@
                     <div class="match-detail-player-text">
                       <div class="match-detail-player-text-row">
                         <span class="match-detail-player-display">{{ player.displayName }}</span>
+                        <n-button
+                          text
+                          size="tiny"
+                          class="match-detail-player-copy"
+                          @click.stop="copy(player.displayName)"
+                        >
+                          <template #icon>
+                            <n-icon><CopyOutline /></n-icon>
+                          </template>
+                        </n-button>
                         <n-tag v-if="player.isMe" size="small" :bordered="false" type="info">我</n-tag>
                         <n-button
                           quaternary
@@ -319,6 +329,7 @@
 <script lang="ts" setup>
 import { computed, ref, watch, onMounted, toRef } from 'vue'
 import {
+  CopyOutline,
   FlameOutline,
   HeartOutline,
   ShieldOutline,
@@ -326,6 +337,7 @@ import {
 } from '@vicons/ionicons5'
 import { NButton, NIcon, NTag, NTooltip } from 'naive-ui'
 import { invoke } from '@tauri-apps/api/core'
+import { useCopy } from '@renderer/composables/useCopy'
 
 import { useSettingsStore } from '@renderer/pinia/setting'
 import { assetPrefix } from '@renderer/services/http'
@@ -371,6 +383,7 @@ const gameRef = toRef(() => props.game)
 const { detailPlayers, mySummary, teamSections } = useMatchDetailPlayers(gameRef, currentPlayerKey)
 const ai = useMatchAIAnalysis(gameRef)
 const assets = useRecordAssets()
+const { copy } = useCopy()
 
 function totalCs(stats: ParticipantStats) {
   return stats.totalMinionsKilled + stats.neutralMinionsKilled
@@ -766,6 +779,16 @@ watch(
 
 .match-detail-player-ai-trigger {
   --n-text-color: var(--text-secondary);
+}
+
+.match-detail-player-copy {
+  --n-text-color: var(--text-tertiary);
+  opacity: 0.6;
+  transition: opacity var(--dur-fast) var(--ease-expo);
+}
+
+.match-detail-player-copy:hover {
+  opacity: 1;
 }
 
 .match-detail-badge-row {
