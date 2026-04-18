@@ -96,9 +96,8 @@
                 <AssetTooltipContent
                   :icon-src="assets.srcOf('perk', augmentId)"
                   :name="assets.detailOf('perk', augmentId)?.name ?? `海克斯 #${augmentId}`"
-                  :description="
-                    assets.detailOf('perk', augmentId)?.description ?? '资源加载中…'
-                  "
+                  :description="assets.detailOf('perk', augmentId)?.description ?? ''"
+                  :rarity="assets.detailOf('perk', augmentId)?.rarity"
                 />
               </n-tooltip>
             </template>

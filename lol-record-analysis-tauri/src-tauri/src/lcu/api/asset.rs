@@ -244,7 +244,7 @@ pub async fn init() {
             Vec::new()
         }
     };
-    // 先拿原始 JSON，出问题时 log 出样本，方便定位字段名/类型不一致
+    // per-item 解析，单条字段坏了不影响其他 augment 入缓存
     let cherry_augments_raw =
         match lcu_get::<Vec<serde_json::Value>>(constant::api::CHERRY_AUGMENTS_URI).await {
             Ok(v) => v,
@@ -253,23 +253,6 @@ pub async fn init() {
                 Vec::new()
             }
         };
-
-    if let Some(first) = cherry_augments_raw.first() {
-        if let Some(obj) = first.as_object() {
-            let keys: Vec<&str> = obj.keys().map(|k| k.as_str()).collect();
-            log::info!(
-                "cherry-augments raw sample — total={}, keys={:?}",
-                cherry_augments_raw.len(),
-                keys
-            );
-            log::info!(
-                "cherry-augments first item: {}",
-                serde_json::to_string(first).unwrap_or_default()
-            );
-        }
-    } else {
-        log::warn!("cherry-augments response is empty");
-    }
 
     let mut cherry_augments: Vec<CherryAugment> = Vec::with_capacity(cherry_augments_raw.len());
     let mut parse_fail_count = 0usize;

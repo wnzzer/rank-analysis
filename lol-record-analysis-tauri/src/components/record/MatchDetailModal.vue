@@ -222,9 +222,8 @@
                             assets.detailOf('perk', perkId)?.name ??
                             (usesAugments ? `海克斯 #${perkId}` : `符文 #${perkId}`)
                           "
-                          :description="
-                            assets.detailOf('perk', perkId)?.description ?? '资源加载中…'
-                          "
+                          :description="assets.detailOf('perk', perkId)?.description ?? ''"
+                          :rarity="assets.detailOf('perk', perkId)?.rarity"
                         />
                       </n-tooltip>
                     </div>
