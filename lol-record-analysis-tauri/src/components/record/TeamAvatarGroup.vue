@@ -39,7 +39,9 @@ const emit = defineEmits<{
   'nav-to-name': [name: string]
 }>()
 
-const slotIdentities = computed(() => props.identities.slice(props.teamOffset, props.teamOffset + 5))
+const slotIdentities = computed(() =>
+  props.identities.slice(props.teamOffset, props.teamOffset + 5)
+)
 
 function nameOf(identity: MatchPlayerIdentity | undefined) {
   if (!identity) return ''

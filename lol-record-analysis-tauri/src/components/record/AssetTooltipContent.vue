@@ -35,8 +35,8 @@ const rarityMeta: Record<string, { label: string; cls: string }> = {
   kBronze: { label: '青铜', cls: 'asset-tooltip-bronze' }
 }
 
-const rarityClass = computed(() => (props.rarity ? rarityMeta[props.rarity]?.cls ?? '' : ''))
-const rarityLabel = computed(() => (props.rarity ? rarityMeta[props.rarity]?.label ?? '' : ''))
+const rarityClass = computed(() => (props.rarity ? (rarityMeta[props.rarity]?.cls ?? '') : ''))
+const rarityLabel = computed(() => (props.rarity ? (rarityMeta[props.rarity]?.label ?? '') : ''))
 
 /**
  * 净化描述文本，只保留颜色相关的 HTML 标签

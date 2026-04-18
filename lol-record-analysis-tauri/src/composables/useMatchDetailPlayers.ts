@@ -134,9 +134,7 @@ export function useMatchDetailPlayers(
       if (maxValue <= 0) continue
       badgeWinners.set(
         cfg.label,
-        new Set(
-          participants.filter(p => cfg.value(p.stats) === maxValue).map(p => p.participantId)
-        )
+        new Set(participants.filter(p => cfg.value(p.stats) === maxValue).map(p => p.participantId))
       )
     }
 
@@ -176,9 +174,7 @@ export function useMatchDetailPlayers(
       })
   })
 
-  const mySummary = computed(
-    () => detailPlayers.value.find(p => p.isMe) ?? detailPlayers.value[0]
-  )
+  const mySummary = computed(() => detailPlayers.value.find(p => p.isMe) ?? detailPlayers.value[0])
 
   const teamSections = computed<TeamSection[]>(() => {
     const teamMap = new Map<number, DetailPlayer[]>()
@@ -211,9 +207,7 @@ export function useMatchDetailPlayers(
           ...totals
         }
       })
-      .sort(
-        (a, b) => Number(b.players[0]?.win ?? false) - Number(a.players[0]?.win ?? false)
-      )
+      .sort((a, b) => Number(b.players[0]?.win ?? false) - Number(a.players[0]?.win ?? false))
   })
 
   return { detailPlayers, mySummary, teamSections }

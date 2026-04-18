@@ -7,10 +7,7 @@ import { computed, ref, watch, toValue, type MaybeRefOrGetter } from 'vue'
 import MarkdownIt from 'markdown-it'
 import { useMessage } from 'naive-ui'
 import type { Game } from '@renderer/types/domain/match'
-import {
-  analyzeMatchDetailWithAIStream,
-  type MatchDetailAnalysisMode
-} from '@renderer/services/ai'
+import { analyzeMatchDetailWithAIStream, type MatchDetailAnalysisMode } from '@renderer/services/ai'
 
 const md = new MarkdownIt({ html: true, breaks: true, linkify: true })
 
@@ -23,9 +20,7 @@ export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
   const aiMode = ref<MatchDetailAnalysisMode>('overview')
   const aiTargetParticipantId = ref<number | null>(null)
 
-  const renderedAiResult = computed(() =>
-    aiResult.value ? md.render(aiResult.value) : ''
-  )
+  const renderedAiResult = computed(() => (aiResult.value ? md.render(aiResult.value) : ''))
 
   async function runCurrentAiAnalysis() {
     if (!toValue(game) || aiLoading.value) return
@@ -59,7 +54,7 @@ export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
         {
           mode: aiMode.value,
           participantId:
-            aiMode.value === 'player' ? aiTargetParticipantId.value ?? undefined : undefined
+            aiMode.value === 'player' ? (aiTargetParticipantId.value ?? undefined) : undefined
         }
       )
     } catch (error: any) {
@@ -82,14 +77,11 @@ export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
     await runCurrentAiAnalysis()
   }
 
-  watch(
-    [aiMode, aiTargetParticipantId],
-    ([mode, pid], [prevMode, prevPid]) => {
-      if (!showAiModal.value || !toValue(game)) return
-      if (mode === prevMode && pid === prevPid) return
-      void runCurrentAiAnalysis()
-    }
-  )
+  watch([aiMode, aiTargetParticipantId], ([mode, pid], [prevMode, prevPid]) => {
+    if (!showAiModal.value || !toValue(game)) return
+    if (mode === prevMode && pid === prevPid) return
+    void runCurrentAiAnalysis()
+  })
 
   function resetOnGameChange(defaultParticipantId: number | null) {
     aiResult.value = ''

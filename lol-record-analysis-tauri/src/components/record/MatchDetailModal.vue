@@ -22,15 +22,32 @@
               <div class="match-detail-player-copy">
                 <div class="match-detail-player-name">{{ mySummary.displayName }}</div>
                 <div class="match-detail-player-kda">
-                  <span class="font-number" :style="{ color: killsColor(mySummary.stats.kills, isDark) }">{{ mySummary.stats.kills }}</span>
+                  <span
+                    class="font-number"
+                    :style="{ color: killsColor(mySummary.stats.kills, isDark) }"
+                    >{{ mySummary.stats.kills }}</span
+                  >
                   <span>/</span>
-                  <span class="font-number" :style="{ color: deathsColor(mySummary.stats.deaths, isDark) }">{{ mySummary.stats.deaths }}</span>
+                  <span
+                    class="font-number"
+                    :style="{ color: deathsColor(mySummary.stats.deaths, isDark) }"
+                    >{{ mySummary.stats.deaths }}</span
+                  >
                   <span>/</span>
-                  <span class="font-number" :style="{ color: assistsColor(mySummary.stats.assists, isDark) }">{{ mySummary.stats.assists }}</span>
-                  <span class="font-number match-detail-kda-ratio" :style="{ color: kdaColor(kdaRatio(mySummary.stats), isDark) }">
+                  <span
+                    class="font-number"
+                    :style="{ color: assistsColor(mySummary.stats.assists, isDark) }"
+                    >{{ mySummary.stats.assists }}</span
+                  >
+                  <span
+                    class="font-number match-detail-kda-ratio"
+                    :style="{ color: kdaColor(kdaRatio(mySummary.stats), isDark) }"
+                  >
                     {{ kdaRatioLabel(mySummary.stats) }}
                   </span>
-                  <span class="match-detail-meta">{{ formatCompactNumber(mySummary.stats.goldEarned) }} 金币</span>
+                  <span class="match-detail-meta"
+                    >{{ formatCompactNumber(mySummary.stats.goldEarned) }} 金币</span
+                  >
                   <span class="match-detail-meta">{{ totalCs(mySummary.stats) }} 补兵</span>
                 </div>
               </div>
@@ -64,7 +81,13 @@
                 <span class="match-detail-ai-title">AI 复盘</span>
                 <span class="match-detail-ai-subtitle">整局归因 + 单人责任分析</span>
               </div>
-              <n-button size="small" secondary type="info" :loading="ai.aiLoading.value" @click="onOverview">
+              <n-button
+                size="small"
+                secondary
+                type="info"
+                :loading="ai.aiLoading.value"
+                @click="onOverview"
+              >
                 <template #icon>
                   <n-icon><SparklesOutline /></n-icon>
                 </template>
@@ -76,7 +99,11 @@
 
         <!-- Team Sections -->
         <div class="match-detail-body">
-          <section v-for="team in teamSections" :key="team.teamId" class="match-detail-team-section">
+          <section
+            v-for="team in teamSections"
+            :key="team.teamId"
+            class="match-detail-team-section"
+          >
             <div class="match-detail-team-header" :class="team.headerClass">
               <div class="match-detail-team-title-wrap">
                 <span class="match-detail-team-title">{{ team.title }}</span>
@@ -86,7 +113,8 @@
                 </span>
               </div>
               <div class="match-detail-team-subtitle">
-                输出 {{ formatCompactNumber(team.damage) }} · 承伤 {{ formatCompactNumber(team.taken) }}
+                输出 {{ formatCompactNumber(team.damage) }} · 承伤
+                {{ formatCompactNumber(team.taken) }}
               </div>
             </div>
 
@@ -129,12 +157,18 @@
                             <n-icon><CopyOutline /></n-icon>
                           </template>
                         </n-button>
-                        <n-tag v-if="player.isMe" size="small" :bordered="false" type="info">我</n-tag>
+                        <n-tag v-if="player.isMe" size="small" :bordered="false" type="info"
+                          >我</n-tag
+                        >
                         <n-button
                           quaternary
                           size="tiny"
                           class="match-detail-player-ai-trigger"
-                          :loading="ai.aiLoading.value && ai.aiMode.value === 'player' && ai.aiTargetParticipantId.value === player.participantId"
+                          :loading="
+                            ai.aiLoading.value &&
+                            ai.aiMode.value === 'player' &&
+                            ai.aiTargetParticipantId.value === player.participantId
+                          "
                           @click.stop="ai.openPlayerAnalysis(player.participantId)"
                         >
                           <template #icon>
@@ -144,7 +178,12 @@
                         </n-button>
                       </div>
                       <div class="match-detail-badge-row">
-                        <n-tooltip v-for="badge in player.badges" :key="badge.key" trigger="hover" placement="top">
+                        <n-tooltip
+                          v-for="badge in player.badges"
+                          :key="badge.key"
+                          trigger="hover"
+                          placement="top"
+                        >
                           <template #trigger>
                             <span class="match-detail-badge-icon" :class="badge.className">
                               <n-icon :size="10">
@@ -197,7 +236,13 @@
                         <template #trigger>
                           <span
                             v-if="usesAugments"
-                            :class="['match-detail-augment-icon-shell', augmentRarityClass(assets.detailOf('perk', perkId)?.rarity, 'match-detail-augment')]"
+                            :class="[
+                              'match-detail-augment-icon-shell',
+                              augmentRarityClass(
+                                assets.detailOf('perk', perkId)?.rarity,
+                                'match-detail-augment'
+                              )
+                            ]"
                           >
                             <img
                               :src="assets.srcOf('perk', perkId)"
@@ -210,7 +255,10 @@
                           <img
                             v-else
                             :src="assets.srcOf('perk', perkId)"
-                            :class="['match-detail-perk-icon', { 'match-detail-perk-icon-sub': index === 1 }]"
+                            :class="[
+                              'match-detail-perk-icon',
+                              { 'match-detail-perk-icon-sub': index === 1 }
+                            ]"
                             alt="perk"
                             loading="lazy"
                             decoding="async"
@@ -256,11 +304,17 @@
                 </div>
 
                 <div class="match-detail-value-cell font-number match-detail-kda-value-cell">
-                  <span :style="{ color: killsColor(player.stats.kills, isDark) }">{{ player.stats.kills }}</span>
+                  <span :style="{ color: killsColor(player.stats.kills, isDark) }">{{
+                    player.stats.kills
+                  }}</span>
                   <span class="match-detail-kda-separator">/</span>
-                  <span :style="{ color: deathsColor(player.stats.deaths, isDark) }">{{ player.stats.deaths }}</span>
+                  <span :style="{ color: deathsColor(player.stats.deaths, isDark) }">{{
+                    player.stats.deaths
+                  }}</span>
                   <span class="match-detail-kda-separator">/</span>
-                  <span :style="{ color: assistsColor(player.stats.assists, isDark) }">{{ player.stats.assists }}</span>
+                  <span :style="{ color: assistsColor(player.stats.assists, isDark) }">{{
+                    player.stats.assists
+                  }}</span>
                 </div>
                 <div class="match-detail-value-cell font-number">
                   {{ formatCompactNumber(player.stats.goldEarned) }}
@@ -275,7 +329,9 @@
                     :icon="FlameOutline"
                     tooltip="对英雄伤害，占己方总和百分比"
                     :color="otherColor(player.teamRelative.damage, isDark)"
-                    :icon-background="isDark ? 'rgba(229, 167, 50, 0.18)' : 'rgba(229, 167, 50, 0.14)'"
+                    :icon-background="
+                      isDark ? 'rgba(229, 167, 50, 0.18)' : 'rgba(229, 167, 50, 0.14)'
+                    "
                     :value="formatCompactNumber(player.stats.totalDamageDealtToChampions)"
                     :percent="player.teamRelative.damage"
                     compact
@@ -284,7 +340,9 @@
                     :icon="ShieldOutline"
                     tooltip="承受伤害，占己方总和百分比"
                     :color="healColorAndTaken(player.teamRelative.taken, isDark)"
-                    :icon-background="isDark ? 'rgba(92, 163, 234, 0.2)' : 'rgba(92, 163, 234, 0.12)'"
+                    :icon-background="
+                      isDark ? 'rgba(92, 163, 234, 0.2)' : 'rgba(92, 163, 234, 0.12)'
+                    "
                     :value="formatCompactNumber(player.stats.totalDamageTaken)"
                     :percent="player.teamRelative.taken"
                     compact
@@ -293,7 +351,9 @@
                     :icon="HeartOutline"
                     tooltip="治疗量，占己方总和百分比"
                     :color="healColorAndTaken(player.teamRelative.heal, isDark)"
-                    :icon-background="isDark ? 'rgba(88, 182, 109, 0.2)' : 'rgba(88, 182, 109, 0.14)'"
+                    :icon-background="
+                      isDark ? 'rgba(88, 182, 109, 0.2)' : 'rgba(88, 182, 109, 0.14)'
+                    "
                     :value="formatCompactNumber(player.stats.totalHeal)"
                     :percent="player.teamRelative.heal"
                     compact
@@ -441,7 +501,9 @@ const aiPlayerOptions = computed(() =>
 )
 
 function onOverview() {
-  ai.openOverviewAnalysis(mySummary.value?.participantId ?? detailPlayers.value[0]?.participantId ?? null)
+  ai.openOverviewAnalysis(
+    mySummary.value?.participantId ?? detailPlayers.value[0]?.participantId ?? null
+  )
 }
 
 function loadAssetsIfNeeded() {
@@ -474,7 +536,9 @@ onMounted(async () => {
 watch(
   () => props.game?.gameId,
   () => {
-    ai.resetOnGameChange(mySummary.value?.participantId ?? detailPlayers.value[0]?.participantId ?? null)
+    ai.resetOnGameChange(
+      mySummary.value?.participantId ?? detailPlayers.value[0]?.participantId ?? null
+    )
     loadAssetsIfNeeded()
   },
   { immediate: true }
@@ -502,8 +566,7 @@ watch(
   color: var(--text-primary);
   background:
     radial-gradient(circle at top left, rgba(61, 155, 122, 0.14), transparent 28%),
-    radial-gradient(circle at top right, rgba(92, 163, 234, 0.16), transparent 32%),
-    var(--bg-base);
+    radial-gradient(circle at top right, rgba(92, 163, 234, 0.16), transparent 32%), var(--bg-base);
 }
 
 .match-detail-shell {
@@ -701,7 +764,10 @@ watch(
 .match-detail-column-header,
 .match-detail-row {
   display: grid;
-  grid-template-columns: minmax(188px, 1.22fr) minmax(214px, 1.36fr) 72px 68px 62px 68px minmax(198px, 1.3fr);
+  grid-template-columns: minmax(188px, 1.22fr) minmax(214px, 1.36fr) 72px 68px 62px 68px minmax(
+      198px,
+      1.3fr
+    );
   gap: 6px;
   align-items: center;
 }
@@ -811,12 +877,30 @@ watch(
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
-.match-detail-badge-kills { color: #f2bf63; background: rgba(242, 191, 99, 0.14); }
-.match-detail-badge-assists { color: #63d8b4; background: rgba(99, 216, 180, 0.14); }
-.match-detail-badge-turrets { color: #59b5ff; background: rgba(89, 181, 255, 0.14); }
-.match-detail-badge-gold { color: #f7d35f; background: rgba(247, 211, 95, 0.14); }
-.match-detail-badge-taken { color: #ef7d7d; background: rgba(239, 125, 125, 0.14); }
-.match-detail-badge-cs { color: #7eb8ff; background: rgba(126, 184, 255, 0.14); }
+.match-detail-badge-kills {
+  color: #f2bf63;
+  background: rgba(242, 191, 99, 0.14);
+}
+.match-detail-badge-assists {
+  color: #63d8b4;
+  background: rgba(99, 216, 180, 0.14);
+}
+.match-detail-badge-turrets {
+  color: #59b5ff;
+  background: rgba(89, 181, 255, 0.14);
+}
+.match-detail-badge-gold {
+  color: #f7d35f;
+  background: rgba(247, 211, 95, 0.14);
+}
+.match-detail-badge-taken {
+  color: #ef7d7d;
+  background: rgba(239, 125, 125, 0.14);
+}
+.match-detail-badge-cs {
+  color: #7eb8ff;
+  background: rgba(126, 184, 255, 0.14);
+}
 
 .match-detail-build-cell {
   display: flex;
@@ -879,25 +963,29 @@ watch(
 .match-detail-augment-prismatic {
   --augment-border: rgba(187, 125, 255, 0.92);
   --augment-background: linear-gradient(180deg, rgba(123, 82, 214, 0.9), rgba(55, 34, 110, 0.98));
-  --augment-filter: brightness(0) saturate(100%) invert(79%) sepia(31%) saturate(2173%) hue-rotate(225deg) brightness(102%) contrast(101%);
+  --augment-filter: brightness(0) saturate(100%) invert(79%) sepia(31%) saturate(2173%)
+    hue-rotate(225deg) brightness(102%) contrast(101%);
 }
 
 .match-detail-augment-gold {
   --augment-border: rgba(244, 198, 88, 0.92);
   --augment-background: linear-gradient(180deg, rgba(121, 90, 18, 0.9), rgba(62, 46, 8, 0.98));
-  --augment-filter: brightness(0) saturate(100%) invert(82%) sepia(51%) saturate(590%) hue-rotate(354deg) brightness(103%) contrast(104%);
+  --augment-filter: brightness(0) saturate(100%) invert(82%) sepia(51%) saturate(590%)
+    hue-rotate(354deg) brightness(103%) contrast(104%);
 }
 
 .match-detail-augment-silver {
   --augment-border: rgba(191, 205, 227, 0.88);
   --augment-background: linear-gradient(180deg, rgba(86, 103, 126, 0.9), rgba(39, 48, 61, 0.98));
-  --augment-filter: brightness(0) saturate(100%) invert(93%) sepia(10%) saturate(418%) hue-rotate(176deg) brightness(103%) contrast(99%);
+  --augment-filter: brightness(0) saturate(100%) invert(93%) sepia(10%) saturate(418%)
+    hue-rotate(176deg) brightness(103%) contrast(99%);
 }
 
 .match-detail-augment-bronze {
   --augment-border: rgba(197, 132, 89, 0.9);
   --augment-background: linear-gradient(180deg, rgba(118, 67, 35, 0.9), rgba(59, 33, 17, 0.98));
-  --augment-filter: brightness(0) saturate(100%) invert(76%) sepia(31%) saturate(740%) hue-rotate(338deg) brightness(98%) contrast(94%);
+  --augment-filter: brightness(0) saturate(100%) invert(76%) sepia(31%) saturate(740%)
+    hue-rotate(338deg) brightness(98%) contrast(94%);
 }
 
 .match-detail-augment-default {

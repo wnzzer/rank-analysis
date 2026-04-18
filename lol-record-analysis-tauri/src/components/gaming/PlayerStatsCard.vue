@@ -46,7 +46,8 @@
               {{ recent.kda }}
             </span>
             <span class="kda-detail">
-              <span :style="{ color: killsColor(recent.kills, isDark) }">{{ recent.kills }}</span>/
+              <span :style="{ color: killsColor(recent.kills, isDark) }">{{ recent.kills }}</span
+              >/
               <span :style="{ color: deathsColor(recent.deaths, isDark) }">{{ recent.deaths }}</span
               >/
               <span :style="{ color: assistsColor(recent.assists, isDark) }">{{

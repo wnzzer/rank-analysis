@@ -6,11 +6,7 @@
 import { onMounted, onUnmounted, reactive, watch } from 'vue'
 import { listen } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
-import type {
-  PreGroupMarkers,
-  SessionData,
-  SessionSummoner
-} from '@renderer/types/domain/gaming'
+import type { PreGroupMarkers, SessionData, SessionSummoner } from '@renderer/types/domain/gaming'
 
 const MAX_RETRIES = 3
 const RETRY_DELAY_MS = 3000
@@ -23,10 +19,7 @@ function markersEqual(a: PreGroupMarkers | undefined, b: PreGroupMarkers | undef
   return a.name === b.name && a.type === b.type
 }
 
-function updatePreGroupMarkers(
-  team: SessionSummoner[],
-  markers: Record<string, PreGroupMarkers>
-) {
+function updatePreGroupMarkers(team: SessionSummoner[], markers: Record<string, PreGroupMarkers>) {
   for (const player of team) {
     const marker = markers[player.summoner.puuid]
     if (marker && !markersEqual(player.preGroupMarkers, marker)) {
@@ -54,11 +47,7 @@ function playerSignature(p: SessionSummoner): string {
   ].join('|')
 }
 
-function updatePlayerAtIndex(
-  team: SessionSummoner[],
-  index: number,
-  newPlayer: SessionSummoner
-) {
+function updatePlayerAtIndex(team: SessionSummoner[], index: number, newPlayer: SessionSummoner) {
   if (!team || index >= team.length) return
   const oldPlayer = team[index]
 

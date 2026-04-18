@@ -49,7 +49,8 @@ export function extractTopChampions(recentGames: any[], limit = 5) {
 export function extractMainPosition(recentGames: any[]): string {
   const positionStats: Record<string, number> = {}
   recentGames.forEach((g: any) => {
-    const pos = g.participants[0]?.timeline?.lane || g.participants[0]?.selectedPosition || 'UNKNOWN'
+    const pos =
+      g.participants[0]?.timeline?.lane || g.participants[0]?.selectedPosition || 'UNKNOWN'
     positionStats[pos] = (positionStats[pos] || 0) + 1
   })
   return Object.entries(positionStats).sort((a, b) => b[1] - a[1])[0]?.[0] || '未知'

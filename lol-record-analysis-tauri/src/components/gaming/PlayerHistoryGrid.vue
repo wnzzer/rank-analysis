@@ -18,8 +18,8 @@
         />
         <div class="kda-text">
           <span class="kill">{{ game.participants[0].stats?.kills }}</span>
-          / <span class="death">{{ game.participants[0].stats?.deaths }}</span>
-          / <span class="assist">{{ game.participants[0].stats?.assists }}</span>
+          / <span class="death">{{ game.participants[0].stats?.deaths }}</span> /
+          <span class="assist">{{ game.participants[0].stats?.assists }}</span>
         </div>
         <n-tooltip trigger="hover">
           <template #trigger>

@@ -131,7 +131,7 @@
             <n-tag
               v-if="sessionSummoner.preGroupMarkers?.name"
               size="small"
-              :type="(sessionSummoner.preGroupMarkers.type as any)"
+              :type="sessionSummoner.preGroupMarkers.type as any"
             >
               {{ sessionSummoner.preGroupMarkers.name }}
             </n-tag>

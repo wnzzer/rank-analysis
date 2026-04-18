@@ -54,7 +54,10 @@
         :color="winRateColor(winRate(recentData.selectWins, recentData.selectLosses), isDark)"
       />
       <!-- Participation -->
-      <ProgressStatRow :percent="recentData.groupRate" :color="groupRateColor(recentData.groupRate, isDark)">
+      <ProgressStatRow
+        :percent="recentData.groupRate"
+        :color="groupRateColor(recentData.groupRate, isDark)"
+      >
         <template #label>
           <n-icon><AccessibilityOutline /></n-icon> 参团率
         </template>

@@ -5,11 +5,7 @@
  */
 
 import type { Game } from '@renderer/types/domain/match'
-import type {
-  AIAnalysisResult,
-  MatchDetailAnalysisOptions,
-  StreamCallbacks
-} from './types'
+import type { AIAnalysisResult, MatchDetailAnalysisOptions, StreamCallbacks } from './types'
 import { loadChampionNames } from './champion-names'
 import { requestAIContent, requestAIContentStream } from './stream'
 import { buildPlayerAnalysisPrompt, buildTeamAnalysisPrompt } from './prompts/team'

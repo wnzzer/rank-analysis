@@ -9,9 +9,7 @@
       <div class="rank-icon-wrapper">
         <span class="rank-type-label">{{ label }}</span>
         <img :src="tierImage(queueInfo.tier)" class="rank-img" />
-        <div class="rank-tier-text">
-          {{ queueInfo.tierCn }} {{ divisionOrPoint(queueInfo) }}
-        </div>
+        <div class="rank-tier-text">{{ queueInfo.tierCn }} {{ divisionOrPoint(queueInfo) }}</div>
       </div>
       <div class="rank-stats">
         <div class="win-rate-badge" :class="badgeClass">胜率 {{ recent.winRate }}%</div>

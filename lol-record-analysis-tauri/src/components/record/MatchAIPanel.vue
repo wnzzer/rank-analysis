@@ -1,5 +1,11 @@
 <template>
-  <n-modal :show="show" preset="card" title="AI 复盘" style="width: 780px" @update:show="emit('update:show', $event)">
+  <n-modal
+    :show="show"
+    preset="card"
+    title="AI 复盘"
+    style="width: 780px"
+    @update:show="emit('update:show', $event)"
+  >
     <div class="match-detail-ai-modal-body">
       <div class="match-detail-ai-controls">
         <n-radio-group :value="mode" size="small" @update:value="emit('update:mode', $event)">
