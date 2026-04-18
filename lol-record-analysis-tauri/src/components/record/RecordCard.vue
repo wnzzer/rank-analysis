@@ -182,8 +182,7 @@
                 <template #trigger>
                   <n-button
                     text
-                    @click.stop
-                    @click="
+                    @click.stop="
                       toNameRecord(
                         games.gameDetail.participantIdentities[i - 1].player.gameName +
                           '#' +
@@ -226,8 +225,7 @@
                 <template #trigger>
                   <n-button
                     text
-                    @click.stop
-                    @click="
+                    @click.stop="
                       toNameRecord(
                         games.gameDetail.participantIdentities[i + 4]?.player.gameName +
                           '#' +
