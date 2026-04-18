@@ -3,9 +3,77 @@ use crate::{
     lcu::util::http::{self, lcu_get},
 };
 use regex::Regex;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::sync::{LazyLock, RwLock};
+
+/// LCU `cherry-augments.json` 里 rarity 字段在不同版本下既可能是字符串
+/// ("kPrismatic"/"kGold"/...)，也可能是整数枚举 (0=Silver / 1=Gold / 2=Prismatic)。
+/// 若按 String 反序列化遇到整数会导致整个 augment 解析失败 → PERK_CACHE 里
+/// 没有海克斯数据 → 前端 tooltip 无颜色无介绍。
+fn deserialize_rarity<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    use serde::de::Visitor;
+    use std::fmt;
+
+    struct RarityVisitor;
+
+    impl<'de> Visitor<'de> for RarityVisitor {
+        type Value = String;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("a rarity string (e.g. kPrismatic) or integer enum")
+        }
+
+        fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<String, E> {
+            Ok(value.to_string())
+        }
+
+        fn visit_string<E: serde::de::Error>(self, value: String) -> Result<String, E> {
+            Ok(value)
+        }
+
+        fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<String, E> {
+            Ok(match value {
+                0 => "kSilver".to_string(),
+                1 => "kGold".to_string(),
+                2 => "kPrismatic".to_string(),
+                3 => "kBronze".to_string(),
+                _ => String::new(),
+            })
+        }
+
+        fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<String, E> {
+            if value < 0 {
+                return Ok(String::new());
+            }
+            self.visit_u64(value as u64)
+        }
+
+        fn visit_f64<E: serde::de::Error>(self, value: f64) -> Result<String, E> {
+            if value < 0.0 || !value.is_finite() {
+                return Ok(String::new());
+            }
+            self.visit_u64(value as u64)
+        }
+
+        fn visit_none<E: serde::de::Error>(self) -> Result<String, E> {
+            Ok(String::new())
+        }
+
+        fn visit_unit<E: serde::de::Error>(self) -> Result<String, E> {
+            Ok(String::new())
+        }
+
+        fn visit_some<D: Deserializer<'de>>(self, deserializer: D) -> Result<String, D::Error> {
+            deserializer.deserialize_any(RarityVisitor)
+        }
+    }
+
+    deserializer.deserialize_any(RarityVisitor)
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -57,7 +125,7 @@ pub struct CherryAugment {
     pub augment_small_icon_path: String,
     #[serde(rename = "iconLargePath", default)]
     pub icon_large_path: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_rarity")]
     pub rarity: String,
 }
 
@@ -467,5 +535,56 @@ fn normalize_asset_text(raw: &str) -> Option<String> {
         None
     } else {
         Some(lines.join("\n"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse(raw: &str) -> CherryAugment {
+        serde_json::from_str(raw).expect("valid CherryAugment JSON")
+    }
+
+    #[test]
+    fn should_accept_integer_rarity_gold() {
+        let a = parse(r#"{"id":1,"rarity":1}"#);
+        assert_eq!(a.rarity, "kGold");
+    }
+
+    #[test]
+    fn should_accept_integer_rarity_prismatic() {
+        let a = parse(r#"{"id":2,"rarity":2}"#);
+        assert_eq!(a.rarity, "kPrismatic");
+    }
+
+    #[test]
+    fn should_accept_integer_rarity_silver() {
+        let a = parse(r#"{"id":3,"rarity":0}"#);
+        assert_eq!(a.rarity, "kSilver");
+    }
+
+    #[test]
+    fn should_accept_string_rarity_as_is() {
+        let a = parse(r#"{"id":4,"rarity":"kPrismatic"}"#);
+        assert_eq!(a.rarity, "kPrismatic");
+    }
+
+    #[test]
+    fn should_default_when_rarity_missing() {
+        let a = parse(r#"{"id":5}"#);
+        assert_eq!(a.rarity, "");
+    }
+
+    #[test]
+    fn should_default_when_rarity_null() {
+        let a = parse(r#"{"id":6,"rarity":null}"#);
+        assert_eq!(a.rarity, "");
+    }
+
+    #[test]
+    fn should_fallback_to_empty_for_unknown_integer() {
+        let a = parse(r#"{"id":7,"rarity":99}"#);
+        assert_eq!(a.rarity, "");
     }
 }
