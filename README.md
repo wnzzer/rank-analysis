@@ -154,17 +154,20 @@ This project uses modern development toolchain to ensure code quality and consis
 ### Quality Check Commands
 
 ```bash
-# Frontend code checks
 cd lol-record-analysis-tauri
-npm run lint          # ESLint check
-npm run format        # Prettier formatting
-npm run typecheck     # TypeScript type check
 
-# Backend code checks (requires Windows environment)
-cd src-tauri
-cargo fmt             # Formatting
-cargo clippy          # Lint check
+# One-shot gate — runs before every commit (mirrors CI exactly)
+npm run check         # format + lint + typecheck + cargo fmt --check + clippy --all-targets --all-features -Dwarnings
+npm run test          # vitest
+
+# Individual steps (if you want to run them piecemeal)
+npm run lint          # ESLint
+npm run format        # Prettier
+npm run typecheck     # vue-tsc
+cd src-tauri && cargo fmt --all -- --check && cargo clippy --all-targets --all-features -- -Dwarnings
 ```
+
+> `npm run check` is the canonical pre-commit gate. It matches the flags used by `.github/workflows/quality-checks.yml` — if it passes locally, CI will pass.
 
 For detailed code quality standards and contribution guidelines, please refer to:
 - [Code Quality Standards](./CODE_QUALITY.md)

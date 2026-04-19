@@ -608,13 +608,8 @@ fn extract_game_metric(game: &crate::lcu::api::match_history::Game, metric: &str
                 (stats.kills + stats.assists) as f64 / stats.deaths as f64
             }
         }
-        "win" => {
-            if stats.win {
-                1.0
-            } else {
-                0.0
-            }
-        }
+        "win" if stats.win => 1.0,
+        "win" => 0.0,
         "gold" => stats.gold_earned as f64,
         "cs" => stats.total_minions_killed as f64, // + neutral?
         "damage" => stats.total_damage_dealt_to_champions as f64,

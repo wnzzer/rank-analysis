@@ -883,6 +883,6 @@ mod tests {
 
         let weight = map.get("weightedpopoffs").expect("weightedpopoffs present");
         assert_eq!(weight.0, "你的冷却时间已缩短。");
-        assert!(map.get("summoners_rift").is_none()); // 无关键不入
+        assert!(!map.contains_key("summoners_rift")); // 无关键不入
     }
 }

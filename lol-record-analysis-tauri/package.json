@@ -13,7 +13,7 @@
     "lint": "eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts,.vue --fix",
     "typecheck": "vue-tsc --noEmit --composite false",
     "check": "npm run format && npm run lint && npm run typecheck && npm run check:rust",
-    "check:rust": "cd src-tauri && cargo fmt --check && cargo clippy -- -Dwarnings",
+    "check:rust": "cd src-tauri && cargo fmt --all -- --check && cargo clippy --all-targets --all-features -- -Dwarnings",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
