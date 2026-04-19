@@ -154,17 +154,20 @@
 ### 质量检查命令
 
 ```bash
-# 前端代码检查
 cd lol-record-analysis-tauri
-npm run lint          # ESLint 检查
-npm run format        # Prettier 格式化
-npm run typecheck     # TypeScript 类型检查
 
-# 后端代码检查 (需要 Windows 环境)
-cd src-tauri
-cargo fmt             # 格式化
-cargo clippy          # Lint 检查
+# 一键 gate —— 提交前跑这个就够了（和 CI 完全对齐）
+npm run check         # format + lint + typecheck + cargo fmt --check + clippy --all-targets --all-features -Dwarnings
+npm run test          # vitest
+
+# 按步骤单独跑（需要时）
+npm run lint          # ESLint
+npm run format        # Prettier
+npm run typecheck     # vue-tsc
+cd src-tauri && cargo fmt --all -- --check && cargo clippy --all-targets --all-features -- -Dwarnings
 ```
+
+> `npm run check` 是提交前的权威闸门，参数和 `.github/workflows/quality-checks.yml` 完全一致 —— 本地过了，CI 就不会再红。
 
 详细的代码质量标准和贡献指南，请参阅：
 - [代码质量标准](./CODE_QUALITY.md)
