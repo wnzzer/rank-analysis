@@ -1,25 +1,50 @@
 ---
 name: shipping-changes
-description: Use when implementation work in the rank-analysis project is finished and the changes need to ship — running CODE_QUALITY.md checks, making a Conventional-Commits commit on a feature branch, and opening a PR via gh.
+description: Use when src files in the rank-analysis repo (lol-record-analysis-tauri/**/*.ts, .vue, .rs) have just been edited via Edit/Write/MultiEdit, OR before any `git commit`, `git push`, or `gh pr create` in this repo. Symptoms include "I'm done with that change", "实现完了", a finished logical chunk of work, or about to invoke any commit/push/PR command.
 ---
 
 # Shipping Changes (rank-analysis)
 
 ## Overview
 
-Standardize the post-implementation flow for this repo so nothing ships without lint / format / typecheck / clippy passing, and every PR follows `CONTRIBUTING.md`. This skill is the single source of truth for the "我写完了，怎么提交" question.
+Single source of truth for "the code changed — now what?" in this repo. Two trigger moments funnel into one skill:
+
+- **A. Just edited code** → run the quality gate, fix anything red, then continue editing or move to ship.
+- **B. About to `git commit` / `git push` / `gh pr create`** → run the full ship workflow (branch → gate → commit → push → PR).
 
 **Rule of thumb:** never commit on `main`, never skip `npm run check`, never `git add -A` without reading `git status` first.
 
 ## When to Use
 
-- A feature/bugfix is implemented and you want to ship it.
-- Returning to a dirty working tree and need to wrap it up cleanly.
-- About to run `git commit` or `gh pr create` in this repo.
+**Trigger A — code just edited (lightweight gate):**
+- Edit / Write / MultiEdit just finished on files under `lol-record-analysis-tauri/src/` or `lol-record-analysis-tauri/src-tauri/src/`
+- A logical chunk of work is done ("我改完这块了" / "feature 实现完了")
+- → Run §A. Stop there if not ready to commit yet.
+
+**Trigger B — about to commit / push / PR (full ship):**
+- Next planned action is `git commit`, `git push`, or `gh pr create`
+- Returning to a dirty working tree and wrapping it up
+- → Run §1 → §4 (full workflow). §A is a subset of §2, so don't double-run.
 
 **Skip when:**
 - WIP / experiment you don't intend to merge.
 - Doc-only edits outside `lol-record-analysis-tauri/` (still commit, but quality steps are no-ops).
+
+## §A. Quick gate after edits
+
+Run from `lol-record-analysis-tauri/`:
+
+```bash
+npm run check        # canonical gate: prettier + eslint + vue-tsc + cargo fmt --check + cargo clippy -Dwarnings
+npm run test         # vitest — if you touched code that has (or should have) tests
+cd src-tauri && cargo test && cd ..   # if Rust logic changed
+```
+
+If anything is red, **fix the root cause** — no `--no-verify`, no `// eslint-disable`, no `#[allow(clippy::...)]` unless the rule is genuinely wrong for the case. Re-run until clean.
+
+Then either:
+- Continue editing (re-run §A after the next chunk), or
+- Move to §1 to ship.
 
 ## Workflow
 
