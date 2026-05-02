@@ -13,7 +13,7 @@ import type { PickRule, BanRule } from '@renderer/types/rules'
 
 const opts = [
   { label: '亚索', value: 157, realName: 'Yasuo', nickname: 'yasuo' },
-  { label: '锤石', value: 412, realName: 'Thresh', nickname: 'thresh' },
+  { label: '锤石', value: 412, realName: 'Thresh', nickname: 'thresh' }
 ]
 
 /**
@@ -24,35 +24,36 @@ const opts = [
  */
 const globalStubs = {
   [NModal.name!]: {
-    template: '<div><slot /></div>',
+    template: '<div><slot /></div>'
   },
   [NCard.name!]: {
-    template: '<div><slot /><slot name="footer" /></div>',
+    template: '<div><slot /><slot name="footer" /></div>'
   },
   [NButton.name!]: {
     props: ['disabled'],
     template: '<button :disabled="disabled"><slot /></button>',
-    emits: [],
+    emits: []
   },
   [NInput.name!]: {
     props: ['modelValue'],
-    template: '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
-    emits: ['update:modelValue'],
+    template:
+      '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
+    emits: ['update:modelValue']
   },
   [NSwitch.name!]: {
     props: ['modelValue'],
     template:
       '<input type="checkbox" :checked="modelValue" @change="$emit(\'update:modelValue\', $event.target.checked)" />',
-    emits: ['update:modelValue'],
+    emits: ['update:modelValue']
   },
   [NSelect.name!]: {
     props: ['modelValue', 'value', 'options'],
-    template: '<select></select>',
+    template: '<select></select>'
   },
   [RuleConditionRow.__name!]: {
     props: ['modelValue', 'championOptions'],
-    template: '<div class="mock-condition-row"></div>',
-  },
+    template: '<div class="mock-condition-row"></div>'
+  }
 }
 
 describe('RuleEditModal', () => {
@@ -62,9 +63,9 @@ describe('RuleEditModal', () => {
   it('save button is disabled when conditions empty', () => {
     const w = mount(RuleEditModal, {
       props: { show: true, mode: 'pick', championOptions: opts },
-      global: { stubs: globalStubs },
+      global: { stubs: globalStubs }
     })
-    const saveBtn = w.findAll('button').find((b) => b.text().trim() === '保存')
+    const saveBtn = w.findAll('button').find(b => b.text().trim() === '保存')
     expect(saveBtn).toBeDefined()
     expect(saveBtn?.attributes('disabled')).toBeDefined()
   })
@@ -78,19 +79,19 @@ describe('RuleEditModal', () => {
       name: '测试',
       enabled: true,
       conditions: [{ type: 'Position', value: 'middle' }],
-      action: { champion_id: 157, lock: false },
+      action: { champion_id: 157, lock: false }
     }
     const w = mount(RuleEditModal, {
       props: {
         show: true,
         mode: 'pick',
         championOptions: opts,
-        initial,
+        initial
       },
-      global: { stubs: globalStubs },
+      global: { stubs: globalStubs }
     })
     await w.vm.$nextTick()
-    const saveBtn = w.findAll('button').find((b) => b.text().trim() === '保存')!
+    const saveBtn = w.findAll('button').find(b => b.text().trim() === '保存')!
     await saveBtn.trigger('click')
 
     const emitted = w.emitted('save')
@@ -110,19 +111,19 @@ describe('RuleEditModal', () => {
       name: '禁刀妹',
       enabled: true,
       conditions: [{ type: 'Position', value: 'top' }],
-      action: { champion_id: 89 },
+      action: { champion_id: 89 }
     }
     const w = mount(RuleEditModal, {
       props: {
         show: true,
         mode: 'ban',
         championOptions: opts,
-        initial,
+        initial
       },
-      global: { stubs: globalStubs },
+      global: { stubs: globalStubs }
     })
     await w.vm.$nextTick()
-    const saveBtn = w.findAll('button').find((b) => b.text().trim() === '保存')!
+    const saveBtn = w.findAll('button').find(b => b.text().trim() === '保存')!
     await saveBtn.trigger('click')
 
     const emitted = w.emitted('save')

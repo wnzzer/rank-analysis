@@ -2,13 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { NModal, NCard, NInput, NSwitch, NButton, NSelect } from 'naive-ui'
 import RuleConditionRow from './RuleConditionRow.vue'
-import type {
-  PickRule,
-  BanRule,
-  RuleCondition,
-  PickAction,
-  BanAction,
-} from '@renderer/types/rules'
+import type { PickRule, BanRule, RuleCondition, PickAction, BanAction } from '@renderer/types/rules'
 import type { championOption } from '@renderer/types/domain/champion'
 
 type Mode = 'pick' | 'ban'
@@ -41,7 +35,7 @@ const lock = ref(true) // pick mode only
 
 watch(
   () => props.initial,
-  (init) => {
+  init => {
     if (init) {
       id.value = init.id
       name.value = init.name
@@ -60,14 +54,11 @@ watch(
       lock.value = true
     }
   },
-  { immediate: true },
+  { immediate: true }
 )
 
 const canSave = computed(
-  () =>
-    name.value.trim().length > 0 &&
-    conditions.value.length > 0 &&
-    targetChampion.value != null,
+  () => name.value.trim().length > 0 && conditions.value.length > 0 && targetChampion.value != null
 )
 
 function addCondition() {
@@ -94,7 +85,7 @@ function save() {
       name: name.value.trim(),
       enabled: enabled.value,
       conditions: conditions.value,
-      action: { champion_id: targetChampion.value, lock: lock.value } as PickAction,
+      action: { champion_id: targetChampion.value, lock: lock.value } as PickAction
     }
     emit('save', rule)
   } else {
@@ -103,7 +94,7 @@ function save() {
       name: name.value.trim(),
       enabled: enabled.value,
       conditions: conditions.value,
-      action: { champion_id: targetChampion.value } as BanAction,
+      action: { champion_id: targetChampion.value } as BanAction
     }
     emit('save', rule)
   }
@@ -111,7 +102,7 @@ function save() {
 }
 
 const championSelectOptions = computed(() =>
-  props.championOptions.map((c) => ({ label: c.label, value: c.value })),
+  props.championOptions.map(c => ({ label: c.label, value: c.value }))
 )
 </script>
 
@@ -135,7 +126,7 @@ const championSelectOptions = computed(() =>
           :key="i"
           :model-value="c"
           :champion-options="championOptions"
-          @update:model-value="(v) => updateCondition(i, v)"
+          @update:model-value="v => updateCondition(i, v)"
           @remove="removeCondition(i)"
         />
         <n-button size="small" dashed @click="addCondition">+ 添加条件</n-button>

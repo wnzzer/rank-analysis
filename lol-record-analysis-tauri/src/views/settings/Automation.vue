@@ -37,7 +37,9 @@
             <span class="rule-name">{{ rule.name }}</span>
             <span class="rule-summary">{{ summarize(rule) }}</span>
             <n-button quaternary size="small" @click="openPickEdit(rule)">编辑</n-button>
-            <n-button quaternary type="error" size="small" @click="deletePickRule(rule.id)">删除</n-button>
+            <n-button quaternary type="error" size="small" @click="deletePickRule(rule.id)"
+              >删除</n-button
+            >
           </div>
         </div>
         <div class="section-title">兜底（规则都没命中时按顺序选）</div>
@@ -104,7 +106,9 @@
             <span class="rule-name">{{ rule.name }}</span>
             <span class="rule-summary">{{ summarize(rule) }}</span>
             <n-button quaternary size="small" @click="openBanEdit(rule)">编辑</n-button>
-            <n-button quaternary type="error" size="small" @click="deleteBanRule(rule.id)">删除</n-button>
+            <n-button quaternary type="error" size="small" @click="deleteBanRule(rule.id)"
+              >删除</n-button
+            >
           </div>
         </div>
         <div class="section-title">兜底（规则都没命中时按顺序选）</div>
@@ -207,17 +211,17 @@ function openPickEdit(rule?: PickRule) {
 }
 async function onPickSave(rule: PickRule | BanRule) {
   const r = rule as PickRule
-  const existingIdx = pickRules.value.findIndex((x) => x.id === r.id)
+  const existingIdx = pickRules.value.findIndex(x => x.id === r.id)
   const next = [...pickRules.value]
   if (existingIdx >= 0) next[existingIdx] = r
   else next.push(r)
   await savePickRules(next)
 }
 async function deletePickRule(id: string) {
-  await savePickRules(pickRules.value.filter((r) => r.id !== id))
+  await savePickRules(pickRules.value.filter(r => r.id !== id))
 }
 async function togglePickRule(id: string, enabled: boolean) {
-  await savePickRules(pickRules.value.map((r) => (r.id === id ? { ...r, enabled } : r)))
+  await savePickRules(pickRules.value.map(r => (r.id === id ? { ...r, enabled } : r)))
 }
 
 function openBanEdit(rule?: BanRule) {
@@ -226,17 +230,17 @@ function openBanEdit(rule?: BanRule) {
 }
 async function onBanSave(rule: PickRule | BanRule) {
   const r = rule as BanRule
-  const existingIdx = banRules.value.findIndex((x) => x.id === r.id)
+  const existingIdx = banRules.value.findIndex(x => x.id === r.id)
   const next = [...banRules.value]
   if (existingIdx >= 0) next[existingIdx] = r
   else next.push(r)
   await saveBanRules(next)
 }
 async function deleteBanRule(id: string) {
-  await saveBanRules(banRules.value.filter((r) => r.id !== id))
+  await saveBanRules(banRules.value.filter(r => r.id !== id))
 }
 async function toggleBanRule(id: string, enabled: boolean) {
-  await saveBanRules(banRules.value.map((r) => (r.id === id ? { ...r, enabled } : r)))
+  await saveBanRules(banRules.value.map(r => (r.id === id ? { ...r, enabled } : r)))
 }
 
 function summarize(rule: PickRule | BanRule): string {
@@ -263,7 +267,7 @@ function summarize(rule: PickRule | BanRule): string {
     }
   }
   const target =
-    options.value?.find((c) => c.value === rule.action.champion_id)?.label ??
+    options.value?.find(c => c.value === rule.action.champion_id)?.label ??
     `#${rule.action.champion_id}`
   const isPick = 'lock' in rule.action
   const lockTag = isPick && (rule.action as PickAction).lock ? ' [锁]' : ''

@@ -3,7 +3,9 @@
 //! 输入：当前选人会话 + 当前用户位置 + 用户配置的规则列表。
 //! 输出：第一条命中且目标可执行的 action（或 None）。
 
-use crate::command::rule_config::{BanAction, BanRule, PickAction, PickRule, Position, RuleCondition};
+use crate::command::rule_config::{
+    BanAction, BanRule, PickAction, PickRule, Position, RuleCondition,
+};
 use crate::lcu::api::champion_select::{OnePlayer, SelectSession};
 
 /// 从选人会话中找到当前用户，读取其 `assigned_position` 并映射到 `Position`。
@@ -37,9 +39,7 @@ pub(crate) fn match_condition(
         RuleCondition::AllyChampionsContains { ids } => team_has_any(&session.my_team, ids),
         RuleCondition::AllyChampionsNotContains { ids } => !team_has_any(&session.my_team, ids),
         RuleCondition::EnemyChampionsContains { ids } => team_has_any(&session.their_team, ids),
-        RuleCondition::EnemyChampionsNotContains { ids } => {
-            !team_has_any(&session.their_team, ids)
-        }
+        RuleCondition::EnemyChampionsNotContains { ids } => !team_has_any(&session.their_team, ids),
     }
 }
 
@@ -175,21 +175,27 @@ mod tests {
     #[test]
     fn position_matches_when_equal() {
         let s = make_session(vec![]);
-        let c = RuleCondition::Position { value: Position::Middle };
+        let c = RuleCondition::Position {
+            value: Position::Middle,
+        };
         assert!(match_condition(&c, &s, Some(Position::Middle)));
     }
 
     #[test]
     fn position_does_not_match_when_different() {
         let s = make_session(vec![]);
-        let c = RuleCondition::Position { value: Position::Middle };
+        let c = RuleCondition::Position {
+            value: Position::Middle,
+        };
         assert!(!match_condition(&c, &s, Some(Position::Top)));
     }
 
     #[test]
     fn position_does_not_match_when_none() {
         let s = make_session(vec![]);
-        let c = RuleCondition::Position { value: Position::Middle };
+        let c = RuleCondition::Position {
+            value: Position::Middle,
+        };
         assert!(!match_condition(&c, &s, None));
     }
 
@@ -332,7 +338,9 @@ mod tests {
     fn ally_contains_walks_full_id_list() {
         // 多 id 列表部分命中：[1, 157, 99] 中的 157 命中队友。
         let s = make_session(vec![ally_champ(157)]);
-        let c = RuleCondition::AllyChampionsContains { ids: vec![1, 157, 99] };
+        let c = RuleCondition::AllyChampionsContains {
+            ids: vec![1, 157, 99],
+        };
         assert!(match_condition(&c, &s, None));
     }
 
@@ -340,13 +348,22 @@ mod tests {
 
     use crate::command::rule_config::{PickAction, PickRule};
 
-    fn pick_rule(id: &str, conds: Vec<RuleCondition>, target: i32, lock: bool, enabled: bool) -> PickRule {
+    fn pick_rule(
+        id: &str,
+        conds: Vec<RuleCondition>,
+        target: i32,
+        lock: bool,
+        enabled: bool,
+    ) -> PickRule {
         PickRule {
             id: id.to_string(),
             name: id.to_string(),
             enabled,
             conditions: conds,
-            action: PickAction { champion_id: target, lock },
+            action: PickAction {
+                champion_id: target,
+                lock,
+            },
         }
     }
 
@@ -368,8 +385,24 @@ mod tests {
     fn evaluate_pick_returns_first_matching_rule() {
         let s = make_session(vec![player("me", "middle")]);
         let rules = vec![
-            pick_rule("r1", vec![RuleCondition::Position { value: Position::Top }], 1, true, true),
-            pick_rule("r2", vec![RuleCondition::Position { value: Position::Middle }], 99, true, true),
+            pick_rule(
+                "r1",
+                vec![RuleCondition::Position {
+                    value: Position::Top,
+                }],
+                1,
+                true,
+                true,
+            ),
+            pick_rule(
+                "r2",
+                vec![RuleCondition::Position {
+                    value: Position::Middle,
+                }],
+                99,
+                true,
+                true,
+            ),
         ];
         let action = evaluate_pick(&s, Some(Position::Middle), &rules).unwrap();
         assert_eq!(action.champion_id, 99);
@@ -379,8 +412,24 @@ mod tests {
     fn evaluate_pick_skips_disabled_rule() {
         let s = make_session(vec![player("me", "middle")]);
         let rules = vec![
-            pick_rule("r1", vec![RuleCondition::Position { value: Position::Middle }], 1, true, false),
-            pick_rule("r2", vec![RuleCondition::Position { value: Position::Middle }], 2, true, true),
+            pick_rule(
+                "r1",
+                vec![RuleCondition::Position {
+                    value: Position::Middle,
+                }],
+                1,
+                true,
+                false,
+            ),
+            pick_rule(
+                "r2",
+                vec![RuleCondition::Position {
+                    value: Position::Middle,
+                }],
+                2,
+                true,
+                true,
+            ),
         ];
         let action = evaluate_pick(&s, Some(Position::Middle), &rules).unwrap();
         assert_eq!(action.champion_id, 2);
@@ -389,7 +438,15 @@ mod tests {
     #[test]
     fn evaluate_pick_returns_none_when_no_rule_fits() {
         let s = make_session(vec![player("me", "middle")]);
-        let rules = vec![pick_rule("r1", vec![RuleCondition::Position { value: Position::Top }], 1, true, true)];
+        let rules = vec![pick_rule(
+            "r1",
+            vec![RuleCondition::Position {
+                value: Position::Top,
+            }],
+            1,
+            true,
+            true,
+        )];
         assert!(evaluate_pick(&s, Some(Position::Middle), &rules).is_none());
     }
 
@@ -411,14 +468,27 @@ mod tests {
             is_in_progress: false,
             action_type: "ban".to_string(),
         };
-        let s = session_with_picks_and_bans(
-            vec![player("me", "middle")],
-            vec![],
-            vec![vec![banned]],
-        );
+        let s =
+            session_with_picks_and_bans(vec![player("me", "middle")], vec![], vec![vec![banned]]);
         let rules = vec![
-            pick_rule("r1", vec![RuleCondition::Position { value: Position::Middle }], 99, true, true),
-            pick_rule("r2", vec![RuleCondition::Position { value: Position::Middle }], 100, true, true),
+            pick_rule(
+                "r1",
+                vec![RuleCondition::Position {
+                    value: Position::Middle,
+                }],
+                99,
+                true,
+                true,
+            ),
+            pick_rule(
+                "r2",
+                vec![RuleCondition::Position {
+                    value: Position::Middle,
+                }],
+                100,
+                true,
+                true,
+            ),
         ];
         let action = evaluate_pick(&s, Some(Position::Middle), &rules).unwrap();
         assert_eq!(action.champion_id, 100);
@@ -442,8 +512,24 @@ mod tests {
             vec![vec![ally_pick]],
         );
         let rules = vec![
-            pick_rule("r1", vec![RuleCondition::Position { value: Position::Middle }], 99, true, true),
-            pick_rule("r2", vec![RuleCondition::Position { value: Position::Middle }], 100, true, true),
+            pick_rule(
+                "r1",
+                vec![RuleCondition::Position {
+                    value: Position::Middle,
+                }],
+                99,
+                true,
+                true,
+            ),
+            pick_rule(
+                "r2",
+                vec![RuleCondition::Position {
+                    value: Position::Middle,
+                }],
+                100,
+                true,
+                true,
+            ),
         ];
         let action = evaluate_pick(&s, Some(Position::Middle), &rules).unwrap();
         assert_eq!(action.champion_id, 100);
@@ -461,14 +547,17 @@ mod tests {
             is_in_progress: true,
             action_type: "pick".to_string(),
         };
-        let s = session_with_picks_and_bans(
-            vec![player("me", "middle")],
-            vec![],
-            vec![vec![my_hover]],
-        );
-        let rules = vec![
-            pick_rule("r1", vec![RuleCondition::Position { value: Position::Middle }], 99, true, true),
-        ];
+        let s =
+            session_with_picks_and_bans(vec![player("me", "middle")], vec![], vec![vec![my_hover]]);
+        let rules = vec![pick_rule(
+            "r1",
+            vec![RuleCondition::Position {
+                value: Position::Middle,
+            }],
+            99,
+            true,
+            true,
+        )];
         // 自己的 hover 不应阻止重新选择同一英雄
         let action = evaluate_pick(&s, Some(Position::Middle), &rules).unwrap();
         assert_eq!(action.champion_id, 99);
@@ -479,15 +568,31 @@ mod tests {
         let s = make_session(vec![player("me", "middle"), ally_champ(157)]);
         let rules = vec![
             // 中路 + 自家无亚索 → 选 1（第二个条件不满足，应跳过）
-            pick_rule("r1", vec![
-                RuleCondition::Position { value: Position::Middle },
-                RuleCondition::AllyChampionsNotContains { ids: vec![157] },
-            ], 1, true, true),
+            pick_rule(
+                "r1",
+                vec![
+                    RuleCondition::Position {
+                        value: Position::Middle,
+                    },
+                    RuleCondition::AllyChampionsNotContains { ids: vec![157] },
+                ],
+                1,
+                true,
+                true,
+            ),
             // 中路 + 自家有亚索 → 选 2（应命中）
-            pick_rule("r2", vec![
-                RuleCondition::Position { value: Position::Middle },
-                RuleCondition::AllyChampionsContains { ids: vec![157] },
-            ], 2, true, true),
+            pick_rule(
+                "r2",
+                vec![
+                    RuleCondition::Position {
+                        value: Position::Middle,
+                    },
+                    RuleCondition::AllyChampionsContains { ids: vec![157] },
+                ],
+                2,
+                true,
+                true,
+            ),
         ];
         let action = evaluate_pick(&s, Some(Position::Middle), &rules).unwrap();
         assert_eq!(action.champion_id, 2);
@@ -503,7 +608,9 @@ mod tests {
             name: id.to_string(),
             enabled,
             conditions: conds,
-            action: BanAction { champion_id: target },
+            action: BanAction {
+                champion_id: target,
+            },
         }
     }
 
@@ -511,8 +618,22 @@ mod tests {
     fn evaluate_ban_returns_first_matching() {
         let s = make_session(vec![player("me", "middle")]);
         let rules = vec![
-            ban_rule("b1", vec![RuleCondition::Position { value: Position::Top }], 1, true),
-            ban_rule("b2", vec![RuleCondition::Position { value: Position::Middle }], 89, true),
+            ban_rule(
+                "b1",
+                vec![RuleCondition::Position {
+                    value: Position::Top,
+                }],
+                1,
+                true,
+            ),
+            ban_rule(
+                "b2",
+                vec![RuleCondition::Position {
+                    value: Position::Middle,
+                }],
+                89,
+                true,
+            ),
         ];
         let action = evaluate_ban(&s, Some(Position::Middle), &rules).unwrap();
         assert_eq!(action.champion_id, 89);
@@ -577,9 +698,14 @@ mod tests {
             vec![],
             vec![vec![my_pick_hover]],
         );
-        let rules = vec![
-            ban_rule("b1", vec![RuleCondition::Position { value: Position::Middle }], 89, true),
-        ];
+        let rules = vec![ban_rule(
+            "b1",
+            vec![RuleCondition::Position {
+                value: Position::Middle,
+            }],
+            89,
+            true,
+        )];
         // 自己 hover 89 不应阻止规则 ban 89
         let action = evaluate_ban(&s, Some(Position::Middle), &rules).unwrap();
         assert_eq!(action.champion_id, 89);
@@ -594,15 +720,29 @@ mod tests {
         );
         let rules = vec![
             // 中路 + 对面没有 Zed → ban 1（第二个条件不满足，应跳过）
-            ban_rule("b1", vec![
-                RuleCondition::Position { value: Position::Middle },
-                RuleCondition::EnemyChampionsNotContains { ids: vec![238] },
-            ], 1, true),
+            ban_rule(
+                "b1",
+                vec![
+                    RuleCondition::Position {
+                        value: Position::Middle,
+                    },
+                    RuleCondition::EnemyChampionsNotContains { ids: vec![238] },
+                ],
+                1,
+                true,
+            ),
             // 中路 + 对面有 Zed → ban 2（应命中）
-            ban_rule("b2", vec![
-                RuleCondition::Position { value: Position::Middle },
-                RuleCondition::EnemyChampionsContains { ids: vec![238] },
-            ], 2, true),
+            ban_rule(
+                "b2",
+                vec![
+                    RuleCondition::Position {
+                        value: Position::Middle,
+                    },
+                    RuleCondition::EnemyChampionsContains { ids: vec![238] },
+                ],
+                2,
+                true,
+            ),
         ];
         let action = evaluate_ban(&s, Some(Position::Middle), &rules).unwrap();
         assert_eq!(action.champion_id, 2);

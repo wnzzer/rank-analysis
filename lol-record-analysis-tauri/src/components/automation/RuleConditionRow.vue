@@ -5,7 +5,7 @@ import {
   type RuleCondition,
   type Position,
   CONDITION_TYPE_LABEL,
-  POSITION_LABEL,
+  POSITION_LABEL
 } from '@renderer/types/rules'
 import type { championOption } from '@renderer/types/domain/champion'
 
@@ -19,12 +19,13 @@ const emit = defineEmits<{
   (e: 'remove'): void
 }>()
 
-const typeOptions = (Object.keys(CONDITION_TYPE_LABEL) as Array<RuleCondition['type']>).map(
-  (t) => ({ label: CONDITION_TYPE_LABEL[t], value: t }),
-)
+const typeOptions = (Object.keys(CONDITION_TYPE_LABEL) as Array<RuleCondition['type']>).map(t => ({
+  label: CONDITION_TYPE_LABEL[t],
+  value: t
+}))
 
 const positionOptions = (Object.keys(POSITION_LABEL) as Array<keyof typeof POSITION_LABEL>).map(
-  (p) => ({ label: POSITION_LABEL[p], value: p }),
+  p => ({ label: POSITION_LABEL[p], value: p })
 )
 
 const currentType = computed(() => props.modelValue.type)
@@ -70,7 +71,7 @@ function setIds(ids: number[]) {
       multiple
       filterable
       :value="modelValue.ids"
-      :options="championOptions.map((c) => ({ label: c.label, value: c.value }))"
+      :options="championOptions.map(c => ({ label: c.label, value: c.value }))"
       placeholder="选择英雄"
       style="flex: 1; min-width: 200px"
       @update:value="setIds"

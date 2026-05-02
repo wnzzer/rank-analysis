@@ -45,7 +45,7 @@ export const POSITION_LABEL: Record<Position, string> = {
   jungle: '打野',
   middle: '中路',
   bottom: '下路',
-  utility: '辅助',
+  utility: '辅助'
 }
 
 export const CONDITION_TYPE_LABEL: Record<RuleCondition['type'], string> = {
@@ -53,5 +53,5 @@ export const CONDITION_TYPE_LABEL: Record<RuleCondition['type'], string> = {
   AllyChampionsContains: '自家英雄包含',
   AllyChampionsNotContains: '自家英雄不包含',
   EnemyChampionsContains: '对面英雄包含',
-  EnemyChampionsNotContains: '对面英雄不包含',
+  EnemyChampionsNotContains: '对面英雄不包含'
 }
