@@ -31,11 +31,12 @@ const positionOptions = (Object.keys(POSITION_LABEL) as Array<keyof typeof POSIT
 const currentType = computed(() => props.modelValue.type)
 
 function setType(next: RuleCondition['type']) {
-  // Reset payload when type changes.
   if (next === 'Position') {
     emit('update:modelValue', { type: 'Position', value: 'middle' })
   } else {
-    emit('update:modelValue', { type: next, ids: [] } as RuleCondition)
+    // Preserve ids if switching between two ids-carrying variants
+    const ids = props.modelValue.type === 'Position' ? [] : props.modelValue.ids
+    emit('update:modelValue', { type: next, ids } as RuleCondition)
   }
 }
 

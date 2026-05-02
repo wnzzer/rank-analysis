@@ -81,7 +81,6 @@ pub(crate) fn evaluate_pick<'a>(
 /// - 任何已完成的 ban
 /// - 其他位置玩家的 hover / pick（championId != 0）
 /// - 当前用户自己的 hover/pick 不计入（允许重新选择同一英雄）
-#[allow(dead_code)]
 fn unavailable_champion_ids(session: &SelectSession) -> std::collections::HashSet<i32> {
     let my_cell = session.local_player_cell_id;
     let mut unavailable = std::collections::HashSet::new();
