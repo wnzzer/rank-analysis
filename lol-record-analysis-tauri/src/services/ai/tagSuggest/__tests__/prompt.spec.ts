@@ -11,8 +11,8 @@ describe('SYSTEM_PROMPT', () => {
     expect(SYSTEM_PROMPT).toContain('">="')
     expect(SYSTEM_PROMPT).toContain('"<"')
   })
-  it('mentions the 2-5 character name constraint', () => {
-    expect(SYSTEM_PROMPT).toContain('2-5')
+  it('mentions the 2-7 character name constraint', () => {
+    expect(SYSTEM_PROMPT).toContain('2-7')
   })
   it('demands strict JSON output without markdown', () => {
     expect(SYSTEM_PROMPT.toLowerCase()).toContain('json')
@@ -22,11 +22,11 @@ describe('SYSTEM_PROMPT', () => {
   it('warns about the tautology anti-pattern', () => {
     expect(SYSTEM_PROMPT).toContain('套套逻辑')
   })
-  it('includes good-tag few-shot example', () => {
-    expect(SYSTEM_PROMPT).toContain('中路稳健')
+  it('includes ranked-mode few-shot example', () => {
+    expect(SYSTEM_PROMPT).toContain('排位刺客')
   })
   it('includes bad-tag few-shot example', () => {
-    expect(SYSTEM_PROMPT).toContain('暮气沉沉')
+    expect(SYSTEM_PROMPT).toContain('暮气连败王')
   })
   it('warns about mixing ranked and entertainment modes', () => {
     expect(SYSTEM_PROMPT).toContain('模式严格分开')
@@ -35,7 +35,13 @@ describe('SYSTEM_PROMPT', () => {
     expect(SYSTEM_PROMPT).toContain('desc 必须与 filter 一致')
   })
   it('includes entertainment mode few-shot example', () => {
-    expect(SYSTEM_PROMPT).toContain('乱斗豪强')
+    expect(SYSTEM_PROMPT).toContain('乱斗咆哮王')
+  })
+  it('encourages 调侃 / playful tone', () => {
+    expect(SYSTEM_PROMPT).toContain('调侃')
+  })
+  it('warns about lane words in non-SR modes', () => {
+    expect(SYSTEM_PROMPT).toContain('非召唤师峡谷模式不要带路位')
   })
 })
 

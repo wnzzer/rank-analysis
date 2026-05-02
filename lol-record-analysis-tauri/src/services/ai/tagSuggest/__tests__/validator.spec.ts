@@ -42,9 +42,23 @@ describe('parseAndValidate', () => {
   })
 
   it('drops entry whose name is too long', () => {
-    const raw = JSON.stringify({ good: [suggestion({ name: '中路雕将猛人' })], bad: [] })
+    const raw = JSON.stringify({ good: [suggestion({ name: '排位顶级独行侠王' })], bad: [] }) // 8 chars
     const r = parseAndValidate(raw)
     expect(r.droppedCount).toBe(1)
+  })
+
+  it('accepts entry with 7-char name (new max)', () => {
+    const ok = suggestion({ name: '排位顶级独行侠' }) // 7 chars
+    const raw = JSON.stringify({ good: [ok], bad: [] })
+    const r = parseAndValidate(raw)
+    expect(r.good).toHaveLength(1)
+  })
+
+  it('accepts entry with 6-char name', () => {
+    const ok = suggestion({ name: '乱斗大咆哮王' }) // 6 chars
+    const raw = JSON.stringify({ good: [ok], bad: [] })
+    const r = parseAndValidate(raw)
+    expect(r.good).toHaveLength(1)
   })
 
   it('drops entry missing condition', () => {
@@ -247,7 +261,7 @@ describe('parseAndValidate', () => {
   })
 
   it('accepts entry where desc names entertainment mode and filter matches', () => {
-    const ok = suggestion({ desc: '大乱斗伤害王' })
+    const ok = suggestion({ name: '乱斗咆哮王', desc: '大乱斗伤害王' }) // name has no lane word
     ;(ok.condition as any) = {
       type: 'history',
       filters: [{ type: 'queue', ids: [450] }],
@@ -263,6 +277,56 @@ describe('parseAndValidate', () => {
     ;(ok.condition as any) = {
       type: 'history',
       filters: [{ type: 'stat', metric: 'kda', op: '>=', value: 5 }],
+      refresh: { type: 'count', op: '>=', value: 5 }
+    }
+    const raw = JSON.stringify({ good: [ok], bad: [] })
+    const r = parseAndValidate(raw)
+    expect(r.good).toHaveLength(1)
+  })
+
+  // lane-word checks (非 SR 模式禁路位词)
+
+  it('drops entry where filter is all-entertainment but name contains lane word', () => {
+    const bad = suggestion({ name: '乱斗中路王' }) // contains 中路, 5 chars
+    ;(bad.condition as any) = {
+      type: 'history',
+      filters: [{ type: 'queue', ids: [450] }],
+      refresh: { type: 'count', op: '>=', value: 5 }
+    }
+    const raw = JSON.stringify({ good: [bad], bad: [] })
+    const r = parseAndValidate(raw)
+    expect(r.droppedCount).toBe(1)
+  })
+
+  it('drops entry where filter is all-entertainment but desc contains lane word', () => {
+    const bad = suggestion({ desc: '海克斯乱斗打野场均输出高' })
+    ;(bad.condition as any) = {
+      type: 'history',
+      filters: [{ type: 'queue', ids: [450] }],
+      refresh: { type: 'count', op: '>=', value: 5 }
+    }
+    const raw = JSON.stringify({ good: [bad], bad: [] })
+    const r = parseAndValidate(raw)
+    expect(r.droppedCount).toBe(1)
+  })
+
+  it('accepts entry where mixed ranked + entertainment uses lane word', () => {
+    const ok = suggestion({ name: '中路稳健', desc: '中路场均 KDA ≥5' })
+    ;(ok.condition as any) = {
+      type: 'history',
+      filters: [{ type: 'queue', ids: [420, 450] }], // mixed
+      refresh: { type: 'count', op: '>=', value: 5 }
+    }
+    const raw = JSON.stringify({ good: [ok], bad: [] })
+    const r = parseAndValidate(raw)
+    expect(r.good).toHaveLength(1)
+  })
+
+  it('accepts ranked-only entry with lane word in name', () => {
+    const ok = suggestion({ name: '排位中路雕', desc: '排位中路 KDA ≥5' })
+    ;(ok.condition as any) = {
+      type: 'history',
+      filters: [{ type: 'queue', ids: [420, 440] }],
       refresh: { type: 'count', op: '>=', value: 5 }
     }
     const raw = JSON.stringify({ good: [ok], bad: [] })
