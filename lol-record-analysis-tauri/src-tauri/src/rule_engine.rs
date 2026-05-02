@@ -102,6 +102,9 @@ fn unavailable_champion_ids(session: &SelectSession) -> std::collections::HashSe
 
 /// 与 evaluate_pick 同语义但针对 ban 规则。
 /// 返回第一条匹配且目标尚未被 ban 或被他人选/hover 的规则的 action。
+///
+/// 调用方需保证仅在当前玩家的 ban 回合（is_in_progress=true）调用，
+/// 否则可能在错误的时机触发 ban。
 #[allow(dead_code)]
 pub(crate) fn evaluate_ban<'a>(
     session: &SelectSession,
@@ -557,5 +560,53 @@ mod tests {
     fn evaluate_ban_returns_none_when_empty() {
         let s = make_session(vec![]);
         assert!(evaluate_ban(&s, None, &[]).is_none());
+    }
+
+    #[test]
+    fn evaluate_ban_ignores_own_hover_pick() {
+        use crate::lcu::api::champion_select::Action;
+        let my_pick_hover = Action {
+            actor_cell_id: 0, // == session.local_player_cell_id
+            id: 4,
+            champion_id: 89,
+            completed: false,
+            is_ally_action: true,
+            is_in_progress: true,
+            action_type: "pick".to_string(),
+        };
+        let s = session_with_picks_and_bans(
+            vec![player("me", "middle")],
+            vec![],
+            vec![vec![my_pick_hover]],
+        );
+        let rules = vec![
+            ban_rule("b1", vec![RuleCondition::Position { value: Position::Middle }], 89, true),
+        ];
+        // 自己 hover 89 不应阻止规则 ban 89
+        let action = evaluate_ban(&s, Some(Position::Middle), &rules).unwrap();
+        assert_eq!(action.champion_id, 89);
+    }
+
+    #[test]
+    fn evaluate_ban_requires_all_conditions_to_match() {
+        let s = session_with_picks_and_bans(
+            vec![player("me", "middle")],
+            vec![enemy_champ(238)],
+            vec![],
+        );
+        let rules = vec![
+            // 中路 + 对面没有 Zed → ban 1（第二个条件不满足，应跳过）
+            ban_rule("b1", vec![
+                RuleCondition::Position { value: Position::Middle },
+                RuleCondition::EnemyChampionsNotContains { ids: vec![238] },
+            ], 1, true),
+            // 中路 + 对面有 Zed → ban 2（应命中）
+            ban_rule("b2", vec![
+                RuleCondition::Position { value: Position::Middle },
+                RuleCondition::EnemyChampionsContains { ids: vec![238] },
+            ], 2, true),
+        ];
+        let action = evaluate_ban(&s, Some(Position::Middle), &rules).unwrap();
+        assert_eq!(action.champion_id, 2);
     }
 }
