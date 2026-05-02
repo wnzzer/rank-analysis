@@ -26,7 +26,7 @@ fn parse_position(s: &str) -> Option<Position> {
     }
 }
 
-/// Evaluate a single condition. Other variants are added in subsequent tasks.
+/// 求值单个条件。其余 variant 在后续任务中补全（T6 ally / T7 enemy）。
 // T10/T11 will call this from production code; suppress until then.
 #[allow(dead_code)]
 pub(crate) fn match_condition(
@@ -36,9 +36,6 @@ pub(crate) fn match_condition(
 ) -> bool {
     match cond {
         RuleCondition::Position { value } => my_position == Some(*value),
-        // T6 will add AllyChampionsContains / AllyChampionsNotContains arms
-        // T7 will add EnemyChampionsContains / EnemyChampionsNotContains arms
-        #[allow(clippy::match_wildcard_for_single_variants)]
         _ => false,
     }
 }
