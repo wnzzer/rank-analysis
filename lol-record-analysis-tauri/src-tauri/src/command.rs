@@ -44,6 +44,7 @@ pub mod fandom;
 pub mod info;
 pub mod match_history;
 pub mod rank;
+pub mod rule_config;
 pub mod session;
 pub mod user_tag;
 pub mod user_tag_config;
