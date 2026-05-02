@@ -4,6 +4,7 @@ import { NModal, NCard, NInput, NSwitch, NButton, NSelect } from 'naive-ui'
 import RuleConditionRow from './RuleConditionRow.vue'
 import type { PickRule, BanRule, RuleCondition, PickAction, BanAction } from '@renderer/types/rules'
 import type { championOption } from '@renderer/types/domain/champion'
+import { filterChampionFunc, renderLabel, renderSingleSelectTag } from '@renderer/utils/champion'
 
 type Mode = 'pick' | 'ban'
 
@@ -100,10 +101,6 @@ function save() {
   }
   close()
 }
-
-const championSelectOptions = computed(() =>
-  props.championOptions.map(c => ({ label: c.label, value: c.value }))
-)
 </script>
 
 <template>
@@ -137,7 +134,10 @@ const championSelectOptions = computed(() =>
         <n-select
           v-model:value="targetChampion"
           filterable
-          :options="championSelectOptions"
+          :filter="filterChampionFunc"
+          :render-label="renderLabel"
+          :render-tag="renderSingleSelectTag"
+          :options="props.championOptions as any"
           placeholder="选择英雄"
         />
       </div>

@@ -1,9 +1,8 @@
 <template>
   <n-space vertical>
-    <!-- Display Settings -->
+    <!-- Basic settings card -->
     <n-card>
       <n-text tag="div" class="setting-title">基本设置</n-text>
-
       <n-space vertical>
         <div class="setting-item">
           <span class="setting-label">
@@ -17,145 +16,6 @@
 
         <div class="setting-item">
           <span class="setting-label">
-            <n-icon size="20" class="setting-item-icon setting-item-icon-pick">
-              <CheckmarkCircleOutline />
-            </n-icon>
-            自动选择英雄
-          </span>
-          <n-switch v-model:value="autoPick" @update:value="updatePickSwitch" />
-        </div>
-        <div class="rules-section">
-          <div class="section-title">
-            规则（按顺序匹配，第一条命中即用）
-            <n-button size="small" type="primary" @click="openPickEdit()">+ 添加规则</n-button>
-          </div>
-          <div v-for="rule in pickRules" :key="rule.id" class="rule-row">
-            <n-checkbox
-              :checked="rule.enabled"
-              @update:checked="(v: boolean) => togglePickRule(rule.id, v)"
-            />
-            <span class="rule-name">{{ rule.name }}</span>
-            <span class="rule-summary">{{ summarize(rule) }}</span>
-            <n-button quaternary size="small" @click="openPickEdit(rule)">编辑</n-button>
-            <n-button quaternary type="error" size="small" @click="deletePickRule(rule.id)"
-              >删除</n-button
-            >
-          </div>
-        </div>
-        <div class="section-title">兜底（规则都没命中时按顺序选）</div>
-        <n-flex>
-          <VueDraggable ref="el" v-model="myPickData">
-            <n-tag
-              v-for="item in myPickData"
-              :key="item"
-              round
-              closable
-              :bordered="false"
-              @close="deletePickData(item)"
-              style="margin-right: 15px"
-            >
-              {{ options.filter(option => option.value === item)?.[0]?.label || `英雄 ${item}` }}
-              <template #avatar>
-                <n-avatar
-                  :src="assetPrefix + '/champion/' + item"
-                  :fallback-src="assetPrefix + 'champion-1'"
-                />
-              </template>
-            </n-tag>
-          </VueDraggable>
-          <n-select
-            v-model:value="selectPickChampionId"
-            filterable
-            :filter="filterChampionFunc"
-            placeholder="添加英雄"
-            :render-tag="renderSingleSelectTag"
-            :render-label="renderLabel"
-            :options="options"
-            size="small"
-            @update:value="addPickData"
-            style="width: 170px"
-          />
-        </n-flex>
-        <n-text depth="3" style="font-size: 12px">拖动可以改变选择英雄的优先级</n-text>
-        <RuleEditModal
-          v-model:show="pickModalShow"
-          mode="pick"
-          :initial="pickEditing"
-          :champion-options="options"
-          @save="onPickSave"
-        />
-        <div class="setting-item">
-          <span class="setting-label">
-            <n-icon size="20" color="#d03050">
-              <Close />
-            </n-icon>
-            自动禁止英雄
-          </span>
-          <n-switch v-model:value="autoBan" @update:value="updateBanSwitch" />
-        </div>
-        <div class="rules-section">
-          <div class="section-title">
-            规则（按顺序匹配，第一条命中即用）
-            <n-button size="small" type="primary" @click="openBanEdit()">+ 添加规则</n-button>
-          </div>
-          <div v-for="rule in banRules" :key="rule.id" class="rule-row">
-            <n-checkbox
-              :checked="rule.enabled"
-              @update:checked="(v: boolean) => toggleBanRule(rule.id, v)"
-            />
-            <span class="rule-name">{{ rule.name }}</span>
-            <span class="rule-summary">{{ summarize(rule) }}</span>
-            <n-button quaternary size="small" @click="openBanEdit(rule)">编辑</n-button>
-            <n-button quaternary type="error" size="small" @click="deleteBanRule(rule.id)"
-              >删除</n-button
-            >
-          </div>
-        </div>
-        <div class="section-title">兜底（规则都没命中时按顺序选）</div>
-        <n-flex>
-          <VueDraggable ref="el" v-model="myBanData">
-            <n-tag
-              v-for="item in myBanData"
-              :key="item"
-              round
-              closable
-              @close="deleteBanData(item)"
-              :bordered="false"
-              style="margin-right: 15px"
-            >
-              {{ options.filter(option => option.value === item)?.[0]?.label || `英雄 ${item}` }}
-              <template #avatar>
-                <n-avatar
-                  :src="assetPrefix + '/champion/' + item"
-                  :fallback-src="assetPrefix + 'champion-1'"
-                />
-              </template>
-            </n-tag>
-          </VueDraggable>
-          <n-select
-            v-model:value="selectBanChampionId"
-            filterable
-            :filter="filterChampionFunc"
-            placeholder="添加英雄"
-            :render-tag="renderSingleSelectTag"
-            :render-label="renderLabel"
-            :options="options"
-            size="small"
-            @update:value="addBanData"
-            style="width: 170px"
-          />
-        </n-flex>
-        <n-text depth="3" style="font-size: 12px">拖动可以改变禁用英雄的优先级</n-text>
-        <RuleEditModal
-          v-model:show="banModalShow"
-          mode="ban"
-          :initial="banEditing"
-          :champion-options="options"
-          @save="onBanSave"
-        />
-
-        <div class="setting-item">
-          <span class="setting-label">
             <n-icon size="20" class="setting-item-icon setting-item-icon-start">
               <PlayCircleOutline />
             </n-icon>
@@ -165,16 +25,168 @@
         </div>
       </n-space>
     </n-card>
+
+    <!-- Pick group card -->
+    <n-card>
+      <template #header>
+        <span class="setting-label">
+          <n-icon size="20" class="setting-item-icon setting-item-icon-pick">
+            <CheckmarkCircleOutline />
+          </n-icon>
+          自动选择英雄
+        </span>
+      </template>
+      <template #header-extra>
+        <n-switch v-model:value="autoPick" @update:value="updatePickSwitch" />
+      </template>
+
+      <div class="rules-section">
+        <div class="section-title">
+          规则（按顺序匹配，第一条命中即用）
+          <n-button size="small" type="primary" @click="openPickEdit()">+ 添加规则</n-button>
+        </div>
+        <div v-for="rule in pickRules" :key="rule.id" class="rule-row">
+          <n-checkbox
+            :checked="rule.enabled"
+            @update:checked="(v: boolean) => togglePickRule(rule.id, v)"
+          />
+          <span class="rule-name">{{ rule.name }}</span>
+          <span class="rule-summary">{{ summarize(rule) }}</span>
+          <n-button quaternary size="small" @click="openPickEdit(rule)">编辑</n-button>
+          <n-button quaternary type="error" size="small" @click="deletePickRule(rule.id)"
+            >删除</n-button
+          >
+        </div>
+      </div>
+
+      <div class="section-title">兜底（规则都没命中时按顺序选）</div>
+      <n-flex>
+        <VueDraggable ref="el" v-model="myPickData">
+          <n-tag
+            v-for="item in myPickData"
+            :key="item"
+            round
+            closable
+            :bordered="false"
+            @close="deletePickData(item)"
+            style="margin-right: 15px"
+          >
+            {{ options.filter(option => option.value === item)?.[0]?.label || `英雄 ${item}` }}
+            <template #avatar>
+              <n-avatar
+                :src="assetPrefix + '/champion/' + item"
+                :fallback-src="assetPrefix + 'champion-1'"
+              />
+            </template>
+          </n-tag>
+        </VueDraggable>
+        <n-select
+          v-model:value="selectPickChampionId"
+          filterable
+          :filter="filterChampionFunc"
+          placeholder="添加英雄"
+          :render-tag="renderSingleSelectTag"
+          :render-label="renderLabel"
+          :options="options"
+          size="small"
+          @update:value="addPickData"
+          style="width: 170px"
+        />
+      </n-flex>
+      <n-text depth="3" style="font-size: 12px">拖动可以改变选择英雄的优先级</n-text>
+
+      <RuleEditModal
+        v-model:show="pickModalShow"
+        mode="pick"
+        :initial="pickEditing"
+        :champion-options="options"
+        @save="onPickSave"
+      />
+    </n-card>
+
+    <!-- Ban group card -->
+    <n-card>
+      <template #header>
+        <span class="setting-label">
+          <n-icon size="20" color="#d03050">
+            <Close />
+          </n-icon>
+          自动禁止英雄
+        </span>
+      </template>
+      <template #header-extra>
+        <n-switch v-model:value="autoBan" @update:value="updateBanSwitch" />
+      </template>
+
+      <div class="rules-section">
+        <div class="section-title">
+          规则（按顺序匹配，第一条命中即用）
+          <n-button size="small" type="primary" @click="openBanEdit()">+ 添加规则</n-button>
+        </div>
+        <div v-for="rule in banRules" :key="rule.id" class="rule-row">
+          <n-checkbox
+            :checked="rule.enabled"
+            @update:checked="(v: boolean) => toggleBanRule(rule.id, v)"
+          />
+          <span class="rule-name">{{ rule.name }}</span>
+          <span class="rule-summary">{{ summarize(rule) }}</span>
+          <n-button quaternary size="small" @click="openBanEdit(rule)">编辑</n-button>
+          <n-button quaternary type="error" size="small" @click="deleteBanRule(rule.id)"
+            >删除</n-button
+          >
+        </div>
+      </div>
+
+      <div class="section-title">兜底（规则都没命中时按顺序选）</div>
+      <n-flex>
+        <VueDraggable ref="el" v-model="myBanData">
+          <n-tag
+            v-for="item in myBanData"
+            :key="item"
+            round
+            closable
+            @close="deleteBanData(item)"
+            :bordered="false"
+            style="margin-right: 15px"
+          >
+            {{ options.filter(option => option.value === item)?.[0]?.label || `英雄 ${item}` }}
+            <template #avatar>
+              <n-avatar
+                :src="assetPrefix + '/champion/' + item"
+                :fallback-src="assetPrefix + 'champion-1'"
+              />
+            </template>
+          </n-tag>
+        </VueDraggable>
+        <n-select
+          v-model:value="selectBanChampionId"
+          filterable
+          :filter="filterChampionFunc"
+          placeholder="添加英雄"
+          :render-tag="renderSingleSelectTag"
+          :render-label="renderLabel"
+          :options="options"
+          size="small"
+          @update:value="addBanData"
+          style="width: 170px"
+        />
+      </n-flex>
+      <n-text depth="3" style="font-size: 12px">拖动可以改变禁用英雄的优先级</n-text>
+
+      <RuleEditModal
+        v-model:show="banModalShow"
+        mode="ban"
+        :initial="banEditing"
+        :champion-options="options"
+        @save="onBanSave"
+      />
+    </n-card>
   </n-space>
 </template>
 <script setup lang="ts">
 import { VueDraggable } from 'vue-draggable-plus'
 import { onMounted, ref } from 'vue'
-import {
-  renderSingleSelectTag,
-  renderLabel,
-  filterChampionFunc
-} from '../../components/composition'
+import { renderSingleSelectTag, renderLabel, filterChampionFunc } from '@renderer/utils/champion'
 import { CheckmarkCircleOutline, FlashOutline, Close, PlayCircleOutline } from '@vicons/ionicons5'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import { assetPrefix } from '@renderer/services/http'

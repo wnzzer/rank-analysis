@@ -8,6 +8,7 @@ import {
   POSITION_LABEL
 } from '@renderer/types/rules'
 import type { championOption } from '@renderer/types/domain/champion'
+import { filterChampionFunc, renderLabel } from '@renderer/utils/champion'
 
 const props = defineProps<{
   modelValue: RuleCondition
@@ -71,8 +72,10 @@ function setIds(ids: number[]) {
       v-else
       multiple
       filterable
+      :filter="filterChampionFunc"
+      :render-label="renderLabel"
       :value="modelValue.ids"
-      :options="championOptions.map(c => ({ label: c.label, value: c.value }))"
+      :options="championOptions as any"
       placeholder="选择英雄"
       style="flex: 1; min-width: 200px"
       @update:value="setIds"
