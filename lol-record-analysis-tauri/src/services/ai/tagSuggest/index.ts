@@ -38,6 +38,7 @@ export type TagSuggestOutcome =
 
 // ─── cache helpers ────────────────────────────────────────────────────────────
 
+// 注：缓存按 puuid 分区。切换 LCU 账号后旧缓存仍存在但不会被读到（key 不同），不主动清理。
 /**
  * sessionStorage 缓存键（puuid 维度）。
  * @param puuid - 当前用户 puuid
@@ -161,6 +162,9 @@ export async function requestTagSuggestions(forceRefresh = false): Promise<TagSu
   const rawCacheKey = `ai_tag_suggest_raw_${puuid}_${Date.now()}`
 
   const aiResp = await requestAIContent(userPrompt, rawCacheKey, SYSTEM_PROMPT)
+  // 清掉孤儿 raw 缓存（已被 requestAIContent 写入但永不复用）
+  try { sessionStorage.removeItem(rawCacheKey) } catch { /* ignore */ }
+
   if (!aiResp.success) {
     return { kind: 'aiError', error: aiResp.error ?? 'unknown AI error' }
   }
