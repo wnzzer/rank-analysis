@@ -207,4 +207,66 @@ describe('parseAndValidate', () => {
     const r = parseAndValidate(raw)
     expect(r.good).toHaveLength(1)
   })
+
+  // desc / queue-scope consistency checks
+
+  it('drops entry where desc says 排位 but filter is entertainment-only', () => {
+    const bad = suggestion({ desc: '排位中路 KDA 高' })
+    ;(bad.condition as any) = {
+      type: 'history',
+      filters: [{ type: 'queue', ids: [1300] }], // 觉醒之战
+      refresh: { type: 'count', op: '>=', value: 5 },
+    }
+    const raw = JSON.stringify({ good: [bad], bad: [] })
+    const r = parseAndValidate(raw)
+    expect(r.droppedCount).toBe(1)
+  })
+
+  it('drops entry where desc says 排位 but filter mixes ranked and entertainment', () => {
+    const bad = suggestion({ desc: '排位玩 carry' })
+    ;(bad.condition as any) = {
+      type: 'history',
+      filters: [{ type: 'queue', ids: [420, 450] }], // mixes ranked + ARAM
+      refresh: { type: 'count', op: '>=', value: 5 },
+    }
+    const raw = JSON.stringify({ good: [bad], bad: [] })
+    const r = parseAndValidate(raw)
+    expect(r.droppedCount).toBe(1)
+  })
+
+  it('accepts entry where desc says 排位 and filter is ranked-only', () => {
+    const ok = suggestion({ desc: '排位中路 KDA ≥5' })
+    ;(ok.condition as any) = {
+      type: 'history',
+      filters: [{ type: 'queue', ids: [420, 440] }],
+      refresh: { type: 'count', op: '>=', value: 5 },
+    }
+    const raw = JSON.stringify({ good: [ok], bad: [] })
+    const r = parseAndValidate(raw)
+    expect(r.good).toHaveLength(1)
+  })
+
+  it('accepts entry where desc names entertainment mode and filter matches', () => {
+    const ok = suggestion({ desc: '大乱斗伤害王' })
+    ;(ok.condition as any) = {
+      type: 'history',
+      filters: [{ type: 'queue', ids: [450] }],
+      refresh: { type: 'count', op: '>=', value: 5 },
+    }
+    const raw = JSON.stringify({ good: [ok], bad: [] })
+    const r = parseAndValidate(raw)
+    expect(r.good).toHaveLength(1)
+  })
+
+  it('accepts entry without queue filter (desc unconstrained)', () => {
+    const ok = suggestion({ desc: '不分模式高 KDA' })
+    ;(ok.condition as any) = {
+      type: 'history',
+      filters: [{ type: 'stat', metric: 'kda', op: '>=', value: 5 }],
+      refresh: { type: 'count', op: '>=', value: 5 },
+    }
+    const raw = JSON.stringify({ good: [ok], bad: [] })
+    const r = parseAndValidate(raw)
+    expect(r.good).toHaveLength(1)
+  })
 })

@@ -28,6 +28,15 @@ describe('SYSTEM_PROMPT', () => {
   it('includes bad-tag few-shot example', () => {
     expect(SYSTEM_PROMPT).toContain('暮气沉沉')
   })
+  it('warns about mixing ranked and entertainment modes', () => {
+    expect(SYSTEM_PROMPT).toContain('模式严格分开')
+  })
+  it('requires desc to match filter queue', () => {
+    expect(SYSTEM_PROMPT).toContain('desc 必须与 filter 一致')
+  })
+  it('includes entertainment mode few-shot example', () => {
+    expect(SYSTEM_PROMPT).toContain('乱斗豪强')
+  })
 })
 
 describe('buildTagSuggestPrompt', () => {

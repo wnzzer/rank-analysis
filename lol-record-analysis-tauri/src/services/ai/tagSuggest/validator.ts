@@ -139,6 +139,50 @@ function isTagCondition(v: unknown): v is TagCondition {
   return false
 }
 
+// ─── mode / desc consistency check ───────────────────────────────────────────
+
+const RANKED_QUEUE_IDS: ReadonlySet<number> = new Set([420, 440])
+
+/**
+ * 递归收集 condition 树中所有 history filter 用到的 queue ids。
+ * 返回 null 表示完全没有用 queue filter。
+ */
+function collectQueueIds(c: TagCondition): number[] | null {
+  const out: number[] = []
+  let used = false
+  function walk(node: TagCondition): void {
+    if (node.type === 'and' || node.type === 'or') {
+      node.conditions.forEach(walk)
+    } else if (node.type === 'not') {
+      walk(node.condition)
+    } else if (node.type === 'history') {
+      for (const f of node.filters) {
+        if (f.type === 'queue') {
+          used = true
+          out.push(...f.ids)
+        }
+      }
+    }
+    // currentQueue / currentChampion 不参与历史统计语义，跳过
+  }
+  walk(c)
+  return used ? out : null
+}
+
+/**
+ * 检查 desc 是否声明了"排位"但 filter 里含有娱乐模式 id（或同时混了排位和娱乐）。
+ * - 含娱乐 id（任一非 420/440 的 queue id）且 desc 包含"排位" → 不一致 → 返回 false
+ * - 没用 queue filter → 不检查，desc 怎么写都行 → 返回 true
+ */
+function descMatchesQueueScope(desc: string, c: TagCondition): boolean {
+  const ids = collectQueueIds(c)
+  if (ids === null) return true // no queue filter → desc unconstrained
+  const hasNonRanked = ids.some(id => !RANKED_QUEUE_IDS.has(id))
+  const descSaysRanked = desc.includes('排位')
+  if (hasNonRanked && descSaysRanked) return false
+  return true
+}
+
 function nameOk(name: unknown): name is string {
   if (typeof name !== 'string') return false
   // 按 Unicode 字符数计算长度（正确处理中文、emoji 等多字节字符）
@@ -156,6 +200,10 @@ function buildSuggestion(raw: RawSuggestion, good: boolean): TagSuggestion | nul
   if (!nameOk(raw.name)) return null
   if (typeof raw.desc !== 'string' || raw.desc.trim().length === 0) return null
   if (!isTagCondition(raw.condition)) return null
+  // 语义层兜底：desc 模式声明必须和 filter 一致
+  if (!descMatchesQueueScope((raw.desc as string).trim(), raw.condition as TagCondition)) {
+    return null
+  }
   return {
     id: uuid(),
     name: (raw.name as string).trim(),
