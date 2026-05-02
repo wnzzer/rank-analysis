@@ -2,10 +2,37 @@
  * AI 标签建议的输入特征提取：把 LCU 对局原始数据压成喂给 AI 的精简结构。
  */
 
+/**
+ * 常用 LCU queueId → 中文名映射（涵盖排位 + 主流娱乐模式）。
+ * 未知 queueId 回退为 '其他模式'。
+ */
+const QUEUE_NAMES: Record<number, string> = {
+  420: '单双排位',
+  440: '灵活组排',
+  430: '匹配模式',
+  450: '大乱斗',
+  480: '快速匹配',
+  700: '冠军杯赛',
+  900: '无限火力',
+  1300: '觉醒之战',
+  1400: '终极魔典',
+  1700: '斗魂竞技场',
+  1900: '无限火力'
+}
+
+/**
+ * 将 queueId 转换为对应的中文模式名。未知 id 返回 '其他模式'。
+ */
+export function queueIdToName(id: number): string {
+  return QUEUE_NAMES[id] ?? '其他模式'
+}
+
 export interface GameFeature {
   win: boolean
   championId: number
   queueId: number
+  /** 中文模式名，如 '单双排位'、'大乱斗'，供 AI 直接识别 */
+  queueName: string
   durationMin: number
   kda: { k: number; d: number; a: number; ratio: number }
   damage: number
@@ -57,6 +84,7 @@ export function gameToFeature(game: RawGame, myPuuid: string): GameFeature | nul
     win: s.win ?? false,
     championId: p.championId ?? 0,
     queueId: game.queueId,
+    queueName: queueIdToName(game.queueId),
     durationMin: Math.round(game.gameDuration / 60),
     kda: { k, d, a, ratio: (k + a) / dForRatio },
     damage: s.totalDamageDealtToChampions ?? 0,
