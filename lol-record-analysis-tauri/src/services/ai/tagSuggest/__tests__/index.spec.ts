@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import type { MockedFunction } from 'vitest'
 
 // Mocks must be hoisted before the import
 vi.mock('@tauri-apps/api/core', () => ({
@@ -8,9 +9,9 @@ vi.mock('@renderer/services/ai/stream', () => ({
   requestAIContent: vi.fn()
 }))
 
-import { invoke } from '@tauri-apps/api/core'
-import { requestAIContent } from '@renderer/services/ai/stream'
-import { requestTagSuggestions, MIN_GAMES_REQUIRED, getCacheKey } from '../index'
+import type { invoke as InvokeFn } from '@tauri-apps/api/core'
+import type { requestAIContent as RequestAIContentFn } from '@renderer/services/ai/stream'
+import type { TagSuggestOutcome } from '../index'
 
 const fakeGoodAIResponse = JSON.stringify({
   good: [
@@ -37,14 +38,34 @@ function fakeGame(win: boolean, puuid = 'me') {
   }
 }
 
-beforeEach(() => {
+// Re-imported each test after vi.resetModules() to clear module-level cachedPuuid.
+let invoke: MockedFunction<typeof InvokeFn>
+let requestAIContent: MockedFunction<typeof RequestAIContentFn>
+let requestTagSuggestions: (forceRefresh?: boolean) => Promise<TagSuggestOutcome>
+let MIN_GAMES_REQUIRED: number
+let getCacheKey: (puuid: string) => string
+
+beforeEach(async () => {
   sessionStorage.clear()
   vi.clearAllMocks()
+  vi.resetModules()
+
+  // Re-import mocks and module under test after resetting modules
+  const coreMock = await import('@tauri-apps/api/core')
+  invoke = coreMock.invoke as MockedFunction<typeof InvokeFn>
+
+  const streamMock = await import('@renderer/services/ai/stream')
+  requestAIContent = streamMock.requestAIContent as MockedFunction<typeof RequestAIContentFn>
+
+  const mod = await import('../index')
+  requestTagSuggestions = mod.requestTagSuggestions
+  MIN_GAMES_REQUIRED = mod.MIN_GAMES_REQUIRED
+  getCacheKey = mod.getCacheKey
 })
 
 describe('requestTagSuggestions', () => {
   it('returns insufficient when game count < MIN_GAMES_REQUIRED', async () => {
-    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+    invoke.mockImplementation(async (cmd: string) => {
       if (cmd === 'get_my_summoner') return { puuid: 'me' }
       if (cmd === 'get_match_history_by_puuid') {
         return { games: { games: [fakeGame(true)] } } // only 1 game
@@ -57,7 +78,7 @@ describe('requestTagSuggestions', () => {
   })
 
   it('hits AI and parses on first call', async () => {
-    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+    invoke.mockImplementation(async (cmd: string) => {
       if (cmd === 'get_my_summoner') return { puuid: 'me' }
       if (cmd === 'get_match_history_by_puuid') {
         return {
@@ -68,55 +89,56 @@ describe('requestTagSuggestions', () => {
       }
       throw new Error('unexpected: ' + cmd)
     })
-    vi.mocked(requestAIContent).mockResolvedValue({ success: true, content: fakeGoodAIResponse })
+    requestAIContent.mockResolvedValue({ success: true, content: fakeGoodAIResponse })
 
     const r = await requestTagSuggestions()
     expect(r.kind).toBe('ok')
     if (r.kind === 'ok') {
       expect(r.result.good).toHaveLength(1)
       expect(r.result.good[0].name).toBe('中路雕将')
+      expect(r.puuid).toBe('me')
     }
   })
 
   it('uses cache on second call (no second AI fetch)', async () => {
-    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+    invoke.mockImplementation(async (cmd: string) => {
       if (cmd === 'get_my_summoner') return { puuid: 'me' }
       if (cmd === 'get_match_history_by_puuid') {
         return { games: { games: Array.from({ length: 10 }, () => fakeGame(true)) } }
       }
       throw new Error('unexpected: ' + cmd)
     })
-    vi.mocked(requestAIContent).mockResolvedValue({ success: true, content: fakeGoodAIResponse })
+    requestAIContent.mockResolvedValue({ success: true, content: fakeGoodAIResponse })
 
     await requestTagSuggestions()
     await requestTagSuggestions()
-    expect(vi.mocked(requestAIContent)).toHaveBeenCalledTimes(1)
+    expect(requestAIContent).toHaveBeenCalledTimes(1)
   })
 
   it('forceRefresh bypasses cache', async () => {
-    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+    invoke.mockImplementation(async (cmd: string) => {
       if (cmd === 'get_my_summoner') return { puuid: 'me' }
       if (cmd === 'get_match_history_by_puuid') {
         return { games: { games: Array.from({ length: 10 }, () => fakeGame(true)) } }
       }
       throw new Error('unexpected: ' + cmd)
     })
-    vi.mocked(requestAIContent).mockResolvedValue({ success: true, content: fakeGoodAIResponse })
+    requestAIContent.mockResolvedValue({ success: true, content: fakeGoodAIResponse })
 
     await requestTagSuggestions()
     await requestTagSuggestions(true)
-    expect(vi.mocked(requestAIContent)).toHaveBeenCalledTimes(2)
+    expect(requestAIContent).toHaveBeenCalledTimes(2)
   })
 
   it('returns aiError when requestAIContent fails', async () => {
-    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+    invoke.mockImplementation(async (cmd: string) => {
       if (cmd === 'get_my_summoner') return { puuid: 'me' }
       if (cmd === 'get_match_history_by_puuid') {
         return { games: { games: Array.from({ length: 10 }, () => fakeGame(true)) } }
       }
       throw new Error('unexpected: ' + cmd)
     })
-    vi.mocked(requestAIContent).mockResolvedValue({ success: false, error: 'network down' })
+    requestAIContent.mockResolvedValue({ success: false, error: 'network down' })
 
     const r = await requestTagSuggestions()
     expect(r.kind).toBe('aiError')
@@ -124,28 +146,28 @@ describe('requestTagSuggestions', () => {
   })
 
   it('returns parseError when JSON is malformed', async () => {
-    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+    invoke.mockImplementation(async (cmd: string) => {
       if (cmd === 'get_my_summoner') return { puuid: 'me' }
       if (cmd === 'get_match_history_by_puuid') {
         return { games: { games: Array.from({ length: 10 }, () => fakeGame(true)) } }
       }
       throw new Error('unexpected: ' + cmd)
     })
-    vi.mocked(requestAIContent).mockResolvedValue({ success: true, content: 'not json' })
+    requestAIContent.mockResolvedValue({ success: true, content: 'not json' })
 
     const r = await requestTagSuggestions()
     expect(r.kind).toBe('parseError')
   })
 
   it('returns aiError when AI returns empty content (proxy issue)', async () => {
-    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+    invoke.mockImplementation(async (cmd: string) => {
       if (cmd === 'get_my_summoner') return { puuid: 'me' }
       if (cmd === 'get_match_history_by_puuid') {
         return { games: { games: Array.from({ length: 10 }, () => fakeGame(true)) } }
       }
       throw new Error('unexpected: ' + cmd)
     })
-    vi.mocked(requestAIContent).mockResolvedValue({ success: true, content: '' })
+    requestAIContent.mockResolvedValue({ success: true, content: '' })
     const r = await requestTagSuggestions()
     expect(r.kind).toBe('aiError')
     if (r.kind === 'aiError') expect(r.error).toContain('空响应')

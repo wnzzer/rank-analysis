@@ -14,11 +14,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 
 vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn(),
+  invoke: vi.fn()
 }))
 vi.mock('@renderer/services/ai/tagSuggest', () => ({
   requestTagSuggestions: vi.fn(),
-  markAdopted: vi.fn(),
+  markAdopted: vi.fn()
 }))
 
 import { invoke } from '@tauri-apps/api/core'
@@ -34,12 +34,14 @@ import AISuggestModal from '../AISuggestModal.vue'
 const stubs = {
   Modal: { template: '<div><slot /></div>' },
   Card: { template: '<div><slot /><slot name="header-extra" /></div>' },
-  Button: { template: '<button :disabled="$attrs.disabled" @click="$emit(\'click\')"><slot /></button>' },
+  Button: {
+    template: '<button :disabled="$attrs.disabled" @click="$emit(\'click\')"><slot /></button>'
+  },
   Tag: { template: '<span><slot /></span>' },
   Space: { template: '<div><slot /></div>' },
   Spin: { template: '<div>spinning</div>' },
   Empty: { template: '<div>{{ $attrs.description }}<slot /><slot name="extra" /></div>' },
-  Text: { template: '<span><slot /></span>' },
+  Text: { template: '<span><slot /></span>' }
 }
 
 beforeEach(() => {
@@ -54,7 +56,7 @@ describe('AISuggestModal', () => {
     vi.mocked(requestTagSuggestions).mockResolvedValue({ kind: 'insufficient', gameCount: 3 })
     const w = mount(AISuggestModal, {
       props: { show: true },
-      global: { stubs },
+      global: { stubs }
     })
     await new Promise(r => setTimeout(r, 0))
     await w.vm.$nextTick()
@@ -67,14 +69,33 @@ describe('AISuggestModal', () => {
   it('shows ok results with good/bad cards', async () => {
     vi.mocked(requestTagSuggestions).mockResolvedValue({
       kind: 'ok',
+      puuid: 'me',
       result: {
-        good: [{ id: 'g1', name: '中路雕将', desc: 'ok', good: true, enabled: true,
-                 condition: { type: 'currentQueue', ids: [420] }, isDefault: false }],
-        bad: [{ id: 'b1', name: '兵线漂泊', desc: 'bad', good: false, enabled: true,
-                condition: { type: 'currentQueue', ids: [420] }, isDefault: false }],
+        good: [
+          {
+            id: 'g1',
+            name: '中路雕将',
+            desc: 'ok',
+            good: true,
+            enabled: true,
+            condition: { type: 'currentQueue', ids: [420] },
+            isDefault: false
+          }
+        ],
+        bad: [
+          {
+            id: 'b1',
+            name: '兵线漂泊',
+            desc: 'bad',
+            good: false,
+            enabled: true,
+            condition: { type: 'currentQueue', ids: [420] },
+            isDefault: false
+          }
+        ],
         droppedCount: 0,
-        generatedAt: '2026-05-02T00:00:00Z',
-      },
+        generatedAt: '2026-05-02T00:00:00Z'
+      }
     } as any)
     const w = mount(AISuggestModal, { props: { show: true }, global: { stubs } })
     await new Promise(r => setTimeout(r, 0))
@@ -89,18 +110,27 @@ describe('AISuggestModal', () => {
   it('adopt calls save_tag_configs with merged list', async () => {
     vi.mocked(requestTagSuggestions).mockResolvedValue({
       kind: 'ok',
+      puuid: 'me',
       result: {
-        good: [{ id: 'g1', name: '中路雕将', desc: 'd', good: true, enabled: true,
-                 condition: { type: 'currentQueue', ids: [420] }, isDefault: false }],
+        good: [
+          {
+            id: 'g1',
+            name: '中路雕将',
+            desc: 'd',
+            good: true,
+            enabled: true,
+            condition: { type: 'currentQueue', ids: [420] },
+            isDefault: false
+          }
+        ],
         bad: [],
         droppedCount: 0,
-        generatedAt: '2026-05-02',
-      },
+        generatedAt: '2026-05-02'
+      }
     } as any)
     vi.mocked(invoke).mockImplementation(async (cmd: string) => {
       if (cmd === 'get_all_tag_configs') return [{ id: 'existing', name: 'X' }]
       if (cmd === 'save_tag_configs') return undefined
-      if (cmd === 'get_my_summoner') return { puuid: 'me' }
       throw new Error('unexpected: ' + cmd)
     })
     const w = mount(AISuggestModal, { props: { show: true }, global: { stubs } })
@@ -111,12 +141,15 @@ describe('AISuggestModal', () => {
     await adoptBtn.trigger('click')
     await new Promise(r => setTimeout(r, 0))
 
-    expect(vi.mocked(invoke)).toHaveBeenCalledWith('save_tag_configs', expect.objectContaining({
-      configs: expect.arrayContaining([
-        expect.objectContaining({ id: 'existing' }),
-        expect.objectContaining({ id: 'g1' }),
-      ]),
-    }))
+    expect(vi.mocked(invoke)).toHaveBeenCalledWith(
+      'save_tag_configs',
+      expect.objectContaining({
+        configs: expect.arrayContaining([
+          expect.objectContaining({ id: 'existing' }),
+          expect.objectContaining({ id: 'g1' })
+        ])
+      })
+    )
   })
 
   /**
@@ -125,7 +158,8 @@ describe('AISuggestModal', () => {
   it('forceRefresh calls requestTagSuggestions twice', async () => {
     vi.mocked(requestTagSuggestions).mockResolvedValue({
       kind: 'ok',
-      result: { good: [], bad: [], droppedCount: 0, generatedAt: 'x' },
+      puuid: 'me',
+      result: { good: [], bad: [], droppedCount: 0, generatedAt: 'x' }
     })
     const w = mount(AISuggestModal, { props: { show: true }, global: { stubs } })
     await new Promise(r => setTimeout(r, 0))
@@ -133,7 +167,8 @@ describe('AISuggestModal', () => {
     vi.clearAllMocks()
     vi.mocked(requestTagSuggestions).mockResolvedValue({
       kind: 'ok',
-      result: { good: [], bad: [], droppedCount: 0, generatedAt: 'x' },
+      puuid: 'me',
+      result: { good: [], bad: [], droppedCount: 0, generatedAt: 'x' }
     })
 
     const refreshBtn = w.findAll('button').find(b => b.text().includes('重新生成'))

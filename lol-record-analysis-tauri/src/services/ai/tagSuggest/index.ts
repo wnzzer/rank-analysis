@@ -19,6 +19,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { requestAIContent } from '@renderer/services/ai/stream'
 import type { TagSuggestion, TagSuggestResult } from '@renderer/types/tagSuggest'
+import type { AIAnalysisResult } from '@renderer/services/ai/types'
 import { gameToFeature, splitWinsLosses, type RawGame } from './featureExtract'
 import { buildTagSuggestPrompt, SYSTEM_PROMPT } from './prompt'
 import { parseAndValidate } from './validator'
@@ -31,7 +32,7 @@ export const MAX_GAMES_FETCHED = 20
 // ─── outcome discriminated union ──────────────────────────────────────────────
 
 export type TagSuggestOutcome =
-  | { kind: 'ok'; result: TagSuggestResult }
+  | { kind: 'ok'; result: TagSuggestResult; puuid: string }
   | { kind: 'insufficient'; gameCount: number }
   | { kind: 'aiError'; error: string }
   | { kind: 'parseError'; error: string }
@@ -93,9 +94,14 @@ export function markAdopted(puuid: string, suggestionId: string): void {
 
 // ─── internal helpers ─────────────────────────────────────────────────────────
 
+// Module-level cache: puuid is stable within an LCU session, so we fetch it once.
+let cachedPuuid: string | null = null
+
 async function getCurrentUserPuuid(): Promise<string> {
+  if (cachedPuuid) return cachedPuuid
   const summoner = await invoke<{ puuid: string }>('get_my_summoner')
-  return summoner.puuid
+  cachedPuuid = summoner.puuid
+  return cachedPuuid
 }
 
 interface RawMatchHistoryResponse {
@@ -140,7 +146,8 @@ export async function requestTagSuggestions(forceRefresh = false): Promise<TagSu
           bad: cached.bad,
           droppedCount: cached.droppedCount,
           generatedAt: cached.generatedAt
-        }
+        },
+        puuid
       }
     }
   }
@@ -161,12 +168,16 @@ export async function requestTagSuggestions(forceRefresh = false): Promise<TagSu
   // 每次强制刷新使用独立的原始缓存 key，避免与结构化缓存互相污染
   const rawCacheKey = `ai_tag_suggest_raw_${puuid}_${Date.now()}`
 
-  const aiResp = await requestAIContent(userPrompt, rawCacheKey, SYSTEM_PROMPT)
-  // 清掉孤儿 raw 缓存（已被 requestAIContent 写入但永不复用）
+  let aiResp: AIAnalysisResult
   try {
-    sessionStorage.removeItem(rawCacheKey)
-  } catch {
-    /* ignore */
+    aiResp = await requestAIContent(userPrompt, rawCacheKey, SYSTEM_PROMPT)
+  } finally {
+    // 不论成功失败都清掉孤儿 raw 缓存（AI throw 时也不留垃圾）
+    try {
+      sessionStorage.removeItem(rawCacheKey)
+    } catch {
+      /* ignore */
+    }
   }
 
   if (!aiResp.success) {
@@ -202,6 +213,7 @@ export async function requestTagSuggestions(forceRefresh = false): Promise<TagSu
       bad: toCache.bad,
       droppedCount: toCache.droppedCount,
       generatedAt: toCache.generatedAt
-    }
+    },
+    puuid
   }
 }
