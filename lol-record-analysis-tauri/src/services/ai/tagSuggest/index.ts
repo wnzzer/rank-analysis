@@ -163,16 +163,26 @@ export async function requestTagSuggestions(forceRefresh = false): Promise<TagSu
 
   const aiResp = await requestAIContent(userPrompt, rawCacheKey, SYSTEM_PROMPT)
   // 清掉孤儿 raw 缓存（已被 requestAIContent 写入但永不复用）
-  try { sessionStorage.removeItem(rawCacheKey) } catch { /* ignore */ }
+  try {
+    sessionStorage.removeItem(rawCacheKey)
+  } catch {
+    /* ignore */
+  }
 
   if (!aiResp.success) {
     return { kind: 'aiError', error: aiResp.error ?? 'unknown AI error' }
   }
 
+  // Guard against upstream returning HTTP 200 with empty body (e.g. proxy rate-limited
+  // or returned non-SSE content) — surface as aiError so the user sees the retry button.
+  if (!aiResp.content || aiResp.content.trim().length === 0) {
+    return { kind: 'aiError', error: 'AI 返回空响应（可能是代理限流）' }
+  }
+
   // 校验并写缓存
   let parsed
   try {
-    parsed = parseAndValidate(aiResp.content ?? '')
+    parsed = parseAndValidate(aiResp.content)
   } catch (e) {
     return { kind: 'parseError', error: (e as Error).message }
   }
