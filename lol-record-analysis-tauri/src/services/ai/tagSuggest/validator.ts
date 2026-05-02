@@ -48,15 +48,15 @@ function uuid(): string {
     : `t-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
-/**
- * 剥掉 ```json ... ``` markdown 包裹（如果有），返回纯 JSON 字符串。
- */
+/** 容忍 AI 输出中前后多余文字的 fence 剥离：先尝试 ```json ... ```，再 fallback 抓首个 {...} 块。 */
 function stripJsonFences(raw: string): string {
   const trimmed = raw.trim()
-  if (!trimmed.startsWith('```')) return trimmed
-  const lines = trimmed.split('\n')
-  // 去掉第一行 ```json 和最后一行 ```
-  return lines.slice(1, -1).join('\n')
+  // 优先：抓 ```json ... ``` 或 ``` ... ``` 之间的内容（容忍前后散文）
+  const fenceMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i)
+  const candidate = fenceMatch ? fenceMatch[1] : trimmed
+  // 兜底：如果还有围绕的散文，抓首个 {...} 平衡块（贪婪匹配到最后一个 }）
+  const objMatch = candidate.match(/\{[\s\S]*\}/)
+  return objMatch ? objMatch[0] : candidate
 }
 
 function isOperator(v: unknown): v is Operator {
@@ -157,8 +157,12 @@ function buildSuggestion(raw: RawSuggestion, good: boolean): TagSuggestion | nul
  */
 export function parseAndValidate(raw: string): Omit<TagSuggestResult, 'generatedAt'> {
   const cleaned = stripJsonFences(raw)
-  const parsed = JSON.parse(cleaned) as { good?: unknown; bad?: unknown }
-  if (!Array.isArray(parsed.good) || !Array.isArray(parsed.bad)) {
+  const parsed = JSON.parse(cleaned) as unknown
+  if (typeof parsed !== 'object' || parsed === null) {
+    throw new Error('AI response is not a JSON object')
+  }
+  const root = parsed as { good?: unknown; bad?: unknown }
+  if (!Array.isArray(root.good) || !Array.isArray(root.bad)) {
     throw new Error('AI response missing good/bad arrays')
   }
 
@@ -166,12 +170,12 @@ export function parseAndValidate(raw: string): Omit<TagSuggestResult, 'generated
   const bad: TagSuggestion[] = []
   let droppedCount = 0
 
-  for (const entry of parsed.good as RawSuggestion[]) {
+  for (const entry of root.good as RawSuggestion[]) {
     const s = buildSuggestion(entry, true)
     if (s) good.push(s)
     else droppedCount++
   }
-  for (const entry of parsed.bad as RawSuggestion[]) {
+  for (const entry of root.bad as RawSuggestion[]) {
     const s = buildSuggestion(entry, false)
     if (s) bad.push(s)
     else droppedCount++
