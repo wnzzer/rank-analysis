@@ -19,6 +19,15 @@ describe('SYSTEM_PROMPT', () => {
     expect(SYSTEM_PROMPT).toContain('good')
     expect(SYSTEM_PROMPT).toContain('bad')
   })
+  it('warns about the tautology anti-pattern', () => {
+    expect(SYSTEM_PROMPT).toContain('套套逻辑')
+  })
+  it('includes good-tag few-shot example', () => {
+    expect(SYSTEM_PROMPT).toContain('中路稳健')
+  })
+  it('includes bad-tag few-shot example', () => {
+    expect(SYSTEM_PROMPT).toContain('暮气沉沉')
+  })
 })
 
 describe('buildTagSuggestPrompt', () => {
