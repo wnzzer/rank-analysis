@@ -63,7 +63,9 @@ mod tests {
 
     #[test]
     fn condition_position_round_trip() {
-        let c = RuleCondition::Position { value: Position::Top };
+        let c = RuleCondition::Position {
+            value: Position::Top,
+        };
         let s = serde_json::to_string(&c).unwrap();
         assert!(s.contains(r#""type":"Position""#));
         let back: RuleCondition = serde_json::from_str(&s).unwrap();
@@ -73,20 +75,25 @@ mod tests {
     #[test]
     fn condition_ally_contains_round_trip() {
         let c = RuleCondition::AllyChampionsContains { ids: vec![157, 99] };
-        let back: RuleCondition = serde_json::from_str(&serde_json::to_string(&c).unwrap()).unwrap();
+        let back: RuleCondition =
+            serde_json::from_str(&serde_json::to_string(&c).unwrap()).unwrap();
         assert_eq!(back, c);
     }
 
     #[test]
     fn condition_enemy_not_contains_round_trip() {
         let c = RuleCondition::EnemyChampionsNotContains { ids: vec![89] };
-        let back: RuleCondition = serde_json::from_str(&serde_json::to_string(&c).unwrap()).unwrap();
+        let back: RuleCondition =
+            serde_json::from_str(&serde_json::to_string(&c).unwrap()).unwrap();
         assert_eq!(back, c);
     }
 
     #[test]
     fn pick_action_round_trip() {
-        let a = PickAction { champion_id: 157, lock: true };
+        let a = PickAction {
+            champion_id: 157,
+            lock: true,
+        };
         let s = serde_json::to_string(&a).unwrap();
         let back: PickAction = serde_json::from_str(&s).unwrap();
         assert_eq!(back.champion_id, 157);
@@ -108,10 +115,15 @@ mod tests {
             name: "中路防刺客".to_string(),
             enabled: true,
             conditions: vec![
-                RuleCondition::Position { value: Position::Middle },
+                RuleCondition::Position {
+                    value: Position::Middle,
+                },
                 RuleCondition::EnemyChampionsContains { ids: vec![238] },
             ],
-            action: PickAction { champion_id: 1, lock: false },
+            action: PickAction {
+                champion_id: 1,
+                lock: false,
+            },
         };
         let s = serde_json::to_string(&r).unwrap();
         let back: PickRule = serde_json::from_str(&s).unwrap();
@@ -124,10 +136,15 @@ mod tests {
             id: "b1".to_string(),
             name: "克制 ADC".to_string(),
             enabled: true,
-            conditions: vec![RuleCondition::Position { value: Position::Bottom }],
+            conditions: vec![RuleCondition::Position {
+                value: Position::Bottom,
+            }],
             action: BanAction { champion_id: 89 },
         };
         let s = serde_json::to_string(&r).unwrap();
-        assert!(!s.contains("lock"), "BanAction must not serialize a lock field, got: {s}");
+        assert!(
+            !s.contains("lock"),
+            "BanAction must not serialize a lock field, got: {s}"
+        );
     }
 }

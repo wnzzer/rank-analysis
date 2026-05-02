@@ -539,14 +539,11 @@ async fn execute_pick_action(
         .await?;
     } else if my_picked_champion_id == 0 && !completed && !is_in_progress {
         // 预选阶段 — 始终 hover，忽略 lock 标志
-        log::info!("Rule action: hovering champion {} (pre-select)", action.champion_id);
-        patch_session_action(
-            action_id,
-            action.champion_id,
-            "pick".to_string(),
-            false,
-        )
-        .await?;
+        log::info!(
+            "Rule action: hovering champion {} (pre-select)",
+            action.champion_id
+        );
+        patch_session_action(action_id, action.champion_id, "pick".to_string(), false).await?;
     } else {
         log::debug!("No pick action needed under current state");
     }
@@ -1237,9 +1234,10 @@ mod tests {
         let mut map = HashMap::new();
         map.insert(
             "value".to_string(),
-            Value::List(vec![
-                serde_json::from_value::<Value>(pick_rule_json("r1", 99, true)).unwrap()
-            ]),
+            Value::List(vec![serde_json::from_value::<Value>(pick_rule_json(
+                "r1", 99, true,
+            ))
+            .unwrap()]),
         );
         let v = Value::Map(map);
         let rules = parse_pick_rules_value(&v);
