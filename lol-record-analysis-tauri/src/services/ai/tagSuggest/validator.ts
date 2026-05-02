@@ -128,7 +128,12 @@ function isTagCondition(v: unknown): v is TagCondition {
     if (!Array.isArray(o.filters) || !o.filters.every(isMatchFilter)) return false
     if (!isMatchRefresh(o.refresh)) return false
     // 语义层兜底：拒绝 filter 和 refresh 同 metric + 同向的套套逻辑
-    if (hasFilterRefreshTautology({ filters: o.filters as MatchFilter[], refresh: o.refresh as MatchRefresh })) {
+    if (
+      hasFilterRefreshTautology({
+        filters: o.filters as MatchFilter[],
+        refresh: o.refresh as MatchRefresh
+      })
+    ) {
       return false
     }
     return true
