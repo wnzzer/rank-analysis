@@ -104,7 +104,6 @@ fn unavailable_champion_ids(session: &SelectSession) -> std::collections::HashSe
 ///
 /// 调用方需保证仅在当前玩家的 ban 回合（is_in_progress=true）调用，
 /// 否则可能在错误的时机触发 ban。
-#[allow(dead_code)]
 pub(crate) fn evaluate_ban<'a>(
     session: &SelectSession,
     my_position: Option<Position>,

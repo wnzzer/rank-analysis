@@ -438,7 +438,6 @@ fn parse_pick_rules_value(value: &Value) -> Vec<crate::command::rule_config::Pic
 ///
 /// - 非 array 形态（空字符串占位、Null、未初始化）静默返回空，不打日志。
 /// - 仅当真的是 array 但内容格式有误时才打 warn。
-#[allow(dead_code)] // T11 (wire into start_ban_champion) will activate this
 fn parse_ban_rules_value(value: &Value) -> Vec<crate::command::rule_config::BanRule> {
     use crate::command::rule_config::BanRule;
     let json = match serde_json::to_value(value) {
@@ -471,7 +470,6 @@ async fn load_pick_rules() -> Vec<crate::command::rule_config::PickRule> {
 /// 从配置中读取 banRules 列表。
 ///
 /// 配置缺失时返回空向量（视为"未配置规则"，走兜底逻辑）。
-#[allow(dead_code)] // T11 (wire into start_ban_champion) will activate this
 async fn load_ban_rules() -> Vec<crate::command::rule_config::BanRule> {
     match get_config("settings.auto.banRules").await {
         Ok(v) => parse_ban_rules_value(&v),
@@ -781,25 +779,101 @@ async fn start_champion_ban_automation() {
 
 /// 执行英雄禁用操作。
 ///
+/// 优先走规则引擎：若配置了 banRules 且有规则命中，直接执行对应 ban action。
+/// 否则回退到传统的 banChampionSlice 兜底逻辑。
+///
 /// # 返回值
 ///
 /// - `Ok(())`: 禁用操作完成（或无需操作）
 /// - `Err(String)`: 操作失败
-///
-/// # 逻辑流程
-///
-/// 1. 获取选人阶段会话信息
-/// 2. 从配置读取预设禁用英雄列表
-/// 3. 检查是否已经禁用（避免重复禁用）
-/// 4. 排除已被禁用的英雄（敌方或队友禁用）
-/// 5. 排除队友预选的英雄
-/// 6. 从预设列表中选择第一个可用英雄
-/// 7. 如果轮到我的禁用回合，执行禁用
 async fn start_ban_champion() -> Result<(), String> {
     let select_session = get_champion_select_session().await?;
     let my_cell_id = select_session.local_player_cell_id;
     log::info!("Current player cell ID: {}", my_cell_id);
 
+    let rules = load_ban_rules().await;
+    if !rules.is_empty() {
+        let my_summoner = match crate::lcu::api::summoner::Summoner::get_my_summoner().await {
+            Ok(s) => s,
+            Err(e) => {
+                log::warn!("Failed to get my summoner for rule engine: {}", e);
+                return start_ban_champion_slice_fallback(&select_session, my_cell_id).await;
+            }
+        };
+        let my_pos = crate::rule_engine::detect_my_position(&select_session, &my_summoner.puuid);
+        if let Some(action) = crate::rule_engine::evaluate_ban(&select_session, my_pos, &rules) {
+            log::info!("Ban rule matched: champion={}", action.champion_id);
+            return execute_ban_action(&select_session, my_cell_id, action).await;
+        }
+        log::debug!("No ban rule matched, falling back to banChampionSlice");
+    }
+
+    start_ban_champion_slice_fallback(&select_session, my_cell_id).await
+}
+
+/// 执行 ban 规则的 action。
+///
+/// 仅当我自己的 ban 槽 `is_in_progress=true` 且未完成时才发请求；
+/// 否则视为时机不对（已完成 / 还没轮到）静默 no-op。
+async fn execute_ban_action(
+    select_session: &crate::lcu::api::champion_select::SelectSession,
+    my_cell_id: i32,
+    action: &crate::command::rule_config::BanAction,
+) -> Result<(), String> {
+    let mut action_id = -1;
+    let mut is_in_progress = false;
+    let mut already_completed = false;
+
+    for action_group in &select_session.actions {
+        if !action_group.is_empty() && action_group[0].action_type == "ban" {
+            for ban in action_group {
+                if ban.actor_cell_id == my_cell_id {
+                    if ban.completed {
+                        already_completed = true;
+                    }
+                    if ban.is_in_progress {
+                        action_id = ban.id;
+                        is_in_progress = true;
+                    }
+                }
+            }
+        }
+    }
+
+    if already_completed {
+        log::debug!("Ban already completed");
+        return Ok(());
+    }
+    if action_id == -1 || !is_in_progress {
+        log::debug!("No ban action in progress for current player");
+        return Ok(());
+    }
+
+    log::info!("Rule action: banning champion {}", action.champion_id);
+    crate::lcu::api::champion_select::patch_session_action(
+        action_id,
+        action.champion_id,
+        "ban".to_string(),
+        true,
+    )
+    .await?;
+    Ok(())
+}
+
+/// 兜底禁用逻辑：使用配置的 banChampionSlice 列表依序选择可用英雄执行禁用。
+///
+/// # 逻辑流程
+///
+/// 1. 从配置读取预设禁用英雄列表
+/// 2. 检查是否已经禁用（避免重复禁用）
+/// 3. 排除已被禁用的英雄（敌方或队友禁用）
+/// 4. 排除队友预选的英雄
+/// 5. 从预设列表中选择第一个可用英雄
+/// 6. 如果轮到我的禁用回合，执行禁用
+async fn start_ban_champion_slice_fallback(
+    select_session: &crate::lcu::api::champion_select::SelectSession,
+    my_cell_id: i32,
+) -> Result<(), String> {
     let my_ban_champion_slice = match get_config("settings.auto.banChampionSlice").await {
         Ok(Value::Map(m)) => {
             // Handle nested structure: { "value": [list] }
