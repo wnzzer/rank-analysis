@@ -1,5 +1,17 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { parseAndValidate } from '../validator'
+
+const STUB_UUID = '00000000-0000-4000-8000-000000000000'
+let originalRandomUUID: typeof crypto.randomUUID | undefined
+
+beforeEach(() => {
+  originalRandomUUID = crypto.randomUUID?.bind(crypto)
+  crypto.randomUUID = vi.fn(() => STUB_UUID)
+})
+
+afterEach(() => {
+  if (originalRandomUUID) crypto.randomUUID = originalRandomUUID
+})
 
 describe('parseAndValidate', () => {
   function suggestion(overrides: Partial<{ name: string; desc: string }> = {}) {
@@ -9,9 +21,9 @@ describe('parseAndValidate', () => {
       condition: {
         type: 'history',
         filters: [{ type: 'stat', metric: 'kda', op: '>=', value: 5 }],
-        refresh: { type: 'count', op: '>=', value: 5 },
+        refresh: { type: 'count', op: '>=', value: 5 }
       },
-      ...overrides,
+      ...overrides
     }
   }
 
@@ -61,7 +73,7 @@ describe('parseAndValidate', () => {
   it('preserves valid entries from a mixed batch', () => {
     const raw = JSON.stringify({
       good: [suggestion(), suggestion({ name: '中' })],
-      bad: [suggestion()],
+      bad: [suggestion()]
     })
     const r = parseAndValidate(raw)
     expect(r.good).toHaveLength(1)
@@ -87,7 +99,7 @@ describe('parseAndValidate', () => {
   it('generates id (uuid) and sets isDefault=false / enabled=true', () => {
     const raw = JSON.stringify({ good: [suggestion()], bad: [] })
     const r = parseAndValidate(raw)
-    expect(r.good[0].id).toMatch(/[a-f0-9-]+/)
+    expect(r.good[0].id).toBe(STUB_UUID)
     expect(r.good[0].isDefault).toBe(false)
     expect(r.good[0].enabled).toBe(true)
   })
@@ -125,7 +137,7 @@ describe('parseAndValidate', () => {
     const validHistory = {
       type: 'history',
       filters: [{ type: 'stat', metric: 'kda', op: '>=', value: 5 }],
-      refresh: { type: 'count', op: '>=', value: 3 },
+      refresh: { type: 'count', op: '>=', value: 3 }
     }
     const validQueue = { type: 'currentQueue', ids: [420] }
     const ok = suggestion()
@@ -139,12 +151,12 @@ describe('parseAndValidate', () => {
     const validHistory = {
       type: 'history',
       filters: [{ type: 'stat', metric: 'kda', op: '>=', value: 5 }],
-      refresh: { type: 'count', op: '>=', value: 3 },
+      refresh: { type: 'count', op: '>=', value: 3 }
     }
     const bad = suggestion()
     ;(bad.condition as any) = {
       type: 'and',
-      conditions: [validHistory, { type: 'bogus' }],
+      conditions: [validHistory, { type: 'bogus' }]
     }
     const raw = JSON.stringify({ good: [bad], bad: [] })
     const r = parseAndValidate(raw)
