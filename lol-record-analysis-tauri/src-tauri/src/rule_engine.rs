@@ -81,6 +81,7 @@ pub(crate) fn evaluate_pick<'a>(
 /// 收集当前选人会话中"不可选/不可 ban"的英雄 ID 集合：
 /// - 任何已完成的 ban
 /// - 其他位置玩家的 hover / pick（championId != 0）
+/// - 当前用户自己的 hover/pick 不计入（允许重新选择同一英雄）
 #[allow(dead_code)]
 fn unavailable_champion_ids(session: &SelectSession) -> std::collections::HashSet<i32> {
     let my_cell = session.local_player_cell_id;
@@ -420,5 +421,49 @@ mod tests {
         ];
         let action = evaluate_pick(&s, Some(Position::Middle), &rules).unwrap();
         assert_eq!(action.champion_id, 100);
+    }
+
+    #[test]
+    fn evaluate_pick_ignores_own_pending_hover() {
+        use crate::lcu::api::champion_select::Action;
+        let my_hover = Action {
+            actor_cell_id: 0, // == session.local_player_cell_id
+            id: 3,
+            champion_id: 99,
+            completed: false,
+            is_ally_action: true,
+            is_in_progress: true,
+            action_type: "pick".to_string(),
+        };
+        let s = session_with_picks_and_bans(
+            vec![player("me", "middle")],
+            vec![],
+            vec![vec![my_hover]],
+        );
+        let rules = vec![
+            pick_rule("r1", vec![RuleCondition::Position { value: Position::Middle }], 99, true, true),
+        ];
+        // 自己的 hover 不应阻止重新选择同一英雄
+        let action = evaluate_pick(&s, Some(Position::Middle), &rules).unwrap();
+        assert_eq!(action.champion_id, 99);
+    }
+
+    #[test]
+    fn evaluate_pick_requires_all_conditions_to_match() {
+        let s = make_session(vec![player("me", "middle"), ally_champ(157)]);
+        let rules = vec![
+            // 中路 + 自家无亚索 → 选 1（第二个条件不满足，应跳过）
+            pick_rule("r1", vec![
+                RuleCondition::Position { value: Position::Middle },
+                RuleCondition::AllyChampionsNotContains { ids: vec![157] },
+            ], 1, true, true),
+            // 中路 + 自家有亚索 → 选 2（应命中）
+            pick_rule("r2", vec![
+                RuleCondition::Position { value: Position::Middle },
+                RuleCondition::AllyChampionsContains { ids: vec![157] },
+            ], 2, true, true),
+        ];
+        let action = evaluate_pick(&s, Some(Position::Middle), &rules).unwrap();
+        assert_eq!(action.champion_id, 2);
     }
 }
