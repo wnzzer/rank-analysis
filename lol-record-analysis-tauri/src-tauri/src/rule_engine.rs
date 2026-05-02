@@ -3,7 +3,7 @@
 //! 输入：当前选人会话 + 当前用户位置 + 用户配置的规则列表。
 //! 输出：第一条命中且目标可执行的 action（或 None）。
 
-use crate::command::rule_config::{Position, RuleCondition};
+use crate::command::rule_config::{PickAction, PickRule, Position, RuleCondition};
 use crate::lcu::api::champion_select::{OnePlayer, SelectSession};
 
 /// 从选人会话中找到当前用户，读取其 `assigned_position` 并映射到 `Position`。
@@ -27,8 +27,6 @@ fn parse_position(s: &str) -> Option<Position> {
 }
 
 /// 求值单个条件。
-// T10/T11 will call this from production code; suppress until then.
-#[allow(dead_code)]
 pub(crate) fn match_condition(
     cond: &RuleCondition,
     session: &SelectSession,
@@ -51,6 +49,54 @@ fn team_has_any(team: &[OnePlayer], ids: &[i32]) -> bool {
         let cid = p.champion_id;
         cid != 0 && ids.contains(&cid)
     })
+}
+
+/// 按用户拖拽顺序遍历规则，返回第一条匹配且目标可执行的 action。
+///
+/// "可执行" = 目标英雄未被任何人 ban（completed），且未被其他位置的玩家 hover/pick。
+/// 当前用户自己之前的 hover 不阻止重新选择同一个英雄。
+#[allow(dead_code)]
+pub(crate) fn evaluate_pick<'a>(
+    session: &SelectSession,
+    my_position: Option<Position>,
+    rules: &'a [PickRule],
+) -> Option<&'a PickAction> {
+    let unavailable = unavailable_champion_ids(session);
+
+    for rule in rules.iter().filter(|r| r.enabled) {
+        let all_match = rule
+            .conditions
+            .iter()
+            .all(|c| match_condition(c, session, my_position));
+        if !all_match {
+            continue;
+        }
+        if !unavailable.contains(&rule.action.champion_id) {
+            return Some(&rule.action);
+        }
+    }
+    None
+}
+
+/// 收集当前选人会话中"不可选/不可 ban"的英雄 ID 集合：
+/// - 任何已完成的 ban
+/// - 其他位置玩家的 hover / pick（championId != 0）
+#[allow(dead_code)]
+fn unavailable_champion_ids(session: &SelectSession) -> std::collections::HashSet<i32> {
+    let my_cell = session.local_player_cell_id;
+    let mut unavailable = std::collections::HashSet::new();
+
+    for group in &session.actions {
+        for a in group {
+            if a.action_type == "ban" && a.completed {
+                unavailable.insert(a.champion_id);
+            }
+            if a.action_type == "pick" && a.actor_cell_id != my_cell && a.champion_id != 0 {
+                unavailable.insert(a.champion_id);
+            }
+        }
+    }
+    unavailable
 }
 
 #[cfg(test)]
@@ -261,5 +307,118 @@ mod tests {
         let s = make_session(vec![ally_champ(157)]);
         let c = RuleCondition::AllyChampionsContains { ids: vec![1, 157, 99] };
         assert!(match_condition(&c, &s, None));
+    }
+
+    // ── evaluate_pick 测试 ──────────────────────────────────────────────────
+
+    use crate::command::rule_config::{PickAction, PickRule};
+
+    fn pick_rule(id: &str, conds: Vec<RuleCondition>, target: i32, lock: bool, enabled: bool) -> PickRule {
+        PickRule {
+            id: id.to_string(),
+            name: id.to_string(),
+            enabled,
+            conditions: conds,
+            action: PickAction { champion_id: target, lock },
+        }
+    }
+
+    fn session_with_picks_and_bans(
+        my_team: Vec<OnePlayer>,
+        their_team: Vec<OnePlayer>,
+        actions: Vec<Vec<crate::lcu::api::champion_select::Action>>,
+    ) -> SelectSession {
+        SelectSession {
+            my_team,
+            their_team,
+            actions,
+            timer: Default::default(),
+            local_player_cell_id: 0,
+        }
+    }
+
+    #[test]
+    fn evaluate_pick_returns_first_matching_rule() {
+        let s = make_session(vec![player("me", "middle")]);
+        let rules = vec![
+            pick_rule("r1", vec![RuleCondition::Position { value: Position::Top }], 1, true, true),
+            pick_rule("r2", vec![RuleCondition::Position { value: Position::Middle }], 99, true, true),
+        ];
+        let action = evaluate_pick(&s, Some(Position::Middle), &rules).unwrap();
+        assert_eq!(action.champion_id, 99);
+    }
+
+    #[test]
+    fn evaluate_pick_skips_disabled_rule() {
+        let s = make_session(vec![player("me", "middle")]);
+        let rules = vec![
+            pick_rule("r1", vec![RuleCondition::Position { value: Position::Middle }], 1, true, false),
+            pick_rule("r2", vec![RuleCondition::Position { value: Position::Middle }], 2, true, true),
+        ];
+        let action = evaluate_pick(&s, Some(Position::Middle), &rules).unwrap();
+        assert_eq!(action.champion_id, 2);
+    }
+
+    #[test]
+    fn evaluate_pick_returns_none_when_no_rule_fits() {
+        let s = make_session(vec![player("me", "middle")]);
+        let rules = vec![pick_rule("r1", vec![RuleCondition::Position { value: Position::Top }], 1, true, true)];
+        assert!(evaluate_pick(&s, Some(Position::Middle), &rules).is_none());
+    }
+
+    #[test]
+    fn evaluate_pick_returns_none_when_rules_empty() {
+        let s = make_session(vec![]);
+        assert!(evaluate_pick(&s, None, &[]).is_none());
+    }
+
+    #[test]
+    fn evaluate_pick_skips_rule_when_target_already_banned() {
+        use crate::lcu::api::champion_select::Action;
+        let banned = Action {
+            actor_cell_id: 7,
+            id: 1,
+            champion_id: 99,
+            completed: true,
+            is_ally_action: false,
+            is_in_progress: false,
+            action_type: "ban".to_string(),
+        };
+        let s = session_with_picks_and_bans(
+            vec![player("me", "middle")],
+            vec![],
+            vec![vec![banned]],
+        );
+        let rules = vec![
+            pick_rule("r1", vec![RuleCondition::Position { value: Position::Middle }], 99, true, true),
+            pick_rule("r2", vec![RuleCondition::Position { value: Position::Middle }], 100, true, true),
+        ];
+        let action = evaluate_pick(&s, Some(Position::Middle), &rules).unwrap();
+        assert_eq!(action.champion_id, 100);
+    }
+
+    #[test]
+    fn evaluate_pick_skips_rule_when_target_picked_by_ally() {
+        use crate::lcu::api::champion_select::Action;
+        let ally_pick = Action {
+            actor_cell_id: 7,
+            id: 2,
+            champion_id: 99,
+            completed: false,
+            is_ally_action: true,
+            is_in_progress: false,
+            action_type: "pick".to_string(),
+        };
+        let s = session_with_picks_and_bans(
+            vec![player("me", "middle")],
+            vec![],
+            vec![vec![ally_pick]],
+        );
+        let rules = vec![
+            pick_rule("r1", vec![RuleCondition::Position { value: Position::Middle }], 99, true, true),
+            pick_rule("r2", vec![RuleCondition::Position { value: Position::Middle }], 100, true, true),
+        ];
+        let action = evaluate_pick(&s, Some(Position::Middle), &rules).unwrap();
+        assert_eq!(action.champion_id, 100);
     }
 }
