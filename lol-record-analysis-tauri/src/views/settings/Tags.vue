@@ -2,10 +2,15 @@
   <n-space vertical>
     <n-card title="标签管理" size="small">
       <template #header-extra>
-        <n-button type="primary" size="small" @click="openCreateModal"> 新增标签 </n-button>
+        <n-flex>
+          <n-button type="primary" size="small" @click="openCreateModal"> 新增标签 </n-button>
+          <n-button size="small" @click="openAIModal">✨ AI 推荐</n-button>
+        </n-flex>
       </template>
       <n-data-table :columns="columns" :data="tags" :loading="loading" :bordered="false" />
     </n-card>
+
+    <AISuggestModal v-model:show="aiModalShow" @adopted="onAITagAdopted" />
 
     <n-modal v-model:show="showModal" preset="card" title="编辑标签" style="width: 900px">
       <n-form
@@ -74,6 +79,7 @@ import {
 } from 'naive-ui'
 import { invoke } from '@tauri-apps/api/core'
 import TagConditionNode from './TagConditionNode.vue'
+import AISuggestModal from '@renderer/components/tags/AISuggestModal.vue'
 import { championOption } from '../../components/type'
 
 const themeVars = useThemeVars()
@@ -93,6 +99,16 @@ const message = useMessage()
 const tags = ref<TagConfig[]>([])
 const loading = ref(false)
 const showModal = ref(false)
+const aiModalShow = ref(false)
+
+function openAIModal() {
+  aiModalShow.value = true
+}
+
+async function onAITagAdopted() {
+  await loadTags()
+}
+
 // Initialize with empty object matching interface partially
 const currentTag = ref<TagConfig>({
   id: '',
