@@ -45,18 +45,29 @@
           规则（按顺序匹配，第一条命中即用）
           <n-button size="small" type="primary" @click="openPickEdit()">+ 添加规则</n-button>
         </div>
-        <div v-for="rule in pickRules" :key="rule.id" class="rule-row">
-          <n-checkbox
-            :checked="rule.enabled"
-            @update:checked="(v: boolean) => togglePickRule(rule.id, v)"
-          />
-          <span class="rule-name">{{ rule.name }}</span>
-          <span class="rule-summary">{{ summarize(rule) }}</span>
-          <n-button quaternary size="small" @click="openPickEdit(rule)">编辑</n-button>
-          <n-button quaternary type="error" size="small" @click="deletePickRule(rule.id)"
-            >删除</n-button
-          >
-        </div>
+        <VueDraggable
+          :model-value="pickRules"
+          @update:model-value="(next: PickRule[]) => savePickRules(next)"
+        >
+          <div v-for="rule in pickRules" :key="rule.id" class="rule-row">
+            <n-checkbox
+              :checked="rule.enabled"
+              @update:checked="(v: boolean) => togglePickRule(rule.id, v)"
+            />
+            <span class="rule-name">{{ rule.name }}</span>
+            <n-avatar
+              :src="assetPrefix + '/champion/' + rule.action.champion_id"
+              :fallback-src="assetPrefix + 'champion-1'"
+              :size="24"
+              style="flex-shrink: 0"
+            />
+            <span class="rule-summary">{{ summarize(rule) }}</span>
+            <n-button quaternary size="small" @click="openPickEdit(rule)">编辑</n-button>
+            <n-button quaternary type="error" size="small" @click="deletePickRule(rule.id)"
+              >删除</n-button
+            >
+          </div>
+        </VueDraggable>
       </div>
 
       <div class="section-title">兜底（规则都没命中时按顺序选）</div>
@@ -123,18 +134,29 @@
           规则（按顺序匹配，第一条命中即用）
           <n-button size="small" type="primary" @click="openBanEdit()">+ 添加规则</n-button>
         </div>
-        <div v-for="rule in banRules" :key="rule.id" class="rule-row">
-          <n-checkbox
-            :checked="rule.enabled"
-            @update:checked="(v: boolean) => toggleBanRule(rule.id, v)"
-          />
-          <span class="rule-name">{{ rule.name }}</span>
-          <span class="rule-summary">{{ summarize(rule) }}</span>
-          <n-button quaternary size="small" @click="openBanEdit(rule)">编辑</n-button>
-          <n-button quaternary type="error" size="small" @click="deleteBanRule(rule.id)"
-            >删除</n-button
-          >
-        </div>
+        <VueDraggable
+          :model-value="banRules"
+          @update:model-value="(next: BanRule[]) => saveBanRules(next)"
+        >
+          <div v-for="rule in banRules" :key="rule.id" class="rule-row">
+            <n-checkbox
+              :checked="rule.enabled"
+              @update:checked="(v: boolean) => toggleBanRule(rule.id, v)"
+            />
+            <span class="rule-name">{{ rule.name }}</span>
+            <n-avatar
+              :src="assetPrefix + '/champion/' + rule.action.champion_id"
+              :fallback-src="assetPrefix + 'champion-1'"
+              :size="24"
+              style="flex-shrink: 0"
+            />
+            <span class="rule-summary">{{ summarize(rule) }}</span>
+            <n-button quaternary size="small" @click="openBanEdit(rule)">编辑</n-button>
+            <n-button quaternary type="error" size="small" @click="deleteBanRule(rule.id)"
+              >删除</n-button
+            >
+          </div>
+        </VueDraggable>
       </div>
 
       <div class="section-title">兜底（规则都没命中时按顺序选）</div>
