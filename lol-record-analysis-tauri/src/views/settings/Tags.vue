@@ -80,7 +80,7 @@ import {
 import { invoke } from '@tauri-apps/api/core'
 import TagConditionNode from './TagConditionNode.vue'
 import AISuggestModal from '@renderer/components/tags/AISuggestModal.vue'
-import { championOption } from '../../components/type'
+import type { championOption } from '@renderer/types/domain/champion'
 
 const themeVars = useThemeVars()
 
