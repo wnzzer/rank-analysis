@@ -3,7 +3,7 @@
 //! 输入：当前选人会话 + 当前用户位置 + 用户配置的规则列表。
 //! 输出：第一条命中且目标可执行的 action（或 None）。
 
-use crate::command::rule_config::Position;
+use crate::command::rule_config::{Position, RuleCondition};
 use crate::lcu::api::champion_select::SelectSession;
 
 /// 从选人会话中找到当前用户，读取其 `assigned_position` 并映射到 `Position`。
@@ -23,6 +23,23 @@ fn parse_position(s: &str) -> Option<Position> {
         "bottom" => Some(Position::Bottom),
         "utility" => Some(Position::Utility),
         _ => None,
+    }
+}
+
+/// Evaluate a single condition. Other variants are added in subsequent tasks.
+// T10/T11 will call this from production code; suppress until then.
+#[allow(dead_code)]
+pub(crate) fn match_condition(
+    cond: &RuleCondition,
+    _session: &SelectSession,
+    my_position: Option<Position>,
+) -> bool {
+    match cond {
+        RuleCondition::Position { value } => my_position == Some(*value),
+        // T6 will add AllyChampionsContains / AllyChampionsNotContains arms
+        // T7 will add EnemyChampionsContains / EnemyChampionsNotContains arms
+        #[allow(clippy::match_wildcard_for_single_variants)]
+        _ => false,
     }
 }
 
@@ -71,5 +88,26 @@ mod tests {
     fn detect_my_position_handles_uppercase_lcu_strings() {
         let s = make_session(vec![player("me", "JUNGLE")]);
         assert_eq!(detect_my_position(&s, "me"), Some(Position::Jungle));
+    }
+
+    #[test]
+    fn position_matches_when_equal() {
+        let s = make_session(vec![]);
+        let c = RuleCondition::Position { value: Position::Middle };
+        assert!(match_condition(&c, &s, Some(Position::Middle)));
+    }
+
+    #[test]
+    fn position_does_not_match_when_different() {
+        let s = make_session(vec![]);
+        let c = RuleCondition::Position { value: Position::Middle };
+        assert!(!match_condition(&c, &s, Some(Position::Top)));
+    }
+
+    #[test]
+    fn position_does_not_match_when_none() {
+        let s = make_session(vec![]);
+        let c = RuleCondition::Position { value: Position::Middle };
+        assert!(!match_condition(&c, &s, None));
     }
 }
