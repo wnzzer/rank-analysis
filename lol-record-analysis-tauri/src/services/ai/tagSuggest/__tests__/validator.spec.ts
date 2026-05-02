@@ -170,4 +170,41 @@ describe('parseAndValidate', () => {
     const r = parseAndValidate(raw)
     expect(r.droppedCount).toBe(1)
   })
+
+  it('drops history with filter/refresh tautology (same metric + same op)', () => {
+    const bad = suggestion()
+    ;(bad.condition as any) = {
+      type: 'history',
+      filters: [{ type: 'stat', metric: 'gold', op: '>=', value: 12000 }],
+      refresh: { type: 'average', metric: 'gold', op: '>=', value: 12000 },
+    }
+    const raw = JSON.stringify({ good: [bad], bad: [] })
+    const r = parseAndValidate(raw)
+    expect(r.droppedCount).toBe(1)
+  })
+
+  it('accepts history where filter and refresh use different metrics', () => {
+    const ok = suggestion()
+    ;(ok.condition as any) = {
+      type: 'history',
+      filters: [{ type: 'stat', metric: 'gold', op: '>=', value: 12000 }],
+      refresh: { type: 'average', metric: 'damage', op: '>=', value: 25000 },
+    }
+    const raw = JSON.stringify({ good: [ok], bad: [] })
+    const r = parseAndValidate(raw)
+    expect(r.good).toHaveLength(1)
+  })
+
+  it('accepts history where filter and refresh use opposite directions', () => {
+    // filter "gold >= 8000" + refresh "average gold <= 12000" — different op → 不是套套逻辑
+    const ok = suggestion()
+    ;(ok.condition as any) = {
+      type: 'history',
+      filters: [{ type: 'stat', metric: 'gold', op: '>=', value: 8000 }],
+      refresh: { type: 'average', metric: 'gold', op: '<=', value: 12000 },
+    }
+    const raw = JSON.stringify({ good: [ok], bad: [] })
+    const r = parseAndValidate(raw)
+    expect(r.good).toHaveLength(1)
+  })
 })

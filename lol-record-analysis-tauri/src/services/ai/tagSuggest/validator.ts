@@ -12,7 +12,7 @@ import type {
   TagSuggestResult,
   MatchFilter,
   MatchRefresh,
-  Operator,
+  Operator
 } from '@renderer/types/tagSuggest'
 
 // ─── constants ────────────────────────────────────────────────────────────────
@@ -26,7 +26,7 @@ const VALID_REFRESH_TYPES: ReadonlySet<string> = new Set([
   'sum',
   'max',
   'min',
-  'streak',
+  'streak'
 ])
 const VALID_CONDITION_TYPES: ReadonlySet<string> = new Set([
   'and',
@@ -34,7 +34,7 @@ const VALID_CONDITION_TYPES: ReadonlySet<string> = new Set([
   'not',
   'history',
   'currentQueue',
-  'currentChampion',
+  'currentChampion'
 ])
 
 const NAME_MIN = 2
@@ -68,7 +68,7 @@ function isMatchFilter(v: unknown): v is MatchFilter {
   const o = v as Record<string, unknown>
   if (typeof o.type !== 'string' || !VALID_FILTER_TYPES.has(o.type)) return false
   if (o.type === 'queue' || o.type === 'champion') {
-    return Array.isArray(o.ids) && o.ids.every((x) => typeof x === 'number')
+    return Array.isArray(o.ids) && o.ids.every(x => typeof x === 'number')
   }
   if (o.type === 'stat') {
     return typeof o.metric === 'string' && isOperator(o.op) && typeof o.value === 'number'
@@ -92,6 +92,28 @@ function isMatchRefresh(v: unknown): v is MatchRefresh {
   return false
 }
 
+/**
+ * 检测 History condition 是否存在 filter 和 refresh 同 metric + 同方向的套套逻辑。
+ * 例：filter stat gold>=12000 + refresh average gold>=12000 → 必然成立 → 拒绝。
+ *
+ * 仅检测 average/sum/max/min refresh（count 和 streak 不会和 stat filter 冲突）。
+ * 严格匹配同 metric + 同 op，避免误杀边界场景（如 filter ">= 8000" + refresh "average >= 12000"，技术上有意义）。
+ */
+function hasFilterRefreshTautology(history: {
+  filters: MatchFilter[]
+  refresh: MatchRefresh
+}): boolean {
+  const r = history.refresh
+  if (r.type !== 'average' && r.type !== 'sum' && r.type !== 'max' && r.type !== 'min') {
+    return false
+  }
+  for (const f of history.filters) {
+    if (f.type !== 'stat') continue
+    if (f.metric === r.metric && f.op === r.op) return true
+  }
+  return false
+}
+
 function isTagCondition(v: unknown): v is TagCondition {
   if (typeof v !== 'object' || v === null) return false
   const o = v as Record<string, unknown>
@@ -103,14 +125,16 @@ function isTagCondition(v: unknown): v is TagCondition {
     return isTagCondition(o.condition)
   }
   if (o.type === 'history') {
-    return (
-      Array.isArray(o.filters) &&
-      o.filters.every(isMatchFilter) &&
-      isMatchRefresh(o.refresh)
-    )
+    if (!Array.isArray(o.filters) || !o.filters.every(isMatchFilter)) return false
+    if (!isMatchRefresh(o.refresh)) return false
+    // 语义层兜底：拒绝 filter 和 refresh 同 metric + 同向的套套逻辑
+    if (hasFilterRefreshTautology({ filters: o.filters as MatchFilter[], refresh: o.refresh as MatchRefresh })) {
+      return false
+    }
+    return true
   }
   if (o.type === 'currentQueue' || o.type === 'currentChampion') {
-    return Array.isArray(o.ids) && o.ids.every((x) => typeof x === 'number')
+    return Array.isArray(o.ids) && o.ids.every(x => typeof x === 'number')
   }
   return false
 }
@@ -139,7 +163,7 @@ function buildSuggestion(raw: RawSuggestion, good: boolean): TagSuggestion | nul
     good,
     enabled: true,
     condition: raw.condition,
-    isDefault: false,
+    isDefault: false
   }
 }
 
