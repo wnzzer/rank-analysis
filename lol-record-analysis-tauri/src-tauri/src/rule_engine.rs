@@ -55,7 +55,6 @@ fn team_has_any(team: &[OnePlayer], ids: &[i32]) -> bool {
 ///
 /// "可执行" = 目标英雄未被任何人 ban（completed），且未被其他位置的玩家 hover/pick。
 /// 当前用户自己之前的 hover 不阻止重新选择同一个英雄。
-#[allow(dead_code)]
 pub(crate) fn evaluate_pick<'a>(
     session: &SelectSession,
     my_position: Option<Position>,

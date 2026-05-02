@@ -409,6 +409,124 @@ async fn start_champion_select_automation() {
     }
 }
 
+/// 从配置中读取 pickRules 列表。
+///
+/// 配置缺失时返回空向量（视为"未配置规则"，走兜底逻辑）。
+async fn load_pick_rules() -> Vec<crate::command::rule_config::PickRule> {
+    use crate::command::rule_config::PickRule;
+    match get_config("settings.auto.pickRules").await {
+        Ok(value) => match serde_json::to_value(&value) {
+            Ok(json) => {
+                // Config wraps user-facing values as { "value": <actual> }
+                let inner = json.get("value").cloned().unwrap_or(json);
+                serde_json::from_value::<Vec<PickRule>>(inner).unwrap_or_else(|e| {
+                    log::warn!("Failed to parse pickRules from config: {}", e);
+                    vec![]
+                })
+            }
+            Err(e) => {
+                log::warn!("Failed to bridge config Value -> JSON: {}", e);
+                vec![]
+            }
+        },
+        Err(_) => vec![], // missing key is fine — no rules configured
+    }
+}
+
+/// 从配置中读取 banRules 列表。
+///
+/// 配置缺失时返回空向量（视为"未配置规则"，走兜底逻辑）。
+#[allow(dead_code)] // T11 (wire into start_ban_champion) will activate this
+async fn load_ban_rules() -> Vec<crate::command::rule_config::BanRule> {
+    use crate::command::rule_config::BanRule;
+    match get_config("settings.auto.banRules").await {
+        Ok(value) => match serde_json::to_value(&value) {
+            Ok(json) => {
+                let inner = json.get("value").cloned().unwrap_or(json);
+                serde_json::from_value::<Vec<BanRule>>(inner).unwrap_or_else(|e| {
+                    log::warn!("Failed to parse banRules from config: {}", e);
+                    vec![]
+                })
+            }
+            Err(e) => {
+                log::warn!("Failed to bridge config Value -> JSON: {}", e);
+                vec![]
+            }
+        },
+        Err(_) => vec![],
+    }
+}
+
+/// 执行规则引擎命中后的 pick 动作。
+///
+/// 语义与 `start_select_champion_slice_fallback` 中的锁定/预选逻辑一致：
+/// - `is_in_progress && !completed`：主动锁定或 hover（由 `action.lock` 决定）
+/// - `my_picked_champion_id == 0 && !completed && !is_in_progress`：预选 hover
+async fn execute_pick_action(
+    select_session: &crate::lcu::api::champion_select::SelectSession,
+    my_cell_id: i32,
+    action: &crate::command::rule_config::PickAction,
+) -> Result<(), String> {
+    let mut action_id = -1;
+    let mut is_in_progress = false;
+    let mut my_picked_champion_id = -1;
+    let mut completed = false;
+
+    for action_group in &select_session.actions {
+        if !action_group.is_empty() && action_group[0].action_type == "pick" {
+            for pick in action_group {
+                if pick.actor_cell_id == my_cell_id {
+                    completed = pick.completed;
+                    my_picked_champion_id = pick.champion_id;
+                    action_id = pick.id;
+                    if pick.is_in_progress {
+                        is_in_progress = true;
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
+    if action_id == -1 {
+        log::warn!("No pick action found for current player");
+        return Ok(());
+    }
+
+    // Lock semantics:
+    //   action.lock == true  → patch with completed=true (lock-in)
+    //   action.lock == false → patch with completed=false (hover only)
+    // BUT only act when it makes sense for the current state, mirroring existing logic.
+    if is_in_progress && !completed {
+        log::info!(
+            "Rule action: {} champion {} (in_progress)",
+            if action.lock { "locking" } else { "hovering" },
+            action.champion_id
+        );
+        patch_session_action(
+            action_id,
+            action.champion_id,
+            "pick".to_string(),
+            action.lock,
+        )
+        .await?;
+    } else if my_picked_champion_id == 0 && !completed && !is_in_progress {
+        // Pre-select hover slot — always hover here regardless of lock flag.
+        log::info!("Rule action: hovering champion {} (pre-select)", action.champion_id);
+        patch_session_action(
+            action_id,
+            action.champion_id,
+            "pick".to_string(),
+            false,
+        )
+        .await?;
+    } else {
+        log::debug!("No pick action needed under current state");
+    }
+
+    Ok(())
+}
+
 /// 执行英雄选择操作。
 ///
 /// # 返回值
@@ -419,18 +537,47 @@ async fn start_champion_select_automation() {
 /// # 逻辑流程
 ///
 /// 1. 获取选人阶段会话信息
-/// 2. 从配置读取预设英雄列表
-/// 3. 排除已被禁用的英雄（敌方禁用）
-/// 4. 排除队友已选的英雄
-/// 5. 从预设列表中选择第一个可用英雄
-/// 6. 如果轮到我的选择回合：
-///    - 如果是锁定阶段：锁定英雄
-///    - 如果是预选阶段：预选英雄
+/// 2. **规则引擎（优先）**：若配置了 pickRules，按规则求值并执行；命中则返回
+/// 3. **兜底（pickChampionSlice）**：规则未配置或未命中时，走原有列表逻辑
 async fn start_select_champion() -> Result<(), String> {
     let select_session = get_champion_select_session().await?;
     let my_cell_id = select_session.local_player_cell_id;
     log::info!("Current player cell ID: {}", my_cell_id);
 
+    // ===== Rule engine (new) — try first; fall back to slice on miss =====
+    let rules = load_pick_rules().await;
+    if !rules.is_empty() {
+        let my_summoner = match crate::lcu::api::summoner::Summoner::get_my_summoner().await {
+            Ok(s) => s,
+            Err(e) => {
+                log::warn!("Failed to get my summoner for rule engine: {}", e);
+                return start_select_champion_slice_fallback(&select_session, my_cell_id).await;
+            }
+        };
+        let my_pos = crate::rule_engine::detect_my_position(&select_session, &my_summoner.puuid);
+        if let Some(action) = crate::rule_engine::evaluate_pick(&select_session, my_pos, &rules) {
+            log::info!(
+                "Pick rule matched: champion={} lock={}",
+                action.champion_id,
+                action.lock
+            );
+            return execute_pick_action(&select_session, my_cell_id, action).await;
+        }
+        log::debug!("No pick rule matched, falling back to pickChampionSlice");
+    }
+    // ===== End rule engine =====
+
+    start_select_champion_slice_fallback(&select_session, my_cell_id).await
+}
+
+/// 兜底选人逻辑（原 `start_select_champion` 函数体）。
+///
+/// 从 `pickChampionSlice` 配置读取英雄列表，排除已 ban/已选英雄后，
+/// 选取第一个可用英雄执行 hover 或锁定。
+async fn start_select_champion_slice_fallback(
+    select_session: &crate::lcu::api::champion_select::SelectSession,
+    my_cell_id: i32,
+) -> Result<(), String> {
     let my_pick_champion_slice = match get_config("settings.auto.pickChampionSlice").await {
         Ok(Value::Map(m)) => {
             // Handle nested structure: { "value": [list] }
