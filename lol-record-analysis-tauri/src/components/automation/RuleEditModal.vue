@@ -35,8 +35,10 @@ const targetChampion = ref<number | null>(null)
 const lock = ref(true) // pick mode only
 
 watch(
-  () => props.initial,
-  init => {
+  () => props.show,
+  isShown => {
+    if (!isShown) return
+    const init = props.initial
     if (init) {
       id.value = init.id
       name.value = init.name
@@ -45,6 +47,8 @@ watch(
       targetChampion.value = init.action.champion_id
       if (props.mode === 'pick') {
         lock.value = (init.action as PickAction).lock
+      } else {
+        lock.value = true
       }
     } else {
       id.value = uuid()

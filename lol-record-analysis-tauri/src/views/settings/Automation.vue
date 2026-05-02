@@ -57,7 +57,7 @@
             <span class="rule-name">{{ rule.name }}</span>
             <n-avatar
               :src="assetPrefix + '/champion/' + rule.action.champion_id"
-              :fallback-src="assetPrefix + 'champion-1'"
+              :fallback-src="`${assetPrefix}/champion/-1`"
               :size="24"
               style="flex-shrink: 0"
             />
@@ -86,7 +86,7 @@
             <template #avatar>
               <n-avatar
                 :src="assetPrefix + '/champion/' + item"
-                :fallback-src="assetPrefix + 'champion-1'"
+                :fallback-src="`${assetPrefix}/champion/-1`"
               />
             </template>
           </n-tag>
@@ -146,7 +146,7 @@
             <span class="rule-name">{{ rule.name }}</span>
             <n-avatar
               :src="assetPrefix + '/champion/' + rule.action.champion_id"
-              :fallback-src="assetPrefix + 'champion-1'"
+              :fallback-src="`${assetPrefix}/champion/-1`"
               :size="24"
               style="flex-shrink: 0"
             />
@@ -175,7 +175,7 @@
             <template #avatar>
               <n-avatar
                 :src="assetPrefix + '/champion/' + item"
-                :fallback-src="assetPrefix + 'champion-1'"
+                :fallback-src="`${assetPrefix}/champion/-1`"
               />
             </template>
           </n-tag>
@@ -212,7 +212,7 @@ import { renderSingleSelectTag, renderLabel, filterChampionFunc } from '@rendere
 import { CheckmarkCircleOutline, FlashOutline, Close, PlayCircleOutline } from '@vicons/ionicons5'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import { assetPrefix } from '@renderer/services/http'
-import { championOption } from '@renderer/components/type'
+import type { championOption } from '@renderer/types/domain/champion'
 import { invoke } from '@tauri-apps/api/core'
 import { usePickRules, useBanRules } from '@renderer/composables/useRules'
 import RuleEditModal from '@renderer/components/automation/RuleEditModal.vue'
