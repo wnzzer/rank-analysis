@@ -13,6 +13,8 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase")]
 pub struct SelectSession {
     pub my_team: Vec<OnePlayer>,
+    #[serde(default)]
+    pub their_team: Vec<OnePlayer>,
     pub actions: Vec<Vec<Action>>,
     pub timer: Timer,
     pub local_player_cell_id: i32,
@@ -51,6 +53,8 @@ pub struct Timer {
 pub struct OnePlayer {
     pub champion_id: i32,
     pub puuid: String,
+    #[serde(default)]
+    pub assigned_position: String,
 }
 
 #[derive(Debug, Clone)]
@@ -128,4 +132,25 @@ pub async fn patch_session_action(
 
     lcu_patch::<(), _>(&uri, &patch_data).await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_deserialize_their_team_and_assigned_position() {
+        let raw = r#"{
+            "myTeam": [{"championId": 1, "puuid": "p1", "assignedPosition": "middle"}],
+            "theirTeam": [{"championId": 2, "puuid": "p2", "assignedPosition": ""}],
+            "actions": [],
+            "timer": {},
+            "localPlayerCellId": 0
+        }"#;
+        let s: SelectSession = serde_json::from_str(raw).unwrap();
+        assert_eq!(s.their_team.len(), 1);
+        assert_eq!(s.their_team[0].champion_id, 2);
+        assert_eq!(s.my_team[0].assigned_position, "middle");
+        assert_eq!(s.their_team[0].assigned_position, "");
+    }
 }
