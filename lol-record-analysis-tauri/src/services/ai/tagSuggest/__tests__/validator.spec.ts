@@ -176,7 +176,7 @@ describe('parseAndValidate', () => {
     ;(bad.condition as any) = {
       type: 'history',
       filters: [{ type: 'stat', metric: 'gold', op: '>=', value: 12000 }],
-      refresh: { type: 'average', metric: 'gold', op: '>=', value: 12000 },
+      refresh: { type: 'average', metric: 'gold', op: '>=', value: 12000 }
     }
     const raw = JSON.stringify({ good: [bad], bad: [] })
     const r = parseAndValidate(raw)
@@ -188,7 +188,7 @@ describe('parseAndValidate', () => {
     ;(ok.condition as any) = {
       type: 'history',
       filters: [{ type: 'stat', metric: 'gold', op: '>=', value: 12000 }],
-      refresh: { type: 'average', metric: 'damage', op: '>=', value: 25000 },
+      refresh: { type: 'average', metric: 'damage', op: '>=', value: 25000 }
     }
     const raw = JSON.stringify({ good: [ok], bad: [] })
     const r = parseAndValidate(raw)
@@ -201,7 +201,7 @@ describe('parseAndValidate', () => {
     ;(ok.condition as any) = {
       type: 'history',
       filters: [{ type: 'stat', metric: 'gold', op: '>=', value: 8000 }],
-      refresh: { type: 'average', metric: 'gold', op: '<=', value: 12000 },
+      refresh: { type: 'average', metric: 'gold', op: '<=', value: 12000 }
     }
     const raw = JSON.stringify({ good: [ok], bad: [] })
     const r = parseAndValidate(raw)
@@ -215,7 +215,7 @@ describe('parseAndValidate', () => {
     ;(bad.condition as any) = {
       type: 'history',
       filters: [{ type: 'queue', ids: [1300] }], // 觉醒之战
-      refresh: { type: 'count', op: '>=', value: 5 },
+      refresh: { type: 'count', op: '>=', value: 5 }
     }
     const raw = JSON.stringify({ good: [bad], bad: [] })
     const r = parseAndValidate(raw)
@@ -227,7 +227,7 @@ describe('parseAndValidate', () => {
     ;(bad.condition as any) = {
       type: 'history',
       filters: [{ type: 'queue', ids: [420, 450] }], // mixes ranked + ARAM
-      refresh: { type: 'count', op: '>=', value: 5 },
+      refresh: { type: 'count', op: '>=', value: 5 }
     }
     const raw = JSON.stringify({ good: [bad], bad: [] })
     const r = parseAndValidate(raw)
@@ -239,7 +239,7 @@ describe('parseAndValidate', () => {
     ;(ok.condition as any) = {
       type: 'history',
       filters: [{ type: 'queue', ids: [420, 440] }],
-      refresh: { type: 'count', op: '>=', value: 5 },
+      refresh: { type: 'count', op: '>=', value: 5 }
     }
     const raw = JSON.stringify({ good: [ok], bad: [] })
     const r = parseAndValidate(raw)
@@ -251,7 +251,7 @@ describe('parseAndValidate', () => {
     ;(ok.condition as any) = {
       type: 'history',
       filters: [{ type: 'queue', ids: [450] }],
-      refresh: { type: 'count', op: '>=', value: 5 },
+      refresh: { type: 'count', op: '>=', value: 5 }
     }
     const raw = JSON.stringify({ good: [ok], bad: [] })
     const r = parseAndValidate(raw)
@@ -263,7 +263,7 @@ describe('parseAndValidate', () => {
     ;(ok.condition as any) = {
       type: 'history',
       filters: [{ type: 'stat', metric: 'kda', op: '>=', value: 5 }],
-      refresh: { type: 'count', op: '>=', value: 5 },
+      refresh: { type: 'count', op: '>=', value: 5 }
     }
     const raw = JSON.stringify({ good: [ok], bad: [] })
     const r = parseAndValidate(raw)
