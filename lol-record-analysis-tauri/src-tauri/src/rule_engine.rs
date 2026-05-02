@@ -26,7 +26,7 @@ fn parse_position(s: &str) -> Option<Position> {
     }
 }
 
-/// 求值单个条件。其余 variant 在后续任务中补全（T7 enemy）。
+/// 求值单个条件。
 // T10/T11 will call this from production code; suppress until then.
 #[allow(dead_code)]
 pub(crate) fn match_condition(
@@ -38,8 +38,10 @@ pub(crate) fn match_condition(
         RuleCondition::Position { value } => my_position == Some(*value),
         RuleCondition::AllyChampionsContains { ids } => team_has_any(&session.my_team, ids),
         RuleCondition::AllyChampionsNotContains { ids } => !team_has_any(&session.my_team, ids),
-        // T7 will add EnemyChampions* arms
-        _ => false,
+        RuleCondition::EnemyChampionsContains { ids } => team_has_any(&session.their_team, ids),
+        RuleCondition::EnemyChampionsNotContains { ids } => {
+            !team_has_any(&session.their_team, ids)
+        }
     }
 }
 
@@ -168,5 +170,96 @@ mod tests {
         let s = make_session(vec![ally_champ(157)]);
         let c = RuleCondition::AllyChampionsNotContains { ids: vec![157] };
         assert!(!match_condition(&c, &s, None));
+    }
+
+    fn enemy_champ(champion_id: i32) -> OnePlayer {
+        OnePlayer {
+            champion_id,
+            puuid: "y".to_string(),
+            assigned_position: "".to_string(),
+        }
+    }
+
+    fn make_session_with_enemies(
+        my_team: Vec<OnePlayer>,
+        their_team: Vec<OnePlayer>,
+    ) -> SelectSession {
+        SelectSession {
+            my_team,
+            their_team,
+            actions: vec![],
+            timer: Default::default(),
+            local_player_cell_id: 0,
+        }
+    }
+
+    #[test]
+    fn enemy_contains_matches_when_visible() {
+        let s = make_session_with_enemies(vec![], vec![enemy_champ(238)]);
+        let c = RuleCondition::EnemyChampionsContains { ids: vec![238] };
+        assert!(match_condition(&c, &s, None));
+    }
+
+    #[test]
+    fn enemy_contains_does_not_match_during_ban_phase() {
+        // 禁用阶段敌方 championId 均为 0，条件自然不匹配。
+        let s = make_session_with_enemies(vec![], vec![enemy_champ(0), enemy_champ(0)]);
+        let c = RuleCondition::EnemyChampionsContains { ids: vec![238] };
+        assert!(!match_condition(&c, &s, None));
+    }
+
+    #[test]
+    fn enemy_not_contains_matches_when_clean() {
+        let s = make_session_with_enemies(vec![], vec![enemy_champ(1)]);
+        let c = RuleCondition::EnemyChampionsNotContains { ids: vec![238] };
+        assert!(match_condition(&c, &s, None));
+    }
+
+    #[test]
+    fn enemy_not_contains_does_not_match_when_one_present() {
+        let s = make_session_with_enemies(vec![], vec![enemy_champ(238)]);
+        let c = RuleCondition::EnemyChampionsNotContains { ids: vec![238] };
+        assert!(!match_condition(&c, &s, None));
+    }
+
+    // 边缘情况（T6 审查建议补充）
+
+    #[test]
+    fn enemy_contains_does_not_match_when_their_team_empty() {
+        let s = make_session_with_enemies(vec![], vec![]);
+        let c = RuleCondition::EnemyChampionsContains { ids: vec![157] };
+        assert!(!match_condition(&c, &s, None));
+    }
+
+    #[test]
+    fn enemy_not_contains_matches_when_their_team_empty() {
+        // 无敌方英雄时，取反条件空真成立。
+        let s = make_session_with_enemies(vec![], vec![]);
+        let c = RuleCondition::EnemyChampionsNotContains { ids: vec![157] };
+        assert!(match_condition(&c, &s, None));
+    }
+
+    #[test]
+    fn ally_contains_with_empty_ids_returns_false() {
+        // 空列表 "包含以下任意" — 结果为 false。
+        let s = make_session(vec![ally_champ(157)]);
+        let c = RuleCondition::AllyChampionsContains { ids: vec![] };
+        assert!(!match_condition(&c, &s, None));
+    }
+
+    #[test]
+    fn ally_not_contains_with_empty_ids_returns_true() {
+        // 空列表 "不包含以下任意" — 空真成立。
+        let s = make_session(vec![ally_champ(157)]);
+        let c = RuleCondition::AllyChampionsNotContains { ids: vec![] };
+        assert!(match_condition(&c, &s, None));
+    }
+
+    #[test]
+    fn ally_contains_walks_full_id_list() {
+        // 多 id 列表部分命中：[1, 157, 99] 中的 157 命中队友。
+        let s = make_session(vec![ally_champ(157)]);
+        let c = RuleCondition::AllyChampionsContains { ids: vec![1, 157, 99] };
+        assert!(match_condition(&c, &s, None));
     }
 }
