@@ -4,6 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 
+// 顺序与 LCU assignedPosition 字符串顺序一致：top/jungle/middle/bottom/utility
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum Position {
@@ -18,10 +19,10 @@ pub enum Position {
 #[serde(tag = "type")]
 pub enum RuleCondition {
     Position { value: Position },
-    AllyChampionsContains { ids: Vec<i64> },
-    AllyChampionsNotContains { ids: Vec<i64> },
-    EnemyChampionsContains { ids: Vec<i64> },
-    EnemyChampionsNotContains { ids: Vec<i64> },
+    AllyChampionsContains { ids: Vec<i32> },
+    AllyChampionsNotContains { ids: Vec<i32> },
+    EnemyChampionsContains { ids: Vec<i32> },
+    EnemyChampionsNotContains { ids: Vec<i32> },
 }
 
 #[cfg(test)]
