@@ -91,4 +91,71 @@ describe('parseAndValidate', () => {
     expect(r.good[0].isDefault).toBe(false)
     expect(r.good[0].enabled).toBe(true)
   })
+
+  // MatchRefresh variant coverage (I-3)
+
+  it('drops entry with average refresh missing metric', () => {
+    const bad = suggestion()
+    ;(bad.condition as any).refresh = { type: 'average', op: '>=', value: 5 } // no metric
+    const raw = JSON.stringify({ good: [bad], bad: [] })
+    const r = parseAndValidate(raw)
+    expect(r.droppedCount).toBe(1)
+  })
+
+  it('accepts streak refresh with valid kind', () => {
+    const ok = suggestion()
+    ;(ok.condition as any).refresh = { type: 'streak', min: 3, kind: 'loss' }
+    const raw = JSON.stringify({ good: [ok], bad: [] })
+    const r = parseAndValidate(raw)
+    expect(r.good).toHaveLength(1)
+    expect(r.droppedCount).toBe(0)
+  })
+
+  it('drops streak refresh with uppercase kind (Rust expects lowercase)', () => {
+    const bad = suggestion()
+    ;(bad.condition as any).refresh = { type: 'streak', min: 3, kind: 'WIN' }
+    const raw = JSON.stringify({ good: [bad], bad: [] })
+    const r = parseAndValidate(raw)
+    expect(r.droppedCount).toBe(1)
+  })
+
+  // Recursive TagCondition coverage (I-4)
+
+  it('accepts nested and(history, currentQueue)', () => {
+    const validHistory = {
+      type: 'history',
+      filters: [{ type: 'stat', metric: 'kda', op: '>=', value: 5 }],
+      refresh: { type: 'count', op: '>=', value: 3 },
+    }
+    const validQueue = { type: 'currentQueue', ids: [420] }
+    const ok = suggestion()
+    ;(ok.condition as any) = { type: 'and', conditions: [validHistory, validQueue] }
+    const raw = JSON.stringify({ good: [ok], bad: [] })
+    const r = parseAndValidate(raw)
+    expect(r.good).toHaveLength(1)
+  })
+
+  it('drops and-condition where any nested condition is invalid', () => {
+    const validHistory = {
+      type: 'history',
+      filters: [{ type: 'stat', metric: 'kda', op: '>=', value: 5 }],
+      refresh: { type: 'count', op: '>=', value: 3 },
+    }
+    const bad = suggestion()
+    ;(bad.condition as any) = {
+      type: 'and',
+      conditions: [validHistory, { type: 'bogus' }],
+    }
+    const raw = JSON.stringify({ good: [bad], bad: [] })
+    const r = parseAndValidate(raw)
+    expect(r.droppedCount).toBe(1)
+  })
+
+  it('drops not-condition wrapping a non-condition value', () => {
+    const bad = suggestion()
+    ;(bad.condition as any) = { type: 'not', condition: 'oops' }
+    const raw = JSON.stringify({ good: [bad], bad: [] })
+    const r = parseAndValidate(raw)
+    expect(r.droppedCount).toBe(1)
+  })
 })
