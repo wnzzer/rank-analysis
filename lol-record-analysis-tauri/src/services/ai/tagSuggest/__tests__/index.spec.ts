@@ -136,6 +136,20 @@ describe('requestTagSuggestions', () => {
     const r = await requestTagSuggestions()
     expect(r.kind).toBe('parseError')
   })
+
+  it('returns aiError when AI returns empty content (proxy issue)', async () => {
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+      if (cmd === 'get_my_summoner') return { puuid: 'me' }
+      if (cmd === 'get_match_history_by_puuid') {
+        return { games: { games: Array.from({ length: 10 }, () => fakeGame(true)) } }
+      }
+      throw new Error('unexpected: ' + cmd)
+    })
+    vi.mocked(requestAIContent).mockResolvedValue({ success: true, content: '' })
+    const r = await requestTagSuggestions()
+    expect(r.kind).toBe('aiError')
+    if (r.kind === 'aiError') expect(r.error).toContain('空响应')
+  })
 })
 
 describe('cache key', () => {
