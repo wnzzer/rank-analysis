@@ -38,7 +38,7 @@ const VALID_CONDITION_TYPES: ReadonlySet<string> = new Set([
 ])
 
 const NAME_MIN = 2
-const NAME_MAX = 5
+const NAME_MAX = 7
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -188,6 +188,34 @@ function descMatchesQueueScope(desc: string, c: TagCondition): boolean {
   return true
 }
 
+// 召唤师峡谷专属位置词。其他模式（大乱斗、海克斯乱斗、斗魂、觉醒之战等）没有路位概念，
+// name 或 desc 出现这些词就说明 AI 在套 SR 模板。
+const SR_LANE_WORDS: readonly string[] = [
+  '上路',
+  '上单',
+  '中路',
+  '中单',
+  '下路',
+  '下单',
+  'ADC',
+  '打野',
+  '野区',
+  '辅助'
+]
+
+/**
+ * 检测 text 在"非 SR 模式作用域"下是否出现路位词。
+ * 仅当 filter 里所有 queue ids 全是非 ranked（即所有 id 都不在 [420, 440]）时拒绝。
+ * 混合（含 ranked + 娱乐）允许，因为路位描述对 ranked 子集仍然有意义。
+ */
+function hasNonSrLaneWord(text: string, c: TagCondition): boolean {
+  const ids = collectQueueIds(c)
+  if (ids === null) return false // 没有 queue filter → 不检查
+  const allNonRanked = ids.every(id => !RANKED_QUEUE_IDS.has(id))
+  if (!allNonRanked) return false // 含 ranked → 路位词允许
+  return SR_LANE_WORDS.some(word => text.includes(word))
+}
+
 function nameOk(name: unknown): name is string {
   if (typeof name !== 'string') return false
   // 按 Unicode 字符数计算长度（正确处理中文、emoji 等多字节字符）
@@ -205,17 +233,24 @@ function buildSuggestion(raw: RawSuggestion, good: boolean): TagSuggestion | nul
   if (!nameOk(raw.name)) return null
   if (typeof raw.desc !== 'string' || raw.desc.trim().length === 0) return null
   if (!isTagCondition(raw.condition)) return null
+
+  const desc = (raw.desc as string).trim()
+  const name = (raw.name as string).trim()
+  const cond = raw.condition as TagCondition
+
   // 语义层兜底：desc 模式声明必须和 filter 一致
-  if (!descMatchesQueueScope((raw.desc as string).trim(), raw.condition as TagCondition)) {
-    return null
-  }
+  if (!descMatchesQueueScope(desc, cond)) return null
+
+  // 非 SR 模式不带路位词（name 和 desc 都查）
+  if (hasNonSrLaneWord(name, cond) || hasNonSrLaneWord(desc, cond)) return null
+
   return {
     id: uuid(),
-    name: (raw.name as string).trim(),
-    desc: (raw.desc as string).trim(),
+    name,
+    desc,
     good,
     enabled: true,
-    condition: raw.condition,
+    condition: cond,
     isDefault: false
   }
 }
