@@ -117,6 +117,34 @@
                 </n-popover>
               </n-flex>
             </div>
+
+            <div class="profile-tags">
+              <n-tag
+                v-if="sessionSummoner.preGroupMarkers?.name"
+                size="small"
+                :type="sessionSummoner.preGroupMarkers.type as any"
+              >
+                {{ sessionSummoner.preGroupMarkers.name }}
+              </n-tag>
+              <n-tag v-if="sessionSummoner.meetGames?.length > 0" type="warning" size="small" round>
+                <n-popover trigger="hover">
+                  <template #trigger>遇见过</template>
+                  <MettingPlayersCard :meet-games="sessionSummoner.meetGames"></MettingPlayersCard>
+                </n-popover>
+              </n-tag>
+              <n-tooltip
+                v-for="tag in sessionSummoner?.userTag.tag"
+                :key="tag.tagName"
+                trigger="hover"
+              >
+                <template #trigger>
+                  <n-tag size="small" :type="tag.good ? 'success' : 'error'" :bordered="false">
+                    {{ tag.tagName }}
+                  </n-tag>
+                </template>
+                <span>{{ tag.tagDesc }}</span>
+              </n-tooltip>
+            </div>
           </n-flex>
         </div>
 
@@ -124,38 +152,8 @@
         <PlayerHistoryGrid :games="sessionSummoner?.matchHistory.games.games" />
       </div>
 
-      <!-- Right Side: Tags & Stats -->
+      <!-- Right Side: Stats -->
       <div class="right-section">
-        <div class="tags-container">
-          <n-flex size="small" style="gap: 4px; flex-wrap: wrap; justify-content: flex-end">
-            <n-tag
-              v-if="sessionSummoner.preGroupMarkers?.name"
-              size="small"
-              :type="sessionSummoner.preGroupMarkers.type as any"
-            >
-              {{ sessionSummoner.preGroupMarkers.name }}
-            </n-tag>
-            <n-tag v-if="sessionSummoner.meetGames?.length > 0" type="warning" size="small" round>
-              <n-popover trigger="hover">
-                <template #trigger>遇见过</template>
-                <MettingPlayersCard :meet-games="sessionSummoner.meetGames"></MettingPlayersCard>
-              </n-popover>
-            </n-tag>
-            <n-tooltip
-              v-for="tag in sessionSummoner?.userTag.tag"
-              :key="tag.tagName"
-              trigger="hover"
-            >
-              <template #trigger>
-                <n-tag size="small" :type="tag.good ? 'success' : 'error'" :bordered="false">
-                  {{ tag.tagName }}
-                </n-tag>
-              </template>
-              <span>{{ tag.tagDesc }}</span>
-            </n-tooltip>
-          </n-flex>
-        </div>
-
         <PlayerStatsCard :recent="sessionSummoner.userTag.recentData" :is-dark="isDark" />
       </div>
     </n-flex>
@@ -336,8 +334,19 @@ const { isAramMode, balanceTags, overallBalanceStatus } = useAramBalance(
 }
 
 .info-wrapper {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.profile-tags {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: flex-end;
+  align-items: center;
+  padding-left: 8px;
 }
 
 .copy-btn {
@@ -362,10 +371,6 @@ const { isAramMode, balanceTags, overallBalanceStatus } = useAramBalance(
 .tier-text {
   font-size: 12px;
   color: var(--n-text-color-2);
-}
-
-.tags-container {
-  min-height: 24px;
 }
 
 .custom-spin {
