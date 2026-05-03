@@ -2,29 +2,53 @@
  * AI 标签建议的输入特征提取：把 LCU 对局原始数据压成喂给 AI 的精简结构。
  */
 
-/**
- * 常用 LCU queueId → 中文名映射（涵盖排位 + 主流娱乐模式）。
- * 未知 queueId 回退为 '其他模式'。
- */
+// Common LCU queue IDs → Chinese mode names. Covers ranked, normal matchmaking, and the
+// most popular entertainment / rotating modes. Unknown ids fall back to '娱乐模式'.
 const QUEUE_NAMES: Record<number, string> = {
+  // Ranked
   420: '单双排位',
   440: '灵活组排',
+  // Normal matchmaking
   430: '匹配模式',
-  450: '大乱斗',
   480: '快速匹配',
+  // Clash
   700: '冠军杯赛',
+  720: '冠军杯赛大乱斗',
+  // ARAM and ARAM variants
+  450: '大乱斗',
+  100: '旧版大乱斗',
+  // Featured / rotating modes
   900: '无限火力',
+  1900: '无限火力',
+  920: '飞升',
+  1010: '雪球大战',
+  1020: '一拳超人',
   1300: '觉醒之战',
   1400: '终极魔典',
   1700: '斗魂竞技场',
-  1900: '无限火力'
+  1810: '斗魂竞技场排位',
+  // Hexakill (海克斯乱斗) — historically multiple ids
+  75: '海克斯乱斗',
+  98: '海克斯乱斗',
+  // Co-op vs AI
+  830: '新手 AI',
+  840: '中级 AI',
+  850: '高级 AI'
 }
 
+// Categories for the fallback when queue id isn't in the map.
+// Anything outside ranked/matchmaking is almost certainly an entertainment / featured mode.
+const KNOWN_RANKED: ReadonlySet<number> = new Set([420, 440])
+const KNOWN_MATCHMAKING: ReadonlySet<number> = new Set([430, 480])
+
 /**
- * 将 queueId 转换为对应的中文模式名。未知 id 返回 '其他模式'。
+ * 将 queueId 转换为对应的中文模式名。未知 id 返回 '娱乐模式'。
  */
 export function queueIdToName(id: number): string {
-  return QUEUE_NAMES[id] ?? '其他模式'
+  if (QUEUE_NAMES[id]) return QUEUE_NAMES[id]
+  if (KNOWN_RANKED.has(id)) return '排位模式'
+  if (KNOWN_MATCHMAKING.has(id)) return '匹配模式'
+  return '娱乐模式'
 }
 
 export interface GameFeature {

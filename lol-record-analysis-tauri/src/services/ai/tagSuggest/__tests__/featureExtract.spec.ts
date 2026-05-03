@@ -74,9 +74,9 @@ describe('gameToFeature', () => {
     expect(f?.queueName).toBe('单双排位')
   })
 
-  it('falls back to 其他模式 for unknown queueIds', () => {
+  it('falls back to 娱乐模式 for unknown queueIds', () => {
     const f = gameToFeature(makeGame(99999), 'me')
-    expect(f?.queueName).toBe('其他模式')
+    expect(f?.queueName).toBe('娱乐模式')
   })
 })
 
@@ -90,9 +90,16 @@ describe('queueIdToName', () => {
     expect(queueIdToName(1700)).toBe('斗魂竞技场')
     expect(queueIdToName(1300)).toBe('觉醒之战')
   })
-  it('returns 其他模式 for unmapped ids', () => {
-    expect(queueIdToName(0)).toBe('其他模式')
-    expect(queueIdToName(12345)).toBe('其他模式')
+  it('returns specific name for known entertainment mode (大乱斗)', () => {
+    expect(queueIdToName(450)).toBe('大乱斗')
+  })
+
+  it('returns specific name for clash (700)', () => {
+    expect(queueIdToName(700)).toBe('冠军杯赛')
+  })
+
+  it('returns 娱乐模式 for unknown queueId', () => {
+    expect(queueIdToName(987654)).toBe('娱乐模式')
   })
 })
 
