@@ -333,4 +333,35 @@ describe('parseAndValidate', () => {
     const r = parseAndValidate(raw)
     expect(r.good).toHaveLength(1)
   })
+
+  // negative-name-word checks (好/坏 tone consistency)
+
+  it('drops good tag with negative name word (混子)', () => {
+    const bad = suggestion({ name: '海克斯混子' })
+    const raw = JSON.stringify({ good: [bad], bad: [] })
+    const r = parseAndValidate(raw)
+    expect(r.droppedCount).toBe(1)
+  })
+
+  it('drops good tag with negative name word (翻车)', () => {
+    const bad = suggestion({ name: '排位翻车王' })
+    const raw = JSON.stringify({ good: [bad], bad: [] })
+    const r = parseAndValidate(raw)
+    expect(r.droppedCount).toBe(1)
+  })
+
+  it('accepts negative name word on bad tag (the word fits the tag)', () => {
+    const ok = suggestion({ name: '海克斯混子' })
+    const raw = JSON.stringify({ good: [], bad: [ok] })
+    const r = parseAndValidate(raw)
+    expect(r.bad).toHaveLength(1)
+    expect(r.droppedCount).toBe(0)
+  })
+
+  it('accepts good tag with neutral 调侃 name (送葬人 OK)', () => {
+    const ok = suggestion({ name: '排位送葬人' })
+    const raw = JSON.stringify({ good: [ok], bad: [] })
+    const r = parseAndValidate(raw)
+    expect(r.good).toHaveLength(1)
+  })
 })
