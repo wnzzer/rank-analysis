@@ -20,7 +20,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { requestAIContent } from '@renderer/services/ai/stream'
 import type { TagSuggestion, TagSuggestResult } from '@renderer/types/tagSuggest'
 import type { AIAnalysisResult } from '@renderer/services/ai/types'
-import { gameToFeature, splitWinsLosses, type RawGame } from './featureExtract'
+import { gameToFeature, splitWinsLosses, type RawGame, type QueueNameMap } from './featureExtract'
 import { buildTagSuggestPrompt, SYSTEM_PROMPT } from './prompt'
 import { parseAndValidate } from './validator'
 
@@ -104,6 +104,25 @@ async function getCurrentUserPuuid(): Promise<string> {
   return cachedPuuid
 }
 
+let cachedQueueNameMap: QueueNameMap | null = null
+
+async function getQueueNameMap(): Promise<QueueNameMap> {
+  if (cachedQueueNameMap) return cachedQueueNameMap
+  try {
+    const opts = await invoke<Array<{ label: string; value: number }>>('get_game_modes')
+    const map: Record<number, string> = {}
+    for (const o of opts) {
+      // 跳过 "全部" 这种汇总项（value=0）
+      if (o.value !== 0 && o.label) map[o.value] = o.label
+    }
+    cachedQueueNameMap = map
+    return map
+  } catch (e) {
+    console.warn('Failed to fetch game modes for tag suggestion', e)
+    return {}
+  }
+}
+
 interface RawMatchHistoryResponse {
   games?: { games?: RawGame[] }
 }
@@ -154,8 +173,13 @@ export async function requestTagSuggestions(forceRefresh = false): Promise<TagSu
 
   // 拉取对局并提取特征
   const rawGames = await fetchRecentGames(puuid)
+
+  // NEW: prefetch queue name map (cached after first call)
+  const queueNameMap = await getQueueNameMap()
+
+  // CHANGED: pass nameMap into gameToFeature
   const features = rawGames
-    .map(g => gameToFeature(g, puuid))
+    .map(g => gameToFeature(g, puuid, queueNameMap))
     .filter((f): f is NonNullable<typeof f> => f !== null)
 
   if (features.length < MIN_GAMES_REQUIRED) {

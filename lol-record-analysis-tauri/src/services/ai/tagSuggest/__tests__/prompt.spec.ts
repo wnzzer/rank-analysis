@@ -31,6 +31,13 @@ describe('SYSTEM_PROMPT', () => {
   it('warns about mixing ranked and entertainment modes', () => {
     expect(SYSTEM_PROMPT).toContain('模式严格分开')
   })
+  it('mentions queueName attached to features', () => {
+    expect(SYSTEM_PROMPT).toContain('queueName')
+  })
+  it('mentions ranked queue ids 420/440', () => {
+    expect(SYSTEM_PROMPT).toContain('420')
+    expect(SYSTEM_PROMPT).toContain('440')
+  })
   it('requires desc to match filter queue', () => {
     expect(SYSTEM_PROMPT).toContain('desc 必须与 filter 一致')
   })
