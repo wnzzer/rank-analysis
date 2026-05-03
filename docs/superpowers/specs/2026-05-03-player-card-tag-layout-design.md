@@ -4,101 +4,111 @@
 
 当前 `PlayerCard.vue` 把所有标签（队伍 1/2、遇见过、AI user tags）塞在右栏 `width: 100px` 的 `tags-container` 内。当某玩家的 AI tag 较多时，标签在窄栏内换行，把右栏高度撑过左栏（profile + 战绩 grid ≈ 120px）。由于 flex 默认 `align-items: stretch`，整张卡片高度跟着变高，**同列卡片高度不齐**——这是这次优化要解决的核心问题。
 
+观察到现有布局存在大块**横向空间浪费**：profile 行内 `info-wrapper` 没填满 `left-section`，加上右栏 `tags-container` 是 `justify-content: flex-end` 右对齐，info-wrapper 末尾到右栏标签之间形成一段空白横条。这次优化把 tags 移到这段被浪费的空间，**卡片整体高度不变**。
+
 ## 目标
 
-- 同列玩家卡片高度差异从当前的 ~3 行（≈72px）降到最多 1 行（≈28px），常见场景下严格等高
-- 标签数量增加时不再丢信息（不引入 `+N` 折叠、不引入滚动条、不引入 `overflow: hidden` 截断）
+- 标签数量增加时**不再撑高卡片**——常见场景下卡片高度由 profile + 战绩 grid 决定，与 tag 数量解耦
+- 标签数量增加时不丢信息（不引入 `+N` 折叠、不引入滚动条、不引入 `overflow: hidden` 截断）
 - 改动局限在 `PlayerCard.vue` 单文件内
 
-## 方案：标签下沉到卡片底部跨整行
+## 方案：标签内联到 profile 行右侧
 
-把标签条从右栏 `right-section` 中拆出，作为独立的 footer 行铺在卡片底部，横跨整张卡片宽度。
+把 `tags-container` 从右栏 `right-section` 拆出，作为 `profile-section` 的第三个横向子元素塞在 `info-wrapper` 之后，`flex: 1` 占满 profile 行剩余横向空间。
 
 ### Layout 变化
 
 变更前：
 
 ```
-┌─────────────────────────────┐
-│ [profile section]   │tags │ │
-│                     │─────│ │
-│ [history grid 2x2]  │data │ │
-│                     │card │ │
-└─────────────────────────────┘
+┌──────────────────────────────────────────┐
+│ [头像 info-wrapper       ] │tags(100px)  │
+│                            │─────────────│
+│ [history grid 2x2]         │data card    │
+└──────────────────────────────────────────┘
             ↑
-    tags 在窄栏 100px 内换行 → 右栏变高 → 撑卡
+    tags 在 100px 窄栏换行 → 撑卡
 ```
 
 变更后：
 
 ```
-┌─────────────────────────────┐
-│ [profile section]      │data│
-│                        │card│
-│ [history grid 2x2]     │    │
-├─────────────────────────────┤
-│ [队伍1] [遇见过] [tag] ...  │  ← 全宽 tag 条
-└─────────────────────────────┘
+┌──────────────────────────────────────────┐
+│ [头像 info-wrapper] [tags 填充剩余]│data │
+│                                    │card │
+├────────────────────────────────────│     │
+│ [history grid 2x2]                 │     │
+└──────────────────────────────────────────┘
             ↑
-卡片高度由 left-section + tag 条决定
-同列每张卡都按相同结构计算 → 等高
+tags 和 profile 同行，卡片高度由 left-section 的
+profile + history grid 决定，与 tag 数量解耦
 ```
 
 ### DOM 结构调整
 
-`<n-card>` 内部从原来的 `n-flex(left | right)` 改为：
+`<n-card>` 内部：
 
 ```vue
-<div class="card-body">
-  <n-flex :wrap="false">
-    <div class="left-section">{{ profile + PlayerHistoryGrid }}</div>
-    <div class="right-section">{{ PlayerStatsCard }}</div>
-  </n-flex>
-  <div class="tags-footer">
-    <!-- 队伍标记 / 遇见过 / userTag.tag 列表 -->
+<n-flex :wrap="false">
+  <div class="left-section">
+    <div class="profile-section">
+      <n-flex :wrap="false" align="center" style="gap: 10px">
+        <div class="avatar-wrapper">...</div>
+        <div class="info-wrapper">{{ name + tagLine + tier + ARAM增强/削弱 }}</div>
+        <div class="profile-tags">
+          <!-- 队伍标记 / 遇见过 / userTag.tag -->
+        </div>
+      </n-flex>
+    </div>
+    <PlayerHistoryGrid />
   </div>
-</div>
+  <div class="right-section">
+    <PlayerStatsCard />  <!-- 原 tags-container 已移除 -->
+  </div>
+</n-flex>
 ```
 
-- `right-section` 只剩 `PlayerStatsCard`，原 `tags-container` 整体下沉成 `tags-footer`；`right-section` 的 `width: 100px` 保持不变
-- ARAM 增强/削弱标签**保留**在召唤师名旁的 `n-popover`（profile-section 内），不下沉——它和段位、tagLine 是同一组上下文
-- `meetGames` 的"遇见过"标签 + popover、`preGroupMarkers` 队伍标记、`userTag.tag` 都搬到 `tags-footer`
+变更要点：
+
+- **新增 `.profile-tags`** 作为 profile 行的第三个 flex 子元素，`flex: 1` 占满剩余横向空间
+- `right-section` 删掉 `tags-container`，只保留 `PlayerStatsCard`
+- `right-section` 宽度保持 `100px` 不变
+- ARAM 增强/削弱 popover 保留在 `info-wrapper` 内，**不下沉**
+- `meetGames` 的"遇见过"、`preGroupMarkers` 队伍标记、`userTag.tag` 三类都搬到 `.profile-tags`
 
 ### CSS 关键点
 
 ```css
-.card-body {
+.profile-section {
+  /* 移除 padding-bottom 和 border-bottom，因为 profile 行不再是独立区段 */
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--n-divider-color);
+}
+
+.profile-tags {
+  flex: 1;
+  min-width: 0; /* flex 子元素允许收缩到 0 */
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  height: 100%;
-}
-
-.tags-footer {
-  min-height: 24px; /* 没标签时也保留占位，让同列卡片严格等高 */
-  padding-top: 6px;
-  border-top: 1px solid var(--n-divider-color);
-}
-
-.tags-footer :deep(.n-flex) {
-  gap: 4px;
   flex-wrap: wrap;
-  justify-content: flex-start; /* 改为左对齐，因为已经横跨整行 */
+  gap: 4px;
+  justify-content: flex-end; /* 标签贴右栏数据卡靠拢，视觉平衡 */
+  align-items: center;
 }
 ```
 
-`min-height: 24px` 保证即使整张卡 0 标签也保留 ~24px 占位行，**同列卡片严格等高**。
+`justify-content: flex-end` 让 tag 集中到 profile 行右侧（贴近 data card），与左侧的 avatar+name 信息区形成"身份在左、附加在右"的视觉布局。
 
 ### 卡片高度构成（改后）
 
 | 区段 | 高度 |
 |------|------|
-| profile-section | ~50px |
+| profile-section（包含 tags） | ~50px（tag 数量正常时单行不撑高） |
 | history grid (4 局，2×2) | ~70px |
-| tags-footer | ≥ 24px（多标签时换行扩到 ~50px） |
-| 总和 | ~150-170px |
+| 总和 | ~125-130px |
 
-横向空间从 100px → 280px，6 个长度 2-7 字的 AI tag 横排基本一行装下；极端情况换到 2 行也只是同列所有卡片同步加高。
+横向空间：tags 区可用宽度 ≈ 卡片宽度（~280px）- avatar（~40px）- info-wrapper 内容（~120-150px）- gap（~20px）= **~80-110px**
+
+> 注：这比原来 100px 窄栏并没有戏剧性增加横向空间。**优化的核心收益不是"标签横向空间变大"，而是"标签换行不再撑卡"**——因为 profile 行高度由 info-wrapper 内部的两行（name 行 + tagLine 行）决定，tags 即使换行到第二行也不会超过 info-wrapper 已经占据的高度。
 
 ## 不在范围内
 
@@ -110,14 +120,15 @@
 
 ## 风险与权衡
 
-- **卡片整体加高 ~24px**：同列每张卡都加同样高度，对齐性保留；纵向密度略降，是接受的代价。
-- **`tags-footer` 用 `min-height` 占位**：如果团队后续想做"无标签时彻底不留 footer"，需要重新讨论；本次为了优先解决"等高"问题选择保留占位。
-- **左对齐 vs 右对齐**：原右栏 tags 是 `justify-content: flex-end`，下沉后改左对齐更符合"卡片底部信息条"的视觉惯例。
+- **极端情况下 tags 换行到第三行**：当玩家有 6+ 个 AI tag + 队伍标记 + 遇见过时，tags 仍可能换到第三行，把 profile-section 高度从 ~50px 撑到 ~74px。这种情况下卡片确实会加高 ~24px，但同列每张卡按相同规则计算，**仍然等高**。
+- **小屏（窄卡片）下 tags 横向空间被进一步压缩**：当卡片宽度变窄时（如响应式调整），tags 区可用宽度急剧下降，换行更容易。本方案不针对极端窄屏特别优化。
+- **数据卡顶部不再有标签作为视觉锚点**：原来 tags 在右栏顶部、数据卡在右栏底部形成一个紧凑的"信息列"；改后右栏只剩数据卡。视觉上数据卡会显得更孤立——可以接受，因为换来更整齐的卡片高度。
 
 ## 验收
 
-1. 同一列任意 5 张卡片的 `offsetHeight` 差异 ≤ 28px（即一行 tag 高度）；当列内所有卡 tag 总数都能塞进单行时严格等高
-2. 单张卡 `userTag.tag` 数量 0 / 1 / 3 / 6 时，卡片底部 tag 区视觉表现合理且不撑高
+1. 同一列任意 5 张卡片，当所有卡片的 tag 总数（preGroupMarkers + meetGames + userTag.tag）都不触发换行时，`offsetHeight` 严格相等
+2. 当某张卡 tag 总数过多触发 `.profile-tags` 换行时，该卡 profile-section 加高一行（~24px），但同列其他卡片如果也触发换行则同步加高；不会出现"右栏单独撑高、profile 行不动"的不齐情况
 3. ARAM 模式下，召唤师名旁的增强/削弱 popover 仍在原位
-4. 浅色 / 深色主题下 `tags-footer` 的 `border-top` 颜色协调
-5. `npm run check` 通过；前端 vitest 不需要新增测试（纯样式调整，无逻辑变更）
+4. tag 区右对齐，最右侧紧贴 right-section 边界
+5. 没有任何 tag 时，profile 行视觉无空白凹陷（avatar + info-wrapper 自然铺开）
+6. `npm run check` 通过；前端 vitest 不需要新增测试（纯样式调整，无逻辑变更）
