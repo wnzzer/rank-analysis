@@ -40,6 +40,22 @@ const VALID_CONDITION_TYPES: ReadonlySet<string> = new Set([
 const NAME_MIN = 2
 const NAME_MAX = 7
 
+// 明确负面的 name 词。出现在 good=true 的标签里说明 AI 把分类和命名搞反了。
+// 仅检查 good 侧；坏标签允许任意调侃。
+const NEGATIVE_NAME_WORDS: readonly string[] = [
+  '混子',
+  '翻车',
+  '水货',
+  '咸鱼',
+  '废物',
+  '掉分',
+  '演员',
+  '弱鸡',
+  '荣鸡', // 弱鸡的变体
+  '坑货',
+  '送人头'
+]
+
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
 function uuid(): string {
@@ -216,6 +232,10 @@ function hasNonSrLaneWord(text: string, c: TagCondition): boolean {
   return SR_LANE_WORDS.some(word => text.includes(word))
 }
 
+function hasNegativeNameWord(name: string): boolean {
+  return NEGATIVE_NAME_WORDS.some(w => name.includes(w))
+}
+
 function nameOk(name: unknown): name is string {
   if (typeof name !== 'string') return false
   // 按 Unicode 字符数计算长度（正确处理中文、emoji 等多字节字符）
@@ -243,6 +263,9 @@ function buildSuggestion(raw: RawSuggestion, good: boolean): TagSuggestion | nul
 
   // 非 SR 模式不带路位词（name 和 desc 都查）
   if (hasNonSrLaneWord(name, cond) || hasNonSrLaneWord(desc, cond)) return null
+
+  // 好标签的 name 不能含明确负面词（name 和 good/bad 分类要语气一致）
+  if (good && hasNegativeNameWord(name)) return null
 
   return {
     id: uuid(),

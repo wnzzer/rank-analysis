@@ -50,6 +50,16 @@ describe('SYSTEM_PROMPT', () => {
   it('warns about lane words in non-SR modes', () => {
     expect(SYSTEM_PROMPT).toContain('非召唤师峡谷模式不要带路位')
   })
+  it('forbids negative words in 好标签 names', () => {
+    expect(SYSTEM_PROMPT).toContain('混子')
+    expect(SYSTEM_PROMPT).toContain('好标签 name 用褒义或中性')
+  })
+  it('requires name and desc to use the same mode keyword', () => {
+    expect(SYSTEM_PROMPT).toContain('name 和 desc 模式名必须一致')
+  })
+  it('includes the 海克斯乱斗 few-shot example', () => {
+    expect(SYSTEM_PROMPT).toContain('海克斯送葬')
+  })
 })
 
 describe('buildTagSuggestPrompt', () => {
