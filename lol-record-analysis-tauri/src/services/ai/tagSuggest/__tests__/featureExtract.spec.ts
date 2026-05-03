@@ -39,7 +39,7 @@ describe('gameToFeature', () => {
       win: true,
       kda: { k: 10, d: 2, a: 8 },
       queueId: 420,
-      queueName: '单双排位',
+      queueName: '排位模式',
       durationMin: 30
     })
     expect(f!.kda.ratio).toBeCloseTo(9, 1)
@@ -69,37 +69,44 @@ describe('gameToFeature', () => {
     expect(gameToFeature(game, 'me')).toBeNull()
   })
 
-  it('attaches queueName for known queueIds', () => {
-    const f = gameToFeature(makeGame(420), 'me')
-    expect(f?.queueName).toBe('单双排位')
+  it('attaches queueName from injected map', () => {
+    const game = makeGame(420)
+    const f = gameToFeature(game, 'me', { 420: '单双排' })
+    expect(f?.queueName).toBe('单双排')
   })
 
-  it('falls back to 娱乐模式 for unknown queueIds', () => {
+  it('uses categorization fallback when no map provided', () => {
+    const game = makeGame(420)
+    const f = gameToFeature(game, 'me')
+    expect(f?.queueName).toBe('排位模式')
+  })
+
+  it('falls back to 娱乐模式 for unknown queueIds without map', () => {
     const f = gameToFeature(makeGame(99999), 'me')
     expect(f?.queueName).toBe('娱乐模式')
   })
 })
 
 describe('queueIdToName', () => {
-  it('returns correct name for ranked queues', () => {
-    expect(queueIdToName(420)).toBe('单双排位')
-    expect(queueIdToName(440)).toBe('灵活组排')
-  })
-  it('returns correct name for entertainment queues', () => {
-    expect(queueIdToName(450)).toBe('大乱斗')
-    expect(queueIdToName(1700)).toBe('斗魂竞技场')
-    expect(queueIdToName(1300)).toBe('觉醒之战')
-  })
-  it('returns specific name for known entertainment mode (大乱斗)', () => {
-    expect(queueIdToName(450)).toBe('大乱斗')
+  it('returns specific name from injected map (大乱斗)', () => {
+    expect(queueIdToName(450, { 450: '大乱斗' })).toBe('大乱斗')
   })
 
-  it('returns specific name for clash (700)', () => {
-    expect(queueIdToName(700)).toBe('冠军杯赛')
+  it('returns 排位模式 for ranked id without map', () => {
+    expect(queueIdToName(420)).toBe('排位模式')
   })
 
-  it('returns 娱乐模式 for unknown queueId', () => {
+  it('returns 匹配模式 for matchmaking id without map', () => {
+    expect(queueIdToName(430)).toBe('匹配模式')
+  })
+
+  it('falls back to 娱乐模式 for unmapped non-ranked id', () => {
     expect(queueIdToName(987654)).toBe('娱乐模式')
+  })
+
+  it('injected map takes priority over categorization', () => {
+    // Even if 420 is "ranked" by category, an injected name should win.
+    expect(queueIdToName(420, { 420: '单双排' })).toBe('单双排')
   })
 })
 

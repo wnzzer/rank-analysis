@@ -28,10 +28,10 @@ const fakeGoodAIResponse = JSON.stringify({
   bad: []
 })
 
-function fakeGame(win: boolean, puuid = 'me') {
+function fakeGame(win: boolean, puuid = 'me', queueId = 420) {
   return {
     gameId: Math.random(),
-    queueId: 420,
+    queueId,
     gameDuration: 1800,
     participants: [{ championId: 1, stats: { win, kills: 5, deaths: 1, assists: 3 } }],
     participantIdentities: [{ player: { puuid } }]
@@ -67,6 +67,11 @@ describe('requestTagSuggestions', () => {
   it('returns insufficient when game count < MIN_GAMES_REQUIRED', async () => {
     invoke.mockImplementation(async (cmd: string) => {
       if (cmd === 'get_my_summoner') return { puuid: 'me' }
+      if (cmd === 'get_game_modes')
+        return [
+          { label: '全部', value: 0 },
+          { label: '单双排', value: 420 }
+        ]
       if (cmd === 'get_match_history_by_puuid') {
         return { games: { games: [fakeGame(true)] } } // only 1 game
       }
@@ -80,6 +85,11 @@ describe('requestTagSuggestions', () => {
   it('hits AI and parses on first call', async () => {
     invoke.mockImplementation(async (cmd: string) => {
       if (cmd === 'get_my_summoner') return { puuid: 'me' }
+      if (cmd === 'get_game_modes')
+        return [
+          { label: '全部', value: 0 },
+          { label: '单双排', value: 420 }
+        ]
       if (cmd === 'get_match_history_by_puuid') {
         return {
           games: {
@@ -103,6 +113,11 @@ describe('requestTagSuggestions', () => {
   it('uses cache on second call (no second AI fetch)', async () => {
     invoke.mockImplementation(async (cmd: string) => {
       if (cmd === 'get_my_summoner') return { puuid: 'me' }
+      if (cmd === 'get_game_modes')
+        return [
+          { label: '全部', value: 0 },
+          { label: '单双排', value: 420 }
+        ]
       if (cmd === 'get_match_history_by_puuid') {
         return { games: { games: Array.from({ length: 10 }, () => fakeGame(true)) } }
       }
@@ -118,6 +133,11 @@ describe('requestTagSuggestions', () => {
   it('forceRefresh bypasses cache', async () => {
     invoke.mockImplementation(async (cmd: string) => {
       if (cmd === 'get_my_summoner') return { puuid: 'me' }
+      if (cmd === 'get_game_modes')
+        return [
+          { label: '全部', value: 0 },
+          { label: '单双排', value: 420 }
+        ]
       if (cmd === 'get_match_history_by_puuid') {
         return { games: { games: Array.from({ length: 10 }, () => fakeGame(true)) } }
       }
@@ -133,6 +153,11 @@ describe('requestTagSuggestions', () => {
   it('returns aiError when requestAIContent fails', async () => {
     invoke.mockImplementation(async (cmd: string) => {
       if (cmd === 'get_my_summoner') return { puuid: 'me' }
+      if (cmd === 'get_game_modes')
+        return [
+          { label: '全部', value: 0 },
+          { label: '单双排', value: 420 }
+        ]
       if (cmd === 'get_match_history_by_puuid') {
         return { games: { games: Array.from({ length: 10 }, () => fakeGame(true)) } }
       }
@@ -148,6 +173,11 @@ describe('requestTagSuggestions', () => {
   it('returns parseError when JSON is malformed', async () => {
     invoke.mockImplementation(async (cmd: string) => {
       if (cmd === 'get_my_summoner') return { puuid: 'me' }
+      if (cmd === 'get_game_modes')
+        return [
+          { label: '全部', value: 0 },
+          { label: '单双排', value: 420 }
+        ]
       if (cmd === 'get_match_history_by_puuid') {
         return { games: { games: Array.from({ length: 10 }, () => fakeGame(true)) } }
       }
@@ -162,6 +192,11 @@ describe('requestTagSuggestions', () => {
   it('returns aiError when AI returns empty content (proxy issue)', async () => {
     invoke.mockImplementation(async (cmd: string) => {
       if (cmd === 'get_my_summoner') return { puuid: 'me' }
+      if (cmd === 'get_game_modes')
+        return [
+          { label: '全部', value: 0 },
+          { label: '单双排', value: 420 }
+        ]
       if (cmd === 'get_match_history_by_puuid') {
         return { games: { games: Array.from({ length: 10 }, () => fakeGame(true)) } }
       }
@@ -171,6 +206,32 @@ describe('requestTagSuggestions', () => {
     const r = await requestTagSuggestions()
     expect(r.kind).toBe('aiError')
     if (r.kind === 'aiError') expect(r.error).toContain('空响应')
+  })
+
+  it('uses queue name from get_game_modes for queueName field', async () => {
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+      if (cmd === 'get_my_summoner') return { puuid: 'me' }
+      if (cmd === 'get_game_modes')
+        return [
+          { label: '全部', value: 0 },
+          { label: '大乱斗', value: 450 }
+        ]
+      if (cmd === 'get_match_history_by_puuid') {
+        return {
+          games: {
+            games: Array.from({ length: 10 }, () => fakeGame(true, 'me', 450))
+          }
+        }
+      }
+      throw new Error('unexpected: ' + cmd)
+    })
+    vi.mocked(requestAIContent).mockResolvedValue({ success: true, content: fakeGoodAIResponse })
+
+    // We can't directly inspect features (orchestrator doesn't return them) — instead
+    // assert the get_game_modes invoke was made.
+    const { requestTagSuggestions: rts } = await import('../index')
+    await rts(true) // forceRefresh to bypass any sessionStorage
+    expect(vi.mocked(invoke)).toHaveBeenCalledWith('get_game_modes')
   })
 })
 

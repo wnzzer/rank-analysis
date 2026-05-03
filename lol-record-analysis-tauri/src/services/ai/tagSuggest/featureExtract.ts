@@ -2,50 +2,20 @@
  * AI 标签建议的输入特征提取：把 LCU 对局原始数据压成喂给 AI 的精简结构。
  */
 
-// Common LCU queue IDs → Chinese mode names. Covers ranked, normal matchmaking, and the
-// most popular entertainment / rotating modes. Unknown ids fall back to '娱乐模式'.
-const QUEUE_NAMES: Record<number, string> = {
-  // Ranked
-  420: '单双排位',
-  440: '灵活组排',
-  // Normal matchmaking
-  430: '匹配模式',
-  480: '快速匹配',
-  // Clash
-  700: '冠军杯赛',
-  720: '冠军杯赛大乱斗',
-  // ARAM and ARAM variants
-  450: '大乱斗',
-  100: '旧版大乱斗',
-  // Featured / rotating modes
-  900: '无限火力',
-  1900: '无限火力',
-  920: '飞升',
-  1010: '雪球大战',
-  1020: '一拳超人',
-  1300: '觉醒之战',
-  1400: '终极魔典',
-  1700: '斗魂竞技场',
-  1810: '斗魂竞技场排位',
-  // Hexakill (海克斯乱斗) — historically multiple ids
-  75: '海克斯乱斗',
-  98: '海克斯乱斗',
-  // Co-op vs AI
-  830: '新手 AI',
-  840: '中级 AI',
-  850: '高级 AI'
-}
-
-// Categories for the fallback when queue id isn't in the map.
-// Anything outside ranked/matchmaking is almost certainly an entertainment / featured mode.
+// 队列分类兜底：未在动态 map 里、又落在已知 ranked / matchmaking 范围 → 给类别名；
+// 其余统一视为娱乐模式（绝大多数未列出的 LCU queue id 都是娱乐 / 限时模式）。
 const KNOWN_RANKED: ReadonlySet<number> = new Set([420, 440])
-const KNOWN_MATCHMAKING: ReadonlySet<number> = new Set([430, 480])
+const KNOWN_MATCHMAKING: ReadonlySet<number> = new Set([430, 480, 490])
+
+/** queueId → 中文模式名映射，运行时从 Rust 端 get_game_modes 拉取后传入。 */
+export type QueueNameMap = Record<number, string>
 
 /**
- * 将 queueId 转换为对应的中文模式名。未知 id 返回 '娱乐模式'。
+ * queueId 解析中文名。优先使用注入的 nameMap（来自项目的 QUEUE_ID_TO_CN），
+ * 没有命中再走分类兜底。
  */
-export function queueIdToName(id: number): string {
-  if (QUEUE_NAMES[id]) return QUEUE_NAMES[id]
+export function queueIdToName(id: number, nameMap?: QueueNameMap): string {
+  if (nameMap?.[id]) return nameMap[id]
   if (KNOWN_RANKED.has(id)) return '排位模式'
   if (KNOWN_MATCHMAKING.has(id)) return '匹配模式'
   return '娱乐模式'
@@ -94,7 +64,11 @@ export interface RawGame {
  *
  * 约定：deaths=0 时按 1 处理（避免除零、保持 KDA 仍可比较）。
  */
-export function gameToFeature(game: RawGame, myPuuid: string): GameFeature | null {
+export function gameToFeature(
+  game: RawGame,
+  myPuuid: string,
+  nameMap?: QueueNameMap
+): GameFeature | null {
   const idx = game.participantIdentities.findIndex(i => i.player?.puuid === myPuuid)
   if (idx < 0) return null
   const p = game.participants[idx]
@@ -108,7 +82,7 @@ export function gameToFeature(game: RawGame, myPuuid: string): GameFeature | nul
     win: s.win ?? false,
     championId: p.championId ?? 0,
     queueId: game.queueId,
-    queueName: queueIdToName(game.queueId),
+    queueName: queueIdToName(game.queueId, nameMap),
     durationMin: Math.round(game.gameDuration / 60),
     kda: { k, d, a, ratio: (k + a) / dForRatio },
     damage: s.totalDamageDealtToChampions ?? 0,
