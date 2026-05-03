@@ -78,11 +78,12 @@ profile + history grid 决定，与 tag 数量解耦
 
 ### CSS 关键点
 
+只新增 `.profile-tags`，并把 `.info-wrapper` 的 `flex: 1` 改为 `flex: 0 1 auto`（不再独占剩余空间，把空间让给 `.profile-tags`）。`.profile-section` 的 `padding-bottom` 和 `border-bottom` 保持不变。
+
 ```css
-.profile-section {
-  /* 移除 padding-bottom 和 border-bottom，因为 profile 行不再是独立区段 */
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--n-divider-color);
+.info-wrapper {
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 .profile-tags {
@@ -93,6 +94,7 @@ profile + history grid 决定，与 tag 数量解耦
   gap: 4px;
   justify-content: flex-end; /* 标签贴右栏数据卡靠拢，视觉平衡 */
   align-items: center;
+  padding-left: 8px; /* 与 info-wrapper 之间留视觉间距 */
 }
 ```
 
