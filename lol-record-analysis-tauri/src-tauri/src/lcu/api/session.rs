@@ -35,21 +35,26 @@ pub struct GameData {
 
 /// 队列类型与 ID（如排位/匹配）。
 #[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")] // Apply camelCase deserialization to Queue fields
+#[serde(rename_all = "camelCase")]
 pub struct Queue {
-    #[serde(rename = "type")] // 'type' is a Rust keyword, so explicitly rename
+    #[serde(rename = "type")]
     pub queue_type: String,
     pub id: i32,
+    #[serde(default)]
+    pub game_mode: String,
 }
 
 /// 会话中单名玩家：英雄 ID 与 PUUID。
 #[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")] // Apply camelCase deserialization to OnePlayer fields
+#[serde(rename_all = "camelCase")]
 pub struct OnePlayer {
     pub champion_id: i32,
     pub puuid: String,
     #[serde(default)]
     pub selected_position: String,
+    /// CHERRY 模式下的 lobby 阶段编号；同 ID 的玩家是同小队（仅作弱信号，最终以 stats.playerSubteamId 为准）
+    #[serde(default)]
+    pub team_participant_id: i32,
 }
 
 impl Session {

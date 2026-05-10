@@ -107,10 +107,57 @@ pub struct Stats {
     pub damage_taken_rate: i32,
     #[serde(rename = "healRate", default)]
     pub heal_rate: i32,
+    /// CHERRY/斗魂模式：1~8 表示玩家所属小队 ID；非 CHERRY 局为 0
+    #[serde(rename = "playerSubteamId", default)]
+    pub player_subteam_id: i32,
+    /// CHERRY/斗魂模式：1~8 表示该小队的最终名次（1=冠军）；非 CHERRY 局为 0
+    #[serde(rename = "subteamPlacement", default)]
+    pub subteam_placement: i32,
 }
 
 /// 参与者身份：关联到 Player（账号/召唤师信息）。
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct ParticipantIdentity {
     pub player: Player,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_deserialize_arena_subteam_fields() {
+        let json = r#"{
+            "win": true,
+            "item0": 0, "item1": 0, "item2": 0, "item3": 0, "item4": 0, "item5": 0, "item6": 0,
+            "perkPrimaryStyle": 0, "perkSubStyle": 0,
+            "kills": 5, "deaths": 2, "assists": 8,
+            "goldEarned": 12000, "goldSpent": 11000,
+            "totalDamageDealtToChampions": 30000, "totalDamageDealt": 100000,
+            "totalDamageTaken": 20000, "totalHeal": 7000,
+            "totalMinionsKilled": 0,
+            "playerSubteamId": 3,
+            "subteamPlacement": 5
+        }"#;
+        let stats: Stats = serde_json::from_str(json).unwrap();
+        assert_eq!(stats.player_subteam_id, 3);
+        assert_eq!(stats.subteam_placement, 5);
+    }
+
+    #[test]
+    fn should_default_subteam_fields_when_absent() {
+        let json = r#"{
+            "win": true,
+            "item0": 0, "item1": 0, "item2": 0, "item3": 0, "item4": 0, "item5": 0, "item6": 0,
+            "perkPrimaryStyle": 0, "perkSubStyle": 0,
+            "kills": 0, "deaths": 0, "assists": 0,
+            "goldEarned": 0, "goldSpent": 0,
+            "totalDamageDealtToChampions": 0, "totalDamageDealt": 0,
+            "totalDamageTaken": 0, "totalHeal": 0,
+            "totalMinionsKilled": 0
+        }"#;
+        let stats: Stats = serde_json::from_str(json).unwrap();
+        assert_eq!(stats.player_subteam_id, 0);
+        assert_eq!(stats.subteam_placement, 0);
+    }
 }

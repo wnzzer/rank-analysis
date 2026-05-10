@@ -1,6 +1,6 @@
 /**
  * 根据 sessionData 计算每个玩家展示用的段位图标 + 段位中文
- * 同时考虑对局模式（灵活组排时优先使用 RANKED_FLEX_SR）
+ * 多小队模型：返回 subteamId → TierDisplay[]
  */
 
 import { computed, type MaybeRefOrGetter, toValue } from 'vue'
@@ -26,12 +26,14 @@ function toDisplay(player: SessionSummoner, queueType: string): TierDisplay {
   return { imgUrl: tierImage(q.tier), tierCn }
 }
 
+/** 返回 subteamId → TierDisplay[]（按玩家在小队中的顺序） */
 export function useSessionTiers(session: MaybeRefOrGetter<SessionData>) {
-  return computed(() => {
+  return computed<Record<number, TierDisplay[]>>(() => {
     const s = toValue(session)
-    return {
-      teamOne: s.teamOne.map(p => toDisplay(p, s.type)),
-      teamTwo: s.teamTwo.map(p => toDisplay(p, s.type))
+    const out: Record<number, TierDisplay[]> = {}
+    for (const st of s.subteams) {
+      out[st.subteamId] = st.players.map(p => toDisplay(p, s.type))
     }
+    return out
   })
 }

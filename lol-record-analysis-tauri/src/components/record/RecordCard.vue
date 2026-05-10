@@ -21,7 +21,7 @@
             marginTop: '2px'
           }"
         >
-          {{ games.participants[0].stats.win ? '胜利' : '失败' }}
+          {{ resultLabel }}
           <n-divider style="margin: 1px 0; line-height: 1px" />
         </span>
 
@@ -245,6 +245,15 @@ const isDark = computed(
 /** 海克斯乱斗模式 queueId: 1700(斗魂竞技场), 2400(海克斯大乱斗) */
 const augmentQueueIds = new Set([1700, 2400])
 const usesAugments = computed(() => augmentQueueIds.has(props.games.queueId))
+
+const isCherry = computed(() => props.games.gameMode === 'CHERRY')
+const placement = computed(() => props.games.participants[0]?.stats?.subteamPlacement ?? 0)
+const resultLabel = computed(() => {
+  if (isCherry.value && placement.value > 0) {
+    return `第 ${placement.value} 名`
+  }
+  return props.games.participants[0].stats.win ? '胜利' : '失败'
+})
 
 const augmentIds = computed(() => {
   const s = props.games.participants[0].stats

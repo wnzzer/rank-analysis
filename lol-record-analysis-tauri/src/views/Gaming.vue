@@ -53,47 +53,20 @@
         <div class="ai-result-content" v-html="renderedAIResult"></div>
       </n-modal>
 
-      <!-- 左我方、右敌方，由后端按 LCU 当前用户交换保证 -->
-      <n-flex justify="space-between" class="gaming-columns">
-        <n-flex vertical class="gaming-team-col gaming-team-blue">
-          <div class="team-label team-label-blue">我方</div>
-          <PlayerCard
-            v-for="(sessionSummoner, i) of sessionData.teamOne"
-            :key="'teamOne' + i"
-            :style="{ '--stagger-i': i }"
-            team="blue"
-            :session-summoner="sessionSummoner"
-            :mode-type="sessionData.type"
-            :type-cn="sessionData.typeCn"
-            :queue-id="sessionData.queueId"
-            :img-url="tiers.teamOne[i]?.imgUrl"
-            :tier-cn="tiers.teamOne[i]?.tierCn"
-          />
-        </n-flex>
-
-        <n-flex vertical class="gaming-team-col gaming-team-red">
-          <div class="team-label team-label-red">敌方</div>
-          <template v-if="sessionData.phase === 'ChampSelect'">
-            <div class="enemy-placeholder">
-              <n-text depth="2">选择中</n-text>
-            </div>
-          </template>
-          <template v-else>
-            <PlayerCard
-              v-for="(sessionSummoner, i) of sessionData.teamTwo"
-              :key="'teamTwo' + i"
-              :style="{ '--stagger-i': i }"
-              team="red"
-              :session-summoner="sessionSummoner"
-              :mode-type="sessionData.type"
-              :type-cn="sessionData.typeCn"
-              :queue-id="sessionData.queueId"
-              :img-url="tiers.teamTwo[i]?.imgUrl"
-              :tier-cn="tiers.teamTwo[i]?.tierCn"
-            />
-          </template>
-        </n-flex>
-      </n-flex>
+      <div class="gaming-grid" :class="{ 'gaming-grid-multi': sessionData.isMultiTeam }">
+        <SubteamCard
+          v-for="st of orderedSubteams"
+          :key="`subteam-${st.subteamId}`"
+          :subteam="st"
+          :is-mine="st.subteamId === sessionData.mySubteamId"
+          :expected-size="expectedSubteamSize"
+          :type-cn="sessionData.typeCn"
+          :mode-type="sessionData.type"
+          :queue-id="sessionData.queueId"
+          :tiers-by-subteam="tiersBySubteam"
+          :density="density"
+        />
+      </div>
     </div>
   </template>
 </template>
@@ -106,13 +79,28 @@ import { useMessage } from 'naive-ui'
 import MarkdownIt from 'markdown-it'
 
 import LoadingComponent from '@renderer/components/LoadingComponent.vue'
-import PlayerCard from '@renderer/components/gaming/PlayerCard.vue'
+import SubteamCard from '@renderer/components/gaming/SubteamCard.vue'
 import { analyzeGameWithAIStream, type StreamCallbacks } from '@renderer/services/ai'
 import { useSessionSync } from '@renderer/composables/useSessionSync'
 import { useSessionTiers } from '@renderer/composables/useSessionTiers'
 
 const { sessionData } = useSessionSync()
-const tiers = useSessionTiers(sessionData)
+const tiersBySubteam = useSessionTiers(sessionData)
+
+const density = computed<'normal' | 'compact'>(() =>
+  sessionData.isMultiTeam ? 'compact' : 'normal'
+)
+
+const expectedSubteamSize = computed(() => (sessionData.isMultiTeam ? 2 : 5))
+
+const orderedSubteams = computed(() => {
+  // 我方排第一格；其它按 subteamId 升序
+  const my = sessionData.subteams.find(s => s.subteamId === sessionData.mySubteamId)
+  const others = sessionData.subteams
+    .filter(s => s.subteamId !== sessionData.mySubteamId)
+    .sort((a, b) => a.subteamId - b.subteamId)
+  return my ? [my, ...others] : others
+})
 
 const showConfig = ref(false)
 const matchCount = ref(4)
@@ -198,6 +186,7 @@ onMounted(async () => {
   height: 100%;
   box-sizing: border-box;
   position: relative;
+  overflow-y: auto;
 }
 
 .gaming-config-btn {
@@ -308,45 +297,16 @@ onMounted(async () => {
   margin: 16px 0;
 }
 
-.gaming-columns {
+.gaming-grid {
   height: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: var(--space-16);
 }
 
-.gaming-team-col {
-  flex: 1;
-  height: 100%;
-  gap: var(--space-8);
-  position: relative;
-}
-
-.team-label {
-  font-size: 12px;
-  font-weight: 700;
-  padding: var(--space-4) var(--space-8);
-  border-radius: var(--radius-sm);
-  flex-shrink: 0;
-  width: fit-content;
-}
-
-.team-label-blue {
-  background: var(--team-blue);
-  color: var(--text-primary);
-  border: 1px solid rgba(59, 130, 246, 0.4);
-}
-
-.team-label-red {
-  background: var(--team-red);
-  color: var(--text-primary);
-  border: 1px solid rgba(239, 68, 68, 0.4);
-}
-
-.enemy-placeholder {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 120px;
-  font-size: 14px;
+.gaming-grid-multi {
+  height: auto;
+  grid-template-columns: 1fr 1fr;
+  grid-auto-rows: minmax(220px, auto);
 }
 </style>

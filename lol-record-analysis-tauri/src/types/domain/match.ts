@@ -47,6 +47,10 @@ export interface ParticipantStats {
   damageDealtToChampionsRate: number
   damageTakenRate: number
   healRate: number
+  /** CHERRY/斗魂模式：1~8 玩家所属小队 ID；非 CHERRY 局为 0 */
+  playerSubteamId: number
+  /** CHERRY/斗魂模式：1~8 小队最终名次（1=冠军）；非 CHERRY 局为 0 */
+  subteamPlacement: number
 }
 
 export interface Participant {

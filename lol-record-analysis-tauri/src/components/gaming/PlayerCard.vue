@@ -4,11 +4,14 @@
     :class="[
       { 'light-mode-strip': settingsStore.theme?.name === 'Light' },
       props.team === 'blue' && 'player-card-team-blue',
-      props.team === 'red' && 'player-card-team-red'
+      props.team === 'red' && 'player-card-team-red',
+      props.team === 'mine' && 'player-card-team-mine',
+      props.team === 'enemy' && 'player-card-team-enemy',
+      `player-card-density-${props.density}`
     ]"
     size="small"
     :bordered="true"
-    content-style="padding: 8px;"
+    content-style="padding: 6px;"
   >
     <div v-if="sessionSummoner.isLoading" key="loading-known" class="loading-container">
       <div class="custom-spin"></div>
@@ -193,10 +196,11 @@ interface Props {
   imgUrl: string
   tierCn: string
   queueId: number
-  team?: 'blue' | 'red'
+  team?: 'blue' | 'red' | 'mine' | 'enemy' | undefined
+  density?: 'normal' | 'compact'
 }
 
-const props = withDefaults(defineProps<Props>(), { team: undefined })
+const props = withDefaults(defineProps<Props>(), { team: undefined, density: 'normal' })
 
 const settingsStore = useSettingsStore()
 const isDark = computed(
@@ -405,5 +409,33 @@ const { isAramMode, balanceTags, overallBalanceStatus } = useAramBalance(
   background: rgba(251, 191, 36, 0.1) !important;
   color: #d97706 !important;
   border: 1px solid rgba(251, 191, 36, 0.2) !important;
+}
+
+.player-card-team-mine {
+  border-left: 2px solid var(--team-blue);
+  border-color: var(--border-subtle);
+  border-left-color: rgba(34, 197, 94, 0.7);
+}
+
+.player-card-team-enemy {
+  border-left: 2px solid var(--team-red);
+  border-color: var(--border-subtle);
+  border-left-color: rgba(239, 68, 68, 0.5);
+}
+
+.player-card-density-compact .right-section {
+  display: none;
+}
+
+.player-card-density-compact .left-section {
+  gap: 4px;
+}
+
+.player-card-density-compact :deep(.player-history-grid) {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.player-card-density-compact .info-wrapper :deep(.n-button) {
+  font-size: 12px;
 }
 </style>
