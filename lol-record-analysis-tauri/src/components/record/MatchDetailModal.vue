@@ -722,6 +722,7 @@ watch(
   border-radius: 10px;
   overflow: hidden;
   background: rgba(0, 0, 0, 0.06);
+  flex-shrink: 0;
 }
 
 .theme-light .match-detail-team-section {

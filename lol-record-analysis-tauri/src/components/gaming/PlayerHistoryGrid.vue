@@ -87,6 +87,8 @@ defineProps<{ games: Game[] }>()
   font-size: 12px;
   min-width: 60px;
   text-align: center;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .kill {

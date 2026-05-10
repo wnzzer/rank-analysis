@@ -17,6 +17,8 @@ import {
 import type { Game, ParticipantStats } from '@renderer/types/domain/match'
 import { safeRelativePercent } from '@renderer/utils/format'
 
+const PLACEMENT_LABEL = (p: number) => (p > 0 ? `第 ${p} 名` : '')
+
 export interface PlayerBadge {
   key: string
   label: string
@@ -177,6 +179,47 @@ export function useMatchDetailPlayers(
   const mySummary = computed(() => detailPlayers.value.find(p => p.isMe) ?? detailPlayers.value[0])
 
   const teamSections = computed<TeamSection[]>(() => {
+    const g = toValue(game)
+    const isCherry = g?.gameMode === 'CHERRY'
+
+    if (isCherry) {
+      const map = new Map<number, DetailPlayer[]>()
+      for (const p of detailPlayers.value) {
+        const sid = p.stats.playerSubteamId
+        if (!map.has(sid)) map.set(sid, [])
+        map.get(sid)!.push(p)
+      }
+      return [...map.entries()]
+        .map(([subteamId, players]) => {
+          const placement = players[0]?.stats.subteamPlacement ?? 0
+          const won = players[0]?.stats.win ?? false
+          const totals = players.reduce(
+            (acc, p) => {
+              acc.kills += p.stats.kills
+              acc.deaths += p.stats.deaths
+              acc.assists += p.stats.assists
+              acc.gold += p.stats.goldEarned
+              acc.damage += p.stats.totalDamageDealtToChampions
+              acc.taken += p.stats.totalDamageTaken
+              return acc
+            },
+            { kills: 0, deaths: 0, assists: 0, gold: 0, damage: 0, taken: 0 }
+          )
+          return {
+            teamId: subteamId,
+            players,
+            title: `队伍 ${subteamId} · ${PLACEMENT_LABEL(placement)}`,
+            headerClass: won ? 'match-detail-team-header-win' : 'match-detail-team-header-loss',
+            ...totals
+          }
+        })
+        .sort((a, b) => {
+          const pa = a.players[0]?.stats.subteamPlacement ?? 99
+          const pb = b.players[0]?.stats.subteamPlacement ?? 99
+          return pa - pb
+        })
+    }
+
     const teamMap = new Map<number, DetailPlayer[]>()
     for (const player of detailPlayers.value) {
       const cur = teamMap.get(player.teamId) ?? []

@@ -1,12 +1,17 @@
 /**
  * 对局会话数据同步：订阅 LCU 推送事件 + 增量合并玩家数据
- * 从 Gaming.vue 中抽出，统一管理生命周期
+ * 多小队模型（CLASSIC: 2 个 subteam，CHERRY: 1~8 个 subteam）
  */
 
 import { onMounted, onUnmounted, reactive, watch } from 'vue'
 import { listen } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
-import type { PreGroupMarkers, SessionData, SessionSummoner } from '@renderer/types/domain/gaming'
+import type {
+  PreGroupMarkers,
+  SessionData,
+  SessionSummoner,
+  Subteam
+} from '@renderer/types/domain/gaming'
 
 const MAX_RETRIES = 3
 const RETRY_DELAY_MS = 3000
@@ -19,11 +24,13 @@ function markersEqual(a: PreGroupMarkers | undefined, b: PreGroupMarkers | undef
   return a.name === b.name && a.type === b.type
 }
 
-function updatePreGroupMarkers(team: SessionSummoner[], markers: Record<string, PreGroupMarkers>) {
-  for (const player of team) {
-    const marker = markers[player.summoner.puuid]
-    if (marker && !markersEqual(player.preGroupMarkers, marker)) {
-      player.preGroupMarkers = marker
+function updatePreGroupMarkers(subteams: Subteam[], markers: Record<string, PreGroupMarkers>) {
+  for (const st of subteams) {
+    for (const player of st.players) {
+      const marker = markers[player.summoner.puuid]
+      if (marker && !markersEqual(player.preGroupMarkers, marker)) {
+        player.preGroupMarkers = marker
+      }
     }
   }
 }
@@ -47,63 +54,77 @@ function playerSignature(p: SessionSummoner): string {
   ].join('|')
 }
 
-function updatePlayerAtIndex(team: SessionSummoner[], index: number, newPlayer: SessionSummoner) {
-  if (!team || index >= team.length) return
-  const oldPlayer = team[index]
+function findSubteam(subteams: Subteam[], subteamId: number): Subteam | undefined {
+  return subteams.find(s => s.subteamId === subteamId)
+}
 
-  // 同一玩家时保留 meetGames/preGroupMarkers（后端最后阶段才计算，避免闪烁）
+function updatePlayerInSubteam(
+  subteams: Subteam[],
+  subteamId: number,
+  index: number,
+  newPlayer: SessionSummoner
+) {
+  const st = findSubteam(subteams, subteamId)
+  if (!st || index >= st.players.length) return
+  const oldPlayer = st.players[index]
   if (oldPlayer && oldPlayer.summoner.puuid === newPlayer.summoner.puuid) {
     newPlayer.meetGames = oldPlayer.meetGames
     newPlayer.preGroupMarkers = oldPlayer.preGroupMarkers
   }
-  team[index] = newPlayer
+  st.players[index] = newPlayer
 }
 
-function updateBasicInfo(currentTeam: SessionSummoner[], newTeam: SessionSummoner[]) {
-  if (!newTeam || newTeam.length === 0) return
+function syncSubteams(current: Subteam[], next: Subteam[], mode: 'basic' | 'full') {
+  const nextIds = new Set(next.map(s => s.subteamId))
 
-  for (let i = 0; i < newTeam.length; i++) {
-    const newPlayer = newTeam[i]
-    if (i < currentTeam.length) {
-      const oldPlayer = currentTeam[i]
-      if (oldPlayer && oldPlayer.summoner.puuid === newPlayer.summoner.puuid) {
-        oldPlayer.championId = newPlayer.championId
-        oldPlayer.championKey = newPlayer.championKey
-        oldPlayer.summoner = newPlayer.summoner
-      } else {
-        currentTeam[i] = newPlayer
-      }
-    } else {
-      currentTeam.push(newPlayer)
+  for (let i = current.length - 1; i >= 0; i--) {
+    if (!nextIds.has(current[i].subteamId)) current.splice(i, 1)
+  }
+
+  for (const nst of next) {
+    let cst = current.find(s => s.subteamId === nst.subteamId)
+    if (!cst) {
+      cst = { subteamId: nst.subteamId, players: [] }
+      current.push(cst)
     }
+    syncPlayers(cst.players, nst.players, mode)
   }
-
-  if (currentTeam.length > newTeam.length) {
-    currentTeam.splice(newTeam.length)
-  }
+  current.sort((a, b) => a.subteamId - b.subteamId)
 }
 
-function updateTeamData(currentTeam: SessionSummoner[], newTeam: SessionSummoner[]) {
+function syncPlayers(
+  currentTeam: SessionSummoner[],
+  newTeam: SessionSummoner[],
+  mode: 'basic' | 'full'
+) {
   if (!newTeam || newTeam.length === 0) {
     if (currentTeam.length > 0) currentTeam.splice(0, currentTeam.length)
     return
   }
-
   for (let i = 0; i < newTeam.length; i++) {
     const newPlayer = newTeam[i]
     if (i < currentTeam.length) {
       const oldPlayer = currentTeam[i]
-      let shouldUpdate = true
-      if (oldPlayer && oldPlayer.summoner.puuid === newPlayer.summoner.puuid) {
-        if (newPlayer.isLoading && !oldPlayer.isLoading) shouldUpdate = false
-        else if (playerSignature(newPlayer) === playerSignature(oldPlayer)) shouldUpdate = false
+      if (mode === 'basic') {
+        if (oldPlayer && oldPlayer.summoner.puuid === newPlayer.summoner.puuid) {
+          oldPlayer.championId = newPlayer.championId
+          oldPlayer.championKey = newPlayer.championKey
+          oldPlayer.summoner = newPlayer.summoner
+        } else {
+          currentTeam[i] = newPlayer
+        }
+      } else {
+        let shouldUpdate = true
+        if (oldPlayer && oldPlayer.summoner.puuid === newPlayer.summoner.puuid) {
+          if (newPlayer.isLoading && !oldPlayer.isLoading) shouldUpdate = false
+          else if (playerSignature(newPlayer) === playerSignature(oldPlayer)) shouldUpdate = false
+        }
+        if (shouldUpdate) currentTeam[i] = newPlayer
       }
-      if (shouldUpdate) currentTeam[i] = newPlayer
     } else {
       currentTeam.push(newPlayer)
     }
   }
-
   if (currentTeam.length > newTeam.length) {
     currentTeam.splice(newTeam.length)
   }
@@ -115,8 +136,10 @@ export function useSessionSync() {
     type: '',
     typeCn: '',
     queueId: 0,
-    teamOne: [],
-    teamTwo: []
+    gameMode: '',
+    isMultiTeam: false,
+    mySubteamId: 0,
+    subteams: []
   })
 
   const unlisteners: Array<() => void> = []
@@ -133,12 +156,13 @@ export function useSessionSync() {
   function checkAndRetryFetch() {
     if (sessionData.phase !== 'InProgress' && sessionData.phase !== 'GameStart') return
 
-    const enemyMissing =
-      !sessionData.teamTwo ||
-      sessionData.teamTwo.length === 0 ||
-      sessionData.teamTwo.every(p => !p.summoner.gameName)
+    const enoughSubteams = sessionData.isMultiTeam
+      ? sessionData.subteams.length >= 2
+      : sessionData.subteams.some(
+          s => s.subteamId !== sessionData.mySubteamId && s.players.some(p => p.summoner.gameName)
+        )
 
-    if (enemyMissing && retryCount < MAX_RETRIES) {
+    if (!enoughSubteams && retryCount < MAX_RETRIES) {
       retryCount++
       setTimeout(() => {
         requestSessionData()
@@ -147,17 +171,27 @@ export function useSessionSync() {
     }
   }
 
+  function applyMeta(data: SessionData) {
+    sessionData.phase = data.phase
+    sessionData.type = data.type
+    sessionData.typeCn = data.typeCn
+    sessionData.queueId = data.queueId
+    sessionData.gameMode = data.gameMode ?? ''
+    sessionData.isMultiTeam = !!data.isMultiTeam
+    sessionData.mySubteamId = data.mySubteamId ?? 0
+  }
+
   onMounted(async () => {
     unlisteners.push(
       await listen<SessionData>('session-complete', event => {
         const data = event.payload
         if (!data.phase) return
-        sessionData.phase = data.phase
-        sessionData.type = data.type
-        sessionData.typeCn = data.typeCn
-        sessionData.queueId = data.queueId
-        updateTeamData(sessionData.teamOne, Array.isArray(data.teamOne) ? data.teamOne : [])
-        updateTeamData(sessionData.teamTwo, Array.isArray(data.teamTwo) ? data.teamTwo : [])
+        applyMeta(data)
+        syncSubteams(
+          sessionData.subteams,
+          Array.isArray(data.subteams) ? data.subteams : [],
+          'full'
+        )
       })
     )
 
@@ -165,34 +199,29 @@ export function useSessionSync() {
       await listen<SessionData>('session-basic-info', event => {
         const data = event.payload
         if (!data.phase) return
-        sessionData.phase = data.phase
-        sessionData.type = data.type
-        sessionData.typeCn = data.typeCn
-        sessionData.queueId = data.queueId
-        updateBasicInfo(sessionData.teamOne, Array.isArray(data.teamOne) ? data.teamOne : [])
-        updateBasicInfo(sessionData.teamTwo, Array.isArray(data.teamTwo) ? data.teamTwo : [])
+        applyMeta(data)
+        syncSubteams(
+          sessionData.subteams,
+          Array.isArray(data.subteams) ? data.subteams : [],
+          'basic'
+        )
       })
     )
 
     unlisteners.push(
       await listen<Record<string, PreGroupMarkers>>('session-pre-group', event => {
-        updatePreGroupMarkers(sessionData.teamOne, event.payload)
-        updatePreGroupMarkers(sessionData.teamTwo, event.payload)
+        updatePreGroupMarkers(sessionData.subteams, event.payload)
       })
     )
 
     unlisteners.push(
-      await listen('session-player-update-team-one', (event: any) => {
-        const { index, player } = event.payload
-        updatePlayerAtIndex(sessionData.teamOne, index, player)
-      })
-    )
-
-    unlisteners.push(
-      await listen('session-player-update-team-two', (event: any) => {
-        const { index, player } = event.payload
-        updatePlayerAtIndex(sessionData.teamTwo, index, player)
-      })
+      await listen<{ subteamId: number; index: number; total: number; player: SessionSummoner }>(
+        'session-player-update',
+        event => {
+          const { subteamId, index, player } = event.payload
+          updatePlayerInSubteam(sessionData.subteams, subteamId, index, player)
+        }
+      )
     )
 
     unlisteners.push(
