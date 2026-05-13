@@ -52,8 +52,7 @@
         "https://api.upgrade.toolsetlink.com/v1/tauri/upgrade?tauriKey=rX76p0GShXom2yNnlsSDYw&versionName={{current_version}}&target={{target}}&arch={{arch}}",
         "https://github.com/wnzzer/rank-analysis/releases/latest/download/latest.json"
       ],
-      "createUpdaterArtifacts": true,
-      "dangerousInsecureTransportProtocol": true
+      "createUpdaterArtifacts": true
     }
   }
 }

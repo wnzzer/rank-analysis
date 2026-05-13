@@ -1,0 +1,14 @@
+# Build artifacts
+/dist/
+
+# Test coverage
+/coverage/
+
+# IDE / OS
+.DS_Store
+.idea/
+.vscode/
+
+# Logs
+*.log
+npm-debug.log*
