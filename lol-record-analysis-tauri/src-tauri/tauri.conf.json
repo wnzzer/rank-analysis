@@ -24,7 +24,7 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' http://asset.localhost https://asset.localhost data: blob:; connect-src 'self' ipc: http://ipc.localhost https://ipc.localhost https://ai.nuliyangguang.top; frame-src 'none'; object-src 'none'; base-uri 'self'"
     }
   },
   "bundle": {

@@ -8,6 +8,7 @@ use ntapi::ntpsapi::{NtQueryInformationProcess, PROCESS_COMMAND_LINE_INFORMATION
 use regex::Regex;
 use std::collections::HashMap;
 use std::mem;
+use std::sync::atomic::{AtomicU32, Ordering};
 use winapi::shared::minwindef::{DWORD, FALSE};
 use winapi::shared::ntdef::UNICODE_STRING;
 use winapi::um::handleapi::{CloseHandle, INVALID_HANDLE_VALUE};
@@ -193,7 +194,12 @@ fn auth_resolver(command_line: &str) -> Result<(String, String), String> {
     Ok((remoting_auth_token.clone(), app_port.clone()))
 }
 
-static mut CUR_PID: DWORD = 0;
+/// 上次成功定位的 LeagueClientUx.exe PID 缓存。
+///
+/// 多线程读写：HTTP 重试路径、game_state_monitor、WebSocket listener 等
+/// 可能从不同线程并发调用 `get_auth()`。使用 `AtomicU32` 避免 `static mut`
+/// 的数据竞争（Rust UB）。
+static CUR_PID: AtomicU32 = AtomicU32::new(0);
 
 /// 获取当前 LCU 认证信息。
 ///
@@ -210,39 +216,35 @@ pub fn get_auth() -> Result<(String, String), String> {
 
     let mut cmd_line = String::new();
     let mut found_valid_process = false;
+    let cached_pid = CUR_PID.load(Ordering::Relaxed);
 
     for &pid in &pids {
-        unsafe {
-            if pid == CUR_PID {
-                log::info!("跳过当前PID: {}", pid);
-                continue;
-            }
+        if pid == cached_pid {
+            log::info!("跳过当前PID: {}", pid);
+            continue;
+        }
 
-            log::info!("正在检查PID: {}", pid);
-            match get_process_command_line(pid) {
-                Ok(temp_cmd_line) if !temp_cmd_line.is_empty() => {
-                    cmd_line = temp_cmd_line;
-                    CUR_PID = pid;
-                    found_valid_process = true;
-                    log::info!("找到有效进程，PID: {}", pid);
-                    break;
-                }
-                Err(e) => log::info!("获取进程 {} 的命令行失败: {}", pid, e),
-                _ => log::info!("进程 {} 的命令行为空", pid),
+        log::info!("正在检查PID: {}", pid);
+        match get_process_command_line(pid) {
+            Ok(temp_cmd_line) if !temp_cmd_line.is_empty() => {
+                cmd_line = temp_cmd_line;
+                CUR_PID.store(pid, Ordering::Relaxed);
+                found_valid_process = true;
+                log::info!("找到有效进程，PID: {}", pid);
+                break;
             }
+            Err(e) => log::info!("获取进程 {} 的命令行失败: {}", pid, e),
+            _ => log::info!("进程 {} 的命令行为空", pid),
         }
     }
 
     if !found_valid_process {
-        log::info!("未找到有效的命令行，尝试使用当前PID: {}", unsafe {
-            CUR_PID
-        });
-        unsafe {
-            if CUR_PID > 0 {
-                cmd_line = get_process_command_line(CUR_PID)?;
-            } else {
-                return Err("未找到有效的英雄联盟客户端进程".to_string());
-            }
+        let cached = CUR_PID.load(Ordering::Relaxed);
+        log::info!("未找到有效的命令行，尝试使用当前PID: {}", cached);
+        if cached > 0 {
+            cmd_line = get_process_command_line(cached)?;
+        } else {
+            return Err("未找到有效的英雄联盟客户端进程".to_string());
         }
     }
 

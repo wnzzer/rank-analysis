@@ -114,7 +114,8 @@ const showAITooltip = ref(false)
 /** AI 功能提示状态（内存中存储，每次打开软件只提示一次） */
 let hasShownAITip = false
 
-const md = new MarkdownIt({ html: true, breaks: true, linkify: true })
+// html:false 阻断 AI/外部数据中夹带 raw HTML（XSS 防线，CSP 之外的纵深防御）
+const md = new MarkdownIt({ html: false, breaks: true, linkify: true })
 
 const renderedAIResult = computed(() => (aiResult.value ? md.render(aiResult.value) : ''))
 
