@@ -83,7 +83,15 @@
             >
               <n-tooltip trigger="hover" placement="top">
                 <template #trigger>
-                  <span :class="['record-card-augment-shell', augmentRarityClass(augmentId)]">
+                  <span
+                    :class="[
+                      'record-card-augment-shell',
+                      augmentRarityClass(
+                        assets.detailOf('perk', augmentId)?.rarity,
+                        'record-card-augment'
+                      )
+                    ]"
+                  >
                     <img
                       :src="assets.srcOf('perk', augmentId)"
                       class="record-card-augment-icon"
@@ -219,7 +227,8 @@ import { useRouter } from 'vue-router'
 import { formatCompactNumber } from '@renderer/utils/format'
 import { healColorAndTaken, otherColor } from '@renderer/utils/colors'
 import { assetPrefix } from '@renderer/services/http'
-import { useSettingsStore } from '@renderer/pinia/setting'
+import { useTheme } from '@renderer/composables/useTheme'
+import { augmentRarityClass } from '@renderer/utils/augment'
 import type { Game } from '@renderer/types/domain/match'
 import AssetTooltipContent from './AssetTooltipContent.vue'
 import StatDots from './StatDots.vue'
@@ -237,10 +246,7 @@ const emit = defineEmits<{
   'open-detail': []
 }>()
 
-const settingsStore = useSettingsStore()
-const isDark = computed(
-  () => settingsStore.theme?.name === 'Dark' || settingsStore.theme?.name === 'dark'
-)
+const { isDark } = useTheme()
 
 /** 海克斯乱斗模式 queueId: 1700(斗魂竞技场), 2400(海克斯大乱斗) */
 const augmentQueueIds = new Set([1700, 2400])
@@ -288,23 +294,6 @@ onMounted(() => {
     { kind: 'item', ids: itemIds.value }
   ])
 })
-
-/** 海克斯符文稀有度样式类 */
-function augmentRarityClass(augmentId: number) {
-  const rarity = assets.detailOf('perk', augmentId)?.rarity ?? ''
-  switch (rarity) {
-    case 'kPrismatic':
-      return 'record-card-augment-prismatic'
-    case 'kGold':
-      return 'record-card-augment-gold'
-    case 'kSilver':
-      return 'record-card-augment-silver'
-    case 'kBronze':
-      return 'record-card-augment-bronze'
-    default:
-      return 'record-card-augment-default'
-  }
-}
 
 const themeColors = computed(() => {
   if (isDark.value) {

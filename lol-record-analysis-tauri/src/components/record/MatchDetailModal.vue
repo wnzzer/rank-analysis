@@ -398,7 +398,7 @@ import { NButton, NIcon, NTag, NTooltip } from 'naive-ui'
 import { invoke } from '@tauri-apps/api/core'
 import { useCopy } from '@renderer/composables/useCopy'
 
-import { useSettingsStore } from '@renderer/pinia/setting'
+import { useTheme } from '@renderer/composables/useTheme'
 import { assetPrefix } from '@renderer/services/http'
 import type { Game, ParticipantStats } from '@renderer/types/domain/match'
 import type { Summoner } from '@renderer/types/domain/player'
@@ -421,10 +421,7 @@ import { useMatchAIAnalysis } from '@renderer/composables/useMatchAIAnalysis'
 
 const props = defineProps<{ game: Game | null }>()
 
-const settingsStore = useSettingsStore()
-const isDark = computed(
-  () => settingsStore.theme?.name === 'Dark' || settingsStore.theme?.name === 'dark'
-)
+const { isDark } = useTheme()
 
 const currentSummoner = ref<Summoner | null>(null)
 

@@ -19,15 +19,12 @@
 <script lang="ts" setup>
 import Framework from '@renderer/components/Framework.vue'
 import { useSettingsStore } from '@renderer/pinia/setting'
+import { useTheme } from '@renderer/composables/useTheme'
 import { computed } from 'vue'
 import { GlobalThemeOverrides } from 'naive-ui'
 
 const settingsStore = useSettingsStore()
-
-const isDark = computed(() => {
-  const name = settingsStore.theme?.name
-  return name === 'Dark' || name === 'dark'
-})
+const { isDark } = useTheme()
 
 const themeOverrides = computed<GlobalThemeOverrides>(() => {
   if (isDark.value) {

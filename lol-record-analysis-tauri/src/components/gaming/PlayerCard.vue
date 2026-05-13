@@ -185,6 +185,7 @@ import type { SessionSummoner } from '@renderer/types/domain/gaming'
 import nullImg from '@renderer/assets/imgs/item/null.png'
 import { assetPrefix } from '@renderer/services/http'
 import { useSettingsStore } from '@renderer/pinia/setting'
+import { useTheme } from '@renderer/composables/useTheme'
 import { useAramBalance } from '@renderer/composables/useAramBalance'
 import PlayerHistoryGrid from './PlayerHistoryGrid.vue'
 import PlayerStatsCard from './PlayerStatsCard.vue'
@@ -203,9 +204,7 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), { team: undefined, density: 'normal' })
 
 const settingsStore = useSettingsStore()
-const isDark = computed(
-  () => settingsStore.theme?.name === 'Dark' || settingsStore.theme?.name === 'dark'
-)
+const { isDark } = useTheme()
 
 const { copy } = useCopy()
 

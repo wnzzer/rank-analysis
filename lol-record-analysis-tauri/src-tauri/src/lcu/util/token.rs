@@ -8,6 +8,7 @@ use ntapi::ntpsapi::{NtQueryInformationProcess, PROCESS_COMMAND_LINE_INFORMATION
 use regex::Regex;
 use std::collections::HashMap;
 use std::mem;
+use std::sync::LazyLock;
 use winapi::shared::minwindef::{DWORD, FALSE};
 use winapi::shared::ntdef::UNICODE_STRING;
 use winapi::um::handleapi::{CloseHandle, INVALID_HANDLE_VALUE};
@@ -166,11 +167,15 @@ fn get_process_command_line(pid: DWORD) -> Result<String, String> {
     }
 }
 
+/// LCU 命令行参数解析的正则：`--key`、`--key=value`、`--key="value with spaces"`。
+/// 编译一次，避免 `auth_resolver` 高频调用时重复 `Regex::new`。
+static AUTH_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"--([^\s=]+)(?:=(?:"([^"]+)"|([^\s"]+)))?"#).unwrap());
+
 fn auth_resolver(command_line: &str) -> Result<(String, String), String> {
-    let re = Regex::new(r#"--([^\s=]+)(?:=(?:"([^"]+)"|([^\s"]+)))?"#).unwrap();
     let mut params = HashMap::new();
 
-    for cap in re.captures_iter(command_line) {
+    for cap in AUTH_REGEX.captures_iter(command_line) {
         let key = cap.get(1).map(|m| m.as_str()).unwrap_or("");
         let value = cap
             .get(2)
