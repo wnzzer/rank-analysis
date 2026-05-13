@@ -22,6 +22,8 @@ module.exports = {
         varsIgnorePattern: '^_'
       }
     ],
+    // CODE_QUALITY.md 明确禁止 any。先以 warn 暴露存量，未来切 error
+    '@typescript-eslint/no-explicit-any': 'warn',
     'no-console': process.env.NODE_ENV === 'production' ? 'warn' : 'off',
     'no-debugger': process.env.NODE_ENV === 'production' ? 'error' : 'off'
   }
