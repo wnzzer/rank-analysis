@@ -9,7 +9,8 @@ import { useMessage } from 'naive-ui'
 import type { Game } from '@renderer/types/domain/match'
 import { analyzeMatchDetailWithAIStream, type MatchDetailAnalysisMode } from '@renderer/services/ai'
 
-const md = new MarkdownIt({ html: true, breaks: true, linkify: true })
+// html:false 阻断 AI/外部数据中夹带 raw HTML（XSS 防线，CSP 之外的纵深防御）
+const md = new MarkdownIt({ html: false, breaks: true, linkify: true })
 
 export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
   const message = useMessage()
