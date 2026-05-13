@@ -354,7 +354,6 @@ const addBanData = async (value: any) => {
   await updateBanData()
 }
 const addPickData = async (value: any) => {
-  console.log('addPickData', value)
   if (myPickData.value.includes(value) || value === 0) return
   myPickData.value?.push(value)
   await updatePickData()
