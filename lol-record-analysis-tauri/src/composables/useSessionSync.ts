@@ -143,6 +143,20 @@ export function useSessionSync() {
   })
 
   const unlisteners: Array<() => void> = []
+  const pendingTimers = new Set<ReturnType<typeof setTimeout>>()
+
+  /**
+   * 包装 setTimeout，把 id 记入 pendingTimers，回调执行时自动移除。
+   * onUnmounted 会清掉仍未触发的 timer，避免组件卸载后写响应式状态。
+   */
+  function trackedSetTimeout(fn: () => void, ms: number) {
+    const id = setTimeout(() => {
+      pendingTimers.delete(id)
+      fn()
+    }, ms)
+    pendingTimers.add(id)
+    return id
+  }
 
   async function requestSessionData() {
     try {
@@ -164,9 +178,9 @@ export function useSessionSync() {
 
     if (!enoughSubteams && retryCount < MAX_RETRIES) {
       retryCount++
-      setTimeout(() => {
+      trackedSetTimeout(() => {
         requestSessionData()
-        setTimeout(checkAndRetryFetch, RETRY_RECHECK_DELAY_MS)
+        trackedSetTimeout(checkAndRetryFetch, RETRY_RECHECK_DELAY_MS)
       }, RETRY_DELAY_MS)
     }
   }
@@ -238,13 +252,15 @@ export function useSessionSync() {
     (newVal, oldVal) => {
       if (newVal === 'InProgress' && oldVal !== 'InProgress') {
         retryCount = 0
-        setTimeout(checkAndRetryFetch, PHASE_READY_DELAY_MS)
+        trackedSetTimeout(checkAndRetryFetch, PHASE_READY_DELAY_MS)
       }
     }
   )
 
   onUnmounted(() => {
     for (const off of unlisteners) off()
+    for (const id of pendingTimers) clearTimeout(id)
+    pendingTimers.clear()
   })
 
   return { sessionData, requestSessionData }

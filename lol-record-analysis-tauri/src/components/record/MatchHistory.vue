@@ -83,7 +83,7 @@
 <script setup lang="ts">
 import RecordCard from './RecordCard.vue'
 import { ArrowBack, ArrowForward, RepeatOutline } from '@vicons/ionicons5'
-import { onMounted, provide, ref, watch } from 'vue'
+import { computed, onMounted, provide, ref, watch } from 'vue'
 import { useLoadingBar } from 'naive-ui'
 import { useRoute } from 'vue-router'
 import { renderSingleSelectTag, renderLabel, filterChampionFunc } from '../composition'
@@ -139,9 +139,9 @@ const resetFilter = () => {
 const handleUpdateValue = () => {
   page.value = 1
   if (filterChampionId.value > 0 || filterQueueId.value > 0) {
-    getHistoryMatch(route.query.name as string, 0, 49)
+    getHistoryMatch(name.value, 0, 49)
   } else {
-    getHistoryMatch(route.query.name as string, 0, 9)
+    getHistoryMatch(name.value, 0, 9)
   }
 }
 
@@ -155,7 +155,7 @@ let curBegIndex = 0
 let curEndIndex = 0
 
 const route = useRoute()
-let name = ''
+const name = computed(() => (route.query.name as string) ?? '')
 
 async function openDetail(game: Game) {
   await openMatchDetailWindow(game)
@@ -217,7 +217,7 @@ const nextPage = async () => {
     endIndex = begIndex + 9
   }
 
-  await getHistoryMatch(name, begIndex, endIndex)
+  await getHistoryMatch(name.value, begIndex, endIndex)
   page.value++
 }
 
@@ -228,18 +228,14 @@ const prevPage = async () => {
   if (!lastPage) {
     throw new Error('无上一页数据')
   }
-  await getHistoryMatch(name, lastPage.begIndex, lastPage.endIndex)
+  await getHistoryMatch(name.value, lastPage.begIndex, lastPage.endIndex)
   page.value = Math.max(1, page.value - 1)
 }
 
 onMounted(async () => {
   await initModeOptions()
   championOptions.value = await invoke<championOption[]>('get_champion_options')
-})
-
-onMounted(async () => {
-  name = route.query.name as string
-  await getHistoryMatch(name, 0, 9)
+  await getHistoryMatch(name.value, 0, 9)
 })
 </script>
 
