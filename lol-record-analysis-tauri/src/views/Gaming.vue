@@ -73,7 +73,7 @@
 
 <script lang="ts" setup>
 import { computed, onMounted, ref } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
+import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import { SettingsOutline, SparklesOutline } from '@vicons/ionicons5'
 import { useMessage } from 'naive-ui'
 import MarkdownIt from 'markdown-it'
@@ -122,7 +122,7 @@ const renderedAIResult = computed(() => (aiResult.value ? md.render(aiResult.val
 const handleUpdateConfig = async (value: number | null) => {
   if (!value) return
   try {
-    await invoke('put_config', { key: 'matchHistoryCount', value })
+    await putConfigByIpc('matchHistoryCount', value)
     message.success('设置已保存')
   } catch (e) {
     message.error('保存失败')
@@ -158,11 +158,9 @@ const handleAIAnalysis = async () => {
 
 onMounted(async () => {
   try {
-    const val = await invoke('get_config', { key: 'matchHistoryCount' })
+    const val = await getConfigByIpc<number>('matchHistoryCount')
     if (typeof val === 'number') {
       matchCount.value = val
-    } else if (typeof val === 'string' && val) {
-      matchCount.value = parseInt(val) || 4
     }
   } catch (e) {
     console.error(e)

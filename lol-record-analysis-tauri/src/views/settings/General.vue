@@ -15,7 +15,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
+import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import { useMessage } from 'naive-ui'
 
 const matchCount = ref(4)
@@ -23,12 +23,9 @@ const message = useMessage()
 
 onMounted(async () => {
   try {
-    const val = await invoke('get_config', { key: 'matchHistoryCount' })
-    // Handle explicit number or string fallback
+    const val = await getConfigByIpc<number>('matchHistoryCount')
     if (typeof val === 'number') {
       matchCount.value = val
-    } else if (typeof val === 'string' && val) {
-      matchCount.value = parseInt(val) || 4
     }
   } catch (e) {
     console.error(e)
@@ -38,7 +35,7 @@ onMounted(async () => {
 const handleUpdate = async (value: number | null) => {
   if (!value) return
   try {
-    await invoke('put_config', { key: 'matchHistoryCount', value })
+    await putConfigByIpc('matchHistoryCount', value)
     message.success('设置已保存，下次获取数据时生效')
   } catch (e) {
     message.error('保存失败')

@@ -74,23 +74,23 @@ describe('ipc', () => {
 
   describe('putConfigByIpc', () => {
     /**
-     * 测试：当调用时应使用正确的参数调用 invoke
+     * 测试：调用方传裸值，helper 内部包装成 { value: T } 写入
      */
-    it('should call invoke with correct parameters when putting config', async () => {
+    it('should wrap scalar value in { value } when writing config', async () => {
       vi.mocked(invoke).mockResolvedValue(undefined)
 
       await putConfigByIpc('theme', 'dark')
 
       expect(invoke).toHaveBeenCalledWith('put_config', {
         key: 'theme',
-        value: 'dark'
+        value: { value: 'dark' }
       })
     })
 
     /**
-     * 测试：当传入复杂值时应正确处理
+     * 测试：复杂对象 value 也应被原样包装一层
      */
-    it('should handle complex config values correctly', async () => {
+    it('should wrap complex object value in { value }', async () => {
       vi.mocked(invoke).mockResolvedValue(undefined)
 
       const complexValue = { name: 'Dark', primary: '#000000' }
@@ -98,21 +98,21 @@ describe('ipc', () => {
 
       expect(invoke).toHaveBeenCalledWith('put_config', {
         key: 'theme',
-        value: complexValue
+        value: { value: complexValue }
       })
     })
 
     /**
-     * 测试：当传入布尔值时应正确处理
+     * 测试：布尔值也走相同包装路径
      */
-    it('should handle boolean config values correctly', async () => {
+    it('should wrap boolean value in { value }', async () => {
       vi.mocked(invoke).mockResolvedValue(undefined)
 
       await putConfigByIpc('autoUpdateSwitch', true)
 
       expect(invoke).toHaveBeenCalledWith('put_config', {
         key: 'autoUpdateSwitch',
-        value: true
+        value: { value: true }
       })
     })
 
@@ -187,14 +187,39 @@ describe('ipc', () => {
     })
 
     /**
-     * 测试：当配置值为 null 时应返回 null
+     * 测试：当配置值为 null 时应返回 null（包装本身存在，只是内部值是 null）
      */
-    it('should return null when config value is null', async () => {
+    it('should return null when wrapped value is null', async () => {
       vi.mocked(invoke).mockResolvedValue({ value: null })
 
       const result = await getConfigByIpc<null>('empty')
 
       expect(result).toBeNull()
+    })
+
+    /**
+     * 测试：键不存在 / 后端返回 null 时应返回 undefined
+     */
+    it('should return undefined when backend returns null (key absent)', async () => {
+      vi.mocked(invoke).mockResolvedValue(null)
+
+      const result = await getConfigByIpc<string>('missing')
+
+      expect(result).toBeUndefined()
+    })
+
+    /**
+     * 测试：老格式裸值（非 { value: T } 包装）应返回 undefined，让调用方走默认值
+     *
+     * 强切迁移后，老用户磁盘上残留的裸值 key（theme / matchHistoryCount /
+     * selectMode）会被读为 undefined，用户在 UI 上重新设置一次即可恢复。
+     */
+    it('should return undefined when stored value is bare (legacy format)', async () => {
+      vi.mocked(invoke).mockResolvedValue('dark')
+
+      const result = await getConfigByIpc<string>('theme')
+
+      expect(result).toBeUndefined()
     })
 
     /**

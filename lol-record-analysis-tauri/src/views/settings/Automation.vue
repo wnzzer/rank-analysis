@@ -229,12 +229,12 @@ const banEditing = ref<BanRule | undefined>(undefined)
 onMounted(async () => {
   const opts = await invoke<championOption[]>('get_champion_options')
   options.value = opts.filter(opt => opt.value > 0)
-  autoAccept.value = await getConfigByIpc<boolean>('settings.auto.acceptMatchSwitch')
-  autoPick.value = await getConfigByIpc<boolean>('settings.auto.pickChampionSwitch')
-  autoBan.value = await getConfigByIpc<boolean>('settings.auto.banChampionSwitch')
-  myPickData.value = (await getConfigByIpc<number[]>('settings.auto.pickChampionSlice')) || []
-  myBanData.value = (await getConfigByIpc<number[]>('settings.auto.banChampionSlice')) || []
-  autoStart.value = await getConfigByIpc<boolean>('settings.auto.startMatchSwitch')
+  autoAccept.value = (await getConfigByIpc<boolean>('settings.auto.acceptMatchSwitch')) ?? false
+  autoPick.value = (await getConfigByIpc<boolean>('settings.auto.pickChampionSwitch')) ?? false
+  autoBan.value = (await getConfigByIpc<boolean>('settings.auto.banChampionSwitch')) ?? false
+  myPickData.value = (await getConfigByIpc<number[]>('settings.auto.pickChampionSlice')) ?? []
+  myBanData.value = (await getConfigByIpc<number[]>('settings.auto.banChampionSlice')) ?? []
+  autoStart.value = (await getConfigByIpc<boolean>('settings.auto.startMatchSwitch')) ?? false
   await reloadPickRules()
   await reloadBanRules()
 })
@@ -321,23 +321,23 @@ const myPickData = ref<number[]>([])
 const myBanData = ref<number[]>([])
 
 const updateAcceptSwitch = async () => {
-  await putConfigByIpc('settings.auto.acceptMatchSwitch', { value: autoAccept.value })
+  await putConfigByIpc('settings.auto.acceptMatchSwitch', autoAccept.value)
 }
 
 const updatePickSwitch = async () => {
-  await putConfigByIpc('settings.auto.pickChampionSwitch', { value: autoPick.value })
+  await putConfigByIpc('settings.auto.pickChampionSwitch', autoPick.value)
 }
 const updateBanSwitch = async () => {
-  await putConfigByIpc('settings.auto.banChampionSwitch', { value: autoBan.value })
+  await putConfigByIpc('settings.auto.banChampionSwitch', autoBan.value)
 }
 const updatePickData = async () => {
-  await putConfigByIpc('settings.auto.pickChampionSlice', { value: myPickData.value })
+  await putConfigByIpc('settings.auto.pickChampionSlice', myPickData.value)
 }
 const updateBanData = async () => {
-  await putConfigByIpc('settings.auto.banChampionSlice', { value: myBanData.value })
+  await putConfigByIpc('settings.auto.banChampionSlice', myBanData.value)
 }
 const updateStartSwitch = async () => {
-  await putConfigByIpc('settings.auto.startMatchSwitch', { value: autoStart.value })
+  await putConfigByIpc('settings.auto.startMatchSwitch', autoStart.value)
 }
 
 const deleteBanData = async (value: any) => {

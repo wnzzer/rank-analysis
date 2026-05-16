@@ -143,6 +143,7 @@ import {
 } from '@renderer/types/domain/analysis'
 import { modeOptions, initModeOptions } from '@renderer/composables/useGameModes'
 import { invoke } from '@tauri-apps/api/core'
+import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import RelationshipPanel from './RelationshipPanel.vue'
 import RankCard from './RankCard.vue'
 import RecentStatsTable from './RecentStatsTable.vue'
@@ -183,7 +184,9 @@ const loadSummonerData = async (summonerName: string) => {
 
   const [rankValue, modeValue, platformValue, solo, flex] = await Promise.all([
     invoke<Rank>('get_rank_by_name', { name }),
-    invoke<number>('get_config', { key: 'selectMode' }).then(v => v || 0),
+    // 历史上 reader 用 `selectMode`、writer 用 `settings.user.selectMode`，
+    // 导致用户切换的模式从来没被持久化读到。统一为 writer 用的 key。
+    getConfigByIpc<number>('settings.user.selectMode').then(v => v ?? 0),
     invoke<string>('get_platform_name_by_name', { name }),
     invoke<RecentWinRate>('get_win_rate_by_name_mode', { name, mode: 420 }),
     invoke<RecentWinRate>('get_win_rate_by_name_mode', { name, mode: 440 })
@@ -218,7 +221,7 @@ watch(
 const mode = ref('全部')
 const updateModel = (value: string | number, option: any) => {
   const selectMode = value as number
-  invoke('put_config', { key: 'settings.user.selectMode', value: selectMode })
+  putConfigByIpc('settings.user.selectMode', selectMode)
   getTags(name, selectMode)
   mode.value = option.label as string
 }
