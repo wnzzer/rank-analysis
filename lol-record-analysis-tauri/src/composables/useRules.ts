@@ -1,7 +1,6 @@
 /**
  * Pick/Ban 规则 CRUD composable
  * 包装 put_config / get_config Tauri 命令，提供响应式的规则列表读写。
- * 配置层以 `{ value: <list> }` 格式存储；读取由 getConfigByIpc 自动解包。
  */
 
 import { ref } from 'vue'
@@ -32,7 +31,7 @@ export function usePickRules() {
 
   const save = async (next: PickRule[]) => {
     rules.value = next
-    await putConfigByIpc(PICK_KEY, { value: next })
+    await putConfigByIpc(PICK_KEY, next)
   }
 
   return { rules, reload, save }
@@ -59,7 +58,7 @@ export function useBanRules() {
 
   const save = async (next: BanRule[]) => {
     rules.value = next
-    await putConfigByIpc(BAN_KEY, { value: next })
+    await putConfigByIpc(BAN_KEY, next)
   }
 
   return { rules, reload, save }
