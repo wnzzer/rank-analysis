@@ -41,7 +41,8 @@ defineProps<{
 }
 
 .stat-label-group {
-  width: 80px;
+  /* 与 RecentStatsTable 同步收紧 */
+  width: 60px;
   flex-shrink: 0;
   display: flex;
   align-items: center;

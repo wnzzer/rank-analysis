@@ -24,26 +24,24 @@
           <n-icon class="stat-icon-kda"><PulseOutline /></n-icon>
           <span>KDA</span>
         </div>
-        <div class="stat-value-group">
-          <div class="raw-value spacer"></div>
-          <div class="stat-center-content stat-kda-value-wrap">
-            <span class="stat-kda-main" :style="{ color: kdaColor(recentData.kda, isDark) }">
-              {{ recentData.kda }}
+        <!-- KDA 没有 raw-value 维度,不占左占位,让 KDA + 击杀详情有更宽空间 -->
+        <div class="stat-value-group stat-kda-value-wrap">
+          <span class="stat-kda-main" :style="{ color: kdaColor(recentData.kda, isDark) }">
+            {{ recentData.kda }}
+          </span>
+          <span class="kda-detail">
+            <span :style="{ color: killsColor(recentData.kills, isDark) }">
+              {{ recentData.kills }}
             </span>
-            <span class="kda-detail">
-              <span :style="{ color: killsColor(recentData.kills, isDark) }">
-                {{ recentData.kills }}
-              </span>
-              /
-              <span :style="{ color: deathsColor(recentData.deaths, isDark) }">
-                {{ recentData.deaths }}
-              </span>
-              /
-              <span :style="{ color: assistsColor(recentData.assists, isDark) }">
-                {{ recentData.assists }}
-              </span>
+            /
+            <span :style="{ color: deathsColor(recentData.deaths, isDark) }">
+              {{ recentData.deaths }}
             </span>
-          </div>
+            /
+            <span :style="{ color: assistsColor(recentData.assists, isDark) }">
+              {{ recentData.assists }}
+            </span>
+          </span>
         </div>
       </div>
 
@@ -64,14 +62,14 @@
       </ProgressStatRow>
       <!-- Damage -->
       <ProgressStatRow
-        label="伤害/占比"
+        label="伤害"
         :raw-value="recentData.averageDamageDealtToChampions"
         :percent="recentData.damageDealtToChampionsRate"
         :color="otherColor(recentData.damageDealtToChampionsRate, isDark)"
       />
       <!-- Gold -->
       <ProgressStatRow
-        label="经济/占比"
+        label="经济"
         :raw-value="recentData.averageGold"
         :percent="recentData.goldRate"
         :color="otherColor(recentData.goldRate, isDark)"
@@ -132,7 +130,8 @@ const emit = defineEmits<{
 }
 
 .stat-label-group {
-  width: 80px;
+  /* 收紧到 60px 给右侧 KDA / progress / raw-value 让出 20px 空间 */
+  width: 60px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -149,10 +148,11 @@ const emit = defineEmits<{
 }
 
 .stat-kda-value-wrap {
+  /* KDA 行只有"主值 + K/D/A 详情"两个块,左右贴边对齐,跟其它行的 progress 风格不同。 */
+  justify-content: space-between;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   min-width: 0;
+  padding: 0 6px;
 }
 
 .stat-kda-main {
@@ -163,7 +163,7 @@ const emit = defineEmits<{
 }
 
 .kda-detail {
-  margin-left: 6px;
+  /* margin-left 被 space-between 替代 */
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   font-family: inherit;
