@@ -30,16 +30,16 @@ conventional_commits = true
 filter_unconventional = false  # 保留非规范的 commit
 split_commits = false
 commit_parsers = [
-    # 支持全角冒号和半角冒号
-    { message = "(?i)^feat[：:]", group = "🚀 Features" },
-    { message = "(?i)^fix[：:]", group = "🐛 Bug Fixes" },
-    { message = "(?i)^doc[：:]", group = "📚 Documentation" },
-    { message = "(?i)^perf[：:]", group = "⚡ Performance" },
-    { message = "(?i)^refactor[：:]", group = "🛠 Refactor" },
-    { message = "(?i)^style[：:]", group = "🎨 Styling" },
-    { message = "(?i)^test[：:]", group = "🧪 Testing" },
+    # 支持全角/半角冒号，以及可选的 (scope) 后缀(如 fix(arena): xxx)
+    { message = "(?i)^feat(\\(.+?\\))?[：:]", group = "🚀 Features" },
+    { message = "(?i)^fix(\\(.+?\\))?[：:]", group = "🐛 Bug Fixes" },
+    { message = "(?i)^doc(\\(.+?\\))?[：:]", group = "📚 Documentation" },
+    { message = "(?i)^perf(\\(.+?\\))?[：:]", group = "⚡ Performance" },
+    { message = "(?i)^refactor(\\(.+?\\))?[：:]", group = "🛠 Refactor" },
+    { message = "(?i)^style(\\(.+?\\))?[：:]", group = "🎨 Styling" },
+    { message = "(?i)^test(\\(.+?\\))?[：:]", group = "🧪 Testing" },
     { message = "^chore\\(release\\): prepare for", skip = true },
-    { message = "(?i)^chore[：:]", skip = true },
+    { message = "(?i)^chore(\\(.+?\\))?[：:]", skip = true },
     { body = ".*security", group = "🛡️ Security" },
     # 不匹配 conventional commit 格式的跳过
     { message = ".*", skip = true },
