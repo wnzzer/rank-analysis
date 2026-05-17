@@ -13,6 +13,20 @@ use serde::{Deserialize, Serialize};
 
 use crate::lcu::{api::game_detail::GameDetail, util::http::lcu_get};
 
+/// 解析队列中文名：先查 `QUEUE_ID_TO_CN`，未命中时按 `gameMode` 兜底。
+///
+/// 斗魂竞技场（CHERRY）历经多个 queueId 变种（1700/1710/1810/1820 ...），
+/// 与其逐个枚举追新，不如以 LCU 给的 `gameMode == "CHERRY"` 作为权威兜底。
+pub(crate) fn resolve_queue_name_cn(queue_id: i32, game_mode: &str) -> String {
+    if let Some(s) = constant::game::get_queue_id_to_cn(queue_id as u32) {
+        return s.to_string();
+    }
+    if game_mode == "CHERRY" {
+        return "斗魂竞技场".to_string();
+    }
+    "未知".to_string()
+}
+
 /// 对局记录响应：平台 ID、索引范围、对局列表。
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct MatchHistory {
@@ -186,10 +200,7 @@ impl MatchHistory {
             return Ok(());
         }
         for game in &mut self.games.games {
-            game.queue_name = match constant::game::get_queue_id_to_cn(game.queue_id as u32) {
-                Some(s) => s.into(), // works for &str or String
-                None => "未知".to_string(),
-            };
+            game.queue_name = resolve_queue_name_cn(game.queue_id, &game.game_mode);
         }
 
         Ok(())
@@ -208,6 +219,10 @@ impl MatchHistory {
             }
 
             let team_id = game.participants[0].team_id;
+            // CHERRY/斗魂的 teamId 是 9 人大组(100/200)，每个大组实际包含 3 个 subteam。
+            // 占比必须按 stats.playerSubteamId(1~8)分 2~3 人小队累加，否则分母被放大 3 倍。
+            let is_cherry = game.game_mode == "CHERRY";
+            let my_subteam = game.participants[0].stats.player_subteam_id;
 
             // Use i64 for intermediate sums to avoid potential overflow (though unlikely with typical values)
             let mut total_gold_earned: i64 = 0;
@@ -216,7 +231,12 @@ impl MatchHistory {
             let mut total_heal: i64 = 0;
 
             for p in &game.game_detail.participants {
-                if p.team_id == team_id {
+                let same_team = if is_cherry && my_subteam > 0 {
+                    p.stats.player_subteam_id == my_subteam
+                } else {
+                    p.team_id == team_id
+                };
+                if same_team {
                     total_gold_earned += p.stats.gold_earned as i64;
                     total_damage_dealt_to_champions +=
                         p.stats.total_damage_dealt_to_champions as i64;
@@ -262,7 +282,12 @@ impl MatchHistory {
             let mut best_is_me = true;
 
             for p in &game.game_detail.participants {
-                if p.team_id == team_id && p.participant_id != my_participant_id {
+                let same_team = if is_cherry && my_subteam > 0 {
+                    p.stats.player_subteam_id == my_subteam
+                } else {
+                    p.team_id == team_id
+                };
+                if same_team && p.participant_id != my_participant_id {
                     let kda = (p.stats.kills as f64 + p.stats.assists as f64)
                         / (p.stats.deaths.max(1) as f64);
                     if kda > best_kda {
@@ -282,5 +307,31 @@ impl MatchHistory {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod queue_name_tests {
+    use super::resolve_queue_name_cn;
+
+    #[test]
+    fn known_queue_id_resolves_directly() {
+        assert_eq!(resolve_queue_name_cn(420, "CLASSIC"), "单双排");
+        assert_eq!(resolve_queue_name_cn(1700, "CHERRY"), "斗魂竞技场");
+    }
+
+    #[test]
+    fn unknown_cherry_variant_falls_back_to_arena_name() {
+        // 1710 / 1810 / 1820 等新斗魂变种没收录进 QUEUE_ID_TO_CN，
+        // 但 LCU 仍把 gameMode 标成 CHERRY —— 应当兜底成"斗魂竞技场"而非"未知"。
+        assert_eq!(resolve_queue_name_cn(1710, "CHERRY"), "斗魂竞技场");
+        assert_eq!(resolve_queue_name_cn(1810, "CHERRY"), "斗魂竞技场");
+        assert_eq!(resolve_queue_name_cn(9999, "CHERRY"), "斗魂竞技场");
+    }
+
+    #[test]
+    fn unknown_non_cherry_queue_still_returns_unknown() {
+        assert_eq!(resolve_queue_name_cn(99999, "CLASSIC"), "未知");
+        assert_eq!(resolve_queue_name_cn(99999, ""), "未知");
     }
 }

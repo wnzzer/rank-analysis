@@ -115,7 +115,14 @@ function collectAssetIds(games: Game[] | undefined) {
     ;[g.participants[0].spell1Id, g.participants[0].spell2Id].forEach(id => {
       if (id > 0) spells.add(id)
     })
-    ;[s.playerAugment1, s.playerAugment2, s.playerAugment3, s.playerAugment4].forEach(id => {
+    ;[
+      s.playerAugment1,
+      s.playerAugment2,
+      s.playerAugment3,
+      s.playerAugment4,
+      s.playerAugment5,
+      s.playerAugment6
+    ].forEach(id => {
       if (id > 0) perks.add(id)
     })
   }

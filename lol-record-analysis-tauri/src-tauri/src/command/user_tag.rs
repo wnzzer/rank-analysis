@@ -388,8 +388,14 @@ fn get_one_game_players(match_history: &MatchHistory) -> HashMap<String, Vec<One
             if let Some(participant) = game.game_detail.participants.get(i) {
                 let queue_id_cn = QUEUE_ID_TO_CN
                     .get(&(game.queue_id as u32))
-                    .unwrap_or(&"未知模式")
-                    .to_string();
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| {
+                        if game.game_mode == "CHERRY" {
+                            "斗魂竞技场".to_string()
+                        } else {
+                            "未知模式".to_string()
+                        }
+                    });
 
                 let one_game_player = OneGamePlayer {
                     index: index as i32,
@@ -581,13 +587,22 @@ fn count_gold_and_group_and_damage_dealt_to_champions(
             continue;
         }
 
+        // CHERRY/斗魂的 teamId 是大组(100/200 各 9 人 = 3 小队),
+        // 占比/参团率必须按 stats.playerSubteamId 算 2~3 人小队，而不是 9 人大组
+        let is_cherry = game.game_mode == "CHERRY";
         for participant0 in &game.participants {
             my_gold += participant0.stats.gold_earned;
             my_ka += participant0.stats.kills + participant0.stats.assists;
             my_damage_dealt_to_champions += participant0.stats.total_damage_dealt_to_champions;
 
+            let my_subteam = participant0.stats.player_subteam_id;
             for participant in &game.game_detail.participants {
-                if participant0.team_id == participant.team_id {
+                let same_team = if is_cherry && my_subteam > 0 {
+                    participant.stats.player_subteam_id == my_subteam
+                } else {
+                    participant0.team_id == participant.team_id
+                };
+                if same_team {
                     all_gold += participant.stats.gold_earned;
                     all_k += participant.stats.kills;
                     all_damage_dealt_to_champions +=

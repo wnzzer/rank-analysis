@@ -18,6 +18,17 @@ const RETRY_DELAY_MS = 3000
 const RETRY_RECHECK_DELAY_MS = 4000
 const PHASE_READY_DELAY_MS = 2000
 
+/**
+ * CHERRY/斗魂模式专用：EOG 端点（lol-end-of-game/v1/gameclient-eog-stats-block）
+ * 在 InProgress 开始几分钟内不可用，期间 Rust 端会回退到 tpid 分组（新斗魂下完全错乱）
+ * 并把 cherrySubteamsPending=true 推送给前端。
+ * 前端在此期间持续轮询直到拿到权威 subteamId。
+ */
+const CHERRY_POLL_INTERVAL_MS = 12000
+// 上限 50 次 = 10 分钟覆盖。实测有局 EOG 直到 InProgress 第 13 分钟才 ready,
+// 给足余量,且 EOG ready 后 polling 自动停止,不会持续空转。
+const CHERRY_POLL_MAX_ATTEMPTS = 50
+
 function markersEqual(a: PreGroupMarkers | undefined, b: PreGroupMarkers | undefined) {
   if (a === b) return true
   if (!a || !b) return false
@@ -139,7 +150,8 @@ export function useSessionSync() {
     gameMode: '',
     isMultiTeam: false,
     mySubteamId: 0,
-    subteams: []
+    subteams: [],
+    cherrySubteamsPending: false
   })
 
   const unlisteners: Array<() => void> = []
@@ -193,6 +205,27 @@ export function useSessionSync() {
     sessionData.gameMode = data.gameMode ?? ''
     sessionData.isMultiTeam = !!data.isMultiTeam
     sessionData.mySubteamId = data.mySubteamId ?? 0
+    sessionData.cherrySubteamsPending = !!data.cherrySubteamsPending
+  }
+
+  /**
+   * CHERRY/斗魂模式专用轮询：直到 EOG 端点 ready（cherrySubteamsPending 转 false）才停。
+   *
+   * 触发条件：CHERRY + 处于 InProgress / GameStart / PreEndOfGame / EndOfGame 之一 + 当前 pending=true
+   * 间隔：CHERRY_POLL_INTERVAL_MS
+   * 上限：CHERRY_POLL_MAX_ATTEMPTS 次（一般几次内就能拿到权威分队）
+   */
+  let cherryPollAttempts = 0
+  function pollCherrySubteams() {
+    if (!sessionData.cherrySubteamsPending) return
+    const inGame = ['InProgress', 'GameStart', 'PreEndOfGame', 'EndOfGame'].includes(
+      sessionData.phase
+    )
+    if (!inGame || sessionData.gameMode !== 'CHERRY') return
+    if (cherryPollAttempts >= CHERRY_POLL_MAX_ATTEMPTS) return
+    cherryPollAttempts++
+    requestSessionData()
+    trackedSetTimeout(pollCherrySubteams, CHERRY_POLL_INTERVAL_MS)
   }
 
   onMounted(async () => {
@@ -253,6 +286,17 @@ export function useSessionSync() {
       if (newVal === 'InProgress' && oldVal !== 'InProgress') {
         retryCount = 0
         trackedSetTimeout(checkAndRetryFetch, PHASE_READY_DELAY_MS)
+      }
+    }
+  )
+
+  // CHERRY 模式 pending 时启动持续轮询；pending 一旦转 false（EOG ready）就自然停止
+  watch(
+    () => sessionData.cherrySubteamsPending,
+    pending => {
+      if (pending && sessionData.gameMode === 'CHERRY') {
+        cherryPollAttempts = 0
+        trackedSetTimeout(pollCherrySubteams, CHERRY_POLL_INTERVAL_MS)
       }
     }
   )

@@ -73,6 +73,8 @@ use tauri::{AppHandle, Emitter};
 /// - `is_multi_team`: 是否多小队模式（CHERRY 等 N 队混战）
 /// - `my_subteam_id`: 当前用户所在的 subteamId（CLASSIC: 1=team_one；CHERRY: 1~8）
 /// - `subteams`: 所有小队，CLASSIC 长度 2，CHERRY 长度 1~8
+/// - `cherry_subteams_pending`: CHERRY 模式下当前分队是否仍是占位数据（EOG 端点尚未返回权威 subteamId）。
+///   true 表示前端应继续轮询直到该端点 ready。CLASSIC 模式恒为 false。
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionData {
@@ -85,6 +87,8 @@ pub struct SessionData {
     pub is_multi_team: bool,
     pub my_subteam_id: i32,
     pub subteams: Vec<Subteam>,
+    #[serde(default)]
+    pub cherry_subteams_pending: bool,
 }
 
 /// 一个小队的展示数据：编号 + 玩家列表。
@@ -269,6 +273,7 @@ async fn process_session_data(app_handle: AppHandle) -> Result<(), String> {
         is_multi_team,
         my_subteam_id: 0,
         subteams: Vec::new(),
+        cherry_subteams_pending: false,
     };
 
     if is_multi_team {
@@ -529,6 +534,9 @@ async fn build_cherry_subteams(
 
     session_data.subteams = subteams;
     session_data.my_subteam_id = my_subteam_id;
+    // EOG 没返回权威 subteamId 时，当前数据是 tpid 兜底（在新斗魂下 tpid 噪音很大），
+    // 标记 pending 让前端持续轮询直到 EOG ready。
+    session_data.cherry_subteams_pending = !used_eog;
     Ok(())
 }
 
@@ -1023,6 +1031,9 @@ mod tests {
             .find(|s| s.players.iter().any(|p| p.summoner.puuid == "p-3-0"))
             .expect("my subteam");
         assert_eq!(data.my_subteam_id, mine.subteam_id);
+        // 注意：build_cherry_subteams 内部硬调 EOG 端点（无法在测试中 mock），
+        // 因此 cherry_subteams_pending 取决于运行测试时本机 LCU 是否恰好可达，
+        // 不在此处断言；其语义由代码本身保证（pending = !used_eog）。
     }
 
     #[tokio::test]

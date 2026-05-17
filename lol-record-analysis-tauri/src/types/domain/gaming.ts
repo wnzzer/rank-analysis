@@ -2,10 +2,11 @@
  * 对局会话领域模型：subteams 统一模型
  * - CLASSIC 模式：subteams.length === 2，[0] 是我方，[1] 是敌方
  * - CHERRY 模式：
- *   - EOG 端点可用时（InProgress / PreEndOfGame / EndOfGame）→ subteams.length === 8，
- *     subteamId 1~8 与游戏内"队伍 N"权威一致
- *   - EOG 不可用时（如 ChampSelect）→ 回退到 lobby 的 teamParticipantId 分组，
- *     subteamId 重映射成 1..N（N 可能 >8，因为 lobby tpid 实测稀疏）
+ *   - EOG 端点可用时（InProgress 中后期 / PreEndOfGame / EndOfGame）→ 权威分队，
+ *     subteamId 1~N 与游戏内"队伍 N"一致（旧斗魂 8 队×2，新斗魂 6 队×3 等）
+ *   - EOG 不可用时（ChampSelect、InProgress 早期）→ 回退到 lobby 的 teamParticipantId 分组。
+ *     此时 cherrySubteamsPending = true，前端需持续轮询直到 EOG ready。
+ *     注意：新斗魂 (queueId 1750+) 的 tpid 不再代表分队，fallback 数据完全不可信。
  */
 
 import type { MatchHistory } from './match'
@@ -43,4 +44,10 @@ export interface SessionData {
   isMultiTeam: boolean
   mySubteamId: number
   subteams: Subteam[]
+  /**
+   * CHERRY 模式下当前分队是否仍是占位数据（EOG 端点尚未返回权威 subteamId）。
+   * true 时前端会持续轮询 get_session_data 直到 EOG 端点 ready。
+   * CLASSIC 模式恒为 false。
+   */
+  cherrySubteamsPending?: boolean
 }

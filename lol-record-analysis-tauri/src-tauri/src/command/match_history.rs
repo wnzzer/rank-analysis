@@ -277,7 +277,6 @@ fn game_matches_filters(game: &Game, filter_queue_id: i32, filter_champion_id: i
 /// 该接口通过 LCU API 获取对局详情，并补充中文队列名称。
 #[tauri::command]
 pub async fn get_game_by_id(game_id: i64) -> Result<Game, String> {
-    use crate::constant;
     use crate::lcu::api::game_detail::GameDetail;
 
     // 获取对局详情
@@ -318,10 +317,8 @@ pub async fn get_game_by_id(game_id: i64) -> Result<Game, String> {
     }
 
     // 补充队列中文名称
-    game.queue_name = match constant::game::get_queue_id_to_cn(game.queue_id as u32) {
-        Some(s) => s.into(),
-        None => "未知".to_string(),
-    };
+    game.queue_name =
+        crate::lcu::api::match_history::resolve_queue_name_cn(game.queue_id, &game.game_mode);
 
     Ok(game)
 }

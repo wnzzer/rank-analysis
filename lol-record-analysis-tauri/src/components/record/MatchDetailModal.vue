@@ -458,7 +458,9 @@ function playerAugmentIds(stats: ParticipantStats) {
     stats.playerAugment1,
     stats.playerAugment2,
     stats.playerAugment3,
-    stats.playerAugment4
+    stats.playerAugment4,
+    stats.playerAugment5,
+    stats.playerAugment6
   ].filter(id => id > 0)
 }
 function displayedPerkIds(stats: ParticipantStats) {
@@ -487,9 +489,11 @@ const durationLabel = computed(() => {
   return `${minutes}分${seconds.toString().padStart(2, '0')}秒`
 })
 
-const augmentQueueIds = new Set([1700, 2400])
 const usesAugments = computed(() => {
-  if (!props.game || !augmentQueueIds.has(props.game.queueId)) return false
+  if (!props.game) return false
+  // 斗魂所有变种（CHERRY）或海克斯大乱斗（2400）都使用 augment 系统
+  const isAugmentMode = props.game.gameMode === 'CHERRY' || props.game.queueId === 2400
+  if (!isAugmentMode) return false
   return detailPlayers.value.some(p => playerAugmentIds(p.stats).length > 0)
 })
 

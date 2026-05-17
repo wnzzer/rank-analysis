@@ -75,8 +75,8 @@
               {{ games.participants[0].stats?.assists }}
             </span>
           </span>
-          <!-- 海克斯模式：显示海克斯符文（最多4个） -->
-          <n-flex v-if="usesAugments" class="record-card-augments" style="gap: 2px">
+          <!-- 海克斯强化：斗魂(CHERRY，可能 5/6 个) + 海克斯大乱斗(2400)；3×2 网格 -->
+          <div v-if="usesAugments" class="record-card-augments">
             <template
               v-for="(augmentId, _idx) in displayedAugmentIds"
               :key="`record-augment-${_idx}`"
@@ -112,7 +112,7 @@
             <span v-if="hiddenAugmentCount > 0" class="record-card-augments-more">
               +{{ hiddenAugmentCount }}
             </span>
-          </n-flex>
+          </div>
           <!-- 普通模式：显示带tooltip的召唤师技能 -->
           <n-flex v-else class="record-card-spell-icons" style="gap: 2px">
             <n-tooltip
@@ -248,11 +248,10 @@ const emit = defineEmits<{
 
 const { isDark } = useTheme()
 
-/** 海克斯乱斗模式 queueId: 1700(斗魂竞技场), 2400(海克斯大乱斗) */
-const augmentQueueIds = new Set([1700, 2400])
-const usesAugments = computed(() => augmentQueueIds.has(props.games.queueId))
-
 const isCherry = computed(() => props.games.gameMode === 'CHERRY')
+// 海克斯强化局：斗魂竞技场所有变种（CHERRY，queueId 可能是 1700/1710/1810/1820...）
+// 或海克斯大乱斗（2400，gameMode 仍是 ARAM 但用 augment 系统）
+const usesAugments = computed(() => isCherry.value || props.games.queueId === 2400)
 const placement = computed(() => props.games.participants[0]?.stats?.subteamPlacement ?? 0)
 const resultLabel = computed(() => {
   if (isCherry.value && placement.value > 0) {
@@ -263,13 +262,31 @@ const resultLabel = computed(() => {
 
 const augmentIds = computed(() => {
   const s = props.games.participants[0].stats
-  return [s.playerAugment1, s.playerAugment2, s.playerAugment3, s.playerAugment4].filter(
-    id => id > 0
-  )
+  return [
+    s.playerAugment1,
+    s.playerAugment2,
+    s.playerAugment3,
+    s.playerAugment4,
+    s.playerAugment5,
+    s.playerAugment6
+  ].filter(id => id > 0)
 })
 
-const displayedAugmentIds = computed(() => augmentIds.value.slice(0, 4))
-const hiddenAugmentCount = computed(() => Math.max(0, augmentIds.value.length - 4))
+/**
+ * 折叠策略:augment 数量稳定占 ≤6 格。
+ * - 1~6 个:全部展示,不出 +N 标签
+ * - ≥7 个:前 5 个 + "+(N-5)" 折叠,总占 6 格,横向宽度恒定
+ *
+ * 海克斯/斗魂理论最多 6 个,但保留 ≥7 折叠作为防御性设计,
+ * 避免 LCU 未来扩展时撑爆战绩卡布局。
+ */
+const displayedAugmentIds = computed(() => {
+  const ids = augmentIds.value
+  return ids.length <= 6 ? ids : ids.slice(0, 5)
+})
+const hiddenAugmentCount = computed(() =>
+  Math.max(0, augmentIds.value.length - displayedAugmentIds.value.length)
+)
 
 const itemIds = computed(() => {
   const s = props.games.participants[0].stats
@@ -456,7 +473,8 @@ function openDetail() {
 }
 
 .record-card-augments {
-  display: flex;
+  /* 单行展示,最多 6 个 augment(新斗魂);不撑高度,横向占 ~106px。 */
+  display: inline-flex;
   align-items: center;
   gap: 2px;
 }
@@ -468,8 +486,8 @@ function openDetail() {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--augment-border);
   background: var(--augment-background);
@@ -519,13 +537,18 @@ function openDetail() {
 }
 
 .record-card-augments-more {
-  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
   font-weight: 600;
   color: var(--text-secondary);
-  padding: 0 4px;
   background: var(--bg-elevated);
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-subtle);
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
 }
 
 :deep(.n-tag .n-avatar),

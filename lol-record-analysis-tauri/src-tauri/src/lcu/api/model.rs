@@ -71,6 +71,12 @@ pub struct Stats {
     pub player_augment3: i32,
     #[serde(rename = "playerAugment4", default)]
     pub player_augment4: i32,
+    // 新斗魂(queueId 1750+ / 3v3 6 队) LCU 实测会返回 playerAugment5/6；
+    // 旧斗魂(2v2v2v2)只到 4 个，未返回时 serde default = 0。
+    #[serde(rename = "playerAugment5", default)]
+    pub player_augment5: i32,
+    #[serde(rename = "playerAugment6", default)]
+    pub player_augment6: i32,
     pub kills: i32,
     pub deaths: i32,
     pub assists: i32,
