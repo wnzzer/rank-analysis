@@ -14,7 +14,7 @@ import {
   ShieldOutline,
   SkullOutline
 } from '@vicons/ionicons5'
-import type { Game, ParticipantStats } from '@renderer/types/domain/match'
+import type { Game, Participant, ParticipantStats } from '@renderer/types/domain/match'
 import { safeRelativePercent } from '@renderer/utils/format'
 
 const PLACEMENT_LABEL = (p: number) => (p > 0 ? `第 ${p} 名` : '')
@@ -121,13 +121,20 @@ export function useMatchDetailPlayers(
       ? g.gameDetail.participantIdentities
       : g.participantIdentities
 
+    // CHERRY/斗魂的 teamId 是 9 人大组(100/200)，每个大组含 3 个 subteam。
+    // teamRelative 占比必须按 stats.playerSubteamId 算 2~3 人小队，否则分母被放大 3 倍。
+    const isCherry = g.gameMode === 'CHERRY'
+    const groupKey = (p: Participant) =>
+      isCherry && p.stats.playerSubteamId > 0 ? p.stats.playerSubteamId : p.teamId
+
     const teamTotals = new Map<number, { damage: number; taken: number; heal: number }>()
     for (const p of participants) {
-      const cur = teamTotals.get(p.teamId) ?? { damage: 0, taken: 0, heal: 0 }
+      const key = groupKey(p)
+      const cur = teamTotals.get(key) ?? { damage: 0, taken: 0, heal: 0 }
       cur.damage += p.stats.totalDamageDealtToChampions
       cur.taken += p.stats.totalDamageTaken
       cur.heal += p.stats.totalHeal
-      teamTotals.set(p.teamId, cur)
+      teamTotals.set(key, cur)
     }
 
     const badgeWinners = new Map<string, Set<number>>()
@@ -147,7 +154,7 @@ export function useMatchDetailPlayers(
         const displayName = identity
           ? `${identity.player.gameName}#${identity.player.tagLine}`
           : `玩家${p.participantId}`
-        const totals = teamTotals.get(p.teamId) ?? { damage: 0, taken: 0, heal: 0 }
+        const totals = teamTotals.get(groupKey(p)) ?? { damage: 0, taken: 0, heal: 0 }
 
         return {
           participantId: p.participantId,

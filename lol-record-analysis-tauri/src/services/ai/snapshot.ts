@@ -37,13 +37,15 @@ function getAugmentIds(stats: ParticipantStats) {
     stats.playerAugment1,
     stats.playerAugment2,
     stats.playerAugment3,
-    stats.playerAugment4
+    stats.playerAugment4,
+    stats.playerAugment5,
+    stats.playerAugment6
   ].filter(id => id > 0)
 }
 
 export function isAugmentMode(game: Game) {
   return (
-    game.queueId === 1700 ||
+    game.gameMode === 'CHERRY' ||
     game.queueId === 2400 ||
     /斗魂竞技场|海克斯乱斗|海克斯大乱斗/.test(game.queueName || '')
   )

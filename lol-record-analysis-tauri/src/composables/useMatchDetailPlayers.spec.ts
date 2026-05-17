@@ -30,6 +30,8 @@ function makeStats(overrides: Partial<ParticipantStats> = {}): ParticipantStats 
     playerAugment2: 0,
     playerAugment3: 0,
     playerAugment4: 0,
+    playerAugment5: 0,
+    playerAugment6: 0,
     kills: 0,
     deaths: 0,
     assists: 0,

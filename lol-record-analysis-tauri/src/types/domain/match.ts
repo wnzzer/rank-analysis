@@ -30,6 +30,9 @@ export interface ParticipantStats {
   playerAugment2: number
   playerAugment3: number
   playerAugment4: number
+  /** 新斗魂(queueId 1750+) 才会返回 5/6；旧斗魂未返回时为 0 */
+  playerAugment5: number
+  playerAugment6: number
   kills: number
   deaths: number
   assists: number
