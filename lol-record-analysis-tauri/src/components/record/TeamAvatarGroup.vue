@@ -9,8 +9,7 @@
                 :bordered="true"
                 :src="avatarSrcAt(idx)"
                 :fallback-src="itemNull"
-                class="team-avatar"
-                :class="{ 'team-avatar-current': isCurrentPlayer(identity) }"
+                :style="{ borderColor: borderColorFor(identity) }"
               />
             </n-button>
           </template>
@@ -73,20 +72,16 @@ function isCurrentPlayer(identity: MatchPlayerIdentity | undefined) {
   return nameOf(identity) === props.currentPlayerKey
 }
 
+/**
+ * 决定头像描边颜色：当前查询玩家用 `--semantic-win` 高亮，其他人用 `--text-tertiary` 淡描边。
+ * 两个值都来自全局 CSS 变量，主题切换会自动跟随。
+ */
+function borderColorFor(identity: MatchPlayerIdentity | undefined) {
+  return isCurrentPlayer(identity) ? 'var(--semantic-win)' : 'var(--text-tertiary)'
+}
+
 function navigate(identity: MatchPlayerIdentity | undefined) {
   const name = nameOf(identity)
   if (name) emit('nav-to-name', name)
 }
 </script>
-
-<style scoped>
-/* 普通队友头像：使用 text-tertiary 作为淡描边，跟随主题自动切换 */
-.team-avatar {
-  border-color: var(--text-tertiary);
-}
-
-/* 当前查询玩家：用 win 色高亮边框 */
-.team-avatar.team-avatar-current {
-  border-color: var(--semantic-win);
-}
-</style>
