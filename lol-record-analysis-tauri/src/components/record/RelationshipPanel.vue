@@ -1,6 +1,6 @@
 <template>
   <div class="relationship-col">
-    <div class="section-header" :class="variant === 'friend' ? 'good-color' : 'bad-color'">
+    <div class="relationship-header" :class="variant === 'friend' ? 'good-color' : 'bad-color'">
       <n-icon>
         <AccessibilityOutline v-if="variant === 'friend'" />
         <FlashOutline v-else />
@@ -22,16 +22,10 @@
               :size="24"
               :src="`${assetPrefix}/profile/${entry?.Summoner?.profileIconId}`"
             />
-            <n-ellipsis style="flex: 1; margin: 0 6px; font-size: 12px">
+            <n-ellipsis class="relationship-name">
               {{ entry?.Summoner?.gameName }}
             </n-ellipsis>
-            <span
-              :style="{
-                color: winRateColor(entry.winRate, isDark),
-                fontWeight: 'bold',
-                fontSize: '12px'
-              }"
-            >
+            <span class="relationship-rate" :style="{ color: winRateColor(entry.winRate, isDark) }">
               {{ entry.winRate }}
             </span>
           </div>
@@ -65,27 +59,27 @@ defineProps<{
   min-width: 0;
 }
 
-.section-header {
+.relationship-header {
   font-weight: 800;
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin-bottom: 8px;
-  font-size: 13px;
+  gap: var(--space-4);
+  margin-bottom: var(--space-8);
+  font-size: var(--font-size-base);
 }
 
-.section-header.good-color {
+.relationship-header.good-color {
   color: var(--semantic-win);
 }
 
-.section-header.bad-color {
+.relationship-header.bad-color {
   color: var(--semantic-loss);
 }
 
 .relationship-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-6);
 }
 
 .relationship-item {
@@ -101,5 +95,16 @@ defineProps<{
 
 .relationship-item:hover {
   background-color: var(--glass-bg-high);
+}
+
+.relationship-name {
+  flex: 1;
+  margin: 0 var(--space-6);
+  font-size: var(--font-size-sm);
+}
+
+.relationship-rate {
+  font-weight: bold;
+  font-size: var(--font-size-sm);
 }
 </style>
