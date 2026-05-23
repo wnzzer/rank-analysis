@@ -62,7 +62,7 @@ const sanitizedDescription = computed(() => {
 <style scoped>
 .asset-tooltip {
   max-width: 320px;
-  padding: 2px 0;
+  padding: var(--space-2) 0;
   position: relative;
 }
 
@@ -91,22 +91,22 @@ const sanitizedDescription = computed(() => {
   bottom: 0;
   width: 3px;
   background: var(--rarity-color);
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   box-shadow: 0 0 6px var(--rarity-color);
 }
 
 .asset-tooltip-header {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  margin-bottom: 6px;
+  gap: var(--space-8);
+  margin-bottom: var(--space-6);
 }
 
 .asset-tooltip-icon {
   width: 26px;
   height: 26px;
   flex-shrink: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border-subtle);
   background: var(--bg-elevated);
   object-fit: cover;
@@ -120,14 +120,14 @@ const sanitizedDescription = computed(() => {
 .asset-tooltip-title-wrap {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-2);
 }
 
 .asset-tooltip-title {
-  font-size: 13px;
-  font-weight: 700;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-bold);
   color: var(--text-primary);
-  line-height: 1.2;
+  line-height: var(--line-height-tight);
 }
 
 .asset-tooltip[class*='asset-tooltip-'] .asset-tooltip-title {
@@ -135,16 +135,16 @@ const sanitizedDescription = computed(() => {
 }
 
 .asset-tooltip-rarity {
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
   color: var(--rarity-color);
   letter-spacing: 0.04em;
 }
 
 .asset-tooltip-description {
   white-space: normal;
-  line-height: 1.45;
-  font-size: 12px;
+  line-height: var(--line-height-normal);
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
 }
 
@@ -155,6 +155,6 @@ const sanitizedDescription = computed(() => {
 .asset-tooltip-description :deep(br) {
   display: block;
   content: '';
-  margin-bottom: 4px;
+  margin-bottom: var(--space-4);
 }
 </style>
