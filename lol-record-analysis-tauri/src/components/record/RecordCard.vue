@@ -1,47 +1,38 @@
 <template>
   <n-card
-    content-style="padding: 8px 12px;"
-    class="win-class"
-    :class="{ 'defeat-class': !games.participants[0].stats.win }"
-    :style="cardStyle"
+    :content-style="contentStyleStr"
+    class="record-card"
+    :class="{ 'record-card-win': isWin, 'record-card-loss': !isWin }"
     role="button"
     tabindex="0"
     @click="openDetail"
     @keyup.enter="openDetail"
   >
     <n-flex align="center" justify="space-between">
-      <n-flex vertical style="gap: 1px">
+      <n-flex vertical class="record-card-result">
         <span
-          class="font-number"
-          :style="{
-            fontWeight: '700',
-            fontSize: '14px',
-            color: games.participants[0].stats.win ? themeColors.win : themeColors.loss,
-            marginLeft: '4px',
-            marginTop: '2px'
-          }"
+          class="font-number record-card-result-label"
+          :class="isWin ? 'record-card-text-win' : 'record-card-text-loss'"
         >
           {{ resultLabel }}
-          <n-divider style="margin: 1px 0; line-height: 1px" />
+          <n-divider class="record-card-result-divider" />
         </span>
 
         <span class="record-card-meta">
-          <n-icon style="margin-right: 1px"><Time /></n-icon>
+          <n-icon class="record-card-meta-icon"><Time /></n-icon>
           {{ Math.ceil(games.gameDuration / 60) }}分
         </span>
       </n-flex>
-      <div style="height: 42px; position: relative">
-        <img
-          style="height: 42px"
+      <div class="record-card-champion">
+        <LazyImg
+          class="record-card-champion-img"
           :src="`${assetPrefix}/champion/${games.participants[0].championId}`"
-          loading="lazy"
-          decoding="async"
+          alt="champion"
         />
         <template v-if="!!games.mvp">
           <div
-            style="position: absolute; left: 0; bottom: 0"
-            class="mvp-box"
-            :style="{ backgroundColor: games.mvp == 'MVP' ? '#FFD700' : '#FFFFFF' }"
+            class="record-card-mvp"
+            :class="games.mvp === 'MVP' ? 'record-card-mvp-gold' : 'record-card-mvp-silver'"
           >
             {{ games.mvp == 'MVP' ? 'MVP' : 'SVP' }}
           </div>
@@ -49,29 +40,27 @@
       </div>
 
       <n-flex vertical>
-        <span class="font-number" style="font-size: 14px; font-weight: 700">{{
-          games.queueName
-        }}</span>
+        <span class="font-number record-card-queue">{{ games.queueName }}</span>
         <span class="record-card-meta">
-          <n-icon style="margin-right: 1px">
+          <n-icon class="record-card-meta-icon">
             <CalendarNumber />
           </n-icon>
           {{ formattedDate }}
         </span>
       </n-flex>
 
-      <n-flex justify="space-between" vertical style="gap: 0px">
+      <n-flex justify="space-between" vertical class="record-card-kda-block">
         <n-flex justify="space-between">
-          <span class="font-number">
-            <span :style="{ fontWeight: '500', fontSize: '13px', color: themeColors.kill }">
+          <span class="font-number record-card-kda">
+            <span class="record-card-kda-kill">
               {{ games.participants[0].stats?.kills }}
             </span>
             /
-            <span :style="{ fontWeight: '500', fontSize: '13px', color: themeColors.death }">
+            <span class="record-card-kda-death">
               {{ games.participants[0].stats?.deaths }}
             </span>
             /
-            <span :style="{ fontWeight: '500', fontSize: '13px', color: themeColors.assist }">
+            <span class="record-card-kda-assist">
               {{ games.participants[0].stats?.assists }}
             </span>
           </span>
@@ -92,12 +81,10 @@
                       )
                     ]"
                   >
-                    <img
+                    <LazyImg
                       :src="assets.srcOf('perk', augmentId)"
                       class="record-card-augment-icon"
                       alt="augment"
-                      loading="lazy"
-                      decoding="async"
                     />
                   </span>
                 </template>
@@ -114,7 +101,7 @@
             </span>
           </div>
           <!-- 普通模式：显示带tooltip的召唤师技能 -->
-          <n-flex v-else class="record-card-spell-icons" style="gap: 2px">
+          <n-flex v-else class="record-card-spell-icons">
             <n-tooltip
               v-for="(spellId, index) in [
                 games.participants[0].spell1Id,
@@ -126,12 +113,10 @@
               :disabled="!assets.detailOf('spell', spellId)"
             >
               <template #trigger>
-                <img
+                <LazyImg
                   :src="assets.srcOf('spell', spellId)"
                   class="record-card-icon-slot"
                   alt="spell"
-                  loading="lazy"
-                  decoding="async"
                 />
               </template>
               <AssetTooltipContent
@@ -144,7 +129,7 @@
           </n-flex>
         </n-flex>
         <!-- 装备区域（所有模式都显示） -->
-        <n-flex class="record-card-item-slots" style="gap: 2px">
+        <n-flex class="record-card-item-slots">
           <n-tooltip
             v-for="(itemId, index) in itemIds"
             :key="`record-item-${index}`"
@@ -153,12 +138,10 @@
             :disabled="!assets.detailOf('item', itemId)"
           >
             <template #trigger>
-              <img
+              <LazyImg
                 :src="assets.srcOf('item', itemId)"
                 class="record-card-icon-slot"
                 alt="item"
-                loading="lazy"
-                decoding="async"
               />
             </template>
             <AssetTooltipContent
@@ -198,7 +181,7 @@
           :percent="games.participants[0].stats?.healRate ?? 0"
         />
       </div>
-      <n-flex vertical justify="space-between" style="gap: 0px">
+      <n-flex vertical justify="space-between" class="record-card-teams">
         <TeamAvatarGroup
           :identities="games.gameDetail.participantIdentities"
           :participants="games.gameDetail.participants"
@@ -233,6 +216,7 @@ import type { Game } from '@renderer/types/domain/match'
 import AssetTooltipContent from './AssetTooltipContent.vue'
 import StatDots from './StatDots.vue'
 import TeamAvatarGroup from './TeamAvatarGroup.vue'
+import LazyImg from '@renderer/components/common/LazyImg.vue'
 import { inject } from 'vue'
 import { useRecordAssets } from '@renderer/composables/useRecordAssets'
 import { recordAssetsKey } from '@renderer/composables/recordAssetsKey'
@@ -248,6 +232,11 @@ const emit = defineEmits<{
 
 const { isDark } = useTheme()
 
+const isWin = computed(() => props.games.participants[0].stats.win)
+
+// n-card content-style uses tokens via inline CSS string so naive-ui internals respect spacing scale
+const contentStyleStr = 'padding: var(--space-8) var(--space-12);'
+
 const isCherry = computed(() => props.games.gameMode === 'CHERRY')
 // 海克斯强化局：斗魂竞技场所有变种（CHERRY，queueId 可能是 1700/1710/1810/1820...）
 // 或海克斯大乱斗（2400，gameMode 仍是 ARAM 但用 augment 系统）
@@ -257,7 +246,7 @@ const resultLabel = computed(() => {
   if (isCherry.value && placement.value > 0) {
     return `第 ${placement.value} 名`
   }
-  return props.games.participants[0].stats.win ? '胜利' : '失败'
+  return isWin.value ? '胜利' : '失败'
 })
 
 const augmentIds = computed(() => {
@@ -312,26 +301,6 @@ onMounted(() => {
   ])
 })
 
-const themeColors = computed(() => {
-  if (isDark.value) {
-    return { win: '#3d9b7a', loss: '#c45c5c', kill: '#3d9b7a', death: '#c45c5c', assist: '#b8860b' }
-  }
-  return { win: '#2d8a6c', loss: '#b84242', kill: '#2d8a6c', death: '#b84242', assist: '#b8860b' }
-})
-
-const cardStyle = computed(() => {
-  const isWin = props.games.participants[0].stats.win
-  return {
-    '--left-bar-bg': isWin
-      ? 'linear-gradient(180deg, #5ecfa4, #2d7a5e)'
-      : 'linear-gradient(180deg, #e07070, #994444)',
-    '--left-bar-glow': isWin
-      ? '2px 0 10px rgba(61,155,122,0.45)'
-      : '2px 0 10px rgba(196,92,92,0.35)',
-    position: 'relative' as const
-  }
-})
-
 const router = useRouter()
 
 const formattedDate = computed(() => {
@@ -359,23 +328,8 @@ function openDetail() {
 </script>
 
 <style scoped>
+/* === 卡片容器 === */
 .record-card {
-  background: linear-gradient(120deg, rgb(133, 133, 133) 30%, rgba(44, 44, 44, 0.5));
-}
-
-.win-font {
-  color: #03c2f7;
-  font-weight: 300;
-  font-size: small;
-}
-
-.responsive-img {
-  width: auto;
-  object-fit: contain;
-}
-
-.win-class,
-.defeat-class {
   cursor: pointer;
   overflow: hidden;
   position: relative;
@@ -389,33 +343,88 @@ function openDetail() {
   box-shadow: var(--shadow-md), var(--glass-highlight) !important;
 }
 
-.win-class::before,
-.defeat-class::before {
+.record-card::before {
   content: '';
   position: absolute;
   left: 0;
   top: 0;
   bottom: 0;
   width: 3px;
-  background: var(--left-bar-bg);
-  box-shadow: var(--left-bar-glow);
-  border-radius: 10px 0 0 10px;
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
   z-index: 1;
 }
 
-.win-class:hover,
-.defeat-class:hover {
+.record-card-win::before {
+  background: var(--win-bar-gradient);
+  box-shadow: var(--glow-win);
+}
+
+.record-card-loss::before {
+  background: var(--loss-bar-gradient);
+  box-shadow: var(--glow-loss);
+}
+
+.record-card:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-lg), var(--glass-highlight) !important;
 }
 
-.win-class:active,
-.defeat-class:active {
+.record-card:active {
   transform: scale(0.995);
   transition-duration: var(--dur-instant);
 }
 
-.mvp-box {
+/* === 结果列（胜利/失败 + 时长） === */
+.record-card-result {
+  gap: 1px;
+}
+
+.record-card-result-label {
+  font-weight: 700;
+  font-size: var(--font-size-md);
+  margin-left: var(--space-4);
+  margin-top: var(--space-2);
+}
+
+.record-card-text-win {
+  color: var(--semantic-win);
+}
+
+.record-card-text-loss {
+  color: var(--semantic-loss);
+}
+
+.record-card-result-divider {
+  margin: 1px 0;
+  line-height: 1px;
+}
+
+.record-card-meta {
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.record-card-meta-icon {
+  margin-right: 1px;
+}
+
+/* === 英雄头像 + MVP 牌 === */
+.record-card-champion {
+  height: 42px;
+  width: 42px;
+  position: relative;
+}
+
+.record-card-champion-img {
+  display: block;
+  width: 42px;
+  height: 42px;
+}
+
+.record-card-mvp {
+  position: absolute;
+  left: 0;
+  bottom: 0;
   display: inline-block;
   width: 20px;
   height: 11px;
@@ -424,15 +433,53 @@ function openDetail() {
   font-size: 8px;
   line-height: 11px;
   text-align: center;
-  border-radius: 3px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  border-radius: var(--radius-xs);
+  box-shadow: var(--shadow-sm);
 }
 
+.record-card-mvp-gold {
+  background-color: #ffd700;
+}
+
+.record-card-mvp-silver {
+  background-color: #ffffff;
+}
+
+/* === 队列名 === */
+.record-card-queue {
+  font-size: var(--font-size-md);
+  font-weight: 700;
+}
+
+/* === KDA + 装备区块 === */
+.record-card-kda-block {
+  gap: 0;
+}
+
+.record-card-kda > span {
+  font-weight: 500;
+  font-size: var(--font-size-base);
+}
+
+.record-card-kda-kill {
+  color: var(--semantic-win);
+}
+
+.record-card-kda-death {
+  color: var(--semantic-loss);
+}
+
+.record-card-kda-assist {
+  /* 助攻金色：暂无 token，保留 hex */
+  color: #b8860b;
+}
+
+/* === 战绩统计块 === */
 .record-card-stats-block {
   display: flex;
   flex-direction: column;
   gap: 0;
-  padding: 4px 8px 5px;
+  padding: var(--space-4) var(--space-8) 5px;
   background: var(--glass-bg-low);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
@@ -440,24 +487,21 @@ function openDetail() {
   box-shadow: var(--shadow-sm);
 }
 
-.record-card-meta {
-  color: var(--text-secondary);
-  font-size: 11px;
+/* === 队伍头像列 === */
+.record-card-teams {
+  gap: 0;
+}
+
+/* === 装备/技能 图标槽 === */
+.record-card-item-slots,
+.record-card-spell-icons {
+  gap: var(--space-2);
 }
 
 .record-card-item-slots :deep(.n-image),
 .record-card-item-slots :deep(.n-image img),
+.record-card-item-slots .record-card-icon-slot,
 .record-card-spell-icons .record-card-icon-slot {
-  width: 20px;
-  height: 20px;
-  border-radius: var(--radius-sm);
-  background: var(--bg-elevated);
-  border: 1px solid var(--glass-border);
-  box-sizing: border-box;
-  object-fit: contain;
-}
-
-.record-card-item-slots .record-card-icon-slot {
   width: 20px;
   height: 20px;
   border-radius: var(--radius-sm);
@@ -469,14 +513,14 @@ function openDetail() {
 
 .record-card-spell-icons {
   display: inline-flex;
-  gap: 2px;
 }
 
+/* === 海克斯强化 === */
 .record-card-augments {
   /* 单行展示,最多 6 个 augment(新斗魂);不撑高度,横向占 ~106px。 */
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--space-2);
 }
 
 .record-card-augment-shell {
@@ -496,9 +540,9 @@ function openDetail() {
 }
 
 .record-card-augment-icon {
+  display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
   filter: var(--augment-filter);
 }
 
@@ -540,7 +584,7 @@ function openDetail() {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
+  font-size: var(--font-size-2xs);
   font-weight: 600;
   color: var(--text-secondary);
   background: var(--bg-elevated);
@@ -548,19 +592,19 @@ function openDetail() {
   border: 1px solid var(--border-subtle);
   min-width: 16px;
   height: 16px;
-  padding: 0 3px;
+  padding: 0 var(--radius-xs);
 }
 
 :deep(.n-tag .n-avatar),
 :deep(.n-button .n-avatar) {
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-subtle);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--shadow-sm);
   transition: box-shadow var(--dur-fast) var(--ease-expo);
 }
 
 :deep(.n-tag .n-avatar:hover),
 :deep(.n-button .n-avatar:hover) {
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--shadow-md);
 }
 </style>
