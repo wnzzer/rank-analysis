@@ -1,12 +1,7 @@
 <template>
   <n-flex vertical class="user-record-container" :size="12">
     <!-- User Info Card -->
-    <n-card
-      class="record-panel-card panel-glass"
-      :bordered="false"
-      size="small"
-      content-style="padding: 12px"
-    >
+    <n-card class="record-panel-card panel-glass user-record-card" :bordered="false" size="small">
       <n-flex align="center" :size="12">
         <div class="avatar-wrapper user-record-avatar">
           <n-avatar
@@ -18,9 +13,9 @@
           />
           <div class="level-badge">{{ summoner.summonerLevel }}</div>
         </div>
-        <n-flex vertical :size="2" style="flex: 1; min-width: 0">
+        <n-flex vertical :size="2" class="user-record-identity">
           <n-flex align="center" :size="4" :wrap="false">
-            <n-ellipsis style="max-width: 100%; font-weight: 700; font-size: 16px">
+            <n-ellipsis class="user-record-nickname">
               {{ summoner.gameName }}
             </n-ellipsis>
             <n-button text size="tiny" @click="copyName">
@@ -30,14 +25,14 @@
             </n-button>
           </n-flex>
           <n-flex align="center" :size="6">
-            <n-text depth="3" style="font-size: 12px">#{{ summoner.tagLine }}</n-text>
+            <n-text depth="3" class="user-record-tagline">#{{ summoner.tagLine }}</n-text>
             <n-popover trigger="hover" v-if="serverDescription">
               <template #trigger>
                 <n-tag
                   size="small"
                   :bordered="false"
                   type="default"
-                  style="font-size: 10px; padding: 0 4px; height: 18px"
+                  class="user-record-platform-tag"
                 >
                   {{ platformIdCn }}
                 </n-tag>
@@ -49,7 +44,7 @@
               size="small"
               :bordered="false"
               type="default"
-              style="font-size: 10px; padding: 0 4px; height: 18px"
+              class="user-record-platform-tag"
             >
               {{ platformIdCn }}
             </n-tag>
@@ -58,7 +53,7 @@
       </n-flex>
 
       <!-- Tags -->
-      <n-flex v-if="tags.length > 0" style="margin-top: 12px" :size="6" wrap>
+      <n-flex v-if="tags.length > 0" class="user-record-tags" :size="6" wrap>
         <n-tooltip trigger="hover" v-for="tag in tags" :key="tag.tagName">
           <template #trigger>
             <n-tag size="small" :type="tag.good ? 'primary' : 'error'" :bordered="false" round>
@@ -247,6 +242,35 @@ const copyName = () => {
   height: 100%;
 }
 
+.user-record-card :deep(.n-card__content) {
+  padding: var(--space-12);
+}
+
+.user-record-identity {
+  flex: 1;
+  min-width: 0;
+}
+
+.user-record-nickname {
+  max-width: 100%;
+  font-weight: 700;
+  font-size: var(--font-size-lg);
+}
+
+.user-record-tagline {
+  font-size: var(--font-size-sm);
+}
+
+.user-record-platform-tag {
+  font-size: var(--font-size-2xs);
+  padding: 0 var(--space-4);
+  height: 18px;
+}
+
+.user-record-tags {
+  margin-top: var(--space-12);
+}
+
 .avatar-wrapper {
   position: relative;
   display: flex;
@@ -271,14 +295,14 @@ const copyName = () => {
 
 .level-badge {
   position: absolute;
-  bottom: -6px;
+  bottom: calc(-1 * var(--space-6));
   background-color: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
-  padding: 0 6px;
+  padding: 0 var(--space-6);
   height: 16px;
   line-height: 14px;
   border-radius: var(--radius-lg);
-  font-size: 10px;
+  font-size: var(--font-size-2xs);
   color: var(--text-secondary);
   z-index: 1;
   box-shadow: var(--shadow-card);
