@@ -55,6 +55,9 @@ export function buildThemeOverrides(isDark: boolean): GlobalThemeOverrides {
     Select: {
       borderRadius: radiusMd
     },
+    Pagination: {
+      itemBorderRadius: radiusMd
+    },
     Tag: {
       borderRadius: radiusPill
     },

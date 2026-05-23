@@ -22,4 +22,12 @@ describe('buildThemeOverrides', () => {
     const light = buildThemeOverrides(false)
     expect(dark.Layout?.color).not.toBe(light.Layout?.color)
   })
+
+  it('covers Pagination namespace per spec §3.2 (Empty has no borderRadius theme var, inherits from common)', () => {
+    const overrides = buildThemeOverrides(true)
+    // naive-ui Pagination exposes itemBorderRadius (not borderRadius)
+    expect(overrides.Pagination?.itemBorderRadius).toBeTruthy()
+    // Empty namespace has no borderRadius theme var in naive-ui; inherits common.borderRadius
+    expect(overrides.common?.borderRadius).toBeTruthy()
+  })
 })
