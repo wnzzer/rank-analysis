@@ -368,6 +368,7 @@
       :mode="ai.aiMode.value"
       :target-participant-id="ai.aiTargetParticipantId.value"
       :loading="ai.aiLoading.value"
+      :ai-loading="ai.aiLoading.value"
       :rendered-result="ai.renderedAiResult.value"
       :player-options="aiPlayerOptions"
       @update:show="ai.showAiModal.value = $event"

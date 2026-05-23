@@ -27,21 +27,36 @@
       </div>
 
       <div v-if="renderedResult" class="match-detail-ai-result" v-html="renderedResult"></div>
+      <div v-else-if="aiLoading" class="match-detail-ai-skeleton">
+        <n-skeleton text :repeat="4" />
+        <n-skeleton text class="match-detail-ai-skeleton-short" />
+      </div>
       <div v-else class="match-detail-ai-empty">选择分析类型后即可生成复盘结果。</div>
     </div>
   </n-modal>
 </template>
 
 <script setup lang="ts">
-import { NModal, NRadioGroup, NRadioButton, NSelect, NButton } from 'naive-ui'
+import { NModal, NRadioGroup, NRadioButton, NSelect, NButton, NSkeleton } from 'naive-ui'
 import type { MatchDetailAnalysisMode } from '@renderer/services/ai'
 
+/**
+ * AI 复盘弹窗
+ * @property show - 是否显示
+ * @property mode - 分析模式：整局总览 / 单人复盘
+ * @property targetParticipantId - 单人复盘目标参与者 ID
+ * @property loading - 重新分析按钮 loading 状态
+ * @property renderedResult - 已渲染的 markdown HTML（流式拼接）
+ * @property aiLoading - AI 当前是否正在请求中（用于首块文本到达前显示 skeleton）
+ * @property playerOptions - 单人复盘下拉选项
+ */
 defineProps<{
   show: boolean
   mode: MatchDetailAnalysisMode
   targetParticipantId: number | null
   loading: boolean
   renderedResult: string
+  aiLoading?: boolean
   playerOptions: { label: string; value: number }[]
 }>()
 
@@ -57,48 +72,60 @@ const emit = defineEmits<{
 .match-detail-ai-modal-body {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-12);
 }
 
 .match-detail-ai-controls {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-12);
 }
 
 .match-detail-ai-player-select {
+  /* 单人复盘下拉宽度，保留像素值（非 token 体系内的控件最小宽度） */
   min-width: 240px;
 }
 
 .match-detail-ai-result {
   max-height: 70vh;
   overflow-y: auto;
-  padding: 8px 4px;
+  padding: var(--space-8) var(--space-4);
   line-height: 1.8;
-  font-size: 14px;
+  font-size: var(--font-size-md);
 }
 
 .match-detail-ai-result :deep(h2) {
-  margin: 16px 0 8px;
-  font-size: 17px;
-  font-weight: 700;
+  margin: var(--space-16) 0 var(--space-8);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
   color: var(--text-primary);
 }
 
 .match-detail-ai-result :deep(ul) {
-  padding-left: 20px;
+  padding-left: var(--space-20);
 }
 
 .match-detail-ai-result :deep(li) {
-  margin: 6px 0;
+  margin: var(--space-6) 0;
 }
 
 .match-detail-ai-result :deep(p) {
-  margin: 8px 0;
+  margin: var(--space-8) 0;
+}
+
+.match-detail-ai-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding: var(--space-8) var(--space-4);
+}
+
+.match-detail-ai-skeleton-short {
+  width: 60%;
 }
 
 .match-detail-ai-empty {
-  padding: 24px 8px;
+  padding: var(--space-24) var(--space-8);
   text-align: center;
   color: var(--text-secondary);
 }
