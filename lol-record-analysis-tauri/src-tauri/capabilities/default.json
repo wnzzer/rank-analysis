@@ -29,6 +29,7 @@
           "url": "https://*"
         }
       ]
-    }
+    },
+    "mcp-bridge:default"
   ]
 }
