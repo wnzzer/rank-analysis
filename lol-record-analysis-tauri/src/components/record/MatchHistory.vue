@@ -32,9 +32,28 @@
         </n-tooltip>
       </n-flex>
 
-      <TransitionGroup name="list" tag="div" class="match-history-list">
+      <template v-if="isRequestingMatchHostory && !matchHistory">
+        <div class="match-history-list">
+          <RecordCardSkeleton v-for="i in 10" :key="`skel-${i}`" />
+        </div>
+      </template>
+      <template v-else-if="loadError">
+        <n-empty description="加载失败" class="match-history-empty">
+          <template #extra>
+            <n-button size="small" @click="retry">重试</n-button>
+          </template>
+        </n-empty>
+      </template>
+      <template v-else-if="games.length === 0 && hasFilter">
+        <n-empty description="没有匹配的对局" class="match-history-empty">
+          <template #extra>
+            <n-button size="small" @click="resetFilter">清除筛选</n-button>
+          </template>
+        </n-empty>
+      </template>
+      <TransitionGroup v-else name="list" tag="div" class="match-history-list">
         <div
-          v-for="(game, index) in matchHistory?.games?.games || []"
+          v-for="(game, index) in games"
           :key="game.gameId"
           :style="{ '--stagger-i': index }"
           class="list-item"
@@ -82,9 +101,10 @@
 
 <script setup lang="ts">
 import RecordCard from './RecordCard.vue'
+import RecordCardSkeleton from './RecordCardSkeleton.vue'
 import { ArrowBack, ArrowForward, RepeatOutline } from '@vicons/ionicons5'
 import { computed, onMounted, provide, ref, watch } from 'vue'
-import { useLoadingBar } from 'naive-ui'
+import { NEmpty, NButton, useLoadingBar } from 'naive-ui'
 import { useRoute } from 'vue-router'
 import { renderSingleSelectTag, renderLabel, filterChampionFunc } from '../composition'
 import { modeOptions, initModeOptions } from './composition'
@@ -155,6 +175,7 @@ const handleUpdateValue = () => {
 const matchHistory = ref<MatchHistory>()
 const loadingBar = useLoadingBar()
 const isRequestingMatchHostory = ref(false)
+const loadError = ref(false)
 const page = ref(1)
 const pageHistory = ref<{ begIndex: number; endIndex: number }[]>([])
 
@@ -164,6 +185,12 @@ let curEndIndex = 0
 const route = useRoute()
 const name = computed(() => (route.query.name as string) ?? '')
 
+/** 当前页对局列表（响应式扁平化，便于空态判断） */
+const games = computed<Game[]>(() => matchHistory.value?.games?.games ?? [])
+
+/** 是否启用了任何筛选条件（用于区分"无数据"与"筛选无结果"） */
+const hasFilter = computed(() => filterChampionId.value > 0 || filterQueueId.value > 0)
+
 async function openDetail(game: Game) {
   await openMatchDetailWindow(game)
 }
@@ -172,6 +199,7 @@ async function openDetail(game: Game) {
 const getHistoryMatch = async (name: string, begIndex: number, endIndex: number) => {
   loadingBar.start()
   isRequestingMatchHostory.value = true
+  loadError.value = false
   try {
     if (filterChampionId.value > 0 || filterQueueId.value > 0) {
       matchHistory.value = await invoke('get_filter_match_history_by_name', {
@@ -192,10 +220,24 @@ const getHistoryMatch = async (name: string, begIndex: number, endIndex: number)
       curBegIndex = matchHistory.value.begIndex
       curEndIndex = matchHistory.value.endIndex
     }
+  } catch (err) {
+    loadError.value = true
+    loadingBar.error()
+    console.error('[MatchHistory] getHistoryMatch failed', err)
   } finally {
     isRequestingMatchHostory.value = false
-    loadingBar.finish()
+    if (!loadError.value) {
+      loadingBar.finish()
+    }
   }
+}
+
+/**
+ * 重试当前页加载（点击"加载失败"空态下的"重试"按钮触发）
+ */
+async function retry() {
+  loadError.value = false
+  await getHistoryMatch(name.value, curBegIndex, curEndIndex)
 }
 
 watch(
@@ -270,7 +312,11 @@ onMounted(async () => {
 .match-history-list {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: var(--space-8);
+}
+
+.match-history-empty {
+  padding: var(--space-24) 0;
 }
 
 .list-item {
@@ -348,12 +394,6 @@ onMounted(async () => {
   max-height: calc(100vw / 1.1);
   margin: auto;
   position: relative;
-}
-
-.scroll-area {
-  flex: 1;
-  overflow-y: auto;
-  margin: var(--space-8) 0;
 }
 
 .pagination {
