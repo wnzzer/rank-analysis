@@ -115,6 +115,15 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             command::fandom::get_aram_balance,
         ]);
 
+    #[cfg(debug_assertions)]
+    {
+        app_builder = app_builder.plugin(
+            tauri_plugin_mcp_bridge::Builder::new()
+                .bind_address("127.0.0.1")
+                .build(),
+        );
+    }
+
     app_builder = app_builder.setup(move |app| {
         // 启动自动化系统
         tauri::async_runtime::spawn(async move {
