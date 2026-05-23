@@ -13,11 +13,10 @@
               <span class="match-detail-meta">{{ formattedDate }} · {{ durationLabel }}</span>
             </div>
             <div class="match-detail-player-row">
-              <img
+              <LazyImg
                 class="match-detail-hero"
                 :src="assetPrefix + '/champion/' + mySummary.championId"
                 alt="champion"
-                decoding="async"
               />
               <div class="match-detail-player-copy">
                 <div class="match-detail-player-name">{{ mySummary.displayName }}</div>
@@ -137,12 +136,10 @@
               >
                 <div class="match-detail-player-cell">
                   <div class="match-detail-player-main">
-                    <img
+                    <LazyImg
                       class="match-detail-player-avatar"
                       :src="assetPrefix + '/champion/' + player.championId"
                       alt="champion"
-                      loading="lazy"
-                      decoding="async"
                     />
                     <div class="match-detail-player-text">
                       <div class="match-detail-player-text-row">
@@ -405,6 +402,7 @@ import type { Summoner } from '@renderer/types/domain/player'
 import AssetTooltipContent from './AssetTooltipContent.vue'
 import StatDots from './StatDots.vue'
 import MatchAIPanel from './MatchAIPanel.vue'
+import LazyImg from '@renderer/components/common/LazyImg.vue'
 import {
   assistsColor,
   deathsColor,
@@ -550,7 +548,7 @@ watch(
 .match-detail-page {
   width: 100%;
   height: 100%;
-  padding: 2px 3px 3px;
+  padding: var(--space-2) var(--radius-xs) var(--radius-xs);
   box-sizing: border-box;
   background: var(--bg-base);
 }
@@ -562,7 +560,7 @@ watch(
   padding: 0;
   overflow: hidden;
   border: 1px solid var(--border-subtle);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   box-sizing: border-box;
   color: var(--text-primary);
   background:
@@ -579,50 +577,51 @@ watch(
 .match-detail-header {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 270px;
-  gap: 6px;
-  padding: 7px 10px 5px;
+  gap: var(--space-6);
+  padding: 7px var(--space-10) 5px; /* 顶部 7px 微调 + 左右 token + 底部 5px */
   border-bottom: 1px solid var(--border-subtle);
 }
 
 .match-detail-title-row {
   display: flex;
   align-items: center;
-  gap: 5px;
-  margin-bottom: 3px;
+  gap: 5px; /* 标签之间紧凑间距,介于 4 和 6 */
+  margin-bottom: var(--radius-xs);
 }
 
 .match-detail-queue {
-  font-size: 18px;
+  font-size: var(--font-size-xl);
   font-weight: 700;
   color: var(--text-primary);
 }
 
 .match-detail-meta {
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
 }
 
 .match-detail-player-row {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 7px; /* 头像与文字间距,介于 6 和 8 */
 }
 
 .match-detail-hero {
   width: 40px;
   height: 40px;
-  border-radius: 10px;
+  border-radius: var(--space-10);
   border: 1px solid var(--border-subtle);
+  display: block;
 }
 
 .match-detail-player-copy {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-2);
 }
 
 .match-detail-player-name {
-  font-size: 15px;
+  font-size: 15px; /* 介于 sm(12) / lg(16),保留视觉过渡 */
   font-weight: 700;
   color: var(--text-primary);
 }
@@ -632,13 +631,13 @@ watch(
   align-items: center;
   gap: 5px;
   flex-wrap: wrap;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--text-primary);
 }
 
 .match-detail-kda-ratio {
-  margin-left: 3px;
-  font-size: 11px;
+  margin-left: var(--radius-xs);
+  font-size: var(--font-size-xs);
   font-weight: 600;
 }
 
@@ -651,15 +650,15 @@ watch(
 .match-detail-summary-side {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-6);
 }
 
 .match-detail-summary-card {
   padding: 5px 7px;
   border: 1px solid var(--border-subtle);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--glass-bg-low);
 }
 
 .theme-light .match-detail-summary-card {
@@ -668,12 +667,12 @@ watch(
 
 .match-detail-summary-label {
   color: var(--text-secondary);
-  font-size: 10px;
-  margin-bottom: 4px;
+  font-size: var(--font-size-2xs);
+  margin-bottom: var(--space-4);
 }
 
 .match-detail-summary-value {
-  font-size: 13px;
+  font-size: var(--font-size-base);
   font-weight: 700;
   color: var(--text-primary);
 }
@@ -682,11 +681,11 @@ watch(
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 6px 8px;
+  gap: var(--space-8);
+  padding: var(--space-6) var(--space-8);
   border: 1px solid var(--border-subtle);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.03);
+  border-radius: var(--space-10);
+  background: var(--glass-bg-low);
 }
 
 .theme-light .match-detail-ai-toolbar {
@@ -696,23 +695,23 @@ watch(
 .match-detail-ai-copy {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-2);
 }
 
 .match-detail-ai-title {
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   font-weight: 700;
   color: var(--text-primary);
 }
 
 .match-detail-ai-subtitle {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   color: var(--text-secondary);
 }
 
 .match-detail-body {
   overflow: auto;
-  padding: 4px 10px 6px;
+  padding: var(--space-4) var(--space-10) var(--space-6);
   display: flex;
   flex-direction: column;
   gap: 5px;
@@ -720,7 +719,7 @@ watch(
 
 .match-detail-team-section {
   border: 1px solid var(--border-subtle);
-  border-radius: 10px;
+  border-radius: var(--space-10);
   overflow: hidden;
   background: rgba(0, 0, 0, 0.06);
   flex-shrink: 0;
@@ -734,7 +733,7 @@ watch(
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-6);
   padding: 5px 9px;
   color: #fff;
 }
@@ -750,35 +749,36 @@ watch(
 .match-detail-team-title-wrap {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: var(--space-8);
 }
 
 .match-detail-team-title {
-  font-size: 14px;
+  font-size: var(--font-size-md);
   font-weight: 700;
 }
 
 .match-detail-team-subtitle {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   opacity: 0.95;
 }
 
 .match-detail-column-header,
 .match-detail-row {
+  /* 表格列宽固定，保留像素值（pixel-art layout，与表头对齐） */
   display: grid;
   grid-template-columns: minmax(188px, 1.22fr) minmax(214px, 1.36fr) 72px 68px 62px 68px minmax(
       198px,
       1.3fr
     );
-  gap: 6px;
+  gap: var(--space-6);
   align-items: center;
 }
 
 .match-detail-column-header {
-  padding: 4px 9px;
+  padding: var(--space-4) 9px;
   color: var(--text-secondary);
-  font-size: 10px;
-  background: rgba(255, 255, 255, 0.03);
+  font-size: var(--font-size-2xs);
+  background: var(--glass-bg-low);
   border-bottom: 1px solid var(--border-subtle);
 }
 
@@ -792,7 +792,7 @@ watch(
 }
 
 .match-detail-row {
-  padding: 4px 9px;
+  padding: var(--space-4) 9px;
   border-bottom: 1px solid var(--border-subtle);
 }
 
@@ -811,22 +811,23 @@ watch(
 .match-detail-player-main {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-6);
 }
 
 .match-detail-player-avatar {
   width: 30px;
   height: 30px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border-subtle);
   flex-shrink: 0;
+  display: block;
 }
 
 .match-detail-player-text {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-2);
 }
 
 .match-detail-player-text-row {
@@ -837,7 +838,7 @@ watch(
 
 .match-detail-player-display {
   font-weight: 600;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -861,7 +862,7 @@ watch(
 .match-detail-badge-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: var(--space-4);
 }
 
 .match-detail-player-text-row :deep(.n-tag) {
@@ -871,7 +872,7 @@ watch(
 .match-detail-badge-icon {
   width: 16px;
   height: 16px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -879,6 +880,8 @@ watch(
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
+/* 战绩荣誉徽章配色：与战绩页 KDA/输出/承伤 色系一致,
+   暂无 token 对应,保留 hex 作为视觉锚点 */
 .match-detail-badge-kills {
   color: #f2bf63;
   background: rgba(242, 191, 99, 0.14);
@@ -907,19 +910,19 @@ watch(
 .match-detail-build-cell {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: var(--radius-xs);
 }
 
 .match-detail-build-topline {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
+  gap: var(--space-6);
 }
 
 .match-detail-spells {
   display: flex;
-  gap: 2px;
+  gap: var(--space-2);
 }
 
 .match-detail-spell-icon,
@@ -927,7 +930,7 @@ watch(
 .match-detail-perk-icon {
   width: 17px;
   height: 17px;
-  border-radius: 5px;
+  border-radius: 5px; /* 17px 方块视觉圆角,介于 xs(3)/sm(6) */
   border: 1px solid var(--border-subtle);
   background: var(--bg-elevated);
   object-fit: cover;
@@ -936,7 +939,7 @@ watch(
 .match-detail-perks {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--space-2);
 }
 
 .match-detail-augment-icon-shell {
@@ -948,7 +951,7 @@ watch(
   justify-content: center;
   width: 17px;
   height: 17px;
-  border-radius: 5px;
+  border-radius: 5px; /* 与 spell/item/perk 视觉对齐 */
   border: 1px solid var(--augment-border);
   background: var(--augment-background);
   box-sizing: border-box;
@@ -1003,19 +1006,19 @@ watch(
 .match-detail-items {
   display: flex;
   flex-wrap: wrap;
-  gap: 2px;
+  gap: var(--space-2);
 }
 
 .match-detail-value-cell {
   font-weight: 600;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   color: var(--text-primary);
 }
 
 .match-detail-kda-value-cell {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--space-2);
 }
 
 .match-detail-kda-separator {
@@ -1025,7 +1028,7 @@ watch(
 .match-detail-dots-cell {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-2);
 }
 
 .match-detail-empty-state {
@@ -1035,19 +1038,19 @@ watch(
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: var(--space-8);
   color: var(--text-secondary);
   background: var(--bg-base);
 }
 
 .match-detail-empty-title {
   color: var(--text-primary);
-  font-size: 18px;
+  font-size: var(--font-size-xl);
   font-weight: 700;
 }
 
 .match-detail-empty-copy {
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 
 @media (max-width: 1100px) {
@@ -1070,7 +1073,7 @@ watch(
   }
 
   .match-detail-row {
-    gap: 10px;
+    gap: var(--space-10);
   }
 }
 </style>
