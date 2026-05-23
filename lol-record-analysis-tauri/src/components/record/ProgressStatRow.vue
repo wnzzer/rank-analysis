@@ -1,12 +1,12 @@
 <template>
-  <div class="stat-row">
-    <div class="stat-label-group">
+  <div class="progress-stat-row">
+    <div class="progress-stat-label-group">
       <slot name="label">{{ label }}</slot>
     </div>
-    <div class="stat-value-group">
-      <span v-if="rawValue !== undefined" class="raw-value">{{ rawValue }}</span>
-      <div v-else class="raw-value spacer"></div>
-      <div class="stat-center-content">
+    <div class="progress-stat-value-group">
+      <span v-if="rawValue !== undefined" class="progress-stat-raw-value">{{ rawValue }}</span>
+      <div v-else class="progress-stat-raw-value progress-stat-raw-value-spacer"></div>
+      <div class="progress-stat-center">
         <n-progress
           type="line"
           :percentage="percent"
@@ -16,7 +16,7 @@
           rail-color="rgba(255, 255, 255, 0.1)"
         />
       </div>
-      <span class="stat-value-text" :style="{ color }">{{ percent }}%</span>
+      <span class="progress-stat-value-text" :style="{ color }">{{ percent }}%</span>
     </div>
   </div>
 </template>
@@ -33,14 +33,14 @@ defineProps<{
 </script>
 
 <style scoped>
-.stat-row {
+.progress-stat-row {
   display: flex;
   align-items: center;
-  font-size: 13px;
-  min-height: 28px;
+  font-size: var(--font-size-base);
+  min-height: 28px; /* 行高:与 RecentStatsTable 同步 */
 }
 
-.stat-label-group {
+.progress-stat-label-group {
   /* 与 RecentStatsTable 同步收紧 */
   width: 60px;
   flex-shrink: 0;
@@ -48,51 +48,51 @@ defineProps<{
   align-items: center;
   color: var(--text-secondary);
   font-weight: 500;
-  gap: 6px;
+  gap: var(--space-6);
 }
 
-.stat-value-group {
+.progress-stat-value-group {
   flex: 1;
   display: flex;
   align-items: center;
   min-width: 0;
 }
 
-.stat-center-content {
+.progress-stat-center {
   flex: 1;
   display: flex;
   align-items: center;
   min-width: 0;
-  padding: 0 6px;
+  padding: 0 var(--space-6);
 }
 
-.stat-center-content :deep(.n-progress) {
-  border-radius: 999px;
+.progress-stat-center :deep(.n-progress) {
+  border-radius: var(--radius-pill);
   overflow: hidden;
 }
 
-.stat-value-text {
+.progress-stat-value-text {
   width: 38px;
   text-align: right;
-  margin-left: 4px;
+  margin-left: var(--space-4);
   flex-shrink: 0;
   font-family: inherit;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
-  font-size: 13px;
+  font-size: var(--font-size-base);
 }
 
-.raw-value {
+.progress-stat-raw-value {
   width: 52px;
   text-align: right;
-  margin-right: 8px;
+  margin-right: var(--space-8);
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
   font-weight: 500;
-  font-size: 13px;
+  font-size: var(--font-size-base);
 }
 
-.raw-value.spacer {
+.progress-stat-raw-value-spacer {
   visibility: hidden;
 }
 </style>
