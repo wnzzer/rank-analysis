@@ -548,7 +548,7 @@ watch(
 .match-detail-page {
   width: 100%;
   height: 100%;
-  padding: var(--space-2) var(--radius-xs) var(--radius-xs);
+  padding: var(--space-2) var(--space-4) var(--space-4);
   box-sizing: border-box;
   background: var(--bg-base);
 }
@@ -586,7 +586,7 @@ watch(
   display: flex;
   align-items: center;
   gap: 5px; /* 标签之间紧凑间距,介于 4 和 6 */
-  margin-bottom: var(--radius-xs);
+  margin-bottom: var(--space-4);
 }
 
 .match-detail-queue {
@@ -609,7 +609,7 @@ watch(
 .match-detail-hero {
   width: 40px;
   height: 40px;
-  border-radius: var(--space-10);
+  border-radius: var(--radius-lg);
   border: 1px solid var(--border-subtle);
   display: block;
 }
@@ -636,7 +636,7 @@ watch(
 }
 
 .match-detail-kda-ratio {
-  margin-left: var(--radius-xs);
+  margin-left: var(--space-4);
   font-size: var(--font-size-xs);
   font-weight: 600;
 }
@@ -684,7 +684,7 @@ watch(
   gap: var(--space-8);
   padding: var(--space-6) var(--space-8);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--space-10);
+  border-radius: var(--radius-lg);
   background: var(--glass-bg-low);
 }
 
@@ -719,7 +719,7 @@ watch(
 
 .match-detail-team-section {
   border: 1px solid var(--border-subtle);
-  border-radius: var(--space-10);
+  border-radius: var(--radius-lg);
   overflow: hidden;
   background: rgba(0, 0, 0, 0.06);
   flex-shrink: 0;
@@ -910,7 +910,7 @@ watch(
 .match-detail-build-cell {
   display: flex;
   flex-direction: column;
-  gap: var(--radius-xs);
+  gap: var(--space-4);
 }
 
 .match-detail-build-topline {
