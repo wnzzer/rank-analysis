@@ -1,9 +1,9 @@
 <template>
   <n-card
-    class="record-panel-card recent-stats-card"
+    class="recent-stats-card record-panel-card"
     :bordered="false"
     size="small"
-    content-style="padding: 12px"
+    :content-style="cardContentStyle"
   >
     <n-flex justify="space-between" align="center" class="recent-stats-header">
       <span class="recent-stats-title">最近表现</span>
@@ -19,17 +19,17 @@
 
     <n-flex vertical class="recent-stats-rows">
       <!-- KDA -->
-      <div class="stat-row">
-        <div class="stat-label-group">
-          <n-icon class="stat-icon-kda"><PulseOutline /></n-icon>
+      <div class="recent-stats-row">
+        <div class="recent-stats-label-group">
+          <n-icon class="recent-stats-icon-kda"><PulseOutline /></n-icon>
           <span>KDA</span>
         </div>
         <!-- KDA 没有 raw-value 维度,不占左占位,让 KDA + 击杀详情有更宽空间 -->
-        <div class="stat-value-group stat-kda-value-wrap">
-          <span class="stat-kda-main" :style="{ color: kdaColor(recentData.kda, isDark) }">
+        <div class="recent-stats-value-group recent-stats-kda-wrap">
+          <span class="recent-stats-kda-main" :style="{ color: kdaColor(recentData.kda, isDark) }">
             {{ recentData.kda }}
           </span>
-          <span class="kda-detail">
+          <span class="recent-stats-kda-detail">
             <span :style="{ color: killsColor(recentData.kills, isDark) }">
               {{ recentData.kills }}
             </span>
@@ -104,6 +104,9 @@ defineProps<{
 const emit = defineEmits<{
   'mode-change': [value: string | number, option: any]
 }>()
+
+// n-card 的 content-style 需要字符串,这里走 token
+const cardContentStyle = 'padding: var(--space-12)'
 </script>
 
 <style scoped>
@@ -112,7 +115,7 @@ const emit = defineEmits<{
 }
 
 .recent-stats-title {
-  font-size: 14px;
+  font-size: var(--font-size-md);
   font-weight: 700;
   color: var(--text-primary);
   letter-spacing: 0.02em;
@@ -122,14 +125,14 @@ const emit = defineEmits<{
   gap: var(--space-8);
 }
 
-.stat-row {
+.recent-stats-row {
   display: flex;
   align-items: center;
-  font-size: 13px;
-  min-height: 28px;
+  font-size: var(--font-size-base);
+  min-height: 28px; /* 与 ProgressStatRow 行高保持一致 */
 }
 
-.stat-label-group {
+.recent-stats-label-group {
   /* 收紧到 60px 给右侧 KDA / progress / raw-value 让出 20px 空间 */
   width: 60px;
   flex-shrink: 0;
@@ -137,58 +140,40 @@ const emit = defineEmits<{
   align-items: center;
   color: var(--text-secondary);
   font-weight: 500;
-  gap: 6px;
+  gap: var(--space-6);
 }
 
-.stat-value-group {
+.recent-stats-value-group {
   flex: 1;
   display: flex;
   align-items: center;
   min-width: 0;
 }
 
-.stat-kda-value-wrap {
+.recent-stats-kda-wrap {
   /* KDA 行只有"主值 + K/D/A 详情"两个块,左右贴边对齐,跟其它行的 progress 风格不同。 */
   justify-content: space-between;
   white-space: nowrap;
   min-width: 0;
-  padding: 0 6px;
+  padding: 0 var(--space-6);
 }
 
-.stat-kda-main {
-  font-size: 12px;
+.recent-stats-kda-main {
+  font-size: var(--font-size-sm);
   font-weight: 600;
   font-family: inherit;
   letter-spacing: 0.02em;
 }
 
-.kda-detail {
+.recent-stats-kda-detail {
   /* margin-left 被 space-between 替代 */
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-variant-numeric: tabular-nums;
   font-family: inherit;
 }
 
-.stat-center-content {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  padding: 0 6px;
-}
-
-.raw-value {
-  width: 52px;
-  text-align: right;
-  margin-right: 8px;
-  flex-shrink: 0;
-  font-variant-numeric: tabular-nums;
-  font-weight: 500;
-  font-size: 13px;
-}
-
-.stat-icon-kda {
+.recent-stats-icon-kda {
   color: var(--semantic-win);
-  font-size: 16px;
+  font-size: var(--font-size-lg);
 }
 </style>
