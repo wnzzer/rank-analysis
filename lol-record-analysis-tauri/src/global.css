@@ -65,6 +65,33 @@
   --space-20: 20px;
   --space-24: 24px;
   --space-28: 28px;
+
+  /* === 字阶 === */
+  --font-size-2xs: 10px;
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-base: 13px;
+  --font-size-md: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 18px;
+  --line-height-tight: 1.2;
+  --line-height-normal: 1.45;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* === 补 space 阶 === */
+  --space-2: 2px;
+  --space-6: 6px;
+  --space-10: 10px;
+
+  /* === 圆角补全 === */
+  --radius-xs: 3px;
+  --radius-pill: 999px;
+
+  /* === RecordCard win/loss 渐变（深色） === */
+  --win-bar-gradient: linear-gradient(180deg, #5ecfa4, #2d7a5e);
+  --loss-bar-gradient: linear-gradient(180deg, #e57878, #8a3232);
 }
 
 /* 浅色主题 Token */
@@ -92,6 +119,8 @@
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
   --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.12);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.15);
+  --win-bar-gradient: linear-gradient(180deg, #4abd92, #2d8a6c);
+  --loss-bar-gradient: linear-gradient(180deg, #d96565, #a33b3b);
 }
 
 .font-number {
