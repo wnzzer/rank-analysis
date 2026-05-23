@@ -74,14 +74,14 @@ const iconStyle = computed<CSSProperties>(() => ({
 .stat-dots-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-6);
   min-width: 0;
 }
 
 .stat-dots-icon-wrap {
   width: 18px;
   height: 18px;
-  border-radius: 5px;
+  border-radius: 5px; /* 18px 方块的视觉圆角,介于 xs(3) 和 sm(6) 之间 */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -89,7 +89,7 @@ const iconStyle = computed<CSSProperties>(() => ({
 }
 
 .stat-dots-short-label {
-  font-size: 9px;
+  font-size: 9px; /* 小标签字号,低于 --font-size-2xs(10),保留 */
   line-height: 1;
   font-weight: 700;
 }
@@ -99,7 +99,7 @@ const iconStyle = computed<CSSProperties>(() => ({
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 3px; /* 5 颗 dot 之间的小间距,无对应 token */
 }
 
 .stat-dot {
@@ -121,9 +121,9 @@ const iconStyle = computed<CSSProperties>(() => ({
 .stat-dots-values {
   display: flex;
   align-items: baseline;
-  gap: 4px;
+  gap: var(--space-4);
   flex-shrink: 0;
-  font-size: 10px;
+  font-size: var(--font-size-2xs);
 }
 
 .stat-dots-value-main {
@@ -140,17 +140,17 @@ const iconStyle = computed<CSSProperties>(() => ({
 }
 
 .stat-dots-row-compact {
-  gap: 4px;
+  gap: var(--space-4);
 }
 
 .stat-dots-row-compact .stat-dots-icon-wrap {
   width: 16px;
   height: 16px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 
 .stat-dots-row-compact .stat-dots-track {
-  gap: 2px;
+  gap: 2px; /* compact 模式 dot 间距,无对应 token */
 }
 
 .stat-dots-row-compact .stat-dot {
