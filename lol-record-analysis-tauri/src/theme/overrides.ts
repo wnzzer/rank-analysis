@@ -23,14 +23,14 @@ export function buildThemeOverrides(isDark: boolean): GlobalThemeOverrides {
   const radiusPill = cssVar('--radius-pill', '999px')
   const space8 = cssVar('--space-8', '8px')
   const space12 = cssVar('--space-12', '12px')
-  const bgBase = cssVar('--bg-base', isDark ? '#0d0d0f' : '#f0f2f5')
-  const glassMid = cssVar('--glass-bg-mid', isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.035)')
-  const glassBorder = cssVar(
-    '--glass-border',
-    isDark ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.08)'
-  )
-  const shadowMd = cssVar('--shadow-md', '0 2px 8px rgba(0,0,0,0.45)')
-  const semanticWin = cssVar('--semantic-win', isDark ? '#3d9b7a' : '#2d8a6c')
+  // Theme-dependent values can't go through cssVar() — .theme-light class is on
+  // n-config-provider's root, not document.documentElement, so getComputedStyle
+  // always returns :root values. Use isDark ternaries directly (matches pre-refactor behavior).
+  const bgBase = isDark ? '#0d0d0f' : '#f0f2f5'
+  const glassMid = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.035)'
+  const glassBorder = isDark ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.08)'
+  const shadowMd = isDark ? '0 2px 8px rgba(0,0,0,0.45)' : '0 2px 8px rgba(0,0,0,0.12)'
+  const semanticWin = isDark ? '#3d9b7a' : '#2d8a6c'
 
   return {
     common: {
