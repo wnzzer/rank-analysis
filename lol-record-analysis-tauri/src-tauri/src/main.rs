@@ -74,14 +74,22 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
                 asset_api::get_asset_binary(kind, id).await
             });
 
+            // 不让浏览器缓存任何响应：
+            //   - 成功响应：Rust 端 BINARY_CACHE 命中是 O(1) 内存查找，IPC 走 asset.localhost
+            //     回到 webview 也是本地直传，每次重新请求成本可忽略
+            //   - 失败响应（asset cache 未就绪、Fandom 数据缺失等）：之前 24h max-age
+            //     会让浏览器 negative-cache 失败状态，cache 就绪后不会重试，导致
+            //     启动后 augment / champion / perk 图标长时间不出。
+            //     用 no-store 让浏览器每次都走 Rust，cache 就绪后第一次刷新就显示
             match result {
                 Ok((bytes, mime)) => tauri::http::Response::builder()
                     .header("Content-Type", mime)
-                    .header("Cache-Control", "public, max-age=86400")
+                    .header("Cache-Control", "no-store")
                     .body(bytes)
                     .unwrap(),
                 Err(e) => tauri::http::Response::builder()
                     .status(404)
+                    .header("Cache-Control", "no-store")
                     .body(e.into_bytes())
                     .unwrap(),
             }
