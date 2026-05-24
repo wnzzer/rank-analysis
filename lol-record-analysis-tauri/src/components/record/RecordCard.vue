@@ -496,7 +496,8 @@ function openDetail() {
 /* === 装备/技能 图标槽 === */
 .record-card-item-slots,
 .record-card-spell-icons {
-  gap: var(--space-2);
+  /* 紧凑: 装备/技能贴齐, 0 gap, 跟 MatchDetail 一致 */
+  gap: 0;
 }
 
 .record-card-item-slots :deep(.n-image),
@@ -506,7 +507,8 @@ function openDetail() {
   /* 24→30px 随 viewport (1100→2200) */
   width: clamp(24px, calc(24px + (100vw - 1100px) * 6 / 1100), 30px);
   height: clamp(24px, calc(24px + (100vw - 1100px) * 6 / 1100), 30px);
-  border-radius: var(--radius-sm);
+  /* 角更直, 贴齐视觉连续 */
+  border-radius: 2px;
   background: var(--bg-elevated);
   border: 1px solid var(--glass-border);
   box-sizing: border-box;
@@ -522,7 +524,8 @@ function openDetail() {
   /* 单行展示,最多 6 个 augment(新斗魂);不撑高度,横向占 ~106px。 */
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  /* 紧凑: 0 gap */
+  gap: 0;
 }
 
 .record-card-augment-shell {
@@ -535,7 +538,8 @@ function openDetail() {
   /* 22→28px 随 viewport (1100→2200) */
   width: clamp(22px, calc(22px + (100vw - 1100px) * 6 / 1100), 28px);
   height: clamp(22px, calc(22px + (100vw - 1100px) * 6 / 1100), 28px);
-  border-radius: var(--radius-sm);
+  /* 角更直, 贴齐视觉连续 */
+  border-radius: 2px;
   border: 1px solid var(--augment-border);
   background: var(--augment-background);
   box-sizing: border-box;
