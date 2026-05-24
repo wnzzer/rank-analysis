@@ -33,28 +33,16 @@ jobs:
         run: npm ci
 
       - name: Run ESLint
-        run: |
-          echo "🔍 Running ESLint..."
-          npm run lint
-          echo "✅ ESLint check passed"
+        run: npm run lint
 
       - name: Run Prettier check
-        run: |
-          echo "🔍 Running Prettier check..."
-          npx prettier --check "src/**/*.{js,jsx,ts,tsx,vue,json,css,scss,md}"
-          echo "✅ Prettier check passed"
+        run: npx prettier --check "src/**/*.{js,jsx,ts,tsx,vue,json,css,scss,md}"
 
       - name: TypeScript type check
-        run: |
-          echo "🔍 Running TypeScript type check..."
-          npm run typecheck
-          echo "✅ TypeScript check passed"
+        run: npm run typecheck
 
       - name: Run unit tests with coverage
-        run: |
-          echo "🧪 Running frontend unit tests with coverage..."
-          npm run test:coverage
-          echo "✅ Frontend tests passed (coverage threshold met)"
+        run: npm run test:coverage
 
   rust-quality:
     name: Rust Code Quality
@@ -98,10 +86,7 @@ jobs:
         run: cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Run unit tests
-        run: |
-          echo "🧪 Running Rust unit tests..."
-          cargo test
-          echo "✅ Rust tests passed"
+        run: cargo test
 
   security-audit:
     name: Security Audit
@@ -121,9 +106,7 @@ jobs:
           node-version: '20'
 
       - name: Run npm audit
-        run: |
-          echo "Running npm security audit..."
-          npm audit --audit-level=moderate || echo "::warning::Security vulnerabilities found in npm dependencies. Please review."
+        run: npm audit --audit-level=moderate || echo "::warning::Security vulnerabilities found in npm dependencies. Please review."
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -132,7 +115,5 @@ jobs:
         run: cargo install cargo-audit
 
       - name: Run cargo audit
-        run: |
-          echo "Running cargo security audit..."
-          cargo audit || echo "::warning::Security vulnerabilities found in Rust dependencies. Please review."
+        run: cargo audit || echo "::warning::Security vulnerabilities found in Rust dependencies. Please review."
         working-directory: ./lol-record-analysis-tauri/src-tauri

@@ -50,22 +50,19 @@ jobs:
         shell: pwsh
         run: |
           $configPath = "src-tauri/tauri.conf.json"
-          # 读取 JSON 配置
           $configJson = Get-Content $configPath | Out-String | ConvertFrom-Json
-          
-          # 尝试读取 version (适配 Tauri v1 package.version 和 Tauri v2 top-level version)
+
+          # 适配 Tauri v1 package.version 和 Tauri v2 top-level version
           if ($configJson.version) {
               $tauriVersion = $configJson.version
           } elseif ($configJson.package.version) {
               $tauriVersion = $configJson.package.version
           }
 
-          # 如果为空，尝试读取 Cargo.toml
+          # 兜底：从 Cargo.toml 读
           if ([string]::IsNullOrEmpty($tauriVersion)) {
-              Write-Host "tauri.conf.json version is empty. Checking Cargo.toml..."
               $tomlPath = "src-tauri/Cargo.toml"
-              $tomlContent = Get-Content $tomlPath | Select-String -Pattern '^version\s*=\s*"(.+?)"' 
-              
+              $tomlContent = Get-Content $tomlPath | Select-String -Pattern '^version\s*=\s*"(.+?)"'
               if ($tomlContent) {
                   $tauriVersion = $tomlContent.Matches[0].Groups[1].Value
               } else {
@@ -73,39 +70,13 @@ jobs:
                   exit 1
               }
           }
-          Write-Host "Detected Tauri Version: $tauriVersion"
 
-          # 确保版本号以 'v' 开头 (GitHub Release 惯例)
+          # GitHub Release 惯例：tag 以 'v' 开头
           if ($tauriVersion -notlike 'v*') {
               $tauriVersion = "v$tauriVersion"
           }
-          
-          Write-Host "Final Release Version: $tauriVersion"
+          Write-Host "Release Version: $tauriVersion"
           echo "tauri_version=$tauriVersion" >> $env:GITHUB_OUTPUT
-
-      - name: 🕵️ Debug Secrets (Safe)
-        shell: pwsh
-        run: |
-          if ($env:MY_KEY) { 
-              Write-Host "✅ Private Key is detected! Length: $($env:MY_KEY.Length)" 
-              # Check if it looks like a minisign key
-              if ($env:MY_KEY -match "untrusted comment:") {
-                  Write-Host "✅ Key format looks correct (contains 'untrusted comment')."
-              } else {
-                  Write-Warning "⚠️ Key format might be incorrect. It should usually start with 'untrusted comment:'."
-              }
-          } else { 
-              Write-Error "❌ Private Key is MISSING or EMPTY!" 
-          }
-          
-          if ($env:MY_PWD) { 
-              Write-Host "✅ Password is detected!" 
-          } else { 
-              Write-Warning "⚠️ Password is MISSING (If you have no password, ignore this)" 
-          }
-        env:
-          MY_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          MY_PWD: ${{ secrets.TAURI_SIGNING_KEY_PASSWORD }}
 
       # --- 构建并签名 ---
       - name: 🔨 Build Tauri App (Signed)
@@ -117,13 +88,6 @@ jobs:
           TAURI_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_KEY_PASSWORD }}
           TAURI_SIGNING_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_KEY_PASSWORD }}
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_KEY_PASSWORD }} # 兼容旧版
-
-      - name: 📂 List Build Artifacts (Debug)
-        shell: pwsh
-        run: |
-          Write-Host "Listing src-tauri/target/release/bundle/nsis:"
-          Get-ChildItem -Path "src-tauri/target/release/bundle/nsis" -Recurse | Format-Table Name, Length, LastWriteTime
-
 
       # --- 文件重命名、压缩与路径整理 ---
       - name: 📝 Rename, Compress, and Set Paths
@@ -216,38 +180,22 @@ jobs:
         shell: pwsh
         run: |
           $currentTag = "${{ steps.get_version.outputs.tauri_version }}"
-          Write-Host "Current tag: $currentTag"
+          # 按版本号降序，定位当前 tag，下一个就是上一个发布
+          $tagList = (git tag --sort=-version:refname 2>$null) -split "`n" | Where-Object { $_ -ne "" }
+          $currentIndex = [Array]::IndexOf($tagList, $currentTag)
 
-          # 获取所有 tag 按版本号降序排列
-          $allTags = git tag --sort=-version:refname 2>$null
-          Write-Host "All tags (sorted): $allTags"
-
-          # 找到当前 tag 在列表中的位置，取下一个作为 prevTag
-          $tagList = $allTags -split "`n" | Where-Object { $_ -ne "" }
-          $currentIndex = -1
-          for ($i = 0; $i -lt $tagList.Count; $i++) {
-            if ($tagList[$i] -eq $currentTag) {
-              $currentIndex = $i
-              break
-            }
-          }
-
-          Write-Host "Current tag index: $currentIndex"
-
-          if ($currentIndex -ge 0) {
-            if (($currentIndex + 1) -lt $tagList.Count) {
-              $prevTag = $tagList[$currentIndex + 1]
-            }
-          } elseif ($tagList.Count -gt 0) {
+          if ($currentIndex -ge 0 -and ($currentIndex + 1) -lt $tagList.Count) {
+            $prevTag = $tagList[$currentIndex + 1]
+          } elseif ($currentIndex -lt 0 -and $tagList.Count -gt 0) {
             # 当前 tag 还没打，git 里的最新 tag 就是 prevTag
             $prevTag = $tagList[0]
           }
 
           if ($prevTag) {
-            Write-Host "Previous tag found: $prevTag"
+            Write-Host "Previous tag: $prevTag"
             echo "prev_tag=$prevTag" >> $env:GITHUB_OUTPUT
           } else {
-            Write-Host "No previous tag found, will generate changelog from start of history"
+            Write-Host "No previous tag; generating full-history changelog"
             echo "prev_tag=" >> $env:GITHUB_OUTPUT
           }
 
@@ -269,11 +217,9 @@ jobs:
           }
 
           if ($prevTag) {
-            Write-Host "Generating changelog from $prevTag to HEAD (for $currentTag)"
-            git-cliff --config .github/cliff.toml --verbose "$prevTag..HEAD" --tag $currentTag --output lol-record-analysis-tauri/CHANGELOG.md
+            git-cliff --config .github/cliff.toml "$prevTag..HEAD" --tag $currentTag --output lol-record-analysis-tauri/CHANGELOG.md
           } else {
-            Write-Host "Generating changelog for all history up to $currentTag"
-            git-cliff --config .github/cliff.toml --verbose --tag $currentTag --output lol-record-analysis-tauri/CHANGELOG.md
+            git-cliff --config .github/cliff.toml --tag $currentTag --output lol-record-analysis-tauri/CHANGELOG.md
           }
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
