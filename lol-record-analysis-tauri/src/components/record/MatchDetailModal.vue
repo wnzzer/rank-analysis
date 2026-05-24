@@ -608,8 +608,9 @@ watch(
 }
 
 .match-detail-hero {
-  width: 40px;
-  height: 40px;
+  /* 40→52px 随 viewport (1100→2200) */
+  width: clamp(40px, calc(40px + (100vw - 1100px) * 12 / 1100), 52px);
+  height: clamp(40px, calc(40px + (100vw - 1100px) * 12 / 1100), 52px);
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-subtle);
   display: block;
@@ -622,7 +623,8 @@ watch(
 }
 
 .match-detail-player-name {
-  font-size: 15px; /* 介于 sm(12) / lg(16),保留视觉过渡 */
+  /* 15→19px 随 viewport (1100→2200) */
+  font-size: clamp(15px, calc(15px + (100vw - 1100px) * 4 / 1100), 19px);
   font-weight: 700;
   color: var(--text-primary);
 }
@@ -816,8 +818,9 @@ watch(
 }
 
 .match-detail-player-avatar {
-  width: 30px;
-  height: 30px;
+  /* AI 复盘弹窗内玩家头像 30→38 随 viewport */
+  width: clamp(30px, calc(30px + (100vw - 1100px) * 8 / 1100), 38px);
+  height: clamp(30px, calc(30px + (100vw - 1100px) * 8 / 1100), 38px);
   border-radius: var(--radius-md);
   border: 1px solid var(--border-subtle);
   flex-shrink: 0;
@@ -929,8 +932,9 @@ watch(
 .match-detail-spell-icon,
 .match-detail-item-icon,
 .match-detail-perk-icon {
-  width: 17px;
-  height: 17px;
+  /* 17→22 随 viewport (1100→2200) */
+  width: clamp(17px, calc(17px + (100vw - 1100px) * 5 / 1100), 22px);
+  height: clamp(17px, calc(17px + (100vw - 1100px) * 5 / 1100), 22px);
   border-radius: 5px; /* 17px 方块视觉圆角,介于 xs(3)/sm(6) */
   border: 1px solid var(--border-subtle);
   background: var(--bg-elevated);
@@ -950,8 +954,9 @@ watch(
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 17px;
-  height: 17px;
+  /* 17→22 随 viewport, 与 spell/item/perk 同步 */
+  width: clamp(17px, calc(17px + (100vw - 1100px) * 5 / 1100), 22px);
+  height: clamp(17px, calc(17px + (100vw - 1100px) * 5 / 1100), 22px);
   border-radius: 5px; /* 与 spell/item/perk 视觉对齐 */
   border: 1px solid var(--augment-border);
   background: var(--augment-background);
@@ -960,8 +965,9 @@ watch(
 }
 
 .match-detail-augment-icon {
-  width: 12px;
-  height: 12px;
+  /* shell 17→22, inner 12→17 同比放大 */
+  width: clamp(12px, calc(12px + (100vw - 1100px) * 5 / 1100), 17px);
+  height: clamp(12px, calc(12px + (100vw - 1100px) * 5 / 1100), 17px);
   object-fit: contain;
   filter: var(--augment-filter);
 }

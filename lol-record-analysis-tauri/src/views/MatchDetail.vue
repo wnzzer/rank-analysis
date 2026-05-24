@@ -5,7 +5,9 @@
       <button class="match-detail-window-close" type="button" @click="closeWindow">关闭</button>
     </div>
     <div class="match-detail-window-body">
-      <MatchDetailModal :game="game" />
+      <div class="match-detail-window-inner">
+        <MatchDetailModal :game="game" />
+      </div>
     </div>
   </div>
 </template>
@@ -68,6 +70,21 @@ function closeWindow() {
   background: var(--bg-base);
   display: flex;
   flex-direction: column;
+  /* 整页 font-size token override: 子组件用 var(--font-size-*) 自动随 viewport 缩放 (1100→2200) */
+  --font-size-2xs: clamp(10px, calc(10px + (100vw - 1100px) * 2 / 1100), 12px);
+  --font-size-xs: clamp(11px, calc(11px + (100vw - 1100px) * 2 / 1100), 13px);
+  --font-size-sm: clamp(12px, calc(12px + (100vw - 1100px) * 2 / 1100), 14px);
+  --font-size-base: clamp(13px, calc(13px + (100vw - 1100px) * 3 / 1100), 16px);
+  --font-size-md: clamp(14px, calc(14px + (100vw - 1100px) * 4 / 1100), 18px);
+  --font-size-lg: clamp(16px, calc(16px + (100vw - 1100px) * 4 / 1100), 20px);
+  --font-size-xl: clamp(18px, calc(18px + (100vw - 1100px) * 5 / 1100), 23px);
+}
+
+/* 宽屏 (>1700) 时内容居中, 上限 1600 防过宽稀疏 */
+.match-detail-window-inner {
+  max-width: 1600px;
+  margin: 0 auto;
+  height: 100%;
 }
 
 .match-detail-window-bar {
