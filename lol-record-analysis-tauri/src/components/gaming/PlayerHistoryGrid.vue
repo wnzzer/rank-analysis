@@ -6,7 +6,7 @@
       class="history-item"
       :class="{ 'is-win': game.participants[0].stats.win }"
     >
-      <n-flex justify="space-between" align="center" :wrap="false">
+      <div class="history-row">
         <span class="win-status" :class="{ 'is-win': game.participants[0].stats.win }">
           {{ game.participants[0].stats.win ? '胜' : '负' }}
         </span>
@@ -26,13 +26,13 @@
           </template>
           {{ game.queueName || '其他' }}
         </n-tooltip>
-      </n-flex>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { NFlex, NTooltip } from 'naive-ui'
+import { NTooltip } from 'naive-ui'
 import type { Game } from '@renderer/types/domain/match'
 import { assetPrefix } from '@renderer/services/http'
 import LazyImg from '@renderer/components/common/LazyImg.vue'
@@ -44,8 +44,13 @@ defineProps<{ games: Game[] }>()
 .history-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  /* 3px：紧凑历史栅格的密集间隙，非 token 阶 */
-  gap: 3px;
+  /* 行按内容高度，避免被 stretch 撑高 */
+  grid-auto-rows: min-content;
+  /* 行集合在 grid 容器内垂直居中 */
+  align-content: center;
+  /* 列间 3px 紧凑，行间 6px 配合 1 屏布局 */
+  column-gap: 3px;
+  row-gap: var(--space-6);
   flex: 1;
   overflow-y: auto;
 }
@@ -53,33 +58,43 @@ defineProps<{ games: Game[] }>()
 .history-item {
   background: var(--glass-bg-low);
   border-radius: var(--radius-sm);
-  /* 3px / 5px：紧凑卡片内边距，非 token 阶 */
-  padding: 3px 5px;
+  /* P0 收紧到 4px 配合 1 屏 4 场布局 */
+  padding: var(--space-4) 5px;
   font-size: var(--font-size-2xs);
   border: 1px solid var(--glass-border);
+  /* P1: 左侧锚点 2px + 半透明，更轻盈 */
   border-left-width: 2px;
-  border-left-color: var(--semantic-loss);
+  border-left-color: color-mix(in srgb, var(--semantic-loss) 70%, transparent);
 }
 
 .history-item.is-win {
-  border-left-color: var(--semantic-win);
+  border-left-color: color-mix(in srgb, var(--semantic-win) 70%, transparent);
+}
+
+/* 固定列宽 grid：胜负 / 头像 / KDA / 模式 —— 跨行跨卡片严格对齐 */
+.history-row {
+  display: grid;
+  grid-template-columns: 18px 24px 1fr 60px;
+  align-items: center;
+  gap: var(--space-6);
 }
 
 .win-status {
-  font-weight: var(--font-weight-semibold);
+  /* P1: 11px + bold，保持识别但不抢戏 */
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
   color: var(--semantic-loss);
-  width: 20px;
-  flex-shrink: 0;
+  text-align: center;
 }
 
 .win-status.is-win {
   color: var(--semantic-win);
 }
 
-/* 固定 24px 圆形英雄头像：像素级精确布局，不取 token 阶 */
+/* P1 精致化：22px 圆形英雄头像 */
 .history-champ-img {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
 }
 
@@ -91,11 +106,10 @@ defineProps<{ games: Game[] }>()
   font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   font-weight: var(--font-weight-bold);
   font-size: var(--font-size-sm);
-  /* 固定 60px 列宽：保持栅格对齐 */
-  min-width: 60px;
+  /* tabular-nums: 数字等宽，确保 5/17/20 与 23/12/39 的斜杠纵向对齐 */
+  font-variant-numeric: tabular-nums;
   text-align: center;
   white-space: nowrap;
-  flex-shrink: 0;
 }
 
 .kill {
@@ -111,10 +125,9 @@ defineProps<{ games: Game[] }>()
 }
 
 .queue-name {
+  /* P1: 容器收紧后 10px 灰阶刚好 */
   font-size: var(--font-size-2xs);
   color: var(--n-text-color-3);
-  /* 固定 40px 列宽 */
-  width: 40px;
   text-align: right;
   white-space: nowrap;
   overflow: hidden;
