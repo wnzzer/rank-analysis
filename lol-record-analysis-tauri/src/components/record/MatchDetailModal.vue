@@ -1042,8 +1042,8 @@ watch(
 .match-detail-items {
   display: flex;
   flex-wrap: wrap;
-  /* 紧凑: 装备贴齐, 0 gap (border 自然分隔) */
-  gap: 0;
+  /* 紧凑 1px gap */
+  gap: 1px;
 }
 
 .match-detail-value-cell {

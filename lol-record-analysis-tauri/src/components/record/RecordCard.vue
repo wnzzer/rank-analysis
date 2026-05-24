@@ -101,7 +101,7 @@
             </span>
           </div>
           <!-- 普通模式：显示带tooltip的召唤师技能 -->
-          <n-flex v-else class="record-card-spell-icons" :size="0">
+          <n-flex v-else class="record-card-spell-icons" :size="1">
             <n-tooltip
               v-for="(spellId, index) in [
                 games.participants[0].spell1Id,
@@ -129,7 +129,7 @@
           </n-flex>
         </n-flex>
         <!-- 装备区域（所有模式都显示） -->
-        <n-flex class="record-card-item-slots" :size="0">
+        <n-flex class="record-card-item-slots" :size="1">
           <n-tooltip
             v-for="(itemId, index) in itemIds"
             :key="`record-item-${index}`"
@@ -496,8 +496,8 @@ function openDetail() {
 /* === 装备/技能 图标槽 === */
 .record-card-item-slots,
 .record-card-spell-icons {
-  /* 紧凑: 装备/技能贴齐, 0 gap, 跟 MatchDetail 一致 */
-  gap: 0;
+  /* 紧凑 1px gap, 留最小呼吸感 (n-flex 用 :size=1 控制, 这里兜底) */
+  gap: 1px;
 }
 
 .record-card-item-slots :deep(.n-image),
@@ -524,8 +524,8 @@ function openDetail() {
   /* 单行展示,最多 6 个 augment(新斗魂);不撑高度,横向占 ~106px。 */
   display: inline-flex;
   align-items: center;
-  /* 紧凑: 0 gap */
-  gap: 0;
+  /* 紧凑 1px gap */
+  gap: 1px;
 }
 
 .record-card-augment-shell {
