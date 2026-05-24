@@ -34,15 +34,12 @@
       <div v-else class="stats-full">
         <div class="stats-row">
           <span class="label">模式</span>
-          <span class="value" style="font-weight: 600">{{ recent.selectModeCn }}</span>
+          <span class="value value-strong">{{ recent.selectModeCn }}</span>
         </div>
         <div class="stats-row">
           <span class="label">KDA</span>
           <div class="value-group">
-            <span
-              :style="{ color: kdaColor(recent.kda, isDark) }"
-              style="font-weight: bold; margin-right: 4px"
-            >
+            <span class="kda-main" :style="{ color: kdaColor(recent.kda, isDark) }">
               {{ recent.kda }}
             </span>
             <span class="kda-detail">
@@ -111,7 +108,7 @@ const selectWinRate = computed(() => winRate(props.recent.selectWins, props.rece
 .stats-card {
   background: var(--glass-bg-low);
   border-radius: var(--radius-md);
-  padding: 6px;
+  padding: var(--space-6);
   transition: all var(--dur-normal) var(--ease-expo);
   border: 1px solid var(--glass-border);
 }
@@ -120,9 +117,11 @@ const selectWinRate = computed(() => winRate(props.recent.selectWins, props.rece
   position: absolute;
   top: 0;
   right: 0;
+  /* 240px: 展开态固定宽度，避免抖动 */
   width: 240px;
   z-index: 100;
   background: var(--bg-elevated);
+  /* 半透明 win 色描边，强调激活态；alpha 自定义保留 rgba */
   border-color: rgba(61, 155, 122, 0.25);
   box-shadow: var(--shadow-lg);
 }
@@ -132,13 +131,13 @@ const selectWinRate = computed(() => winRate(props.recent.selectWins, props.rece
   justify-content: space-between;
   align-items: center;
   cursor: pointer;
-  margin-bottom: 4px;
-  padding-bottom: 4px;
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-4);
   border-bottom: 1px solid var(--n-divider-color);
 }
 
 .stats-title {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   color: var(--n-text-color-2);
 }
@@ -154,26 +153,30 @@ const selectWinRate = computed(() => winRate(props.recent.selectWins, props.rece
 .compact-row {
   display: flex;
   justify-content: space-between;
-  font-size: 11px;
-  margin-bottom: 2px;
+  font-size: var(--font-size-xs);
+  margin-bottom: var(--space-2);
 }
 
 .stats-full {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding-top: 4px;
+  gap: var(--space-6);
+  padding-top: var(--space-4);
 }
 
 .stats-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 
 .label {
   color: var(--n-text-color-3);
+}
+
+.value-strong {
+  font-weight: 600;
 }
 
 .value-group {
@@ -181,9 +184,14 @@ const selectWinRate = computed(() => winRate(props.recent.selectWins, props.rece
   align-items: center;
 }
 
+.kda-main {
+  font-weight: bold;
+  margin-right: var(--space-4);
+}
+
 .kda-detail {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   opacity: 0.9;
-  margin-left: 4px;
+  margin-left: var(--space-4);
 }
 </style>
