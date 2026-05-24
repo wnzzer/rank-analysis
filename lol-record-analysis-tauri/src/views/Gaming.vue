@@ -84,7 +84,7 @@ import { analyzeGameWithAIStream, type StreamCallbacks } from '@renderer/service
 import { useSessionSync } from '@renderer/composables/useSessionSync'
 import { useSessionTiers } from '@renderer/composables/useSessionTiers'
 
-const { sessionData } = useSessionSync()
+const { sessionData, requestSessionData } = useSessionSync()
 const tiersBySubteam = useSessionTiers(sessionData)
 
 const density = computed<'normal' | 'compact'>(() =>
@@ -123,7 +123,9 @@ const handleUpdateConfig = async (value: number | null) => {
   if (!value) return
   try {
     await putConfigByIpc('matchHistoryCount', value)
-    message.success('设置已保存')
+    // 立即重拉 session，让新 matchHistoryCount 立刻生效（无需等下局）
+    await requestSessionData()
+    message.success('设置已保存，已刷新当前对局数据')
   } catch (e) {
     message.error('保存失败')
   }
