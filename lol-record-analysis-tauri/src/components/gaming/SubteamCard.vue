@@ -88,6 +88,8 @@ const placeholderCount = computed(() =>
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  /* 显式锁掉横向滚动 (避免内部元素溢出时底部出滚动条) */
+  overflow-x: hidden;
 }
 
 .subteam-card-empty {
