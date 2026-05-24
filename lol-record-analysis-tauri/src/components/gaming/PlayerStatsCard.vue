@@ -109,7 +109,10 @@ const selectWinRate = computed(() => winRate(props.recent.selectWins, props.rece
   background: var(--glass-bg-low);
   border-radius: var(--radius-md);
   padding: var(--space-6);
-  transition: all var(--dur-normal) var(--ease-expo);
+  transition:
+    background var(--dur-normal) var(--ease-expo),
+    border-color var(--dur-normal) var(--ease-expo),
+    box-shadow var(--dur-normal) var(--ease-expo);
   border: 1px solid var(--glass-border);
 }
 
