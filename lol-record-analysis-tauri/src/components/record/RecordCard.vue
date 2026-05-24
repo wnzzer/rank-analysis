@@ -502,8 +502,8 @@ function openDetail() {
 .record-card-item-slots :deep(.n-image img),
 .record-card-item-slots .record-card-icon-slot,
 .record-card-spell-icons .record-card-icon-slot {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   border-radius: var(--radius-sm);
   background: var(--bg-elevated);
   border: 1px solid var(--glass-border);
@@ -530,8 +530,8 @@ function openDetail() {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
+  width: 22px;
+  height: 22px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--augment-border);
   background: var(--augment-background);
