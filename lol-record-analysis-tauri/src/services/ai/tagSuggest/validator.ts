@@ -1,320 +1,209 @@
 /**
- * validator.ts
+ * Stage 1 / Stage 2 输出校验器。
  *
- * AI 返回 JSON 的严格 schema 校验器。
- * 对 TagCondition / MatchFilter / MatchRefresh / Operator 做结构性验证，
- * 丢弃不合法条目并统计 droppedCount。
+ * Stage 1 校验 ProfileSummary（candidate metric 白名单、≥4 个候选等）。
+ * Stage 2 校验 NamingResult（name 长度、永久禁用词等）。
+ *
+ * 不再做 TagCondition 校验 —— 那部分由 conditionBuilder 模板生成，不会出错。
  */
 
+import { isAllowedMetric } from './types'
 import type {
-  TagCondition,
-  TagSuggestion,
-  TagSuggestResult,
-  MatchFilter,
-  MatchRefresh,
-  Operator
-} from '@renderer/types/tagSuggest'
+  Candidate,
+  ProfileSummary,
+  ModeBreakdown,
+  NamingResult,
+  NamingEntry
+} from './types'
 
-// ─── constants ────────────────────────────────────────────────────────────────
+// ─── shared ───────────────────────────────────────────────────────────────────
 
-const VALID_OPERATORS: ReadonlySet<string> = new Set(['>', '>=', '<', '<=', '==', '!='])
-const VALID_STREAK_KINDS: ReadonlySet<string> = new Set(['win', 'loss'])
-const VALID_FILTER_TYPES: ReadonlySet<string> = new Set(['queue', 'champion', 'stat'])
-const VALID_REFRESH_TYPES: ReadonlySet<string> = new Set([
-  'count',
-  'average',
-  'sum',
-  'max',
-  'min',
-  'streak'
-])
-const VALID_CONDITION_TYPES: ReadonlySet<string> = new Set([
-  'and',
-  'or',
-  'not',
-  'history',
-  'currentQueue',
-  'currentChampion'
-])
+export type ParseOutcome<T> = { ok: true; value: T } | { ok: false; error: string }
 
-const NAME_MIN = 2
-const NAME_MAX = 7
+const MIN_CANDIDATES = 4
+const NAME_MIN_LEN = 2
+const NAME_MAX_LEN = 7
 
-// 明确负面的 name 词。出现在 good=true 的标签里说明 AI 把分类和命名搞反了。
-// 仅检查 good 侧；坏标签允许任意调侃。
-const NEGATIVE_NAME_WORDS: readonly string[] = [
-  '混子',
-  '翻车',
-  '水货',
-  '咸鱼',
-  '废物',
-  '掉分',
-  '演员',
-  '弱鸡',
-  '荣鸡', // 弱鸡的变体
-  '坑货',
+export const PERMANENT_BANNED_NAMES: readonly string[] = [
+  '送葬人',
+  'carry王',
+  '演员王',
   '送人头'
 ]
 
-// ─── helpers ──────────────────────────────────────────────────────────────────
+const VALID_OPERATORS: ReadonlySet<string> = new Set(['>', '>=', '<', '<=', '==', '!='])
+const VALID_STREAK_DIRECTIONS: ReadonlySet<string> = new Set(['win', 'loss'])
 
-function uuid(): string {
-  return typeof crypto !== 'undefined' && crypto.randomUUID
-    ? crypto.randomUUID()
-    : `t-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-}
-
-/** 容忍 AI 输出中前后多余文字的 fence 剥离：先尝试 ```json ... ```，再 fallback 抓首个 {...} 块。 */
 function stripJsonFences(raw: string): string {
   const trimmed = raw.trim()
-  // 优先：抓 ```json ... ``` 或 ``` ... ``` 之间的内容（容忍前后散文）
   const fenceMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i)
   const candidate = fenceMatch ? fenceMatch[1] : trimmed
-  // 兜底：如果还有围绕的散文，抓首个 {...} 平衡块（贪婪匹配到最后一个 }）
   const objMatch = candidate.match(/\{[\s\S]*\}/)
   return objMatch ? objMatch[0] : candidate
 }
 
-function isOperator(v: unknown): v is Operator {
-  return typeof v === 'string' && VALID_OPERATORS.has(v)
+function tryParse(raw: string): ParseOutcome<unknown> {
+  try {
+    const cleaned = stripJsonFences(raw)
+    const parsed = JSON.parse(cleaned)
+    return { ok: true, value: parsed }
+  } catch (e) {
+    return { ok: false, error: `JSON parse failed: ${(e as Error).message}` }
+  }
 }
 
-function isMatchFilter(v: unknown): v is MatchFilter {
+// ─── Stage 1 ──────────────────────────────────────────────────────────────────
+
+function isModeBreakdown(v: unknown): v is ModeBreakdown {
   if (typeof v !== 'object' || v === null) return false
   const o = v as Record<string, unknown>
-  if (typeof o.type !== 'string' || !VALID_FILTER_TYPES.has(o.type)) return false
-  if (o.type === 'queue' || o.type === 'champion') {
-    return Array.isArray(o.ids) && o.ids.every(x => typeof x === 'number')
-  }
-  if (o.type === 'stat') {
-    return typeof o.metric === 'string' && isOperator(o.op) && typeof o.value === 'number'
-  }
-  return false
-}
-
-function isMatchRefresh(v: unknown): v is MatchRefresh {
-  if (typeof v !== 'object' || v === null) return false
-  const o = v as Record<string, unknown>
-  if (typeof o.type !== 'string' || !VALID_REFRESH_TYPES.has(o.type)) return false
-  if (o.type === 'count') {
-    return isOperator(o.op) && typeof o.value === 'number'
-  }
-  if (['average', 'sum', 'max', 'min'].includes(o.type)) {
-    return typeof o.metric === 'string' && isOperator(o.op) && typeof o.value === 'number'
-  }
-  if (o.type === 'streak') {
-    return typeof o.min === 'number' && typeof o.kind === 'string' && VALID_STREAK_KINDS.has(o.kind)
-  }
-  return false
-}
-
-/**
- * 检测 History condition 是否存在 filter 和 refresh 同 metric + 同方向的套套逻辑。
- * 例：filter stat gold>=12000 + refresh average gold>=12000 → 必然成立 → 拒绝。
- *
- * 仅检测 average/sum/max/min refresh（count 和 streak 不会和 stat filter 冲突）。
- * 严格匹配同 metric + 同 op，避免误杀边界场景（如 filter ">= 8000" + refresh "average >= 12000"，技术上有意义）。
- */
-function hasFilterRefreshTautology(history: {
-  filters: MatchFilter[]
-  refresh: MatchRefresh
-}): boolean {
-  const r = history.refresh
-  if (r.type !== 'average' && r.type !== 'sum' && r.type !== 'max' && r.type !== 'min') {
+  if (!Array.isArray(o.queueIds) || !o.queueIds.every(x => typeof x === 'number')) return false
+  if (typeof o.queueName !== 'string') return false
+  if (!Array.isArray(o.winSignals) || !o.winSignals.every(x => typeof x === 'string')) return false
+  if (!Array.isArray(o.lossSignals) || !o.lossSignals.every(x => typeof x === 'string'))
     return false
-  }
-  for (const f of history.filters) {
-    if (f.type !== 'stat') continue
-    if (f.metric === r.metric && f.op === r.op) return true
-  }
-  return false
-}
-
-function isTagCondition(v: unknown): v is TagCondition {
-  if (typeof v !== 'object' || v === null) return false
-  const o = v as Record<string, unknown>
-  if (typeof o.type !== 'string' || !VALID_CONDITION_TYPES.has(o.type)) return false
-  if (o.type === 'and' || o.type === 'or') {
-    return Array.isArray(o.conditions) && o.conditions.every(isTagCondition)
-  }
-  if (o.type === 'not') {
-    return isTagCondition(o.condition)
-  }
-  if (o.type === 'history') {
-    if (!Array.isArray(o.filters) || !o.filters.every(isMatchFilter)) return false
-    if (!isMatchRefresh(o.refresh)) return false
-    // 语义层兜底：拒绝 filter 和 refresh 同 metric + 同向的套套逻辑
-    if (
-      hasFilterRefreshTautology({
-        filters: o.filters as MatchFilter[],
-        refresh: o.refresh as MatchRefresh
-      })
-    ) {
-      return false
-    }
-    return true
-  }
-  if (o.type === 'currentQueue' || o.type === 'currentChampion') {
-    return Array.isArray(o.ids) && o.ids.every(x => typeof x === 'number')
-  }
-  return false
-}
-
-// ─── mode / desc consistency check ───────────────────────────────────────────
-
-const RANKED_QUEUE_IDS: ReadonlySet<number> = new Set([420, 440])
-
-/**
- * 递归收集 condition 树中所有 history filter 用到的 queue ids。
- * 返回 null 表示完全没有用 queue filter。
- */
-function collectQueueIds(c: TagCondition): number[] | null {
-  const out: number[] = []
-  let used = false
-  function walk(node: TagCondition): void {
-    if (node.type === 'and' || node.type === 'or') {
-      node.conditions.forEach(walk)
-    } else if (node.type === 'not') {
-      walk(node.condition)
-    } else if (node.type === 'history') {
-      for (const f of node.filters) {
-        if (f.type === 'queue') {
-          used = true
-          out.push(...f.ids)
-        }
-      }
-    }
-    // currentQueue / currentChampion 不参与历史统计语义，跳过
-  }
-  walk(c)
-  return used ? out : null
-}
-
-/**
- * 检查 desc 是否声明了"排位"但 filter 里含有娱乐模式 id（或同时混了排位和娱乐）。
- * - 含娱乐 id（任一非 420/440 的 queue id）且 desc 包含"排位" → 不一致 → 返回 false
- * - 没用 queue filter → 不检查，desc 怎么写都行 → 返回 true
- */
-function descMatchesQueueScope(desc: string, c: TagCondition): boolean {
-  const ids = collectQueueIds(c)
-  if (ids === null) return true // no queue filter → desc unconstrained
-  const hasNonRanked = ids.some(id => !RANKED_QUEUE_IDS.has(id))
-  const descSaysRanked = desc.includes('排位')
-  if (hasNonRanked && descSaysRanked) return false
+  if (typeof o.sampleSize !== 'number') return false
   return true
 }
 
-// 召唤师峡谷专属位置词。其他模式（大乱斗、海克斯乱斗、斗魂、觉醒之战等）没有路位概念，
-// name 或 desc 出现这些词就说明 AI 在套 SR 模板。
-const SR_LANE_WORDS: readonly string[] = [
-  '上路',
-  '上单',
-  '中路',
-  '中单',
-  '下路',
-  '下单',
-  'ADC',
-  '打野',
-  '野区',
-  '辅助'
-]
+function isCandidate(v: unknown): v is Candidate {
+  if (typeof v !== 'object' || v === null) return false
+  const o = v as Record<string, unknown>
+  if (typeof o.id !== 'string' || o.id.length === 0) return false
+  if (typeof o.metric !== 'string' || !isAllowedMetric(o.metric)) return false
+  if (!Array.isArray(o.queueIds) || !o.queueIds.every(x => typeof x === 'number')) return false
+  if (typeof o.direction !== 'string') return false
+  if (o.metric === 'streak') {
+    if (!VALID_STREAK_DIRECTIONS.has(o.direction)) return false
+  } else {
+    if (!VALID_OPERATORS.has(o.direction)) return false
+  }
+  if (typeof o.threshold !== 'number') return false
+  if (typeof o.countMin !== 'number' || o.countMin < 1) return false
+  if (typeof o.evidence !== 'string') return false
+  if (!Array.isArray(o.vibe) || !o.vibe.every(x => typeof x === 'string')) return false
+  return true
+}
 
 /**
- * 检测 text 在"非 SR 模式作用域"下是否出现路位词。
- * 仅当 filter 里所有 queue ids 全是非 ranked（即所有 id 都不在 [420, 440]）时拒绝。
- * 混合（含 ranked + 娱乐）允许，因为路位描述对 ranked 子集仍然有意义。
+ * 解析并校验 Stage 1 输出（ProfileSummary）。
+ *
+ * 通过条件：
+ * - 顶层是对象
+ * - styleSummary / modeBreakdown / goodCandidates / badCandidates 字段类型正确
+ * - good / bad candidates 各 ≥ 4 个，且每个均通过 isCandidate 校验
  */
-function hasNonSrLaneWord(text: string, c: TagCondition): boolean {
-  const ids = collectQueueIds(c)
-  if (ids === null) return false // 没有 queue filter → 不检查
-  const allNonRanked = ids.every(id => !RANKED_QUEUE_IDS.has(id))
-  if (!allNonRanked) return false // 含 ranked → 路位词允许
-  return SR_LANE_WORDS.some(word => text.includes(word))
-}
+export function parseStage1(raw: string): ParseOutcome<ProfileSummary> {
+  const parseResult = tryParse(raw)
+  if (!parseResult.ok) return parseResult
+  const root = parseResult.value
+  if (typeof root !== 'object' || root === null) {
+    return { ok: false, error: 'Stage 1 root is not an object' }
+  }
+  const o = root as Record<string, unknown>
 
-function hasNegativeNameWord(name: string): boolean {
-  return NEGATIVE_NAME_WORDS.some(w => name.includes(w))
-}
+  if (typeof o.styleSummary !== 'string') {
+    return { ok: false, error: 'styleSummary missing or not a string' }
+  }
+  if (!Array.isArray(o.modeBreakdown)) {
+    return { ok: false, error: 'modeBreakdown missing or not an array' }
+  }
+  for (const mb of o.modeBreakdown) {
+    if (!isModeBreakdown(mb)) {
+      return { ok: false, error: 'modeBreakdown entry invalid' }
+    }
+  }
 
-function nameOk(name: unknown): name is string {
-  if (typeof name !== 'string') return false
-  // 按 Unicode 字符数计算长度（正确处理中文、emoji 等多字节字符）
-  const len = Array.from(name.trim()).length
-  return len >= NAME_MIN && len <= NAME_MAX
-}
+  if (!Array.isArray(o.goodCandidates) || o.goodCandidates.length < MIN_CANDIDATES) {
+    return { ok: false, error: `goodCandidates must be ≥ ${MIN_CANDIDATES}` }
+  }
+  if (!Array.isArray(o.badCandidates) || o.badCandidates.length < MIN_CANDIDATES) {
+    return { ok: false, error: `badCandidates must be ≥ ${MIN_CANDIDATES}` }
+  }
 
-interface RawSuggestion {
-  name?: unknown
-  desc?: unknown
-  condition?: unknown
-}
-
-function buildSuggestion(raw: RawSuggestion, good: boolean): TagSuggestion | null {
-  if (!nameOk(raw.name)) return null
-  if (typeof raw.desc !== 'string' || raw.desc.trim().length === 0) return null
-  if (!isTagCondition(raw.condition)) return null
-
-  const desc = (raw.desc as string).trim()
-  const name = (raw.name as string).trim()
-  const cond = raw.condition as TagCondition
-
-  // 语义层兜底：desc 模式声明必须和 filter 一致
-  if (!descMatchesQueueScope(desc, cond)) return null
-
-  // 非 SR 模式不带路位词（name 和 desc 都查）
-  if (hasNonSrLaneWord(name, cond) || hasNonSrLaneWord(desc, cond)) return null
-
-  // 好标签的 name 不能含明确负面词（name 和 good/bad 分类要语气一致）
-  if (good && hasNegativeNameWord(name)) return null
+  for (const c of o.goodCandidates) {
+    if (!isCandidate(c)) {
+      return { ok: false, error: 'goodCandidate entry invalid' }
+    }
+  }
+  for (const c of o.badCandidates) {
+    if (!isCandidate(c)) {
+      return { ok: false, error: 'badCandidate entry invalid' }
+    }
+  }
 
   return {
-    id: uuid(),
-    name,
-    desc,
-    good,
-    enabled: true,
-    condition: cond,
-    isDefault: false
+    ok: true,
+    value: {
+      styleSummary: o.styleSummary,
+      modeBreakdown: o.modeBreakdown as ModeBreakdown[],
+      goodCandidates: o.goodCandidates as Candidate[],
+      badCandidates: o.badCandidates as Candidate[]
+    }
   }
 }
 
-// ─── public API ───────────────────────────────────────────────────────────────
+// ─── Stage 2 ──────────────────────────────────────────────────────────────────
+
+function nameIsValid(name: unknown): name is string {
+  if (typeof name !== 'string') return false
+  const trimmed = name.trim()
+  const len = Array.from(trimmed).length
+  if (len < NAME_MIN_LEN || len > NAME_MAX_LEN) return false
+  if (PERMANENT_BANNED_NAMES.some(banned => trimmed.includes(banned))) return false
+  return true
+}
+
+function descIsValid(desc: unknown): desc is string {
+  return typeof desc === 'string' && desc.trim().length > 0
+}
+
+function isNamingEntry(v: unknown): v is NamingEntry {
+  if (typeof v !== 'object' || v === null) return false
+  const o = v as Record<string, unknown>
+  if (typeof o.id !== 'string' || o.id.length === 0) return false
+  if (!nameIsValid(o.name)) return false
+  if (!descIsValid(o.desc)) return false
+  return true
+}
 
 /**
- * 解析并校验 AI 返回的 JSON 字符串。
+ * 解析并校验 Stage 2 输出（NamingResult）。
  *
- * 支持裸 JSON 和 ```json ... ``` markdown 包裹两种形式。
- * 每条候选均经过 TagCondition schema 校验，不合格条目被丢弃并计入 droppedCount。
- *
- * @param raw - AI 返回的原始字符串
- * @returns 校验后的 { good, bad, droppedCount }（不含 generatedAt，由上层填充）
- * @throws 当 JSON 解析失败、或顶层缺少 good/bad 数组时抛出 Error
+ * - 不合法的 entry 被静默丢弃（不报 parse 错误）
+ * - 失败仅在 JSON 不可解析、或 good/bad 不是数组时返回
  */
-export function parseAndValidate(raw: string): Omit<TagSuggestResult, 'generatedAt'> {
-  const cleaned = stripJsonFences(raw)
-  const parsed = JSON.parse(cleaned) as unknown
-  if (typeof parsed !== 'object' || parsed === null) {
-    throw new Error('AI response is not a JSON object')
+export function parseStage2(raw: string): ParseOutcome<NamingResult> {
+  const parseResult = tryParse(raw)
+  if (!parseResult.ok) return parseResult
+  const root = parseResult.value
+  if (typeof root !== 'object' || root === null) {
+    return { ok: false, error: 'Stage 2 root is not an object' }
   }
-  const root = parsed as { good?: unknown; bad?: unknown }
-  if (!Array.isArray(root.good) || !Array.isArray(root.bad)) {
-    throw new Error('AI response missing good/bad arrays')
+  const o = root as Record<string, unknown>
+
+  if (!Array.isArray(o.good)) {
+    return { ok: false, error: 'good must be an array' }
+  }
+  if (!Array.isArray(o.bad)) {
+    return { ok: false, error: 'bad must be an array' }
   }
 
-  const good: TagSuggestion[] = []
-  const bad: TagSuggestion[] = []
-  let droppedCount = 0
+  const skippedRaw = o.skipped
+  const skipped: string[] = Array.isArray(skippedRaw)
+    ? skippedRaw.filter((x): x is string => typeof x === 'string')
+    : []
 
-  for (const entry of root.good as RawSuggestion[]) {
-    const s = buildSuggestion(entry, true)
-    if (s) good.push(s)
-    else droppedCount++
-  }
-  for (const entry of root.bad as RawSuggestion[]) {
-    const s = buildSuggestion(entry, false)
-    if (s) bad.push(s)
-    else droppedCount++
-  }
+  const good = (o.good as unknown[]).filter(isNamingEntry).map(e => ({
+    id: e.id,
+    name: (e.name as string).trim(),
+    desc: (e.desc as string).trim()
+  }))
+  const bad = (o.bad as unknown[]).filter(isNamingEntry).map(e => ({
+    id: e.id,
+    name: (e.name as string).trim(),
+    desc: (e.desc as string).trim()
+  }))
 
-  return { good, bad, droppedCount }
+  return { ok: true, value: { good, bad, skipped } }
 }

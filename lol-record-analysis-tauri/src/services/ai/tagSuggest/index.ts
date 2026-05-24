@@ -1,28 +1,37 @@
 /**
  * tagSuggest/index.ts
  *
- * AI 标签建议编排器 — 负责：
- * 1. 获取当前用户 puuid（invoke get_my_summoner）
- * 2. 拉取近期对局（invoke get_match_history_by_puuid）
- * 3. 特征提取 + 胜负拆分
- * 4. 调用 AI（requestAIContent）
- * 5. 校验 AI 返回（parseAndValidate）
- * 6. sessionStorage 缓存（puuid 维度）
+ * AI 标签建议编排器（双阶段重构版）。
  *
- * 对外暴露：
- * - requestTagSuggestions(forceRefresh?)  — AISuggestModal 入口
- * - markAdopted(puuid, suggestionId)      — 标记已采用，跨弹窗保持灰态
- * - getCacheKey(puuid)                    — 测试可见
- * - MIN_GAMES_REQUIRED / MAX_GAMES_FETCHED — 测试可见
+ * 流程：
+ *  1. 获取当前用户 puuid（invoke get_my_summoner）
+ *  2. 拉取近期对局（invoke get_match_history_by_puuid）
+ *  3. 特征提取 + 胜负拆分（featureExtract）
+ *  4. runTwoStage:
+ *     - Stage 1：风格摘要 + 候选信号（非流式）
+ *     - Stage 2：基于候选 + 词库 + 反重复禁用名命名（流式）
+ *  5. 拼接 TagCondition（conditionBuilder）
+ *  6. 写 sessionStorage 缓存 + 写反重复 LRU
  */
 
 import { invoke } from '@tauri-apps/api/core'
-import { requestAIContent } from '@renderer/services/ai/stream'
+import { runTwoStage } from '@renderer/services/ai/shared/twoStage'
 import type { TagSuggestion, TagSuggestResult } from '@renderer/types/tagSuggest'
-import type { AIAnalysisResult } from '@renderer/services/ai/types'
-import { gameToFeature, splitWinsLosses, type RawGame, type QueueNameMap } from './featureExtract'
-import { buildTagSuggestPrompt, SYSTEM_PROMPT } from './prompt'
-import { parseAndValidate } from './validator'
+import {
+  gameToFeature,
+  splitWinsLosses,
+  type RawGame,
+  type QueueNameMap
+} from './featureExtract'
+import { STAGE1_SYSTEM_PROMPT, buildStage1UserPrompt } from './prompts/stage1-profile'
+import { buildStage2SystemPrompt, buildStage2UserPrompt } from './prompts/stage2-naming'
+import { parseStage1, parseStage2 } from './validator'
+import { GOOD_VOCAB } from './vocab/good'
+import { BAD_VOCAB } from './vocab/bad'
+import { sampleVocab } from './vocab/sampler'
+import { readRecentNames, writeRecentNames } from './vocab/deduplicator'
+import { buildCondition } from './conditionBuilder'
+import type { Candidate, NamingEntry, ProfileSummary } from './types'
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
@@ -39,11 +48,6 @@ export type TagSuggestOutcome =
 
 // ─── cache helpers ────────────────────────────────────────────────────────────
 
-// 注：缓存按 puuid 分区。切换 LCU 账号后旧缓存仍存在但不会被读到（key 不同），不主动清理。
-/**
- * sessionStorage 缓存键（puuid 维度）。
- * @param puuid - 当前用户 puuid
- */
 export function getCacheKey(puuid: string): string {
   return `ai_tag_suggest_${puuid}`
 }
@@ -69,18 +73,12 @@ function writeCache(puuid: string, data: CachedResult): void {
   try {
     sessionStorage.setItem(getCacheKey(puuid), JSON.stringify(data))
   } catch {
-    // 忽略（隐私模式 / 配额超限）
+    // ignore (private mode / quota)
   }
 }
 
 // ─── public helpers ───────────────────────────────────────────────────────────
 
-/**
- * 将某条建议标记为"已采用"，写回 sessionStorage，使 UI 跨弹窗打开保持灰态。
- *
- * @param puuid        - 当前用户 puuid（用于定位缓存 key）
- * @param suggestionId - 要标记的建议 id
- */
 export function markAdopted(puuid: string, suggestionId: string): void {
   const cached = readCache(puuid)
   if (!cached) return
@@ -92,10 +90,16 @@ export function markAdopted(puuid: string, suggestionId: string): void {
   writeCache(puuid, cached)
 }
 
-// ─── internal helpers ─────────────────────────────────────────────────────────
+// ─── module state ─────────────────────────────────────────────────────────────
 
-// Module-level cache: puuid is stable within an LCU session, so we fetch it once.
 let cachedPuuid: string | null = null
+let cachedQueueNameMap: QueueNameMap | null = null
+
+/** Test-only: clears module-level memo caches. */
+export function __resetModuleStateForTests(): void {
+  cachedPuuid = null
+  cachedQueueNameMap = null
+}
 
 async function getCurrentUserPuuid(): Promise<string> {
   if (cachedPuuid) return cachedPuuid
@@ -104,15 +108,12 @@ async function getCurrentUserPuuid(): Promise<string> {
   return cachedPuuid
 }
 
-let cachedQueueNameMap: QueueNameMap | null = null
-
 async function getQueueNameMap(): Promise<QueueNameMap> {
   if (cachedQueueNameMap) return cachedQueueNameMap
   try {
     const opts = await invoke<Array<{ label: string; value: number }>>('get_game_modes')
     const map: Record<number, string> = {}
     for (const o of opts) {
-      // 跳过 "全部" 这种汇总项（value=0）
       if (o.value !== 0 && o.label) map[o.value] = o.label
     }
     cachedQueueNameMap = map
@@ -136,25 +137,69 @@ async function fetchRecentGames(puuid: string): Promise<RawGame[]> {
   return resp.games?.games ?? []
 }
 
+// ─── stitching: NamingEntry + Candidate → TagSuggestion ───────────────────────
+
+function stitchSuggestion(
+  entry: NamingEntry,
+  candidate: Candidate,
+  good: boolean
+): TagSuggestion {
+  return {
+    id:
+      typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `t-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    name: entry.name,
+    desc: entry.desc,
+    good,
+    enabled: true,
+    condition: buildCondition(candidate),
+    isDefault: false
+  }
+}
+
+function stitchAll(
+  profile: ProfileSummary,
+  naming: { good: NamingEntry[]; bad: NamingEntry[] }
+): { good: TagSuggestion[]; bad: TagSuggestion[]; droppedCount: number } {
+  const goodCandMap = new Map(profile.goodCandidates.map(c => [c.id, c]))
+  const badCandMap = new Map(profile.badCandidates.map(c => [c.id, c]))
+
+  const good: TagSuggestion[] = []
+  const bad: TagSuggestion[] = []
+  let droppedCount = 0
+
+  for (const entry of naming.good) {
+    const cand = goodCandMap.get(entry.id)
+    if (!cand) {
+      droppedCount += 1
+      continue
+    }
+    good.push(stitchSuggestion(entry, cand, true))
+  }
+  for (const entry of naming.bad) {
+    const cand = badCandMap.get(entry.id)
+    if (!cand) {
+      droppedCount += 1
+      continue
+    }
+    bad.push(stitchSuggestion(entry, cand, false))
+  }
+  return { good, bad, droppedCount }
+}
+
 // ─── main entry point ─────────────────────────────────────────────────────────
 
 /**
- * AI 标签建议编排器顶层入口 — Tags.vue 中的 AISuggestModal 调用此函数。
+ * AI 标签建议编排器顶层入口。
  *
- * 流程：
- * 1. 获取当前用户 puuid
- * 2. 若未强制刷新，读 sessionStorage 缓存并直接返回
- * 3. 拉取近 MAX_GAMES_FETCHED 场对局，提取特征
- * 4. 特征不足 MIN_GAMES_REQUIRED 时返回 insufficient
- * 5. 调用 AI，处理返回并写缓存
- *
- * @param forceRefresh - true 时跳过缓存，重新请求 AI（默认 false）
- * @returns TagSuggestOutcome 判别联合
+ * @param forceRefresh - true 时跳过缓存，重新调 AI
  */
-export async function requestTagSuggestions(forceRefresh = false): Promise<TagSuggestOutcome> {
+export async function requestTagSuggestions(
+  forceRefresh = false
+): Promise<TagSuggestOutcome> {
   const puuid = await getCurrentUserPuuid()
 
-  // 命中缓存直接返回
   if (!forceRefresh) {
     const cached = readCache(puuid)
     if (cached) {
@@ -171,13 +216,9 @@ export async function requestTagSuggestions(forceRefresh = false): Promise<TagSu
     }
   }
 
-  // 拉取对局并提取特征
+  // Fetch + extract features
   const rawGames = await fetchRecentGames(puuid)
-
-  // NEW: prefetch queue name map (cached after first call)
   const queueNameMap = await getQueueNameMap()
-
-  // CHANGED: pass nameMap into gameToFeature
   const features = rawGames
     .map(g => gameToFeature(g, puuid, queueNameMap))
     .filter((f): f is NonNullable<typeof f> => f !== null)
@@ -186,58 +227,61 @@ export async function requestTagSuggestions(forceRefresh = false): Promise<TagSu
     return { kind: 'insufficient', gameCount: features.length }
   }
 
-  // 构建 prompt 并调用 AI
   const { wins, losses } = splitWinsLosses(features)
-  const userPrompt = buildTagSuggestPrompt(wins, losses)
-  // 每次强制刷新使用独立的原始缓存 key，避免与结构化缓存互相污染
-  const rawCacheKey = `ai_tag_suggest_raw_${puuid}_${Date.now()}`
 
-  let aiResp: AIAnalysisResult
-  try {
-    aiResp = await requestAIContent(userPrompt, rawCacheKey, SYSTEM_PROMPT)
-  } finally {
-    // 不论成功失败都清掉孤儿 raw 缓存（AI throw 时也不留垃圾）
-    try {
-      sessionStorage.removeItem(rawCacheKey)
-    } catch {
-      /* ignore */
+  // Sample vocab + read dedup names
+  const goodSample = sampleVocab(GOOD_VOCAB)
+  const badSample = sampleVocab(BAD_VOCAB)
+  const vocabSample = [...goodSample, ...badSample]
+  const recentlyUsed = readRecentNames(puuid)
+
+  const result = await runTwoStage<
+    ProfileSummary,
+    { good: NamingEntry[]; bad: NamingEntry[]; skipped: string[] }
+  >({
+    stage1: {
+      systemPrompt: STAGE1_SYSTEM_PROMPT,
+      userPrompt: buildStage1UserPrompt(wins, losses),
+      parse: parseStage1
+    },
+    stage2: {
+      buildSystemPrompt: s1 => buildStage2SystemPrompt(s1, vocabSample, recentlyUsed),
+      buildUserPrompt: s1 => buildStage2UserPrompt(s1),
+      parse: parseStage2
     }
+  })
+
+  if (result.kind === 'stage1Error') {
+    return { kind: 'aiError', error: result.error }
+  }
+  if (result.kind === 'stage1ParseError') {
+    return { kind: 'parseError', error: result.error }
+  }
+  if (result.kind === 'stage2Error') {
+    return { kind: 'aiError', error: result.error }
+  }
+  if (result.kind === 'stage2ParseError') {
+    return { kind: 'parseError', error: result.error }
   }
 
-  if (!aiResp.success) {
-    return { kind: 'aiError', error: aiResp.error ?? 'unknown AI error' }
+  // Stitch
+  const stitched = stitchAll(result.stage1, result.stage2)
+  const generatedAt = new Date().toISOString()
+  const cacheable: CachedResult = {
+    good: stitched.good,
+    bad: stitched.bad,
+    droppedCount: stitched.droppedCount,
+    generatedAt
   }
+  writeCache(puuid, cacheable)
 
-  // Guard against upstream returning HTTP 200 with empty body (e.g. proxy rate-limited
-  // or returned non-SSE content) — surface as aiError so the user sees the retry button.
-  if (!aiResp.content || aiResp.content.trim().length === 0) {
-    return { kind: 'aiError', error: 'AI 返回空响应（可能是代理限流）' }
-  }
-
-  // 校验并写缓存
-  let parsed
-  try {
-    parsed = parseAndValidate(aiResp.content)
-  } catch (e) {
-    return { kind: 'parseError', error: (e as Error).message }
-  }
-
-  const toCache: CachedResult = {
-    good: parsed.good,
-    bad: parsed.bad,
-    droppedCount: parsed.droppedCount,
-    generatedAt: new Date().toISOString()
-  }
-  writeCache(puuid, toCache)
+  // Update dedup LRU
+  const allNames = [...stitched.good, ...stitched.bad].map(s => s.name)
+  writeRecentNames(puuid, allNames)
 
   return {
     kind: 'ok',
-    result: {
-      good: toCache.good,
-      bad: toCache.bad,
-      droppedCount: toCache.droppedCount,
-      generatedAt: toCache.generatedAt
-    },
+    result: { ...cacheable },
     puuid
   }
 }

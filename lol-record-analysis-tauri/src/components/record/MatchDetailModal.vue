@@ -370,6 +370,7 @@
       :target-participant-id="ai.aiTargetParticipantId.value"
       :loading="ai.aiLoading.value"
       :ai-loading="ai.aiLoading.value"
+      :ai-state-label="ai.aiStateLabel.value"
       :rendered-result="ai.renderedAiResult.value"
       :player-options="aiPlayerOptions"
       @update:show="ai.showAiModal.value = $event"

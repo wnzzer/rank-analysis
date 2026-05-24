@@ -27,7 +27,8 @@
       </div>
 
       <div v-if="renderedResult" class="match-detail-ai-result" v-html="renderedResult"></div>
-      <div v-else-if="aiLoading" class="match-detail-ai-skeleton">
+      <div v-else-if="aiLoading || loading" class="match-detail-ai-skeleton">
+        <div v-if="aiStateLabel" class="match-detail-ai-skeleton-label">{{ aiStateLabel }}</div>
         <n-skeleton text :repeat="4" />
         <n-skeleton text class="match-detail-ai-skeleton-short" />
       </div>
@@ -57,6 +58,7 @@ defineProps<{
   loading: boolean
   renderedResult: string
   aiLoading?: boolean
+  aiStateLabel?: string
   playerOptions: { label: string; value: number }[]
 }>()
 
@@ -118,6 +120,12 @@ const emit = defineEmits<{
   flex-direction: column;
   gap: var(--space-8);
   padding: var(--space-8) var(--space-4);
+}
+
+.match-detail-ai-skeleton-label {
+  font-size: var(--font-size-md);
+  color: var(--text-secondary);
+  padding: 0 var(--space-4) var(--space-6);
 }
 
 .match-detail-ai-skeleton-short {

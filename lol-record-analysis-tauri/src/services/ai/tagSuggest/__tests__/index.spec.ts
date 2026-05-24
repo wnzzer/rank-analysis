@@ -1,242 +1,333 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { MockedFunction } from 'vitest'
 
-// Mocks must be hoisted before the import
-vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn()
-}))
+// Mocks BEFORE importing the module under test
+vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 vi.mock('@renderer/services/ai/stream', () => ({
-  requestAIContent: vi.fn()
+  requestAIContent: vi.fn(),
+  requestAIContentStream: vi.fn()
 }))
 
-import type { invoke as InvokeFn } from '@tauri-apps/api/core'
-import type { requestAIContent as RequestAIContentFn } from '@renderer/services/ai/stream'
-import type { TagSuggestOutcome } from '../index'
+import { invoke } from '@tauri-apps/api/core'
+import { requestAIContent, requestAIContentStream } from '@renderer/services/ai/stream'
+import {
+  requestTagSuggestions,
+  markAdopted,
+  getCacheKey,
+  __resetModuleStateForTests
+} from '../index'
+import { readRecentNames } from '../vocab/deduplicator'
 
-const fakeGoodAIResponse = JSON.stringify({
-  good: [
-    {
-      name: '中路雕将',
-      desc: '中路场均 KDA ≥ 5',
-      condition: {
-        type: 'history',
-        filters: [{ type: 'stat', metric: 'kda', op: '>=', value: 5 }],
-        refresh: { type: 'count', op: '>=', value: 3 }
-      }
-    }
-  ],
-  bad: []
+const mockInvoke = invoke as ReturnType<typeof vi.fn>
+const mockRequest = requestAIContent as ReturnType<typeof vi.fn>
+const mockStream = requestAIContentStream as ReturnType<typeof vi.fn>
+
+beforeEach(() => {
+  mockInvoke.mockReset()
+  mockRequest.mockReset()
+  mockStream.mockReset()
+  sessionStorage.clear()
+  __resetModuleStateForTests()
 })
 
-function fakeGame(win: boolean, puuid = 'me', queueId = 420) {
+// ─── fixtures ─────────────────────────────────────────────────────────────────
+
+function rawGameOf(opts: { win?: boolean; queueId?: number } = {}) {
   return {
     gameId: Math.random(),
-    queueId,
+    queueId: opts.queueId ?? 420,
     gameDuration: 1800,
-    participants: [{ championId: 1, stats: { win, kills: 5, deaths: 1, assists: 3 } }],
-    participantIdentities: [{ player: { puuid } }]
+    participants: [
+      {
+        championId: 64,
+        teamId: 100,
+        teamPosition: 'JUNGLE',
+        spell1Id: 4,
+        spell2Id: 11,
+        stats: {
+          win: opts.win ?? true,
+          kills: 8,
+          deaths: 4,
+          assists: 12,
+          totalDamageDealtToChampions: 25000,
+          goldEarned: 14000,
+          totalMinionsKilled: 150,
+          neutralMinionsKilled: 50,
+          totalDamageTaken: 22000,
+          visionScore: 20,
+          doubleKills: 0,
+          tripleKills: 0,
+          quadraKills: 0,
+          pentaKills: 0
+        }
+      }
+    ],
+    participantIdentities: [{ player: { puuid: 'me' } }]
   }
 }
 
-// Re-imported each test after vi.resetModules() to clear module-level cachedPuuid.
-let invoke: MockedFunction<typeof InvokeFn>
-let requestAIContent: MockedFunction<typeof RequestAIContentFn>
-let requestTagSuggestions: (forceRefresh?: boolean) => Promise<TagSuggestOutcome>
-let MIN_GAMES_REQUIRED: number
-let getCacheKey: (puuid: string) => string
+function defaultInvokeImpl(cmd: string) {
+  if (cmd === 'get_my_summoner') return { puuid: 'me' }
+  if (cmd === 'get_game_modes') {
+    return [
+      { label: '单双排位', value: 420 },
+      { label: '灵活组排', value: 440 },
+      { label: '大乱斗', value: 450 }
+    ]
+  }
+  if (cmd === 'get_match_history_by_puuid') {
+    const games = [
+      ...Array(10)
+        .fill(0)
+        .map(() => rawGameOf({ win: true })),
+      ...Array(10)
+        .fill(0)
+        .map(() => rawGameOf({ win: false }))
+    ]
+    return { games: { games } }
+  }
+  return null
+}
 
-beforeEach(async () => {
-  sessionStorage.clear()
-  vi.clearAllMocks()
-  vi.resetModules()
+const stage1Output = {
+  styleSummary: '稳健野区核心',
+  modeBreakdown: [
+    {
+      queueIds: [420, 440],
+      queueName: '单双排位',
+      winSignals: ['KDA 高'],
+      lossSignals: ['对线崩'],
+      sampleSize: 10
+    }
+  ],
+  goodCandidates: [
+    {
+      id: 'g1',
+      metric: 'kda',
+      queueIds: [420, 440],
+      direction: '>=',
+      threshold: 3,
+      countMin: 5,
+      evidence: '',
+      vibe: ['carry']
+    },
+    {
+      id: 'g2',
+      metric: 'damage',
+      queueIds: [420, 440],
+      direction: '>=',
+      threshold: 20000,
+      countMin: 5,
+      evidence: '',
+      vibe: ['输出']
+    },
+    {
+      id: 'g3',
+      metric: 'kda',
+      queueIds: [420, 440],
+      direction: '>=',
+      threshold: 5,
+      countMin: 5,
+      evidence: '',
+      vibe: []
+    },
+    {
+      id: 'g4',
+      metric: 'damage',
+      queueIds: [420, 440],
+      direction: '>=',
+      threshold: 25000,
+      countMin: 5,
+      evidence: '',
+      vibe: []
+    }
+  ],
+  badCandidates: [
+    {
+      id: 'b1',
+      metric: 'streak',
+      queueIds: [420, 440],
+      direction: 'loss',
+      threshold: 0,
+      countMin: 3,
+      evidence: '',
+      vibe: ['暮气']
+    },
+    {
+      id: 'b2',
+      metric: 'deaths',
+      queueIds: [420, 440],
+      direction: '>=',
+      threshold: 8,
+      countMin: 5,
+      evidence: '',
+      vibe: ['翻车']
+    },
+    {
+      id: 'b3',
+      metric: 'kda',
+      queueIds: [420, 440],
+      direction: '<=',
+      threshold: 1,
+      countMin: 5,
+      evidence: '',
+      vibe: []
+    },
+    {
+      id: 'b4',
+      metric: 'streak',
+      queueIds: [420, 440],
+      direction: 'loss',
+      threshold: 0,
+      countMin: 4,
+      evidence: '',
+      vibe: []
+    }
+  ]
+}
 
-  // Re-import mocks and module under test after resetting modules
-  const coreMock = await import('@tauri-apps/api/core')
-  invoke = coreMock.invoke as MockedFunction<typeof InvokeFn>
+const stage2Output = {
+  good: [
+    { id: 'g1', name: '雕花匠', desc: '排位 KDA≥3 至少 5 局' },
+    { id: 'g2', name: '夜枭', desc: '排位伤害高 至少 5 局' },
+    { id: 'g3', name: '佛系输出位', desc: '排位高 KDA 至少 5 局' }
+  ],
+  bad: [
+    { id: 'b1', name: '暮气', desc: '排位近 3 场连败' },
+    { id: 'b2', name: '翻车王', desc: '排位高死亡 至少 5 局' },
+    { id: 'b3', name: '咸鱼', desc: '排位低 KDA 至少 5 局' }
+  ],
+  skipped: ['g4', 'b4']
+}
 
-  const streamMock = await import('@renderer/services/ai/stream')
-  requestAIContent = streamMock.requestAIContent as MockedFunction<typeof RequestAIContentFn>
+function mockHappyPath() {
+  mockInvoke.mockImplementation(async (cmd: string) => defaultInvokeImpl(cmd))
+  mockRequest.mockResolvedValue({
+    success: true,
+    content: JSON.stringify(stage1Output)
+  })
+  mockStream.mockImplementation(async (_userPrompt, callbacks: any) => {
+    callbacks.onChunk(JSON.stringify(stage2Output))
+    callbacks.onDone()
+  })
+}
 
-  const mod = await import('../index')
-  requestTagSuggestions = mod.requestTagSuggestions
-  MIN_GAMES_REQUIRED = mod.MIN_GAMES_REQUIRED
-  getCacheKey = mod.getCacheKey
+// ─── tests ────────────────────────────────────────────────────────────────────
+
+describe('requestTagSuggestions — happy path', () => {
+  it('returns ok with stitched TagSuggestion entries', async () => {
+    mockHappyPath()
+    const r = await requestTagSuggestions()
+    expect(r.kind).toBe('ok')
+    if (r.kind !== 'ok') return
+    expect(r.result.good).toHaveLength(3)
+    expect(r.result.bad).toHaveLength(3)
+    expect(r.result.good[0].name).toBe('雕花匠')
+    expect(r.result.good[0].condition.type).toBe('history')
+  })
+
+  it('writes used names to dedup LRU', async () => {
+    mockHappyPath()
+    await requestTagSuggestions()
+    const usedNames = readRecentNames('me')
+    expect(usedNames).toContain('雕花匠')
+    expect(usedNames).toContain('暮气')
+  })
+
+  it('cache hit on second call skips AI', async () => {
+    mockHappyPath()
+    await requestTagSuggestions()
+    mockRequest.mockClear()
+    mockStream.mockClear()
+    const r2 = await requestTagSuggestions()
+    expect(r2.kind).toBe('ok')
+    expect(mockRequest).not.toHaveBeenCalled()
+    expect(mockStream).not.toHaveBeenCalled()
+  })
+
+  it('forceRefresh skips cache and re-invokes AI', async () => {
+    mockHappyPath()
+    await requestTagSuggestions()
+    mockRequest.mockClear()
+    mockStream.mockClear()
+    mockRequest.mockResolvedValue({
+      success: true,
+      content: JSON.stringify(stage1Output)
+    })
+    mockStream.mockImplementation(async (_p, cb: any) => {
+      cb.onChunk(JSON.stringify(stage2Output))
+      cb.onDone()
+    })
+    const r2 = await requestTagSuggestions(true)
+    expect(r2.kind).toBe('ok')
+    expect(mockRequest).toHaveBeenCalled()
+    expect(mockStream).toHaveBeenCalled()
+  })
+
+  it('passes recentlyUsedNames into Stage 2 prompt', async () => {
+    mockHappyPath()
+    await requestTagSuggestions() // first call seeds dedup
+    let stage2SystemPrompt = ''
+    mockStream.mockImplementation(async (_p, cb: any, sys: string) => {
+      stage2SystemPrompt = sys
+      cb.onChunk(JSON.stringify(stage2Output))
+      cb.onDone()
+    })
+    await requestTagSuggestions(true) // second call should see dedup
+    expect(stage2SystemPrompt).toContain('雕花匠') // from prior batch
+  })
 })
 
-describe('requestTagSuggestions', () => {
-  it('returns insufficient when game count < MIN_GAMES_REQUIRED', async () => {
-    invoke.mockImplementation(async (cmd: string) => {
+describe('requestTagSuggestions — failure modes', () => {
+  it('insufficient features → insufficient outcome', async () => {
+    mockInvoke.mockImplementation(async (cmd: string) => {
       if (cmd === 'get_my_summoner') return { puuid: 'me' }
-      if (cmd === 'get_game_modes')
-        return [
-          { label: '全部', value: 0 },
-          { label: '单双排', value: 420 }
-        ]
-      if (cmd === 'get_match_history_by_puuid') {
-        return { games: { games: [fakeGame(true)] } } // only 1 game
-      }
-      throw new Error('unexpected: ' + cmd)
+      if (cmd === 'get_game_modes') return []
+      if (cmd === 'get_match_history_by_puuid')
+        return { games: { games: [rawGameOf()] } } // only 1 game
+      return null
     })
     const r = await requestTagSuggestions()
     expect(r.kind).toBe('insufficient')
-    if (r.kind === 'insufficient') expect(r.gameCount).toBe(1)
   })
 
-  it('hits AI and parses on first call', async () => {
-    invoke.mockImplementation(async (cmd: string) => {
-      if (cmd === 'get_my_summoner') return { puuid: 'me' }
-      if (cmd === 'get_game_modes')
-        return [
-          { label: '全部', value: 0 },
-          { label: '单双排', value: 420 }
-        ]
-      if (cmd === 'get_match_history_by_puuid') {
-        return {
-          games: {
-            games: Array.from({ length: MIN_GAMES_REQUIRED * 2 }, () => fakeGame(true))
-          }
-        }
-      }
-      throw new Error('unexpected: ' + cmd)
-    })
-    requestAIContent.mockResolvedValue({ success: true, content: fakeGoodAIResponse })
-
-    const r = await requestTagSuggestions()
-    expect(r.kind).toBe('ok')
-    if (r.kind === 'ok') {
-      expect(r.result.good).toHaveLength(1)
-      expect(r.result.good[0].name).toBe('中路雕将')
-      expect(r.puuid).toBe('me')
-    }
-  })
-
-  it('uses cache on second call (no second AI fetch)', async () => {
-    invoke.mockImplementation(async (cmd: string) => {
-      if (cmd === 'get_my_summoner') return { puuid: 'me' }
-      if (cmd === 'get_game_modes')
-        return [
-          { label: '全部', value: 0 },
-          { label: '单双排', value: 420 }
-        ]
-      if (cmd === 'get_match_history_by_puuid') {
-        return { games: { games: Array.from({ length: 10 }, () => fakeGame(true)) } }
-      }
-      throw new Error('unexpected: ' + cmd)
-    })
-    requestAIContent.mockResolvedValue({ success: true, content: fakeGoodAIResponse })
-
-    await requestTagSuggestions()
-    await requestTagSuggestions()
-    expect(requestAIContent).toHaveBeenCalledTimes(1)
-  })
-
-  it('forceRefresh bypasses cache', async () => {
-    invoke.mockImplementation(async (cmd: string) => {
-      if (cmd === 'get_my_summoner') return { puuid: 'me' }
-      if (cmd === 'get_game_modes')
-        return [
-          { label: '全部', value: 0 },
-          { label: '单双排', value: 420 }
-        ]
-      if (cmd === 'get_match_history_by_puuid') {
-        return { games: { games: Array.from({ length: 10 }, () => fakeGame(true)) } }
-      }
-      throw new Error('unexpected: ' + cmd)
-    })
-    requestAIContent.mockResolvedValue({ success: true, content: fakeGoodAIResponse })
-
-    await requestTagSuggestions()
-    await requestTagSuggestions(true)
-    expect(requestAIContent).toHaveBeenCalledTimes(2)
-  })
-
-  it('returns aiError when requestAIContent fails', async () => {
-    invoke.mockImplementation(async (cmd: string) => {
-      if (cmd === 'get_my_summoner') return { puuid: 'me' }
-      if (cmd === 'get_game_modes')
-        return [
-          { label: '全部', value: 0 },
-          { label: '单双排', value: 420 }
-        ]
-      if (cmd === 'get_match_history_by_puuid') {
-        return { games: { games: Array.from({ length: 10 }, () => fakeGame(true)) } }
-      }
-      throw new Error('unexpected: ' + cmd)
-    })
-    requestAIContent.mockResolvedValue({ success: false, error: 'network down' })
-
+  it('Stage 1 AI failure → aiError', async () => {
+    mockInvoke.mockImplementation(async (cmd: string) => defaultInvokeImpl(cmd))
+    mockRequest.mockResolvedValue({ success: false, error: 'network down' })
     const r = await requestTagSuggestions()
     expect(r.kind).toBe('aiError')
     if (r.kind === 'aiError') expect(r.error).toContain('network')
   })
 
-  it('returns parseError when JSON is malformed', async () => {
-    invoke.mockImplementation(async (cmd: string) => {
-      if (cmd === 'get_my_summoner') return { puuid: 'me' }
-      if (cmd === 'get_game_modes')
-        return [
-          { label: '全部', value: 0 },
-          { label: '单双排', value: 420 }
-        ]
-      if (cmd === 'get_match_history_by_puuid') {
-        return { games: { games: Array.from({ length: 10 }, () => fakeGame(true)) } }
-      }
-      throw new Error('unexpected: ' + cmd)
-    })
-    requestAIContent.mockResolvedValue({ success: true, content: 'not json' })
-
+  it('Stage 1 parse error → parseError', async () => {
+    mockInvoke.mockImplementation(async (cmd: string) => defaultInvokeImpl(cmd))
+    mockRequest.mockResolvedValue({ success: true, content: 'not json' })
     const r = await requestTagSuggestions()
     expect(r.kind).toBe('parseError')
   })
 
-  it('returns aiError when AI returns empty content (proxy issue)', async () => {
-    invoke.mockImplementation(async (cmd: string) => {
-      if (cmd === 'get_my_summoner') return { puuid: 'me' }
-      if (cmd === 'get_game_modes')
-        return [
-          { label: '全部', value: 0 },
-          { label: '单双排', value: 420 }
-        ]
-      if (cmd === 'get_match_history_by_puuid') {
-        return { games: { games: Array.from({ length: 10 }, () => fakeGame(true)) } }
-      }
-      throw new Error('unexpected: ' + cmd)
+  it('Stage 2 stream error → aiError', async () => {
+    mockInvoke.mockImplementation(async (cmd: string) => defaultInvokeImpl(cmd))
+    mockRequest.mockResolvedValue({
+      success: true,
+      content: JSON.stringify(stage1Output)
     })
-    requestAIContent.mockResolvedValue({ success: true, content: '' })
+    mockStream.mockImplementation(async (_p, cb: any) => {
+      cb.onError('stream died')
+    })
     const r = await requestTagSuggestions()
     expect(r.kind).toBe('aiError')
-    if (r.kind === 'aiError') expect(r.error).toContain('空响应')
-  })
-
-  it('uses queue name from get_game_modes for queueName field', async () => {
-    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-      if (cmd === 'get_my_summoner') return { puuid: 'me' }
-      if (cmd === 'get_game_modes')
-        return [
-          { label: '全部', value: 0 },
-          { label: '大乱斗', value: 450 }
-        ]
-      if (cmd === 'get_match_history_by_puuid') {
-        return {
-          games: {
-            games: Array.from({ length: 10 }, () => fakeGame(true, 'me', 450))
-          }
-        }
-      }
-      throw new Error('unexpected: ' + cmd)
-    })
-    vi.mocked(requestAIContent).mockResolvedValue({ success: true, content: fakeGoodAIResponse })
-
-    // We can't directly inspect features (orchestrator doesn't return them) — instead
-    // assert the get_game_modes invoke was made.
-    const { requestTagSuggestions: rts } = await import('../index')
-    await rts(true) // forceRefresh to bypass any sessionStorage
-    expect(vi.mocked(invoke)).toHaveBeenCalledWith('get_game_modes')
   })
 })
 
-describe('cache key', () => {
-  it('keys by puuid', () => {
-    expect(getCacheKey('me')).toBe('ai_tag_suggest_me')
+describe('markAdopted', () => {
+  it('flips adopted=true on the matching id in the cache', async () => {
+    mockHappyPath()
+    const r = await requestTagSuggestions()
+    if (r.kind !== 'ok') throw new Error('expected ok')
+    const id = r.result.good[0].id
+    markAdopted('me', id)
+    const cached = JSON.parse(sessionStorage.getItem(getCacheKey('me'))!)
+    const found = cached.good.find((s: { id: string }) => s.id === id)
+    expect(found.adopted).toBe(true)
   })
 })
