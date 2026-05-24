@@ -207,85 +207,87 @@ onMounted(async () => {
 }
 
 .gaming-config-hint {
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--text-tertiary);
 }
 
 .ai-result-content {
   padding: var(--space-16);
   line-height: 1.8;
-  font-size: 14px;
+  font-size: var(--font-size-md);
   max-height: 600px;
   overflow-y: auto;
 }
 
 .ai-result-content :deep(h1) {
-  font-size: 20px;
-  font-weight: 700;
-  margin: 20px 0 12px 0;
-  padding-bottom: 8px;
+  font-size: 20px; /* H1 一档大于 --font-size-xl(18px)，保留 */
+  font-weight: var(--font-weight-bold);
+  margin: var(--space-20) 0 var(--space-12) 0;
+  padding-bottom: var(--space-8);
   border-bottom: 3px solid var(--n-primary-color);
   color: var(--n-text-color);
 }
 
 .ai-result-content :deep(h2) {
-  font-size: 18px;
-  font-weight: 600;
-  margin: 18px 0 10px 0;
-  padding-left: 12px;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  margin: var(--space-20) 0 var(--space-10) 0;
+  padding-left: var(--space-12);
   border-left: 4px solid var(--n-primary-color);
   color: var(--n-text-color);
 }
 
 .ai-result-content :deep(h3) {
-  font-size: 16px;
-  font-weight: 600;
-  margin: 14px 0 8px 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  margin: var(--space-12) 0 var(--space-8) 0;
   color: var(--n-text-color);
 }
 
 .ai-result-content :deep(ul),
 .ai-result-content :deep(ol) {
-  padding-left: 24px;
-  margin: 10px 0;
+  padding-left: var(--space-24);
+  margin: var(--space-10) 0;
 }
 
 .ai-result-content :deep(li) {
-  margin: 8px 0;
+  margin: var(--space-8) 0;
   line-height: 1.8;
 }
 
 .ai-result-content :deep(p) {
-  margin: 10px 0;
+  margin: var(--space-10) 0;
 }
 
 .ai-result-content :deep(strong) {
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   color: var(--n-primary-color);
 }
 
 .ai-result-content :deep(mark) {
+  /* alpha-tinted gradient of --semantic-win，保留 rgba 以保证渐变层次 */
   background: linear-gradient(120deg, rgba(34, 197, 94, 0.2) 0%, rgba(34, 197, 94, 0.1) 100%);
-  color: #22c55e;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-weight: 600;
+  color: var(--semantic-win);
+  padding: var(--space-2) var(--space-8);
+  border-radius: var(--radius-xs);
+  font-weight: var(--font-weight-semibold);
 }
 
 .ai-result-content :deep(code) {
+  /* alpha-tinted gradient of --semantic-loss，保留 rgba 以保证渐变层次 */
   background: linear-gradient(120deg, rgba(239, 68, 68, 0.2) 0%, rgba(239, 68, 68, 0.1) 100%);
-  color: #ef4444;
-  padding: 2px 8px;
-  border-radius: 4px;
+  color: var(--semantic-loss);
+  padding: var(--space-2) var(--space-8);
+  border-radius: var(--radius-xs);
   font-family: inherit;
   font-size: inherit;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 .ai-result-content :deep(blockquote) {
   border-left: 4px solid var(--n-border-color);
-  padding-left: 16px;
-  margin: 12px 0;
+  padding-left: var(--space-16);
+  margin: var(--space-12) 0;
   color: var(--n-text-color-3);
   font-style: italic;
 }
@@ -293,7 +295,7 @@ onMounted(async () => {
 .ai-result-content :deep(hr) {
   border: none;
   border-top: 2px solid var(--n-border-color);
-  margin: 16px 0;
+  margin: var(--space-16) 0;
 }
 
 .gaming-grid {
