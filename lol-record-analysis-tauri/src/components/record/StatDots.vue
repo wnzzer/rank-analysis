@@ -19,11 +19,13 @@
       <span v-else class="stat-dots-short-label">{{ shortLabel }}</span>
     </div>
 
-    <div
-      class="stat-bar-track"
-      :style="{ '--stat-bar-fill': clampedPercent + '%', '--stat-bar-color': color }"
-    >
-      <span class="stat-bar-fill" />
+    <div class="stat-dots-track" :style="{ '--stat-dot-color': color }">
+      <span
+        v-for="i in 5"
+        :key="i"
+        class="stat-dot"
+        :class="{ 'stat-dot-filled': i <= filledCount }"
+      />
     </div>
 
     <div class="stat-dots-values">
@@ -35,6 +37,7 @@
 
 <script lang="ts" setup>
 import { computed, type Component, type CSSProperties } from 'vue'
+import { dotFillCount } from './composition'
 
 const props = withDefaults(
   defineProps<{
@@ -59,7 +62,7 @@ const props = withDefaults(
   }
 )
 
-const clampedPercent = computed(() => Math.max(0, Math.min(100, props.percent)))
+const filledCount = computed(() => dotFillCount(props.percent))
 const displayValue = computed(() => props.value)
 const iconStyle = computed<CSSProperties>(() => ({
   background: props.iconBackground,
@@ -91,29 +94,28 @@ const iconStyle = computed<CSSProperties>(() => ({
   font-weight: 700;
 }
 
-/* mini progress bar 替代 5 圆点 (P1): 连续填充, 视觉现代 */
-.stat-bar-track {
+.stat-dots-track {
   flex: 1;
   min-width: 0;
-  /* 密集模式: bar 高 4px */
+  display: flex;
+  align-items: center;
+  gap: 3px; /* 5 颗 dot 之间的小间距,无对应 token */
+}
+
+.stat-dot {
+  width: 4px;
   height: 4px;
-  border-radius: var(--radius-pill);
+  border-radius: 50%;
   background: var(--border-subtle);
-  overflow: hidden;
-  position: relative;
+  flex-shrink: 0;
 }
 
-.theme-light .stat-bar-track {
-  background: rgba(0, 0, 0, 0.1);
+.theme-light .stat-dot {
+  background: rgba(0, 0, 0, 0.24);
 }
 
-.stat-bar-fill {
-  display: block;
-  height: 100%;
-  width: var(--stat-bar-fill, 0%);
-  background: var(--stat-bar-color);
-  border-radius: var(--radius-pill);
-  transition: width var(--dur-slow) var(--ease-expo);
+.stat-dot-filled {
+  background: var(--stat-dot-color) !important;
 }
 
 .stat-dots-values {
@@ -147,8 +149,13 @@ const iconStyle = computed<CSSProperties>(() => ({
   border-radius: var(--radius-xs);
 }
 
-.stat-dots-row-compact .stat-bar-track {
-  height: 4px;
+.stat-dots-row-compact .stat-dots-track {
+  gap: 2px; /* compact 模式 dot 间距,无对应 token */
+}
+
+.stat-dots-row-compact .stat-dot {
+  width: 3px;
+  height: 3px;
 }
 
 :deep(.n-progress-graph-line-fill) {
