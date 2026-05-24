@@ -222,8 +222,8 @@
                         />
                       </n-tooltip>
                     </div>
-                    <!-- 经典模式 (符文非 augment): 主/副符文跟 spells 同行 -->
-                    <div v-if="!usesAugments" class="match-detail-perks">
+                    <!-- 符文/海克斯都跟 spells 同行 (密集布局) -->
+                    <div class="match-detail-perks">
                       <n-tooltip
                         v-for="(perkId, index) in displayedPerkIds(player.stats)"
                         :key="`${player.participantId}-perk-${perkId}-${index}`"
@@ -232,7 +232,26 @@
                         :disabled="!assets.detailOf('perk', perkId)"
                       >
                         <template #trigger>
+                          <span
+                            v-if="usesAugments"
+                            :class="[
+                              'match-detail-augment-icon-shell',
+                              augmentRarityClass(
+                                assets.detailOf('perk', perkId)?.rarity,
+                                'match-detail-augment'
+                              )
+                            ]"
+                          >
+                            <img
+                              :src="assets.srcOf('perk', perkId)"
+                              class="match-detail-augment-icon"
+                              alt="augment"
+                              loading="lazy"
+                              decoding="async"
+                            />
+                          </span>
                           <img
+                            v-else
                             :src="assets.srcOf('perk', perkId)"
                             :class="[
                               'match-detail-perk-icon',
@@ -245,47 +264,15 @@
                         </template>
                         <AssetTooltipContent
                           :icon-src="assets.srcOf('perk', perkId)"
-                          :name="assets.detailOf('perk', perkId)?.name ?? `符文 #${perkId}`"
+                          :name="
+                            assets.detailOf('perk', perkId)?.name ??
+                            (usesAugments ? `海克斯 #${perkId}` : `符文 #${perkId}`)
+                          "
                           :description="assets.detailOf('perk', perkId)?.description ?? ''"
                           :rarity="assets.detailOf('perk', perkId)?.rarity"
                         />
                       </n-tooltip>
                     </div>
-                  </div>
-                  <!-- ARAM/CHERRY 模式: 海克斯独占一行居中, 跟装备/技能视觉解耦 -->
-                  <div v-if="usesAugments" class="match-detail-augments-row">
-                    <n-tooltip
-                      v-for="(perkId, index) in displayedPerkIds(player.stats)"
-                      :key="`${player.participantId}-augment-${perkId}-${index}`"
-                      trigger="hover"
-                      placement="top"
-                    >
-                      <template #trigger>
-                        <span
-                          :class="[
-                            'match-detail-augment-icon-shell',
-                            augmentRarityClass(
-                              assets.detailOf('perk', perkId)?.rarity,
-                              'match-detail-augment'
-                            )
-                          ]"
-                        >
-                          <img
-                            :src="assets.srcOf('perk', perkId)"
-                            class="match-detail-augment-icon"
-                            alt="augment"
-                            loading="lazy"
-                            decoding="async"
-                          />
-                        </span>
-                      </template>
-                      <AssetTooltipContent
-                        :icon-src="assets.srcOf('perk', perkId)"
-                        :name="assets.detailOf('perk', perkId)?.name ?? `海克斯 #${perkId}`"
-                        :description="assets.detailOf('perk', perkId)?.description ?? ''"
-                        :rarity="assets.detailOf('perk', perkId)?.rarity"
-                      />
-                    </n-tooltip>
                   </div>
                   <div class="match-detail-items">
                     <n-tooltip
@@ -792,7 +779,8 @@ watch(
 }
 
 .match-detail-column-header {
-  padding: var(--space-6) 9px;
+  /* 密集: 表头 padding 6→4 */
+  padding: var(--space-4) 9px;
   color: var(--text-secondary);
   font-size: var(--font-size-2xs);
   font-weight: 600;
@@ -820,8 +808,8 @@ watch(
 }
 
 .match-detail-row {
-  padding: var(--space-8) 9px;
-  /* P2: divider alpha 调淡, 行间不抢戏 */
+  /* 密集模式: padding 收紧到 4px */
+  padding: var(--space-4) 9px;
   border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 60%, transparent);
   transition: background var(--dur-fast) var(--ease-expo);
   position: relative;
@@ -856,9 +844,9 @@ watch(
 }
 
 .match-detail-player-avatar {
-  /* 玩家头像 36→48 (放大一档增强主视觉) */
-  width: clamp(36px, calc(36px + (100vw - 1100px) * 12 / 1100), 48px);
-  height: clamp(36px, calc(36px + (100vw - 1100px) * 12 / 1100), 48px);
+  /* 密集模式: 32→40 */
+  width: clamp(32px, calc(32px + (100vw - 1100px) * 8 / 1100), 40px);
+  height: clamp(32px, calc(32px + (100vw - 1100px) * 8 / 1100), 40px);
   border-radius: var(--radius-md);
   border: 1px solid var(--border-subtle);
   flex-shrink: 0;
@@ -952,7 +940,8 @@ watch(
 .match-detail-build-cell {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  /* 密集: topline 与 items 间距 4→2 */
+  gap: var(--space-2);
 }
 
 .match-detail-build-topline {
@@ -970,10 +959,10 @@ watch(
 .match-detail-spell-icon,
 .match-detail-item-icon,
 .match-detail-perk-icon {
-  /* 22→30 (icon 整体放大解决"闭塞"+"图标小") */
-  width: clamp(22px, calc(22px + (100vw - 1100px) * 8 / 1100), 30px);
-  height: clamp(22px, calc(22px + (100vw - 1100px) * 8 / 1100), 30px);
-  border-radius: 5px; /* 方块视觉圆角,介于 xs(3)/sm(6) */
+  /* 密集模式: 18→24 (上限收回) */
+  width: clamp(18px, calc(18px + (100vw - 1100px) * 6 / 1100), 24px);
+  height: clamp(18px, calc(18px + (100vw - 1100px) * 6 / 1100), 24px);
+  border-radius: 4px;
   border: 1px solid var(--border-subtle);
   background: var(--bg-elevated);
   object-fit: cover;
@@ -985,18 +974,6 @@ watch(
   gap: var(--space-2);
 }
 
-/* ARAM/CHERRY 海克斯独占一行: 居中, subtle bg 视觉分组 (P0) */
-.match-detail-augments-row {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-4);
-  padding: var(--space-4) 0;
-  margin: var(--space-2) 0;
-  border-radius: var(--radius-sm);
-  background: var(--glass-bg-low);
-}
-
 .match-detail-augment-icon-shell {
   --augment-border: rgba(172, 185, 201, 0.42);
   --augment-background: linear-gradient(180deg, rgba(56, 65, 78, 0.92), rgba(27, 32, 41, 0.96));
@@ -1004,10 +981,10 @@ watch(
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  /* 22→30 与 spell/item/perk 同步 */
-  width: clamp(22px, calc(22px + (100vw - 1100px) * 8 / 1100), 30px);
-  height: clamp(22px, calc(22px + (100vw - 1100px) * 8 / 1100), 30px);
-  border-radius: 5px;
+  /* 密集: 18→24 同步 */
+  width: clamp(18px, calc(18px + (100vw - 1100px) * 6 / 1100), 24px);
+  height: clamp(18px, calc(18px + (100vw - 1100px) * 6 / 1100), 24px);
+  border-radius: 4px;
   border: 1px solid var(--augment-border);
   background: var(--augment-background);
   box-sizing: border-box;
@@ -1015,9 +992,9 @@ watch(
 }
 
 .match-detail-augment-icon {
-  /* inner 17→23 同比放大 (shell 22→30, inner 留 5px 边距) */
-  width: clamp(17px, calc(17px + (100vw - 1100px) * 6 / 1100), 23px);
-  height: clamp(17px, calc(17px + (100vw - 1100px) * 6 / 1100), 23px);
+  /* inner 13→19 */
+  width: clamp(13px, calc(13px + (100vw - 1100px) * 6 / 1100), 19px);
+  height: clamp(13px, calc(13px + (100vw - 1100px) * 6 / 1100), 19px);
   object-fit: contain;
   filter: var(--augment-filter);
 }
