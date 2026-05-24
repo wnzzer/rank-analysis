@@ -21,9 +21,9 @@
  * <LazyImg src="/champion/1.png" alt="champion" />
  * ```
  */
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 
-defineProps<{
+const props = defineProps<{
   /** 图片地址 */
   src: string
   /** 替代文本 */
@@ -31,6 +31,14 @@ defineProps<{
 }>()
 
 const state = ref<'loading' | 'loaded' | 'error'>('loading')
+
+// src 变化时重置回 loading, 否则列表复用同一实例切图时新图片不显示 shimmer / 残留 error 态
+watch(
+  () => props.src,
+  () => {
+    state.value = 'loading'
+  }
+)
 
 function onLoad() {
   state.value = 'loaded'

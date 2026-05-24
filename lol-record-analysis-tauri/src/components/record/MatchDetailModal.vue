@@ -229,7 +229,7 @@
                         :key="`${player.participantId}-perk-${perkId}-${index}`"
                         trigger="hover"
                         placement="top"
-                        :disabled="!assets.detailOf('perk', perkId)"
+                        :disabled="!usesAugments && !assets.detailOf('perk', perkId)"
                       >
                         <template #trigger>
                           <span
