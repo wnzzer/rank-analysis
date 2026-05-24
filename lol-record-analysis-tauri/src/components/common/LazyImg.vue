@@ -51,7 +51,8 @@ function onError() {
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  /* contain: 保留图标的透明 halo / 留白，不裁切（适合图标类用例 — 项目里 LazyImg 全用在图标） */
+  object-fit: contain;
   transition: opacity var(--dur-fast) var(--ease-expo);
 }
 .lazy-img-loading img {
