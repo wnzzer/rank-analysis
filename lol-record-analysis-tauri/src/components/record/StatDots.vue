@@ -95,8 +95,8 @@ const iconStyle = computed<CSSProperties>(() => ({
 }
 
 .stat-dots-track {
-  flex: 1;
-  min-width: 0;
+  /* 锁定宽度不拉伸 (5×4 + 4×3 = 32px), 整行紧凑 */
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 3px; /* 5 颗 dot 之间的小间距,无对应 token */
