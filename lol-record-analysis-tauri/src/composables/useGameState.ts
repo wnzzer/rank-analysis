@@ -37,107 +37,127 @@ interface SessionData {
   phase: string
 }
 
-/**
- * 游戏状态监听 Composable
- * 监听后端发送的游戏状态事件，自动切换路由
- */
-export function useGameState() {
-  const isConnected = ref(false)
-  const currentPhase = ref<string | null>(null)
-  const summoner = ref<GameStateEvent['summoner'] | null>(null)
+// ─── module-level singleton state ─────────────────────────────────────────────
+// Framework.vue + SideNavigation.vue 都消费 useGameState；若每个组件 mount 时各注册
+// 一份 listener，event 会被分发到所有 handler（路由跳转、console.log、状态更新都跑
+// 多份）。这里改为 singleton：共享 refs + 单一 listener，配合 refcount 在最后一个
+// 消费者 unmount 时清理。
 
-  let unlistenState: UnlistenFn | null = null
-  let unlistenSession: UnlistenFn | null = null
-  let lastPhase = ''
-  const currentWindow = getCurrentWindow()
+const isConnected = ref(false)
+const currentPhase = ref<string | null>(null)
+const summoner = ref<GameStateEvent['summoner'] | null>(null)
 
-  function isStandaloneDetailRoute() {
-    return currentWindow.label.startsWith('match-detail-')
+let unlistenState: UnlistenFn | null = null
+let unlistenSession: UnlistenFn | null = null
+let listenerSetupPromise: Promise<void> | null = null
+let activeInstances = 0
+let lastPhase = ''
+
+function isStandaloneDetailRoute() {
+  return getCurrentWindow().label.startsWith('match-detail-')
+}
+
+/** 处理连接状态的路由切换。 */
+function handleConnectionRoute(state: GameStateEvent) {
+  const currentPath = router.currentRoute.value.path
+
+  if (isStandaloneDetailRoute() || currentPath === '/MatchDetail') {
+    return
   }
 
-  onMounted(async () => {
-    if (isStandaloneDetailRoute()) {
-      return
-    }
-
-    // 1. 监听游戏状态 (连接/断开)
-    unlistenState = await listen<GameStateEvent>('game-state-changed', event => {
-      if (isStandaloneDetailRoute()) {
-        return
-      }
-
-      const state = event.payload
-      console.log('🎮 Game state changed:', state)
-
-      isConnected.value = state.connected
-      currentPhase.value = state.phase
-      summoner.value = state.summoner
-
-      // 处理基础路由切换 (Loading <-> Record)
-      handleConnectionRoute(state)
-    })
-
-    // 2. 监听会话状态 (选人/游戏中)
-    unlistenSession = await listen<SessionData>('session-complete', event => {
-      if (isStandaloneDetailRoute()) {
-        return
-      }
-
-      const data = event.payload
-      const phase = data.phase
-
-      if (phase !== lastPhase) {
-        if (
-          (phase === 'ChampSelect' || phase === 'InProgress' || phase === 'GameStart') &&
-          router.currentRoute.value.name !== 'Gaming'
-        ) {
-          console.log(`🎮 [Auto-Nav] Phase changed to ${phase}, navigating to Gaming...`)
-          router.push('/Gaming')
+  if (state.connected && state.summoner) {
+    // 游戏客户端已连接，且当前在 Loading 页，则跳转首页 (Record)
+    if (currentPath === '/Loading') {
+      router.push({
+        path: '/Record',
+        query: {
+          name: `${state.summoner.gameName}#${state.summoner.tagLine}`
         }
-        lastPhase = phase
-      }
-    })
+      })
+      console.log('📍 Auto navigated to Record page')
+    }
+  } else {
+    // 游戏客户端断开连接，跳转 Loading
+    if (currentPath !== '/Loading') {
+      router.push({
+        path: '/Loading'
+      })
+      console.log('📍 Auto navigated to Loading page')
+    }
+  }
+}
 
-    console.log('✅ Game state listeners registered')
+async function setupListeners() {
+  if (isStandaloneDetailRoute()) {
+    return
+  }
+
+  // 1. 监听游戏状态 (连接/断开)
+  unlistenState = await listen<GameStateEvent>('game-state-changed', event => {
+    const state = event.payload
+    console.log('🎮 Game state changed:', state)
+
+    isConnected.value = state.connected
+    currentPhase.value = state.phase
+    summoner.value = state.summoner
+
+    handleConnectionRoute(state)
+  })
+
+  // 2. 监听会话状态 (选人/游戏中)
+  unlistenSession = await listen<SessionData>('session-complete', event => {
+    const phase = event.payload.phase
+
+    if (phase !== lastPhase) {
+      if (
+        (phase === 'ChampSelect' || phase === 'InProgress' || phase === 'GameStart') &&
+        router.currentRoute.value.name !== 'Gaming'
+      ) {
+        console.log(`🎮 [Auto-Nav] Phase changed to ${phase}, navigating to Gaming...`)
+        router.push('/Gaming')
+      }
+      lastPhase = phase
+    }
+  })
+
+  console.log('✅ Game state listeners registered')
+}
+
+function teardownListeners() {
+  if (unlistenState) {
+    unlistenState()
+    unlistenState = null
+  }
+  if (unlistenSession) {
+    unlistenSession()
+    unlistenSession = null
+  }
+  listenerSetupPromise = null
+  console.log('🧹 Game state listeners cleaned up')
+}
+
+/**
+ * 游戏状态监听 Composable
+ *
+ * 监听后端发送的游戏状态事件，自动切换路由。多组件调用共享同一份 state +
+ * 同一份后台 listener（singleton + refcount），不会因为 Framework / SideNavigation
+ * 都调用而导致 event 被双倍触发。
+ */
+export function useGameState() {
+  onMounted(() => {
+    activeInstances += 1
+    if (listenerSetupPromise === null) {
+      listenerSetupPromise = setupListeners()
+    }
   })
 
   onUnmounted(() => {
-    if (unlistenState) unlistenState()
-    if (unlistenSession) unlistenSession()
-    console.log('🧹 Game state listeners cleaned up')
+    activeInstances -= 1
+    if (activeInstances <= 0) {
+      activeInstances = 0
+      teardownListeners()
+    }
   })
-
-  /**
-   * 处理连接状态的路由切换
-   */
-  function handleConnectionRoute(state: GameStateEvent) {
-    const currentPath = router.currentRoute.value.path
-
-    if (isStandaloneDetailRoute() || currentPath === '/MatchDetail') {
-      return
-    }
-
-    if (state.connected && state.summoner) {
-      // 游戏客户端已连接，且当前在 Loading 页，则跳转首页 (Record)
-      if (currentPath === '/Loading') {
-        router.push({
-          path: '/Record',
-          query: {
-            name: `${state.summoner.gameName}#${state.summoner.tagLine}`
-          }
-        })
-        console.log('📍 Auto navigated to Record page')
-      }
-    } else {
-      // 游戏客户端断开连接，跳转 Loading
-      if (currentPath !== '/Loading') {
-        router.push({
-          path: '/Loading'
-        })
-        console.log('📍 Auto navigated to Loading page')
-      }
-    }
-  }
 
   return {
     isConnected,
