@@ -52,8 +52,8 @@ const placeholderCount = computed(() =>
 .subteam-card {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 6px;
+  gap: var(--space-4);
+  padding: var(--space-6);
   border-radius: var(--radius-md);
   background: var(--glass-bg-mid);
   border: 1px solid var(--glass-border);
@@ -63,27 +63,28 @@ const placeholderCount = computed(() =>
 }
 
 .subteam-card-mine {
-  border-color: rgba(34, 197, 94, 0.6);
+  border-color: var(--semantic-win);
+  /* tinted ring：保持 rgba 以与卡片 token 颜色一致的发光感，复用全局 --glow-win 风格 */
   box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.3);
 }
 
 .subteam-card-header {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 0 4px;
+  gap: var(--space-6);
+  padding: 0 var(--space-4);
 }
 
 .subteam-card-title {
-  font-size: 12px;
-  font-weight: 700;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
   color: var(--text-primary);
 }
 
 .subteam-card-body {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-4);
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -97,7 +98,7 @@ const placeholderCount = computed(() =>
   border: 1px dashed var(--border-subtle);
   border-radius: var(--radius-sm);
   color: var(--text-tertiary);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   min-height: 60px;
 }
 </style>
