@@ -771,10 +771,8 @@ watch(
 .match-detail-row {
   /* 表格列宽固定（P2: 右侧 stats 1.3→1.2fr 释放空间给 build-cell augment 独立行) */
   display: grid;
-  grid-template-columns: minmax(188px, 1.22fr) minmax(214px, 1.42fr) 72px 68px 62px 68px minmax(
-      192px,
-      1.2fr
-    );
+  /* 右列 stats 锁固定 160px (StatDots 紧凑后不需要 1.2fr), 释放空间给 player/build 列 */
+  grid-template-columns: minmax(188px, 1.22fr) minmax(214px, 1.42fr) 72px 68px 62px 68px 160px;
   gap: var(--space-6);
   align-items: center;
 }
@@ -954,15 +952,16 @@ watch(
 
 .match-detail-spells {
   display: flex;
-  gap: var(--space-2);
+  /* 紧凑: icon 间距 2→1px */
+  gap: 1px;
 }
 
 .match-detail-spell-icon,
 .match-detail-item-icon,
 .match-detail-perk-icon {
-  /* 密集模式: 18→24 (上限收回) */
-  width: clamp(18px, calc(18px + (100vw - 1100px) * 6 / 1100), 24px);
-  height: clamp(18px, calc(18px + (100vw - 1100px) * 6 / 1100), 24px);
+  /* 紧凑: 16→20 (再砍 2px) */
+  width: clamp(16px, calc(16px + (100vw - 1100px) * 4 / 1100), 20px);
+  height: clamp(16px, calc(16px + (100vw - 1100px) * 4 / 1100), 20px);
   border-radius: 4px;
   border: 1px solid var(--border-subtle);
   background: var(--bg-elevated);
@@ -972,7 +971,8 @@ watch(
 .match-detail-perks {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  /* 紧凑: 符文/海克斯 icon 间距 2→1px */
+  gap: 1px;
 }
 
 .match-detail-augment-icon-shell {
@@ -982,9 +982,9 @@ watch(
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  /* 密集: 18→24 同步 */
-  width: clamp(18px, calc(18px + (100vw - 1100px) * 6 / 1100), 24px);
-  height: clamp(18px, calc(18px + (100vw - 1100px) * 6 / 1100), 24px);
+  /* 紧凑: 16→20 跟 spell/item/perk 同步 */
+  width: clamp(16px, calc(16px + (100vw - 1100px) * 4 / 1100), 20px);
+  height: clamp(16px, calc(16px + (100vw - 1100px) * 4 / 1100), 20px);
   border-radius: 4px;
   border: 1px solid var(--augment-border);
   background: var(--augment-background);
@@ -993,9 +993,9 @@ watch(
 }
 
 .match-detail-augment-icon {
-  /* inner 13→19 */
-  width: clamp(13px, calc(13px + (100vw - 1100px) * 6 / 1100), 19px);
-  height: clamp(13px, calc(13px + (100vw - 1100px) * 6 / 1100), 19px);
+  /* inner 11→15 跟 shell 同步 */
+  width: clamp(11px, calc(11px + (100vw - 1100px) * 4 / 1100), 15px);
+  height: clamp(11px, calc(11px + (100vw - 1100px) * 4 / 1100), 15px);
   object-fit: contain;
   filter: var(--augment-filter);
 }
@@ -1041,7 +1041,8 @@ watch(
 .match-detail-items {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
+  /* 紧凑: 装备间距 2→1px */
+  gap: 1px;
 }
 
 .match-detail-value-cell {
