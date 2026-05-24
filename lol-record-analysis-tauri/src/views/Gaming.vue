@@ -303,13 +303,18 @@ onMounted(async () => {
 .gaming-grid {
   height: 100%;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* auto-fit: 窄屏 (<1000px) 自动堆 1 列, 宽屏 2 列, 自适应 */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 480px), 1fr));
+  /* 整体居中, 4K 下 2600 max 保证 card 有横向空间放大 */
+  max-width: 2600px;
+  margin: 0 auto;
   gap: var(--space-16);
 }
 
 .gaming-grid-multi {
   height: auto;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 480px), 1fr));
   grid-auto-rows: minmax(220px, auto);
+  max-width: 2600px;
 }
 </style>
