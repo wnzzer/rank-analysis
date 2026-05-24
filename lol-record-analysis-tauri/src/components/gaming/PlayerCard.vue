@@ -48,7 +48,7 @@
           <n-flex align="center" :wrap="false" class="profile-row">
             <div class="avatar-wrapper">
               <n-image
-                width="36"
+                width="100%"
                 :src="assetPrefix + '/champion/' + sessionSummoner.championId"
                 preview-disabled
                 :fallback-src="nullImg"
@@ -286,10 +286,12 @@ const { isAramMode, balanceTags, overallBalanceStatus } = useAramBalance(
   gap: var(--space-4);
 }
 
-.name-ellipsis {
-  /* 110px: 名称列最大宽度，固定 UI 不入 token */
-  max-width: 110px;
-  font-size: var(--font-size-base);
+/* :deep 因为 .name-ellipsis 在 n-ellipsis 子组件根，scoped 属性不自动透传 */
+:deep(.name-ellipsis) {
+  /* 110px: 名称列最大宽度（窄屏限制），宽屏放开 */
+  max-width: clamp(110px, calc(110px + (100vw - 900px) * 60 / 2100), 170px);
+  /* 13→20px 随 viewport 平滑放大 (900→3000) */
+  font-size: clamp(13px, calc(13px + (100vw - 900px) * 7 / 2100), 20px);
   font-weight: 700;
 }
 
@@ -360,9 +362,9 @@ const { isAramMode, balanceTags, overallBalanceStatus } = useAramBalance(
 
 .avatar-wrapper {
   position: relative;
-  /* 36px: 头像（P1 精致化，从 40 收到 36） */
-  width: 36px;
-  height: 36px;
+  /* 头像平滑缩放：900 视口=36, 3000 视口=60 (含 4K) */
+  width: clamp(36px, calc(36px + (100vw - 900px) * 24 / 2100), 60px);
+  height: clamp(36px, calc(36px + (100vw - 900px) * 24 / 2100), 60px);
   flex-shrink: 0;
 }
 
@@ -419,10 +421,10 @@ const { isAramMode, balanceTags, overallBalanceStatus } = useAramBalance(
 }
 
 .tier-icon {
-  /* 20px: 段位图标固定尺寸（从 16 提到 20，视觉更显眼） */
+  /* 20→32px 随 viewport 平滑放大 (900→3000) */
   display: inline-block;
-  width: 20px;
-  height: 20px;
+  width: clamp(20px, calc(20px + (100vw - 900px) * 12 / 2100), 32px);
+  height: clamp(20px, calc(20px + (100vw - 900px) * 12 / 2100), 32px);
 }
 
 .tier-icon :deep(img) {
@@ -436,9 +438,9 @@ const { isAramMode, balanceTags, overallBalanceStatus } = useAramBalance(
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
-  font-size: 18px;
+  width: clamp(20px, calc(20px + (100vw - 900px) * 12 / 2100), 32px);
+  height: clamp(20px, calc(20px + (100vw - 900px) * 12 / 2100), 32px);
+  font-size: clamp(18px, calc(18px + (100vw - 900px) * 11 / 2100), 29px);
   color: var(--text-tertiary);
 }
 

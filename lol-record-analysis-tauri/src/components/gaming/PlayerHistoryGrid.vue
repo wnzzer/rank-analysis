@@ -80,8 +80,8 @@ defineProps<{ games: Game[] }>()
 }
 
 .win-status {
-  /* P1: 11px + bold，保持识别但不抢戏 */
-  font-size: var(--font-size-xs);
+  /* 11→16px 随 viewport 平滑放大 (900→3000) */
+  font-size: clamp(11px, calc(11px + (100vw - 900px) * 5 / 2100), 16px);
   font-weight: var(--font-weight-bold);
   color: var(--semantic-loss);
   text-align: center;
@@ -91,10 +91,10 @@ defineProps<{ games: Game[] }>()
   color: var(--semantic-win);
 }
 
-/* P1 精致化：22px 圆形英雄头像 */
+/* 22→36px 随 viewport 平滑放大 (900→3000) */
 .history-champ-img {
-  width: 22px;
-  height: 22px;
+  width: clamp(22px, calc(22px + (100vw - 900px) * 14 / 2100), 36px);
+  height: clamp(22px, calc(22px + (100vw - 900px) * 14 / 2100), 36px);
   border-radius: 50%;
 }
 
@@ -105,7 +105,8 @@ defineProps<{ games: Game[] }>()
 .kda-text {
   font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   font-weight: var(--font-weight-bold);
-  font-size: var(--font-size-sm);
+  /* 12→18px 随 viewport 平滑放大 (900→3000) */
+  font-size: clamp(12px, calc(12px + (100vw - 900px) * 6 / 2100), 18px);
   /* tabular-nums: 数字等宽，确保 5/17/20 与 23/12/39 的斜杠纵向对齐 */
   font-variant-numeric: tabular-nums;
   text-align: center;
@@ -125,8 +126,8 @@ defineProps<{ games: Game[] }>()
 }
 
 .queue-name {
-  /* P1: 容器收紧后 10px 灰阶刚好 */
-  font-size: var(--font-size-2xs);
+  /* 10→14px 随 viewport 平滑放大 (900→3000) */
+  font-size: clamp(10px, calc(10px + (100vw - 900px) * 4 / 2100), 14px);
   color: var(--n-text-color-3);
   text-align: right;
   white-space: nowrap;
