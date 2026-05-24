@@ -959,10 +959,11 @@ watch(
 .match-detail-spell-icon,
 .match-detail-item-icon,
 .match-detail-perk-icon {
-  /* 紧凑: 16→20 (再砍 2px) */
+  /* 紧凑: 16→20 */
   width: clamp(16px, calc(16px + (100vw - 1100px) * 4 / 1100), 20px);
   height: clamp(16px, calc(16px + (100vw - 1100px) * 4 / 1100), 20px);
-  border-radius: 4px;
+  /* 角更直, 贴齐视觉更连续 */
+  border-radius: 2px;
   border: 1px solid var(--border-subtle);
   background: var(--bg-elevated);
   object-fit: cover;
@@ -1041,8 +1042,8 @@ watch(
 .match-detail-items {
   display: flex;
   flex-wrap: wrap;
-  /* 紧凑: 装备间距 2→1px */
-  gap: 1px;
+  /* 紧凑: 装备贴齐, 0 gap (border 自然分隔) */
+  gap: 0;
 }
 
 .match-detail-value-cell {
