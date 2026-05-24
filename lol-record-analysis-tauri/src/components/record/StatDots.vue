@@ -95,7 +95,8 @@ const iconStyle = computed<CSSProperties>(() => ({
 .stat-bar-track {
   flex: 1;
   min-width: 0;
-  height: 6px;
+  /* 密集模式: bar 高 4px */
+  height: 4px;
   border-radius: var(--radius-pill);
   background: var(--border-subtle);
   overflow: hidden;
