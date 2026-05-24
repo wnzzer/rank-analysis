@@ -10,11 +10,10 @@
         <span class="win-status" :class="{ 'is-win': game.participants[0].stats.win }">
           {{ game.participants[0].stats.win ? '胜' : '负' }}
         </span>
-        <img
+        <LazyImg
           :src="assetPrefix + '/champion/' + game.participants[0]?.championId"
+          alt="champion"
           class="history-champ-img"
-          loading="lazy"
-          decoding="async"
         />
         <div class="kda-text">
           <span class="kill">{{ game.participants[0].stats?.kills }}</span>
@@ -36,6 +35,7 @@
 import { NFlex, NTooltip } from 'naive-ui'
 import type { Game } from '@renderer/types/domain/match'
 import { assetPrefix } from '@renderer/services/http'
+import LazyImg from '@renderer/components/common/LazyImg.vue'
 
 defineProps<{ games: Game[] }>()
 </script>
@@ -44,6 +44,7 @@ defineProps<{ games: Game[] }>()
 .history-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  /* 3px：紧凑历史栅格的密集间隙，非 token 阶 */
   gap: 3px;
   flex: 1;
   overflow-y: auto;
@@ -52,8 +53,9 @@ defineProps<{ games: Game[] }>()
 .history-item {
   background: var(--glass-bg-low);
   border-radius: var(--radius-sm);
+  /* 3px / 5px：紧凑卡片内边距，非 token 阶 */
   padding: 3px 5px;
-  font-size: 10px;
+  font-size: var(--font-size-2xs);
   border: 1px solid var(--glass-border);
   border-left-width: 2px;
   border-left-color: var(--semantic-loss);
@@ -64,7 +66,7 @@ defineProps<{ games: Game[] }>()
 }
 
 .win-status {
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--semantic-loss);
   width: 20px;
   flex-shrink: 0;
@@ -74,17 +76,22 @@ defineProps<{ games: Game[] }>()
   color: var(--semantic-win);
 }
 
+/* 固定 24px 圆形英雄头像：像素级精确布局，不取 token 阶 */
 .history-champ-img {
   width: 24px;
   height: 24px;
   border-radius: 50%;
+}
+
+.history-champ-img :deep(img) {
   object-fit: cover;
 }
 
 .kda-text {
   font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  font-weight: 700;
-  font-size: 12px;
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-sm);
+  /* 固定 60px 列宽：保持栅格对齐 */
   min-width: 60px;
   text-align: center;
   white-space: nowrap;
@@ -104,8 +111,9 @@ defineProps<{ games: Game[] }>()
 }
 
 .queue-name {
-  font-size: 10px;
+  font-size: var(--font-size-2xs);
   color: var(--n-text-color-3);
+  /* 固定 40px 列宽 */
   width: 40px;
   text-align: right;
   white-space: nowrap;
