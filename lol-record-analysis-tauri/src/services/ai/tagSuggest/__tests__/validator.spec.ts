@@ -1,367 +1,260 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { parseAndValidate } from '../validator'
+import { describe, it, expect } from 'vitest'
+import { parseStage1, parseStage2, PERMANENT_BANNED_NAMES } from '../validator'
 
-const STUB_UUID = '00000000-0000-4000-8000-000000000000'
-let originalRandomUUID: typeof crypto.randomUUID | undefined
+const goodCandidate = {
+  id: 'g1',
+  metric: 'kda',
+  queueIds: [420, 440],
+  direction: '>=',
+  threshold: 4.5,
+  countMin: 5,
+  evidence: '排位 KDA≥4.5 共 6 局',
+  vibe: ['carry']
+}
 
-beforeEach(() => {
-  originalRandomUUID = crypto.randomUUID?.bind(crypto)
-  crypto.randomUUID = vi.fn(() => STUB_UUID)
+const badCandidate = {
+  id: 'b1',
+  metric: 'streak',
+  queueIds: [420, 440],
+  direction: 'loss',
+  threshold: 0,
+  countMin: 3,
+  evidence: '近 3 场连败',
+  vibe: ['暮气']
+}
+
+function profile(overrides: Record<string, unknown> = {}): unknown {
+  return {
+    styleSummary: '该玩家擅长野区控制',
+    modeBreakdown: [
+      {
+        queueIds: [420, 440],
+        queueName: '单双排位',
+        winSignals: ['KDA 高'],
+        lossSignals: ['对线崩'],
+        sampleSize: 12
+      }
+    ],
+    goodCandidates: [
+      goodCandidate,
+      { ...goodCandidate, id: 'g2' },
+      { ...goodCandidate, id: 'g3' },
+      { ...goodCandidate, id: 'g4' }
+    ],
+    badCandidates: [
+      badCandidate,
+      { ...badCandidate, id: 'b2' },
+      { ...badCandidate, id: 'b3' },
+      { ...badCandidate, id: 'b4' }
+    ],
+    ...overrides
+  }
+}
+
+describe('parseStage1', () => {
+  it('parses a valid JSON ProfileSummary', () => {
+    const raw = JSON.stringify(profile())
+    const r = parseStage1(raw)
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(r.value.goodCandidates).toHaveLength(4)
+      expect(r.value.badCandidates).toHaveLength(4)
+    }
+  })
+
+  it('strips ```json fences', () => {
+    const raw = '```json\n' + JSON.stringify(profile()) + '\n```'
+    expect(parseStage1(raw).ok).toBe(true)
+  })
+
+  it('fails on non-JSON', () => {
+    const r = parseStage1('hello world')
+    expect(r.ok).toBe(false)
+  })
+
+  it('fails when goodCandidates < 4', () => {
+    const r = parseStage1(JSON.stringify(profile({ goodCandidates: [goodCandidate] })))
+    expect(r.ok).toBe(false)
+  })
+
+  it('fails when badCandidates < 4', () => {
+    const r = parseStage1(JSON.stringify(profile({ badCandidates: [badCandidate] })))
+    expect(r.ok).toBe(false)
+  })
+
+  it('fails when a candidate metric is not whitelisted', () => {
+    const r = parseStage1(
+      JSON.stringify(
+        profile({
+          goodCandidates: [
+            { ...goodCandidate, metric: 'bogus' },
+            { ...goodCandidate, id: 'g2' },
+            { ...goodCandidate, id: 'g3' },
+            { ...goodCandidate, id: 'g4' }
+          ]
+        })
+      )
+    )
+    expect(r.ok).toBe(false)
+  })
+
+  it('fails when modeBreakdown is missing', () => {
+    const raw = JSON.stringify(profile({ modeBreakdown: undefined }))
+    expect(parseStage1(raw).ok).toBe(false)
+  })
+
+  it('streak candidate with direction loss is accepted', () => {
+    const r = parseStage1(JSON.stringify(profile()))
+    expect(r.ok).toBe(true)
+  })
+
+  it('streak candidate with operator direction (not win|loss) is rejected', () => {
+    const bad = { ...badCandidate, direction: '>=' }
+    const r = parseStage1(
+      JSON.stringify(
+        profile({
+          badCandidates: [bad, { ...bad, id: 'b2' }, { ...bad, id: 'b3' }, { ...bad, id: 'b4' }]
+        })
+      )
+    )
+    expect(r.ok).toBe(false)
+  })
+
+  it('countMin must be ≥ 1', () => {
+    const r = parseStage1(
+      JSON.stringify(
+        profile({
+          goodCandidates: [
+            { ...goodCandidate, countMin: 0 },
+            { ...goodCandidate, id: 'g2' },
+            { ...goodCandidate, id: 'g3' },
+            { ...goodCandidate, id: 'g4' }
+          ]
+        })
+      )
+    )
+    expect(r.ok).toBe(false)
+  })
 })
 
-afterEach(() => {
-  if (originalRandomUUID) crypto.randomUUID = originalRandomUUID
-})
-
-describe('parseAndValidate', () => {
-  function suggestion(overrides: Partial<{ name: string; desc: string }> = {}) {
+describe('parseStage2', () => {
+  function naming(overrides: Record<string, unknown> = {}): unknown {
     return {
-      name: '中路雕将',
-      desc: '中路场均 KDA 高',
-      condition: {
-        type: 'history',
-        filters: [{ type: 'stat', metric: 'kda', op: '>=', value: 5 }],
-        refresh: { type: 'count', op: '>=', value: 5 }
-      },
+      good: [
+        { id: 'g1', name: '雕花匠', desc: '排位 KDA≥4.5 至少 5 局' },
+        { id: 'g2', name: '夜枭', desc: '大乱斗伤害高 至少 5 局' },
+        { id: 'g3', name: '佛系输出位', desc: '排位高输出 至少 5 局' }
+      ],
+      bad: [
+        { id: 'b1', name: '暮气', desc: '排位近 3 场连败' },
+        { id: 'b2', name: '咸鱼', desc: '大乱斗参团率低 至少 5 局' },
+        { id: 'b3', name: '翻车王', desc: '排位高死亡 至少 5 局' }
+      ],
+      skipped: ['g4', 'b4'],
       ...overrides
     }
   }
 
-  it('extracts wrapped json from markdown fences', () => {
-    const raw = '```json\n{"good":[],"bad":[]}\n```'
-    const r = parseAndValidate(raw)
-    expect(r.good).toEqual([])
-    expect(r.bad).toEqual([])
-  })
-
-  it('drops entry whose name is too short', () => {
-    const raw = JSON.stringify({ good: [suggestion({ name: '中' })], bad: [] })
-    const r = parseAndValidate(raw)
-    expect(r.good).toHaveLength(0)
-    expect(r.droppedCount).toBe(1)
-  })
-
-  it('drops entry whose name is too long', () => {
-    const raw = JSON.stringify({ good: [suggestion({ name: '排位顶级独行侠王' })], bad: [] }) // 8 chars
-    const r = parseAndValidate(raw)
-    expect(r.droppedCount).toBe(1)
-  })
-
-  it('accepts entry with 7-char name (new max)', () => {
-    const ok = suggestion({ name: '排位顶级独行侠' }) // 7 chars
-    const raw = JSON.stringify({ good: [ok], bad: [] })
-    const r = parseAndValidate(raw)
-    expect(r.good).toHaveLength(1)
-  })
-
-  it('accepts entry with 6-char name', () => {
-    const ok = suggestion({ name: '乱斗大咆哮王' }) // 6 chars
-    const raw = JSON.stringify({ good: [ok], bad: [] })
-    const r = parseAndValidate(raw)
-    expect(r.good).toHaveLength(1)
-  })
-
-  it('drops entry missing condition', () => {
-    const bad = { name: '中路雕将', desc: 'x' } // no condition
-    const raw = JSON.stringify({ good: [bad], bad: [] })
-    const r = parseAndValidate(raw)
-    expect(r.droppedCount).toBe(1)
-  })
-
-  it('drops entry with invalid TagCondition variant', () => {
-    const bad = suggestion()
-    bad.condition = { type: 'bogusVariant' } as never
-    const raw = JSON.stringify({ good: [bad], bad: [] })
-    const r = parseAndValidate(raw)
-    expect(r.droppedCount).toBe(1)
-  })
-
-  it('drops entry with invalid Operator string', () => {
-    const bad = suggestion()
-    ;(bad.condition as any).filters[0].op = 'GTE' // wrong (should be ">=")
-    const raw = JSON.stringify({ good: [bad], bad: [] })
-    const r = parseAndValidate(raw)
-    expect(r.droppedCount).toBe(1)
-  })
-
-  it('preserves valid entries from a mixed batch', () => {
-    const raw = JSON.stringify({
-      good: [suggestion(), suggestion({ name: '中' })],
-      bad: [suggestion()]
-    })
-    const r = parseAndValidate(raw)
-    expect(r.good).toHaveLength(1)
-    expect(r.bad).toHaveLength(1)
-    expect(r.droppedCount).toBe(1)
-  })
-
-  it('throws on JSON parse failure', () => {
-    expect(() => parseAndValidate('not json')).toThrow()
-  })
-
-  it('throws when payload lacks good/bad arrays', () => {
-    expect(() => parseAndValidate('{"foo": []}')).toThrow()
-  })
-
-  it('fills good=true/false based on which array the entry came from', () => {
-    const raw = JSON.stringify({ good: [suggestion()], bad: [suggestion()] })
-    const r = parseAndValidate(raw)
-    expect(r.good[0].good).toBe(true)
-    expect(r.bad[0].good).toBe(false)
-  })
-
-  it('generates id (uuid) and sets isDefault=false / enabled=true', () => {
-    const raw = JSON.stringify({ good: [suggestion()], bad: [] })
-    const r = parseAndValidate(raw)
-    expect(r.good[0].id).toBe(STUB_UUID)
-    expect(r.good[0].isDefault).toBe(false)
-    expect(r.good[0].enabled).toBe(true)
-  })
-
-  // MatchRefresh variant coverage (I-3)
-
-  it('drops entry with average refresh missing metric', () => {
-    const bad = suggestion()
-    ;(bad.condition as any).refresh = { type: 'average', op: '>=', value: 5 } // no metric
-    const raw = JSON.stringify({ good: [bad], bad: [] })
-    const r = parseAndValidate(raw)
-    expect(r.droppedCount).toBe(1)
-  })
-
-  it('accepts streak refresh with valid kind', () => {
-    const ok = suggestion()
-    ;(ok.condition as any).refresh = { type: 'streak', min: 3, kind: 'loss' }
-    const raw = JSON.stringify({ good: [ok], bad: [] })
-    const r = parseAndValidate(raw)
-    expect(r.good).toHaveLength(1)
-    expect(r.droppedCount).toBe(0)
-  })
-
-  it('drops streak refresh with uppercase kind (Rust expects lowercase)', () => {
-    const bad = suggestion()
-    ;(bad.condition as any).refresh = { type: 'streak', min: 3, kind: 'WIN' }
-    const raw = JSON.stringify({ good: [bad], bad: [] })
-    const r = parseAndValidate(raw)
-    expect(r.droppedCount).toBe(1)
-  })
-
-  // Recursive TagCondition coverage (I-4)
-
-  it('accepts nested and(history, currentQueue)', () => {
-    const validHistory = {
-      type: 'history',
-      filters: [{ type: 'stat', metric: 'kda', op: '>=', value: 5 }],
-      refresh: { type: 'count', op: '>=', value: 3 }
+  it('parses a valid Stage 2 NamingResult', () => {
+    const r = parseStage2(JSON.stringify(naming()))
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(r.value.good).toHaveLength(3)
+      expect(r.value.bad).toHaveLength(3)
+      expect(r.value.skipped).toEqual(['g4', 'b4'])
     }
-    const validQueue = { type: 'currentQueue', ids: [420] }
-    const ok = suggestion()
-    ;(ok.condition as any) = { type: 'and', conditions: [validHistory, validQueue] }
-    const raw = JSON.stringify({ good: [ok], bad: [] })
-    const r = parseAndValidate(raw)
-    expect(r.good).toHaveLength(1)
   })
 
-  it('drops and-condition where any nested condition is invalid', () => {
-    const validHistory = {
-      type: 'history',
-      filters: [{ type: 'stat', metric: 'kda', op: '>=', value: 5 }],
-      refresh: { type: 'count', op: '>=', value: 3 }
+  it('PERMANENT_BANNED_NAMES contains the spec list', () => {
+    expect(PERMANENT_BANNED_NAMES).toContain('送葬人')
+    expect(PERMANENT_BANNED_NAMES).toContain('carry王')
+    expect(PERMANENT_BANNED_NAMES).toContain('演员王')
+    expect(PERMANENT_BANNED_NAMES).toContain('送人头')
+  })
+
+  it('rejects entry whose name contains a permanent-banned substring', () => {
+    const r = parseStage2(
+      JSON.stringify(
+        naming({
+          good: [
+            { id: 'g1', name: '排位送葬人', desc: 'x' },
+            { id: 'g2', name: '夜枭', desc: 'x' },
+            { id: 'g3', name: '雕花匠', desc: 'x' }
+          ]
+        })
+      )
+    )
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      // The banned entry is dropped; only 2 remain
+      expect(r.value.good).toHaveLength(2)
     }
-    const bad = suggestion()
-    ;(bad.condition as any) = {
-      type: 'and',
-      conditions: [validHistory, { type: 'bogus' }]
-    }
-    const raw = JSON.stringify({ good: [bad], bad: [] })
-    const r = parseAndValidate(raw)
-    expect(r.droppedCount).toBe(1)
   })
 
-  it('drops not-condition wrapping a non-condition value', () => {
-    const bad = suggestion()
-    ;(bad.condition as any) = { type: 'not', condition: 'oops' }
-    const raw = JSON.stringify({ good: [bad], bad: [] })
-    const r = parseAndValidate(raw)
-    expect(r.droppedCount).toBe(1)
+  it('rejects entry with name < 2 chars', () => {
+    const r = parseStage2(
+      JSON.stringify(
+        naming({
+          good: [
+            { id: 'g1', name: '王', desc: 'x' },
+            { id: 'g2', name: '夜枭', desc: 'x' },
+            { id: 'g3', name: '雕花匠', desc: 'x' }
+          ]
+        })
+      )
+    )
+    expect(r.ok).toBe(true)
+    if (r.ok) expect(r.value.good).toHaveLength(2)
   })
 
-  it('drops history with filter/refresh tautology (same metric + same op)', () => {
-    const bad = suggestion()
-    ;(bad.condition as any) = {
-      type: 'history',
-      filters: [{ type: 'stat', metric: 'gold', op: '>=', value: 12000 }],
-      refresh: { type: 'average', metric: 'gold', op: '>=', value: 12000 }
-    }
-    const raw = JSON.stringify({ good: [bad], bad: [] })
-    const r = parseAndValidate(raw)
-    expect(r.droppedCount).toBe(1)
+  it('rejects entry with name > 7 chars', () => {
+    const r = parseStage2(
+      JSON.stringify(
+        naming({
+          good: [
+            { id: 'g1', name: '排位顶级独行侠王', desc: 'x' }, // 8 chars
+            { id: 'g2', name: '夜枭', desc: 'x' },
+            { id: 'g3', name: '雕花匠', desc: 'x' }
+          ]
+        })
+      )
+    )
+    expect(r.ok).toBe(true)
+    if (r.ok) expect(r.value.good).toHaveLength(2)
   })
 
-  it('accepts history where filter and refresh use different metrics', () => {
-    const ok = suggestion()
-    ;(ok.condition as any) = {
-      type: 'history',
-      filters: [{ type: 'stat', metric: 'gold', op: '>=', value: 12000 }],
-      refresh: { type: 'average', metric: 'damage', op: '>=', value: 25000 }
-    }
-    const raw = JSON.stringify({ good: [ok], bad: [] })
-    const r = parseAndValidate(raw)
-    expect(r.good).toHaveLength(1)
+  it('rejects entry with empty desc', () => {
+    const r = parseStage2(
+      JSON.stringify(
+        naming({
+          good: [
+            { id: 'g1', name: '雕花匠', desc: '' },
+            { id: 'g2', name: '夜枭', desc: 'x' },
+            { id: 'g3', name: '佛系输出位', desc: 'x' }
+          ]
+        })
+      )
+    )
+    expect(r.ok).toBe(true)
+    if (r.ok) expect(r.value.good).toHaveLength(2)
   })
 
-  it('accepts history where filter and refresh use opposite directions', () => {
-    // filter "gold >= 8000" + refresh "average gold <= 12000" — different op → 不是套套逻辑
-    const ok = suggestion()
-    ;(ok.condition as any) = {
-      type: 'history',
-      filters: [{ type: 'stat', metric: 'gold', op: '>=', value: 8000 }],
-      refresh: { type: 'average', metric: 'gold', op: '<=', value: 12000 }
-    }
-    const raw = JSON.stringify({ good: [ok], bad: [] })
-    const r = parseAndValidate(raw)
-    expect(r.good).toHaveLength(1)
+  it('fails on non-JSON', () => {
+    expect(parseStage2('definitely not json').ok).toBe(false)
   })
 
-  // desc / queue-scope consistency checks
-
-  it('drops entry where desc says 排位 but filter is entertainment-only', () => {
-    const bad = suggestion({ desc: '排位中路 KDA 高' })
-    ;(bad.condition as any) = {
-      type: 'history',
-      filters: [{ type: 'queue', ids: [1300] }], // 觉醒之战
-      refresh: { type: 'count', op: '>=', value: 5 }
-    }
-    const raw = JSON.stringify({ good: [bad], bad: [] })
-    const r = parseAndValidate(raw)
-    expect(r.droppedCount).toBe(1)
+  it('fails when good or bad is not an array', () => {
+    expect(parseStage2(JSON.stringify({ good: {}, bad: [], skipped: [] })).ok).toBe(false)
   })
 
-  it('drops entry where desc says 排位 but filter mixes ranked and entertainment', () => {
-    const bad = suggestion({ desc: '排位玩 carry' })
-    ;(bad.condition as any) = {
-      type: 'history',
-      filters: [{ type: 'queue', ids: [420, 450] }], // mixes ranked + ARAM
-      refresh: { type: 'count', op: '>=', value: 5 }
-    }
-    const raw = JSON.stringify({ good: [bad], bad: [] })
-    const r = parseAndValidate(raw)
-    expect(r.droppedCount).toBe(1)
+  it('strips ```json fences', () => {
+    const raw = '```json\n' + JSON.stringify(naming()) + '\n```'
+    expect(parseStage2(raw).ok).toBe(true)
   })
 
-  it('accepts entry where desc says 排位 and filter is ranked-only', () => {
-    const ok = suggestion({ desc: '排位中路 KDA ≥5' })
-    ;(ok.condition as any) = {
-      type: 'history',
-      filters: [{ type: 'queue', ids: [420, 440] }],
-      refresh: { type: 'count', op: '>=', value: 5 }
-    }
-    const raw = JSON.stringify({ good: [ok], bad: [] })
-    const r = parseAndValidate(raw)
-    expect(r.good).toHaveLength(1)
-  })
-
-  it('accepts entry where desc names entertainment mode and filter matches', () => {
-    const ok = suggestion({ name: '乱斗咆哮王', desc: '大乱斗伤害王' }) // name has no lane word
-    ;(ok.condition as any) = {
-      type: 'history',
-      filters: [{ type: 'queue', ids: [450] }],
-      refresh: { type: 'count', op: '>=', value: 5 }
-    }
-    const raw = JSON.stringify({ good: [ok], bad: [] })
-    const r = parseAndValidate(raw)
-    expect(r.good).toHaveLength(1)
-  })
-
-  it('accepts entry without queue filter (desc unconstrained)', () => {
-    const ok = suggestion({ desc: '不分模式高 KDA' })
-    ;(ok.condition as any) = {
-      type: 'history',
-      filters: [{ type: 'stat', metric: 'kda', op: '>=', value: 5 }],
-      refresh: { type: 'count', op: '>=', value: 5 }
-    }
-    const raw = JSON.stringify({ good: [ok], bad: [] })
-    const r = parseAndValidate(raw)
-    expect(r.good).toHaveLength(1)
-  })
-
-  // lane-word checks (非 SR 模式禁路位词)
-
-  it('drops entry where filter is all-entertainment but name contains lane word', () => {
-    const bad = suggestion({ name: '乱斗中路王' }) // contains 中路, 5 chars
-    ;(bad.condition as any) = {
-      type: 'history',
-      filters: [{ type: 'queue', ids: [450] }],
-      refresh: { type: 'count', op: '>=', value: 5 }
-    }
-    const raw = JSON.stringify({ good: [bad], bad: [] })
-    const r = parseAndValidate(raw)
-    expect(r.droppedCount).toBe(1)
-  })
-
-  it('drops entry where filter is all-entertainment but desc contains lane word', () => {
-    const bad = suggestion({ desc: '海克斯乱斗打野场均输出高' })
-    ;(bad.condition as any) = {
-      type: 'history',
-      filters: [{ type: 'queue', ids: [450] }],
-      refresh: { type: 'count', op: '>=', value: 5 }
-    }
-    const raw = JSON.stringify({ good: [bad], bad: [] })
-    const r = parseAndValidate(raw)
-    expect(r.droppedCount).toBe(1)
-  })
-
-  it('accepts entry where mixed ranked + entertainment uses lane word', () => {
-    const ok = suggestion({ name: '中路稳健', desc: '中路场均 KDA ≥5' })
-    ;(ok.condition as any) = {
-      type: 'history',
-      filters: [{ type: 'queue', ids: [420, 450] }], // mixed
-      refresh: { type: 'count', op: '>=', value: 5 }
-    }
-    const raw = JSON.stringify({ good: [ok], bad: [] })
-    const r = parseAndValidate(raw)
-    expect(r.good).toHaveLength(1)
-  })
-
-  it('accepts ranked-only entry with lane word in name', () => {
-    const ok = suggestion({ name: '排位中路雕', desc: '排位中路 KDA ≥5' })
-    ;(ok.condition as any) = {
-      type: 'history',
-      filters: [{ type: 'queue', ids: [420, 440] }],
-      refresh: { type: 'count', op: '>=', value: 5 }
-    }
-    const raw = JSON.stringify({ good: [ok], bad: [] })
-    const r = parseAndValidate(raw)
-    expect(r.good).toHaveLength(1)
-  })
-
-  // negative-name-word checks (好/坏 tone consistency)
-
-  it('drops good tag with negative name word (混子)', () => {
-    const bad = suggestion({ name: '海克斯混子' })
-    const raw = JSON.stringify({ good: [bad], bad: [] })
-    const r = parseAndValidate(raw)
-    expect(r.droppedCount).toBe(1)
-  })
-
-  it('drops good tag with negative name word (翻车)', () => {
-    const bad = suggestion({ name: '排位翻车王' })
-    const raw = JSON.stringify({ good: [bad], bad: [] })
-    const r = parseAndValidate(raw)
-    expect(r.droppedCount).toBe(1)
-  })
-
-  it('accepts negative name word on bad tag (the word fits the tag)', () => {
-    const ok = suggestion({ name: '海克斯混子' })
-    const raw = JSON.stringify({ good: [], bad: [ok] })
-    const r = parseAndValidate(raw)
-    expect(r.bad).toHaveLength(1)
-    expect(r.droppedCount).toBe(0)
-  })
-
-  it('accepts good tag with neutral 调侃 name (送葬人 OK)', () => {
-    const ok = suggestion({ name: '排位送葬人' })
-    const raw = JSON.stringify({ good: [ok], bad: [] })
-    const r = parseAndValidate(raw)
-    expect(r.good).toHaveLength(1)
+  it('treats missing skipped as []', () => {
+    const r = parseStage2(JSON.stringify(naming({ skipped: undefined })))
+    expect(r.ok).toBe(true)
+    if (r.ok) expect(r.value.skipped).toEqual([])
   })
 })
