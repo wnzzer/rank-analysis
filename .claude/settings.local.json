@@ -67,7 +67,20 @@
       "mcp___hypothesi_tauri-mcp-server__ipc_get_backend_state",
       "mcp___hypothesi_tauri-mcp-server__webview_execute_js",
       "mcp___hypothesi_tauri-mcp-server__webview_dom_snapshot",
-      "mcp___hypothesi_tauri-mcp-server__get_setup_instructions"
+      "mcp___hypothesi_tauri-mcp-server__get_setup_instructions",
+      "Bash(git reset *)",
+      "Bash(git checkout *)",
+      "Bash(git *)",
+      "mcp___hypothesi_tauri-mcp-server__manage_window",
+      "mcp___hypothesi_tauri-mcp-server__webview_wait_for",
+      "mcp__playwright__browser_navigate",
+      "Bash(grep -iE \"#[0-9a-f]{3,8}\\\\b\")",
+      "Bash(findstr \"9223\")",
+      "Bash(findstr :9223)",
+      "mcp___hypothesi_tauri-mcp-server__webview_interact",
+      "mcp___hypothesi_tauri-mcp-server__webview_find_element",
+      "Bash(grep -nA 3 \"^\\\\.stats-card\" lol-record-analysis-tauri/src/components/gaming/PlayerStatsCard.vue)",
+      "Bash(grep *)"
     ]
   }
 }
