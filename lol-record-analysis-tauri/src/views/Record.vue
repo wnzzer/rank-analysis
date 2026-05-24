@@ -1,5 +1,5 @@
 <template>
-  <n-layout has-sider style="height: 100%" :collapsed="isMobile">
+  <n-layout class="record-page" has-sider style="height: 100%" :collapsed="isMobile">
     <n-layout-sider
       :collapsed-width="isMobile ? '100%' : undefined"
       :width="isMobile ? '100%' : undefined"
@@ -23,6 +23,17 @@ import { useBreakpoint } from '@renderer/composables/useBreakpoint'
 const { isMobile } = useBreakpoint()
 </script>
 <style scoped>
+/* 整页 token 覆盖:所有子组件 var(--font-size-*) 自动跟随 viewport 缩放 (1100→2200) */
+.record-page {
+  --font-size-2xs: clamp(10px, calc(10px + (100vw - 1100px) * 2 / 1100), 12px);
+  --font-size-xs: clamp(11px, calc(11px + (100vw - 1100px) * 2 / 1100), 13px);
+  --font-size-sm: clamp(12px, calc(12px + (100vw - 1100px) * 2 / 1100), 14px);
+  --font-size-base: clamp(13px, calc(13px + (100vw - 1100px) * 3 / 1100), 16px);
+  --font-size-md: clamp(14px, calc(14px + (100vw - 1100px) * 4 / 1100), 18px);
+  --font-size-lg: clamp(16px, calc(16px + (100vw - 1100px) * 4 / 1100), 20px);
+  --font-size-xl: clamp(18px, calc(18px + (100vw - 1100px) * 5 / 1100), 23px);
+}
+
 .record-content {
   padding: var(--space-20);
   padding-top: var(--space-16);
