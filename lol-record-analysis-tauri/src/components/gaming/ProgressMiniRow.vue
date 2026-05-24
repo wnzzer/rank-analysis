@@ -30,7 +30,7 @@ defineProps<{
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 
 .label {
@@ -40,10 +40,10 @@ defineProps<{
 .progress-wrapper {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-6);
   flex: 1;
   justify-content: flex-end;
-  margin-left: 8px;
+  margin-left: var(--space-8);
 }
 
 .progress-wrapper .n-progress {
@@ -52,7 +52,7 @@ defineProps<{
 }
 
 .progress-text {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   min-width: 35px;
   text-align: right;
 }
