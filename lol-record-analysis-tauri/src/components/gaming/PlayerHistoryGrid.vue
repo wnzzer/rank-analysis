@@ -53,6 +53,15 @@ defineProps<{ games: Game[] }>()
   row-gap: var(--space-6);
   flex: 1;
   overflow-y: auto;
+  /* 锁住横向滚动 (内部 history-item 偶尔 min-content 超出, 不能让浏览器自动加 X 滚动条) */
+  overflow-x: hidden;
+  /* 1fr 1fr 想要平分 → item 必须能 shrink 到 fraction 单位下 */
+  min-width: 0;
+}
+
+.history-item {
+  /* 允许 grid 1fr 把 item 压到比 min-content 还小 (内部 KDA / queue 已有 ellipsis/clip 兜底) */
+  min-width: 0;
 }
 
 .history-item {
