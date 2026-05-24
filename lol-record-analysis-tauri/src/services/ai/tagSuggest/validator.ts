@@ -8,13 +8,7 @@
  */
 
 import { isAllowedMetric } from './types'
-import type {
-  Candidate,
-  ProfileSummary,
-  ModeBreakdown,
-  NamingResult,
-  NamingEntry
-} from './types'
+import type { Candidate, ProfileSummary, ModeBreakdown, NamingResult, NamingEntry } from './types'
 
 // ─── shared ───────────────────────────────────────────────────────────────────
 
@@ -24,12 +18,7 @@ const MIN_CANDIDATES = 4
 const NAME_MIN_LEN = 2
 const NAME_MAX_LEN = 7
 
-export const PERMANENT_BANNED_NAMES: readonly string[] = [
-  '送葬人',
-  'carry王',
-  '演员王',
-  '送人头'
-]
+export const PERMANENT_BANNED_NAMES: readonly string[] = ['送葬人', 'carry王', '演员王', '送人头']
 
 const VALID_OPERATORS: ReadonlySet<string> = new Set(['>', '>=', '<', '<=', '==', '!='])
 const VALID_STREAK_DIRECTIONS: ReadonlySet<string> = new Set(['win', 'loss'])

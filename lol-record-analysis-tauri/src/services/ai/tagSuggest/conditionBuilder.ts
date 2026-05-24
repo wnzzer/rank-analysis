@@ -8,12 +8,7 @@
  *   - streak metric → history + (queue 可选) + streak refresh（无 stat filter）
  */
 
-import type {
-  TagCondition,
-  MatchFilter,
-  MatchRefresh,
-  Operator
-} from '@renderer/types/tagSuggest'
+import type { TagCondition, MatchFilter, MatchRefresh, Operator } from '@renderer/types/tagSuggest'
 import type { Candidate } from './types'
 
 function buildQueueFilter(queueIds: number[]): MatchFilter | null {

@@ -26,14 +26,18 @@ const STAGE1_SYSTEM_PROMPT =
   '你是 LOL 单场归因分析师。严格按照用户给定的 JSON schema 返回结果，' +
   '不要返回 markdown / 解释 / 前后缀，只返回纯 JSON 对象。'
 
-export async function runAttributionStage(
-  snapshot: MatchSnapshot
-): Promise<AttributionOutcome> {
+/**
+ * Stage 1 模型：qwen-plus 在 JSON 严格度、verdicts 覆盖、evidence 数量
+ * 三项实测明显优于 qwen-turbo，qwen-turbo 输出常因数量不足被 validator 拒绝。
+ */
+const STAGE1_MODEL = 'qwen-plus'
+
+export async function runAttributionStage(snapshot: MatchSnapshot): Promise<AttributionOutcome> {
   const addon = getModePromptAddon(snapshot.modeContext)
   const userPrompt = buildStage1Prompt(snapshot, addon.rules)
-  const cacheKey = `ai_match_detail_stage1_${snapshot.gameId}_${addon.kind}`
+  const cacheKey = `ai_match_detail_stage1_${snapshot.gameId}_${addon.kind}_${STAGE1_MODEL}`
 
-  const resp = await requestAIContent(userPrompt, cacheKey, STAGE1_SYSTEM_PROMPT)
+  const resp = await requestAIContent(userPrompt, cacheKey, STAGE1_SYSTEM_PROMPT, STAGE1_MODEL)
   if (!resp.success) {
     return { ok: false, error: resp.error ?? 'AI request failed' }
   }

@@ -174,10 +174,7 @@ describe('gameToFeature — position fields', () => {
   })
 
   it('teamPosition NONE → inferTeamPosition fallback (Smite → JUNGLE)', () => {
-    const f = gameToFeature(
-      rawGame({ meTeamPosition: 'NONE', meSpell1: 4, meSpell2: 11 }),
-      'me'
-    )!
+    const f = gameToFeature(rawGame({ meTeamPosition: 'NONE', meSpell1: 4, meSpell2: 11 }), 'me')!
     expect(f.teamPosition).toBe('JUNGLE')
   })
 

@@ -10,10 +10,19 @@ export const DEFAULT_SYSTEM_PROMPT =
 
 const AI_WORKER_URL = 'https://ai.nuliyangguang.top'
 
+/**
+ * AI Worker 默认模型（DashScope 兼容 OpenAI 协议）。
+ * 各 stage 调用方按 use case 覆盖：
+ * - Stage 1 attribution / Stage 1 profile: qwen-plus（JSON 严格度好）
+ * - Stage 2 critique / Stage 2 naming: qwen-max（中文锐评感强）
+ */
+export const DEFAULT_MODEL = 'qwen-turbo'
+
 export async function requestAIContentStream(
   prompt: string,
   callbacks: StreamCallbacks,
-  systemPrompt: string = DEFAULT_SYSTEM_PROMPT
+  systemPrompt: string = DEFAULT_SYSTEM_PROMPT,
+  model: string = DEFAULT_MODEL
 ): Promise<void> {
   try {
     const response = await fetch(AI_WORKER_URL, {
@@ -22,6 +31,7 @@ export async function requestAIContentStream(
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
+        model,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: prompt }
@@ -90,7 +100,8 @@ function emitSseLine(line: string, callbacks: StreamCallbacks) {
 export async function requestAIContent(
   prompt: string,
   cacheKey: string,
-  systemPrompt: string = DEFAULT_SYSTEM_PROMPT
+  systemPrompt: string = DEFAULT_SYSTEM_PROMPT,
+  model: string = DEFAULT_MODEL
 ): Promise<AIAnalysisResult> {
   const cached = sessionStorage.getItem(cacheKey)
   if (cached) {
@@ -111,7 +122,8 @@ export async function requestAIContent(
         },
         onError: error => resolve({ success: false, error })
       },
-      systemPrompt
+      systemPrompt,
+      model
     )
   })
 }

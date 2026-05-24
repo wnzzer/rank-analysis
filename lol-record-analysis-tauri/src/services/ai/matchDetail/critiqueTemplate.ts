@@ -38,9 +38,7 @@ export function renderFallbackCritique(attribution: AttributionResult): string {
       ? '- 本局没人能甩锅，混战自有命数'
       : criminals.map(renderVerdictLine).join('\n')
   const negativesBlock =
-    negatives.length === 0
-      ? '- 无明显被针对者'
-      : negatives.map(renderVerdictLine).join('\n')
+    negatives.length === 0 ? '- 无明显被针对者' : negatives.map(renderVerdictLine).join('\n')
 
   const evidenceBlock = collectKeyEvidence(attribution)
 
@@ -105,9 +103,7 @@ function collectKeyEvidence(attribution: AttributionResult): string {
     for (const m of v.evidenceMetrics) {
       if (m.teamRank === 1 || m.teamRank === 5) {
         lines.push(
-          `- ${v.name} ${m.metric}=${m.value} (队内 #${m.teamRank})${
-            m.note ? '，' + m.note : ''
-          }`
+          `- ${v.name} ${m.metric}=${m.value} (队内 #${m.teamRank})${m.note ? '，' + m.note : ''}`
         )
         if (lines.length >= 5) break
       }

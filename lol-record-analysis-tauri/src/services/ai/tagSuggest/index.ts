@@ -17,12 +17,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { runTwoStage } from '@renderer/services/ai/shared/twoStage'
 import type { TagSuggestion, TagSuggestResult } from '@renderer/types/tagSuggest'
-import {
-  gameToFeature,
-  splitWinsLosses,
-  type RawGame,
-  type QueueNameMap
-} from './featureExtract'
+import { gameToFeature, splitWinsLosses, type RawGame, type QueueNameMap } from './featureExtract'
 import { STAGE1_SYSTEM_PROMPT, buildStage1UserPrompt } from './prompts/stage1-profile'
 import { buildStage2SystemPrompt, buildStage2UserPrompt } from './prompts/stage2-naming'
 import { parseStage1, parseStage2 } from './validator'
@@ -139,11 +134,7 @@ async function fetchRecentGames(puuid: string): Promise<RawGame[]> {
 
 // ─── stitching: NamingEntry + Candidate → TagSuggestion ───────────────────────
 
-function stitchSuggestion(
-  entry: NamingEntry,
-  candidate: Candidate,
-  good: boolean
-): TagSuggestion {
+function stitchSuggestion(entry: NamingEntry, candidate: Candidate, good: boolean): TagSuggestion {
   return {
     id:
       typeof crypto !== 'undefined' && crypto.randomUUID
@@ -195,9 +186,7 @@ function stitchAll(
  *
  * @param forceRefresh - true 时跳过缓存，重新调 AI
  */
-export async function requestTagSuggestions(
-  forceRefresh = false
-): Promise<TagSuggestOutcome> {
+export async function requestTagSuggestions(forceRefresh = false): Promise<TagSuggestOutcome> {
   const puuid = await getCurrentUserPuuid()
 
   if (!forceRefresh) {
@@ -235,6 +224,10 @@ export async function requestTagSuggestions(
   const vocabSample = [...goodSample, ...badSample]
   const recentlyUsed = readRecentNames(puuid)
 
+  // qwen-plus: 实测 JSON 严格度 + 中文锐评感都明显优于 qwen-turbo（默认）。
+  // tagSuggest 两阶段都用 qwen-plus，理由同 matchDetail。
+  const TAG_MODEL = 'qwen-plus'
+
   const result = await runTwoStage<
     ProfileSummary,
     { good: NamingEntry[]; bad: NamingEntry[]; skipped: string[] }
@@ -242,12 +235,14 @@ export async function requestTagSuggestions(
     stage1: {
       systemPrompt: STAGE1_SYSTEM_PROMPT,
       userPrompt: buildStage1UserPrompt(wins, losses),
-      parse: parseStage1
+      parse: parseStage1,
+      model: TAG_MODEL
     },
     stage2: {
       buildSystemPrompt: s1 => buildStage2SystemPrompt(s1, vocabSample, recentlyUsed),
       buildUserPrompt: s1 => buildStage2UserPrompt(s1),
-      parse: parseStage2
+      parse: parseStage2,
+      model: TAG_MODEL
     }
   })
 

@@ -282,8 +282,7 @@ describe('requestTagSuggestions — failure modes', () => {
     mockInvoke.mockImplementation(async (cmd: string) => {
       if (cmd === 'get_my_summoner') return { puuid: 'me' }
       if (cmd === 'get_game_modes') return []
-      if (cmd === 'get_match_history_by_puuid')
-        return { games: { games: [rawGameOf()] } } // only 1 game
+      if (cmd === 'get_match_history_by_puuid') return { games: { games: [rawGameOf()] } } // only 1 game
       return null
     })
     const r = await requestTagSuggestions()
