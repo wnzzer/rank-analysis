@@ -97,9 +97,15 @@
         </div>
 
         <!-- Team Sections -->
+        <!--
+          首屏分批渲染：胜方先入场（~50 张图先 race），败方延迟 80ms。
+          浏览器对 asset.localhost 并发限制 ~6/host，一次性 100+ 图同时请求会
+          排队拖慢首屏；错峰让胜方先抢满 channel，败方再补位。
+        -->
         <div class="match-detail-body">
           <section
-            v-for="team in teamSections"
+            v-for="(team, teamIdx) in teamSections"
+            v-show="teamIdx < visibleTeamCount"
             :key="team.teamId"
             class="match-detail-team-section"
           >
@@ -526,7 +532,18 @@ function loadAssetsIfNeeded() {
   ])
 }
 
+/**
+ * 队伍分批渲染计数：onMounted 时只显示第 1 队（胜方），下一帧后再追加败方。
+ * 这给浏览器一个错峰窗口避免 100+ asset 请求同时打满并发槽位。
+ */
+const visibleTeamCount = ref(1)
+
 onMounted(async () => {
+  // 先 race 胜方再 race 败方：requestAnimationFrame 让胜方 paint，
+  // 80ms 后追加败方（够浏览器把胜方关键图取了大半）。
+  setTimeout(() => {
+    visibleTeamCount.value = teamSections.value.length
+  }, 80)
   try {
     currentSummoner.value = await invoke<Summoner>('get_my_summoner')
   } catch (error) {
@@ -538,6 +555,11 @@ onMounted(async () => {
 watch(
   () => props.game?.gameId,
   () => {
+    // 切对局时重新走分批渲染，避免新对局的两队同时 race
+    visibleTeamCount.value = 1
+    setTimeout(() => {
+      visibleTeamCount.value = teamSections.value.length
+    }, 80)
     ai.resetOnGameChange(
       mySummary.value?.participantId ?? detailPlayers.value[0]?.participantId ?? null
     )

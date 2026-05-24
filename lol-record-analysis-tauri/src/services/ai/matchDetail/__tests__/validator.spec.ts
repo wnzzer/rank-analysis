@@ -132,9 +132,7 @@ describe('validateAttribution', () => {
           teamId: 100
         }))
       })
-      const result = validResult(
-        Array.from({ length: 8 }, (_, i) => validVerdict(i + 1))
-      )
+      const result = validResult(Array.from({ length: 8 }, (_, i) => validVerdict(i + 1)))
       const out = validateAttribution(JSON.stringify(result), snap)
       expect(out.ok).toBe(false)
     })

@@ -62,9 +62,7 @@ describe('buildStage1Prompt — common skeleton', () => {
     const prompt = buildStage1Prompt(snap, '【MODE_RULES_MARKER】')
     expect(prompt).toContain('【MODE_RULES_MARKER】')
     // addon should appear after the JSON schema section
-    expect(prompt.indexOf('【MODE_RULES_MARKER】')).toBeGreaterThan(
-      prompt.indexOf('"verdicts"')
-    )
+    expect(prompt.indexOf('【MODE_RULES_MARKER】')).toBeGreaterThan(prompt.indexOf('"verdicts"'))
   })
 
   it('serializes the snapshot as JSON for the model', () => {

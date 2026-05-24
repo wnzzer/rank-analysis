@@ -75,12 +75,9 @@ export async function analyzeMatchDetailWithAIStream(
 ): Promise<void> {
   try {
     await loadChampionNames()
-    const out = await analyzeMatchDetail(
-      game,
-      extras?.profileMap ?? null,
-      callbacks,
-      { vocabSamples: extras?.vocabSamples }
-    )
+    const out = await analyzeMatchDetail(game, extras?.profileMap ?? null, callbacks, {
+      vocabSamples: extras?.vocabSamples
+    })
     if (!out.ok && out.stage === 'critique' && out.fallbackMarkdown) {
       // The Stage 2 stream already called onError; emit the fallback so UI shows something
       callbacks.onChunk(out.fallbackMarkdown)

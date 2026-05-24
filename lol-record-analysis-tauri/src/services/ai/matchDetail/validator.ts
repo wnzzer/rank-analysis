@@ -10,16 +10,9 @@
  */
 
 import type { MatchSnapshot } from '../shared/snapshot'
-import type {
-  AttributionResult,
-  Verdict,
-  VerdictLabel,
-  MitigatingFactorKind
-} from './types'
+import type { AttributionResult, Verdict, VerdictLabel, MitigatingFactorKind } from './types'
 
-export type ValidateOutcome =
-  | { ok: true; value: AttributionResult }
-  | { ok: false; error: string }
+export type ValidateOutcome = { ok: true; value: AttributionResult } | { ok: false; error: string }
 
 const ALLOWED_LABELS: ReadonlySet<VerdictLabel> = new Set<VerdictLabel>([
   '尽力',
@@ -44,10 +37,7 @@ const NEGATIVE_LABELS: ReadonlySet<VerdictLabel> = new Set<VerdictLabel>([
   '被连累'
 ])
 
-export function validateAttribution(
-  rawJson: string,
-  snapshot: MatchSnapshot
-): ValidateOutcome {
+export function validateAttribution(rawJson: string, snapshot: MatchSnapshot): ValidateOutcome {
   // ─── Layer 1: parse JSON (strip fenced wrappers) ───
   const stripped = stripFencedCodeBlock(rawJson)
   let parsed: unknown
@@ -130,9 +120,7 @@ export function validateAttribution(
       }
     }
 
-    const playerSnap = snapshot.players.find(
-      (p: any) => p.participantId === v.participantId
-    )
+    const playerSnap = snapshot.players.find((p: any) => p.participantId === v.participantId)
     if (!playerSnap) {
       return {
         ok: false,
@@ -175,9 +163,8 @@ export function validateAttribution(
           const sameTeamCriminals = result.verdicts.filter(
             other =>
               other.participantId !== v.participantId &&
-              snapshot.players.find(
-                (p: any) => p.participantId === other.participantId
-              )?.teamId === (playerSnap as any).teamId &&
+              snapshot.players.find((p: any) => p.participantId === other.participantId)?.teamId ===
+                (playerSnap as any).teamId &&
               other.label === '犯罪'
           )
           if (sameTeamCriminals.length < 2) {

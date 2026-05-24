@@ -25,6 +25,8 @@ export interface Stage1Config<Out> {
   parse: (raw: string) => ParseOutcome<Out>
   cacheKey?: string
   retry?: number
+  /** AI model name; falls back to worker default (qwen-turbo) when omitted. */
+  model?: string
 }
 
 export interface Stage2Config<In, Out> {
@@ -34,6 +36,8 @@ export interface Stage2Config<In, Out> {
   cacheKey?: string
   retry?: number
   streamCallback?: (chunk: string) => void
+  /** AI model name; falls back to worker default (qwen-turbo) when omitted. */
+  model?: string
 }
 
 export type TwoStageResult<S1, S2> =
@@ -65,7 +69,8 @@ export async function runTwoStage<Stage1Out, Stage2Out>(opts: {
     const resp = await requestAIContent(
       opts.stage1.userPrompt,
       opts.stage1.cacheKey ?? `twoStage_s1_${Date.now()}_${attempt}`,
-      opts.stage1.systemPrompt
+      opts.stage1.systemPrompt,
+      opts.stage1.model
     )
     if (!resp) {
       // Defensive: treat missing response as transient — fall through to parse retry
@@ -109,7 +114,8 @@ export async function runTwoStage<Stage1Out, Stage2Out>(opts: {
           resolve()
         }
       },
-      opts.stage2.buildSystemPrompt(stage1Final)
+      opts.stage2.buildSystemPrompt(stage1Final),
+      opts.stage2.model
     )
   })
 

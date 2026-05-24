@@ -7,11 +7,7 @@
 
 export type VerdictLabel = '尽力' | '犯罪' | '被爆' | '被连累' | '缚地灵' | '正常'
 
-export type MitigatingFactorKind =
-  | 'off-role'
-  | 'first-time-champion'
-  | 'team-collapse'
-  | 'targeted'
+export type MitigatingFactorKind = 'off-role' | 'first-time-champion' | 'team-collapse' | 'targeted'
 
 export interface MitigatingFactor {
   factor: MitigatingFactorKind
@@ -49,10 +45,4 @@ export interface AttributionResult {
 export type CritiqueMarkdown = string
 
 /** UI state machine 用 */
-export type MatchAIState =
-  | 'idle'
-  | 'profiles'
-  | 'attribution'
-  | 'critique'
-  | 'done'
-  | 'error'
+export type MatchAIState = 'idle' | 'profiles' | 'attribution' | 'critique' | 'done' | 'error'
