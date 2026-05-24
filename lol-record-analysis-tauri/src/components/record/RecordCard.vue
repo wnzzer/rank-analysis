@@ -532,8 +532,9 @@ function openDetail() {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  /* 22→28px 随 viewport (1100→2200) */
+  width: clamp(22px, calc(22px + (100vw - 1100px) * 6 / 1100), 28px);
+  height: clamp(22px, calc(22px + (100vw - 1100px) * 6 / 1100), 28px);
   border-radius: var(--radius-sm);
   border: 1px solid var(--augment-border);
   background: var(--augment-background);
@@ -592,8 +593,9 @@ function openDetail() {
   background: var(--bg-elevated);
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-subtle);
-  min-width: 16px;
-  height: 16px;
+  /* meta-icon badge 16→20 随 viewport */
+  min-width: clamp(16px, calc(16px + (100vw - 1100px) * 4 / 1100), 20px);
+  height: clamp(16px, calc(16px + (100vw - 1100px) * 4 / 1100), 20px);
   padding: 0 var(--radius-xs);
 }
 
@@ -603,6 +605,9 @@ function openDetail() {
   border: 1px solid var(--border-subtle);
   box-shadow: var(--shadow-sm);
   transition: box-shadow var(--dur-fast) var(--ease-expo);
+  /* TeamAvatarGroup 头像 15→22px 随 viewport, 强制覆盖 n-avatar 默认尺寸 */
+  width: clamp(15px, calc(15px + (100vw - 1100px) * 7 / 1100), 22px) !important;
+  height: clamp(15px, calc(15px + (100vw - 1100px) * 7 / 1100), 22px) !important;
 }
 
 :deep(.n-tag .n-avatar:hover),
