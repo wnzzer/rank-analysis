@@ -602,11 +602,13 @@ async fn process_subteam_parallel(
             };
         }
 
-        let count = match crate::config::get_config("matchHistoryCount").await {
-            Ok(crate::config::Value::Integer(v)) => v as i32,
-            Ok(crate::config::Value::String(s)) => s.parse().unwrap_or(4),
-            _ => 4,
-        };
+        let count = crate::config::get_config("matchHistoryCount")
+            .await
+            .ok()
+            .as_ref()
+            .and_then(crate::config::extract_int)
+            .map(|n| n as i32)
+            .unwrap_or(4);
         let puuid = player.puuid.clone();
 
         let (summoner, match_history, rank) = tokio::join!(

@@ -307,6 +307,18 @@ pub fn extract_bool(value: &Value) -> Option<bool> {
     }
 }
 
+/// 从配置 Value 中提取整数。
+///
+/// 前端 `putConfigByIpc` 一律写入 `Value::Map({"value": ...})`，本函数只认这一种格式。
+pub fn extract_int(value: &Value) -> Option<i64> {
+    if let Value::Map(m) = value {
+        if let Some(Value::Integer(n)) = m.get("value") {
+            return Some(*n);
+        }
+    }
+    None
+}
+
 /// 从缓存获取配置值。
 ///
 /// 如果键不存在，返回根据键名推断的默认值。
