@@ -8,7 +8,7 @@
     </n-layout-sider>
     <Transition name="slide-fade" mode="out-in">
       <n-layout-content v-if="!isMobile" class="record-content" style="flex: 3">
-        <div>
+        <div class="record-content-inner">
           <MatchHistory />
         </div>
       </n-layout-content>
@@ -26,6 +26,12 @@ const { isMobile } = useBreakpoint()
 .record-content {
   padding: var(--space-20);
   padding-top: var(--space-16);
+}
+
+/* 宽屏 (>1400) 时内容居中,上限 1280 防过宽稀疏 */
+.record-content-inner {
+  max-width: 1280px;
+  margin: 0 auto;
 }
 
 /* UserRecord 面板隐藏滚动条 */

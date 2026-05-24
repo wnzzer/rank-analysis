@@ -410,15 +410,16 @@ function openDetail() {
 
 /* === 英雄头像 + MVP 牌 === */
 .record-card-champion {
-  height: 42px;
-  width: 42px;
+  /* 42→52px 随 viewport 平滑放大 (1100→2200) */
+  height: clamp(42px, calc(42px + (100vw - 1100px) * 10 / 1100), 52px);
+  width: clamp(42px, calc(42px + (100vw - 1100px) * 10 / 1100), 52px);
   position: relative;
 }
 
 .record-card-champion-img {
   display: block;
-  width: 42px;
-  height: 42px;
+  width: clamp(42px, calc(42px + (100vw - 1100px) * 10 / 1100), 52px);
+  height: clamp(42px, calc(42px + (100vw - 1100px) * 10 / 1100), 52px);
 }
 
 .record-card-mvp {
@@ -502,8 +503,9 @@ function openDetail() {
 .record-card-item-slots :deep(.n-image img),
 .record-card-item-slots .record-card-icon-slot,
 .record-card-spell-icons .record-card-icon-slot {
-  width: 24px;
-  height: 24px;
+  /* 24→30px 随 viewport (1100→2200) */
+  width: clamp(24px, calc(24px + (100vw - 1100px) * 6 / 1100), 30px);
+  height: clamp(24px, calc(24px + (100vw - 1100px) * 6 / 1100), 30px);
   border-radius: var(--radius-sm);
   background: var(--bg-elevated);
   border: 1px solid var(--glass-border);

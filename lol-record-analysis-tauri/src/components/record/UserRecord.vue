@@ -251,10 +251,12 @@ const copyName = () => {
   min-width: 0;
 }
 
-.user-record-nickname {
+/* :deep 因 n-ellipsis 子组件根 scoped attr 不透传 (同 Gaming/PlayerCard 教训) */
+/* 16→20px 随 viewport (1100→2200) */
+:deep(.user-record-nickname) {
   max-width: 100%;
+  font-size: clamp(16px, calc(16px + (100vw - 1100px) * 4 / 1100), 20px);
   font-weight: 700;
-  font-size: var(--font-size-lg);
 }
 
 .user-record-tagline {
@@ -287,6 +289,9 @@ const copyName = () => {
   background: transparent !important;
   border: 1px solid var(--border-subtle);
   box-shadow: none;
+  /* 58→76px 随 viewport 平滑放大 (1100→2200), 强制覆盖 n-avatar inline size="58" */
+  width: clamp(58px, calc(58px + (100vw - 1100px) * 18 / 1100), 76px) !important;
+  height: clamp(58px, calc(58px + (100vw - 1100px) * 18 / 1100), 76px) !important;
 }
 
 .user-record-avatar-img {

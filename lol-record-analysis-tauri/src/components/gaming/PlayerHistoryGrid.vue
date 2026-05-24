@@ -85,7 +85,11 @@ defineProps<{ games: Game[] }>()
 /* minmax(0, 1fr) 阻止 KDA 大数字 (15/10/33) 把 1fr 列撑大挤掉 queue 列 */
 .history-row {
   display: grid;
-  grid-template-columns: 18px 24px minmax(0, 1fr) clamp(60px, calc(60px + (100vw - 900px) * 20 / 2100), 80px);
+  grid-template-columns: 18px 24px minmax(0, 1fr) clamp(
+      60px,
+      calc(60px + (100vw - 900px) * 20 / 2100),
+      80px
+    );
   align-items: center;
   gap: var(--space-6);
 }
