@@ -120,10 +120,10 @@
             <div class="match-detail-column-header">
               <span>玩家</span>
               <span>装备 / 技能 / {{ usesAugments ? '海克斯' : '符文' }}</span>
-              <span>KDA</span>
-              <span>金钱</span>
-              <span>补兵</span>
-              <span>推塔</span>
+              <span class="match-detail-header-center">KDA</span>
+              <span class="match-detail-header-right">金钱</span>
+              <span class="match-detail-header-right">补兵</span>
+              <span class="match-detail-header-right">推塔</span>
               <span></span>
             </div>
 
@@ -778,11 +778,22 @@ watch(
 }
 
 .match-detail-column-header {
-  padding: var(--space-4) 9px;
+  padding: var(--space-6) 9px;
   color: var(--text-secondary);
   font-size: var(--font-size-2xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
   background: var(--glass-bg-low);
   border-bottom: 1px solid var(--border-subtle);
+  text-transform: none;
+}
+
+/* 表头数字列与数据行 text-align 对齐 (B+E 一起) */
+.match-detail-header-right {
+  text-align: right;
+}
+.match-detail-header-center {
+  text-align: center;
 }
 
 .theme-light .match-detail-column-header {
@@ -797,18 +808,31 @@ watch(
 .match-detail-row {
   padding: var(--space-4) 9px;
   border-bottom: 1px solid var(--border-subtle);
+  /* hover 反馈: 整行加亮 + 强调左侧 (A 优化) */
+  transition: background var(--dur-fast) var(--ease-expo);
+  position: relative;
+}
+
+.match-detail-row:hover {
+  background: var(--glass-bg-mid);
 }
 
 .match-detail-row:last-child {
   border-bottom: none;
 }
 
+/* "我" 行强化高亮: 左侧 3px 队伍色 accent + 略强背景 (G 优化) */
 .match-detail-row-me {
-  background: rgba(92, 163, 234, 0.08);
+  background: rgba(92, 163, 234, 0.12);
+  box-shadow: inset 3px 0 0 0 var(--semantic-win);
+}
+
+.match-detail-row-me:hover {
+  background: rgba(92, 163, 234, 0.18);
 }
 
 .theme-light .match-detail-row-me {
-  background: rgba(92, 163, 234, 0.06);
+  background: rgba(92, 163, 234, 0.08);
 }
 
 .match-detail-player-main {
@@ -1020,6 +1044,14 @@ watch(
   font-weight: 600;
   font-size: var(--font-size-xs);
   color: var(--text-primary);
+  /* tabular-nums: 数字等宽, 列与列之间数字纵向对齐 (E 优化) */
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* KDA 单元格保留居中（KDA 视觉中心对齐更易扫读, 跟 PlayerHistoryGrid 一致） */
+.match-detail-kda-value-cell {
+  text-align: center;
 }
 
 .match-detail-kda-value-cell {
