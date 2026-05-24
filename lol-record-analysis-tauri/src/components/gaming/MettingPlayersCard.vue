@@ -9,11 +9,10 @@
         >
           <!-- Left: Champion -->
           <div class="champion-section">
-            <img
+            <LazyImg
               :src="assetPrefix + '/champion/' + meetGame.championId"
+              alt="champion"
               class="champion-img"
-              loading="lazy"
-              decoding="async"
             />
           </div>
 
@@ -52,6 +51,7 @@ import type { Game } from '../record/match'
 import { assetPrefix } from '../../services/http'
 import { openMatchDetailWindow } from '../record/detailWindow'
 import { invoke } from '@tauri-apps/api/core'
+import LazyImg from '@renderer/components/common/LazyImg.vue'
 
 function getFormattedDate(dateString: string) {
   const date = new Date(dateString)
@@ -89,20 +89,21 @@ defineProps<{
 .game-card {
   display: flex;
   align-items: center;
-  padding: 6px 8px;
+  padding: var(--space-6) var(--space-8);
   border-radius: var(--radius-md);
-  background-color: rgba(255, 255, 255, 0.03);
+  background-color: var(--glass-bg-low);
   border: 1px solid transparent;
-  transition: all 0.2s ease;
+  transition: all var(--dur-fast) var(--ease-expo);
+  /* 固定 48px 行高：保证栅格视觉对齐 */
   height: 48px;
   box-sizing: border-box;
   cursor: pointer;
 }
 
 .game-card:hover {
-  background-color: rgba(255, 255, 255, 0.08);
+  background-color: var(--glass-bg-high);
   transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-md);
 }
 
 .game-card:active {
@@ -110,25 +111,30 @@ defineProps<{
 }
 
 .game-card.is-win {
-  border-left: 3px solid #8bdfb7;
+  border-left: 3px solid var(--semantic-win);
+  /* tinted gradient：保留 rgba 平铺，仅作为半透明背景渲染 */
   background: linear-gradient(90deg, rgba(139, 223, 183, 0.1) 0%, rgba(0, 0, 0, 0) 100%);
 }
 
 .game-card.is-loss {
-  border-left: 3px solid #ba3f53;
+  border-left: 3px solid var(--semantic-loss);
   background: linear-gradient(90deg, rgba(186, 63, 83, 0.1) 0%, rgba(0, 0, 0, 0) 100%);
 }
 
 .champion-section {
-  margin-right: 8px;
+  margin-right: var(--space-8);
   display: flex;
   align-items: center;
 }
 
+/* 固定 32px 英雄方头像：像素精确布局，不取 token 阶 */
 .champion-img {
   width: 32px;
   height: 32px;
   border-radius: var(--radius-sm);
+}
+
+.champion-img :deep(img) {
   object-fit: cover;
 }
 
@@ -137,41 +143,42 @@ defineProps<{
   display: flex;
   flex-direction: column;
   justify-content: center;
-  line-height: 1.2;
+  line-height: var(--line-height-tight);
   overflow: hidden;
 }
 
 .kda-row {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
   font-family: 'Oswald', sans-serif;
   white-space: nowrap;
 }
 
 .kda-val.kill {
-  color: #8bdfb7;
+  color: var(--semantic-win);
 }
 
 .kda-val.death {
-  color: #ba3f53;
+  color: var(--semantic-loss);
 }
 
 .kda-val.assist {
+  /* TODO: --semantic-warn token —— 当前无 warn/highlight semantic 令牌，保留原 orange */
   color: #d38b2a;
 }
 
 .kda-sep {
-  color: #666;
-  margin: 0 2px;
-  font-size: 11px;
+  color: var(--text-tertiary);
+  margin: 0 var(--space-2);
+  font-size: var(--font-size-xs);
 }
 
 .meta-row {
-  font-size: 10px;
-  color: #999;
-  margin-top: 2px;
+  font-size: var(--font-size-2xs);
+  color: var(--text-tertiary);
+  margin-top: var(--space-2);
   display: flex;
-  gap: 6px;
+  gap: var(--space-6);
   white-space: nowrap;
 }
 
@@ -181,37 +188,39 @@ defineProps<{
   align-items: flex-end;
   justify-content: center;
   min-width: 32px;
-  margin-left: 4px;
+  margin-left: var(--space-4);
 }
 
 .result-text {
-  font-size: 12px;
-  font-weight: bold;
-  margin-bottom: 2px;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  margin-bottom: var(--space-2);
 }
 
 .text-win {
-  color: #8bdfb7;
+  color: var(--semantic-win);
 }
 
 .text-loss {
-  color: #ba3f53;
+  color: var(--semantic-loss);
 }
 
 .relation-badge {
-  font-size: 10px;
-  padding: 1px 4px;
+  font-size: var(--font-size-2xs);
+  /* 1px：徽标紧凑内边距，非 token 阶 */
+  padding: 1px var(--space-4);
   border-radius: var(--radius-sm);
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: var(--glass-bg-high);
 }
 
 .relation-badge.is-friend {
-  color: #8bdfb7;
+  color: var(--semantic-win);
+  /* tinted badge bg：保留 rgba 以保持半透明 hover 视觉 */
   background-color: rgba(139, 223, 183, 0.15);
 }
 
 .relation-badge.is-enemy {
-  color: #ba3f53;
+  color: var(--semantic-loss);
   background-color: rgba(186, 63, 83, 0.15);
 }
 </style>
