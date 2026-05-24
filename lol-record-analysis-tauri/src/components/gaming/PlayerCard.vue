@@ -48,7 +48,7 @@
           <n-flex align="center" :wrap="false" class="profile-row">
             <div class="avatar-wrapper">
               <n-image
-                width="40"
+                width="36"
                 :src="assetPrefix + '/champion/' + sessionSummoner.championId"
                 preview-disabled
                 :fallback-src="nullImg"
@@ -86,7 +86,10 @@
               <n-flex align="center" class="meta-row">
                 <span class="tag-line">#{{ sessionSummoner?.summoner.tagLine }}</span>
                 <n-flex align="center" class="tier-row">
-                  <LazyImg class="tier-icon" :src="imgUrl" alt="tier" />
+                  <span v-if="imgUrl.includes('unranked')" class="tier-icon-placeholder">
+                    <n-icon><HelpCircleOutline /></n-icon>
+                  </span>
+                  <LazyImg v-else class="tier-icon" :src="imgUrl" alt="tier" />
                   <span class="tier-text">{{ tierCn }}</span>
                 </n-flex>
                 <!-- ARAM Balance Status -->
@@ -177,7 +180,7 @@ import {
   NTag,
   NTooltip
 } from 'naive-ui'
-import { CopyOutline } from '@vicons/ionicons5'
+import { CopyOutline, HelpCircleOutline } from '@vicons/ionicons5'
 import MettingPlayersCard from './MettingPlayersCard.vue'
 import { useCopy } from '@renderer/composables/useCopy'
 import { searchSummoner } from '@renderer/utils/navigation'
@@ -204,8 +207,8 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), { team: undefined, density: 'normal' })
 
-/** n-card content-style：用 token 控制内边距 */
-const cardContentStyle = 'padding: var(--space-6);'
+/** n-card content-style：用 token 控制内边距（P0 收紧为 --space-4 让 4 场 1 屏装下） */
+const cardContentStyle = 'padding: var(--space-4);'
 
 const settingsStore = useSettingsStore()
 const { isDark } = useTheme()
@@ -336,7 +339,7 @@ const { isAramMode, balanceTags, overallBalanceStatus } = useAramBalance(
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: var(--space-8);
+  gap: var(--space-6);
   min-width: 0;
 }
 
@@ -351,15 +354,15 @@ const { isAramMode, balanceTags, overallBalanceStatus } = useAramBalance(
 }
 
 .profile-section {
-  padding-bottom: var(--space-8);
+  padding-bottom: var(--space-4);
   border-bottom: 1px solid var(--n-divider-color);
 }
 
 .avatar-wrapper {
   position: relative;
-  /* 40px: 头像固定尺寸 */
-  width: 40px;
-  height: 40px;
+  /* 36px: 头像（P1 精致化，从 40 收到 36） */
+  width: 36px;
+  height: 36px;
   flex-shrink: 0;
 }
 
@@ -416,16 +419,27 @@ const { isAramMode, balanceTags, overallBalanceStatus } = useAramBalance(
 }
 
 .tier-icon {
-  /* 16px: 段位图标固定尺寸 */
+  /* 20px: 段位图标固定尺寸（从 16 提到 20，视觉更显眼） */
   display: inline-block;
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
 }
 
 .tier-icon :deep(img) {
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+
+/* 未定级时用 n-icon 占位（QuestionMark），保持视觉权重一致 */
+.tier-icon-placeholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  font-size: 18px;
+  color: var(--text-tertiary);
 }
 
 .tier-text {
