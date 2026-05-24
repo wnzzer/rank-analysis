@@ -101,7 +101,7 @@
             </span>
           </div>
           <!-- 普通模式：显示带tooltip的召唤师技能 -->
-          <n-flex v-else class="record-card-spell-icons">
+          <n-flex v-else class="record-card-spell-icons" :size="0">
             <n-tooltip
               v-for="(spellId, index) in [
                 games.participants[0].spell1Id,
@@ -129,7 +129,7 @@
           </n-flex>
         </n-flex>
         <!-- 装备区域（所有模式都显示） -->
-        <n-flex class="record-card-item-slots">
+        <n-flex class="record-card-item-slots" :size="0">
           <n-tooltip
             v-for="(itemId, index) in itemIds"
             :key="`record-item-${index}`"
