@@ -806,7 +806,8 @@ watch(
 }
 
 .match-detail-row {
-  padding: var(--space-4) 9px;
+  /* 行内边距 4→8 给呼吸 (解决"闭塞") */
+  padding: var(--space-8) 9px;
   border-bottom: 1px solid var(--border-subtle);
   /* hover 反馈: 整行加亮 + 强调左侧 (A 优化) */
   transition: background var(--dur-fast) var(--ease-expo);
@@ -842,9 +843,9 @@ watch(
 }
 
 .match-detail-player-avatar {
-  /* AI 复盘弹窗内玩家头像 30→38 随 viewport */
-  width: clamp(30px, calc(30px + (100vw - 1100px) * 8 / 1100), 38px);
-  height: clamp(30px, calc(30px + (100vw - 1100px) * 8 / 1100), 38px);
+  /* 玩家头像 36→48 (放大一档增强主视觉) */
+  width: clamp(36px, calc(36px + (100vw - 1100px) * 12 / 1100), 48px);
+  height: clamp(36px, calc(36px + (100vw - 1100px) * 12 / 1100), 48px);
   border-radius: var(--radius-md);
   border: 1px solid var(--border-subtle);
   flex-shrink: 0;
@@ -956,10 +957,10 @@ watch(
 .match-detail-spell-icon,
 .match-detail-item-icon,
 .match-detail-perk-icon {
-  /* 17→22 随 viewport (1100→2200) */
-  width: clamp(17px, calc(17px + (100vw - 1100px) * 5 / 1100), 22px);
-  height: clamp(17px, calc(17px + (100vw - 1100px) * 5 / 1100), 22px);
-  border-radius: 5px; /* 17px 方块视觉圆角,介于 xs(3)/sm(6) */
+  /* 22→30 (icon 整体放大解决"闭塞"+"图标小") */
+  width: clamp(22px, calc(22px + (100vw - 1100px) * 8 / 1100), 30px);
+  height: clamp(22px, calc(22px + (100vw - 1100px) * 8 / 1100), 30px);
+  border-radius: 5px; /* 方块视觉圆角,介于 xs(3)/sm(6) */
   border: 1px solid var(--border-subtle);
   background: var(--bg-elevated);
   object-fit: cover;
@@ -978,10 +979,10 @@ watch(
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  /* 17→22 随 viewport, 与 spell/item/perk 同步 */
-  width: clamp(17px, calc(17px + (100vw - 1100px) * 5 / 1100), 22px);
-  height: clamp(17px, calc(17px + (100vw - 1100px) * 5 / 1100), 22px);
-  border-radius: 5px; /* 与 spell/item/perk 视觉对齐 */
+  /* 22→30 与 spell/item/perk 同步 */
+  width: clamp(22px, calc(22px + (100vw - 1100px) * 8 / 1100), 30px);
+  height: clamp(22px, calc(22px + (100vw - 1100px) * 8 / 1100), 30px);
+  border-radius: 5px;
   border: 1px solid var(--augment-border);
   background: var(--augment-background);
   box-sizing: border-box;
@@ -989,9 +990,9 @@ watch(
 }
 
 .match-detail-augment-icon {
-  /* shell 17→22, inner 12→17 同比放大 */
-  width: clamp(12px, calc(12px + (100vw - 1100px) * 5 / 1100), 17px);
-  height: clamp(12px, calc(12px + (100vw - 1100px) * 5 / 1100), 17px);
+  /* inner 17→23 同比放大 (shell 22→30, inner 留 5px 边距) */
+  width: clamp(17px, calc(17px + (100vw - 1100px) * 6 / 1100), 23px);
+  height: clamp(17px, calc(17px + (100vw - 1100px) * 6 / 1100), 23px);
   object-fit: contain;
   filter: var(--augment-filter);
 }
