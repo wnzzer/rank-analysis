@@ -11,11 +11,11 @@
     ]"
     size="small"
     :bordered="true"
-    content-style="padding: 6px;"
+    :content-style="cardContentStyle"
   >
     <div v-if="sessionSummoner.isLoading" key="loading-known" class="loading-container">
       <div class="custom-spin"></div>
-      <span v-if="sessionSummoner.summoner.gameName" style="font-size: 12px; color: #aaa">
+      <span v-if="sessionSummoner.summoner.gameName" class="loading-name">
         {{ sessionSummoner.summoner.gameName }}
       </span>
     </div>
@@ -45,7 +45,7 @@
       <div class="left-section">
         <!-- Profile -->
         <div class="profile-section">
-          <n-flex align="center" :wrap="false" style="gap: 10px">
+          <n-flex align="center" :wrap="false" class="profile-row">
             <div class="avatar-wrapper">
               <n-image
                 width="40"
@@ -58,7 +58,7 @@
             </div>
 
             <div class="info-wrapper">
-              <n-flex align="center" style="gap: 4px">
+              <n-flex align="center" class="name-row">
                 <n-button
                   text
                   @click="
@@ -67,7 +67,7 @@
                     )
                   "
                 >
-                  <n-ellipsis style="max-width: 110px; font-size: 13px; font-weight: 700">
+                  <n-ellipsis class="name-ellipsis">
                     {{ sessionSummoner?.summoner.gameName }}
                   </n-ellipsis>
                 </n-button>
@@ -83,17 +83,17 @@
                 </n-button>
               </n-flex>
 
-              <n-flex align="center" style="gap: 6px; flex-wrap: wrap">
+              <n-flex align="center" class="meta-row">
                 <span class="tag-line">#{{ sessionSummoner?.summoner.tagLine }}</span>
-                <n-flex align="center" style="gap: 4px">
-                  <img class="tier-icon" :src="imgUrl" />
+                <n-flex align="center" class="tier-row">
+                  <LazyImg class="tier-icon" :src="imgUrl" alt="tier" />
                   <span class="tier-text">{{ tierCn }}</span>
                 </n-flex>
                 <!-- ARAM Balance Status -->
                 <n-popover
                   v-if="balanceTags.length > 0 && isAramMode"
                   trigger="hover"
-                  style="padding: 5px"
+                  :style="{ padding: 'var(--space-4)' }"
                 >
                   <template #trigger>
                     <n-tag
@@ -101,12 +101,12 @@
                       :type="overallBalanceStatus.type"
                       :bordered="false"
                       round
-                      style="height: 18px; padding: 0 6px; font-size: 11px; cursor: help"
+                      class="balance-tag"
                     >
                       {{ overallBalanceStatus.label }}
                     </n-tag>
                   </template>
-                  <n-flex vertical size="small" style="gap: 4px">
+                  <n-flex vertical size="small" class="balance-list">
                     <n-tag
                       v-for="tag in balanceTags"
                       :key="tag.label"
@@ -189,6 +189,7 @@ import { useTheme } from '@renderer/composables/useTheme'
 import { useAramBalance } from '@renderer/composables/useAramBalance'
 import PlayerHistoryGrid from './PlayerHistoryGrid.vue'
 import PlayerStatsCard from './PlayerStatsCard.vue'
+import LazyImg from '@renderer/components/common/LazyImg.vue'
 
 interface Props {
   sessionSummoner: SessionSummoner
@@ -202,6 +203,9 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), { team: undefined, density: 'normal' })
+
+/** n-card content-style：用 token 控制内边距 */
+const cardContentStyle = 'padding: var(--space-6);'
 
 const settingsStore = useSettingsStore()
 const { isDark } = useTheme()
@@ -263,7 +267,48 @@ const { isAramMode, balanceTags, overallBalanceStatus } = useAramBalance(
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-8);
+}
+
+.loading-name {
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+}
+
+.profile-row {
+  gap: var(--space-10);
+}
+
+.name-row {
+  gap: var(--space-4);
+}
+
+.name-ellipsis {
+  /* 110px: 名称列最大宽度，固定 UI 不入 token */
+  max-width: 110px;
+  font-size: var(--font-size-base);
+  font-weight: 700;
+}
+
+.meta-row {
+  gap: var(--space-6);
+  flex-wrap: wrap;
+}
+
+.tier-row {
+  gap: var(--space-4);
+}
+
+.balance-tag {
+  /* 18px / cursor:help：紧凑标签固定高度，不入 token */
+  height: 18px;
+  padding: 0 var(--space-6);
+  font-size: var(--font-size-xs);
+  cursor: help;
+}
+
+.balance-list {
+  gap: var(--space-4);
 }
 
 .hidden-record-block {
@@ -282,7 +327,7 @@ const { isAramMode, balanceTags, overallBalanceStatus } = useAramBalance(
 }
 
 .hidden-record-text {
-  font-size: 13px;
+  font-size: var(--font-size-base);
   font-weight: 600;
   color: var(--text-tertiary);
 }
@@ -291,26 +336,28 @@ const { isAramMode, balanceTags, overallBalanceStatus } = useAramBalance(
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-8);
   min-width: 0;
 }
 
 .right-section {
+  /* 100px: 右侧统计列固定宽，保持视觉对齐 */
   width: 100px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-left: 8px;
+  gap: var(--space-8);
+  margin-left: var(--space-8);
 }
 
 .profile-section {
-  padding-bottom: 8px;
+  padding-bottom: var(--space-8);
   border-bottom: 1px solid var(--n-divider-color);
 }
 
 .avatar-wrapper {
   position: relative;
+  /* 40px: 头像固定尺寸 */
   width: 40px;
   height: 40px;
   flex-shrink: 0;
@@ -326,13 +373,15 @@ const { isAramMode, balanceTags, overallBalanceStatus } = useAramBalance(
 
 .level-badge {
   position: absolute;
-  bottom: -6px;
-  right: -6px;
-  font-size: 10px;
+  bottom: calc(var(--space-6) * -1);
+  right: calc(var(--space-6) * -1);
+  font-size: var(--font-size-2xs);
+  /* 黑色半透明叠加层，固定不入主题 token */
   background: rgba(0, 0, 0, 0.7);
-  padding: 0 4px;
+  padding: 0 var(--space-4);
   border-radius: var(--radius-sm);
   color: white;
+  /* 14px 行高对齐徽标视觉，固定 UI */
   line-height: 14px;
 }
 
@@ -346,15 +395,15 @@ const { isAramMode, balanceTags, overallBalanceStatus } = useAramBalance(
   min-width: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: var(--space-4);
   justify-content: flex-end;
   align-items: center;
-  padding-left: 8px;
+  padding-left: var(--space-8);
 }
 
 .copy-btn {
   opacity: 0.6;
-  transition: opacity 0.2s;
+  transition: opacity var(--dur-fast) var(--ease-expo);
 }
 
 .copy-btn:hover {
@@ -363,20 +412,29 @@ const { isAramMode, balanceTags, overallBalanceStatus } = useAramBalance(
 
 .tag-line {
   color: var(--n-text-color-3);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 
 .tier-icon {
+  /* 16px: 段位图标固定尺寸 */
+  display: inline-block;
   width: 16px;
   height: 16px;
 }
 
+.tier-icon :deep(img) {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
 .tier-text {
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--n-text-color-2);
 }
 
 .custom-spin {
+  /* 22px: spinner 固定尺寸 */
   width: 22px;
   height: 22px;
   border-radius: 50%;
@@ -427,7 +485,7 @@ const { isAramMode, balanceTags, overallBalanceStatus } = useAramBalance(
 }
 
 .player-card-density-compact .left-section {
-  gap: 4px;
+  gap: var(--space-4);
 }
 
 .player-card-density-compact :deep(.player-history-grid) {
@@ -435,6 +493,6 @@ const { isAramMode, balanceTags, overallBalanceStatus } = useAramBalance(
 }
 
 .player-card-density-compact .info-wrapper :deep(.n-button) {
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 </style>
