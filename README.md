@@ -43,6 +43,8 @@
 
 ---
 
+> **TL;DR for developers** — A native LoL client tool built with **Tauri 2 + Rust + Vue 3 + TypeScript**. **~5 MB installer**, single Windows binary, zero Electron overhead. Talks to the LCU WebSocket for live in-game state, async Rust HTTP for match history, on-device AI tagging pipeline on top. No DLL injection, no game memory access — uses only Riot's official local client API.
+
 ## 📖 Introduction
 
 **Rank Analysis** is a League of Legends ranked match data analysis tool developed based on Riot's LCU API. It helps players easily query match history, identify teammate risks, and provides AI-powered intuitive match analysis. This project is built with **Tauri 2.0**, combining Rust's high performance with the flexibility of web frontends to deliver the most lightweight and efficient match query experience.

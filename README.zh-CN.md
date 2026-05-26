@@ -43,6 +43,8 @@
 
 ---
 
+> **给开发者的 TL;DR** —— 原生对接 LOL 客户端，**Tauri 2 + Rust + Vue 3 + TypeScript** 全栈。**安装包仅 ~5 MB**，单 Windows 二进制，零 Electron 开销。通过 LCU WebSocket 监听实时对局状态，Rust 异步 HTTP 拉战绩，上层是端上 AI 标签流水线。**不注入 DLL、不读游戏内存**，全程只调用 Riot 官方本地客户端 API。
+
 ## 📖 简介
 
 **Rank Analysis** 是一个基于 Riot 提供的 LCU API 开发的英雄联盟排位数据分析工具。致力于帮助玩家轻松查询战绩、识别队友风险，并结合 AI 做更直观的单场复盘。本项目使用 **Tauri 2.0** 构建，结合 Rust 的高性能与 Web 前端的灵活性，打造最精简、性能最好的战绩查询体验。
