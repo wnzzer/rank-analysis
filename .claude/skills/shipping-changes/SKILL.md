@@ -30,6 +30,13 @@ Single source of truth for "the code changed — now what?" in this repo. Two tr
 - WIP / experiment you don't intend to merge.
 - Doc-only edits outside `lol-record-analysis-tauri/` (still commit, but quality steps are no-ops).
 
+**Direct push to `main` is acceptable for** (skip §1 branch step, still run §2 gate):
+- Trivial typo / link fix in root docs (`README*.md`, `CLAUDE.md`) — no PR review value
+- Config-only changes under `.claude/`, `.github/` where the maintainer is sole stakeholder
+- Single-line urgent hot-fix where every minute counts
+
+For everything else — branch + PR + squash merge.
+
 ## §A. Quick gate after edits
 
 Run from `lol-record-analysis-tauri/`:
@@ -82,6 +89,11 @@ For UI changes, also `npm run tauri dev` and exercise the feature in the app. Ty
 
 ### 3. Commit — Conventional Commits
 
+> ⚠️ **This repo is squash-merge-only.** All commits on a PR collapse into **one** commit on `main`, and that commit's message defaults to the **PR title** (see §4). So:
+> - Intermediate commits on the branch can be looser (`wip`, `address review`, `fix typo` are fine).
+> - The **PR title** is the canonical entry — it's what lands in `main`, what `cliff.toml` parses, and what shows up in the next release's changelog.
+> - Still prefer conventional format for branch commits — easier review, safer fallback if squash is ever bypassed.
+
 Format: `<type>: <short imperative summary>` (Chinese summary OK; matches existing log).
 
 | type | use for |
@@ -112,9 +124,31 @@ Never `--amend` a pushed commit. Never `--no-verify`. If a hook fails, fix the u
 
 ### 4. Push and open PR
 
+> 🎯 **PR title = squash commit message = changelog entry.** This repo is configured to:
+> - Squash-merge only (no merge commits, no rebase merge)
+> - Default squash commit message = PR title (no commit-bullet noise)
+> - Auto-delete remote branch on merge
+>
+> So the PR title must be a **valid conventional commit**: `<type>(<scope>): <summary>`. Vague titles like `update stuff` / `修了一下` get **skipped by `cliff.toml`** and disappear from the release notes.
+
+**Before `gh pr create`, verify the proposed title** (this becomes the squash commit + the only line `cliff.toml` parses):
+1. Does it parse as `<type>(<scope>)?: <imperative summary>`?
+2. Is the `<type>` one of: `feat | fix | refactor | perf | style | docs | test | chore`? (other types get **skipped** by `.github/cliff.toml`)
+3. Is the summary specific (`feat(record): viewport 自适应`) not vague (`update record`)?
+
+If any answer is uncertain, **propose 2 alternative titles to the user** before pushing. A bad title silently disappears from the next release's changelog.
+
+If `git status` shows the branch is far behind `origin/main` (10+ commits), rebase first to avoid merge conflicts in the PR:
+
+```bash
+git fetch origin main
+git rebase origin/main
+# resolve conflicts → re-run §2 quality gate → continue
+```
+
 ```bash
 git push -u origin HEAD
-gh pr create --title "<type>: <summary>" --body "$(cat <<'EOF'
+gh pr create --title "<type>(<scope>): <summary>" --body "$(cat <<'EOF'
 ## Summary
 - bullet 1
 - bullet 2
@@ -128,7 +162,7 @@ EOF
 )"
 ```
 
-Print the returned PR URL back to the user.
+Print the returned PR URL back to the user. After merge, no need to clean up — the remote branch auto-deletes.
 
 ## Quick Reference
 
@@ -140,7 +174,8 @@ Print the returned PR URL back to the user.
 | Branch | `git switch -c <type>/<slug>` |
 | Commit | `git commit -m "<type>: ..."` (HEREDOC for body) |
 | Push | `git push -u origin HEAD` |
-| PR | `gh pr create --title ... --body ...` |
+| PR | `gh pr create --title "<type>(<scope>): ..." --body ...` |
+| After merge | Nothing — remote branch auto-deletes, only `main` stays |
 
 ## Common Mistakes
 
@@ -153,6 +188,7 @@ Print the returned PR URL back to the user.
 | `git commit --amend` after push | Make a fixup commit instead |
 | Disabling clippy/eslint rule to silence a warning | Fix the code; only suppress with a comment explaining why |
 | Vague commit (`fix: bug`, `chore: update`) | Say what changed and why in one sentence |
+| Vague **PR title** (`update stuff`, `修了一下`) | This is the squashed commit + changelog entry. Make it a real conventional commit |
 | Forgetting Rust side when only frontend touched (or vice versa) | `npm run check` runs both; trust the gate |
 
 ## Red Flags — STOP
@@ -161,3 +197,4 @@ Print the returned PR URL back to the user.
 - "Hook is being annoying, --no-verify" → no
 - "The diff is too big to read, `git add -A`" → split the commit instead
 - "I'll amend the pushed commit" → fixup commit instead
+- "I'll just write a short PR title, cliff will figure it out" → no, vague titles get **dropped from release notes**. Always `<type>(<scope>): <imperative summary>`
