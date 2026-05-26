@@ -496,7 +496,6 @@ function openDetail() {
 /* === 装备/技能 图标槽 === */
 .record-card-item-slots,
 .record-card-spell-icons {
-  /* 紧凑 1px gap, 留最小呼吸感 (n-flex 用 :size=1 控制, 这里兜底) */
   gap: 1px;
 }
 
@@ -507,8 +506,7 @@ function openDetail() {
   /* 24→30px 随 viewport (1100→2200) */
   width: clamp(24px, calc(24px + (100vw - 1100px) * 6 / 1100), 30px);
   height: clamp(24px, calc(24px + (100vw - 1100px) * 6 / 1100), 30px);
-  /* 角更直, 贴齐视觉连续 */
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   background: var(--bg-elevated);
   border: 1px solid var(--glass-border);
   box-sizing: border-box;
@@ -524,7 +522,6 @@ function openDetail() {
   /* 单行展示,最多 6 个 augment(新斗魂);不撑高度,横向占 ~106px。 */
   display: inline-flex;
   align-items: center;
-  /* 紧凑 1px gap */
   gap: 1px;
 }
 
@@ -535,11 +532,10 @@ function openDetail() {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  /* 22→28px 随 viewport (1100→2200) */
-  width: clamp(22px, calc(22px + (100vw - 1100px) * 6 / 1100), 28px);
-  height: clamp(22px, calc(22px + (100vw - 1100px) * 6 / 1100), 28px);
-  /* 角更直, 贴齐视觉连续 */
-  border-radius: 2px;
+  /* 18→22px 随 viewport (1100→2200), 比装备槽小一圈 */
+  width: clamp(18px, calc(18px + (100vw - 1100px) * 4 / 1100), 22px);
+  height: clamp(18px, calc(18px + (100vw - 1100px) * 4 / 1100), 22px);
+  border-radius: var(--radius-sm);
   border: 1px solid var(--augment-border);
   background: var(--augment-background);
   box-sizing: border-box;

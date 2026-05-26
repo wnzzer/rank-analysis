@@ -974,7 +974,6 @@ watch(
 
 .match-detail-spells {
   display: flex;
-  /* 紧凑: icon 间距 2→1px */
   gap: 1px;
 }
 
@@ -984,8 +983,7 @@ watch(
   /* 紧凑: 16→20 */
   width: clamp(16px, calc(16px + (100vw - 1100px) * 4 / 1100), 20px);
   height: clamp(16px, calc(16px + (100vw - 1100px) * 4 / 1100), 20px);
-  /* 角更直, 贴齐视觉更连续 */
-  border-radius: 2px;
+  border-radius: 4px;
   border: 1px solid var(--border-subtle);
   background: var(--bg-elevated);
   object-fit: cover;
@@ -994,7 +992,6 @@ watch(
 .match-detail-perks {
   display: flex;
   align-items: center;
-  /* 紧凑: 符文/海克斯 icon 间距 2→1px */
   gap: 1px;
 }
 
@@ -1064,7 +1061,6 @@ watch(
 .match-detail-items {
   display: flex;
   flex-wrap: wrap;
-  /* 紧凑 1px gap */
   gap: 1px;
 }
 
