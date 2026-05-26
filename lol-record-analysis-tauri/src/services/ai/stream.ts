@@ -3,6 +3,7 @@
  * 以及基于 sessionStorage 的结果缓存包装
  */
 
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import type { AIAnalysisResult, StreamCallbacks } from './types'
 
 export const DEFAULT_SYSTEM_PROMPT =
@@ -25,7 +26,11 @@ export async function requestAIContentStream(
   model: string = DEFAULT_MODEL
 ): Promise<void> {
   try {
-    const response = await fetch(AI_WORKER_URL, {
+    // 用 Tauri HTTP 插件而不是 webview fetch:
+    // - release 包 webview origin 是 http://tauri.localhost, 跟 dev 的 http://localhost:1420
+    //   不一样, Cloudflare Worker 的 CORS 白名单很可能只放行 dev origin
+    // - plugin-http 走 Rust 端 reqwest, 不经过 webview, 没有 CORS 限制
+    const response = await tauriFetch(AI_WORKER_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
