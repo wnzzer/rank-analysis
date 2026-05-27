@@ -189,11 +189,30 @@ let client = reqwest::Client::builder()
 
 **API 名字直接把 "danger" 写脸上**，第一次看到会有点慌。但 LCU 场景里这是唯一可行的方式（Riot 不可能给你 CA-signed cert）。
 
-<!-- TODO: 这里你可以加几句你当时具体踩到的细节，比如：
-- 找 LCU 端口和 token 的方式（lockfile vs WMIC）
-- 是否遇到 reqwest connection pool 在长连接下的奇怪行为
-- 在 Tauri command 里怎么共享 client 实例
--->
+更头疼的其实是 **port 和 auth-token 怎么找** —— 这俩是 LCU 客户端每次启动时随机生成的，注入到自己的进程命令行参数里（`--app-port=xxxxx --remoting-auth-token=yyy`）。常见做法是：
+
+| 方案 | 缺点 |
+|---|---|
+| 读 LCU 安装目录的 `lockfile` | 国服腾讯客户端经常找不到 / 路径不稳定 |
+| `wmic PROCESS WHERE name='LeagueClientUx.exe' GET commandline` | **需要管理员权限**，用户体验劝退 |
+| 调 Windows `NtQueryInformationProcess` API | 无需管理员，但要写 ntdll syscall |
+
+我选第三种 —— 在项目起步前先专门写了一篇文章把 Go 版的实现思路放出来了（[无管理员权限 LCU auth-token、port 获取（全网首发 go）](https://blog.csdn.net/faker1234546/article/details/144541387)，2024-12-19 发布）。迁到 Rust 时基本是逐行翻译：
+
+```rust
+// 大致思路（完整实现见上面那篇 CSDN 文章）
+use windows::Win32::System::Threading::*;
+let h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid)?;
+let mut buf = vec![0u8; 4096];
+let mut ret_len = 0u32;
+NtQueryInformationProcess(
+    h, ProcessCommandLineInformation, // == 60
+    buf.as_mut_ptr() as _, buf.len() as _, &mut ret_len
+)?;
+// 解析 UNICODE_STRING → 用正则抠出 --app-port / --remoting-auth-token
+```
+
+PROCESS_QUERY_LIMITED_INFORMATION 这个低权限级别拿不到敏感数据，但**进程命令行不算敏感**——这是 Windows 设计里被忽视的一个口子，刚好让我们绕过了管理员要求。
 
 ### 陷阱 2：Tauri 2 的 capability/permission 模型，第一次配会懵
 
@@ -329,12 +348,17 @@ const data = await invoke('get_match_history', { puuid: 'xxx' })
 如果你有兴趣看代码：
 - 仓库：[github.com/wnzzer/rank-analysis](https://github.com/wnzzer/rank-analysis)
 - 当前最新版安装包：[releases/latest](https://github.com/wnzzer/rank-analysis/releases/latest)
-- 历史版本（旧 Electron+Go）介绍文章：[① 项目介绍](https://blog.csdn.net/faker1234546/article/details/145118496) | [② 1.2 版本](https://blog.csdn.net/faker1234546/article/details/145412900) | [③ 分页设计](https://blog.csdn.net/faker1234546/article/details/145536380)
+- 关联文章：
+  - [无管理员权限 LCU auth-token、port 获取（全网首发 go）](https://blog.csdn.net/faker1234546/article/details/144541387) —— 项目起步前先解决的 LCU 凭据问题（陷阱 1 详细实现）
+  - 历史版本（旧 Electron+Go）介绍：[① 项目介绍](https://blog.csdn.net/faker1234546/article/details/145118496) | [② 1.2 版本](https://blog.csdn.net/faker1234546/article/details/145412900) | [③ 分页设计](https://blog.csdn.net/faker1234546/article/details/145536380)
 
 欢迎 issue 交流。
 
 <!-- TODO: 发布前自查清单
-1. 三个 TODO 占位补上具体细节（陷阱 1/2/3）
+1. 三个 TODO 占位:
+   - ✅ 陷阱 1（LCU 端口/token）已补，链回 CSDN 144541387
+   - ⏸️ 陷阱 2（capability/permission）你来填具体踩坑
+   - ⏸️ 陷阱 3（TS↔Rust types 同步方式）你来填具体方案
 2. ✅ 截图已加：5 张图（3 个 release 截图 + 2 个内存对比），都在 docs/blog-migration-assets/
 3. ✅ 标题已用 "128 MB 干到 5 MB" 钩子（GitHub Release 实测）
 4. CSDN / dev.to 双投，dev.to 版本翻译时把 "LOL 腾讯服" 改成 "LOL (League of Legends)"
