@@ -11,7 +11,7 @@
       <button
         class="note-trigger"
         :class="{ 'has-note': hasNote, [`size-${size}`]: true }"
-        :title="hasNote ? `${meta.text}${note!.note ? '：' + note!.note : ''}` : '添加备注'"
+        :title="triggerTitle"
         type="button"
       >
         <span v-if="hasNote" class="note-dot" :style="{ background: meta.cssVar }" />
@@ -126,6 +126,13 @@ const hasNote = computed(() => !!note.value)
 const meta = computed(() => getNoteLabelMeta(note.value?.label ?? 'normal'))
 /** 已记录的遇见对局（最近在前） */
 const encounters = computed<OneGamePlayer[]>(() => note.value?.encounters ?? [])
+
+/** 触发按钮的 hover 提示：无备注显示"添加备注"，有备注显示档位（+备注文本） */
+const triggerTitle = computed(() => {
+  const n = note.value
+  if (!n) return '添加备注'
+  return n.note ? `${meta.value.text}：${n.note}` : meta.value.text
+})
 
 /** 打开面板时把草稿同步成当前值 */
 function onToggle(next: boolean) {

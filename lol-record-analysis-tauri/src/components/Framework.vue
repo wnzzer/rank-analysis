@@ -43,6 +43,7 @@ import MatchDetail from '@renderer/views/MatchDetail.vue'
 import ErrorReportingConsentDialog from '@renderer/components/common/ErrorReportingConsentDialog.vue'
 import { useGameState } from '@renderer/composables/useGameState'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
+import { CONFIG_KEYS } from '@renderer/services/configKeys'
 
 /**
  * 应用主布局框架组件
@@ -107,7 +108,7 @@ let consentRevealed = false
 async function maybeAskErrorReportingConsent(): Promise<void> {
   if (isStandaloneDetailWindow.value) return
   try {
-    const shown = await getConfigByIpc<boolean>('errorReportingConsentShown')
+    const shown = await getConfigByIpc<boolean>(CONFIG_KEYS.errorReportingConsentShown)
     if (shown) return
   } catch {
     // 读不到配置时按"未问过"处理
@@ -149,12 +150,12 @@ async function onConsentDecide(enabled: boolean): Promise<void> {
     // 无论"启用"还是"保持关闭"，都把用户的明确选择持久化到 errorReportingEnabled。
     // 否则当用户此前已在设置里开过（配置为 true）时，点"保持关闭"不会真正关掉，
     // 与按钮文案不符。
-    await putConfigByIpc('errorReportingEnabled', enabled)
+    await putConfigByIpc(CONFIG_KEYS.errorReportingEnabled, enabled)
     if (enabled) message.success('已开启，重启后生效')
   } catch {
     message.error('保存失败')
   }
-  putConfigByIpc('errorReportingConsentShown', true).catch(() => {})
+  putConfigByIpc(CONFIG_KEYS.errorReportingConsentShown, true).catch(() => {})
 }
 
 onMounted(() => {
