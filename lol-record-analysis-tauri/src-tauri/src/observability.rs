@@ -8,8 +8,11 @@
 //! ## 隐私
 //!
 //! - 默认 `send_default_pii: false`，不附带 IP / Cookie。
-//! - [`scrub_event`] 丢弃 `user` / `server_name`（主机名常含真实姓名），并对消息、
-//!   面包屑与其 data 中的字符串做 [`redact_pii`] 脱敏（puuid / 召唤师名 / UUID）。
+//! - [`scrub_event`] 丢弃 `user` / `server_name`，并对消息、**异常正文**、面包屑、extra
+//!   （含**嵌套数组 / 对象**）中的字符串做 [`redact_pii`]：覆盖 query / JSON / Debug 三种
+//!   形态的 puuid / 召唤师名 / UUID。
+//! - 局限：自由文本里无字段名上下文直接拼接的名字仍可能漏网——根本防线是默认关闭 +
+//!   不在日志里拼接玩家名。
 //!
 //! ## 开关
 //!
@@ -96,20 +99,39 @@ fn scrub_event(mut event: Event<'static>) -> Option<Event<'static>> {
         if let Some(message) = breadcrumb.message.take() {
             breadcrumb.message = Some(redact_pii(&message));
         }
-        scrub_string_values(&mut breadcrumb.data);
+        scrub_map(&mut breadcrumb.data);
     }
 
-    scrub_string_values(&mut event.extra);
+    // 异常正文（exception.values[*].value）是 capture_exception 与前端报错的主要载体，
+    // 必须脱敏，否则报错文本里的 LCU URL / 玩家标识会绕过本钩子。
+    for exception in &mut event.exception.values {
+        if let Some(value) = exception.value.take() {
+            exception.value = Some(redact_pii(&value));
+        }
+    }
+
+    scrub_map(&mut event.extra);
 
     Some(event)
 }
 
-/// 就地脱敏一个 `Map<String, Value>` 中的所有字符串值。
-fn scrub_string_values(map: &mut sentry::protocol::Map<String, Value>) {
+/// 递归脱敏一个 sentry `Map`（`event.extra` / `breadcrumb.data` 的顶层类型）。
+fn scrub_map(map: &mut sentry::protocol::Map<String, Value>) {
     for value in map.values_mut() {
-        if let Value::String(s) = value {
-            *s = redact_pii(s);
-        }
+        redact_value(value);
+    }
+}
+
+/// 递归脱敏任意 JSON 值：字符串就地脱敏，数组 / 对象逐元素递归。
+///
+/// breadcrumb.data 与 extra 常含嵌套数组 / 对象（如序列化后的请求体），
+/// 只洗顶层会漏掉嵌套字符串里的 URL / UUID / 玩家标识。
+fn redact_value(value: &mut Value) {
+    match value {
+        Value::String(s) => *s = redact_pii(s),
+        Value::Array(items) => items.iter_mut().for_each(redact_value),
+        Value::Object(obj) => obj.values_mut().for_each(redact_value),
+        _ => {}
     }
 }
 
@@ -123,19 +145,27 @@ static UUID_RE: LazyLock<Regex> = LazyLock::new(|| {
 static LONG_TOKEN_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"[A-Za-z0-9_-]{60,}").expect("valid long-token regex"));
 
-/// URL query / 路径中按字段名脱敏（name / gameName / tagLine / puuid 等）。
+/// 按字段名脱敏，覆盖三种常见形态：
+/// - URL query：`name=Faker`
+/// - JSON：`"gameName": "Faker"`
+/// - Rust Debug / snake_case：`summoner_name: "Faker"`
+///
+/// 组 1 = 字段名 + 分隔符(`:`/`=`) + 可选起始引号；组 2 = 值。只替换组 2，保留引号/分隔符。
 static PII_PARAM_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"(?i)(name|gamename|tagline|puuid|displayname|summonername|account|riotid)=([^&\s]+)",
+        r#"(?i)("?\b(?:game_?name|tag_?line|summoner_?name|display_?name|riot_?id|puuid|account|name)"?\s*[:=]\s*"?)([^"&,\s}\])]+)"#,
     )
     .expect("valid pii-param regex")
 });
 
 /// 对单个字符串做 PII 脱敏。
 ///
-/// 依次替换：按字段名的 query 参数 → 标准 UUID → 超长 token。纯函数，便于单测。
+/// 依次替换：按字段名（query / JSON / Debug）→ 标准 UUID → 超长 token。纯函数，便于单测。
+///
+/// 局限：无字段名上下文、直接拼进自由文本的名字（如 `format!("{} not found", name)`）
+/// 无法识别——根本防线是默认关闭 + 不在日志里拼接玩家名。
 pub fn redact_pii(input: &str) -> String {
-    let step1 = PII_PARAM_RE.replace_all(input, "$1=<redacted>");
+    let step1 = PII_PARAM_RE.replace_all(input, "${1}<redacted>");
     let step2 = UUID_RE.replace_all(&step1, "<redacted-uuid>");
     let step3 = LONG_TOKEN_RE.replace_all(&step2, "<redacted-id>");
     step3.into_owned()
@@ -174,5 +204,53 @@ mod tests {
     fn should_leave_clean_text_untouched() {
         let input = "connection to LCU failed: timeout after 20s";
         assert_eq!(redact_pii(input), input);
+    }
+
+    #[test]
+    fn should_redact_json_name_forms() {
+        let out = redact_pii(r#"{"gameName": "Faker", "tagLine": "KR1", "level": 30}"#);
+        assert!(!out.contains("Faker"), "gameName 应被脱敏: {out}");
+        assert!(!out.contains("KR1"), "tagLine 应被脱敏: {out}");
+        assert!(out.contains("level"), "非敏感字段应保留: {out}");
+    }
+
+    #[test]
+    fn should_redact_debug_struct_name() {
+        let out = redact_pii(r#"Summoner { summoner_name: "Faker", level: 30 }"#);
+        assert!(!out.contains("Faker"), "Debug 形态的名字应被脱敏: {out}");
+    }
+
+    #[test]
+    fn should_redact_nested_values() {
+        // 覆盖嵌套对象 + 数组里的字符串
+        let mut v = serde_json::json!({
+            "req": { "url": "/lol?name=Faker&x=1" },
+            "ids": ["12345678-1234-1234-1234-123456789abc"]
+        });
+        redact_value(&mut v);
+        let s = v.to_string();
+        assert!(!s.contains("Faker"), "嵌套对象里的名字应被脱敏: {s}");
+        assert!(
+            !s.contains("12345678-1234"),
+            "嵌套数组里的 uuid 应被脱敏: {s}"
+        );
+    }
+
+    #[test]
+    fn should_scrub_exception_values() {
+        let mut event = Event::default();
+        event.exception.values.push(sentry::protocol::Exception {
+            value: Some("failed for 12345678-1234-1234-1234-123456789abc".to_string()),
+            ..Default::default()
+        });
+        let scrubbed = scrub_event(event).expect("event kept");
+        let val = scrubbed.exception.values[0]
+            .value
+            .as_ref()
+            .expect("value present");
+        assert!(
+            val.contains("<redacted-uuid>"),
+            "异常正文里的 uuid 应被脱敏: {val}"
+        );
     }
 }
