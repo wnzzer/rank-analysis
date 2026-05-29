@@ -203,4 +203,29 @@ describe('usePlayerNotesStore', () => {
       expect(store.getNote('p')?.encounters?.length).toBe(1)
     })
   })
+
+  describe('健壮性（review 修复）', () => {
+    it('reload 后单调时钟不回退：新保存的 updatedAt 大于已载入的最大值（C1）', async () => {
+      const big = 9_000_000_000_000_000
+      mockGet.mockResolvedValue({
+        old: { note: 'x', label: 'normal', gameName: 'O', tagLine: '1', updatedAt: big }
+      })
+      const store = usePlayerNotesStore()
+      await store.init()
+      await store.setNote('new', { note: 'y', label: 'normal', gameName: 'N', tagLine: '2' })
+
+      expect(store.getNote('new')!.updatedAt).toBeGreaterThan(big)
+      // 列表"最近优先"：new 排在 old 之前
+      expect(store.list[0].puuid).toBe('new')
+    })
+
+    it('落盘失败时 setNote 抛出而非静默成功（C2）', async () => {
+      const store = usePlayerNotesStore()
+      mockPut.mockRejectedValueOnce(new Error('disk full'))
+
+      await expect(
+        store.setNote('p', { note: 'x', label: 'normal', gameName: 'G', tagLine: 'T' })
+      ).rejects.toThrow()
+    })
+  })
 })

@@ -82,6 +82,12 @@ export const usePlayerNotesStore = defineStore('playerNotes', () => {
     try {
       const saved = await getConfigByIpc<PlayerNotesMap>(STORAGE_KEY)
       notes.value = saved && typeof saved === 'object' ? saved : {}
+      // 跨窗口 / 重载后保持单调时钟不回退：把 lastTs 顶到已有最大 updatedAt。
+      // 否则 reload 后 lastTs 归 0，下次保存可能生成比现有更小的时间戳，
+      // 破坏列表"最近更新优先"的排序。
+      for (const note of Object.values(notes.value)) {
+        if (note.updatedAt > lastTs) lastTs = note.updatedAt
+      }
     } catch (error) {
       console.error('Failed to load player notes:', error)
       notes.value = {}
@@ -154,14 +160,20 @@ export const usePlayerNotesStore = defineStore('playerNotes', () => {
     await persist()
   }
 
-  /** 整表落盘，并广播变更通知其他窗口重载 */
+  /**
+   * 整表落盘，并广播变更通知其他窗口重载。
+   * 落盘失败时**重新抛出**——否则 setNote/removeNote 即使写盘失败也会 resolve，
+   * 上层 try/catch 永远进不去，用户看到"已保存/已删除"却实际未持久化。
+   */
   async function persist(): Promise<void> {
     try {
       await putConfigByIpc(STORAGE_KEY, notes.value)
-      emit(NOTES_CHANGED_EVENT).catch(() => {})
     } catch (error) {
       console.error('Failed to persist player notes:', error)
+      throw error
     }
+    // 落盘成功后再广播
+    emit(NOTES_CHANGED_EVENT).catch(() => {})
   }
 
   return { notes, count, list, init, getNote, setNote, removeNote }

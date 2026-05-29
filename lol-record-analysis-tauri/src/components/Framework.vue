@@ -145,13 +145,14 @@ function revealConsent(): void {
  */
 async function onConsentDecide(enabled: boolean): Promise<void> {
   showConsent.value = false
-  if (enabled) {
-    try {
-      await putConfigByIpc('errorReportingEnabled', true)
-      message.success('已开启，重启后生效')
-    } catch {
-      message.error('保存失败')
-    }
+  try {
+    // 无论"启用"还是"保持关闭"，都把用户的明确选择持久化到 errorReportingEnabled。
+    // 否则当用户此前已在设置里开过（配置为 true）时，点"保持关闭"不会真正关掉，
+    // 与按钮文案不符。
+    await putConfigByIpc('errorReportingEnabled', enabled)
+    if (enabled) message.success('已开启，重启后生效')
+  } catch {
+    message.error('保存失败')
   }
   putConfigByIpc('errorReportingConsentShown', true).catch(() => {})
 }
