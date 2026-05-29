@@ -30,6 +30,7 @@
         }
       ]
     },
-    "mcp-bridge:default"
+    "mcp-bridge:default",
+    "sentry:default"
   ]
 }

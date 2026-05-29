@@ -41,6 +41,10 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     info!("Config file path: config.yaml");
     info!("========================================");
 
+    // 初始化错误上报（debug 默认开 / release 需用户在设置中 opt-in）。
+    // guard 必须存活到 .run() 返回，否则事件无法 flush。
+    let _sentry_guard = lol_record_analysis_app_lib::observability::init();
+
     let mut app_builder = tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
@@ -132,6 +136,12 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         );
     }
 
+    // 仅在错误上报开启时注册 Sentry 插件（插件会向 webview 注入 @sentry/browser，
+    // 使前端事件也经 Rust SDK 统一发送）。
+    if let Some(ref client) = _sentry_guard {
+        app_builder = app_builder.plugin(tauri_plugin_sentry::init(client));
+    }
+
     app_builder = app_builder.setup(move |app| {
         // 启动自动化系统
         tauri::async_runtime::spawn(async move {
@@ -174,6 +184,15 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
 
         Ok(())
     });
+
+    // debug 构建启动时发一条冒烟事件，便于在 Sentry 面板确认链路打通（release 不发）。
+    #[cfg(debug_assertions)]
+    if _sentry_guard.is_some() {
+        sentry::capture_message(
+            "Sentry integration smoke test (debug startup)",
+            sentry::Level::Info,
+        );
+    }
 
     app_builder
         .run(tauri::generate_context!())

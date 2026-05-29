@@ -5,5 +5,6 @@ pub mod constant;
 pub mod fandom;
 pub mod game_state_monitor;
 pub mod lcu;
+pub mod observability;
 pub mod rule_engine;
 pub mod state;

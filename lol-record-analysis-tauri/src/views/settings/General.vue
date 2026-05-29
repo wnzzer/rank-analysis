@@ -9,6 +9,14 @@
           @update:value="handleUpdate"
         />
       </n-form-item>
+      <n-form-item label="匿名错误上报">
+        <n-space vertical :size="4">
+          <n-switch v-model:value="errorReporting" @update:value="handleReportingUpdate" />
+          <n-text :depth="3" style="font-size: 12px">
+            开启后，崩溃与报错（已脱敏，不含召唤师名 / puuid）会上报以便排查问题。重启后生效。
+          </n-text>
+        </n-space>
+      </n-form-item>
     </n-form>
   </n-card>
 </template>
@@ -19,6 +27,7 @@ import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import { useMessage } from 'naive-ui'
 
 const matchCount = ref(4)
+const errorReporting = ref(false)
 const message = useMessage()
 
 onMounted(async () => {
@@ -30,6 +39,14 @@ onMounted(async () => {
   } catch (e) {
     console.error(e)
   }
+  try {
+    const enabled = await getConfigByIpc<boolean>('errorReportingEnabled')
+    if (typeof enabled === 'boolean') {
+      errorReporting.value = enabled
+    }
+  } catch (e) {
+    console.error(e)
+  }
 })
 
 const handleUpdate = async (value: number | null) => {
@@ -37,6 +54,15 @@ const handleUpdate = async (value: number | null) => {
   try {
     await putConfigByIpc('matchHistoryCount', value)
     message.success('设置已保存，下次获取数据时生效')
+  } catch (e) {
+    message.error('保存失败')
+  }
+}
+
+const handleReportingUpdate = async (value: boolean) => {
+  try {
+    await putConfigByIpc('errorReportingEnabled', value)
+    message.success('设置已保存，重启后生效')
   } catch (e) {
     message.error('保存失败')
   }
