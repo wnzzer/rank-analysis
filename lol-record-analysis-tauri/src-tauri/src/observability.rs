@@ -172,13 +172,25 @@ static LONG_TOKEN_RE: LazyLock<Regex> =
 ///
 /// 除玩家标识外，还覆盖**凭据**：LCU 命令行里的 `--remoting-auth-token=` /
 /// `--riotclient-auth-token=`（裸 `token` 借词边界即可匹配连字符形态），以及
-/// `password` / `secret` / `authorization` / `access_token` 等。全量日志转发到 Sentry
-/// 时，这些一旦漏发等于把 LCU 会话令牌外传。
+/// `password` / `secret` / `access_token` 等。全量日志转发到 Sentry 时，这些一旦漏发
+/// 等于把 LCU 会话令牌外传。
+///
+/// 注意：`Authorization` 头不在这里——它的值是 `Scheme token`（空格分隔），用本正则
+/// 的"遇空格即停"值类只会洗掉 scheme（Bearer/Basic）漏掉 token，改由 [`AUTH_HEADER_RE`]
+/// 整体脱敏。
 static PII_PARAM_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r#"(?i)("?\b(?:game_?name|tag_?line|summoner_?name|display_?name|riot_?id|puuid|account|name|auth_?token|access_?token|token|password|secret|authorization)"?\s*[:=]\s*"?)([^"&,\s}\])]+)"#,
+        r#"(?i)("?\b(?:game_?name|tag_?line|summoner_?name|display_?name|riot_?id|puuid|account|name|auth_?token|access_?token|token|password|secret)"?\s*[:=]\s*"?)([^"&,\s}\])]+)"#,
     )
     .expect("valid pii-param regex")
+});
+
+/// `Authorization` 头专用：值是 `Scheme token`（如 `Bearer xxx` / `Basic <base64>`，
+/// LCU 用 Basic）。值类**允许空格**，把 scheme + token 整体脱敏，避免只洗 scheme 漏 token。
+/// 停在引号 / 换行（JSON 形态在闭合引号处停，行形态吃到行尾，均安全）。
+static AUTH_HEADER_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?i)("?\bauthorization"?\s*[:=]\s*"?)([^"\r\n]+)"#)
+        .expect("valid auth-header regex")
 });
 
 /// 对单个字符串做 PII 脱敏。
@@ -188,7 +200,9 @@ static PII_PARAM_RE: LazyLock<Regex> = LazyLock::new(|| {
 /// 局限：无字段名上下文、直接拼进自由文本的名字（如 `format!("{} not found", name)`）
 /// 无法识别——根本防线是默认关闭 + 不在日志里拼接玩家名。
 pub fn redact_pii(input: &str) -> String {
-    let step1 = PII_PARAM_RE.replace_all(input, "${1}<redacted>");
+    // 先洗 Authorization 头（值含空格，需整体脱敏）再走按字段名脱敏，避免后者把值截断。
+    let step0 = AUTH_HEADER_RE.replace_all(input, "${1}<redacted>");
+    let step1 = PII_PARAM_RE.replace_all(&step0, "${1}<redacted>");
     let step2 = UUID_RE.replace_all(&step1, "<redacted-uuid>");
     let step3 = LONG_TOKEN_RE.replace_all(&step2, "<redacted-id>");
     step3.into_owned()
@@ -245,6 +259,26 @@ mod tests {
         );
         // 非敏感的端口号保留
         assert!(out.contains("app-port=53970"), "端口号应保留: {out}");
+    }
+
+    #[test]
+    fn should_redact_authorization_header_scheme_and_token() {
+        // Bearer 形态：scheme + token 用空格分隔，必须整体脱敏
+        let bearer = redact_pii("Authorization: Bearer abc123def456ghi");
+        assert!(
+            !bearer.contains("abc123def456ghi"),
+            "Bearer token 应被脱敏: {bearer}"
+        );
+        assert!(!bearer.contains("Bearer"), "scheme 也应被脱敏: {bearer}");
+
+        // LCU 的 Basic <base64> 形态
+        let basic = redact_pii(r#"{"authorization":"Basic cmlvdDpiWjhsa2tMM3d0", "x":1}"#);
+        assert!(
+            !basic.contains("cmlvdDpiWjhsa2tMM3d0"),
+            "Basic 凭据应被脱敏: {basic}"
+        );
+        // JSON 里其他字段保留
+        assert!(basic.contains("\"x\":1"), "非敏感字段应保留: {basic}");
     }
 
     #[test]
