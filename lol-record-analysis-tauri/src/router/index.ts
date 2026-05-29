@@ -55,6 +55,12 @@ const routes: Array<RouteRecordRaw> = [
         meta: { title: '标签管理' }
       },
       {
+        path: '/Settings/PlayerNotes',
+        name: 'PlayerNotes',
+        component: () => import('@renderer/views/settings/PlayerNotes.vue'),
+        meta: { title: '我标记过的人' }
+      },
+      {
         path: '/Settings/About',
         name: 'About',
         component: () => import('@renderer/views/settings/About.vue'),

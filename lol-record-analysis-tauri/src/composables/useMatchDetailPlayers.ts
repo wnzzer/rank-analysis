@@ -34,6 +34,10 @@ export interface DetailPlayer {
   spell2Id: number
   stats: ParticipantStats
   displayName: string
+  /** 玩家唯一标识，来自 participantIdentity，用于玩家备注 */
+  puuid: string
+  gameName: string
+  tagLine: string
   isMe: boolean
   win: boolean
   badges: PlayerBadge[]
@@ -164,6 +168,9 @@ export function useMatchDetailPlayers(
           spell2Id: p.spell2Id,
           stats: p.stats,
           displayName,
+          puuid: identity?.player.puuid ?? '',
+          gameName: identity?.player.gameName ?? '',
+          tagLine: identity?.player.tagLine ?? '',
           isMe: displayName === toValue(currentPlayerKey),
           win: p.stats.win,
           badges: badgeConfigs

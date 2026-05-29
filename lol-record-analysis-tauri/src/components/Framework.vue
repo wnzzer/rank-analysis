@@ -2,6 +2,7 @@
   <div class="full-container">
     <MatchDetail v-if="isStandaloneDetailWindow" />
     <n-flex v-else vertical size="large">
+      <ErrorReportingConsentDialog v-model:show="showConsent" @decide="onConsentDecide" />
       <!-- 整体布局 -->
       <n-layout>
         <!-- 顶部区域 -->
@@ -31,14 +32,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { getCurrentWindow } from '@tauri-apps/api/window'
+import { useMessage } from 'naive-ui'
 
 import Header from './Header.vue'
 import SideNavigation from './SideNavigation.vue'
 import MatchDetail from '@renderer/views/MatchDetail.vue'
+import ErrorReportingConsentDialog from '@renderer/components/common/ErrorReportingConsentDialog.vue'
 import { useGameState } from '@renderer/composables/useGameState'
+import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 
 /**
  * 应用主布局框架组件
@@ -76,10 +80,84 @@ const isStandaloneDetailWindow = computed(() => currentWindow.label.startsWith('
  * 初始化游戏状态监听
  * 包含自动跳转逻辑：当检测到游戏开始时自动切换到对局页面
  */
-useGameState()
+const { isConnected } = useGameState()
+
+const message = useMessage()
+
+/** 是否展示错误上报首次同意弹窗 */
+const showConsent = ref(false)
+
+/** 防止"连接事件"与"兜底超时"重复弹窗 */
+let consentRevealed = false
+
+/**
+ * 首次启动征求错误上报同意。
+ *
+ * Sentry 上报本身默认关闭（opt-in）；此弹窗只在首次启动出现一次，提高透明度并
+ * 默认推荐启用，但保留真实的"保持关闭"选项、不强制。仅主窗口弹，排除 match-detail
+ * 子窗口。UI 见 {@link ErrorReportingConsentDialog}。
+ *
+ * 关键：**不在首屏加载阶段弹**。首屏（Record）依赖客户端连接事件跳转并拉取数据，
+ * 若此时弹模态框会打断首屏的关键路径、让人误以为"弹窗导致加载失败"。因此这里等
+ * `isConnected`（客户端已连、首屏就绪）后再延时弹出；若长时间未连接则兜底弹出，
+ * 避免永远问不到。
+ *
+ * @see commit 6163f86（Sentry opt-in 接入）
+ */
+async function maybeAskErrorReportingConsent(): Promise<void> {
+  if (isStandaloneDetailWindow.value) return
+  try {
+    const shown = await getConfigByIpc<boolean>('errorReportingConsentShown')
+    if (shown) return
+  } catch {
+    // 读不到配置时按"未问过"处理
+  }
+
+  if (isConnected.value) {
+    revealConsent()
+    return
+  }
+  // 等首屏就绪后再弹；最多兜底等待 8s
+  const stop = watch(isConnected, connected => {
+    if (connected) {
+      stop()
+      revealConsent()
+    }
+  })
+  window.setTimeout(() => {
+    stop()
+    revealConsent()
+  }, 8000)
+}
+
+/** 首屏稳定后再弹（留 500ms 让首屏渲染/动画落定），仅弹一次 */
+function revealConsent(): void {
+  if (consentRevealed) return
+  consentRevealed = true
+  window.setTimeout(() => {
+    showConsent.value = true
+  }, 500)
+}
+
+/**
+ * 处理用户在同意弹窗中的选择。无论选择什么都标记"已问过"，之后不再弹。
+ * @param enabled - true 启用上报，false 保持关闭
+ */
+async function onConsentDecide(enabled: boolean): Promise<void> {
+  showConsent.value = false
+  if (enabled) {
+    try {
+      await putConfigByIpc('errorReportingEnabled', true)
+      message.success('已开启，重启后生效')
+    } catch {
+      message.error('保存失败')
+    }
+  }
+  putConfigByIpc('errorReportingConsentShown', true).catch(() => {})
+}
 
 onMounted(() => {
-  // Framework mounted
+  maybeAskErrorReportingConsent()
 })
 
 /**

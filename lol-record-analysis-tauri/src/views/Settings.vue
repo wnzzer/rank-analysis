@@ -40,7 +40,8 @@ import {
   // BulbOutline
   AlertCircleOutline,
   SettingsOutline,
-  PricetagOutline
+  PricetagOutline,
+  BookmarksOutline
 } from '@vicons/ionicons5'
 
 const collapsed = ref(false)
@@ -75,6 +76,11 @@ const menuOptions = [
     label: '标签管理',
     key: 'Tags',
     icon: renderIcon(PricetagOutline)
+  },
+  {
+    label: '我标记过的人',
+    key: 'PlayerNotes',
+    icon: renderIcon(BookmarksOutline)
   },
   // {
   //     label: 'AI能力',
