@@ -23,6 +23,13 @@
                 <n-icon><copy-outline /></n-icon>
               </template>
             </n-button>
+            <PlayerNoteBadge
+              v-if="summoner.puuid"
+              :puuid="summoner.puuid"
+              :game-name="summoner.gameName"
+              :tag-line="summoner.tagLine"
+              size="normal"
+            />
           </n-flex>
           <n-flex align="center" :size="6">
             <n-text depth="3" class="user-record-tagline">#{{ summoner.tagLine }}</n-text>
@@ -142,6 +149,7 @@ import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import RelationshipPanel from './RelationshipPanel.vue'
 import RankCard from './RankCard.vue'
 import RecentStatsTable from './RecentStatsTable.vue'
+import PlayerNoteBadge from '@renderer/components/common/PlayerNoteBadge.vue'
 
 const settingsStore = useSettingsStore()
 const isDark = computed(

@@ -81,6 +81,13 @@
                 >
                   <n-icon><copy-outline /></n-icon>
                 </n-button>
+                <PlayerNoteBadge
+                  v-if="sessionSummoner.summoner.puuid"
+                  :puuid="sessionSummoner.summoner.puuid"
+                  :game-name="sessionSummoner.summoner.gameName"
+                  :tag-line="sessionSummoner.summoner.tagLine"
+                  size="small"
+                />
               </n-flex>
 
               <n-flex align="center" class="meta-row">
@@ -193,6 +200,7 @@ import { useAramBalance } from '@renderer/composables/useAramBalance'
 import PlayerHistoryGrid from './PlayerHistoryGrid.vue'
 import PlayerStatsCard from './PlayerStatsCard.vue'
 import LazyImg from '@renderer/components/common/LazyImg.vue'
+import PlayerNoteBadge from '@renderer/components/common/PlayerNoteBadge.vue'
 
 interface Props {
   sessionSummoner: SessionSummoner

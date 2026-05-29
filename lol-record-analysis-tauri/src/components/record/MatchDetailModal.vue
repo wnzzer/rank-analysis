@@ -160,6 +160,15 @@
                             <n-icon><CopyOutline /></n-icon>
                           </template>
                         </n-button>
+                        <span v-if="player.puuid" @click.stop>
+                          <PlayerNoteBadge
+                            :puuid="player.puuid"
+                            :game-name="player.gameName"
+                            :tag-line="player.tagLine"
+                            :encounter="buildEncounter(player)"
+                            size="normal"
+                          />
+                        </span>
                         <n-tag v-if="player.isMe" size="small" :bordered="false" type="info"
                           >我</n-tag
                         >
@@ -412,6 +421,7 @@ import AssetTooltipContent from './AssetTooltipContent.vue'
 import StatDots from './StatDots.vue'
 import MatchAIPanel from './MatchAIPanel.vue'
 import LazyImg from '@renderer/components/common/LazyImg.vue'
+import PlayerNoteBadge from '@renderer/components/common/PlayerNoteBadge.vue'
 import {
   assistsColor,
   deathsColor,
@@ -423,8 +433,12 @@ import {
 import { formatCompactNumber } from '@renderer/utils/format'
 import { augmentRarityClass } from '@renderer/utils/augment'
 import { useRecordAssets } from '@renderer/composables/useRecordAssets'
-import { useMatchDetailPlayers } from '@renderer/composables/useMatchDetailPlayers'
+import {
+  useMatchDetailPlayers,
+  type DetailPlayer
+} from '@renderer/composables/useMatchDetailPlayers'
 import { useMatchAIAnalysis } from '@renderer/composables/useMatchAIAnalysis'
+import type { OneGamePlayer } from '@renderer/types/domain/analysis'
 
 const props = defineProps<{ game: Game | null }>()
 
@@ -488,6 +502,31 @@ const formattedDate = computed(() => {
     hour12: false
   }).format(new Date(props.game.gameCreationDate))
 })
+
+/**
+ * 由某玩家 + 当前对局拼出一条"遇见记录"（{@link OneGamePlayer}），
+ * 保存备注时并入该玩家的遇见列表，复刻"遇见过"效果。
+ * @param player - 详情页玩家
+ */
+function buildEncounter(player: DetailPlayer): OneGamePlayer | undefined {
+  const g = props.game
+  if (!g || !player.puuid) return undefined
+  return {
+    gameCreatedAt: g.gameCreationDate,
+    index: 0,
+    gameId: g.gameId,
+    puuid: player.puuid,
+    gameName: player.gameName,
+    tagLine: player.tagLine,
+    championId: player.championId,
+    win: player.win,
+    kills: player.stats.kills,
+    deaths: player.stats.deaths,
+    assists: player.stats.assists,
+    isMyTeam: player.teamId === mySummary.value?.teamId,
+    queueIdCn: g.queueName ?? ''
+  }
+}
 
 const durationLabel = computed(() => {
   if (!props.game) return ''

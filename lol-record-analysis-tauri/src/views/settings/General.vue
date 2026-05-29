@@ -24,6 +24,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
+import { CONFIG_KEYS } from '@renderer/services/configKeys'
 import { useMessage } from 'naive-ui'
 
 const matchCount = ref(4)
@@ -40,7 +41,7 @@ onMounted(async () => {
     console.error(e)
   }
   try {
-    const enabled = await getConfigByIpc<boolean>('errorReportingEnabled')
+    const enabled = await getConfigByIpc<boolean>(CONFIG_KEYS.errorReportingEnabled)
     if (typeof enabled === 'boolean') {
       errorReporting.value = enabled
     }
@@ -61,7 +62,7 @@ const handleUpdate = async (value: number | null) => {
 
 const handleReportingUpdate = async (value: boolean) => {
   try {
-    await putConfigByIpc('errorReportingEnabled', value)
+    await putConfigByIpc(CONFIG_KEYS.errorReportingEnabled, value)
     message.success('设置已保存，重启后生效')
   } catch (e) {
     message.error('保存失败')
