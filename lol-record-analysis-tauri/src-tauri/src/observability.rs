@@ -21,7 +21,7 @@
 //!   （opt-in），重启后生效。
 
 use regex::Regex;
-use sentry::protocol::{Event, Value};
+use sentry::protocol::{Event, Log, Value};
 use std::sync::{Arc, LazyLock};
 
 /// Sentry 项目的 DSN（公开 client key，设计上即随客户端分发）。
@@ -70,6 +70,11 @@ pub fn init() -> Option<sentry::ClientInitGuard> {
             release: sentry::release_name!(),
             send_default_pii: false,
             before_send: Some(Arc::new(scrub_event)),
+            // 结构化日志（Sentry Logs）：把 `log` 记录转发上去（见 main.rs 的 SentryLogger）。
+            // 全量转发包含 info，日志正文可能含 LCU 令牌 / 配置转储 / puuid，
+            // 必须经 before_send_log 脱敏后再发。
+            enable_logs: true,
+            before_send_log: Some(Arc::new(scrub_log)),
             // 国服网络下 sentry.io 常不可达：关闭时最多只等 1s flush（默认 2s），
             // 避免每次退出都顿挫。
             shutdown_timeout: std::time::Duration::from_secs(1),
@@ -115,6 +120,19 @@ fn scrub_event(mut event: Event<'static>) -> Option<Event<'static>> {
     Some(event)
 }
 
+/// `before_send_log` 钩子：在结构化日志发送前脱敏正文。
+///
+/// 全量转发（含 info）下，日志正文 `body` 是 PII 的主要载体——LCU 命令行里的
+/// `*-auth-token`、`config.yaml` 转储、puuid / 召唤师名都在这里。对 `body` 跑
+/// [`redact_pii`]（已覆盖 token / 名字 / UUID / 长 token）。
+///
+/// 注：sentry-log 附加的 attributes 是模块路径 / 文件 / 行号等元数据，不含玩家 PII，
+/// 故只洗 `body`。
+fn scrub_log(mut log: Log) -> Option<Log> {
+    log.body = redact_pii(&log.body);
+    Some(log)
+}
+
 /// 递归脱敏一个 sentry `Map`（`event.extra` / `breadcrumb.data` 的顶层类型）。
 fn scrub_map(map: &mut sentry::protocol::Map<String, Value>) {
     for value in map.values_mut() {
@@ -151,11 +169,28 @@ static LONG_TOKEN_RE: LazyLock<Regex> =
 /// - Rust Debug / snake_case：`summoner_name: "Faker"`
 ///
 /// 组 1 = 字段名 + 分隔符(`:`/`=`) + 可选起始引号；组 2 = 值。只替换组 2，保留引号/分隔符。
+///
+/// 除玩家标识外，还覆盖**凭据**：LCU 命令行里的 `--remoting-auth-token=` /
+/// `--riotclient-auth-token=`（裸 `token` 借词边界即可匹配连字符形态），以及
+/// `password` / `secret` / `access_token` 等。全量日志转发到 Sentry 时，这些一旦漏发
+/// 等于把 LCU 会话令牌外传。
+///
+/// 注意：`Authorization` 头不在这里——它的值是 `Scheme token`（空格分隔），用本正则
+/// 的"遇空格即停"值类只会洗掉 scheme（Bearer/Basic）漏掉 token，改由 [`AUTH_HEADER_RE`]
+/// 整体脱敏。
 static PII_PARAM_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r#"(?i)("?\b(?:game_?name|tag_?line|summoner_?name|display_?name|riot_?id|puuid|account|name)"?\s*[:=]\s*"?)([^"&,\s}\])]+)"#,
+        r#"(?i)("?\b(?:game_?name|tag_?line|summoner_?name|display_?name|riot_?id|puuid|account|name|auth_?token|access_?token|token|password|secret)"?\s*[:=]\s*"?)([^"&,\s}\])]+)"#,
     )
     .expect("valid pii-param regex")
+});
+
+/// `Authorization` 头专用：值是 `Scheme token`（如 `Bearer xxx` / `Basic <base64>`，
+/// LCU 用 Basic）。值类**允许空格**，把 scheme + token 整体脱敏，避免只洗 scheme 漏 token。
+/// 停在引号 / 换行（JSON 形态在闭合引号处停，行形态吃到行尾，均安全）。
+static AUTH_HEADER_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?i)("?\bauthorization"?\s*[:=]\s*"?)([^"\r\n]+)"#)
+        .expect("valid auth-header regex")
 });
 
 /// 对单个字符串做 PII 脱敏。
@@ -165,7 +200,9 @@ static PII_PARAM_RE: LazyLock<Regex> = LazyLock::new(|| {
 /// 局限：无字段名上下文、直接拼进自由文本的名字（如 `format!("{} not found", name)`）
 /// 无法识别——根本防线是默认关闭 + 不在日志里拼接玩家名。
 pub fn redact_pii(input: &str) -> String {
-    let step1 = PII_PARAM_RE.replace_all(input, "${1}<redacted>");
+    // 先洗 Authorization 头（值含空格，需整体脱敏）再走按字段名脱敏，避免后者把值截断。
+    let step0 = AUTH_HEADER_RE.replace_all(input, "${1}<redacted>");
+    let step1 = PII_PARAM_RE.replace_all(&step0, "${1}<redacted>");
     let step2 = UUID_RE.replace_all(&step1, "<redacted-uuid>");
     let step3 = LONG_TOKEN_RE.replace_all(&step2, "<redacted-id>");
     step3.into_owned()
@@ -204,6 +241,44 @@ mod tests {
     fn should_leave_clean_text_untouched() {
         let input = "connection to LCU failed: timeout after 20s";
         assert_eq!(redact_pii(input), input);
+    }
+
+    #[test]
+    fn should_redact_lcu_auth_tokens() {
+        // 真实日志里出现过的 LCU 命令行片段（连字符形态的 auth-token）
+        let input = "LeagueClientUx.exe --remoting-auth-token=bZ8lkkL3wtVEMaXOaBGTxA \
+                     --app-port=53970 --riotclient-auth-token=N5IO-YgihIVZDzqyiy7rrg";
+        let out = redact_pii(input);
+        assert!(
+            !out.contains("bZ8lkkL3wtVEMaXOaBGTxA"),
+            "remoting 令牌应被脱敏: {out}"
+        );
+        assert!(
+            !out.contains("N5IO-YgihIVZDzqyiy7rrg"),
+            "riotclient 令牌应被脱敏: {out}"
+        );
+        // 非敏感的端口号保留
+        assert!(out.contains("app-port=53970"), "端口号应保留: {out}");
+    }
+
+    #[test]
+    fn should_redact_authorization_header_scheme_and_token() {
+        // Bearer 形态：scheme + token 用空格分隔，必须整体脱敏
+        let bearer = redact_pii("Authorization: Bearer abc123def456ghi");
+        assert!(
+            !bearer.contains("abc123def456ghi"),
+            "Bearer token 应被脱敏: {bearer}"
+        );
+        assert!(!bearer.contains("Bearer"), "scheme 也应被脱敏: {bearer}");
+
+        // LCU 的 Basic <base64> 形态
+        let basic = redact_pii(r#"{"authorization":"Basic cmlvdDpiWjhsa2tMM3d0", "x":1}"#);
+        assert!(
+            !basic.contains("cmlvdDpiWjhsa2tMM3d0"),
+            "Basic 凭据应被脱敏: {basic}"
+        );
+        // JSON 里其他字段保留
+        assert!(basic.contains("\"x\":1"), "非敏感字段应保留: {basic}");
     }
 
     #[test]
