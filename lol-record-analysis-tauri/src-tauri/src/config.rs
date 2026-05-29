@@ -319,6 +319,26 @@ pub fn extract_int(value: &Value) -> Option<i64> {
     None
 }
 
+/// 同步读取布尔配置（启动期专用）。
+///
+/// 直接读取 `config.yaml`，**不经过** async 的 Moka 缓存层，因此可以在 Tauri
+/// 运行时尚未启动、无 tokio runtime 的 `main()` 早期调用——例如在 `sentry::init`
+/// 之前判断用户是否开启了错误上报。
+///
+/// # 参数
+///
+/// - `key`: 配置键名（如 `errorReportingEnabled`）
+///
+/// # 返回值
+///
+/// 配置中该键解析出的布尔值；文件不存在、键缺失或类型不符时返回 `false`。
+pub fn read_bool_sync(key: &str) -> bool {
+    read_config(CONFIG_PATH)
+        .ok()
+        .and_then(|m| m.get(key).and_then(extract_bool))
+        .unwrap_or(false)
+}
+
 /// 从缓存获取配置值。
 ///
 /// 如果键不存在，返回根据键名推断的默认值。

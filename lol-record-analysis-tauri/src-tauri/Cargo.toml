@@ -63,3 +63,7 @@ native-tls = "0.2"
 tokio-native-tls = "0.3"
 url = "2.5"
 tauri-plugin-mcp-bridge = "0.11"
+# 错误上报（默认关闭，用户在设置中 opt-in；debug 构建默认开启便于调试）
+# tauri-plugin-sentry 通过 Rust 后端统一转发前端 + 后端事件，前端无需额外 npm 依赖
+sentry = "0.42"
+tauri-plugin-sentry = "0.5"
