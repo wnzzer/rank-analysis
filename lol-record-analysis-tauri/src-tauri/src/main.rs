@@ -14,8 +14,9 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         std::env::set_var("RUST_LOG", "info");
     }
 
-    // 配置日志格式，显示时间、级别、文件名、行号和消息
-    env_logger::Builder::from_default_env()
+    // 配置日志格式，显示时间、级别、文件名、行号和消息。先 build 不 init，
+    // 之后按是否开启上报决定是否用 SentryLogger 包一层转发到 Sentry Logs。
+    let console_logger = env_logger::Builder::from_default_env()
         .format_timestamp_millis()
         .format(|buf, record| {
             use std::io::Write;
@@ -33,7 +34,24 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
                 record.args()
             )
         })
-        .init();
+        .build();
+    let max_level = console_logger.filter();
+    log::set_max_level(max_level);
+
+    // 是否开启错误上报（debug 默认开 / release 需用户在设置中 opt-in）。
+    let reporting_on = lol_record_analysis_app_lib::observability::reporting_enabled();
+
+    // 安装全局 logger：上报开启时用 SentryLogger 包住控制台 logger，把所有 `log`
+    // 记录在打印到控制台的同时转发为 Sentry Structured Logs（全级别 → Log）。
+    // 转发前由 observability::scrub_log（before_send_log）脱敏，避免 LCU 令牌 / puuid
+    // 外传。上报关闭时只走控制台，行为同从前。
+    if reporting_on {
+        use sentry::integrations::log::{LogFilter, SentryLogger};
+        let logger = SentryLogger::with_dest(console_logger).filter(|_| LogFilter::Log);
+        let _ = log::set_boxed_logger(Box::new(logger));
+    } else {
+        let _ = log::set_boxed_logger(Box::new(console_logger));
+    }
 
     info!("========================================");
     info!("Starting Tauri application with Asset Protocol");
@@ -41,8 +59,8 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     info!("Config file path: config.yaml");
     info!("========================================");
 
-    // 初始化错误上报（debug 默认开 / release 需用户在设置中 opt-in）。
-    // guard 必须存活到 .run() 返回，否则事件无法 flush。
+    // 初始化错误上报（创建 Sentry client + guard）。
+    // guard 必须存活到 .run() 返回，否则事件 / 日志无法 flush。
     let _sentry_guard = lol_record_analysis_app_lib::observability::init();
 
     let mut app_builder = tauri::Builder::default()

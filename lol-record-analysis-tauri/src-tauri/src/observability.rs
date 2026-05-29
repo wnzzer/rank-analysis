@@ -21,7 +21,7 @@
 //!   （opt-in），重启后生效。
 
 use regex::Regex;
-use sentry::protocol::{Event, Value};
+use sentry::protocol::{Event, Log, Value};
 use std::sync::{Arc, LazyLock};
 
 /// Sentry 项目的 DSN（公开 client key，设计上即随客户端分发）。
@@ -70,6 +70,11 @@ pub fn init() -> Option<sentry::ClientInitGuard> {
             release: sentry::release_name!(),
             send_default_pii: false,
             before_send: Some(Arc::new(scrub_event)),
+            // 结构化日志（Sentry Logs）：把 `log` 记录转发上去（见 main.rs 的 SentryLogger）。
+            // 全量转发包含 info，日志正文可能含 LCU 令牌 / 配置转储 / puuid，
+            // 必须经 before_send_log 脱敏后再发。
+            enable_logs: true,
+            before_send_log: Some(Arc::new(scrub_log)),
             // 国服网络下 sentry.io 常不可达：关闭时最多只等 1s flush（默认 2s），
             // 避免每次退出都顿挫。
             shutdown_timeout: std::time::Duration::from_secs(1),
@@ -115,6 +120,19 @@ fn scrub_event(mut event: Event<'static>) -> Option<Event<'static>> {
     Some(event)
 }
 
+/// `before_send_log` 钩子：在结构化日志发送前脱敏正文。
+///
+/// 全量转发（含 info）下，日志正文 `body` 是 PII 的主要载体——LCU 命令行里的
+/// `*-auth-token`、`config.yaml` 转储、puuid / 召唤师名都在这里。对 `body` 跑
+/// [`redact_pii`]（已覆盖 token / 名字 / UUID / 长 token）。
+///
+/// 注：sentry-log 附加的 attributes 是模块路径 / 文件 / 行号等元数据，不含玩家 PII，
+/// 故只洗 `body`。
+fn scrub_log(mut log: Log) -> Option<Log> {
+    log.body = redact_pii(&log.body);
+    Some(log)
+}
+
 /// 递归脱敏一个 sentry `Map`（`event.extra` / `breadcrumb.data` 的顶层类型）。
 fn scrub_map(map: &mut sentry::protocol::Map<String, Value>) {
     for value in map.values_mut() {
@@ -151,9 +169,14 @@ static LONG_TOKEN_RE: LazyLock<Regex> =
 /// - Rust Debug / snake_case：`summoner_name: "Faker"`
 ///
 /// 组 1 = 字段名 + 分隔符(`:`/`=`) + 可选起始引号；组 2 = 值。只替换组 2，保留引号/分隔符。
+///
+/// 除玩家标识外，还覆盖**凭据**：LCU 命令行里的 `--remoting-auth-token=` /
+/// `--riotclient-auth-token=`（裸 `token` 借词边界即可匹配连字符形态），以及
+/// `password` / `secret` / `authorization` / `access_token` 等。全量日志转发到 Sentry
+/// 时，这些一旦漏发等于把 LCU 会话令牌外传。
 static PII_PARAM_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r#"(?i)("?\b(?:game_?name|tag_?line|summoner_?name|display_?name|riot_?id|puuid|account|name)"?\s*[:=]\s*"?)([^"&,\s}\])]+)"#,
+        r#"(?i)("?\b(?:game_?name|tag_?line|summoner_?name|display_?name|riot_?id|puuid|account|name|auth_?token|access_?token|token|password|secret|authorization)"?\s*[:=]\s*"?)([^"&,\s}\])]+)"#,
     )
     .expect("valid pii-param regex")
 });
@@ -204,6 +227,24 @@ mod tests {
     fn should_leave_clean_text_untouched() {
         let input = "connection to LCU failed: timeout after 20s";
         assert_eq!(redact_pii(input), input);
+    }
+
+    #[test]
+    fn should_redact_lcu_auth_tokens() {
+        // 真实日志里出现过的 LCU 命令行片段（连字符形态的 auth-token）
+        let input = "LeagueClientUx.exe --remoting-auth-token=bZ8lkkL3wtVEMaXOaBGTxA \
+                     --app-port=53970 --riotclient-auth-token=N5IO-YgihIVZDzqyiy7rrg";
+        let out = redact_pii(input);
+        assert!(
+            !out.contains("bZ8lkkL3wtVEMaXOaBGTxA"),
+            "remoting 令牌应被脱敏: {out}"
+        );
+        assert!(
+            !out.contains("N5IO-YgihIVZDzqyiy7rrg"),
+            "riotclient 令牌应被脱敏: {out}"
+        );
+        // 非敏感的端口号保留
+        assert!(out.contains("app-port=53970"), "端口号应保留: {out}");
     }
 
     #[test]
