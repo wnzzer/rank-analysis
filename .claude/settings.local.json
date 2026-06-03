@@ -60,6 +60,8 @@
       "WebFetch(domain:github.com)",
       "WebFetch(domain:www.google.com)",
       "Bash(npm uninstall *)",
+      "Bash(npx -y install-mcp @hypothesi/tauri-mcp-server --client claude-code)",
+      "Bash(npx -y install-mcp @hypothesi/tauri-mcp-server --client claude-code --yes)",
       "Bash(git reset *)",
       "Bash(git checkout *)",
       "Bash(git *)",
