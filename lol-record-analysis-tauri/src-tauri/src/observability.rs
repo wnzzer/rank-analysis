@@ -67,7 +67,7 @@ pub fn init() -> Option<sentry::ClientInitGuard> {
     let guard = sentry::init((
         dsn(),
         sentry::ClientOptions {
-            release: sentry::release_name!(),
+            release: Some(format!("lol-record-analysis-app@{}", env!("APP_VERSION")).into()),
             send_default_pii: false,
             before_send: Some(Arc::new(scrub_event)),
             // 结构化日志（Sentry Logs）：把 `log` 记录转发上去（见 main.rs 的 SentryLogger）。
