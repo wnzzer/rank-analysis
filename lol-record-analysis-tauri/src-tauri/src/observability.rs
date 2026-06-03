@@ -8,11 +8,20 @@
 //! ## 隐私
 //!
 //! - 默认 `send_default_pii: false`，不附带 IP / Cookie。
-//! - [`scrub_event`] 丢弃 `user` / `server_name`，并对消息、**异常正文**、面包屑、extra
+//! - [`scrub_event`] 把 `user` 收敛到只保留匿名 `id`（见 [`device_id`]），丢弃 `server_name`
+//!   （Windows 上常是用户自定义机名 / 昵称），并对消息、**异常正文**、面包屑、extra
 //!   （含**嵌套数组 / 对象**）中的字符串做 [`redact_pii`]：覆盖 query / JSON / Debug 三种
 //!   形态的 puuid / 召唤师名 / UUID。
+//! - [`scrub_log`] 移除 Logs attribute 里的 `server.address`（hostname 从这条管道漏过，
+//!   `scrub_event` 不覆盖），并对 `body` 跑 [`redact_pii`]。
 //! - 局限：自由文本里无字段名上下文直接拼接的名字仍可能漏网——根本防线是默认关闭 +
 //!   不在日志里拼接玩家名。
+//!
+//! ## 匿名设备 ID
+//!
+//! 每台机器首次启用上报时生成一个 UUIDv4，写入 [`DEVICE_ID_FILE`]，后续启动复用。
+//! 通过 `scope.user.id` 注入，errors / logs 两条管道都能据此用 `count_unique(user)`
+//! 算 DAU，无需上报 IP / hostname。
 //!
 //! ## 开关
 //!
@@ -21,7 +30,8 @@
 //!   （opt-in），重启后生效。
 
 use regex::Regex;
-use sentry::protocol::{Event, Log, Value};
+use sentry::protocol::{Event, Log, User, Value};
+use std::path::Path;
 use std::sync::{Arc, LazyLock};
 
 /// Sentry 项目的 DSN（公开 client key，设计上即随客户端分发）。
@@ -32,6 +42,9 @@ pub const DEFAULT_DSN: &str =
 
 /// 配置中控制是否开启错误上报的键名（以 `Enabled` 结尾 → 默认 `false`）。
 pub const REPORTING_KEY: &str = "errorReportingEnabled";
+
+/// 持久化匿名设备 ID 的文件名（与 `config.yaml` 同目录，相对 CWD）。
+pub const DEVICE_ID_FILE: &str = "device_id";
 
 /// 解析最终使用的 DSN（环境变量优先）。
 fn dsn() -> String {
@@ -64,6 +77,7 @@ pub fn init() -> Option<sentry::ClientInitGuard> {
         return None;
     }
 
+    let device_id = device_id(Path::new(DEVICE_ID_FILE));
     let guard = sentry::init((
         dsn(),
         sentry::ClientOptions {
@@ -84,17 +98,53 @@ pub fn init() -> Option<sentry::ClientInitGuard> {
             ..Default::default()
         },
     ));
+    // 设置匿名设备 ID 到全局 scope —— errors 与 logs 两条管道都会读 scope 上的 user，
+    // 让 `count_unique(user)` 在 Sentry 侧能算出 DAU。
+    sentry::configure_scope(|scope| {
+        scope.set_user(Some(User {
+            id: Some(device_id),
+            ..Default::default()
+        }));
+    });
     log::info!("Sentry error reporting ENABLED");
     Some(guard)
+}
+
+/// 读取或首次生成匿名设备 ID。
+///
+/// 失败时返回随机 UUID 但**不写盘**——意味着这次会话被当作新设备，
+/// 不会让无法持久化的环境（例如只读 CWD）让上报整体崩。
+fn device_id(path: &Path) -> String {
+    if let Ok(existing) = std::fs::read_to_string(path) {
+        let trimmed = existing.trim();
+        if !trimmed.is_empty() {
+            return trimmed.to_string();
+        }
+    }
+    let new_id = uuid::Uuid::new_v4().to_string();
+    if let Err(e) = std::fs::write(path, &new_id) {
+        log::warn!(
+            "failed to persist device_id to {}: {} (will regenerate next launch)",
+            path.display(),
+            e
+        );
+    }
+    new_id
 }
 
 /// `before_send` 钩子：在事件发送前移除 / 脱敏 PII。
 ///
 /// 覆盖前端与后端的全部事件（前端事件经插件转发后也走这里）。
 fn scrub_event(mut event: Event<'static>) -> Option<Event<'static>> {
-    // 主机名常包含用户真实姓名（如 "Zhang-MacBook"）；用户对象可能含 id / ip。
+    // 主机名常包含用户真实姓名（如 "Zhang-MacBook"）。
     event.server_name = None;
-    event.user = None;
+    // 保留 `user.id`（init() 注入的匿名 UUID，用于 DAU 去重），清掉其余可能 PII 的字段。
+    if let Some(user) = event.user.take() {
+        event.user = Some(User {
+            id: user.id,
+            ..Default::default()
+        });
+    }
 
     if let Some(message) = event.message.take() {
         event.message = Some(redact_pii(&message));
@@ -120,16 +170,18 @@ fn scrub_event(mut event: Event<'static>) -> Option<Event<'static>> {
     Some(event)
 }
 
-/// `before_send_log` 钩子：在结构化日志发送前脱敏正文。
+/// `before_send_log` 钩子：在结构化日志发送前脱敏正文 + 移除 hostname。
 ///
 /// 全量转发（含 info）下，日志正文 `body` 是 PII 的主要载体——LCU 命令行里的
 /// `*-auth-token`、`config.yaml` 转储、puuid / 召唤师名都在这里。对 `body` 跑
 /// [`redact_pii`]（已覆盖 token / 名字 / UUID / 长 token）。
 ///
-/// 注：sentry-log 附加的 attributes 是模块路径 / 文件 / 行号等元数据，不含玩家 PII，
-/// 故只洗 `body`。
+/// 此外 Sentry Logs 会自动附 `server.address` attribute（hostname），Windows 上
+/// 常是用户自定义机名 / 昵称（"YXL"、"三火"、"saber"…），属 PII，必须删除。
+/// errors 上的 `event.server_name` 由 [`scrub_event`] 负责，这里只管 logs 这条管道。
 fn scrub_log(mut log: Log) -> Option<Log> {
     log.body = redact_pii(&log.body);
+    log.attributes.remove("server.address");
     Some(log)
 }
 
@@ -327,5 +379,53 @@ mod tests {
             val.contains("<redacted-uuid>"),
             "异常正文里的 uuid 应被脱敏: {val}"
         );
+    }
+
+    #[test]
+    fn should_keep_user_id_but_strip_other_user_fields() {
+        let mut event = Event::default();
+        event.user = Some(User {
+            id: Some("abc-device-uuid".to_string()),
+            email: Some("real@example.com".to_string()),
+            username: Some("realname".to_string()),
+            ..Default::default()
+        });
+        let scrubbed = scrub_event(event).expect("event kept");
+        let user = scrubbed.user.expect("user kept");
+        assert_eq!(
+            user.id.as_deref(),
+            Some("abc-device-uuid"),
+            "id 应保留用于 DAU 去重"
+        );
+        assert!(user.email.is_none(), "email 不应留下: {:?}", user.email);
+        assert!(
+            user.username.is_none(),
+            "username 不应留下: {:?}",
+            user.username
+        );
+    }
+
+    // 没给 `should_strip_server_address_from_log_attributes` 写单测：sentry 0.42 的
+    // `Log` struct 字段不稳定（severity_number / span_id 等版本间会变），构造 fixture
+    // 反而比被测代码本身脆。`scrub_log` 的改动是 `attributes.remove("server.address")` 一行，
+    // 验证通过部署后查 Sentry：30d 内应看到 `count_unique(server.address)` 停止增长。
+
+    #[test]
+    fn should_generate_and_persist_device_id() {
+        let tmp = std::env::temp_dir().join(format!(
+            "rank-analysis-device-id-test-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let _ = std::fs::remove_file(&tmp);
+
+        let first = device_id(&tmp);
+        assert!(!first.is_empty(), "首次应生成非空 id");
+        let on_disk = std::fs::read_to_string(&tmp).expect("写盘");
+        assert_eq!(on_disk.trim(), first, "首次应落盘");
+
+        let second = device_id(&tmp);
+        assert_eq!(first, second, "再次调用应复用，而不是重新生成");
+
+        let _ = std::fs::remove_file(&tmp);
     }
 }
