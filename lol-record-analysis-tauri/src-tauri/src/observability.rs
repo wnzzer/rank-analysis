@@ -383,13 +383,15 @@ mod tests {
 
     #[test]
     fn should_keep_user_id_but_strip_other_user_fields() {
-        let mut event = Event::default();
-        event.user = Some(User {
-            id: Some("abc-device-uuid".to_string()),
-            email: Some("real@example.com".to_string()),
-            username: Some("realname".to_string()),
+        let event = Event {
+            user: Some(User {
+                id: Some("abc-device-uuid".to_string()),
+                email: Some("real@example.com".to_string()),
+                username: Some("realname".to_string()),
+                ..Default::default()
+            }),
             ..Default::default()
-        });
+        };
         let scrubbed = scrub_event(event).expect("event kept");
         let user = scrubbed.user.expect("user kept");
         assert_eq!(
