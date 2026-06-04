@@ -110,8 +110,8 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, h } from 'vue'
-import { useNotification, useDialog } from 'naive-ui'
+import { onMounted, ref, computed, h } from 'vue'
+import { useNotification, useDialog, NProgress } from 'naive-ui'
 import { getVersion } from '@tauri-apps/api/app'
 import { check } from '@tauri-apps/plugin-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
@@ -184,33 +184,70 @@ const checkForUpdates = async () => {
         positiveText: '立即更新',
         negativeText: '稍后',
         onPositiveClick: async () => {
+          // 下载进度状态：放在 onPositiveClick 内部，每次更新独立计数。
+          const downloaded = ref(0)
+          const contentLength = ref(0)
+          const phase = ref<'preparing' | 'downloading' | 'installing'>('preparing')
+          const fmtMB = (b: number) => (b / 1024 / 1024).toFixed(2)
+          const pct = computed(() =>
+            contentLength.value > 0
+              ? Math.min(100, Math.floor((downloaded.value / contentLength.value) * 100))
+              : 0
+          )
+
           const d = dialog.info({
             title: '正在更新',
-            content: '正在下载并安装更新，请稍候...',
             closable: false,
             maskClosable: false,
-            closeOnEsc: false
+            closeOnEsc: false,
+            // 渲染函数 + ref → 下载事件触发的 ref 变更会自动重渲染。
+            content: () => {
+              if (phase.value === 'preparing') {
+                return h('p', '正在连接服务器...')
+              }
+              if (phase.value === 'downloading') {
+                const hasTotal = contentLength.value > 0
+                return h('div', [
+                  // 没拿到 Content-Length 时不画进度条（数字会一直停在 0% 反而让人以为卡了），
+                  // 退化成只显示已下载字节，靠数字自增告诉用户在动。
+                  hasTotal &&
+                    h(NProgress, {
+                      type: 'line',
+                      percentage: pct.value,
+                      indicatorPlacement: 'inside',
+                      processing: true
+                    }),
+                  h(
+                    'p',
+                    {
+                      style: `margin-top: ${hasTotal ? '12px' : '0'}; color: var(--text-secondary); font-size: 12px;`
+                    },
+                    hasTotal
+                      ? `已下载 ${fmtMB(downloaded.value)} MB / ${fmtMB(contentLength.value)} MB`
+                      : `已下载 ${fmtMB(downloaded.value)} MB`
+                  )
+                ])
+              }
+              return h('p', '下载完成，正在安装并准备重启...')
+            }
           })
 
           try {
-            let downloaded = 0
-            let contentLength = 0
             await update.downloadAndInstall(event => {
               switch (event.event) {
                 case 'Started':
-                  contentLength = event.data.contentLength || 0
-                  console.log(`started downloading ${contentLength} bytes`)
+                  contentLength.value = event.data.contentLength || 0
+                  downloaded.value = 0
+                  phase.value = 'downloading'
                   break
                 case 'Progress':
-                  downloaded += event.data.chunkLength
-                  console.log(`downloaded ${downloaded} from ${contentLength}`)
+                  downloaded.value += event.data.chunkLength
                   break
                 case 'Finished':
-                  console.log('download finished')
+                  phase.value = 'installing'
                   break
               }
             })
-            d.content = '更新完成，正在重启...'
             await relaunch()
           } catch (e) {
             d.destroy()
