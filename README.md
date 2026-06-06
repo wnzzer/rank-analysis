@@ -21,6 +21,9 @@
     <a href="./LICENSE">
       <img src="https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square" alt="License" />
     </a>
+    <a href="https://linux.do">
+      <img src="https://img.shields.io/badge/LINUX%20DO-Community-FFB003?style=flat-square&logo=discourse&logoColor=white" alt="LINUX DO" />
+    </a>
   </p>
 
   <!-- Stats -->
