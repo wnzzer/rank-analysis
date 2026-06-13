@@ -25,7 +25,7 @@ export interface Stage1Config<Out> {
   parse: (raw: string) => ParseOutcome<Out>
   cacheKey?: string
   retry?: number
-  /** AI model name; falls back to worker default (qwen-turbo) when omitted. */
+  /** AI model name; falls back to stream.ts DEFAULT_MODEL (qwen-plus) when omitted. */
   model?: string
 }
 
@@ -36,7 +36,7 @@ export interface Stage2Config<In, Out> {
   cacheKey?: string
   retry?: number
   streamCallback?: (chunk: string) => void
-  /** AI model name; falls back to worker default (qwen-turbo) when omitted. */
+  /** AI model name; falls back to stream.ts DEFAULT_MODEL (qwen-plus) when omitted. */
   model?: string
 }
 

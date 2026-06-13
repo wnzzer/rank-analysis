@@ -1,23 +1,41 @@
 /**
- * 通过 Cloudflare Worker 代理的流式 AI 请求
+ * 经 Rust 命令 stream_ai_analysis 直连 DashScope 的流式 AI 请求
  * 以及基于 sessionStorage 的结果缓存包装
  */
 
-import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
+import { invoke, Channel } from '@tauri-apps/api/core'
+import { getConfigByIpc } from '../ipc'
+import { CONFIG_KEYS } from '../configKeys'
 import type { AIAnalysisResult, StreamCallbacks } from './types'
 
 export const DEFAULT_SYSTEM_PROMPT =
   '你是一个LOL游戏分析师，擅长分析玩家战绩和给出游戏建议。请用简洁、专业、直接的中文回复。所有结论都必须绑定数据证据，避免空泛。'
 
-const AI_WORKER_URL = 'https://ai.nuliyangguang.top'
-
 /**
- * AI Worker 默认模型（DashScope 兼容 OpenAI 协议）。
- * 各 stage 调用方按 use case 覆盖：
- * - Stage 1 attribution / Stage 1 profile: qwen-plus（JSON 严格度好）
- * - Stage 2 critique / Stage 2 naming: qwen-max（中文锐评感强）
+ * 默认模型（DashScope 兼容 OpenAI 协议）。各 stage 调用方按 use case 覆盖。
  */
-export const DEFAULT_MODEL = 'qwen-turbo'
+export const DEFAULT_MODEL = 'qwen-plus'
+
+/** Rust stream_ai_analysis 命令经 Channel 回传的事件 */
+export interface AiStreamEvent {
+  event: 'chunk' | 'done' | 'error'
+  data?: string | null
+}
+
+/** 把 Channel 事件映射到 StreamCallbacks（纯函数，便于测试） */
+export function mapStreamEvent(evt: AiStreamEvent, callbacks: StreamCallbacks): void {
+  switch (evt.event) {
+    case 'chunk':
+      if (evt.data) callbacks.onChunk(evt.data)
+      break
+    case 'done':
+      callbacks.onDone()
+      break
+    case 'error':
+      callbacks.onError(evt.data || 'AI 请求失败')
+      break
+  }
+}
 
 export async function requestAIContentStream(
   prompt: string,
@@ -25,77 +43,32 @@ export async function requestAIContentStream(
   systemPrompt: string = DEFAULT_SYSTEM_PROMPT,
   model: string = DEFAULT_MODEL
 ): Promise<void> {
-  try {
-    // 用 Tauri HTTP 插件而不是 webview fetch:
-    // - release 包 webview origin 是 http://tauri.localhost, 跟 dev 的 http://localhost:1420
-    //   不一样, Cloudflare Worker 的 CORS 白名单很可能只放行 dev origin
-    // - plugin-http 走 Rust 端 reqwest, 不经过 webview, 没有 CORS 限制
-    const response = await tauriFetch(AI_WORKER_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: prompt }
-        ],
-        stream: true
-      })
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`HTTP error! status: ${response.status}, ${errorText}`)
-    }
-
-    const reader = response.body?.getReader()
-    if (!reader) {
-      throw new Error('无法读取响应流')
-    }
-
-    const decoder = new TextDecoder()
-    let buffer = ''
-
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-
-      buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split('\n')
-      buffer = lines.pop() || ''
-
-      for (const line of lines) {
-        emitSseLine(line, callbacks)
-      }
-    }
-
-    const remaining = buffer.trim()
-    if (remaining) {
-      emitSseLine(remaining, callbacks)
-    }
-
-    callbacks.onDone()
-  } catch (error: any) {
-    callbacks.onError(error.message || '流式请求失败')
+  let settled = false
+  const settle = (fn: () => void) => {
+    if (settled) return
+    settled = true
+    fn()
   }
-}
-
-function emitSseLine(line: string, callbacks: StreamCallbacks) {
-  const trimmed = line.trim()
-  if (!trimmed || trimmed === 'data: [DONE]' || !trimmed.startsWith('data: ')) return
-
-  const jsonStr = trimmed.slice(6)
-  if (jsonStr === '[DONE]') return
-
   try {
-    const data = JSON.parse(jsonStr)
-    const content = data.choices?.[0]?.delta?.content || ''
-    if (content) callbacks.onChunk(content)
-  } catch {
-    // 忽略单行解析错误，继续消费流
+    // 用户覆盖 key（设置里可填）；空则后端走 env / 编译期注入
+    const override = (await getConfigByIpc<string>(CONFIG_KEYS.dashscopeApiKey)) || undefined
+
+    // 终态回调（onDone/onError）经 settle 包裹，保证恰好触发一次；分发统一走
+    // mapStreamEvent，避免 done/error 逻辑与兜底文案在两处重复。
+    const channel = new Channel<AiStreamEvent>()
+    channel.onmessage = evt =>
+      mapStreamEvent(evt, {
+        onChunk: callbacks.onChunk,
+        onDone: () => settle(callbacks.onDone),
+        onError: e => settle(() => callbacks.onError(e))
+      })
+
+    await invoke('stream_ai_analysis', {
+      request: { prompt, systemPrompt, model, apiKey: override },
+      onEvent: channel
+    })
+  } catch (error: any) {
+    settle(() => callbacks.onError(error?.message || String(error) || '流式请求失败'))
   }
 }
 

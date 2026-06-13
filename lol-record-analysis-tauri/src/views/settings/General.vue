@@ -17,6 +17,20 @@
           </n-text>
         </n-space>
       </n-form-item>
+      <n-form-item label="自定义 AI Key">
+        <n-space vertical :size="4">
+          <n-input
+            v-model:value="dashscopeKey"
+            type="password"
+            show-password-on="click"
+            placeholder="留空使用内置 Key"
+            @blur="handleDashscopeKeyUpdate"
+          />
+          <n-text :depth="3" style="font-size: 12px">
+            填入你自己的 DashScope (通义千问) API Key 则走你的额度；留空使用内置 Key。
+          </n-text>
+        </n-space>
+      </n-form-item>
     </n-form>
   </n-card>
 </template>
@@ -29,6 +43,7 @@ import { useMessage } from 'naive-ui'
 
 const matchCount = ref(4)
 const errorReporting = ref(false)
+const dashscopeKey = ref('')
 const message = useMessage()
 
 onMounted(async () => {
@@ -44,6 +59,14 @@ onMounted(async () => {
     const enabled = await getConfigByIpc<boolean>(CONFIG_KEYS.errorReportingEnabled)
     if (typeof enabled === 'boolean') {
       errorReporting.value = enabled
+    }
+  } catch (e) {
+    console.error(e)
+  }
+  try {
+    const key = await getConfigByIpc<string>(CONFIG_KEYS.dashscopeApiKey)
+    if (typeof key === 'string') {
+      dashscopeKey.value = key
     }
   } catch (e) {
     console.error(e)
@@ -64,6 +87,15 @@ const handleReportingUpdate = async (value: boolean) => {
   try {
     await putConfigByIpc(CONFIG_KEYS.errorReportingEnabled, value)
     message.success('设置已保存，重启后生效')
+  } catch (e) {
+    message.error('保存失败')
+  }
+}
+
+const handleDashscopeKeyUpdate = async () => {
+  try {
+    await putConfigByIpc(CONFIG_KEYS.dashscopeApiKey, dashscopeKey.value.trim())
+    message.success('设置已保存')
   } catch (e) {
     message.error('保存失败')
   }
