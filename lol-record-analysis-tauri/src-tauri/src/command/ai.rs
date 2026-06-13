@@ -146,7 +146,10 @@ pub async fn stream_ai_analysis(
     );
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
 
-    // 构建请求体
+    // 构建请求体。
+    // 注意：canonical 系统提示词在前端 `stream.ts` 的 `DEFAULT_SYSTEM_PROMPT`，
+    // 所有调用路径都会带上非空 systemPrompt，下面仅是 systemPrompt 缺省时的兜底，
+    // 不要在此处维护"权威"提示词（避免与前端分叉）。
     let system_prompt = request
         .system_prompt
         .unwrap_or_else(|| "你是一个LOL游戏分析师，擅长分析玩家战绩和给出游戏建议。请用简洁、专业、直接的中文回复。".to_string());
