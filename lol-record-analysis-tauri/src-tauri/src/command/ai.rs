@@ -60,6 +60,28 @@ fn api_key(override_key: Option<&str>) -> Result<String, String> {
     )
 }
 
+/// 从一行 SSE 文本提取增量 token。接受带或不带 `data: ` 前缀的行；
+/// `[DONE]`、坏 JSON、缺 `choices[0].delta.content` 均返回 `None`。
+fn extract_delta_content(line: &str) -> Option<String> {
+    let data = line.trim();
+    let data = data.strip_prefix("data: ").unwrap_or(data).trim();
+    if data.is_empty() || data == "[DONE]" {
+        return None;
+    }
+    let json: serde_json::Value = serde_json::from_str(data).ok()?;
+    let content = json
+        .get("choices")?
+        .get(0)?
+        .get("delta")?
+        .get("content")?
+        .as_str()?;
+    if content.is_empty() {
+        None
+    } else {
+        Some(content.to_string())
+    }
+}
+
 /// AI 请求参数
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AiStreamRequest {
@@ -253,5 +275,23 @@ mod tests {
     fn resolve_errors_when_all_unset() {
         assert!(resolve_api_key(None, None, None).is_err());
         assert!(resolve_api_key(Some(" "), Some(""), None).is_err());
+    }
+
+    #[test]
+    fn extract_pulls_delta_content() {
+        let line = r#"data: {"choices":[{"delta":{"content":"你好"}}]}"#;
+        assert_eq!(extract_delta_content(line), Some("你好".to_string()));
+    }
+
+    #[test]
+    fn extract_handles_done_and_garbage() {
+        assert_eq!(extract_delta_content("data: [DONE]"), None);
+        assert_eq!(extract_delta_content("data: {not json"), None);
+        assert_eq!(extract_delta_content(""), None);
+        // 有结构但无 content 字段（如仅 role 的首包）
+        assert_eq!(
+            extract_delta_content(r#"data: {"choices":[{"delta":{"role":"assistant"}}]}"#),
+            None
+        );
     }
 }
