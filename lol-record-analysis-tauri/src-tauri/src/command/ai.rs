@@ -1,21 +1,21 @@
 //! # AI 分析命令模块
 //!
-//! 提供流式 AI 分析功能，调用 Cloudflare Workers AI API。
+//! 提供流式 AI 分析功能，直连 DashScope (通义千问) OpenAI 兼容端点。
 //!
 //! ## 主要功能
 //!
 //! - **流式 AI 请求**: 通过 Tauri Channel 实现 SSE 流式输出到前端
-//! - **Cloudflare AI**: 调用 @cf/qwen/qwen2.5-coder-14b-instruct 模型
+//! - **DashScope (通义千问)**: 调 OpenAI 兼容端点，密钥在 Rust 层解析（见 resolve_api_key）
 //!
 //! ## 使用示例
 //!
-//! ```rust,ignore
-//! // 前端调用
-//! let (rx, tx) = channel::<String>();
-//! invoke('stream_ai_analysis', {
-//!   prompt: "分析这段战绩...",
-//!   system_prompt: "你是LOL分析师...",
-//!   onChunk: (chunk) => console.log(chunk)
+//! ```ts
+//! // 前端调用（参数为 camelCase，与 AiStreamRequest 的 serde rename 对应）
+//! const channel = new Channel<AiStreamEvent>()
+//! channel.onmessage = (e) => { /* e.event: 'chunk' | 'done' | 'error' */ }
+//! await invoke('stream_ai_analysis', {
+//!   request: { prompt: '分析这段战绩...', systemPrompt: '你是LOL分析师...' },
+//!   onEvent: channel
 //! })
 //! ```
 
@@ -38,12 +38,10 @@ fn resolve_api_key(
     runtime_env: Option<&str>,
     baked: Option<&str>,
 ) -> Result<String, String> {
-    for candidate in [override_key, runtime_env, baked] {
-        if let Some(k) = candidate {
-            let trimmed = k.trim();
-            if !trimmed.is_empty() {
-                return Ok(trimmed.to_string());
-            }
+    for k in [override_key, runtime_env, baked].into_iter().flatten() {
+        let trimmed = k.trim();
+        if !trimmed.is_empty() {
+            return Ok(trimmed.to_string());
         }
     }
     Err("未配置 DashScope 密钥（设置 DASHSCOPE_API_KEY 环境变量，或在设置中填入）".to_string())
@@ -83,12 +81,18 @@ fn extract_delta_content(line: &str) -> Option<String> {
 }
 
 /// AI 请求参数
+///
+/// `rename_all = "camelCase"`：前端 invoke 传 `systemPrompt` / `apiKey`（camelCase），
+/// 必须与 Rust snake_case 字段对齐，否则 serde 反序列化失败。
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AiStreamRequest {
     pub prompt: String,
     pub system_prompt: Option<String>,
-    pub account_id: String,
-    pub api_token: String,
+    /// 模型名（如 `qwen-plus`）；缺省用 `DEFAULT_MODEL`
+    pub model: Option<String>,
+    /// 用户在设置中填的覆盖密钥；空 / 缺省时用 env / 编译期注入
+    pub api_key: Option<String>,
 }
 
 /// AI 流式响应事件
@@ -116,17 +120,29 @@ pub async fn stream_ai_analysis(
     request: AiStreamRequest,
     on_event: Channel<AiStreamEvent>,
 ) -> Result<(), String> {
-    let url = format!(
-        "https://api.cloudflare.com/client/v4/accounts/{}/ai/run/@cf/qwen/qwen2.5-coder-14b-instruct",
-        request.account_id
-    );
+    // 解析密钥（用户覆盖 → env → 编译期注入）。失败时发 error 事件并结束（不 reject 命令）。
+    let key = match api_key(request.api_key.as_deref()) {
+        Ok(k) => k,
+        Err(e) => {
+            let _ = on_event.send(AiStreamEvent {
+                event: "error".to_string(),
+                data: Some(e),
+            });
+            return Ok(());
+        }
+    };
+    let model = request
+        .model
+        .as_deref()
+        .unwrap_or(DEFAULT_MODEL)
+        .to_string();
 
     // 构建请求头
     let mut headers = HeaderMap::new();
     headers.insert(
         AUTHORIZATION,
-        HeaderValue::from_str(&format!("Bearer {}", request.api_token))
-            .map_err(|e| format!("Invalid API token: {}", e))?,
+        HeaderValue::from_str(&format!("Bearer {}", key))
+            .map_err(|e| format!("Invalid API key: {}", e))?,
     );
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
 
@@ -136,15 +152,10 @@ pub async fn stream_ai_analysis(
         .unwrap_or_else(|| "你是一个LOL游戏分析师，擅长分析玩家战绩和给出游戏建议。请用简洁、专业、直接的中文回复。".to_string());
 
     let body = json!({
+        "model": model,
         "messages": [
-            {
-                "role": "system",
-                "content": system_prompt
-            },
-            {
-                "role": "user",
-                "content": request.prompt
-            }
+            { "role": "system", "content": system_prompt },
+            { "role": "user", "content": request.prompt }
         ],
         "stream": true
     });
@@ -157,7 +168,7 @@ pub async fn stream_ai_analysis(
 
     // 发送请求
     let response = client
-        .post(&url)
+        .post(DASHSCOPE_URL)
         .headers(headers)
         .json(&body)
         .send()
@@ -171,7 +182,11 @@ pub async fn stream_ai_analysis(
             .text()
             .await
             .unwrap_or_else(|_| "Unknown error".to_string());
-        return Err(format!("API error ({}): {}", status, error_text));
+        let _ = on_event.send(AiStreamEvent {
+            event: "error".to_string(),
+            data: Some(format!("API error ({}): {}", status, error_text)),
+        });
+        return Ok(());
     }
 
     // 获取响应流
@@ -190,50 +205,20 @@ pub async fn stream_ai_analysis(
                     let line = buffer[..line_end].trim().to_string();
                     buffer = buffer[line_end + 1..].to_string();
 
-                    if line.is_empty() || line == "data: [DONE]" {
-                        continue;
-                    }
-
-                    // 解析 SSE 数据行
-                    if let Some(data) = line.strip_prefix("data: ") {
-                        match serde_json::from_str::<serde_json::Value>(data) {
-                            Ok(json) => {
-                                // 提取响应内容
-                                let content = json
-                                    .get("response")
-                                    .and_then(|v| v.as_str())
-                                    .or_else(|| {
-                                        json.get("choices")
-                                            .and_then(|c| c.get(0))
-                                            .and_then(|c| c.get("delta"))
-                                            .and_then(|d| d.get("content"))
-                                            .and_then(|c| c.as_str())
-                                    })
-                                    .unwrap_or("")
-                                    .to_string();
-
-                                if !content.is_empty() {
-                                    // 发送 chunk 事件到前端
-                                    let _ = on_event.send(AiStreamEvent {
-                                        event: "chunk".to_string(),
-                                        data: Some(content),
-                                    });
-                                }
-                            }
-                            Err(_) => {
-                                // 忽略解析错误，继续处理
-                            }
-                        }
+                    if let Some(content) = extract_delta_content(&line) {
+                        let _ = on_event.send(AiStreamEvent {
+                            event: "chunk".to_string(),
+                            data: Some(content),
+                        });
                     }
                 }
             }
             Err(e) => {
-                // 发送错误事件
                 let _ = on_event.send(AiStreamEvent {
                     event: "error".to_string(),
                     data: Some(format!("Stream error: {}", e)),
                 });
-                return Err(format!("Stream error: {}", e));
+                return Ok(());
             }
         }
     }
@@ -267,8 +252,14 @@ mod tests {
     #[test]
     fn resolve_treats_blank_as_unset() {
         // 覆盖为空白时应跳到下一优先级，而不是用空 key
-        assert_eq!(resolve_api_key(Some("  "), Some("env"), None).unwrap(), "env");
-        assert_eq!(resolve_api_key(Some(""), None, Some("baked")).unwrap(), "baked");
+        assert_eq!(
+            resolve_api_key(Some("  "), Some("env"), None).unwrap(),
+            "env"
+        );
+        assert_eq!(
+            resolve_api_key(Some(""), None, Some("baked")).unwrap(),
+            "baked"
+        );
     }
 
     #[test]
