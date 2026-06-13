@@ -96,23 +96,127 @@ const emit = defineEmits<{
   font-size: var(--font-size-md);
 }
 
-.match-detail-ai-result :deep(h2) {
-  margin: var(--space-16) 0 var(--space-8);
+/* 章节标题：左色条 + ::before 图标，按 renderReport 注入的 section class 着色 */
+.match-detail-ai-result :deep(h2.ai-section) {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  margin: var(--space-20) 0 var(--space-8);
+  padding-left: var(--space-12);
+  border-left: 3px solid var(--text-tertiary);
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-bold);
   color: var(--text-primary);
 }
 
+.match-detail-ai-result :deep(h2.ai-section)::before {
+  font-size: var(--font-size-md);
+}
+
+.match-detail-ai-result :deep(h2.ai-section--verdict) {
+  border-left-color: var(--text-secondary);
+}
+.match-detail-ai-result :deep(h2.ai-section--verdict)::before {
+  content: '🎯';
+}
+.match-detail-ai-result :deep(h2.ai-section--effort) {
+  border-left-color: var(--semantic-win);
+  color: var(--semantic-win);
+}
+.match-detail-ai-result :deep(h2.ai-section--effort)::before {
+  content: '💪';
+}
+.match-detail-ai-result :deep(h2.ai-section--blame) {
+  border-left-color: var(--semantic-loss);
+  color: var(--semantic-loss);
+}
+.match-detail-ai-result :deep(h2.ai-section--blame)::before {
+  content: '⚠';
+}
+.match-detail-ai-result :deep(h2.ai-section--crushed) {
+  border-left-color: var(--semantic-warn);
+  color: var(--semantic-warn);
+}
+.match-detail-ai-result :deep(h2.ai-section--crushed)::before {
+  content: '🩹';
+}
+.match-detail-ai-result :deep(h2.ai-section--evidence) {
+  border-left-color: var(--text-tertiary);
+  color: var(--text-secondary);
+}
+.match-detail-ai-result :deep(h2.ai-section--evidence)::before {
+  content: '🔍';
+}
+
+/* 一句话定论：紧随标题的段落做成醒目 hero 卡片 */
+.match-detail-ai-result :deep(h2.ai-section--verdict + p) {
+  margin: var(--space-8) 0 0;
+  padding: var(--space-12) var(--space-16);
+  background: var(--glass-bg-mid);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-normal);
+  color: var(--text-primary);
+}
+
+/* bullet 改成带左色条的卡片行 */
 .match-detail-ai-result :deep(ul) {
-  padding-left: var(--space-20);
+  padding-left: 0;
+  list-style: none;
 }
 
 .match-detail-ai-result :deep(li) {
   margin: var(--space-6) 0;
+  padding: var(--space-6) var(--space-12);
+  border-left: 2px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--glass-bg-low);
+}
+
+.match-detail-ai-result :deep(h2.ai-section--effort + ul li) {
+  border-left-color: var(--semantic-win);
+}
+.match-detail-ai-result :deep(h2.ai-section--blame + ul li) {
+  border-left-color: var(--semantic-loss);
+}
+.match-detail-ai-result :deep(h2.ai-section--crushed + ul li) {
+  border-left-color: var(--semantic-warn);
+}
+.match-detail-ai-result :deep(h2.ai-section--evidence + ul li) {
+  border-left-color: var(--text-tertiary);
 }
 
 .match-detail-ai-result :deep(p) {
   margin: var(--space-8) 0;
+}
+
+/* 行内高亮：数字 pill + 名字加粗（由 renderReport 注入） */
+.match-detail-ai-result :deep(.ai-num) {
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-xs);
+  background: var(--glass-bg-high);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+.match-detail-ai-result :deep(.ai-name) {
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+}
+
+/* 兜底报告的提示 blockquote 做成 warning 条 */
+.match-detail-ai-result :deep(blockquote) {
+  margin: var(--space-8) 0;
+  padding: var(--space-8) var(--space-12);
+  border-left: 3px solid var(--semantic-warn);
+  background: var(--glass-bg-low);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+.match-detail-ai-result :deep(blockquote p) {
+  margin: 0;
 }
 
 .match-detail-ai-skeleton {
