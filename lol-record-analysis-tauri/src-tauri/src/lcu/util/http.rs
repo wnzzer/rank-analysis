@@ -101,6 +101,19 @@ async fn lcu_get_raw(uri: &str) -> Result<String, String> {
     Err("请求失败或认证失效".to_string())
 }
 
+/// 将 LCU 响应体反序列化为 `T`，**把空 body 当作 JSON `null`**。
+///
+/// LCU 的动作类接口（接受对局 `ready-check/accept`、选英雄 `patch_session_action`
+/// 等）成功时返回 `204 No Content` 空 body。直接拿空字符串喂 `serde_json` 会得到
+/// “EOF while parsing a value at line 1 column 0”，导致**已成功**的操作被误报为
+/// 反序列化失败并上报。把空/纯空白 body 归一成 `null`，使 `T = ()` / `Option<_>`
+/// 等正常反序列化；非空 body 照常解析、坏数据照常报错。
+fn deserialize_lcu_body<T: DeserializeOwned>(body: &str) -> Result<T, String> {
+    let trimmed = body.trim();
+    let json = if trimmed.is_empty() { "null" } else { trimmed };
+    serde_json::from_str::<T>(json).map_err(|e| format!("反序列化失败: {}", e))
+}
+
 /// 向 LCU 发起 GET 请求，将响应 JSON 反序列化为 `T`。
 /// 内置 singleflight（相同 URI 并发请求合并）和并发限制（最多 10 个同时请求）。
 pub async fn lcu_get<T: DeserializeOwned + 'static>(uri: &str) -> Result<T, String> {
@@ -120,8 +133,8 @@ pub async fn lcu_get<T: DeserializeOwned + 'static>(uri: &str) -> Result<T, Stri
         .await
         .map_err(|e| format!("{}", e))?;
 
-    // 从 JSON 字符串反序列化为目标类型
-    serde_json::from_str::<T>(&raw_json).map_err(|e| format!("反序列化失败: {}", e))
+    // 从 JSON 字符串反序列化为目标类型（空 body 归一成 null，见 deserialize_lcu_body）
+    deserialize_lcu_body::<T>(&raw_json)
 }
 
 /// 向 LCU 发起 POST 请求，请求体为 JSON。失败时刷新认证并重试一次。
@@ -132,11 +145,9 @@ pub async fn lcu_post<T: DeserializeOwned, D: Serialize>(uri: &str, data: &D) ->
         let resp = get_client().post(&url).json(data).send().await;
         match resp {
             Ok(r) if r.status().is_success() => {
-                let data = r
-                    .json::<T>()
-                    .await
-                    .map_err(|e| format!("反序列化失败: {}", e))?;
-                return Ok(data);
+                // 动作类接口常返回 204 空 body：先取文本，空 body 归一成 null。
+                let body = r.text().await.map_err(|e| format!("读取响应失败: {}", e))?;
+                return deserialize_lcu_body::<T>(&body);
             }
             _ => {
                 if let Err(e) = refresh_auth() {
@@ -159,11 +170,9 @@ pub async fn lcu_patch<T: DeserializeOwned, D: Serialize>(
         let resp = get_client().patch(&url).json(data).send().await;
         match resp {
             Ok(r) if r.status().is_success() => {
-                let data = r
-                    .json::<T>()
-                    .await
-                    .map_err(|e| format!("反序列化失败: {}", e))?;
-                return Ok(data);
+                // 动作类接口常返回 204 空 body：先取文本，空 body 归一成 null。
+                let body = r.text().await.map_err(|e| format!("读取响应失败: {}", e))?;
+                return deserialize_lcu_body::<T>(&body);
             }
             _ => {
                 if let Err(e) = refresh_auth() {
@@ -251,4 +260,46 @@ pub async fn external_get_json<T: DeserializeOwned>(url: &str) -> Result<T, Stri
     resp.json::<T>()
         .await
         .map_err(|e| format!("external JSON 反序列化失败: {}", e))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 复现根因：LCU 的动作类接口（接受对局 / 选英雄等）成功时返回 204 空 body，
+    /// 直接拿空字符串喂 serde_json 会得到 “EOF while parsing a value”。
+    #[test]
+    fn empty_body_breaks_raw_serde_json() {
+        let err = serde_json::from_str::<()>("").unwrap_err();
+        assert!(err.to_string().contains("EOF"), "实际错误: {err}");
+    }
+
+    #[test]
+    fn deserialize_body_treats_empty_as_unit() {
+        // 接受对局成功（204 空 body），T = ()，应当成功而非报反序列化失败。
+        deserialize_lcu_body::<()>("").expect("空 body 应反序列化为 ()");
+    }
+
+    #[test]
+    fn deserialize_body_treats_whitespace_as_unit() {
+        deserialize_lcu_body::<()>("  \n ").expect("纯空白 body 应反序列化为 ()");
+    }
+
+    #[test]
+    fn deserialize_body_empty_option_is_none() {
+        let v: Option<i32> = deserialize_lcu_body("").expect("空 body 应反序列化为 None");
+        assert_eq!(v, None);
+    }
+
+    #[test]
+    fn deserialize_body_still_parses_non_empty_json() {
+        let v: Vec<i32> = deserialize_lcu_body("[1,2,3]").expect("非空 JSON 应正常解析");
+        assert_eq!(v, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn deserialize_body_reports_malformed_json() {
+        // 非空但不是合法 JSON 时仍应报错（不要把坏数据吞成默认值）。
+        assert!(deserialize_lcu_body::<Vec<i32>>("{not json").is_err());
+    }
 }
