@@ -174,7 +174,7 @@ describe('validateAttribution', () => {
   })
 
   describe('data-grounding: off-role', () => {
-    it('rejects off-role mitigation when player.isOffRole=false', () => {
+    it('strips ungrounded off-role factor (player.isOffRole=false)', () => {
       const snap = snapshotWithPlayer({
         participantId: 1,
         teamId: 100,
@@ -192,8 +192,8 @@ describe('validateAttribution', () => {
         validVerdict(4)
       ])
       const out = validateAttribution(JSON.stringify(result), snap)
-      expect(out.ok).toBe(false)
-      if (!out.ok) expect(out.error).toMatch(/off-role/)
+      expect(out.ok).toBe(true)
+      if (out.ok) expect(out.value.verdicts[0].mitigatingFactors).toHaveLength(0)
     })
 
     it('accepts off-role mitigation when player.isOffRole=true', () => {
@@ -219,7 +219,7 @@ describe('validateAttribution', () => {
   })
 
   describe('data-grounding: first-time-champion', () => {
-    it('rejects when player.currentChampionMastery.isFirstTimeInRecent=false', () => {
+    it('strips ungrounded first-time-champion factor (isFirstTimeInRecent=false)', () => {
       const snap = snapshotWithPlayer({
         participantId: 1,
         teamId: 100,
@@ -237,7 +237,8 @@ describe('validateAttribution', () => {
         validVerdict(4)
       ])
       const out = validateAttribution(JSON.stringify(result), snap)
-      expect(out.ok).toBe(false)
+      expect(out.ok).toBe(true)
+      if (out.ok) expect(out.value.verdicts[0].mitigatingFactors).toHaveLength(0)
     })
 
     it('accepts when isFirstTimeInRecent=true', () => {
@@ -263,7 +264,7 @@ describe('validateAttribution', () => {
   })
 
   describe('data-grounding: team-collapse', () => {
-    it('rejects when fewer than 2 同队 verdict.label="犯罪"', () => {
+    it('strips team-collapse factor when <2 同队 犯罪', () => {
       const snap = snapshotWithPlayer({
         participantId: 1,
         teamId: 100,
@@ -280,8 +281,8 @@ describe('validateAttribution', () => {
         validVerdict(4, '尽力')
       ])
       const out = validateAttribution(JSON.stringify(result), snap)
-      expect(out.ok).toBe(false)
-      if (!out.ok) expect(out.error).toMatch(/team-collapse/)
+      expect(out.ok).toBe(true)
+      if (out.ok) expect(out.value.verdicts[0].mitigatingFactors).toHaveLength(0)
     })
 
     it('accepts when ≥2 同队 verdict.label="犯罪" (excluding self)', () => {
@@ -306,7 +307,7 @@ describe('validateAttribution', () => {
   })
 
   describe('data-grounding: targeted', () => {
-    it('always rejects targeted (no timeline data in current snapshot)', () => {
+    it('always strips targeted (no timeline data in current snapshot)', () => {
       const snap = snapshotWithPlayer({
         participantId: 1,
         teamId: 100,
@@ -323,7 +324,8 @@ describe('validateAttribution', () => {
         validVerdict(4)
       ])
       const out = validateAttribution(JSON.stringify(result), snap)
-      expect(out.ok).toBe(false)
+      expect(out.ok).toBe(true)
+      if (out.ok) expect(out.value.verdicts[0].mitigatingFactors).toHaveLength(0)
     })
   })
 })

@@ -17,7 +17,23 @@ use winapi::um::processthreadsapi::OpenProcess;
 use winapi::um::tlhelp32::{
     CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
 };
+use winapi::um::winbase::QueryFullProcessImageNameW;
 use winapi::um::winnt::{HANDLE, PROCESS_QUERY_LIMITED_INFORMATION};
+
+/// `Windows` `ERROR_ACCESS_DENIED`：`OpenProcess` 对更高完整性级别（如以管理员
+/// 身份运行的客户端）的进程会返回此错误。
+const ERROR_ACCESS_DENIED: i32 = 5;
+
+/// 读取单个进程命令行的失败归类。
+///
+/// 区分"无权访问"（句柄都打不开，通常是游戏以管理员身份运行而本工具没有）与
+/// 其他失败，便于上层 [`get_auth_detailed`] 给前端精确的处置建议。
+enum CmdError {
+    /// `OpenProcess` 被拒绝（`ERROR_ACCESS_DENIED`）。
+    AccessDenied,
+    /// 其他失败（句柄已打开但读取命令行失败等）。
+    Failed(String),
+}
 
 mod ntapi {
     pub mod ntpsapi {
@@ -96,16 +112,17 @@ fn get_process_pid_by_name(name: &str) -> Result<Vec<DWORD>, String> {
     Ok(pids)
 }
 
-fn get_process_command_line(pid: DWORD) -> Result<String, String> {
+fn get_process_command_line(pid: DWORD) -> Result<String, CmdError> {
     log::info!("尝试获取进程 {} 的命令行", pid);
     unsafe {
         let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
         if handle.is_null() {
-            return Err(format!(
-                "无法打开进程 {}: {}",
-                pid,
-                std::io::Error::last_os_error()
-            ));
+            let err = std::io::Error::last_os_error();
+            if err.raw_os_error() == Some(ERROR_ACCESS_DENIED) {
+                log::warn!("无权打开进程 {}（ACCESS_DENIED）: {}", pid, err);
+                return Err(CmdError::AccessDenied);
+            }
+            return Err(CmdError::Failed(format!("无法打开进程 {}: {}", pid, err)));
         }
         log::info!("成功打开进程句柄");
         let _process_handle = ProcessHandle(handle);
@@ -133,31 +150,31 @@ fn get_process_command_line(pid: DWORD) -> Result<String, String> {
                     &mut return_size,
                 );
                 if status != 0 {
-                    return Err(format!(
+                    return Err(CmdError::Failed(format!(
                         "NtQueryInformationProcess 失败，状态码: {:#x}",
                         status
-                    ));
+                    )));
                 }
             } else {
-                return Err(format!(
+                return Err(CmdError::Failed(format!(
                     "NtQueryInformationProcess 失败，状态码: {:#x}",
                     status
-                ));
+                )));
             }
         }
 
         if return_size == 0 {
-            return Err("返回的缓冲区大小为0".to_string());
+            return Err(CmdError::Failed("返回的缓冲区大小为0".to_string()));
         }
 
         buffer.truncate(return_size as usize);
 
         let ucs = &*(buffer.as_ptr() as *const UNICODE_STRING);
         if ucs.Buffer.is_null() || ucs.Length == 0 {
-            return Err(format!(
+            return Err(CmdError::Failed(format!(
                 "无效的命令行数据，Buffer: {:?}, Length: {}",
                 ucs.Buffer, ucs.Length
-            ));
+            )));
         }
 
         let slice = std::slice::from_raw_parts(ucs.Buffer, (ucs.Length / 2) as usize);
@@ -206,52 +223,227 @@ fn auth_resolver(command_line: &str) -> Result<(String, String), String> {
 /// 的数据竞争（Rust UB）。
 static CUR_PID: AtomicU32 = AtomicU32::new(0);
 
-/// 获取当前 LCU 认证信息。
+/// 客户端检测失败的归类。
 ///
-/// 查找 LeagueClientUx.exe 进程，读取命令行中的 `remoting-auth-token` 与 `app-port`，
-/// 返回 `(token, port)`。未找到或解析失败则返回错误。
-pub fn get_auth() -> Result<(String, String), String> {
+/// 上层据此给前端**精确**的处置建议——尤其要把"权限不足"和"游戏没开"分开：
+/// 前者需要引导用户以管理员身份运行，后者只是正常等待态，不应弹任何警告。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AuthError {
+    /// 未找到客户端进程——游戏多半没启动，属正常等待态。
+    NotRunning,
+    /// 找到了客户端进程，但无权读取它的信息。
+    ///
+    /// 典型成因：游戏（或 WeGame）以管理员身份运行，而本工具是普通权限，
+    /// `OpenProcess` 被 `ERROR_ACCESS_DENIED` 拒绝。解法是让本工具也提权运行。
+    AccessDenied,
+    /// 其他失败（命令行读取/解析、lockfile 读取等）。
+    Other(String),
+}
+
+impl AuthError {
+    /// 稳定的机器可读错误码，供前端按码分支与遥测聚合。
+    pub fn code(&self) -> &'static str {
+        match self {
+            AuthError::NotRunning => "NOT_RUNNING",
+            AuthError::AccessDenied => "ACCESS_DENIED",
+            AuthError::Other(_) => "OTHER",
+        }
+    }
+}
+
+impl std::fmt::Display for AuthError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AuthError::NotRunning => write!(f, "未找到英雄联盟客户端进程"),
+            AuthError::AccessDenied => write!(
+                f,
+                "检测到游戏客户端，但无权读取其信息。请以管理员身份运行本工具（或不要以管理员身份运行游戏）。"
+            ),
+            AuthError::Other(e) => write!(f, "{}", e),
+        }
+    }
+}
+
+/// 通过已打开的进程句柄获取其可执行文件完整路径（用于定位同目录下的 lockfile）。
+fn get_process_image_path(handle: HANDLE) -> Result<String, String> {
+    unsafe {
+        // 客户端安装路径可能很长（含中文/嵌套目录），给足缓冲避免截断。
+        let mut buf: Vec<u16> = vec![0; 1024];
+        let mut size = buf.len() as u32;
+        let ok = QueryFullProcessImageNameW(handle, 0, buf.as_mut_ptr(), &mut size);
+        if ok == FALSE {
+            return Err(format!(
+                "QueryFullProcessImageNameW 失败: {}",
+                std::io::Error::last_os_error()
+            ));
+        }
+        Ok(String::from_utf16_lossy(&buf[..size as usize]))
+    }
+}
+
+/// 解析 lockfile 内容，返回 `(remoting-auth-token, app-port)`。
+///
+/// lockfile 由客户端写入，格式固定为 `LeagueClient:<pid>:<port>:<token>:<protocol>`，
+/// 冒号分隔。token 即 `remoting-auth-token`，与命令行解析出的一致。
+fn parse_lockfile(content: &str) -> Result<(String, String), String> {
+    let parts: Vec<&str> = content.trim().split(':').collect();
+    if parts.len() < 5 {
+        return Err(format!("lockfile 格式异常（{} 段）", parts.len()));
+    }
+    let port = parts[2].to_string();
+    let token = parts[3].to_string();
+    if port.is_empty() || token.is_empty() {
+        return Err("lockfile 缺少 port 或 token".to_string());
+    }
+    Ok((token, port))
+}
+
+/// 命令行读取失败时的兜底：通过进程可执行文件路径定位同目录 lockfile 并解析。
+///
+/// 仅当 `OpenProcess` 能成功（即非 [`AuthError::AccessDenied`]）时有意义；
+/// 权限不足时连句柄都打不开，自然也拿不到镜像路径。
+fn lockfile_auth_for_pid(pid: DWORD) -> Result<(String, String), String> {
+    let handle = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid) };
+    if handle.is_null() {
+        return Err(format!(
+            "为读取 lockfile 打开进程 {} 失败: {}",
+            pid,
+            std::io::Error::last_os_error()
+        ));
+    }
+    let _guard = ProcessHandle(handle);
+    let exe_path = get_process_image_path(handle)?;
+    let dir = std::path::Path::new(&exe_path)
+        .parent()
+        .ok_or("无法从客户端路径推导安装目录")?;
+    let lockfile = dir.join("lockfile");
+    let content = std::fs::read_to_string(&lockfile)
+        .map_err(|e| format!("读取 lockfile {} 失败: {}", lockfile.display(), e))?;
+    let auth = parse_lockfile(&content)?;
+    // 标记走了兜底路径，便于在日志/遥测里看出命令行失效、是 lockfile 救回来的。
+    // 不打印 token / 端口，避免凭据外传。
+    log::info!("通过 lockfile 兜底获取认证成功 (pid {})", pid);
+    Ok(auth)
+}
+
+/// 尝试从单个进程获取认证：优先命令行，失败再回退 lockfile。
+fn try_auth_from_pid(pid: DWORD) -> Result<(String, String), AuthError> {
+    match get_process_command_line(pid) {
+        Ok(cmd) if !cmd.is_empty() => auth_resolver(&cmd).or_else(|cmd_err| {
+            // 命令行拿到了却没解析出 token，再试一次 lockfile。
+            lockfile_auth_for_pid(pid).map_err(|lf| {
+                AuthError::Other(format!("命令行解析失败({cmd_err}); lockfile: {lf}"))
+            })
+        }),
+        // 句柄能开但命令行为空/读取失败：lockfile 兜底。
+        Ok(_) => lockfile_auth_for_pid(pid).map_err(AuthError::Other),
+        Err(CmdError::Failed(e)) => lockfile_auth_for_pid(pid)
+            .map_err(|lf| AuthError::Other(format!("命令行读取失败({e}); lockfile: {lf}"))),
+        // 权限不足：lockfile 路径同样拿不到，直接归类，交由上层引导提权。
+        Err(CmdError::AccessDenied) => Err(AuthError::AccessDenied),
+    }
+}
+
+/// 获取当前 LCU 认证信息，带失败归类。
+///
+/// 查找 `LeagueClientUx.exe` 进程，优先从命令行解析 `remoting-auth-token` 与
+/// `app-port`，失败时回退读取 lockfile。无法获取时返回 [`AuthError`]，区分
+/// "游戏没开 / 权限不足 / 其他失败"。
+pub fn get_auth_detailed() -> Result<(String, String), AuthError> {
     log::info!("开始查找英雄联盟客户端进程...");
-    let pids = get_process_pid_by_name("LeagueClientUx.exe")?;
+    let pids = get_process_pid_by_name("LeagueClientUx.exe").map_err(AuthError::Other)?;
 
     log::info!("找到 {} 个进程", pids.len());
     if pids.is_empty() {
-        return Err("未找到英雄联盟客户端进程".to_string());
+        return Err(AuthError::NotRunning);
     }
 
-    let mut cmd_line = String::new();
-    let mut found_valid_process = false;
     let cached_pid = CUR_PID.load(Ordering::Relaxed);
+    let mut saw_access_denied = false;
+    let mut last_other: Option<String> = None;
 
-    for &pid in &pids {
-        if pid == cached_pid {
-            log::info!("跳过当前PID: {}", pid);
-            continue;
-        }
-
+    // 先尝试非缓存的进程（缓存进程留作最后兜底，沿用历史行为）。
+    for &pid in pids.iter().filter(|&&p| p != cached_pid) {
         log::info!("正在检查PID: {}", pid);
-        match get_process_command_line(pid) {
-            Ok(temp_cmd_line) if !temp_cmd_line.is_empty() => {
-                cmd_line = temp_cmd_line;
+        match try_auth_from_pid(pid) {
+            Ok(auth) => {
                 CUR_PID.store(pid, Ordering::Relaxed);
-                found_valid_process = true;
                 log::info!("找到有效进程，PID: {}", pid);
-                break;
+                return Ok(auth);
             }
-            Err(e) => log::info!("获取进程 {} 的命令行失败: {}", pid, e),
-            _ => log::info!("进程 {} 的命令行为空", pid),
+            Err(AuthError::AccessDenied) => saw_access_denied = true,
+            Err(AuthError::Other(e)) => {
+                log::info!("获取进程 {} 的认证失败: {}", pid, e);
+                last_other = Some(e);
+            }
+            Err(AuthError::NotRunning) => {}
         }
     }
 
-    if !found_valid_process {
-        let cached = CUR_PID.load(Ordering::Relaxed);
-        log::info!("未找到有效的命令行，尝试使用当前PID: {}", cached);
-        if cached > 0 {
-            cmd_line = get_process_command_line(cached)?;
-        } else {
-            return Err("未找到有效的英雄联盟客户端进程".to_string());
+    // 兜底：缓存 pid 仍在存活进程里时再试一次。
+    if cached_pid > 0 && pids.contains(&cached_pid) {
+        if let Ok(auth) = try_auth_from_pid(cached_pid) {
+            log::info!("使用缓存 PID {} 命中", cached_pid);
+            return Ok(auth);
         }
     }
 
-    auth_resolver(&cmd_line)
+    if saw_access_denied {
+        log::warn!("检测到客户端进程但无权读取（疑似游戏以管理员身份运行）");
+        Err(AuthError::AccessDenied)
+    } else if let Some(e) = last_other {
+        Err(AuthError::Other(e))
+    } else {
+        Err(AuthError::NotRunning)
+    }
+}
+
+/// 获取当前 LCU 认证信息（字符串错误版，供既有 HTTP / WebSocket 调用方使用）。
+///
+/// 等价于 [`get_auth_detailed`]，仅把 [`AuthError`] 拍平为人类可读字符串。
+pub fn get_auth() -> Result<(String, String), String> {
+    get_auth_detailed().map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_lockfile_extracts_port_and_token() {
+        let (token, port) = parse_lockfile("LeagueClient:12345:53970:abcdToken:https").unwrap();
+        assert_eq!(port, "53970");
+        assert_eq!(token, "abcdToken");
+    }
+
+    #[test]
+    fn parse_lockfile_tolerates_trailing_newline() {
+        let (token, port) = parse_lockfile("LeagueClient:1:2:tok:https\n").unwrap();
+        assert_eq!(port, "2");
+        assert_eq!(token, "tok");
+    }
+
+    #[test]
+    fn parse_lockfile_rejects_malformed() {
+        assert!(parse_lockfile("LeagueClient:1:2").is_err());
+        assert!(parse_lockfile("").is_err());
+    }
+
+    #[test]
+    fn parse_lockfile_rejects_empty_fields() {
+        assert!(parse_lockfile("LeagueClient:1::tok:https").is_err());
+        assert!(parse_lockfile("LeagueClient:1:2::https").is_err());
+    }
+
+    #[test]
+    fn auth_error_codes_are_stable() {
+        assert_eq!(AuthError::NotRunning.code(), "NOT_RUNNING");
+        assert_eq!(AuthError::AccessDenied.code(), "ACCESS_DENIED");
+        assert_eq!(AuthError::Other("x".into()).code(), "OTHER");
+    }
+
+    #[test]
+    fn access_denied_message_mentions_admin() {
+        assert!(AuthError::AccessDenied.to_string().contains("管理员"));
+    }
 }

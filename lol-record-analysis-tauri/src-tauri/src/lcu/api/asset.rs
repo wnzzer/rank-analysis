@@ -506,12 +506,47 @@ pub async fn init() {
     log::info!("Asset API caches initialized successfully");
 }
 
+/// 自愈用单飞器：仅当 `is_empty()` 为真时，拿锁后再次确认仍为空，才跑一次 `run_init`。
+/// 并发调用只触发一次 init，其余等锁后复查即返回。抽出来便于单测（不依赖 LCU）。
+async fn run_once_if_empty<E, I, F>(is_empty: E, lock: &tokio::sync::Mutex<()>, run_init: I)
+where
+    E: Fn() -> bool,
+    I: Fn() -> F,
+    F: std::future::Future<Output = ()>,
+{
+    if !is_empty() {
+        return;
+    }
+    let _guard = lock.lock().await;
+    // 双检：等锁期间可能已有别的请求填好缓存。
+    if !is_empty() {
+        return;
+    }
+    run_init().await;
+}
+
+/// 资源缓存自愈：启动竞态下缓存还空时，确保 [`init`] 至少跑过一次再继续，
+/// 避免协议处理器在缓存就绪前对 champion/item/perk 图标直接返回 404（首屏图裂、
+/// 且因 no-store 不缓存失败、又无前端重试，会一直裂到手动刷新）。
+///
+/// **只能在异步协议处理器里 await**（见 main.rs 的 `register_asynchronous_uri_scheme_protocol`）：
+/// init 会发多次 LCU 请求、耗时较长，绝不可在同步处理器里 `block_on`，否则会占满
+/// webview 资源加载线程导致 UI 卡死。
+async fn ensure_caches_ready() {
+    static ASSET_INIT_LOCK: LazyLock<tokio::sync::Mutex<()>> =
+        LazyLock::new(|| tokio::sync::Mutex::new(()));
+    run_once_if_empty(champion_cache_is_empty, &ASSET_INIT_LOCK, init).await;
+}
+
 // 新增：返回二进制与 content-type，便于通过 HTTP 下发
 pub async fn get_asset_binary(type_string: String, id: i64) -> Result<(Vec<u8>, String), String> {
     let cache_key = build_asset_key(&type_string, id);
     if let Some(hit) = BINARY_CACHE.get(&cache_key).await {
         return Ok(hit);
     }
+
+    // 自愈：缓存未就绪（启动竞态）时先确保 init 跑过一次，避免直接 404。
+    ensure_caches_ready().await;
 
     let result = match type_string.as_str() {
         "champion" => get_champion_binary(id).await,
@@ -726,9 +761,42 @@ fn normalize_asset_text(raw: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     fn parse(raw: &str) -> CherryAugment {
         serde_json::from_str(raw).expect("valid CherryAugment JSON")
+    }
+
+    #[tokio::test]
+    async fn run_once_if_empty_skips_when_already_ready() {
+        // 缓存已就绪（is_empty=false）时不应触发 init。
+        let init_count = AtomicUsize::new(0);
+        let lock = tokio::sync::Mutex::new(());
+        run_once_if_empty(
+            || false,
+            &lock,
+            || async {
+                init_count.fetch_add(1, Ordering::SeqCst);
+            },
+        )
+        .await;
+        assert_eq!(init_count.load(Ordering::SeqCst), 0, "就绪时不应跑 init");
+    }
+
+    #[tokio::test]
+    async fn run_once_if_empty_dedups_concurrent_callers() {
+        // 启动竞态下，多个并发图片请求只应触发一次 init，其余等锁后复查即返回。
+        let init_count = AtomicUsize::new(0);
+        let lock = tokio::sync::Mutex::new(());
+        let is_empty = || init_count.load(Ordering::SeqCst) == 0;
+        let run_init = || async {
+            tokio::task::yield_now().await; // 制造交错窗口
+            init_count.fetch_add(1, Ordering::SeqCst);
+        };
+        let call = || run_once_if_empty(is_empty, &lock, run_init);
+        tokio::join!(call(), call(), call(), call(), call(), call());
+        assert_eq!(init_count.load(Ordering::SeqCst), 1, "init 应只跑一次");
+        assert!(!is_empty(), "init 后缓存应视为就绪");
     }
 
     #[test]

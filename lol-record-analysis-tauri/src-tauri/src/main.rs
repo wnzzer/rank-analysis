@@ -68,53 +68,56 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_process::init())
-        .register_uri_scheme_protocol("asset", move |_app, request| {
+        .register_asynchronous_uri_scheme_protocol("asset", move |_ctx, request, responder| {
             let path = request.uri().path();
             // path is like /champion/123
             let parts: Vec<&str> = path.trim_start_matches('/').split('/').collect();
 
             if parts.len() < 2 {
-                return tauri::http::Response::builder()
-                    .status(404)
-                    .body(Vec::new())
-                    .unwrap();
+                responder.respond(
+                    tauri::http::Response::builder()
+                        .status(404)
+                        .body(Vec::new())
+                        .unwrap(),
+                );
+                return;
             }
 
             let kind = parts[0].to_string();
-            let id_str = parts[1];
-            let id = match id_str.parse::<i64>() {
+            let id = match parts[1].parse::<i64>() {
                 Ok(i) => i,
                 Err(_) => {
-                    return tauri::http::Response::builder()
-                        .status(400)
-                        .body(Vec::new())
-                        .unwrap()
+                    responder.respond(
+                        tauri::http::Response::builder()
+                            .status(400)
+                            .body(Vec::new())
+                            .unwrap(),
+                    );
+                    return;
                 }
             };
 
-            let result = tauri::async_runtime::block_on(async move {
-                asset_api::get_asset_binary(kind, id).await
+            // 异步处理：绝不阻塞 webview 资源加载线程。缓存未就绪（启动竞态）时，
+            // get_asset_binary 内部会后台自愈一次 init（见 asset::ensure_caches_ready），
+            // 就绪后再通过 responder 回包——首屏冷启动也能自动补上图标，无需手动刷新。
+            //
+            // Cache-Control: no-store —— 成功响应命中 Rust 端 BINARY_CACHE 是 O(1)，
+            // 重新请求成本可忽略；失败响应不被浏览器负缓存，cache 就绪后下次请求即恢复。
+            tauri::async_runtime::spawn(async move {
+                let response = match asset_api::get_asset_binary(kind, id).await {
+                    Ok((bytes, mime)) => tauri::http::Response::builder()
+                        .header("Content-Type", mime)
+                        .header("Cache-Control", "no-store")
+                        .body(bytes)
+                        .unwrap(),
+                    Err(e) => tauri::http::Response::builder()
+                        .status(404)
+                        .header("Cache-Control", "no-store")
+                        .body(e.into_bytes())
+                        .unwrap(),
+                };
+                responder.respond(response);
             });
-
-            // 不让浏览器缓存任何响应：
-            //   - 成功响应：Rust 端 BINARY_CACHE 命中是 O(1) 内存查找，IPC 走 asset.localhost
-            //     回到 webview 也是本地直传，每次重新请求成本可忽略
-            //   - 失败响应（asset cache 未就绪、Fandom 数据缺失等）：之前 24h max-age
-            //     会让浏览器 negative-cache 失败状态，cache 就绪后不会重试，导致
-            //     启动后 augment / champion / perk 图标长时间不出。
-            //     用 no-store 让浏览器每次都走 Rust，cache 就绪后第一次刷新就显示
-            match result {
-                Ok((bytes, mime)) => tauri::http::Response::builder()
-                    .header("Content-Type", mime)
-                    .header("Cache-Control", "no-store")
-                    .body(bytes)
-                    .unwrap(),
-                Err(e) => tauri::http::Response::builder()
-                    .status(404)
-                    .header("Cache-Control", "no-store")
-                    .body(e.into_bytes())
-                    .unwrap(),
-            }
         })
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
@@ -143,6 +146,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             command::session::get_session_data,
             command::fandom::update_fandom_data,
             command::fandom::get_aram_balance,
+            command::system::relaunch_as_admin,
         ]);
 
     #[cfg(debug_assertions)]

@@ -6,6 +6,10 @@ import router from '../router'
 export interface GameStateEvent {
   connected: boolean
   phase: string | null
+  /** 未连接时的失败归类码：'NOT_RUNNING' | 'ACCESS_DENIED' | 'OTHER'，已连接为 null */
+  reasonCode: string | null
+  /** 未连接时面向用户的失败说明 */
+  reasonMessage: string | null
   summoner: {
     gameName: string
     tagLine: string
@@ -46,6 +50,8 @@ interface SessionData {
 const isConnected = ref(false)
 const currentPhase = ref<string | null>(null)
 const summoner = ref<GameStateEvent['summoner'] | null>(null)
+const reasonCode = ref<string | null>(null)
+const reasonMessage = ref<string | null>(null)
 
 let unlistenState: UnlistenFn | null = null
 let unlistenSession: UnlistenFn | null = null
@@ -100,6 +106,8 @@ async function setupListeners() {
     isConnected.value = state.connected
     currentPhase.value = state.phase
     summoner.value = state.summoner
+    reasonCode.value = state.reasonCode ?? null
+    reasonMessage.value = state.reasonMessage ?? null
 
     handleConnectionRoute(state)
   })
@@ -162,6 +170,8 @@ export function useGameState() {
   return {
     isConnected,
     currentPhase,
-    summoner
+    summoner,
+    reasonCode,
+    reasonMessage
   }
 }

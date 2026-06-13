@@ -2737,6 +2737,7 @@ dependencies = [
  "tokio-tungstenite 0.20.1",
  "url",
  "urlencoding",
+ "uuid",
  "winapi",
 ]
 

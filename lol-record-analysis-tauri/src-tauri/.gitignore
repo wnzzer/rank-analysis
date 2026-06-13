@@ -6,4 +6,7 @@
 # will have schema files for capabilities auto-completion
 /gen/schemas
 
+# 运行时生成的匿名设备 ID（Sentry 上报用），每台机器各异，不入库
+/device_id
+
 *claude*

@@ -65,6 +65,7 @@ use crate::lcu::api::summoner::Summoner;
 /// - `phase`: 当前游戏阶段（如 "Lobby", "ChampSelect", "InProgress" 等），未连接时为 None
 /// - `summoner`: 当前登录的召唤师信息，未连接时为 None
 #[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GameStateEvent {
     /// LCU 客户端连接状态
     pub connected: bool,
@@ -72,6 +73,13 @@ pub struct GameStateEvent {
     pub phase: Option<String>,
     /// 当前登录的召唤师信息
     pub summoner: Option<Summoner>,
+    /// 未连接时的失败归类码（`NOT_RUNNING` / `ACCESS_DENIED` / `OTHER`）。
+    ///
+    /// 已连接或仅是 API 短暂抖动时为 `None`。前端据此决定是否展示"以管理员
+    /// 身份重启"等引导。
+    pub reason_code: Option<String>,
+    /// 未连接时面向用户的失败说明（与 `reason_code` 同源）。
+    pub reason_message: Option<String>,
 }
 
 /// 全局游戏状态监听器实例。
@@ -116,6 +124,8 @@ impl GameStateMonitor {
                 connected: false,
                 phase: None,
                 summoner: None,
+                reason_code: None,
+                reason_message: None,
             },
             last_push_time: SystemTime::now(),
         }
@@ -139,16 +149,32 @@ impl GameStateMonitor {
         // 尝试获取 summoner 信息
         let summoner_result = Summoner::get_my_summoner().await;
         let phase_result = get_phase().await;
+        let connected = summoner_result.is_ok();
 
-        let new_state = GameStateEvent {
-            connected: summoner_result.is_ok(),
-            phase: phase_result.ok(),
-            summoner: summoner_result.ok(),
+        // 未连接时进一步归类原因：区分"游戏没开"（正常等待）与"权限不足"
+        // （需引导用户提权）。已连接，或仅是 API 短暂抖动（进程在但请求失败）时
+        // 不展示任何告警，避免误导。
+        let (reason_code, reason_message) = if connected {
+            (None, None)
+        } else {
+            match crate::lcu::util::token::get_auth_detailed() {
+                Ok(_) => (None, None),
+                Err(e) => (Some(e.code().to_string()), Some(e.to_string())),
+            }
         };
 
-        // 检查状态是否改变
+        let new_state = GameStateEvent {
+            connected,
+            phase: phase_result.ok(),
+            summoner: summoner_result.ok(),
+            reason_code,
+            reason_message,
+        };
+
+        // 检查状态是否改变（含 reason_code，使提权引导能及时出现/消失）
         let state_changed = new_state.connected != self.last_state.connected
-            || new_state.phase != self.last_state.phase;
+            || new_state.phase != self.last_state.phase
+            || new_state.reason_code != self.last_state.reason_code;
         let now = SystemTime::now();
         let diff_time = now
             .duration_since(self.last_push_time)
