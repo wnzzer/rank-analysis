@@ -13,8 +13,9 @@ export const DEFAULT_SYSTEM_PROMPT =
 
 /**
  * 默认模型（DashScope 兼容 OpenAI 协议）。各 stage 调用方按 use case 覆盖。
+ * qwen-flash：基准实测（tests/bench-ai-models.mjs）速度+有效率最优，故作兜底默认。
  */
-export const DEFAULT_MODEL = 'qwen-plus'
+export const DEFAULT_MODEL = 'qwen-flash'
 
 /** Rust stream_ai_analysis 命令经 Channel 回传的事件 */
 export interface AiStreamEvent {

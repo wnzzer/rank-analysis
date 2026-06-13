@@ -6,6 +6,7 @@ import { createPinia } from 'pinia'
 import { useSettingsStore } from './pinia/setting'
 import { usePlayerNotesStore } from './pinia/playerNotes'
 import './global.css'
+import './styles/ai-report.css'
 
 const app = createApp(App)
 const pinia = createPinia()

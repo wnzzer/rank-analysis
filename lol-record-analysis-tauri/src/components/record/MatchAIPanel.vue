@@ -26,7 +26,11 @@
         </n-button>
       </div>
 
-      <div v-if="renderedResult" class="match-detail-ai-result" v-html="renderedResult"></div>
+      <div
+        v-if="renderedResult"
+        class="match-detail-ai-result ai-report"
+        v-html="renderedResult"
+      ></div>
       <div v-else-if="aiLoading || loading" class="match-detail-ai-skeleton">
         <div v-if="aiStateLabel" class="match-detail-ai-skeleton-label">{{ aiStateLabel }}</div>
         <n-skeleton text :repeat="4" />
@@ -96,24 +100,8 @@ const emit = defineEmits<{
   font-size: var(--font-size-md);
 }
 
-.match-detail-ai-result :deep(h2) {
-  margin: var(--space-16) 0 var(--space-8);
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-bold);
-  color: var(--text-primary);
-}
-
-.match-detail-ai-result :deep(ul) {
-  padding-left: var(--space-20);
-}
-
-.match-detail-ai-result :deep(li) {
-  margin: var(--space-6) 0;
-}
-
-.match-detail-ai-result :deep(p) {
-  margin: var(--space-8) 0;
-}
+/* 报告内容（章节着色 / hero / 数字名字高亮）由共享样式 styles/ai-report.css 提供，
+   容器同时挂了 class `ai-report`，此处只保留弹窗特有的布局。 */
 
 .match-detail-ai-skeleton {
   display: flex;

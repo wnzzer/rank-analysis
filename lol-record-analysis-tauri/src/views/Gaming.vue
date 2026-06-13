@@ -50,7 +50,7 @@
 
       <!-- AI 分析结果弹窗 -->
       <n-modal v-model:show="showAIResult" preset="card" title="AI 分析" style="width: 600px">
-        <div class="ai-result-content" v-html="renderedAIResult"></div>
+        <div class="ai-result-content ai-report" v-html="renderedAIResult"></div>
       </n-modal>
 
       <div class="gaming-grid" :class="{ 'gaming-grid-multi': sessionData.isMultiTeam }">
@@ -76,11 +76,11 @@ import { computed, onMounted, ref } from 'vue'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import { SettingsOutline, SparklesOutline } from '@vicons/ionicons5'
 import { useMessage } from 'naive-ui'
-import MarkdownIt from 'markdown-it'
 
 import LoadingComponent from '@renderer/components/LoadingComponent.vue'
 import SubteamCard from '@renderer/components/gaming/SubteamCard.vue'
 import { analyzeGameWithAIStream, type StreamCallbacks } from '@renderer/services/ai'
+import { renderAnalysisReport } from '@renderer/services/ai/matchDetail/renderReport'
 import { useSessionSync } from '@renderer/composables/useSessionSync'
 import { useSessionTiers } from '@renderer/composables/useSessionTiers'
 
@@ -114,10 +114,7 @@ const showAITooltip = ref(false)
 /** AI 功能提示状态（内存中存储，每次打开软件只提示一次） */
 let hasShownAITip = false
 
-// html:false 阻断 AI/外部数据中夹带 raw HTML（XSS 防线，CSP 之外的纵深防御）
-const md = new MarkdownIt({ html: false, breaks: true, linkify: true })
-
-const renderedAIResult = computed(() => (aiResult.value ? md.render(aiResult.value) : ''))
+const renderedAIResult = computed(() => renderAnalysisReport(aiResult.value))
 
 const handleUpdateConfig = async (value: number | null) => {
   if (!value) return
@@ -221,84 +218,8 @@ onMounted(async () => {
   overflow-y: auto;
 }
 
-.ai-result-content :deep(h1) {
-  font-size: 20px; /* H1 一档大于 --font-size-xl(18px)，保留 */
-  font-weight: var(--font-weight-bold);
-  margin: var(--space-20) 0 var(--space-12) 0;
-  padding-bottom: var(--space-8);
-  border-bottom: 3px solid var(--n-primary-color);
-  color: var(--n-text-color);
-}
-
-.ai-result-content :deep(h2) {
-  font-size: var(--font-size-xl);
-  font-weight: var(--font-weight-semibold);
-  margin: var(--space-20) 0 var(--space-10) 0;
-  padding-left: var(--space-12);
-  border-left: 4px solid var(--n-primary-color);
-  color: var(--n-text-color);
-}
-
-.ai-result-content :deep(h3) {
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
-  margin: var(--space-12) 0 var(--space-8) 0;
-  color: var(--n-text-color);
-}
-
-.ai-result-content :deep(ul),
-.ai-result-content :deep(ol) {
-  padding-left: var(--space-24);
-  margin: var(--space-10) 0;
-}
-
-.ai-result-content :deep(li) {
-  margin: var(--space-8) 0;
-  line-height: 1.8;
-}
-
-.ai-result-content :deep(p) {
-  margin: var(--space-10) 0;
-}
-
-.ai-result-content :deep(strong) {
-  font-weight: var(--font-weight-bold);
-  color: var(--n-primary-color);
-}
-
-.ai-result-content :deep(mark) {
-  /* alpha-tinted gradient of --semantic-win，保留 rgba 以保证渐变层次 */
-  background: linear-gradient(120deg, rgba(34, 197, 94, 0.2) 0%, rgba(34, 197, 94, 0.1) 100%);
-  color: var(--semantic-win);
-  padding: var(--space-2) var(--space-8);
-  border-radius: var(--radius-xs);
-  font-weight: var(--font-weight-semibold);
-}
-
-.ai-result-content :deep(code) {
-  /* alpha-tinted gradient of --semantic-loss，保留 rgba 以保证渐变层次 */
-  background: linear-gradient(120deg, rgba(239, 68, 68, 0.2) 0%, rgba(239, 68, 68, 0.1) 100%);
-  color: var(--semantic-loss);
-  padding: var(--space-2) var(--space-8);
-  border-radius: var(--radius-xs);
-  font-family: inherit;
-  font-size: inherit;
-  font-weight: var(--font-weight-semibold);
-}
-
-.ai-result-content :deep(blockquote) {
-  border-left: 4px solid var(--n-border-color);
-  padding-left: var(--space-16);
-  margin: var(--space-12) 0;
-  color: var(--n-text-color-3);
-  font-style: italic;
-}
-
-.ai-result-content :deep(hr) {
-  border: none;
-  border-top: 2px solid var(--n-border-color);
-  margin: var(--space-16) 0;
-}
+/* 报告内容样式（章节着色 / hero / 数字名字高亮）由共享 styles/ai-report.css 提供，
+   容器同时挂了 class `ai-report`，此处只保留弹窗布局。 */
 
 .gaming-grid {
   height: 100%;

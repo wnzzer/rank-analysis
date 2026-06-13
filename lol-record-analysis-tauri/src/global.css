@@ -13,6 +13,8 @@
   --text-tertiary: rgba(255, 255, 255, 0.45);
   --semantic-win: #3d9b7a;
   --semantic-loss: #c45c5c;
+  /* 警示/同情色（如"被打爆 / 被连累"），介于胜负之间的琥珀 */
+  --semantic-warn: #d39a4e;
   --team-blue: rgba(59, 130, 246, 0.35);
   --team-red: rgba(239, 68, 68, 0.35);
 
@@ -105,6 +107,8 @@
   --text-tertiary: rgba(0, 0, 0, 0.45);
   --semantic-win: #2d8a6c;
   --semantic-loss: #b84242;
+  /* 浅色主题琥珀，加深以保证对比度 */
+  --semantic-warn: #b8842f;
   --team-blue: rgba(59, 130, 246, 0.25);
   --team-red: rgba(239, 68, 68, 0.25);
   --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.08);

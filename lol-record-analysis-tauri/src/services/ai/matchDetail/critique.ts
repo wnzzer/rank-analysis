@@ -33,10 +33,12 @@ const STAGE2_SYSTEM_PROMPT =
   '你是 LOL 锐评写手，按用户给定的 markdown 模板输出，不要返回 JSON / 解释 / 前后缀。'
 
 /**
- * Stage 2 模型：qwen-plus 实测中文锐评感强（"给对面发年终奖" /
- * "伤害低过我的咖啡因摄入量"）显著优于 qwen-turbo 的套话与 qwen-max 的正式语气。
+ * Stage 2 模型：qwen-flash。
+ * 真实基准（见 tests/bench-ai-models.mjs）：flash 锐评总耗时 ~6s（plus ~17s），
+ * 锐评感追平 qwen-plus（"拆迁现场""演《孤勇者》"），且只引用归因 JSON 里的数字，
+ * 不像 qwen-plus 会编造新数字（违反 grounding）。速度 2.8× 且更稳，故切换。
  */
-const STAGE2_MODEL = 'qwen-plus'
+const STAGE2_MODEL = 'qwen-flash'
 
 export async function runCritiqueStage(
   snapshot: MatchSnapshot,

@@ -27,10 +27,13 @@ const STAGE1_SYSTEM_PROMPT =
   '不要返回 markdown / 解释 / 前后缀，只返回纯 JSON 对象。'
 
 /**
- * Stage 1 模型：qwen-plus 在 JSON 严格度、verdicts 覆盖、evidence 数量
- * 三项实测明显优于 qwen-turbo，qwen-turbo 输出常因数量不足被 validator 拒绝。
+ * Stage 1 模型：qwen-flash。
+ * 真实基准（33k 字符 Stage 1 prompt，见 tests/bench-ai-models.mjs）：
+ * - qwen-flash 总耗时 ~12s、2/2 校验通过、归因精准（mitigatingFactors 正确绑定 recentProfile）；
+ * - qwen-plus 总耗时 ~40s 且约半数概率吐非法 JSON（超长破坏结构），是"加载不出来"的主因。
+ * flash 在速度（3.4×）与有效率上全面胜出，故切换。
  */
-const STAGE1_MODEL = 'qwen-plus'
+const STAGE1_MODEL = 'qwen-flash'
 
 export async function runAttributionStage(snapshot: MatchSnapshot): Promise<AttributionOutcome> {
   const addon = getModePromptAddon(snapshot.modeContext)

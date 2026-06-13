@@ -4,7 +4,6 @@
  */
 
 import { computed, ref, watch, toValue, type MaybeRefOrGetter } from 'vue'
-import MarkdownIt from 'markdown-it'
 import { useMessage } from 'naive-ui'
 import type { Game } from '@renderer/types/domain/match'
 import {
@@ -12,11 +11,9 @@ import {
   type MatchDetailAnalysisMode,
   type MatchAIState
 } from '@renderer/services/ai'
+import { renderAnalysisReport } from '@renderer/services/ai/matchDetail/renderReport'
 import { fetchBatchProfiles } from '@renderer/services/ai/shared/recentProfile.batch'
 import type { RecentPlayerProfile, TeamPosition } from '@renderer/services/ai/shared/types'
-
-// html:false 阻断 AI/外部数据中夹带 raw HTML（XSS 防线，CSP 之外的纵深防御）
-const md = new MarkdownIt({ html: false, breaks: true, linkify: true })
 
 export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
   const message = useMessage()
@@ -28,7 +25,7 @@ export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
   const aiMode = ref<MatchDetailAnalysisMode>('overview')
   const aiTargetParticipantId = ref<number | null>(null)
 
-  const renderedAiResult = computed(() => (aiResult.value ? md.render(aiResult.value) : ''))
+  const renderedAiResult = computed(() => renderAnalysisReport(aiResult.value))
   const aiStateLabel = computed(() => {
     switch (aiState.value) {
       case 'profiles':
