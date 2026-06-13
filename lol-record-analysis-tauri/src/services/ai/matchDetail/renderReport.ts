@@ -15,13 +15,24 @@ import MarkdownIt from 'markdown-it'
 // html:false 阻断 AI/外部数据中夹带 raw HTML（XSS 防线，CSP 之外的纵深防御）
 const md = new MarkdownIt({ html: false, breaks: true, linkify: true })
 
-/** 固定章节标题 → section modifier class。 */
+/**
+ * 固定章节标题 → section modifier class。
+ * 上半部为战绩详情「AI 复盘」5 段，下半部为对局页「AI 分析」5 段；
+ * 复用同一套配色（绿=正面 / 红=负面警示 / 琥珀=风险 / 中性=结论与依据）。
+ */
 const SECTION_CLASS: Record<string, string> = {
+  // 战绩详情 · 赛后复盘
   一句话定论: 'ai-section--verdict',
   谁尽力了: 'ai-section--effort',
   谁要背锅: 'ai-section--blame',
   '谁被打爆 / 被连累': 'ai-section--crushed',
-  关键证据: 'ai-section--evidence'
+  关键证据: 'ai-section--evidence',
+  // 对局页 · 赛前分析
+  一句话判断: 'ai-section--verdict',
+  优势点: 'ai-section--effort',
+  风险点: 'ai-section--crushed',
+  重点盯防: 'ai-section--blame',
+  建议: 'ai-section--evidence'
 }
 
 // heading_open：按下一 inline token 的文本匹配章节，给标题加 class。未知/未拼全的标题

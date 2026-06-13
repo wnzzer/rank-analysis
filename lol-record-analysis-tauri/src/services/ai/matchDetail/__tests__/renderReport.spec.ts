@@ -67,4 +67,30 @@ describe('renderAnalysisReport', () => {
     expect(() => renderAnalysisReport('## 谁尽力')).not.toThrow()
     expect(() => renderAnalysisReport('- 张三：')).not.toThrow()
   })
+
+  it('gaming 章节标题（对局前分析）也映射到对应配色', () => {
+    const html = renderAnalysisReport(
+      [
+        '## 一句话判断',
+        'x',
+        '',
+        '## 优势点',
+        '- a',
+        '',
+        '## 风险点',
+        '- b',
+        '',
+        '## 重点盯防',
+        '- c',
+        '',
+        '## 建议',
+        '- d'
+      ].join('\n')
+    )
+    expect(html).toContain('ai-section--verdict') // 一句话判断
+    expect(html).toContain('ai-section--effort') // 优势点
+    expect(html).toContain('ai-section--crushed') // 风险点
+    expect(html).toContain('ai-section--blame') // 重点盯防
+    expect(html).toContain('ai-section--evidence') // 建议
+  })
 })
