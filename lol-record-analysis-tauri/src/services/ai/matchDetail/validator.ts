@@ -106,87 +106,68 @@ export function validateAttribution(rawJson: string, snapshot: MatchSnapshot): V
     }
   }
 
-  // ─── Layer 3: data-grounding ───
+  // ─── Layer 3: data-grounding（清洗，不再硬毙） ───
+  // 缓解因子只是负面 verdict 上的解释性标注。模型若给出与 snapshot 对不上的因子，
+  // 摘掉该因子即可：既不把未证实的说法放给用户，也不因一个小标注就废掉整份多 verdict
+  // 分析（历史上 stage1 最常见的失败正是这层硬毙）。JSON / 结构仍严格校验。
   const result = candidate as AttributionResult
-  for (let i = 0; i < result.verdicts.length; i++) {
-    const v = result.verdicts[i]
+  for (const v of result.verdicts) {
     if (v.mitigatingFactors.length === 0) continue
 
-    // Mitigating factors only allowed on negative labels
+    // 因子只在负面 label 上有意义；非负面一律摘除。
     if (!NEGATIVE_LABELS.has(v.label)) {
-      return {
-        ok: false,
-        error: `verdict[${i}] has mitigatingFactors but label='${v.label}' is not negative`
-      }
+      v.mitigatingFactors = []
+      continue
     }
 
     const playerSnap = snapshot.players.find((p: any) => p.participantId === v.participantId)
     if (!playerSnap) {
-      return {
-        ok: false,
-        error: `verdict[${i}].participantId=${v.participantId} not found in snapshot`
-      }
+      // 找不到对应玩家，无从 grounding，摘除全部因子但保留 verdict。
+      v.mitigatingFactors = []
+      continue
     }
 
-    for (let j = 0; j < v.mitigatingFactors.length; j++) {
-      const m = v.mitigatingFactors[j]
-      if (!ALLOWED_MITIGATING.has(m.factor)) {
-        return {
-          ok: false,
-          error: `verdict[${i}].mitigatingFactors[${j}].factor invalid: ${m.factor}`
-        }
-      }
-
-      switch (m.factor) {
-        case 'off-role': {
-          const rp = (playerSnap as any).recentProfile
-          if (!rp || rp.isOffRole !== true) {
-            return {
-              ok: false,
-              error: `verdict[${i}] claims 'off-role' but snapshot recentProfile.isOffRole !== true`
-            }
-          }
-          break
-        }
-        case 'first-time-champion': {
-          const rp = (playerSnap as any).recentProfile
-          const mastery = rp?.currentChampionMastery
-          if (!mastery || mastery.isFirstTimeInRecent !== true) {
-            return {
-              ok: false,
-              error: `verdict[${i}] claims 'first-time-champion' but isFirstTimeInRecent !== true`
-            }
-          }
-          break
-        }
-        case 'team-collapse': {
-          const sameTeamCriminals = result.verdicts.filter(
-            other =>
-              other.participantId !== v.participantId &&
-              snapshot.players.find((p: any) => p.participantId === other.participantId)?.teamId ===
-                (playerSnap as any).teamId &&
-              other.label === '犯罪'
-          )
-          if (sameTeamCriminals.length < 2) {
-            return {
-              ok: false,
-              error: `verdict[${i}] claims 'team-collapse' but only ${sameTeamCriminals.length} same-team criminals (need ≥2)`
-            }
-          }
-          break
-        }
-        case 'targeted': {
-          // Snapshot has no timeline data yet — this factor is always disallowed.
-          return {
-            ok: false,
-            error: `verdict[${i}] uses 'targeted' factor which requires timeline data not in snapshot`
-          }
-        }
-      }
-    }
+    v.mitigatingFactors = v.mitigatingFactors.filter(m =>
+      isFactorGrounded(m.factor, v, playerSnap, result, snapshot)
+    )
   }
 
   return { ok: true, value: result }
+}
+
+/**
+ * 判断单个缓解因子是否被 snapshot 数据支撑。未在白名单、或证据对不上的一律返回
+ * false（调用方据此摘除）。`targeted` 因 snapshot 暂无 timeline，恒不成立。
+ */
+function isFactorGrounded(
+  factor: MitigatingFactorKind,
+  v: Verdict,
+  playerSnap: any,
+  result: AttributionResult,
+  snapshot: MatchSnapshot
+): boolean {
+  if (!ALLOWED_MITIGATING.has(factor)) return false
+  switch (factor) {
+    case 'off-role':
+      return playerSnap.recentProfile?.isOffRole === true
+    case 'first-time-champion':
+      return playerSnap.recentProfile?.currentChampionMastery?.isFirstTimeInRecent === true
+    case 'team-collapse': {
+      const sameTeamCriminals = result.verdicts.filter(
+        other =>
+          other.participantId !== v.participantId &&
+          snapshot.players.find((p: any) => p.participantId === other.participantId)?.teamId ===
+            playerSnap.teamId &&
+          other.label === '犯罪'
+      )
+      return sameTeamCriminals.length >= 2
+    }
+    case 'targeted':
+      // snapshot 暂无 timeline 数据，无法证实 → 摘除。
+      return false
+    default:
+      return false
+  }
 }
 
 function stripFencedCodeBlock(raw: string): string {
