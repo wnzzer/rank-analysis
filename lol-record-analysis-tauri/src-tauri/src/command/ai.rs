@@ -28,8 +28,10 @@ use tauri::ipc::Channel;
 /// DashScope OpenAI 兼容 chat 端点。
 const DASHSCOPE_URL: &str = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
 
-/// 前端未指定 model 时的兜底（发布前 benchmark 后可调，见计划 Task 7）。
-const DEFAULT_MODEL: &str = "qwen-plus";
+/// 前端未指定 model 时的兜底。
+/// qwen-flash：真实基准（tests/bench-ai-models.mjs）Stage1 ~12s/2-of-2 有效、Stage2 ~6s，
+/// 速度与有效率均优于 qwen-plus（~40s 且约半数非法 JSON），故定为默认。
+const DEFAULT_MODEL: &str = "qwen-flash";
 
 /// 按优先级解析 DashScope 密钥：用户覆盖 > 运行时环境变量 > 编译期注入。
 /// 空白串视同未配置。纯函数，便于单测。
@@ -78,6 +80,29 @@ fn extract_delta_content(line: &str) -> Option<String> {
     } else {
         Some(content.to_string())
     }
+}
+
+/// 总请求超时（含流式全程）。qwen-flash 实测总耗时 ~12s，60s 足够覆盖慢响应，
+/// 又不至于像原来的 120s 那样长时间"假死"。
+const REQUEST_TIMEOUT_SECS: u64 = 60;
+
+/// 首字看门狗：发起后多久没等到首个响应字节就判这次尝试失败（专治长时间转圈）。
+const FIRST_TOKEN_TIMEOUT_SECS: u64 = 20;
+
+/// 首块到达前的最大尝试次数（含首次）。仅在"流尚未开始"时重试，避免重复输出。
+const MAX_ATTEMPTS: u32 = 2;
+
+/// HTTP 状态码是否值得重试：仅 429（限流）与 5xx（服务端错误）。纯函数，便于单测。
+fn is_retryable_status(status: u16) -> bool {
+    status == 429 || (500..=599).contains(&status)
+}
+
+/// 首块前重试的退避时长（`attempt` 为 1 基的尝试序号）。纯函数，便于单测。
+fn backoff_delay(attempt: u32) -> Duration {
+    Duration::from_millis(match attempt {
+        1 => 800,
+        _ => 2000,
+    })
 }
 
 /// AI 请求参数
@@ -163,65 +188,117 @@ pub async fn stream_ai_analysis(
         "stream": true
     });
 
-    // 创建 HTTP 客户端
+    // 创建 HTTP 客户端（总超时收紧到 REQUEST_TIMEOUT_SECS）
     let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(120))
+        .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
         .build()
         .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
 
-    // 发送请求
-    let response = client
-        .post(DASHSCOPE_URL)
-        .headers(headers)
-        .json(&body)
-        .send()
-        .await
-        .map_err(|e| format!("HTTP request failed: {}", e))?;
-
-    // 检查响应状态
-    if !response.status().is_success() {
-        let status = response.status();
-        let error_text = response
-            .text()
-            .await
-            .unwrap_or_else(|_| "Unknown error".to_string());
-        let _ = on_event.send(AiStreamEvent {
-            event: "error".to_string(),
-            data: Some(format!("API error ({}): {}", status, error_text)),
-        });
-        return Ok(());
-    }
-
-    // 获取响应流
-    let mut stream = response.bytes_stream();
-    let mut buffer = String::new();
-
     use futures::StreamExt;
 
-    while let Some(chunk_result) = stream.next().await {
-        match chunk_result {
-            Ok(bytes) => {
-                buffer.push_str(&String::from_utf8_lossy(&bytes));
+    // 首块到达前可重试：建连失败 / 可重试状态码 / 首字看门狗超时都算"流未开始"，
+    // 退避后再试。一旦拿到首个响应字节（已视为开始流），跳出循环，后续不再重试，
+    // 避免向前端重复 emit chunk。
+    let (mut stream, first_bytes) = {
+        let mut attempt = 0u32;
+        loop {
+            attempt += 1;
 
-                // 处理缓冲区的完整行
-                while let Some(line_end) = buffer.find('\n') {
-                    let line = buffer[..line_end].trim().to_string();
-                    buffer = buffer[line_end + 1..].to_string();
-
-                    if let Some(content) = extract_delta_content(&line) {
-                        let _ = on_event.send(AiStreamEvent {
-                            event: "chunk".to_string(),
-                            data: Some(content),
-                        });
+            let response = match client
+                .post(DASHSCOPE_URL)
+                .headers(headers.clone())
+                .json(&body)
+                .send()
+                .await
+            {
+                Ok(resp) => resp,
+                Err(e) => {
+                    // 建连 / 超时类错误：未开始流，可重试
+                    if attempt < MAX_ATTEMPTS {
+                        tokio::time::sleep(backoff_delay(attempt)).await;
+                        continue;
                     }
+                    let _ = on_event.send(AiStreamEvent {
+                        event: "error".to_string(),
+                        data: Some(format!("HTTP request failed: {}", e)),
+                    });
+                    return Ok(());
                 }
-            }
-            Err(e) => {
+            };
+
+            if !response.status().is_success() {
+                let status = response.status();
+                if is_retryable_status(status.as_u16()) && attempt < MAX_ATTEMPTS {
+                    tokio::time::sleep(backoff_delay(attempt)).await;
+                    continue;
+                }
+                let error_text = response
+                    .text()
+                    .await
+                    .unwrap_or_else(|_| "Unknown error".to_string());
                 let _ = on_event.send(AiStreamEvent {
                     event: "error".to_string(),
-                    data: Some(format!("Stream error: {}", e)),
+                    data: Some(format!("API error ({}): {}", status, error_text)),
                 });
                 return Ok(());
+            }
+
+            // 首字看门狗：等首个响应字节，超时 / 流即报错 / 空流都判这次尝试失败
+            let mut s = response.bytes_stream();
+            match tokio::time::timeout(Duration::from_secs(FIRST_TOKEN_TIMEOUT_SECS), s.next())
+                .await
+            {
+                Ok(Some(Ok(bytes))) => break (s, bytes),
+                _ => {
+                    if attempt < MAX_ATTEMPTS {
+                        tokio::time::sleep(backoff_delay(attempt)).await;
+                        continue;
+                    }
+                    let _ = on_event.send(AiStreamEvent {
+                        event: "error".to_string(),
+                        data: Some(format!(
+                            "首响应超时或为空（{}s 内无数据）",
+                            FIRST_TOKEN_TIMEOUT_SECS
+                        )),
+                    });
+                    return Ok(());
+                }
+            }
+        }
+    };
+
+    // 消费流：先吃掉看门狗已取到的首块，再继续读后续（首块后不再重试）
+    let mut buffer = String::new();
+    let mut pending = Some(first_bytes);
+
+    loop {
+        let bytes = match pending.take() {
+            Some(b) => b,
+            None => match stream.next().await {
+                Some(Ok(b)) => b,
+                Some(Err(e)) => {
+                    let _ = on_event.send(AiStreamEvent {
+                        event: "error".to_string(),
+                        data: Some(format!("Stream error: {}", e)),
+                    });
+                    return Ok(());
+                }
+                None => break,
+            },
+        };
+
+        buffer.push_str(&String::from_utf8_lossy(&bytes));
+
+        // 处理缓冲区的完整行
+        while let Some(line_end) = buffer.find('\n') {
+            let line = buffer[..line_end].trim().to_string();
+            buffer = buffer[line_end + 1..].to_string();
+
+            if let Some(content) = extract_delta_content(&line) {
+                let _ = on_event.send(AiStreamEvent {
+                    event: "chunk".to_string(),
+                    data: Some(content),
+                });
             }
         }
     }
@@ -287,5 +364,25 @@ mod tests {
             extract_delta_content(r#"data: {"choices":[{"delta":{"role":"assistant"}}]}"#),
             None
         );
+    }
+
+    #[test]
+    fn retryable_only_on_5xx_and_429() {
+        // 服务端错误 / 限流 → 可重试
+        assert!(is_retryable_status(500));
+        assert!(is_retryable_status(502));
+        assert!(is_retryable_status(503));
+        assert!(is_retryable_status(429));
+        // 客户端错误 / 成功 → 不重试（重试也没用）
+        assert!(!is_retryable_status(400));
+        assert!(!is_retryable_status(401));
+        assert!(!is_retryable_status(404));
+        assert!(!is_retryable_status(200));
+    }
+
+    #[test]
+    fn backoff_grows_with_attempt() {
+        assert!(backoff_delay(2) > backoff_delay(1));
+        assert!(backoff_delay(1) >= std::time::Duration::from_millis(1));
     }
 }
