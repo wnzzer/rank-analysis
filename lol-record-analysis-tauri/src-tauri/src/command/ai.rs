@@ -25,6 +25,41 @@ use serde_json::json;
 use std::time::Duration;
 use tauri::ipc::Channel;
 
+/// DashScope OpenAI 兼容 chat 端点。
+const DASHSCOPE_URL: &str = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
+
+/// 前端未指定 model 时的兜底（发布前 benchmark 后可调，见计划 Task 7）。
+const DEFAULT_MODEL: &str = "qwen-plus";
+
+/// 按优先级解析 DashScope 密钥：用户覆盖 > 运行时环境变量 > 编译期注入。
+/// 空白串视同未配置。纯函数，便于单测。
+fn resolve_api_key(
+    override_key: Option<&str>,
+    runtime_env: Option<&str>,
+    baked: Option<&str>,
+) -> Result<String, String> {
+    for candidate in [override_key, runtime_env, baked] {
+        if let Some(k) = candidate {
+            let trimmed = k.trim();
+            if !trimmed.is_empty() {
+                return Ok(trimmed.to_string());
+            }
+        }
+    }
+    Err("未配置 DashScope 密钥（设置 DASHSCOPE_API_KEY 环境变量，或在设置中填入）".to_string())
+}
+
+/// 解析最终密钥：用户覆盖 → 运行时环境变量（测试/开发）→ `option_env!` 编译期注入（线上）。
+/// 线上由 CI 在构建时设 `DASHSCOPE_API_KEY`，明文密钥不进源码 / git。
+fn api_key(override_key: Option<&str>) -> Result<String, String> {
+    let runtime = std::env::var("DASHSCOPE_API_KEY").ok();
+    resolve_api_key(
+        override_key,
+        runtime.as_deref(),
+        option_env!("DASHSCOPE_API_KEY"),
+    )
+}
+
 /// AI 请求参数
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AiStreamRequest {
@@ -188,4 +223,35 @@ pub async fn stream_ai_analysis(
     });
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resolve_prefers_override_then_env_then_baked() {
+        assert_eq!(
+            resolve_api_key(Some("ov"), Some("env"), Some("baked")).unwrap(),
+            "ov"
+        );
+        assert_eq!(
+            resolve_api_key(None, Some("env"), Some("baked")).unwrap(),
+            "env"
+        );
+        assert_eq!(resolve_api_key(None, None, Some("baked")).unwrap(), "baked");
+    }
+
+    #[test]
+    fn resolve_treats_blank_as_unset() {
+        // 覆盖为空白时应跳到下一优先级，而不是用空 key
+        assert_eq!(resolve_api_key(Some("  "), Some("env"), None).unwrap(), "env");
+        assert_eq!(resolve_api_key(Some(""), None, Some("baked")).unwrap(), "baked");
+    }
+
+    #[test]
+    fn resolve_errors_when_all_unset() {
+        assert!(resolve_api_key(None, None, None).is_err());
+        assert!(resolve_api_key(Some(" "), Some(""), None).is_err());
+    }
 }
