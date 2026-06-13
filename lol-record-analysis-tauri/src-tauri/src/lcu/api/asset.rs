@@ -297,8 +297,25 @@ pub fn champion_cache_is_empty() -> bool {
     CHAMPION_CACHE.read().map(|g| g.is_empty()).unwrap_or(true)
 }
 
+/// 公共入口：确保资源缓存就绪（图标可用）。幂等、单飞——main.rs setup 与图标协议处理器
+/// 都走这里并合并到同一把锁，避免冷启动并发跑两次 init。
 pub async fn init() {
-    log::info!("Initializing asset API caches");
+    ensure_caches_ready().await;
+}
+
+/// 一次性初始化：先用 LCU 列表填好图标缓存（快、本地，实测 <1s）让图标立刻可用；
+/// 再把耗时的 augment 文字描述补全（cdragon 26MB）丢到后台，绝不挡图标关键路径。
+async fn init_once() {
+    init_lcu_assets().await;
+    tokio::spawn(enrich_augment_descriptions());
+}
+
+/// 从 LCU 拉取静态资源列表并填充各图标缓存（item/champion/spell/perk/augment）。
+/// 全程走 LCU 本地。augment 描述此处只用 LCU 自带文本兜底，cdragon 增强见
+/// [`enrich_augment_descriptions`]（后台执行）。
+async fn init_lcu_assets() {
+    log::info!("Initializing asset API caches (LCU lists)");
+    let t0 = std::time::Instant::now();
     let items = match lcu_get::<Vec<Item>>(constant::api::ITEM_URI).await {
         Ok(v) => v,
         Err(e) => {
@@ -364,6 +381,7 @@ pub async fn init() {
             cherry_augments_raw.len()
         );
     }
+
     let perk_styles_only: Vec<Perk> = perk_styles
         .styles
         .into_iter()
@@ -377,88 +395,33 @@ pub async fn init() {
             icon_path: perk_style.icon_path,
         })
         .collect();
-    // 从 CommunityDragon 拉 stringtable（26MB），按 cherry_<apiName>_summary/tooltip 取描述。
-    //
-    // 为什么必须走外部：LCU 不暴露 stringtable / fontconfig 文件（已探针确认）；
-    // LCU 的 cherry-augments.json 只含 id/nameTRA/rarity/icon，描述文本在游戏客户端的
-    // fontconfig stringtable 里，Riot 没把它挂到 LCU HTTP API。
-    //
-    // 26MB 的 JSON 一次过网络 + 解析成本较高（启动 +~2-3s），后续如果成为痛点再加磁盘缓存。
-    let cdragon_desc_map: HashMap<String, (String, String)> =
-        match external_get_json::<CDragonStringTable>(CDRAGON_STRINGTABLE_URL).await {
-            Ok(table) => build_cherry_desc_map(&table),
-            Err(primary_err) => {
-                log::warn!(
-                    "CommunityDragon zh_cn stringtable 拉取失败，回退 en_us：{}",
-                    primary_err
-                );
-                match external_get_json::<CDragonStringTable>(CDRAGON_STRINGTABLE_FALLBACK_URL)
-                    .await
-                {
-                    Ok(table) => build_cherry_desc_map(&table),
-                    Err(fallback_err) => {
-                        log::warn!(
-                            "CommunityDragon en_us stringtable 也失败了：{}",
-                            fallback_err
-                        );
-                        HashMap::new()
-                    }
-                }
-            }
-        };
-    log::info!(
-        "cdragon stringtable cherry descriptions loaded: {}",
-        cdragon_desc_map.len()
-    );
 
+    // augment 入缓存：描述先用 LCU 自带文本兜底；cdragon 增强稍后由后台 enrich 回填。
     let cherry_augment_perks: Vec<Perk> = cherry_augments
         .into_iter()
-        .map(|augment| {
-            let api_name = api_name_from_icon(&augment.augment_small_icon_path)
-                .or_else(|| api_name_from_icon(&augment.icon_large_path));
-            let (cdragon_summary, cdragon_tooltip) = api_name
-                .as_deref()
-                .and_then(|n| cdragon_desc_map.get(n))
-                .cloned()
-                .unwrap_or_default();
-            // 描述优先级：cdragon.summary（简洁） > cdragon.tooltip（完整） > LCU 空值
-            let long_desc = if !cdragon_summary.is_empty() {
-                cdragon_summary
-            } else if !cdragon_tooltip.is_empty() {
-                cdragon_tooltip.clone()
+        .map(|augment| Perk {
+            id: augment.id,
+            name: if augment.name_tra.is_empty() {
+                format!("Augment {}", augment.id)
             } else {
-                augment.description_tra
-            };
-            let tooltip = if !cdragon_tooltip.is_empty() {
-                cdragon_tooltip
+                augment.name_tra
+            },
+            tooltip: augment.tooltip,
+            short_desc: String::new(),
+            long_desc: augment.description_tra,
+            rarity: if augment.rarity.is_empty() {
+                None
             } else {
-                augment.tooltip
-            };
-            Perk {
-                id: augment.id,
-                name: if augment.name_tra.is_empty() {
-                    format!("Augment {}", augment.id)
-                } else {
-                    augment.name_tra
-                },
-                tooltip,
-                short_desc: String::new(),
-                long_desc,
-                rarity: if augment.rarity.is_empty() {
-                    None
-                } else {
-                    Some(augment.rarity)
-                },
-                icon_path: if augment.augment_small_icon_path.is_empty() {
-                    augment.icon_large_path
-                } else {
-                    augment.augment_small_icon_path
-                },
-            }
+                Some(augment.rarity)
+            },
+            icon_path: if augment.augment_small_icon_path.is_empty() {
+                augment.icon_large_path
+            } else {
+                augment.augment_small_icon_path
+            },
         })
         .collect();
 
-    // 先记录长度，避免后续 move
     let item_count = items.len();
     let champion_count = champions.len();
     let spell_count = spells.len();
@@ -466,7 +429,6 @@ pub async fn init() {
     let perk_count = perks.len();
     let cherry_augment_count = cherry_augment_perks.len();
 
-    // 将数据存储到缓存中
     {
         let mut map = ITEM_CACHE.write().unwrap();
         for item in items {
@@ -497,13 +459,126 @@ pub async fn init() {
             map.insert(augment.id, augment);
         }
     }
-    log::info!("item count: {}", item_count);
-    log::info!("champion count: {}", champion_count);
-    log::info!("spell count: {}", spell_count);
-    log::info!("perk style count: {}", perk_style_count);
-    log::info!("perk count: {}", perk_count);
-    log::info!("cherry augment count: {}", cherry_augment_count);
-    log::info!("Asset API caches initialized successfully");
+    log::info!(
+        "[asset] LCU 资源就绪（图标可用）{} ms — item {} / champion {} / spell {} / perkStyle {} / perk {} / augment {}",
+        t0.elapsed().as_millis(),
+        item_count,
+        champion_count,
+        spell_count,
+        perk_style_count,
+        perk_count,
+        cherry_augment_count
+    );
+}
+
+/// cdragon 描述表磁盘缓存路径（temp 目录：可写、跨重启保留、无需额外依赖）。
+fn cdragon_cache_path() -> std::path::PathBuf {
+    std::env::temp_dir().join("lol-record-analysis-cdragon-augments.json")
+}
+
+/// 描述表磁盘缓存有效期：7 天。过期则后台重拉刷新（augment 偶尔随版本新增）。
+const CDRAGON_CACHE_TTL_SECS: u64 = 7 * 24 * 3600;
+
+/// 读磁盘缓存的描述表；不存在 / 过期 / 损坏一律返回 None。纯 IO，便于单测（now 可注入）。
+fn read_cached_desc_map(
+    path: &std::path::Path,
+    ttl_secs: u64,
+    now: std::time::SystemTime,
+) -> Option<HashMap<String, (String, String)>> {
+    let modified = std::fs::metadata(path).ok()?.modified().ok()?;
+    if now.duration_since(modified).ok()?.as_secs() > ttl_secs {
+        return None;
+    }
+    serde_json::from_slice(&std::fs::read(path).ok()?).ok()
+}
+
+/// 把描述表写入磁盘缓存（失败仅记日志，不影响功能）。
+fn write_cached_desc_map(path: &std::path::Path, map: &HashMap<String, (String, String)>) {
+    match serde_json::to_vec(map) {
+        Ok(bytes) => {
+            if let Err(e) = std::fs::write(path, bytes) {
+                log::warn!("写入 cdragon 描述缓存失败: {}", e);
+            }
+        }
+        Err(e) => log::warn!("序列化 cdragon 描述缓存失败: {}", e),
+    }
+}
+
+/// 从 CommunityDragon 拉 26MB stringtable（zh_cn 优先，失败回退 en_us），
+/// 构建 apiName→(summary,tooltip)。
+async fn fetch_cdragon_desc_map() -> HashMap<String, (String, String)> {
+    match external_get_json::<CDragonStringTable>(CDRAGON_STRINGTABLE_URL).await {
+        Ok(table) => build_cherry_desc_map(&table),
+        Err(primary_err) => {
+            log::warn!(
+                "CommunityDragon zh_cn stringtable 拉取失败，回退 en_us：{}",
+                primary_err
+            );
+            match external_get_json::<CDragonStringTable>(CDRAGON_STRINGTABLE_FALLBACK_URL).await {
+                Ok(table) => build_cherry_desc_map(&table),
+                Err(fallback_err) => {
+                    log::warn!(
+                        "CommunityDragon en_us stringtable 也失败了：{}",
+                        fallback_err
+                    );
+                    HashMap::new()
+                }
+            }
+        }
+    }
+}
+
+/// 后台补全 augment 文字描述（斗魂竞技场 tooltip 专用，**不在图标关键路径**）：
+/// 优先读磁盘缓存（新鲜则秒回、不走网络），否则拉 26MB 并落盘；拿到描述表后回填
+/// PERK_CACHE 里 augment 条目的 long_desc / tooltip。由 [`init_once`] 用 tokio::spawn 调起。
+async fn enrich_augment_descriptions() {
+    let t0 = std::time::Instant::now();
+    let path = cdragon_cache_path();
+    let (desc_map, source) =
+        match read_cached_desc_map(&path, CDRAGON_CACHE_TTL_SECS, std::time::SystemTime::now()) {
+            Some(m) => (m, "disk"),
+            None => {
+                let m = fetch_cdragon_desc_map().await;
+                if !m.is_empty() {
+                    write_cached_desc_map(&path, &m);
+                }
+                (m, "network")
+            }
+        };
+    if desc_map.is_empty() {
+        log::warn!("[asset] augment 描述为空（cdragon 拉取失败且无缓存），保留 LCU 兜底文本");
+        return;
+    }
+
+    let mut updated = 0usize;
+    {
+        let mut cache = PERK_CACHE.write().unwrap();
+        for perk in cache.values_mut() {
+            let Some(api) = api_name_from_icon(&perk.icon_path) else {
+                continue;
+            };
+            let Some((summary, tooltip)) = desc_map.get(&api) else {
+                continue;
+            };
+            // 描述优先级：cdragon.summary（简洁） > cdragon.tooltip（完整） > 已有 LCU 文本
+            if !summary.is_empty() {
+                perk.long_desc = summary.clone();
+            } else if !tooltip.is_empty() {
+                perk.long_desc = tooltip.clone();
+            }
+            if !tooltip.is_empty() {
+                perk.tooltip = tooltip.clone();
+            }
+            updated += 1;
+        }
+    }
+    log::info!(
+        "[asset] augment 描述补全完成（来源 {}，{} 条，回填 {} 项）{} ms",
+        source,
+        desc_map.len(),
+        updated,
+        t0.elapsed().as_millis()
+    );
 }
 
 /// 自愈用单飞器：仅当 `is_empty()` 为真时，拿锁后再次确认仍为空，才跑一次 `run_init`。
@@ -535,7 +610,7 @@ where
 async fn ensure_caches_ready() {
     static ASSET_INIT_LOCK: LazyLock<tokio::sync::Mutex<()>> =
         LazyLock::new(|| tokio::sync::Mutex::new(()));
-    run_once_if_empty(champion_cache_is_empty, &ASSET_INIT_LOCK, init).await;
+    run_once_if_empty(champion_cache_is_empty, &ASSET_INIT_LOCK, init_once).await;
 }
 
 // 新增：返回二进制与 content-type，便于通过 HTTP 下发
@@ -546,6 +621,7 @@ pub async fn get_asset_binary(type_string: String, id: i64) -> Result<(Vec<u8>, 
     }
 
     // 自愈：缓存未就绪（启动竞态）时先确保 init 跑过一次，避免直接 404。
+    // 现在 init 只等 LCU 图标列表（快），cdragon 描述在后台补，故首图标不再被 26MB 拖住。
     ensure_caches_ready().await;
 
     let result = match type_string.as_str() {
@@ -955,5 +1031,40 @@ mod tests {
         let weight = map.get("weightedpopoffs").expect("weightedpopoffs present");
         assert_eq!(weight.0, "你的冷却时间已缩短。");
         assert!(!map.contains_key("summoners_rift")); // 无关键不入
+    }
+
+    #[test]
+    fn disk_cache_roundtrip_reads_fresh() {
+        let path = std::env::temp_dir().join("test-cdragon-roundtrip.json");
+        let _ = std::fs::remove_file(&path);
+        let mut map = HashMap::new();
+        map.insert(
+            "eureka".to_string(),
+            ("简介".to_string(), "完整".to_string()),
+        );
+        write_cached_desc_map(&path, &map);
+        let got = read_cached_desc_map(&path, 3600, std::time::SystemTime::now());
+        assert_eq!(got.as_ref(), Some(&map));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn disk_cache_missing_returns_none() {
+        let path = std::env::temp_dir().join("test-cdragon-missing-xyz.json");
+        let _ = std::fs::remove_file(&path);
+        assert!(read_cached_desc_map(&path, 3600, std::time::SystemTime::now()).is_none());
+    }
+
+    #[test]
+    fn disk_cache_stale_returns_none() {
+        let path = std::env::temp_dir().join("test-cdragon-stale.json");
+        let mut map = HashMap::new();
+        map.insert("adapt".to_string(), ("a".to_string(), "b".to_string()));
+        write_cached_desc_map(&path, &map);
+        let modified = std::fs::metadata(&path).unwrap().modified().unwrap();
+        // ttl=10s，now 取 mtime+100s → 过期，应返回 None
+        let future = modified + std::time::Duration::from_secs(100);
+        assert!(read_cached_desc_map(&path, 10, future).is_none());
+        let _ = std::fs::remove_file(&path);
     }
 }
