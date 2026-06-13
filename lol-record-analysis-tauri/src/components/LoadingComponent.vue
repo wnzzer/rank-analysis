@@ -8,13 +8,22 @@
       </div>
       <div class="loading-text-block">
         <p class="loading-text"><slot /></p>
-        <p class="loading-hint">请确保英雄联盟客户端已启动</p>
+        <p class="loading-hint">{{ hint ?? '请确保英雄联盟客户端已启动' }}</p>
+        <slot name="action" />
       </div>
       <div class="loading-shimmer-bar" />
     </div>
   </div>
 </template>
-<script lang="ts" setup></script>
+<script lang="ts" setup>
+/**
+ * 加载/等待态展示组件
+ * @property hint - 覆盖默认副提示文案（如权限不足时的具体说明）
+ * @slot default - 主提示文案
+ * @slot action - 副提示下方的操作区（如"以管理员身份重启"按钮）
+ */
+defineProps<{ hint?: string }>()
+</script>
 
 <style lang="css" scoped>
 .loading-wrap {
