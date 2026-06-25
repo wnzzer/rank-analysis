@@ -1,0 +1,36 @@
+name: Sync to GitCode
+
+# 把 GitHub 的代码与 tag 自动同步到 GitCode 国内镜像仓库
+# 触发：push 到 main、推送 v* tag，或手动运行
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+# 串行化：避免 push main 与 push tag 同时触发两次并发 force-push
+concurrency:
+  group: sync-gitcode
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Push main + tags to GitCode
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 拉全量历史与 tag，否则推过去会缺 commit
+
+      - name: Push to GitCode
+        env:
+          GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
+        run: |
+          set -e
+          REMOTE="https://faker1234546:${GITCODE_TOKEN}@gitcode.com/faker1234546/rank-analysis.git"
+          # 确保拿到最新的 origin/main 引用
+          git fetch origin main --quiet
+          # GitHub 为权威源，强制覆盖 GitCode（它是纯镜像目标）
+          git push "$REMOTE" "refs/remotes/origin/main:refs/heads/main" --force
+          git push "$REMOTE" --tags --force
