@@ -336,3 +336,102 @@ jobs:
                 "latest_json_url": "https://github.com/wnzzer/rank-analysis/releases/download/${{ needs.build-and-release.outputs.tauri_version }}/latest.json"
               }
             }
+
+  # --- 任务三：同步 Release（含安装包）到 GitCode 国内镜像 ---
+  # GitCode 走华为云 OBS 预签名上传：GET upload_url -> PUT 文件（OBS 自动回调注册附件）。
+  # 注意：API 返回的 browser_download_url 用 api.gitcode.com（会 404），真正能匿名下载的是
+  # gitcode.com host，所以 latest.json 里的下载链接改写成 gitcode.com。
+  gitcode-release:
+    name: Sync Release to GitCode
+    needs: build-and-release
+    runs-on: ubuntu-latest
+    env:
+      OWNER: faker1234546
+      REPO: rank-analysis
+      VERSION: ${{ needs.build-and-release.outputs.tauri_version }}
+      COMMITISH: ${{ github.sha }}
+      GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: ⏳ Wait for GitHub Release assets
+        run: sleep 30
+
+      - name: ⬇️ Download release assets from GitHub
+        run: |
+          mkdir -p dist
+          gh release download "$VERSION" --repo wnzzer/rank-analysis \
+            --pattern '*-setup.exe' --pattern '*-portable.7z' --pattern 'latest.json' \
+            --dir dist
+          ls -la dist
+
+      - name: 🚀 Create GitCode release + upload assets
+        run: |
+          python3 - <<'PY'
+          import os, json, glob, urllib.request, urllib.parse, urllib.error
+
+          token = os.environ["GITCODE_TOKEN"]
+          owner, repo = os.environ["OWNER"], os.environ["REPO"]
+          version, commitish = os.environ["VERSION"], os.environ["COMMITISH"]
+          api = f"https://api.gitcode.com/api/v5/repos/{owner}/{repo}"
+          AUTH = {"private-token": token}
+
+          def call(url, data=None, method="GET", headers=None):
+              r = urllib.request.Request(url, data=data, method=method, headers=headers or {})
+              try:
+                  resp = urllib.request.urlopen(r)
+                  return resp.status, resp.read()
+              except urllib.error.HTTPError as e:
+                  return e.code, e.read()
+
+          # release 说明取 latest.json 里的 notes（含 changelog），兜底用版本号
+          body = f"GitCode 国内镜像发布 {version}"
+          lj = glob.glob("dist/latest.json")
+          if lj:
+              try:
+                  body = json.load(open(lj[0])).get("notes") or body
+              except Exception:
+                  pass
+
+          # 1) 不存在则创建 release（target_commitish 用 SHA，顺带在 GitCode 建 tag）
+          st, _ = call(f"{api}/releases/tags/{version}", headers=AUTH)
+          if st == 200:
+              print("release already exists, skip create")
+          else:
+              payload = json.dumps({
+                  "tag_name": version, "name": version, "body": body,
+                  "target_commitish": commitish, "prerelease": False,
+              }).encode()
+              st, b = call(f"{api}/releases", payload, "POST",
+                           {"Content-Type": "application/json;charset=UTF-8", "private-token": token})
+              print("create release:", st, b[:200])
+              if st not in (200, 201):
+                  raise SystemExit("create release failed")
+
+          # 2) latest.json 下载链接改写成 gitcode.com host 后再上传
+          for p in lj:
+              d = json.load(open(p))
+              setup = glob.glob("dist/*-setup.exe")
+              if setup:
+                  name = os.path.basename(setup[0])
+                  d.setdefault("platforms", {}).setdefault("windows-x86_64", {})["url"] = \
+                      f"https://gitcode.com/{owner}/{repo}/releases/download/{version}/{name}"
+                  json.dump(d, open(p, "w"), ensure_ascii=False, indent=2)
+
+          # 3) 逐个产物：GET upload_url -> PUT 到 OBS（带回返回的全部 headers）
+          def upload(path):
+              fn, size = os.path.basename(path), os.path.getsize(path)
+              q = urllib.parse.urlencode({"file_name": fn, "file_size": size})
+              st, b = call(f"{api}/releases/{version}/upload_url?{q}", headers=AUTH)
+              if st != 200:
+                  raise SystemExit(f"upload_url failed for {fn}: {st} {b[:200]}")
+              info = json.loads(b)
+              st, b = call(info["url"], open(path, "rb").read(), "PUT", info.get("headers", {}))
+              print(f"upload {fn} ({size} bytes): {st} {b[:80]}")
+              if st != 200:
+                  raise SystemExit(f"PUT failed for {fn}: {st}")
+
+          for pat in ("dist/*-setup.exe", "dist/*-portable.7z", "dist/latest.json"):
+              for p in glob.glob(pat):
+                  upload(p)
+          print("GitCode release sync done")
+          PY
