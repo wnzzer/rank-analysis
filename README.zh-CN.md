@@ -21,8 +21,8 @@
     <a href="./LICENSE">
       <img src="https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square" alt="License" />
     </a>
-    <a href="https://linux.do">
-      <img src="https://img.shields.io/badge/LINUX%20DO-社区-FFB003?style=flat-square&logo=discourse&logoColor=white" alt="LINUX DO" />
+    <a href="https://gitcode.com/faker1234546/rank-analysis">
+      <img src="https://gitcode.com/faker1234546/rank-analysis/star/badge.svg" alt="AtomGitStars" />
     </a>
   </p>
 
