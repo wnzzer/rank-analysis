@@ -1,7 +1,7 @@
 <div align="center">
   <img src="./lol-record-analysis-tauri/src-tauri/icons/256x256.png" width="128" height="128" alt="Logo" />
   <h1>Rank Analysis</h1>
-  <p>🎮 League of Legends Ranked Match Analysis Tool based on LCU API</p>
+  <p>🎮 AI-powered match review for League of Legends — built on the official LCU API</p>
 
   <!-- Badges -->
   <p>
@@ -46,13 +46,22 @@
 
 ---
 
-> **TL;DR for developers** — A native LoL client tool built with **Tauri 2 + Rust + Vue 3 + TypeScript**. **~5 MB installer**, single Windows binary, zero Electron overhead. Talks to the LCU WebSocket for live in-game state, async Rust HTTP for match history, on-device AI tagging pipeline on top. No DLL injection, no game memory access — uses only Riot's official local client API.
+> **TL;DR for developers** — A native LoL client tool built with **Tauri 2 + Rust + Vue 3 + TypeScript**. **~5 MB installer**, single Windows binary, zero Electron overhead. Its core is a **data-driven AI match-review pipeline**: every game is quantified (KDA, damage/tank share, kill participation, gold, team comp) and streamed to an LLM that tells you who carried, who fed, and who got dragged down. Talks to the LCU WebSocket for live in-game state, async Rust HTTP for match history. No DLL injection, no game memory access — uses only Riot's official local client API.
 
 ## 📖 Introduction
 
-**Rank Analysis** is a League of Legends ranked match data analysis tool developed based on Riot's LCU API. It helps players easily query match history, identify teammate risks, and provides AI-powered intuitive match analysis. This project is built with **Tauri 2.0**, combining Rust's high performance with the flexibility of web frontends to deliver the most lightweight and efficient match query experience.
+**Rank Analysis** is a League of Legends companion built on Riot's official LCU API. Its standout feature is **data-driven AI match review**: instead of just throwing numbers at you, it quantifies each game and has an AI explain *why* you won or lost — who carried, who fed, who got stomped, and who was dragged down by teammates. Around that core it also covers the essentials: match-history lookup with win-rate highlighting, premade & teammate-risk detection, and rule-based auto pick/ban.
+
+Built with **Tauri 2.0**, it pairs Rust's performance with a web frontend in a **~5 MB**, single-binary app — no DLL injection, no memory reads, only the official local client API.
 
 ## ✨ Features
+
+### 🤖 AI Match Review — the core
+- **Full Match Review**: One click in the match details turns the game into a verdict — who performed best, who fed, who got stomped, and who was dragged down by teammates
+- **Single Player Review**: Analyze any participant individually (carried / fed / stomped / dragged down / normal)
+- **Lobby-level Risk Assessment**: During lobby/queue, assess teammate and opponent risk from recent history, favorite champions, role distribution, and tags
+- **Evidence-Driven, not vibes**: Every verdict is grounded in real data — KDA, damage share, tank share, gold, kill participation, towers, CS — not subjective commentary
+- **Streaming + Cached**: Results stream in token-by-token and are cached per match within the session to avoid repeated waits
 
 ### 📊 Match History Query
 - **Win Rate Highlighting**: Intuitively displays teammates' recent performance
@@ -66,17 +75,10 @@
 - **Match Details Panel**: Independent window showing 10 players' KDA, economy, CS, damage taken, towers destroyed, items, skills, and runes/augments
 - **Augment Recognition**: Special queues like Arena automatically switch to augment display with rarity differentiation
 
-### 🤖 AI Analysis
-- **Lobby-level AI Assessment**: During lobby/queue phase, quickly assess teammate and opponent risks based on recent match history, favorite champions, role distribution, and tag information
-- **Full Match AI Review**: One-click generation of complete match outcome analysis in match details, identifying who performed best, who fed, who got stomped, and who was dragged down by teammates
-- **Single Player AI Review**: Supports individual analysis for any participant, determining if they performed well, poorly, got stomped, were dragged down, or played normally
-- **Data Evidence-Driven**: AI conclusions are generated based on KDA, damage share, tank share, gold, kill participation, towers, and CS - not pure subjective commentary
-- **Result Caching**: Same-match AI analysis results are cached locally within the session to reduce repeated request wait times
-
 ### 🤖 Automation Assistant
 - **Auto Matchmaking**: Automatically starts searching for matches
 - **Auto Accept**: Automatically accepts matches when found
-- **Auto Pick/Ban**: Automatically selects and bans preset champions
+- **Rule-based Pick/Ban**: A configurable rule engine picks/bans by role × ally/enemy champion conditions (falls back to a fixed preset list)
 
 ## 📸 Screenshots
 
@@ -98,9 +100,8 @@
 ## 🚀 Usage
 
 1. **Download**:
-   - Download the latest build from the [Release Page](https://github.com/wnzzer/lol-rank-record-analysis/releases)
-   - Or download via [UpgradeLink CDN](https://download.upgrade.toolsetlink.com/download?appKey=rX76p0GShXom2yNnlsSDYw) (Thanks to UpgradeLink for the support)
-     ![UpgradeLink Platform Logo](./public/upgrade_link.png)
+   - **GitHub Releases** (primary): grab the latest build from the [Release Page](https://github.com/wnzzer/lol-rank-record-analysis/releases)
+   - **GitCode mirror** (faster in mainland China): download from [GitCode Releases](https://gitcode.com/faker1234546/rank-analysis/releases)
 
    > **System Requirements**: Windows 10 1803 or higher (WebView2 support required)
 

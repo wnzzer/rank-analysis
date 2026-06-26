@@ -23,7 +23,7 @@
           </div>
           <div class="app-info">
             <h2>Rank Analysis</h2>
-            <p>一款为英雄联盟玩家而生的分析工具</p>
+            <p>AI 驱动的英雄联盟对局复盘助手</p>
             <div class="version-info">
               <span class="version-tag">{{ currentVersion }}</span>
               <n-button size="small" type="primary" @click="checkForUpdates"> 检查更新 </n-button>
