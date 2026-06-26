@@ -21,8 +21,8 @@
     <a href="./LICENSE">
       <img src="https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square" alt="License" />
     </a>
-    <a href="https://gitcode.com/faker1234546/rank-analysis">
-      <img src="https://gitcode.com/faker1234546/rank-analysis/star/badge.svg" alt="AtomGitStars" />
+    <a href="https://gitcode.com/wnzzer/rank-analysis">
+      <img src="https://gitcode.com/wnzzer/rank-analysis/star/badge.svg" alt="AtomGitStars" />
     </a>
   </p>
 
@@ -101,7 +101,7 @@ Built with **Tauri 2.0**, it pairs Rust's performance with a web frontend in a *
 
 1. **Download**:
    - **GitHub Releases** (primary): grab the latest build from the [Release Page](https://github.com/wnzzer/rank-analysis/releases)
-   - **GitCode mirror** (faster in mainland China): download from [GitCode Releases](https://gitcode.com/faker1234546/rank-analysis/releases)
+   - **GitCode mirror** (faster in mainland China): download from [GitCode Releases](https://gitcode.com/wnzzer/rank-analysis/releases)
 
    > **System Requirements**: Windows 10 1803 or higher (WebView2 support required)
 

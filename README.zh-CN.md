@@ -21,8 +21,8 @@
     <a href="./LICENSE">
       <img src="https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square" alt="License" />
     </a>
-    <a href="https://gitcode.com/faker1234546/rank-analysis">
-      <img src="https://gitcode.com/faker1234546/rank-analysis/star/badge.svg" alt="AtomGitStars" />
+    <a href="https://gitcode.com/wnzzer/rank-analysis">
+      <img src="https://gitcode.com/wnzzer/rank-analysis/star/badge.svg" alt="AtomGitStars" />
     </a>
   </p>
 
@@ -101,7 +101,7 @@
 
 1. **下载**：
    - **GitHub Releases**（主下载源）：前往 [Release 页面](https://github.com/wnzzer/rank-analysis/releases) 下载最新的构建版本压缩包。
-   - **GitCode 镜像**（国内访问更快）：前往 [GitCode Releases](https://gitcode.com/faker1234546/rank-analysis/releases) 下载。
+   - **GitCode 镜像**（国内访问更快）：前往 [GitCode Releases](https://gitcode.com/wnzzer/rank-analysis/releases) 下载。
 
    > **系统要求**: Windows 10 1803 及以上版本（需支持 WebView2）。
 

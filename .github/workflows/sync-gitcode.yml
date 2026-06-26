@@ -28,7 +28,7 @@ jobs:
           GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
         run: |
           set -e
-          REMOTE="https://faker1234546:${GITCODE_TOKEN}@gitcode.com/faker1234546/rank-analysis.git"
+          REMOTE="https://wnzzer:${GITCODE_TOKEN}@gitcode.com/wnzzer/rank-analysis.git"
           # 确保拿到最新的 origin/main 引用
           git fetch origin main --quiet
           # GitHub 为权威源，强制覆盖 GitCode（它是纯镜像目标）
