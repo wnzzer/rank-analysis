@@ -28,14 +28,14 @@
 
   <!-- Stats -->
   <p>
-    <a href="https://github.com/wnzzer/lol-rank-record-analysis/releases">
-      <img src="https://img.shields.io/github/v/release/wnzzer/lol-rank-record-analysis?style=flat-square&color=blue" alt="Latest Release">
+    <a href="https://github.com/wnzzer/rank-analysis/releases">
+      <img src="https://img.shields.io/github/v/release/wnzzer/rank-analysis?style=flat-square&color=blue" alt="Latest Release">
     </a>
-    <a href="https://github.com/wnzzer/lol-rank-record-analysis/releases">
-      <img src="https://img.shields.io/github/downloads/wnzzer/lol-rank-record-analysis/total?style=flat-square&color=success" alt="Downloads">
+    <a href="https://github.com/wnzzer/rank-analysis/releases">
+      <img src="https://img.shields.io/github/downloads/wnzzer/rank-analysis/total?style=flat-square&color=success" alt="Downloads">
     </a>
-    <a href="https://github.com/wnzzer/lol-rank-record-analysis/stargazers">
-      <img src="https://img.shields.io/github/stars/wnzzer/lol-rank-record-analysis?style=flat-square&color=orange" alt="Stars">
+    <a href="https://github.com/wnzzer/rank-analysis/stargazers">
+      <img src="https://img.shields.io/github/stars/wnzzer/rank-analysis?style=flat-square&color=orange" alt="Stars">
     </a>
   </p>
 
@@ -100,7 +100,7 @@ Built with **Tauri 2.0**, it pairs Rust's performance with a web frontend in a *
 ## 🚀 Usage
 
 1. **Download**:
-   - **GitHub Releases** (primary): grab the latest build from the [Release Page](https://github.com/wnzzer/lol-rank-record-analysis/releases)
+   - **GitHub Releases** (primary): grab the latest build from the [Release Page](https://github.com/wnzzer/rank-analysis/releases)
    - **GitCode mirror** (faster in mainland China): download from [GitCode Releases](https://gitcode.com/faker1234546/rank-analysis/releases)
 
    > **System Requirements**: Windows 10 1803 or higher (WebView2 support required)
@@ -183,7 +183,7 @@ For detailed code quality standards and contribution guidelines, please refer to
 
 Issues and Pull Requests are welcome!
 
-- **Bug Reports**: Submit via [GitHub Issues](https://github.com/wnzzer/lol-rank-record-analysis/issues)
+- **Bug Reports**: Submit via [GitHub Issues](https://github.com/wnzzer/rank-analysis/issues)
 - **Code Contributions**: Improvements and new features are welcome
 
 ## 📄 License
@@ -194,4 +194,4 @@ This project is open-sourced under the [MIT License](./LICENSE).
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=wnzzer/lol-rank-record-analysis&type=Date)](https://star-history.com/#wnzzer/lol-rank-record-analysis&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=wnzzer/rank-analysis&type=Date)](https://star-history.com/#wnzzer/rank-analysis&Date)

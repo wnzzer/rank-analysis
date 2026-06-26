@@ -28,14 +28,14 @@
 
   <!-- Stats -->
   <p>
-    <a href="https://github.com/wnzzer/lol-rank-record-analysis/releases">
-      <img src="https://img.shields.io/github/v/release/wnzzer/lol-rank-record-analysis?style=flat-square&color=blue" alt="Latest Release">
+    <a href="https://github.com/wnzzer/rank-analysis/releases">
+      <img src="https://img.shields.io/github/v/release/wnzzer/rank-analysis?style=flat-square&color=blue" alt="Latest Release">
     </a>
-    <a href="https://github.com/wnzzer/lol-rank-record-analysis/releases">
-      <img src="https://img.shields.io/github/downloads/wnzzer/lol-rank-record-analysis/total?style=flat-square&color=success" alt="Downloads">
+    <a href="https://github.com/wnzzer/rank-analysis/releases">
+      <img src="https://img.shields.io/github/downloads/wnzzer/rank-analysis/total?style=flat-square&color=success" alt="Downloads">
     </a>
-    <a href="https://github.com/wnzzer/lol-rank-record-analysis/stargazers">
-      <img src="https://img.shields.io/github/stars/wnzzer/lol-rank-record-analysis?style=flat-square&color=orange" alt="Stars">
+    <a href="https://github.com/wnzzer/rank-analysis/stargazers">
+      <img src="https://img.shields.io/github/stars/wnzzer/rank-analysis?style=flat-square&color=orange" alt="Stars">
     </a>
   </p>
 
@@ -100,7 +100,7 @@
 ## 🚀 使用方法
 
 1. **下载**：
-   - **GitHub Releases**（主下载源）：前往 [Release 页面](https://github.com/wnzzer/lol-rank-record-analysis/releases) 下载最新的构建版本压缩包。
+   - **GitHub Releases**（主下载源）：前往 [Release 页面](https://github.com/wnzzer/rank-analysis/releases) 下载最新的构建版本压缩包。
    - **GitCode 镜像**（国内访问更快）：前往 [GitCode Releases](https://gitcode.com/faker1234546/rank-analysis/releases) 下载。
 
    > **系统要求**: Windows 10 1803 及以上版本（需支持 WebView2）。
@@ -183,7 +183,7 @@ cd src-tauri && cargo fmt --all -- --check && cargo clippy --all-targets --all-f
 
 欢迎提交 Issue 和 Pull Request！
 
-- **反馈问题**: 通过 [GitHub Issues](https://github.com/wnzzer/lol-rank-record-analysis/issues) 提交。
+- **反馈问题**: 通过 [GitHub Issues](https://github.com/wnzzer/rank-analysis/issues) 提交。
 - **提交代码**: 欢迎改进代码或增加新功能。
 
 ## 📄 开源协议
@@ -194,4 +194,4 @@ cd src-tauri && cargo fmt --all -- --check && cargo clippy --all-targets --all-f
 
 ## Star 趋势
 
-[![Star History Chart](https://api.star-history.com/svg?repos=wnzzer/lol-rank-record-analysis&type=Date)](https://star-history.com/#wnzzer/lol-rank-record-analysis&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=wnzzer/rank-analysis&type=Date)](https://star-history.com/#wnzzer/rank-analysis&Date)
