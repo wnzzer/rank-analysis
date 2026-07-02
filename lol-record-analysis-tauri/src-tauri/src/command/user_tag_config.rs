@@ -254,7 +254,7 @@ pub enum MatchRefresh {
         /// 连胜或连败
         kind: StreakType,
     },
-    /// 筛选后对局中不同英雄数量与阈值比较
+    /// 筛选后对局中不同英雄数量与阈值比较；空集（无匹配场次）时恒不命中
     DistinctChampions {
         /// 比较运算符
         op: Operator,
@@ -591,6 +591,9 @@ impl EvalContext<'_> {
                 current_streak >= *min
             }
             MatchRefresh::DistinctChampions { op, value } => {
+                if games.is_empty() {
+                    return false;
+                }
                 let distinct: std::collections::HashSet<i32> = games
                     .iter()
                     .filter_map(|g| g.participants.first().map(|p| p.champion_id))
@@ -667,6 +670,8 @@ fn match_filter(game: &crate::lcu::api::match_history::Game, filter: &MatchFilte
 /// - `damage`: 对英雄伤害
 /// - `damageTaken`: 承受伤害
 /// - `gameDuration`: 对局时长
+/// - `damageShare`: 伤害占比（0.0-1.0，依赖 `calculate()` 预计算；game_detail 缺失时为 NAN）
+/// - `participation`: 参团率（(击杀+助攻)/本方全队击杀；game_detail 缺失时为 NAN）
 fn extract_game_metric(game: &crate::lcu::api::match_history::Game, metric: &str) -> f64 {
     if game.participants.is_empty() {
         return 0.0;
@@ -691,6 +696,33 @@ fn extract_game_metric(game: &crate::lcu::api::match_history::Game, metric: &str
         "damage" => stats.total_damage_dealt_to_champions as f64,
         "damageTaken" => stats.total_damage_taken as f64,
         "gameDuration" => game.game_duration as f64,
+        // 伤害占比：calculate() 预计算的 0-100 整数；detail 缺失时返回 NAN，
+        // 使任何 Operator::check 都为 false，避免把数据缺失误判成"低伤害"
+        "damageShare" => {
+            if game.game_detail.participants.is_empty() {
+                return f64::NAN;
+            }
+            stats.damage_dealt_to_champions_rate as f64 / 100.0
+        }
+        // 参团率：(K+A) / 本方全队击杀（含本人，取自 game_detail）
+        "participation" => {
+            if game.game_detail.participants.is_empty() {
+                return f64::NAN;
+            }
+            let team_id = game.participants[0].team_id;
+            let team_kills: i32 = game
+                .game_detail
+                .participants
+                .iter()
+                .filter(|p| p.team_id == team_id)
+                .map(|p| p.stats.kills)
+                .sum();
+            if team_kills == 0 {
+                0.0
+            } else {
+                (stats.kills + stats.assists) as f64 / team_kills as f64
+            }
+        }
         _ => 0.0,
     }
 }
@@ -1166,6 +1198,76 @@ mod tests {
                 game_value: 1.0,
                 op: Operator::Gte,
                 value: 0.0,
+            },
+        ));
+    }
+
+    #[test]
+    fn damage_share_reads_precomputed_rate_and_nan_when_no_detail() {
+        // game_detail 为空 → NAN，任何 Operator::check 均为 false（不把数据缺失误判成低伤害）
+        let mut g = make_game(1, true, QUEUE_SOLO_5X5);
+        g.participants[0].stats.damage_dealt_to_champions_rate = 30;
+        assert!(extract_game_metric(&g, "damageShare").is_nan());
+        // 有 detail 时读 calculate() 预计算占比（0-100 → 0.0-1.0）
+        g.game_detail.participants = vec![Default::default()];
+        assert!((extract_game_metric(&g, "damageShare") - 0.30).abs() < 1e-9);
+    }
+
+    #[test]
+    fn participation_is_ka_over_team_kills() {
+        let mut g = make_game(1, true, QUEUE_SOLO_5X5);
+        g.participants[0].stats.kills = 3;
+        g.participants[0].stats.assists = 5;
+        // 本方（team 100）总击杀 16（含本人 3），敌方 50 不计入
+        g.game_detail.participants = vec![
+            Participant {
+                team_id: 100,
+                stats: Stats {
+                    kills: 13,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            Participant {
+                team_id: 100,
+                stats: Stats {
+                    kills: 3,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            Participant {
+                team_id: 200,
+                stats: Stats {
+                    kills: 50,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ];
+        assert!((extract_game_metric(&g, "participation") - 0.5).abs() < 1e-9);
+        // 有 detail 但全队 0 击杀 → 0.0 不 panic（区别于 detail 缺失的 NAN）
+        let mut g2 = make_game(1, true, QUEUE_SOLO_5X5);
+        g2.game_detail.participants = vec![Default::default()];
+        assert_eq!(extract_game_metric(&g2, "participation"), 0.0);
+        // detail 缺失 → NAN
+        let g3 = make_game(1, true, QUEUE_SOLO_5X5);
+        assert!(extract_game_metric(&g3, "participation").is_nan());
+    }
+
+    #[test]
+    fn distinct_champions_empty_set_returns_false() {
+        let empty = make_history(vec![]);
+        let ctx = EvalContext {
+            history: &empty,
+            current_mode: 420,
+            current_champion: None,
+        };
+        assert!(!ctx.evaluate_history(
+            &[],
+            &MatchRefresh::DistinctChampions {
+                op: Operator::Lte,
+                value: 3.0
             },
         ));
     }

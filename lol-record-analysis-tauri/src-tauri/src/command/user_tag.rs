@@ -272,6 +272,7 @@ pub async fn get_user_tag_by_puuid(
     log::info!("get_user_tag_by_puuid: {}, mode: {}", puuid, mode);
     let mut match_history = MatchHistory::get_match_history_by_puuid(puuid, 0, 19).await?;
     match_history.enrich_game_detail().await?;
+    match_history.calculate()?; // damageShare 依赖预计算的伤害占比
 
     let mut tags = Vec::new();
 
