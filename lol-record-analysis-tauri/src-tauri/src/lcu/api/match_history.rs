@@ -125,8 +125,9 @@ impl MatchHistory {
             return Err("索引不能为负数".to_string());
         }
 
-        if beg_index >= end_index {
-            return Err("开始索引必须小于结束索引".to_string());
+        // 允许 beg_index == end_index：matchHistoryCount=1 时请求区间为 (0, 0)，表示单场
+        if beg_index > end_index {
+            return Err("开始索引不能大于结束索引".to_string());
         }
 
         // 如果没有用户缓存，且在缓存范围内，则获取缓存
