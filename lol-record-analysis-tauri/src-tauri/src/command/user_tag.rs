@@ -255,7 +255,7 @@ pub async fn get_user_tag_by_name(name: &str, mode: i32) -> Result<UserTag, Stri
 ///
 /// # 处理流程
 ///
-/// 1. 获取最近 20 场对局记录
+/// 1. 获取最近若干场对局记录（场数由 `matchHistoryCount` 配置决定，默认 4）
 /// 2. 补充对局详情
 /// 3. 根据配置生成标签
 /// 4. 提取同场玩家信息
@@ -264,7 +264,18 @@ pub async fn get_user_tag_by_name(name: &str, mode: i32) -> Result<UserTag, Stri
 #[tauri::command]
 pub async fn get_user_tag_by_puuid(puuid: &str, mode: i32) -> Result<UserTag, String> {
     log::info!("get_user_tag_by_puuid: {}, mode: {}", puuid, mode);
-    let mut match_history = MatchHistory::get_match_history_by_puuid(puuid, 0, 19).await?;
+
+    // 与 session.rs 保持一致：使用用户配置的 matchHistoryCount
+    let match_history_count = crate::config::get_config("matchHistoryCount")
+        .await
+        .ok()
+        .as_ref()
+        .and_then(crate::config::extract_int)
+        .map(|n| n as i32)
+        .unwrap_or(4);
+
+    let mut match_history =
+        MatchHistory::get_match_history_by_puuid(puuid, 0, match_history_count - 1).await?;
     match_history.enrich_game_detail().await?;
 
     let mut tags = Vec::new();
