@@ -45,7 +45,7 @@
 //! save_tag_configs(new_configs).await?;
 //!
 //! // 评估标签（内部使用）
-//! if let Some(tag) = config.evaluate(&match_history, mode) {
+//! if let Some(tag) = config.evaluate(&match_history, mode, Some(champion_id)) {
 //!     println!("玩家获得标签: {}", tag.tag_name);
 //! }
 //! ```
@@ -348,18 +348,24 @@ pub struct TagConfig {
 impl TagConfig {
     /// 评估标签条件。
     ///
-    /// 根据对局历史和当前模式判断是否满足标签条件。
+    /// 根据对局历史、当前模式和当前英雄判断是否满足标签条件。
     ///
     /// # 参数
     ///
     /// - `match_history`: 对局历史记录
     /// - `current_mode`: 当前队列模式 ID
+    /// - `current_champion`: 当前选用的英雄 ID（未知时传 `None`，此时 `CurrentChampion` 条件恒为 false）
     ///
     /// # 返回值
     ///
     /// - `Some(RankTag)`: 条件满足，返回标签
     /// - `None`: 条件不满足或标签被禁用
-    pub fn evaluate(&self, match_history: &MatchHistory, current_mode: i32) -> Option<RankTag> {
+    pub fn evaluate(
+        &self,
+        match_history: &MatchHistory,
+        current_mode: i32,
+        current_champion: Option<i32>,
+    ) -> Option<RankTag> {
         if !self.enabled {
             return None;
         }
@@ -367,7 +373,7 @@ impl TagConfig {
         let context = EvalContext {
             history: match_history,
             current_mode,
-            current_champion: None, // Can be injected if available
+            current_champion,
         };
 
         if context.evaluate_node(&self.condition) {
@@ -417,8 +423,7 @@ struct EvalContext<'a> {
     history: &'a MatchHistory,
     /// 当前队列模式 ID
     current_mode: i32,
-    /// 当前英雄 ID（可选，用于未来扩展）
-    #[allow(dead_code)]
+    /// 当前英雄 ID（选人阶段已知时注入，未知为 `None`）
     current_champion: Option<i32>,
 }
 
@@ -894,5 +899,58 @@ fn config_value_to_json(v: config::Value) -> serde_json::Value {
             }
             serde_json::Value::Object(m)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lcu::api::match_history::{Game, GamesWrapper};
+    use crate::lcu::api::model::{Participant, Stats};
+
+    /// 构造一场对局：指定英雄、胜负、队列；其余字段取 Default。
+    fn make_game(champion_id: i32, win: bool, queue_id: i32) -> Game {
+        let p = Participant {
+            champion_id,
+            team_id: 100,
+            stats: Stats {
+                win,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        Game {
+            queue_id,
+            participants: vec![p],
+            ..Default::default()
+        }
+    }
+
+    /// 用给定对局列表构造对局历史；其余字段取 Default。
+    fn make_history(games: Vec<Game>) -> MatchHistory {
+        MatchHistory {
+            games: GamesWrapper { games },
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn current_champion_hits_when_injected() {
+        let cfg = TagConfig {
+            id: "t".into(),
+            name: "本命".into(),
+            desc: "".into(),
+            good: true,
+            enabled: true,
+            is_default: false,
+            condition: TagCondition::CurrentChampion { ids: vec![157] },
+        };
+        let history = make_history(vec![make_game(157, true, QUEUE_SOLO_5X5)]);
+        // 注入的英雄命中条件列表 → 命中
+        assert!(cfg.evaluate(&history, QUEUE_SOLO_5X5, Some(157)).is_some());
+        // 注入的英雄不在条件列表 → 不命中
+        assert!(cfg.evaluate(&history, QUEUE_SOLO_5X5, Some(1)).is_none());
+        // 未注入英雄（None）→ 条件恒为 false，不命中
+        assert!(cfg.evaluate(&history, QUEUE_SOLO_5X5, None).is_none());
     }
 }
