@@ -610,7 +610,8 @@ async fn process_subteam_parallel(
             .map(|n| n as i32)
             .unwrap_or(4);
         let puuid = player.puuid.clone();
-        let champion_id = player.champion_id;
+        // 选人早期 champion_id 为 0 表示未选定，此时按「未知」处理而非「英雄 0」
+        let champion_id = Some(player.champion_id).filter(|&id| id > 0);
 
         let (summoner, match_history, rank) = tokio::join!(
             async {
@@ -638,32 +639,31 @@ async fn process_subteam_parallel(
             }
         );
 
-        let user_tag =
-            crate::command::user_tag::get_user_tag_by_puuid(&puuid, mode, Some(champion_id))
-                .await
-                .unwrap_or_else(|_| UserTag {
-                    recent_data: crate::command::user_tag::RecentData {
-                        kda: 0.0,
-                        kills: 0.0,
-                        deaths: 0.0,
-                        assists: 0.0,
-                        select_mode: mode,
-                        select_mode_cn: QUEUE_ID_TO_CN
-                            .get(&(mode as u32))
-                            .unwrap_or(&"未知模式")
-                            .to_string(),
-                        select_wins: 0,
-                        select_losses: 0,
-                        group_rate: 0,
-                        average_gold: 0,
-                        gold_rate: 0,
-                        average_damage_dealt_to_champions: 0,
-                        damage_dealt_to_champions_rate: 0,
-                        friend_and_dispute: Default::default(),
-                        one_game_players_map: None,
-                    },
-                    tag: Vec::new(),
-                });
+        let user_tag = crate::command::user_tag::get_user_tag_by_puuid(&puuid, mode, champion_id)
+            .await
+            .unwrap_or_else(|_| UserTag {
+                recent_data: crate::command::user_tag::RecentData {
+                    kda: 0.0,
+                    kills: 0.0,
+                    deaths: 0.0,
+                    assists: 0.0,
+                    select_mode: mode,
+                    select_mode_cn: QUEUE_ID_TO_CN
+                        .get(&(mode as u32))
+                        .unwrap_or(&"未知模式")
+                        .to_string(),
+                    select_wins: 0,
+                    select_losses: 0,
+                    group_rate: 0,
+                    average_gold: 0,
+                    gold_rate: 0,
+                    average_damage_dealt_to_champions: 0,
+                    damage_dealt_to_champions_rate: 0,
+                    friend_and_dispute: Default::default(),
+                    one_game_players_map: None,
+                },
+                tag: Vec::new(),
+            });
 
         SessionSummoner {
             champion_id: player.champion_id,

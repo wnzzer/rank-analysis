@@ -156,6 +156,7 @@ impl Operator {
 /// - `Queue { ids }`: 按队列模式筛选
 /// - `Champion { ids }`: 按英雄筛选
 /// - `Stat { metric, op, value }`: 按统计数据筛选
+/// - `Recent { count }`: 只取最近 N 场（位置性筛选）
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase", tag = "type")]
 pub enum MatchFilter {
@@ -177,6 +178,12 @@ pub enum MatchFilter {
         op: Operator,
         /// 比较值
         value: f64,
+    },
+    /// 只取最近 N 场（对局列表最新在前），在其他筛选器之前应用；
+    /// 多个 Recent 取最小窗口
+    Recent {
+        /// 窗口场数
+        count: i32,
     },
 }
 
@@ -445,8 +452,7 @@ impl EvalContext<'_> {
 
             TagCondition::CurrentQueue { ids } => ids.contains(&self.current_mode),
             TagCondition::CurrentChampion { ids } => {
-                // If we don't know current champ, usually evaluate to False or ignore?
-                // For safety, FALSE.
+                // 未注入当前英雄（如战绩页场景）时恒不命中
                 if let Some(curr) = self.current_champion {
                     ids.contains(&curr)
                 } else {
@@ -469,7 +475,20 @@ impl EvalContext<'_> {
     ///
     /// 条件是否满足
     fn evaluate_history(&self, filters: &[MatchFilter], refresh: &MatchRefresh) -> bool {
-        let games_iter = self.history.games.games.iter().filter(|g| {
+        // Recent 是位置性筛选，逐场谓词拿不到位置信息，须先切片
+        let recent_limit = filters
+            .iter()
+            .filter_map(|f| match f {
+                MatchFilter::Recent { count } => Some((*count).max(0) as usize),
+                _ => None,
+            })
+            .min();
+        let all_games = &self.history.games.games;
+        let base = match recent_limit {
+            Some(n) => &all_games[..n.min(all_games.len())],
+            None => &all_games[..],
+        };
+        let games_iter = base.iter().filter(|g| {
             for f in filters {
                 if !match_filter(g, f) {
                     return false;
@@ -574,6 +593,8 @@ fn match_filter(game: &crate::lcu::api::match_history::Game, filter: &MatchFilte
             let v = extract_game_metric(game, metric);
             op.check(v, *value)
         }
+        // Recent 已在 evaluate_history 开头统一切片处理，逐场恒过
+        MatchFilter::Recent { .. } => true,
     }
 }
 
@@ -952,5 +973,53 @@ mod tests {
         assert!(cfg.evaluate(&history, QUEUE_SOLO_5X5, Some(1)).is_none());
         // 未注入英雄（None）→ 条件恒为 false，不命中
         assert!(cfg.evaluate(&history, QUEUE_SOLO_5X5, None).is_none());
+    }
+
+    #[test]
+    fn recent_filter_slices_newest_games_before_other_filters() {
+        // 6 场：最新 3 场全胜，更早 3 场全败（列表最新在前）
+        let games = vec![
+            make_game(1, true, QUEUE_SOLO_5X5),
+            make_game(2, true, QUEUE_SOLO_5X5),
+            make_game(3, true, QUEUE_SOLO_5X5),
+            make_game(4, false, QUEUE_SOLO_5X5),
+            make_game(5, false, QUEUE_SOLO_5X5),
+            make_game(6, false, QUEUE_SOLO_5X5),
+        ];
+        let history = make_history(games);
+        let ctx = EvalContext {
+            history: &history,
+            current_mode: 420,
+            current_champion: None,
+        };
+
+        // 近 3 场平均胜率 1.0；全 6 场是 0.5
+        let win_recent3 = ctx.evaluate_history(
+            &[MatchFilter::Recent { count: 3 }],
+            &MatchRefresh::Average {
+                metric: "win".into(),
+                op: Operator::Gte,
+                value: 0.99,
+            },
+        );
+        assert!(win_recent3);
+        let win_all = ctx.evaluate_history(
+            &[],
+            &MatchRefresh::Average {
+                metric: "win".into(),
+                op: Operator::Gte,
+                value: 0.99,
+            },
+        );
+        assert!(!win_all);
+        // count 超过总场次不 panic
+        let over = ctx.evaluate_history(
+            &[MatchFilter::Recent { count: 99 }],
+            &MatchRefresh::Count {
+                op: Operator::Eq,
+                value: 6.0,
+            },
+        );
+        assert!(over);
     }
 }
