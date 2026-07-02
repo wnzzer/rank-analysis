@@ -31,7 +31,7 @@
 //!
 //! ```rust,ignore
 //! // 获取用户标签
-//! let user_tag = get_user_tag_by_puuid(&puuid, 420).await?; // 420 = 单双排
+//! let user_tag = get_user_tag_by_puuid(&puuid, 420, None).await?; // 420 = 单双排，当前英雄未知传 None
 //!
 //! // 访问数据
 //! println!("KDA: {}", user_tag.recent_data.kda);
@@ -238,7 +238,8 @@ pub struct UserTag {
 #[tauri::command]
 pub async fn get_user_tag_by_name(name: &str, mode: i32) -> Result<UserTag, String> {
     let summoner = Summoner::get_summoner_by_name(name).await?;
-    get_user_tag_by_puuid(&summoner.puuid, mode).await
+    // 按名称查询没有选人上下文，当前英雄未知，传 None
+    get_user_tag_by_puuid(&summoner.puuid, mode, None).await
 }
 
 /// 根据 PUUID 获取用户标签（核心函数）。
@@ -247,6 +248,7 @@ pub async fn get_user_tag_by_name(name: &str, mode: i32) -> Result<UserTag, Stri
 ///
 /// - `puuid`: 召唤师 PUUID
 /// - `mode`: 队列模式 ID（0 表示所有模式）
+/// - `champion_id`: 当前选用的英雄 ID（选人/对局会话中已知时传入，用于 `CurrentChampion` 条件；未知传 `None`）
 ///
 /// # 返回值
 ///
@@ -262,17 +264,22 @@ pub async fn get_user_tag_by_name(name: &str, mode: i32) -> Result<UserTag, Stri
 /// 5. 计算 KDA、胜率等统计数据
 /// 6. 计算好友/纠纷统计
 #[tauri::command]
-pub async fn get_user_tag_by_puuid(puuid: &str, mode: i32) -> Result<UserTag, String> {
+pub async fn get_user_tag_by_puuid(
+    puuid: &str,
+    mode: i32,
+    champion_id: Option<i32>,
+) -> Result<UserTag, String> {
     log::info!("get_user_tag_by_puuid: {}, mode: {}", puuid, mode);
     let mut match_history = MatchHistory::get_match_history_by_puuid(puuid, 0, 19).await?;
     match_history.enrich_game_detail().await?;
+    match_history.calculate()?; // damageShare 依赖预计算的伤害占比
 
     let mut tags = Vec::new();
 
     // Update: Use dynamic tag configuration
     let configs = user_tag_config::load_config().await;
     for config in configs {
-        if let Some(tag) = config.evaluate(&match_history, mode) {
+        if let Some(tag) = config.evaluate(&match_history, mode, champion_id) {
             tags.push(tag);
         }
     }

@@ -610,6 +610,8 @@ async fn process_subteam_parallel(
             .map(|n| n as i32)
             .unwrap_or(4);
         let puuid = player.puuid.clone();
+        // 选人早期 champion_id 为 0 表示未选定，此时按「未知」处理而非「英雄 0」
+        let champion_id = Some(player.champion_id).filter(|&id| id > 0);
 
         let (summoner, match_history, rank) = tokio::join!(
             async {
@@ -637,7 +639,7 @@ async fn process_subteam_parallel(
             }
         );
 
-        let user_tag = crate::command::user_tag::get_user_tag_by_puuid(&puuid, mode)
+        let user_tag = crate::command::user_tag::get_user_tag_by_puuid(&puuid, mode, champion_id)
             .await
             .unwrap_or_else(|_| UserTag {
                 recent_data: crate::command::user_tag::RecentData {
