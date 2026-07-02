@@ -199,6 +199,8 @@ pub enum MatchFilter {
 /// - `Max`: 最大值检查
 /// - `Min`: 最小值检查
 /// - `Streak`: 连胜/连败检查
+/// - `DistinctChampions`: 不同英雄数量检查
+/// - `Ratio`: 满足逐场条件的场次占比检查
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase", tag = "type")]
 pub enum MatchRefresh {
@@ -251,6 +253,29 @@ pub enum MatchRefresh {
         min: i32,
         /// 连胜或连败
         kind: StreakType,
+    },
+    /// 筛选后对局中不同英雄数量与阈值比较
+    DistinctChampions {
+        /// 比较运算符
+        op: Operator,
+        /// 比较值
+        value: f64,
+    },
+    /// 「满足逐场条件的场次占比」与阈值比较：
+    /// ratio = count(metric <game_op> game_value 的场次) / count(筛选后场次)
+    Ratio {
+        /// 逐场统计指标名称
+        metric: String,
+        /// 逐场比较运算符
+        #[serde(rename = "gameOp")]
+        game_op: Operator,
+        /// 逐场比较值
+        #[serde(rename = "gameValue")]
+        game_value: f64,
+        /// 占比比较运算符
+        op: Operator,
+        /// 占比比较值
+        value: f64,
     },
 }
 
@@ -466,6 +491,8 @@ impl EvalContext<'_> {
 
     /// 评估历史数据条件。
     ///
+    /// `Recent` 筛选器会先被提取并对「最近 N 场」做前置切片，之后才应用逐场筛选链。
+    ///
     /// # 参数
     ///
     /// - `filters`: 对局筛选链
@@ -562,6 +589,29 @@ impl EvalContext<'_> {
                     }
                 }
                 current_streak >= *min
+            }
+            MatchRefresh::DistinctChampions { op, value } => {
+                let distinct: std::collections::HashSet<i32> = games
+                    .iter()
+                    .filter_map(|g| g.participants.first().map(|p| p.champion_id))
+                    .collect();
+                op.check(distinct.len() as f64, *value)
+            }
+            MatchRefresh::Ratio {
+                metric,
+                game_op,
+                game_value,
+                op,
+                value,
+            } => {
+                if games.is_empty() {
+                    return false;
+                }
+                let hits = games
+                    .iter()
+                    .filter(|g| game_op.check(extract_game_metric(g, metric), *game_value))
+                    .count();
+                op.check(hits as f64 / games.len() as f64, *value)
             }
         }
     }
@@ -1021,5 +1071,102 @@ mod tests {
             },
         );
         assert!(over);
+    }
+
+    #[test]
+    fn recent_slices_before_queue_filter_not_after() {
+        // 最新 2 场大乱斗 + 更早 3 场排位。
+        // Recent 3 + Queue[420,440]：先切最近 3 场再筛队列 → 只剩 1 场排位；
+        // 若实现错误地"先筛队列再取 3 场"会得到 3 场。
+        let history = make_history(vec![
+            make_game(1, true, 450),
+            make_game(2, true, 450),
+            make_game(3, true, QUEUE_SOLO_5X5),
+            make_game(4, true, QUEUE_SOLO_5X5),
+            make_game(5, true, QUEUE_SOLO_5X5),
+        ]);
+        let ctx = EvalContext {
+            history: &history,
+            current_mode: 420,
+            current_champion: None,
+        };
+        let filters = [
+            MatchFilter::Recent { count: 3 },
+            MatchFilter::Queue {
+                ids: vec![QUEUE_SOLO_5X5, QUEUE_FLEX],
+            },
+        ];
+        assert!(ctx.evaluate_history(
+            &filters,
+            &MatchRefresh::Count {
+                op: Operator::Eq,
+                value: 1.0
+            },
+        ));
+    }
+
+    #[test]
+    fn distinct_champions_counts_unique_ids() {
+        let history = make_history(vec![
+            make_game(1, true, QUEUE_SOLO_5X5),
+            make_game(1, true, QUEUE_SOLO_5X5),
+            make_game(2, true, QUEUE_SOLO_5X5),
+        ]);
+        let ctx = EvalContext {
+            history: &history,
+            current_mode: 420,
+            current_champion: None,
+        };
+        assert!(ctx.evaluate_history(
+            &[],
+            &MatchRefresh::DistinctChampions {
+                op: Operator::Eq,
+                value: 2.0
+            },
+        ));
+    }
+
+    #[test]
+    fn ratio_counts_matching_games_share() {
+        // 4 场里 1 场 0 击杀 → kills < 1 的占比 0.25
+        let g_feed = make_game(1, false, QUEUE_SOLO_5X5); // kills 默认 0
+        let mk_normal = |champ: i32| {
+            let mut g = make_game(champ, true, QUEUE_SOLO_5X5);
+            g.participants[0].stats.kills = 5;
+            g
+        };
+        let history = make_history(vec![g_feed, mk_normal(2), mk_normal(3), mk_normal(4)]);
+        let ctx = EvalContext {
+            history: &history,
+            current_mode: 420,
+            current_champion: None,
+        };
+        assert!(ctx.evaluate_history(
+            &[],
+            &MatchRefresh::Ratio {
+                metric: "kills".into(),
+                game_op: Operator::Lt,
+                game_value: 1.0,
+                op: Operator::Gte,
+                value: 0.25,
+            },
+        ));
+        // 空历史返回 false
+        let empty = make_history(vec![]);
+        let ctx2 = EvalContext {
+            history: &empty,
+            current_mode: 420,
+            current_champion: None,
+        };
+        assert!(!ctx2.evaluate_history(
+            &[],
+            &MatchRefresh::Ratio {
+                metric: "kills".into(),
+                game_op: Operator::Lt,
+                game_value: 1.0,
+                op: Operator::Gte,
+                value: 0.0,
+            },
+        ));
     }
 }
