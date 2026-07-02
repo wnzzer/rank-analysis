@@ -263,6 +263,8 @@ pub enum MatchRefresh {
     },
     /// 「满足逐场条件的场次占比」与阈值比较：
     /// ratio = count(metric <game_op> game_value 的场次) / count(筛选后场次)
+    ///
+    /// 注意：NAN 场次（detail 缺失的 damageShare/participation）不计入分子但计入分母（保守稀释）
     Ratio {
         /// 逐场统计指标名称
         metric: String,
@@ -392,6 +394,11 @@ impl TagConfig {
     ///
     /// - `Some(RankTag)`: 条件满足，返回标签
     /// - `None`: 条件不满足或标签被禁用
+    ///
+    /// # 前置条件
+    ///
+    /// 使用 `damageShare` 指标的条件要求 `match_history` 已执行 `calculate()`
+    /// 预计算伤害占比（当前唯一调用方 `get_user_tag_by_puuid` 已保证）
     pub fn evaluate(
         &self,
         match_history: &MatchHistory,
@@ -532,14 +539,26 @@ impl EvalContext<'_> {
         match refresh {
             MatchRefresh::Count { op, value } => op.check(games.len() as f64, *value),
             MatchRefresh::Average { metric, op, value } => {
-                if games.is_empty() {
+                // 跳过 NAN 场次（detail 缺失的 damageShare/participation），只对有数据的场次求均值，
+                // 否则一场 NAN 会把整个聚合毒化成 NAN、条件永 false
+                let vals: Vec<f64> = games
+                    .iter()
+                    .map(|g| extract_game_metric(g, metric))
+                    .filter(|v| v.is_finite())
+                    .collect();
+                if vals.is_empty() {
                     return false;
                 }
-                let total: f64 = games.iter().map(|g| extract_game_metric(g, metric)).sum();
-                op.check(total / games.len() as f64, *value)
+                let total: f64 = vals.iter().sum();
+                op.check(total / vals.len() as f64, *value)
             }
             MatchRefresh::Sum { metric, op, value } => {
-                let total: f64 = games.iter().map(|g| extract_game_metric(g, metric)).sum();
+                // 同 Average：跳过 NAN 场次，避免单场数据缺失毒化总和
+                let total: f64 = games
+                    .iter()
+                    .map(|g| extract_game_metric(g, metric))
+                    .filter(|v| v.is_finite())
+                    .sum();
                 op.check(total, *value)
             }
             MatchRefresh::Max { metric, op, value } => {
@@ -710,11 +729,21 @@ fn extract_game_metric(game: &crate::lcu::api::match_history::Game, metric: &str
                 return f64::NAN;
             }
             let team_id = game.participants[0].team_id;
+            // CHERRY/斗魂的 teamId 是 9 人大组，须按 playerSubteamId 分小队累加，
+            // 否则分母被放大 3 倍（与 match_history::calculate 同一处理）
+            let is_cherry = game.game_mode == "CHERRY";
+            let my_subteam = game.participants[0].stats.player_subteam_id;
             let team_kills: i32 = game
                 .game_detail
                 .participants
                 .iter()
-                .filter(|p| p.team_id == team_id)
+                .filter(|p| {
+                    if is_cherry && my_subteam > 0 {
+                        p.stats.player_subteam_id == my_subteam
+                    } else {
+                        p.team_id == team_id
+                    }
+                })
                 .map(|p| p.stats.kills)
                 .sum();
             if team_kills == 0 {
@@ -1253,6 +1282,60 @@ mod tests {
         // detail 缺失 → NAN
         let g3 = make_game(1, true, QUEUE_SOLO_5X5);
         assert!(extract_game_metric(&g3, "participation").is_nan());
+    }
+
+    #[test]
+    fn average_skips_nan_games_instead_of_poisoning() {
+        // 2 场有 detail（rate 30）+ 1 场无 detail（NAN）→ Average damageShare = 0.30 而非 NAN
+        let mk = |with_detail: bool| {
+            let mut g = make_game(1, true, QUEUE_SOLO_5X5);
+            g.participants[0].stats.damage_dealt_to_champions_rate = 30;
+            if with_detail {
+                g.game_detail.participants = vec![Default::default()];
+            }
+            g
+        };
+        let history = make_history(vec![mk(true), mk(true), mk(false)]);
+        let ctx = EvalContext {
+            history: &history,
+            current_mode: 420,
+            current_champion: None,
+        };
+        assert!(ctx.evaluate_history(
+            &[],
+            &MatchRefresh::Average {
+                metric: "damageShare".into(),
+                op: Operator::Eq,
+                value: 0.30,
+            },
+        ));
+    }
+
+    #[test]
+    fn participation_uses_subteam_kills_in_cherry_mode() {
+        // CHERRY：teamId 是 9 人大组，参团率分母须只算本人 subteam（1）的击杀
+        let mut g = make_game(1, true, 1700);
+        g.game_mode = "CHERRY".into();
+        g.participants[0].stats.kills = 2;
+        g.participants[0].stats.assists = 2;
+        g.participants[0].stats.player_subteam_id = 1;
+        let mk_detail = |subteam: i32, kills: i32| Participant {
+            team_id: 100,
+            stats: Stats {
+                kills,
+                player_subteam_id: subteam,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        g.game_detail.participants = vec![
+            mk_detail(1, 2), // 本人
+            mk_detail(1, 2), // 同 subteam 队友
+            mk_detail(2, 6), // 其他 subteam（同大组），不应计入分母
+            mk_detail(3, 4),
+        ];
+        // (2+2) / 4 = 1.0；若误按大组累加，分母为 14 → 4/14
+        assert!((extract_game_metric(&g, "participation") - 1.0).abs() < 1e-9);
     }
 
     #[test]
