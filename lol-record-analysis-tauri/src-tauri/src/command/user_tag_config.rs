@@ -987,21 +987,6 @@ pub fn get_default_tags() -> Vec<TagConfig> {
             },
         },
         TagConfig {
-            id: "default_champion_pool_wide".to_string(),
-            name: "英雄海".to_string(),
-            desc: "近 20 场使用了 12 个以上英雄".to_string(),
-            good: true,
-            enabled: true,
-            is_default: true,
-            condition: TagCondition::History {
-                filters: vec![MatchFilter::Recent { count: 20 }],
-                refresh: MatchRefresh::DistinctChampions {
-                    op: Operator::Gte,
-                    value: 12.0,
-                },
-            },
-        },
-        TagConfig {
             id: "default_champion_pool_narrow".to_string(),
             name: "专精".to_string(),
             desc: "近 20 场只玩 3 个以内英雄".to_string(),
@@ -1099,7 +1084,7 @@ pub fn get_default_tags() -> Vec<TagConfig> {
         },
         TagConfig {
             id: "default_int_risk".to_string(),
-            name: "挂机送头风险".to_string(),
+            name: "伤害贡献低".to_string(),
             desc: "近 20 场中伤害占比极低的场次偏多，仅供参考".to_string(),
             good: false,
             enabled: true,
@@ -1109,9 +1094,9 @@ pub fn get_default_tags() -> Vec<TagConfig> {
                 refresh: MatchRefresh::Ratio {
                     metric: "damageShare".to_string(),
                     game_op: Operator::Lt,
-                    game_value: 0.08,
+                    game_value: 0.05,
                     op: Operator::Gte,
-                    value: 0.2,
+                    value: 0.3,
                 },
             },
         },
@@ -1598,25 +1583,6 @@ mod tests {
     }
 
     #[test]
-    fn default_champion_pool_wide_fires_on_many_distinct_champions() {
-        let tag = default_tag("default_champion_pool_wide");
-        // 20 场 20 个不同英雄 → DistinctChampions 20 ≥ 12 命中
-        let wide = make_history(
-            (0..20)
-                .map(|i| make_game(i, true, QUEUE_SOLO_5X5))
-                .collect(),
-        );
-        assert!(tag.evaluate(&wide, 420, None).is_some());
-        // 20 场全同一英雄 → Distinct 1 < 12 不命中
-        let narrow = make_history(
-            (0..20)
-                .map(|_| make_game(1, true, QUEUE_SOLO_5X5))
-                .collect(),
-        );
-        assert!(tag.evaluate(&narrow, 420, None).is_none());
-    }
-
-    #[test]
     fn default_champion_pool_narrow_fires_on_few_champions_enough_games() {
         let tag = default_tag("default_champion_pool_narrow");
         // 20 场全英雄 1 → Distinct 1 ≤ 3 且 Count 20 ≥ 10 命中
@@ -1670,13 +1636,14 @@ mod tests {
     fn default_int_risk_fires_on_frequent_low_damage_share() {
         let tag = default_tag("default_int_risk");
         // 20 场全部带 game_detail（避免 NAN 稀释分子）：
-        // 5 场 rate 5（0.05 < 0.08）+ 15 场 rate 25 → 占比 5/20 = 0.25 ≥ 0.2 命中
-        let mut games: Vec<Game> = (0..5)
-            .map(|_| make_game_with_damage_rate(false, 5))
+        // 6 场 rate 3（0.03 < 0.05）+ 14 场 rate 25 → 占比 6/20 = 0.3 ≥ 0.3 命中
+        // （rate 5 → 0.05 不满足 Lt 0.05，故正例用 rate 3）
+        let mut games: Vec<Game> = (0..6)
+            .map(|_| make_game_with_damage_rate(false, 3))
             .collect();
-        games.extend((0..15).map(|_| make_game_with_damage_rate(true, 25)));
+        games.extend((0..14).map(|_| make_game_with_damage_rate(true, 25)));
         assert!(tag.evaluate(&make_history(games), 420, None).is_some());
-        // 20 场伤害占比全部正常（0.25）→ 占比 0 < 0.2 不命中
+        // 20 场伤害占比全部正常（0.25）→ 占比 0 < 0.3 不命中
         let normal = make_history(
             (0..20)
                 .map(|_| make_game_with_damage_rate(true, 25))
