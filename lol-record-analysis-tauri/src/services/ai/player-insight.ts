@@ -86,8 +86,14 @@ function recentGamePreview(g: any, includeEconomy = true) {
   }
 }
 
-/** 抽取玩家画像（用于队伍对比场景） */
-export function extractPlayerInsight(p: any, opts: { detailed: boolean }) {
+/**
+ * 抽取玩家画像（用于队伍对比场景）
+ * @param p - 会话玩家对象（SessionSummoner 形状）
+ * @param opts.detailed - 是否输出更详细的统计（我方队伍用）
+ * @param opts.noteBrief - 使用者手动备注速览（`[色档] 文本`），有值时以 `userNote`
+ *   字段注入返回对象；开关关闭时调用方不传，返回对象不含该字段
+ */
+export function extractPlayerInsight(p: any, opts: { detailed: boolean; noteBrief?: string }) {
   const recentGames = p.matchHistory?.games?.games || []
   const tags = p.userTag?.tag || []
   const recent = p.userTag?.recentData
@@ -123,6 +129,7 @@ export function extractPlayerInsight(p: any, opts: { detailed: boolean }) {
       desc: t.tagDesc,
       isGood: t.good
     })),
+    ...(opts.noteBrief ? { userNote: opts.noteBrief } : {}),
     recentGamesPreview: recentGames
       .slice(0, 10)
       .map((g: any) => recentGamePreview(g, opts.detailed))

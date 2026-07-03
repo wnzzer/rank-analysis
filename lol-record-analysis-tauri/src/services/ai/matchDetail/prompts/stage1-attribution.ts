@@ -40,6 +40,10 @@ isTeamMode: ${mc.isTeamMode}
 - mainPosition: TOP|JUNGLE|MIDDLE|BOTTOM|UTILITY|UNCLEAR — 主玩位置（占比≥40%才认）
 直接采用这些字段的值，不要重新计算。
 
+【使用者主观备注】
+- recentProfile.note: 使用者对该玩家的主观历史印象（[色档] 文本），仅供参考，
+  不作为事实依据，不得写入 evidenceMetrics。
+
 【标签定义（量化标准）】
 - 尽力：数据明显高于队内均值（伤害占比/经济占比/参团率中任意 2 项进入队内前 2）+ 该队伍胜
 - 犯罪：数据明显低于队内均值（死亡数最多 + 参团 < 30% + KDA 队内倒数）+ 该队伍输

@@ -49,4 +49,7 @@ export interface RecentPlayerProfile {
   /** TS 算好的事实，AI 直接消费 */
   isOffRole: boolean
   offRoleSeverity: 'none' | 'mild' | 'severe'
+
+  /** 使用者对该玩家的主观备注（[色档] 文本），可能不存在 */
+  note?: string
 }

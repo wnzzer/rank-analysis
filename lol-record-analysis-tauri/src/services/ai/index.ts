@@ -5,6 +5,8 @@
  */
 
 import type { Game } from '@renderer/types/domain/match'
+import { getConfigByIpc } from '@renderer/services/ipc'
+import { CONFIG_KEYS } from '@renderer/services/configKeys'
 import type { AIAnalysisResult, MatchDetailAnalysisOptions, StreamCallbacks } from './types'
 import { loadChampionNames } from './champion-names'
 import { requestAIContentStream } from './stream'
@@ -31,8 +33,12 @@ export async function analyzeGameWithAIStream(
 ): Promise<void> {
   try {
     await loadChampionNames()
+    // 隐私开关：键不存在视为开（默认开），显式 false 时两条链路都不注入备注
+    const useNotes = (await getConfigByIpc<boolean>(CONFIG_KEYS.aiUsePlayerNotes)) !== false
     const prompt =
-      type === 'team' ? buildTeamAnalysisPrompt(gameData) : buildPlayerAnalysisPrompt(gameData)
+      type === 'team'
+        ? buildTeamAnalysisPrompt(gameData, { useNotes })
+        : buildPlayerAnalysisPrompt(gameData, { useNotes })
     await requestAIContentStream(prompt, callbacks, IN_GAME_SYSTEM_PROMPT)
   } catch (error: any) {
     console.error('AI analysis error:', error)
