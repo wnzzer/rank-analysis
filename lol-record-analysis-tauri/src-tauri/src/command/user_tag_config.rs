@@ -1082,6 +1082,7 @@ pub fn get_default_tags() -> Vec<TagConfig> {
                 ],
             },
         },
+        // 阈值 0.05 / 0.3 与前端 TagConditionNode.vue 的 ratio 编辑器默认值保持一致，调参需同步
         TagConfig {
             id: "default_int_risk".to_string(),
             name: "伤害贡献低".to_string(),
@@ -1630,6 +1631,13 @@ mod tests {
             .collect();
         games.extend((0..10).map(|i| make_game(1, i < 8, QUEUE_SOLO_5X5)));
         assert!(tag.evaluate(&make_history(games), 420, None).is_some());
+        // 20 场全败：近 10 胜率 0 ≤ 0.3，但整体 0 < 0.45，「一直低迷」不算「低谷」
+        let all_loss = make_history(
+            (0..20)
+                .map(|_| make_game(1, false, QUEUE_SOLO_5X5))
+                .collect(),
+        );
+        assert!(tag.evaluate(&all_loss, 420, None).is_none());
     }
 
     #[test]

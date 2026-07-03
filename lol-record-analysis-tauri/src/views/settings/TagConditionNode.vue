@@ -499,9 +499,11 @@ function handleRefreshTypeChange(refresh: any, newType: string) {
     refresh.kind = 'win'
     refresh.min = 3
   } else if (newType === 'distinctChampions') {
-    refresh.op = '>='
-    refresh.value = 12
+    // 对齐后端「专精」语义（default_champion_pool_narrow：英雄数 ≤ 3）
+    refresh.op = '<='
+    refresh.value = 3
   } else if (newType === 'ratio') {
+    // 阈值 0.05 / 0.3 与后端 user_tag_config.rs 的 default_int_risk 保持一致，调参需同步
     refresh.metric = 'damageShare'
     refresh.gameOp = '<'
     refresh.gameValue = 0.05
