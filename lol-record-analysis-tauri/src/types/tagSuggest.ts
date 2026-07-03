@@ -12,6 +12,8 @@ export type MatchFilter =
   | { type: 'queue'; ids: number[] }
   | { type: 'champion'; ids: number[] }
   | { type: 'stat'; metric: string; op: Operator; value: number }
+  // 只取最近 N 场（按时间倒序截断）
+  | { type: 'recent'; count: number }
 
 export type MatchRefresh =
   | { type: 'count'; op: Operator; value: number }
@@ -20,6 +22,18 @@ export type MatchRefresh =
   | { type: 'max'; metric: string; op: Operator; value: number }
   | { type: 'min'; metric: string; op: Operator; value: number }
   | { type: 'streak'; min: number; kind: StreakType }
+  // 去重英雄数量与阈值比较
+  | { type: 'distinctChampions'; op: Operator; value: number }
+  // 单场指标满足 (gameOp, gameValue) 的场次占比与 (op, value) 比较；
+  // gameOp/gameValue 对应 Rust 侧 serde rename 后的字段名
+  | {
+      type: 'ratio'
+      metric: string
+      gameOp: Operator
+      gameValue: number
+      op: Operator
+      value: number
+    }
 
 export type TagCondition =
   | { type: 'and'; conditions: TagCondition[] }
