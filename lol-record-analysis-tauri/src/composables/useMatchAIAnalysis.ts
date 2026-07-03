@@ -12,7 +12,10 @@ import {
   type MatchAIState
 } from '@renderer/services/ai'
 import { renderAnalysisReport } from '@renderer/services/ai/matchDetail/renderReport'
-import { fetchBatchProfiles } from '@renderer/services/ai/shared/recentProfile.batch'
+import {
+  fetchBatchProfiles,
+  injectNoteBriefs
+} from '@renderer/services/ai/shared/recentProfile.batch'
 import type { RecentPlayerProfile, TeamPosition } from '@renderer/services/ai/shared/types'
 
 export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
@@ -41,12 +44,14 @@ export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
     }
   })
 
-  // Per-game profile cache so re-opening the modal doesn't re-fetch
+  // Per-game profile cache so re-opening the modal doesn't re-fetch.
+  // 只缓存"干净"（未注入备注的）map——备注注入必须在每次返回前实时做，
+  // 否则隐私开关切换后缓存命中会绕过开关（旁路）。
   const profileCache = new Map<number, Map<string, RecentPlayerProfile | null>>()
 
   async function ensureProfiles(g: Game): Promise<Map<string, RecentPlayerProfile | null>> {
     const cached = profileCache.get(g.gameId)
-    if (cached) return cached
+    if (cached) return injectNoteBriefs(cached)
     const identities = g.participantIdentities ?? []
     const participants = g.participants ?? []
     const requests = identities
@@ -64,7 +69,7 @@ export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
       .filter((x): x is NonNullable<typeof x> => x !== null)
     const profiles = await fetchBatchProfiles(requests)
     profileCache.set(g.gameId, profiles)
-    return profiles
+    return injectNoteBriefs(profiles)
   }
 
   async function runCurrentAiAnalysis() {

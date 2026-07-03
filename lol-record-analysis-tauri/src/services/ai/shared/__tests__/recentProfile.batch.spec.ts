@@ -13,7 +13,7 @@ vi.mock('@tauri-apps/api/event', () => ({
 }))
 
 import { invoke } from '@tauri-apps/api/core'
-import { fetchBatchProfiles, __resetCacheForTests } from '../recentProfile.batch'
+import { fetchBatchProfiles, injectNoteBriefs, __resetCacheForTests } from '../recentProfile.batch'
 import { usePlayerNotesStore } from '@renderer/pinia/playerNotes'
 
 const mockInvoke = invoke as ReturnType<typeof vi.fn>
@@ -119,67 +119,93 @@ describe('fetchBatchProfiles', () => {
     vi.useRealTimers()
   })
 
-  describe('手动备注注入', () => {
-    /** get_match_history 返回一场对局，get_config 按 aiUsePlayerNotes 返回指定值 */
-    function mockLcuWithConfig(useNotesValue: boolean | undefined) {
-      mockInvoke.mockImplementation(async (cmd, args: any) => {
-        if (cmd === 'get_match_history_by_puuid') {
-          return rawHistory(args.puuid, [
-            rawMatch({ puuid: args.puuid, teamPosition: 'JUNGLE', championId: 64, win: true })
-          ])
-        }
-        if (cmd === 'get_config') {
-          return useNotesValue === undefined ? null : { value: useNotesValue }
-        }
-        return null
-      })
-    }
-
-    it('开关默认开（键不存在）时注入 profile.note', async () => {
-      const store = usePlayerNotesStore()
-      await store.setNote('p1', { note: '演员', label: 'blacklist', gameName: 'A', tagLine: '1' })
-      mockLcuWithConfig(undefined)
-
-      const result = await fetchBatchProfiles([
-        { puuid: 'p1', teamPosition: 'JUNGLE', championId: 64 },
-        { puuid: 'p2', teamPosition: 'TOP', championId: 86 }
-      ])
-
-      expect(result.get('p1')?.note).toBe('[拉黑] 演员')
-      // 无备注的玩家不带 note 字段
-      expect(result.get('p2')?.note).toBeUndefined()
+  it('恒返回干净 profile：即使开关开且有备注也不含 note（注入是 injectNoteBriefs 的职责）', async () => {
+    const store = usePlayerNotesStore()
+    await store.setNote('p1', { note: '演员', label: 'blacklist', gameName: 'A', tagLine: '1' })
+    mockInvoke.mockImplementation(async (cmd, args: any) => {
+      if (cmd === 'get_match_history_by_puuid') {
+        return rawHistory(args.puuid, [
+          rawMatch({ puuid: args.puuid, teamPosition: 'JUNGLE', championId: 64, win: true })
+        ])
+      }
+      // 开关键不存在（视为开）——即便如此 fetchBatchProfiles 也不注入
+      return null
     })
 
-    it('开关显式关闭时不注入', async () => {
-      const store = usePlayerNotesStore()
-      await store.setNote('p1', { note: '演员', label: 'blacklist', gameName: 'A', tagLine: '1' })
-      mockLcuWithConfig(false)
+    const result = await fetchBatchProfiles([
+      { puuid: 'p1', teamPosition: 'JUNGLE', championId: 64 }
+    ])
 
-      const result = await fetchBatchProfiles([
-        { puuid: 'p1', teamPosition: 'JUNGLE', championId: 64 }
-      ])
+    expect(result.get('p1')).not.toBeNull()
+    expect(result.get('p1')?.note).toBeUndefined()
+  })
+})
 
-      expect(result.get('p1')?.note).toBeUndefined()
+describe('injectNoteBriefs', () => {
+  /** get_config 按 aiUsePlayerNotes 返回指定值 */
+  function mockConfig(useNotesValue: boolean | undefined) {
+    mockInvoke.mockImplementation(async (cmd: string) => {
+      if (cmd === 'get_config') {
+        return useNotesValue === undefined ? null : { value: useNotesValue }
+      }
+      return null
     })
+  }
 
-    it('note 不写入 LRU 缓存：开关关闭后缓存命中也不带 note', async () => {
-      const store = usePlayerNotesStore()
-      await store.setNote('p1', { note: '演员', label: 'blacklist', gameName: 'A', tagLine: '1' })
-
-      // 第一次：开关开 → 带 note
-      mockLcuWithConfig(undefined)
-      const first = await fetchBatchProfiles([
-        { puuid: 'p1', teamPosition: 'JUNGLE', championId: 64 }
-      ])
-      expect(first.get('p1')?.note).toBe('[拉黑] 演员')
-
-      // 第二次：缓存命中（不再拉战绩），但开关已关 → 不得残留 note
-      mockLcuWithConfig(false)
-      const second = await fetchBatchProfiles([
-        { puuid: 'p1', teamPosition: 'JUNGLE', championId: 64 }
-      ])
-      expect(historyCallCount()).toBe(1)
-      expect(second.get('p1')?.note).toBeUndefined()
+  /** 构造一个干净（无 note）的 profile map */
+  async function buildCleanMap(puuids: string[]) {
+    mockInvoke.mockImplementation(async (cmd, args: any) => {
+      if (cmd === 'get_match_history_by_puuid') {
+        return rawHistory(args.puuid, [
+          rawMatch({ puuid: args.puuid, teamPosition: 'JUNGLE', championId: 64, win: true })
+        ])
+      }
+      return null
     })
+    return fetchBatchProfiles(
+      puuids.map(puuid => ({ puuid, teamPosition: 'JUNGLE' as const, championId: 64 }))
+    )
+  }
+
+  it('开关默认开（键不存在）时注入 profile.note', async () => {
+    const store = usePlayerNotesStore()
+    await store.setNote('p1', { note: '演员', label: 'blacklist', gameName: 'A', tagLine: '1' })
+    const cleanMap = await buildCleanMap(['p1', 'p2'])
+    mockConfig(undefined)
+
+    const result = await injectNoteBriefs(cleanMap)
+
+    expect(result.get('p1')?.note).toBe('[拉黑] 演员')
+    // 无备注的玩家不带 note 字段
+    expect(result.get('p2')?.note).toBeUndefined()
+    // 入参 map 不被就地修改
+    expect(cleanMap.get('p1')?.note).toBeUndefined()
+  })
+
+  it('开关显式关闭时不注入', async () => {
+    const store = usePlayerNotesStore()
+    await store.setNote('p1', { note: '演员', label: 'blacklist', gameName: 'A', tagLine: '1' })
+    const cleanMap = await buildCleanMap(['p1'])
+    mockConfig(false)
+
+    const result = await injectNoteBriefs(cleanMap)
+
+    expect(result.get('p1')?.note).toBeUndefined()
+  })
+
+  it('回归：先开后关——对同一个干净 map 再注入不得残留 note（隐私旁路）', async () => {
+    const store = usePlayerNotesStore()
+    await store.setNote('p1', { note: '演员', label: 'blacklist', gameName: 'A', tagLine: '1' })
+    const cleanMap = await buildCleanMap(['p1'])
+
+    // 第一次：开关开 → 带 note
+    mockConfig(undefined)
+    const first = await injectNoteBriefs(cleanMap)
+    expect(first.get('p1')?.note).toBe('[拉黑] 演员')
+
+    // 开关关掉后，对同一个干净 map 再调 → 不得带 note
+    mockConfig(false)
+    const second = await injectNoteBriefs(cleanMap)
+    expect(second.get('p1')?.note).toBeUndefined()
   })
 })

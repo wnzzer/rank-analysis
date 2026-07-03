@@ -8,11 +8,11 @@ import { buildNoteBrief } from '../shared/noteBrief'
 /**
  * 构建单玩家深度分析 prompt
  * @param player - 会话玩家对象（SessionSummoner 形状）
- * @param opts.useNotes - 是否注入使用者手动备注（隐私开关，默认 true）
+ * @param opts.useNotes - 是否注入使用者手动备注（隐私开关，默认 false，fail-closed）
  */
 export function buildPlayerAnalysisPrompt(player: any, opts: { useNotes?: boolean } = {}): string {
   const noteBrief =
-    opts.useNotes !== false ? buildNoteBrief(player.summoner?.puuid ?? '') : undefined
+    opts.useNotes === true ? buildNoteBrief(player.summoner?.puuid ?? '') : undefined
   const noteSection = noteBrief
     ? `\n【使用者备注】\n${noteBrief}\n（使用者对该玩家的主观历史备注（[色档] 文本），仅供参考，不作为事实依据）\n`
     : ''

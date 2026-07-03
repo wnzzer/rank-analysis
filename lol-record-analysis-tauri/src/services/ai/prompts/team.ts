@@ -16,7 +16,7 @@ interface SessionDataLike {
 /**
  * 构建整队分析 prompt
  * @param sessionData - 对局会话数据（subteams 统一模型）
- * @param opts.useNotes - 是否注入使用者手动备注（隐私开关，默认 true）
+ * @param opts.useNotes - 是否注入使用者手动备注（隐私开关，默认 false，fail-closed）
  */
 export function buildTeamAnalysisPrompt(
   sessionData: SessionDataLike,
@@ -25,7 +25,7 @@ export function buildTeamAnalysisPrompt(
   const isMulti = !!sessionData.isMultiTeam
   const mySubteamId = sessionData.mySubteamId ?? 0
   const subteams = sessionData.subteams ?? []
-  const useNotes = opts.useNotes !== false
+  const useNotes = opts.useNotes === true
 
   const blocks = subteams.map(st => {
     const detailed = st.subteamId === mySubteamId

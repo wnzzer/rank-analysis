@@ -75,18 +75,30 @@ export async function fetchBatchProfiles(requests: ProfileRequest[]): Promise<Pr
     }
   }
 
-  // 手动备注注入（隐私开关，键不存在视为开）。
-  // 注意：注入发生在返回值组装阶段且写的是浅拷贝——CACHE 里只存"干净" profile，
-  // 这样开关切换 / 备注变更在缓存 TTL 内也能即时生效。
-  const useNotes = (await getConfigByIpc<boolean>(CONFIG_KEYS.aiUsePlayerNotes)) !== false
-  if (useNotes) {
-    for (const [puuid, profile] of result) {
-      if (!profile) continue
-      const brief = buildNoteBrief(puuid)
-      if (brief) result.set(puuid, { ...profile, note: brief })
-    }
-  }
+  return result
+}
 
+/**
+ * 按隐私开关向 profile map 注入使用者手动备注
+ *
+ * 每次调用时实时读取 `aiUsePlayerNotes` 开关（键不存在视为开）——
+ * **结果不可缓存**：任何缓存层（模块级 LRU、per-game 缓存等）都只能存
+ * 本函数注入前的"干净" map，并在每次使用前重新调用本函数，
+ * 否则开关切换 / 备注变更在缓存生效期内不会生效（隐私旁路）。
+ *
+ * @param profileMap - fetchBatchProfiles 返回的干净 profile map（不会被就地修改）
+ * @returns 开关关闭时原样返回入参；开启时返回新 map，
+ *          有备注的 profile 为注入 `note` 的浅拷贝（无备注不加字段）
+ */
+export async function injectNoteBriefs(profileMap: ProfileMap): Promise<ProfileMap> {
+  const useNotes = (await getConfigByIpc<boolean>(CONFIG_KEYS.aiUsePlayerNotes)) !== false
+  if (!useNotes) return profileMap
+
+  const result: ProfileMap = new Map()
+  for (const [puuid, profile] of profileMap) {
+    const brief = profile ? buildNoteBrief(puuid) : undefined
+    result.set(puuid, brief && profile ? { ...profile, note: brief } : profile)
+  }
   return result
 }
 
