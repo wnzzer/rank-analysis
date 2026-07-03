@@ -59,17 +59,15 @@
         </n-flex>
       </n-flex>
 
-      <!-- Tags -->
-      <n-flex v-if="tags.length > 0" class="user-record-tags" :size="6" wrap>
-        <n-tooltip trigger="hover" v-for="tag in tags" :key="tag.tagName">
-          <template #trigger>
-            <n-tag size="small" :type="tag.good ? 'primary' : 'error'" :bordered="false" round>
-              {{ tag.tagName }}
-            </n-tag>
-          </template>
-          <span>{{ tag.tagDesc }}</span>
-        </n-tooltip>
-      </n-flex>
+      <!-- Tags：系统标签 + 备注 chip 统一行（备注为空且无标签时整行隐藏，避免空 margin） -->
+      <UnifiedTagRow
+        v-if="tags.length > 0 || hasNote"
+        class="user-record-tags"
+        :tags="tags"
+        :puuid="summoner.puuid"
+        :game-name="summoner.gameName"
+        :tag-line="summoner.tagLine"
+      />
     </n-card>
 
     <!-- Friends & Rivals -->
@@ -124,7 +122,6 @@ import {
   NEllipsis,
   NText,
   NTag,
-  NTooltip,
   NPopover
 } from 'naive-ui'
 import { useRoute } from 'vue-router'
@@ -150,6 +147,8 @@ import RelationshipPanel from './RelationshipPanel.vue'
 import RankCard from './RankCard.vue'
 import RecentStatsTable from './RecentStatsTable.vue'
 import PlayerNoteBadge from '@renderer/components/common/PlayerNoteBadge.vue'
+import UnifiedTagRow from '@renderer/components/common/UnifiedTagRow.vue'
+import { usePlayerNotesStore } from '@renderer/pinia/playerNotes'
 
 const settingsStore = useSettingsStore()
 const isDark = computed(
@@ -228,6 +227,10 @@ const updateModel = (value: string | number, option: any) => {
   getTags(name, selectMode)
   mode.value = option.label as string
 }
+
+const notesStore = usePlayerNotesStore()
+/** 当前玩家是否已有手动备注（决定标签行在无系统标签时是否仍展示备注 chip） */
+const hasNote = computed(() => !!summoner.value.puuid && !!notesStore.getNote(summoner.value.puuid))
 
 const tags = ref<RankTag[]>([])
 const getTags = async (name: string, mode: number) => {

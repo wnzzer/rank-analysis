@@ -106,6 +106,11 @@ Recent { count: i32 },
 - **一键固化**：点击系统标签 chip 弹 popover「存为备注」，预填内容 `tag_name + tag_desc`、推荐色档（good → friendly，bad → careful），可编辑后调用现有 `playerNotes.setNote` 保存。已有备注的玩家固化时追加到原文本（换行分隔），不覆盖色档。
 - 不做（本期）：备注管理页显示来源标签、固化时附带战绩快照（评审时已排除「完整双向融合」方案）。
 
+### 实现偏差记录（2026-07-03）
+
+1. **MatchDetailModal 未接入**——经核实该文件从未渲染过系统标签（plan 阶段假设错误），实际替换为 PlayerCard 与 UserRecord 两处；对局详情如需展示系统标签需先为每行玩家拉取 userTag，属新功能另立。
+2. **固化 popover 为一键确认而非 inline 可编辑**——编辑入口统一走 PlayerNoteBadge 面板，避免两处编辑器；固化路径有去重与 100 字上限保护。
+
 ## 测试
 
 - **Rust 单测**（`user_tag_config.rs` 子模块测试，Windows CI 跑，mac 本地只验 fmt）：

@@ -145,18 +145,12 @@
                   <MettingPlayersCard :meet-games="sessionSummoner.meetGames"></MettingPlayersCard>
                 </n-popover>
               </n-tag>
-              <n-tooltip
-                v-for="tag in sessionSummoner?.userTag.tag"
-                :key="tag.tagName"
-                trigger="hover"
-              >
-                <template #trigger>
-                  <n-tag size="small" :type="tag.good ? 'success' : 'error'" :bordered="false">
-                    {{ tag.tagName }}
-                  </n-tag>
-                </template>
-                <span>{{ tag.tagDesc }}</span>
-              </n-tooltip>
+              <UnifiedTagRow
+                :tags="sessionSummoner?.userTag?.tag || []"
+                :puuid="sessionSummoner.summoner.puuid"
+                :game-name="sessionSummoner.summoner.gameName"
+                :tag-line="sessionSummoner.summoner.tagLine"
+              />
             </div>
           </n-flex>
         </div>
@@ -175,18 +169,7 @@
 
 <script setup lang="ts">
 import { computed, toRef } from 'vue'
-import {
-  NCard,
-  NFlex,
-  NAvatar,
-  NImage,
-  NButton,
-  NIcon,
-  NEllipsis,
-  NPopover,
-  NTag,
-  NTooltip
-} from 'naive-ui'
+import { NCard, NFlex, NAvatar, NImage, NButton, NIcon, NEllipsis, NPopover, NTag } from 'naive-ui'
 import { CopyOutline, HelpCircleOutline } from '@vicons/ionicons5'
 import MettingPlayersCard from './MettingPlayersCard.vue'
 import { useCopy } from '@renderer/composables/useCopy'
@@ -201,6 +184,7 @@ import PlayerHistoryGrid from './PlayerHistoryGrid.vue'
 import PlayerStatsCard from './PlayerStatsCard.vue'
 import LazyImg from '@renderer/components/common/LazyImg.vue'
 import PlayerNoteBadge from '@renderer/components/common/PlayerNoteBadge.vue'
+import UnifiedTagRow from '@renderer/components/common/UnifiedTagRow.vue'
 
 interface Props {
   sessionSummoner: SessionSummoner
