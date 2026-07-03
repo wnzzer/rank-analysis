@@ -3,8 +3,19 @@
  */
 
 import { extractPlayerDeepDive } from '../player-insight'
+import { buildNoteBrief } from '../shared/noteBrief'
 
-export function buildPlayerAnalysisPrompt(player: any): string {
+/**
+ * 构建单玩家深度分析 prompt
+ * @param player - 会话玩家对象（SessionSummoner 形状）
+ * @param opts.useNotes - 是否注入使用者手动备注（隐私开关，默认 true）
+ */
+export function buildPlayerAnalysisPrompt(player: any, opts: { useNotes?: boolean } = {}): string {
+  const noteBrief =
+    opts.useNotes !== false ? buildNoteBrief(player.summoner?.puuid ?? '') : undefined
+  const noteSection = noteBrief
+    ? `\n【使用者备注】\n${noteBrief}\n（使用者对该玩家的主观历史备注（[色档] 文本），仅供参考，不作为事实依据）\n`
+    : ''
   const tags = player.userTag?.tag || []
   const recent = player.userTag?.recentData
   const winRate =
@@ -37,7 +48,7 @@ ${JSON.stringify(positionStats, null, 2)}
 
 【标签列表】
 ${tags.length > 0 ? tags.map((t: any) => `• ${t.tagName}(${t.tagDesc}) - ${t.good ? '正面' : '负面'}`).join('\n') : '无标签'}
-
+${noteSection}
 【最近15场详细战绩】
 ${JSON.stringify(detailedGames, null, 2)}
 

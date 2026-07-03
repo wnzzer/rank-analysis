@@ -7,7 +7,10 @@
  */
 
 import { invoke } from '@tauri-apps/api/core'
+import { getConfigByIpc } from '@renderer/services/ipc'
+import { CONFIG_KEYS } from '@renderer/services/configKeys'
 import { buildRecentProfile, type RecentGameRaw } from './recentProfile'
+import { buildNoteBrief } from './noteBrief'
 import type { RecentPlayerProfile, TeamPosition } from './types'
 
 const CACHE_TTL_MS = 10 * 60 * 1000
@@ -69,6 +72,18 @@ export async function fetchBatchProfiles(requests: ProfileRequest[]): Promise<Pr
     result.set(req.puuid, profile)
     if (profile !== null) {
       CACHE.set(req.puuid, { profile, expireAt: now + CACHE_TTL_MS })
+    }
+  }
+
+  // 手动备注注入（隐私开关，键不存在视为开）。
+  // 注意：注入发生在返回值组装阶段且写的是浅拷贝——CACHE 里只存"干净" profile，
+  // 这样开关切换 / 备注变更在缓存 TTL 内也能即时生效。
+  const useNotes = (await getConfigByIpc<boolean>(CONFIG_KEYS.aiUsePlayerNotes)) !== false
+  if (useNotes) {
+    for (const [puuid, profile] of result) {
+      if (!profile) continue
+      const brief = buildNoteBrief(puuid)
+      if (brief) result.set(puuid, { ...profile, note: brief })
     }
   }
 

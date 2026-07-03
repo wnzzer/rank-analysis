@@ -4,6 +4,7 @@
  */
 
 import { extractPlayerInsight } from '../player-insight'
+import { buildNoteBrief } from '../shared/noteBrief'
 
 interface SessionDataLike {
   typeCn?: string
@@ -12,14 +13,28 @@ interface SessionDataLike {
   subteams?: Array<{ subteamId: number; players: any[] }>
 }
 
-export function buildTeamAnalysisPrompt(sessionData: SessionDataLike): string {
+/**
+ * 构建整队分析 prompt
+ * @param sessionData - 对局会话数据（subteams 统一模型）
+ * @param opts.useNotes - 是否注入使用者手动备注（隐私开关，默认 true）
+ */
+export function buildTeamAnalysisPrompt(
+  sessionData: SessionDataLike,
+  opts: { useNotes?: boolean } = {}
+): string {
   const isMulti = !!sessionData.isMultiTeam
   const mySubteamId = sessionData.mySubteamId ?? 0
   const subteams = sessionData.subteams ?? []
+  const useNotes = opts.useNotes !== false
 
   const blocks = subteams.map(st => {
     const detailed = st.subteamId === mySubteamId
-    const playersInfo = st.players.map(p => extractPlayerInsight(p, { detailed }))
+    const playersInfo = st.players.map(p =>
+      extractPlayerInsight(p, {
+        detailed,
+        noteBrief: useNotes ? buildNoteBrief(p.summoner?.puuid ?? '') : undefined
+      })
+    )
     const label = isMulti
       ? `队伍 ${st.subteamId}${st.subteamId === mySubteamId ? '（我方）' : ''}`
       : st.subteamId === mySubteamId
@@ -43,6 +58,8 @@ ${blocks.join('\n\n')}
 严格按下面 markdown 模板，章节标题与顺序不可改；每条要点用
 \`- 名字：一句话判断 — 数字依据\` 的格式，数字必须来自上面的数据
 （胜率 / KDA / 伤害占比 / 参团率 / 英雄胜率与场次等），不要编造新数字。
+玩家数据里的 userNote 字段是使用者对该玩家的主观历史备注（[色档] 文本），
+仅供参考，不作为事实依据。
 
 ## 一句话判断
 {一句话点明这局关键看点：哪边阵容/状态更稳、该围绕谁打。要有网感、别空泛}

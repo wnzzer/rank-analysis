@@ -1,18 +1,32 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
 
 // Mock @tauri-apps/api/core BEFORE importing the module under test
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn()
 }))
 
+// Mock Tauri 事件（playerNotes store 落盘后跨窗口广播用）
+vi.mock('@tauri-apps/api/event', () => ({
+  emit: vi.fn(() => Promise.resolve()),
+  listen: vi.fn(() => Promise.resolve(() => {}))
+}))
+
 import { invoke } from '@tauri-apps/api/core'
 import { fetchBatchProfiles, __resetCacheForTests } from '../recentProfile.batch'
+import { usePlayerNotesStore } from '@renderer/pinia/playerNotes'
 
 const mockInvoke = invoke as ReturnType<typeof vi.fn>
+
+/** 只统计战绩拉取的 invoke 次数（备注开关的 get_config 调用不计入） */
+const historyCallCount = () =>
+  mockInvoke.mock.calls.filter(c => c[0] === 'get_match_history_by_puuid').length
 
 beforeEach(() => {
   mockInvoke.mockReset()
   __resetCacheForTests()
+  // buildNoteBrief（备注注入）依赖 pinia store
+  setActivePinia(createPinia())
 })
 
 function rawMatch(opts: { puuid: string; teamPosition: string; championId: number; win: boolean }) {
@@ -85,8 +99,8 @@ describe('fetchBatchProfiles', () => {
     await fetchBatchProfiles([{ puuid: 'p1', teamPosition: 'JUNGLE', championId: 64 }])
     await fetchBatchProfiles([{ puuid: 'p1', teamPosition: 'JUNGLE', championId: 64 }])
 
-    // First call: 1 invoke. Second call: cache hit → no additional invoke.
-    expect(mockInvoke).toHaveBeenCalledTimes(1)
+    // First call: 1 history invoke. Second call: cache hit → no additional invoke.
+    expect(historyCallCount()).toBe(1)
   })
 
   it('re-fetches if cache expired (advance fake timers)', async () => {
@@ -101,7 +115,71 @@ describe('fetchBatchProfiles', () => {
     vi.advanceTimersByTime(11 * 60 * 1000) // 11 minutes
     await fetchBatchProfiles([{ puuid: 'p1', teamPosition: 'JUNGLE', championId: 64 }])
 
-    expect(mockInvoke).toHaveBeenCalledTimes(2)
+    expect(historyCallCount()).toBe(2)
     vi.useRealTimers()
+  })
+
+  describe('手动备注注入', () => {
+    /** get_match_history 返回一场对局，get_config 按 aiUsePlayerNotes 返回指定值 */
+    function mockLcuWithConfig(useNotesValue: boolean | undefined) {
+      mockInvoke.mockImplementation(async (cmd, args: any) => {
+        if (cmd === 'get_match_history_by_puuid') {
+          return rawHistory(args.puuid, [
+            rawMatch({ puuid: args.puuid, teamPosition: 'JUNGLE', championId: 64, win: true })
+          ])
+        }
+        if (cmd === 'get_config') {
+          return useNotesValue === undefined ? null : { value: useNotesValue }
+        }
+        return null
+      })
+    }
+
+    it('开关默认开（键不存在）时注入 profile.note', async () => {
+      const store = usePlayerNotesStore()
+      await store.setNote('p1', { note: '演员', label: 'blacklist', gameName: 'A', tagLine: '1' })
+      mockLcuWithConfig(undefined)
+
+      const result = await fetchBatchProfiles([
+        { puuid: 'p1', teamPosition: 'JUNGLE', championId: 64 },
+        { puuid: 'p2', teamPosition: 'TOP', championId: 86 }
+      ])
+
+      expect(result.get('p1')?.note).toBe('[拉黑] 演员')
+      // 无备注的玩家不带 note 字段
+      expect(result.get('p2')?.note).toBeUndefined()
+    })
+
+    it('开关显式关闭时不注入', async () => {
+      const store = usePlayerNotesStore()
+      await store.setNote('p1', { note: '演员', label: 'blacklist', gameName: 'A', tagLine: '1' })
+      mockLcuWithConfig(false)
+
+      const result = await fetchBatchProfiles([
+        { puuid: 'p1', teamPosition: 'JUNGLE', championId: 64 }
+      ])
+
+      expect(result.get('p1')?.note).toBeUndefined()
+    })
+
+    it('note 不写入 LRU 缓存：开关关闭后缓存命中也不带 note', async () => {
+      const store = usePlayerNotesStore()
+      await store.setNote('p1', { note: '演员', label: 'blacklist', gameName: 'A', tagLine: '1' })
+
+      // 第一次：开关开 → 带 note
+      mockLcuWithConfig(undefined)
+      const first = await fetchBatchProfiles([
+        { puuid: 'p1', teamPosition: 'JUNGLE', championId: 64 }
+      ])
+      expect(first.get('p1')?.note).toBe('[拉黑] 演员')
+
+      // 第二次：缓存命中（不再拉战绩），但开关已关 → 不得残留 note
+      mockLcuWithConfig(false)
+      const second = await fetchBatchProfiles([
+        { puuid: 'p1', teamPosition: 'JUNGLE', championId: 64 }
+      ])
+      expect(historyCallCount()).toBe(1)
+      expect(second.get('p1')?.note).toBeUndefined()
+    })
   })
 })
