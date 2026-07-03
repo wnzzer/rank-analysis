@@ -1118,16 +1118,39 @@ pub fn get_default_tags() -> Vec<TagConfig> {
     ]
 }
 
+/// 将 get_default_tags 中用户配置里缺失的默认标签追加进来。
+///
+/// 只补"id 不存在"的项；用户对已有标签的任何修改（禁用/改名/调阈值）不被覆盖。
+/// is_default 标签 UI 上不可删除，因此无需删除墓碑机制。
+fn merge_missing_defaults(mut tags: Vec<TagConfig>) -> Vec<TagConfig> {
+    let existing: std::collections::HashSet<String> = tags.iter().map(|t| t.id.clone()).collect();
+    tags.extend(
+        get_default_tags()
+            .into_iter()
+            .filter(|d| !existing.contains(&d.id)),
+    );
+    tags
+}
+
 /// 加载标签配置。
 ///
-/// 如果配置文件不存在，会自动创建默认配置。
+/// 如果配置文件不存在，会自动创建默认配置；
+/// 已有配置会自动补齐版本更新后新增的默认标签（不覆盖用户对已有标签的修改）。
 ///
 /// # 返回值
 ///
 /// 标签配置列表
 pub async fn load_config() -> Vec<TagConfig> {
     match config::get_config("userTags").await {
-        Ok(val) => config_value_to_tags(val),
+        Ok(val) => {
+            let tags = config_value_to_tags(val);
+            let before = tags.len();
+            let merged = merge_missing_defaults(tags);
+            if merged.len() != before {
+                let _ = save_tag_configs(merged.clone()).await;
+            }
+            merged
+        }
         Err(_) => {
             let defaults = get_default_tags();
             let _ = save_tag_configs(defaults.clone()).await;
@@ -1660,5 +1683,26 @@ mod tests {
                 .collect(),
         );
         assert!(tag.evaluate(&normal, 420, None).is_none());
+    }
+
+    #[test]
+    fn merge_appends_missing_defaults_without_touching_user_edits() {
+        let mut mine = get_default_tags();
+        mine.truncate(2); // 模拟老用户只有旧的两个默认标签
+        mine[0].enabled = false; // 用户禁用过
+        mine[0].name = "我改过名".to_string();
+        let merged = merge_missing_defaults(mine);
+        // 新默认标签补齐
+        assert!(merged.iter().any(|t| t.id == "default_smurf"));
+        // 用户的修改原样保留
+        let first = merged
+            .iter()
+            .find(|t| t.id == get_default_tags()[0].id)
+            .unwrap();
+        assert!(!first.enabled);
+        assert_eq!(first.name, "我改过名");
+        // 幂等：再 merge 不再增长
+        let len = merged.len();
+        assert_eq!(merge_missing_defaults(merged).len(), len);
     }
 }
