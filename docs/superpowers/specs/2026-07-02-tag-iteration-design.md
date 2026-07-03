@@ -76,13 +76,16 @@ Recent { count: i32 },
 | id | 名称 | 极性 | 规则 |
 |----|------|------|------|
 | `default_smurf` | 炸鱼嫌疑 | bad | And[History(排位 + Recent 20, Count ≥ 10), History(排位 + Recent 20, Average win ≥ 0.75), History(排位 + Recent 20, Average kda ≥ 5)] |
-| `default_champion_pool_wide` | 英雄海 | good | History(Recent 20, DistinctChampions ≥ 12) |
 | `default_champion_pool_narrow` | 专精 | good | And[History(Recent 20, DistinctChampions ≤ 3), History(Recent 20, Count ≥ 10)] |
 | `default_hot_streak_form` | 手热 | good | And[History(排位 + Recent 10, Average win ≥ 0.7), History(排位 + Recent 20, Average win ≤ 0.55), History(排位 + Recent 20, Count ≥ 15)] |
 | `default_cold_form` | 低谷 | bad | And[History(排位 + Recent 10, Average win ≤ 0.3), History(排位 + Recent 20, Average win ≥ 0.45), History(排位 + Recent 20, Count ≥ 15)] |
-| `default_int_risk` | 挂机送头风险 | bad | History(Recent 20, Ratio: damageShare < 0.08 的场次占比 ≥ 0.2) |
+| `default_int_risk` | 伤害贡献低 | bad | History(Recent 20, Ratio: damageShare < 0.05 的场次占比 ≥ 0.3) |
 
 > 注：手热/低谷需近 20 场内有足够场次（Count ≥ 15）避免小样本误报；「专精」与子项 1 的 CurrentChampion 组合后可衍生「本命英雄」玩法，本期不内置该衍生标签。
+>
+> 「英雄海」（`default_champion_pool_wide`）经维护者评审撤下——按「玩过的不同英雄数」算池宽会被随机英雄模式与浅尝行为污染，需要「每个英雄有足够场次」的更严定义，待引擎支持 per-champion 统计后再迭代。
+>
+> `default_int_risk` 由「挂机送头风险」改名为「伤害贡献低」：改为事实描述、避免动机指控式命名误伤软辅等低伤害正常定位，同时收紧阈值（单场 damageShare < 0.05、占比 ≥ 0.3）。
 
 ## 子项 4：默认标签合并（老用户可见性）
 

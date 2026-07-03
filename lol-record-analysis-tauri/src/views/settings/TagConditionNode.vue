@@ -129,6 +129,19 @@
               />
             </template>
 
+            <!-- Recent Filter -->
+            <template v-if="filter.type === 'recent'">
+              <n-input-number
+                size="small"
+                v-model:value="filter.count"
+                :min="1"
+                :max="50"
+                :show-button="false"
+                class="num-input"
+              />
+              <span class="text-label">场</span>
+            </template>
+
             <n-button
               size="tiny"
               circle
@@ -152,17 +165,22 @@
         <div v-if="condition.refresh" class="refresh-row">
           <n-select
             size="small"
-            v-model:value="condition.refresh.type"
+            :value="condition.refresh.type"
+            @update:value="val => handleRefreshTypeChange(condition.refresh, val)"
             :options="refreshTypeOptions"
             class="sel-type"
           />
 
-          <!-- Count/Sum/Avg/Max/Min -->
+          <!-- Count/Sum/Avg/Max/Min/DistinctChampions（共用 op + value 控件） -->
           <template
-            v-if="['count', 'sum', 'average', 'max', 'min'].includes(condition.refresh.type)"
+            v-if="
+              ['count', 'sum', 'average', 'max', 'min', 'distinctChampions'].includes(
+                condition.refresh.type
+              )
+            "
           >
             <n-select
-              v-if="condition.refresh.type !== 'count'"
+              v-if="!['count', 'distinctChampions'].includes(condition.refresh.type)"
               size="small"
               v-model:value="condition.refresh.metric"
               :options="metricOptions"
@@ -202,6 +220,42 @@
               class="num-input"
             />
             <span class="text-label">场</span>
+          </template>
+
+          <!-- Ratio: 单场指标满足 (gameOp, gameValue) 的场次占比与 (op, value) 比较 -->
+          <template v-if="condition.refresh.type === 'ratio'">
+            <n-select
+              size="small"
+              v-model:value="condition.refresh.metric"
+              :options="metricOptions"
+              placeholder="指标"
+              class="sel-metric"
+            />
+            <n-select
+              size="small"
+              v-model:value="condition.refresh.gameOp"
+              :options="opOptions"
+              class="sel-op"
+            />
+            <n-input-number
+              size="small"
+              v-model:value="condition.refresh.gameValue"
+              :show-button="false"
+              class="num-input"
+            />
+            <span class="text-label">的场次占比</span>
+            <n-select
+              size="small"
+              v-model:value="condition.refresh.op"
+              :options="opOptions"
+              class="sel-op"
+            />
+            <n-input-number
+              size="small"
+              v-model:value="condition.refresh.value"
+              :show-button="false"
+              class="num-input"
+            />
           </template>
         </div>
       </div>
@@ -293,7 +347,8 @@ const { modelValue: condition } = toRefs(props)
 const filterTypeOptions = [
   { label: '模式', value: 'queue' },
   { label: '英雄', value: 'champion' },
-  { label: '单场数据', value: 'stat' }
+  { label: '单场数据', value: 'stat' },
+  { label: '最近 N 场', value: 'recent' }
 ]
 
 const metricOptions = [
@@ -306,7 +361,9 @@ const metricOptions = [
   { label: '补刀 (CS)', value: 'cs' },
   { label: '造成伤害', value: 'damage' },
   { label: '承受伤害', value: 'damageTaken' },
-  { label: '游戏时长', value: 'gameDuration' }
+  { label: '游戏时长', value: 'gameDuration' },
+  { label: '伤害占比 (0-1)', value: 'damageShare' },
+  { label: '参团率 (0-1)', value: 'participation' }
 ]
 
 const opOptions = [
@@ -324,7 +381,9 @@ const refreshTypeOptions = [
   { label: '求和', value: 'sum' },
   { label: '最大值', value: 'max' },
   { label: '最小值', value: 'min' },
-  { label: '连胜/败', value: 'streak' }
+  { label: '连胜/败', value: 'streak' },
+  { label: '英雄数量', value: 'distinctChampions' },
+  { label: '场次占比', value: 'ratio' }
 ]
 
 // --- Actions ---
@@ -392,17 +451,64 @@ function handleFilterTypeChange(filter: any, newType: string) {
     delete filter.metric
     delete filter.op
     delete filter.value
+    delete filter.count
     filter.ids = []
   } else if (newType === 'champion') {
     delete filter.metric
     delete filter.op
     delete filter.value
+    delete filter.count
     filter.ids = []
   } else if (newType === 'stat') {
     delete filter.ids
+    delete filter.count
     filter.metric = 'kda'
     filter.op = '>='
     filter.value = 0
+  } else if (newType === 'recent') {
+    delete filter.ids
+    delete filter.metric
+    delete filter.op
+    delete filter.value
+    filter.count = 20
+  }
+  emitUpdate()
+}
+
+/**
+ * 切换 Check 类型时清理旧类型专属字段并写入新类型的合法初值，
+ * 避免残留字段导致后端反序列化失败（如 streak 的 min/kind 混进 ratio）
+ */
+function handleRefreshTypeChange(refresh: any, newType: string) {
+  delete refresh.metric
+  delete refresh.op
+  delete refresh.value
+  delete refresh.min
+  delete refresh.kind
+  delete refresh.gameOp
+  delete refresh.gameValue
+  refresh.type = newType
+  if (newType === 'count') {
+    refresh.op = '>='
+    refresh.value = 1
+  } else if (['average', 'sum', 'max', 'min'].includes(newType)) {
+    refresh.metric = 'kda'
+    refresh.op = '>='
+    refresh.value = 0
+  } else if (newType === 'streak') {
+    refresh.kind = 'win'
+    refresh.min = 3
+  } else if (newType === 'distinctChampions') {
+    // 对齐后端「专精」语义（default_champion_pool_narrow：英雄数 ≤ 3）
+    refresh.op = '<='
+    refresh.value = 3
+  } else if (newType === 'ratio') {
+    // 阈值 0.05 / 0.3 与后端 user_tag_config.rs 的 default_int_risk 保持一致，调参需同步
+    refresh.metric = 'damageShare'
+    refresh.gameOp = '<'
+    refresh.gameValue = 0.05
+    refresh.op = '>='
+    refresh.value = 0.3
   }
   emitUpdate()
 }

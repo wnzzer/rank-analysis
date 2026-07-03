@@ -950,19 +950,193 @@ pub fn get_default_tags() -> Vec<TagConfig> {
                 },
             },
         },
+        // --- 语义类默认标签（2026-07 迭代新增）---
+        TagConfig {
+            id: "default_smurf".to_string(),
+            name: "炸鱼嫌疑".to_string(),
+            desc: "近期排位胜率与 KDA 异常偏高，仅供参考".to_string(),
+            good: false,
+            enabled: true,
+            is_default: true,
+            condition: TagCondition::And {
+                conditions: vec![
+                    TagCondition::History {
+                        filters: vec![ranked_filter.clone(), MatchFilter::Recent { count: 20 }],
+                        refresh: MatchRefresh::Count {
+                            op: Operator::Gte,
+                            value: 10.0,
+                        },
+                    },
+                    TagCondition::History {
+                        filters: vec![ranked_filter.clone(), MatchFilter::Recent { count: 20 }],
+                        refresh: MatchRefresh::Average {
+                            metric: "win".to_string(),
+                            op: Operator::Gte,
+                            value: 0.75,
+                        },
+                    },
+                    TagCondition::History {
+                        filters: vec![ranked_filter.clone(), MatchFilter::Recent { count: 20 }],
+                        refresh: MatchRefresh::Average {
+                            metric: "kda".to_string(),
+                            op: Operator::Gte,
+                            value: 5.0,
+                        },
+                    },
+                ],
+            },
+        },
+        TagConfig {
+            id: "default_champion_pool_narrow".to_string(),
+            name: "专精".to_string(),
+            desc: "近 20 场只玩 3 个以内英雄".to_string(),
+            good: true,
+            enabled: true,
+            is_default: true,
+            condition: TagCondition::And {
+                conditions: vec![
+                    TagCondition::History {
+                        filters: vec![MatchFilter::Recent { count: 20 }],
+                        refresh: MatchRefresh::DistinctChampions {
+                            op: Operator::Lte,
+                            value: 3.0,
+                        },
+                    },
+                    TagCondition::History {
+                        filters: vec![MatchFilter::Recent { count: 20 }],
+                        refresh: MatchRefresh::Count {
+                            op: Operator::Gte,
+                            value: 10.0,
+                        },
+                    },
+                ],
+            },
+        },
+        TagConfig {
+            id: "default_hot_streak_form".to_string(),
+            name: "手热".to_string(),
+            desc: "近 10 场排位胜率显著高于近 20 场，状态上升".to_string(),
+            good: true,
+            enabled: true,
+            is_default: true,
+            condition: TagCondition::And {
+                conditions: vec![
+                    TagCondition::History {
+                        filters: vec![ranked_filter.clone(), MatchFilter::Recent { count: 10 }],
+                        refresh: MatchRefresh::Average {
+                            metric: "win".to_string(),
+                            op: Operator::Gte,
+                            value: 0.7,
+                        },
+                    },
+                    TagCondition::History {
+                        filters: vec![ranked_filter.clone(), MatchFilter::Recent { count: 20 }],
+                        refresh: MatchRefresh::Average {
+                            metric: "win".to_string(),
+                            op: Operator::Lte,
+                            value: 0.55,
+                        },
+                    },
+                    TagCondition::History {
+                        filters: vec![ranked_filter.clone(), MatchFilter::Recent { count: 20 }],
+                        refresh: MatchRefresh::Count {
+                            op: Operator::Gte,
+                            value: 15.0,
+                        },
+                    },
+                ],
+            },
+        },
+        TagConfig {
+            id: "default_cold_form".to_string(),
+            name: "低谷".to_string(),
+            desc: "近 10 场排位胜率显著低于近 20 场，仅供参考".to_string(),
+            good: false,
+            enabled: true,
+            is_default: true,
+            condition: TagCondition::And {
+                conditions: vec![
+                    TagCondition::History {
+                        filters: vec![ranked_filter.clone(), MatchFilter::Recent { count: 10 }],
+                        refresh: MatchRefresh::Average {
+                            metric: "win".to_string(),
+                            op: Operator::Lte,
+                            value: 0.3,
+                        },
+                    },
+                    TagCondition::History {
+                        filters: vec![ranked_filter.clone(), MatchFilter::Recent { count: 20 }],
+                        refresh: MatchRefresh::Average {
+                            metric: "win".to_string(),
+                            op: Operator::Gte,
+                            value: 0.45,
+                        },
+                    },
+                    TagCondition::History {
+                        filters: vec![ranked_filter.clone(), MatchFilter::Recent { count: 20 }],
+                        refresh: MatchRefresh::Count {
+                            op: Operator::Gte,
+                            value: 15.0,
+                        },
+                    },
+                ],
+            },
+        },
+        // 阈值 0.05 / 0.3 与前端 TagConditionNode.vue 的 ratio 编辑器默认值保持一致，调参需同步
+        TagConfig {
+            id: "default_int_risk".to_string(),
+            name: "伤害贡献低".to_string(),
+            desc: "近 20 场中伤害占比极低的场次偏多，仅供参考".to_string(),
+            good: false,
+            enabled: true,
+            is_default: true,
+            condition: TagCondition::History {
+                filters: vec![MatchFilter::Recent { count: 20 }],
+                refresh: MatchRefresh::Ratio {
+                    metric: "damageShare".to_string(),
+                    game_op: Operator::Lt,
+                    game_value: 0.05,
+                    op: Operator::Gte,
+                    value: 0.3,
+                },
+            },
+        },
     ]
+}
+
+/// 将 get_default_tags 中用户配置里缺失的默认标签追加进来。
+///
+/// 只补"id 不存在"的项；用户对已有标签的任何修改（禁用/改名/调阈值）不被覆盖。
+/// is_default 标签 UI 上不可删除，因此无需删除墓碑机制。
+fn merge_missing_defaults(mut tags: Vec<TagConfig>) -> Vec<TagConfig> {
+    let existing: std::collections::HashSet<String> = tags.iter().map(|t| t.id.clone()).collect();
+    tags.extend(
+        get_default_tags()
+            .into_iter()
+            .filter(|d| !existing.contains(&d.id)),
+    );
+    tags
 }
 
 /// 加载标签配置。
 ///
-/// 如果配置文件不存在，会自动创建默认配置。
+/// 如果配置文件不存在，会自动创建默认配置；
+/// 已有配置会自动补齐版本更新后新增的默认标签（不覆盖用户对已有标签的修改）。
 ///
 /// # 返回值
 ///
 /// 标签配置列表
 pub async fn load_config() -> Vec<TagConfig> {
     match config::get_config("userTags").await {
-        Ok(val) => config_value_to_tags(val),
+        Ok(val) => {
+            let tags = config_value_to_tags(val);
+            let before = tags.len();
+            let merged = merge_missing_defaults(tags);
+            if merged.len() != before {
+                let _ = save_tag_configs(merged.clone()).await;
+            }
+            merged
+        }
         Err(_) => {
             let defaults = get_default_tags();
             let _ = save_tag_configs(defaults.clone()).await;
@@ -1064,6 +1238,39 @@ mod tests {
             games: GamesWrapper { games },
             ..Default::default()
         }
+    }
+
+    /// 构造一场带 K/D/A 数据的对局（其余同 `make_game`）。
+    fn make_game_kda(
+        champion_id: i32,
+        win: bool,
+        queue_id: i32,
+        kills: i32,
+        deaths: i32,
+        assists: i32,
+    ) -> Game {
+        let mut g = make_game(champion_id, win, queue_id);
+        g.participants[0].stats.kills = kills;
+        g.participants[0].stats.deaths = deaths;
+        g.participants[0].stats.assists = assists;
+        g
+    }
+
+    /// 构造一场带伤害占比（rate 为 calculate() 预计算的 0-100 整数）
+    /// 且 game_detail 非空的排位对局——detail 缺失时 damageShare 为 NAN，不计入 Ratio 分子。
+    fn make_game_with_damage_rate(win: bool, rate: i32) -> Game {
+        let mut g = make_game(1, win, QUEUE_SOLO_5X5);
+        g.participants[0].stats.damage_dealt_to_champions_rate = rate;
+        g.game_detail.participants = vec![Default::default()];
+        g
+    }
+
+    /// 按 id 从默认标签列表中取出一个 TagConfig。
+    fn default_tag(id: &str) -> TagConfig {
+        get_default_tags()
+            .into_iter()
+            .find(|t| t.id == id)
+            .unwrap_or_else(|| panic!("默认标签不存在: {}", id))
     }
 
     #[test]
@@ -1353,5 +1560,124 @@ mod tests {
                 value: 3.0
             },
         ));
+    }
+
+    // --- 语义类默认标签（规则语义级测试）---
+
+    #[test]
+    fn default_smurf_fires_on_high_winrate_high_kda() {
+        // 12 场排位全胜、KDA (10+5)/2 = 7.5 ≥ 5：
+        // Count 12 ≥ 10、胜率 1.0 ≥ 0.75、KDA 7.5 ≥ 5 → 命中「炸鱼嫌疑」
+        let games: Vec<Game> = (0..12)
+            .map(|_| make_game_kda(1, true, QUEUE_SOLO_5X5, 10, 2, 5))
+            .collect();
+        let history = make_history(games);
+        let smurf = default_tag("default_smurf");
+        assert!(smurf.evaluate(&history, 420, None).is_some());
+        // 6 场样本不足（Count 6 < 10）→ 不命中
+        let few = make_history(
+            (0..6)
+                .map(|_| make_game_kda(1, true, QUEUE_SOLO_5X5, 10, 2, 5))
+                .collect(),
+        );
+        assert!(smurf.evaluate(&few, 420, None).is_none());
+    }
+
+    #[test]
+    fn default_champion_pool_narrow_fires_on_few_champions_enough_games() {
+        let tag = default_tag("default_champion_pool_narrow");
+        // 20 场全英雄 1 → Distinct 1 ≤ 3 且 Count 20 ≥ 10 命中
+        let narrow = make_history(
+            (0..20)
+                .map(|_| make_game(1, true, QUEUE_SOLO_5X5))
+                .collect(),
+        );
+        assert!(tag.evaluate(&narrow, 420, None).is_some());
+        // 英雄海玩家（20 个英雄）→ Distinct 20 > 3 不命中「专精」
+        let wide = make_history(
+            (0..20)
+                .map(|i| make_game(i, true, QUEUE_SOLO_5X5))
+                .collect(),
+        );
+        assert!(tag.evaluate(&wide, 420, None).is_none());
+    }
+
+    #[test]
+    fn default_hot_streak_form_fires_on_recent_surge_only() {
+        let tag = default_tag("default_hot_streak_form");
+        // 列表最新在前：近 10 场 8 胜（0.8 ≥ 0.7），更早 10 场 2 胜，
+        // 整体 20 场胜率 0.5 ≤ 0.55 且 Count 20 ≥ 15 → 命中「手热」
+        let mut games: Vec<Game> = (0..10)
+            .map(|i| make_game(1, i < 8, QUEUE_SOLO_5X5))
+            .collect();
+        games.extend((0..10).map(|i| make_game(1, i < 2, QUEUE_SOLO_5X5)));
+        assert!(tag.evaluate(&make_history(games), 420, None).is_some());
+        // 20 场全胜：近 10 胜率高但整体 1.0 > 0.55，「一直很强」不算「手热」
+        let all_win = make_history(
+            (0..20)
+                .map(|_| make_game(1, true, QUEUE_SOLO_5X5))
+                .collect(),
+        );
+        assert!(tag.evaluate(&all_win, 420, None).is_none());
+    }
+
+    #[test]
+    fn default_cold_form_fires_on_recent_slump() {
+        let tag = default_tag("default_cold_form");
+        // 近 10 场 2 胜（0.2 ≤ 0.3），更早 10 场 8 胜，
+        // 整体 20 场胜率 0.5 ≥ 0.45 且 Count 20 ≥ 15 → 命中「低谷」
+        let mut games: Vec<Game> = (0..10)
+            .map(|i| make_game(1, i < 2, QUEUE_SOLO_5X5))
+            .collect();
+        games.extend((0..10).map(|i| make_game(1, i < 8, QUEUE_SOLO_5X5)));
+        assert!(tag.evaluate(&make_history(games), 420, None).is_some());
+        // 20 场全败：近 10 胜率 0 ≤ 0.3，但整体 0 < 0.45，「一直低迷」不算「低谷」
+        let all_loss = make_history(
+            (0..20)
+                .map(|_| make_game(1, false, QUEUE_SOLO_5X5))
+                .collect(),
+        );
+        assert!(tag.evaluate(&all_loss, 420, None).is_none());
+    }
+
+    #[test]
+    fn default_int_risk_fires_on_frequent_low_damage_share() {
+        let tag = default_tag("default_int_risk");
+        // 20 场全部带 game_detail（避免 NAN 稀释分子）：
+        // 6 场 rate 3（0.03 < 0.05）+ 14 场 rate 25 → 占比 6/20 = 0.3 ≥ 0.3 命中
+        // （rate 5 → 0.05 不满足 Lt 0.05，故正例用 rate 3）
+        let mut games: Vec<Game> = (0..6)
+            .map(|_| make_game_with_damage_rate(false, 3))
+            .collect();
+        games.extend((0..14).map(|_| make_game_with_damage_rate(true, 25)));
+        assert!(tag.evaluate(&make_history(games), 420, None).is_some());
+        // 20 场伤害占比全部正常（0.25）→ 占比 0 < 0.3 不命中
+        let normal = make_history(
+            (0..20)
+                .map(|_| make_game_with_damage_rate(true, 25))
+                .collect(),
+        );
+        assert!(tag.evaluate(&normal, 420, None).is_none());
+    }
+
+    #[test]
+    fn merge_appends_missing_defaults_without_touching_user_edits() {
+        let mut mine = get_default_tags();
+        mine.truncate(2); // 模拟老用户只有旧的两个默认标签
+        mine[0].enabled = false; // 用户禁用过
+        mine[0].name = "我改过名".to_string();
+        let merged = merge_missing_defaults(mine);
+        // 新默认标签补齐
+        assert!(merged.iter().any(|t| t.id == "default_smurf"));
+        // 用户的修改原样保留
+        let first = merged
+            .iter()
+            .find(|t| t.id == get_default_tags()[0].id)
+            .unwrap();
+        assert!(!first.enabled);
+        assert_eq!(first.name, "我改过名");
+        // 幂等：再 merge 不再增长
+        let len = merged.len();
+        assert_eq!(merge_missing_defaults(merged).len(), len);
     }
 }
