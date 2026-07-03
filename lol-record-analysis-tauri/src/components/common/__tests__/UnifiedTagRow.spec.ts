@@ -6,6 +6,8 @@
  * - 有备注时渲染备注 chip（data-test="note-chip"）
  * - solidifyTag 一键固化：good→friendly / bad→careful、文本追加、色档保留
  * - tagDesc 为空时固化文本不带「：」
+ * - 重复固化同一标签按行精确去重，不重复写入
+ * - 拼接后超过 100 字上限时不写入、原备注保持不变
  *
  * @module components/common/__tests__/UnifiedTagRow
  */
@@ -137,5 +139,39 @@ describe('UnifiedTagRow', () => {
     await w.vm.solidifyTag(tags[1])
 
     expect(store.getNote('puuid-1')?.note).toBe('专精')
+  })
+
+  it('同一标签固化两次时第二次不重复写入（按行精确去重）', async () => {
+    const store = usePlayerNotesStore()
+    const w = mountRow()
+
+    await w.vm.solidifyTag(tags[0])
+    await w.vm.solidifyTag(tags[0])
+
+    const saved = store.getNote('puuid-1')
+    expect(saved?.note).toBe('炸鱼嫌疑：仅供参考')
+    expect(saved?.note?.split('\n')).toHaveLength(1)
+    expect(messageMock.info).toHaveBeenCalledWith('该标签已在备注中')
+  })
+
+  it('拼接后超过 100 字时不写入且原备注不变', async () => {
+    const store = usePlayerNotesStore()
+    // 95 字备注：追加任意标签行（换行 + ≥5 字）必超 100 字上限
+    const longNote = '备'.repeat(95)
+    await store.setNote('puuid-1', {
+      note: longNote,
+      label: 'friendly',
+      gameName: 'Hide on bush',
+      tagLine: 'KR1'
+    })
+    const w = mountRow()
+
+    await w.vm.solidifyTag(tags[0])
+
+    const saved = store.getNote('puuid-1')
+    expect(saved?.note).toBe(longNote)
+    expect(saved?.label).toBe('friendly')
+    expect(messageMock.warning).toHaveBeenCalledWith('备注已达长度上限，请先在备注面板整理')
+    expect(messageMock.success).not.toHaveBeenCalled()
   })
 })

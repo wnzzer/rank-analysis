@@ -92,19 +92,33 @@ function truncated(text: string): string {
   return chars.length > NOTE_PREVIEW_LEN ? chars.slice(0, NOTE_PREVIEW_LEN).join('') + '…' : text
 }
 
+/** 备注最大长度（与 PlayerNoteBadge 手动输入框的 :maxlength="100" 对齐） */
+const NOTE_MAX_LEN = 100
+
 /**
  * 把系统标签一键固化为持久备注
  *
  * - 文本行：`tagName`（tagDesc 非空则 `tagName：tagDesc`）
  * - 已有备注：文本追加（`\n` 分隔），色档保留原值
  * - 无备注：色档 = good→friendly / bad→careful
+ * - 去重：已有备注按行包含完全相同的一行时不重复写入
+ * - 上限：拼接后超过 {@link NOTE_MAX_LEN} 字时不写入（不截断，避免静默丢内容）
  *
  * @param tag - 要固化的系统标签
  */
 async function solidifyTag(tag: RankTag): Promise<void> {
   const line = tag.tagDesc ? `${tag.tagName}：${tag.tagDesc}` : tag.tagName
   const existing = note.value
+  // 按行精确匹配去重（不能用 includes 子串匹配：「专精」是「专精：xxx」的子串会误判）
+  if (existing?.note?.split('\n').includes(line)) {
+    message.info('该标签已在备注中')
+    return
+  }
   const nextNote = existing?.note ? `${existing.note}\n${line}` : line
+  if (Array.from(nextNote).length > NOTE_MAX_LEN) {
+    message.warning('备注已达长度上限，请先在备注面板整理')
+    return
+  }
   const label = existing?.label ?? (tag.good ? 'friendly' : 'careful')
   try {
     await store.setNote(props.puuid, {
