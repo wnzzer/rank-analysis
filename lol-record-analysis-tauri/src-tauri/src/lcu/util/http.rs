@@ -262,6 +262,91 @@ pub async fn external_get_json<T: DeserializeOwned>(url: &str) -> Result<T, Stri
         .map_err(|e| format!("external JSON 反序列化失败: {}", e))
 }
 
+/// SGP（腾讯跨区网关）专用 HTTP 客户端。
+///
+/// 与 LCU 客户端（[`get_client`]，`danger_accept_invalid_certs`）**刻意隔离**：SGP
+/// 主机是 `lol.qq.com` 的有效公网证书，必须**正常校验 TLS**，绝不能忽略证书。
+static SGP_CLIENT: OnceLock<Client> = OnceLock::new();
+
+/// 拟真客户端 UA。SGP 网关会校验 UA，缺失/异常可能被拒；沿用 LeagueAkari 给 SGP
+/// 请求固定设置的形态（已随 match-history 请求真机验证可用）。
+const SGP_USER_AGENT: &str = "LeagueOfLegendsClient/15.0.0.0 (rcp-be-lol-match-history)";
+
+fn sgp_client() -> &'static Client {
+    SGP_CLIENT.get_or_init(|| {
+        Client::builder()
+            .timeout(Duration::from_secs(15))
+            .build()
+            .expect("Failed to build SGP reqwest client")
+    })
+}
+
+/// 向 **Riot Client** 本地 API 发起 GET 并反序列化为 `T`（自签证书 + Basic 鉴权）。
+///
+/// Riot Client 与 LeagueClient(LCU) 是两个不同的本地服务；全区 `name#TAG → puuid`
+/// 的 `player-account/aliases` 查询只在 RC 端口可用。认证 `(token, port)` 由
+/// [`crate::lcu::util::token::get_riot_client_auth`] 从 LCU 命令行提取。复用 LCU 的
+/// [`get_client`]（已 `danger_accept_invalid_certs`，本地自签证书）。
+pub async fn riot_client_get<T: DeserializeOwned>(
+    port: &str,
+    token: &str,
+    uri: &str,
+) -> Result<T, String> {
+    let uri = uri.trim_start_matches('/');
+    let url = format!("https://riot:{}@127.0.0.1:{}/{}", token, port, uri);
+    let resp = get_client()
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Riot Client 请求失败: {}", e))?;
+    let status = resp.status();
+    let body = resp
+        .text()
+        .await
+        .map_err(|e| format!("读取 Riot Client 响应失败: {}", e))?;
+    if !status.is_success() {
+        let snippet: String = body.chars().take(150).collect();
+        return Err(format!("Riot Client 非 2xx（{}）: {}", status, snippet));
+    }
+    serde_json::from_str::<T>(&body).map_err(|e| format!("Riot Client 反序列化失败: {}", e))
+}
+
+/// 向腾讯 SGP 网关发起带 Bearer 鉴权的 GET，并反序列化为 `T`。
+///
+/// # 参数
+/// - `host`: 目标大区 SGP 主机（含端口，如 `tj100-sgp.lol.qq.com:21019`，见
+///   [`crate::constant::game::get_sgp_host`]）
+/// - `uri`: 端点路径（相对，如 `match-history-query/v1/...`）
+/// - `bearer`: 鉴权 token（战绩用 LCU `entitlements/v1/token` 的 `accessToken`）
+///
+/// 正常 TLS + 拟真 UA。非 2xx 时把状态码与截断的 body 一并返回，便于区分
+/// 「网络/证书失败」「token 失效(401)」「玩家/大区不存在」。
+pub async fn sgp_get<T: DeserializeOwned>(
+    host: &str,
+    uri: &str,
+    bearer: &str,
+) -> Result<T, String> {
+    let uri = uri.trim_start_matches('/');
+    let url = format!("https://{}/{}", host, uri);
+    let resp = sgp_client()
+        .get(&url)
+        .bearer_auth(bearer)
+        .header(reqwest::header::USER_AGENT, SGP_USER_AGENT)
+        .send()
+        .await
+        .map_err(|e| format!("SGP 请求失败（网络/TLS）: {}", e))?;
+    let status = resp.status();
+    let body = resp
+        .text()
+        .await
+        .map_err(|e| format!("读取 SGP 响应失败: {}", e))?;
+    if !status.is_success() {
+        let snippet: String = body.chars().take(200).collect();
+        return Err(format!("SGP 非 2xx（{}）: {}", status, snippet));
+    }
+    serde_json::from_str::<T>(&body).map_err(|e| format!("SGP 反序列化失败: {}", e))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

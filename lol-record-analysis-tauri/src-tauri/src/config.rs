@@ -233,7 +233,6 @@ async fn write_config() -> Result<(), Box<dyn std::error::Error + Send + Sync>> 
         .iter()
         .map(|(k, v)| (k.as_ref().clone(), v.clone()))
         .collect();
-    print!("Writing config: {:?}", config);
     let file = File::create(CONFIG_PATH)?;
     let writer = BufWriter::new(file);
     serde_yaml::to_writer(writer, &config)?;
@@ -317,6 +316,27 @@ pub fn extract_int(value: &Value) -> Option<i64> {
         }
     }
     None
+}
+
+/// 从配置 Value 中提取字符串。
+///
+/// 与 [`extract_bool`] 一样容忍两种格式：前端 `putConfigByIpc` 写入的
+/// `Value::Map({"value": String})`，以及后端直接写入的裸 `Value::String`。
+/// 空字符串按"未设置"处理返回 `None`（避免把默认空串当成有效路径）。
+pub fn extract_string(value: &Value) -> Option<String> {
+    let s = match value {
+        Value::String(s) => Some(s.clone()),
+        Value::Map(m) => match m.get("value") {
+            Some(Value::String(s)) => Some(s.clone()),
+            _ => None,
+        },
+        _ => None,
+    }?;
+    if s.is_empty() {
+        None
+    } else {
+        Some(s)
+    }
 }
 
 /// 同步读取布尔配置（启动期专用）。
@@ -450,6 +470,38 @@ mod tests {
         map.insert("other".to_string(), Value::Boolean(true));
         let value = Value::Map(map);
         assert_eq!(extract_bool(&value), None);
+    }
+
+    #[test]
+    fn should_extract_string_from_both_formats() {
+        // 前端包装格式 Map{value: String}
+        let mut map = HashMap::new();
+        map.insert(
+            "value".to_string(),
+            Value::String(r"C:\WeGameApps\英雄联盟".to_string()),
+        );
+        assert_eq!(
+            extract_string(&Value::Map(map)),
+            Some(r"C:\WeGameApps\英雄联盟".to_string())
+        );
+
+        // 后端裸值格式 String
+        assert_eq!(
+            extract_string(&Value::String("D:\\LOL".to_string())),
+            Some("D:\\LOL".to_string())
+        );
+    }
+
+    #[test]
+    fn should_return_none_for_empty_or_wrong_type_string() {
+        // 空串按"未设置"处理（get_config 缺键时默认返回空串）
+        assert_eq!(extract_string(&Value::String(String::new())), None);
+        let mut map = HashMap::new();
+        map.insert("value".to_string(), Value::String(String::new()));
+        assert_eq!(extract_string(&Value::Map(map)), None);
+        // 类型不符
+        assert_eq!(extract_string(&Value::Integer(42)), None);
+        assert_eq!(extract_string(&Value::Boolean(true)), None);
     }
 
     #[test]

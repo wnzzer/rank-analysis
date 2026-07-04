@@ -36,6 +36,23 @@ pub static SGP_SERVER_ID_TO_NAME: phf::Map<&'static str, &'static str> = phf_map
     "" => "暂无",
 };
 
+/// platformId → 腾讯 SGP 网关主机（含端口 21019）。
+///
+/// 全区战绩查询用：本地 LCU 只能查当前登录区，跨区须直连目标大区的 SGP 主机。
+/// 主机名不规则（部分含 `-k8s-`），**逐条硬编码不可拼接**。端口统一 21019，
+/// 走正常公网 TLS（`lol.qq.com` 有效证书）。来源 LeagueAkari-Config；其中
+/// TJ100 / HN10 已真机验证（2026-07，同区 200 + 跨区 token 通用）。
+pub static SGP_PLATFORM_TO_HOST: phf::Map<&'static str, &'static str> = phf_map! {
+    "HN1"   => "hn1-k8s-sgp.lol.qq.com:21019",   // 艾欧尼亚
+    "HN10"  => "hn10-k8s-sgp.lol.qq.com:21019",  // 黑色玫瑰（已验证）
+    "NJ100" => "nj100-sgp.lol.qq.com:21019",     // 联盟一区
+    "GZ100" => "gz100-sgp.lol.qq.com:21019",     // 联盟二区
+    "CQ100" => "cq100-sgp.lol.qq.com:21019",     // 联盟三区
+    "TJ100" => "tj100-sgp.lol.qq.com:21019",     // 联盟四区（已验证）
+    "TJ101" => "tj101-sgp.lol.qq.com:21019",     // 联盟五区
+    "BGP2"  => "bgp2-k8s-sgp.lol.qq.com:21019",  // 峡谷之巅
+};
+
 // 英文段位到中文映射
 pub static TIER_EN_TO_CN: phf::Map<&'static str, &'static str> = phf_map! {
     "UNRANKED" => "无",
@@ -345,6 +362,11 @@ pub fn get_sgp_server_name(key: &str) -> Option<&'static str> {
 
 pub fn get_sgp_server_id_to_name(key: &str) -> Option<&'static str> {
     SGP_SERVER_ID_TO_NAME.get(key).copied()
+}
+
+/// 按 platformId（如 `TJ100`）取腾讯 SGP 网关主机（含端口）。未收录返回 `None`。
+pub fn get_sgp_host(platform_id: &str) -> Option<&'static str> {
+    SGP_PLATFORM_TO_HOST.get(platform_id).copied()
 }
 
 pub fn get_tier_en_to_cn(key: &str) -> Option<&'static str> {

@@ -184,6 +184,8 @@ let curEndIndex = 0
 
 const route = useRoute()
 const name = computed(() => (route.query.name as string) ?? '')
+/** 跨区查询目标大区 platformId（空 = 当前区，走本地 LCU；非空走 SGP 跨区） */
+const region = computed(() => (route.query.region as string) ?? '')
 
 /** 当前页对局列表（响应式扁平化，便于空态判断） */
 const games = computed<Game[]>(() => matchHistory.value?.games?.games ?? [])
@@ -201,7 +203,15 @@ const getHistoryMatch = async (name: string, begIndex: number, endIndex: number)
   isRequestingMatchHostory.value = true
   loadError.value = false
   try {
-    if (filterChampionId.value > 0 || filterQueueId.value > 0) {
+    if (region.value) {
+      // 跨区：走 SGP（按名字#TAG）。暂不支持英雄/队列筛选，故忽略筛选条件。
+      matchHistory.value = await invoke('get_sgp_match_history_by_name', {
+        region: region.value,
+        name,
+        begIndex,
+        count: endIndex - begIndex + 1
+      })
+    } else if (filterChampionId.value > 0 || filterQueueId.value > 0) {
       matchHistory.value = await invoke('get_filter_match_history_by_name', {
         name,
         begIndex,

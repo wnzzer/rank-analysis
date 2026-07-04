@@ -182,6 +182,12 @@ impl GameStateMonitor {
 
         // 如果刚连接上（之前未连接，现在连接了），补全资源缓存并启动 WebSocket 监听
         if new_state.connected && !self.last_state.connected {
+            // 记忆游戏安装目录：此刻客户端在线，可反推安装根目录并持久化，
+            // 之后即便游戏关闭也能免 WeGame 一键启动（见 command::launcher）。
+            tokio::spawn(async {
+                crate::command::launcher::remember_install_root().await;
+            });
+
             if crate::lcu::api::asset::champion_cache_is_empty() {
                 log::info!("LCU 已连接，正在补全静态资源缓存...");
                 tokio::spawn(async move {
