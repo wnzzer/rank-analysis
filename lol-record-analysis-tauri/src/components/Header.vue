@@ -13,6 +13,21 @@
         v-model:value="searchValue"
         @keyup.enter="onClinkSearch"
       >
+        <!-- 前缀：大区下拉（框内左侧，细分隔线隔开），整体仍是一个搜索框 -->
+        <template #prefix>
+          <n-dropdown
+            trigger="click"
+            size="small"
+            :options="regionDropdownOptions"
+            @select="onRegionSelect"
+          >
+            <button class="region-trigger" type="button" @mousedown.prevent>
+              <span class="region-trigger-label">{{ selectedRegionLabel }}</span>
+              <n-icon :size="11" class="region-trigger-caret"><ChevronDownOutline /></n-icon>
+            </button>
+          </n-dropdown>
+          <span class="region-divider" />
+        </template>
         <template #suffix>
           <n-button text quaternary @click="onClinkSearch" class="header-icon-btn">
             <n-icon :component="Search" />
@@ -62,7 +77,8 @@
   </n-flex>
 </template>
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
 import {
   Search,
   LogoGithub,
@@ -70,7 +86,8 @@ import {
   SquareOutline,
   CloseOutline,
   SunnyOutline,
-  MoonOutline
+  MoonOutline,
+  ChevronDownOutline
 } from '@vicons/ionicons5'
 import { darkTheme } from 'naive-ui'
 import { Window } from '@tauri-apps/api/window'
@@ -101,6 +118,32 @@ const currentWindow = Window.getCurrent()
 
 /** 搜索输入框的值 */
 const searchValue = ref('')
+
+/** 选中的大区 platformId（空 = 当前区，走本地 LCU；非空走 SGP 跨区查询） */
+const selectedRegion = ref('')
+/** 大区下拉选项：当前区 + 各腾讯大区（来自后端 get_sgp_regions） */
+const regionOptions = ref<{ label: string; value: string }[]>([{ label: '当前区', value: '' }])
+
+onMounted(async () => {
+  try {
+    const regions = await invoke<{ label: string; value: string }[]>('get_sgp_regions')
+    regionOptions.value = [{ label: '当前区', value: '' }, ...regions]
+  } catch (e) {
+    console.error('加载大区列表失败', e)
+  }
+})
+
+/** n-dropdown 选项格式（key=platformId） */
+const regionDropdownOptions = computed(() =>
+  regionOptions.value.map(r => ({ label: r.label, key: r.value }))
+)
+/** 当前选中大区的显示文案（前缀按钮上的文字） */
+const selectedRegionLabel = computed(
+  () => regionOptions.value.find(r => r.value === selectedRegion.value)?.label ?? '当前区'
+)
+const onRegionSelect = (key: string): void => {
+  selectedRegion.value = key
+}
 
 /** 设置状态管理 Store */
 const settingsStore = useSettingsStore()
@@ -133,7 +176,8 @@ const onClinkSearch = async (): Promise<void> => {
 
   await router.push({
     path: '/Record',
-    query: { name: searchValue.value, t: Date.now() }
+    // region 为空表示当前区，不带该参数即走原本地 LCU 流程
+    query: { name: searchValue.value, region: selectedRegion.value || undefined, t: Date.now() }
   })
   searchValue.value = ''
 }
@@ -206,7 +250,7 @@ const closeWindow = (): void => {
   width: 33%;
   display: flex;
   justify-content: center;
-  max-width: 240px;
+  max-width: 340px;
   margin: 0 auto;
 }
 
@@ -215,6 +259,7 @@ const closeWindow = (): void => {
   pointer-events: auto;
 }
 
+/* 单一搜索框：大区做成框内左侧下拉前缀，整体一个边框/背景/聚焦态 */
 .header-search {
   width: 100%;
   border-radius: var(--radius-md);
@@ -226,6 +271,7 @@ const closeWindow = (): void => {
     border-color var(--dur-fast) var(--ease-expo);
 }
 
+/* 聚焦时整框发光 */
 .header-center:focus-within .header-search :deep(.n-input-wrapper) {
   box-shadow: 0 0 0 2px rgba(61, 155, 122, 0.2);
   border-color: rgba(61, 155, 122, 0.35) !important;
@@ -233,6 +279,46 @@ const closeWindow = (): void => {
 
 .theme-light .header-center:focus-within .header-search :deep(.n-input-wrapper) {
   box-shadow: 0 0 0 2px rgba(45, 138, 108, 0.2);
+}
+
+/* 前缀：大区下拉触发器（小号文字 + 箭头，hover 淡底） */
+.region-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 20px;
+  padding: 0 4px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  -webkit-app-region: no-drag;
+  transition:
+    color var(--dur-fast) var(--ease-expo),
+    background-color var(--dur-fast) var(--ease-expo);
+}
+
+.region-trigger:hover {
+  color: var(--text-primary);
+  background: var(--glass-bg-high);
+}
+
+.region-trigger-caret {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+/* 前缀与输入文本之间的细分隔线 */
+.region-divider {
+  width: 1px;
+  height: 14px;
+  margin: 0 8px 0 5px;
+  background: var(--glass-border);
+  flex-shrink: 0;
 }
 
 .header-right {

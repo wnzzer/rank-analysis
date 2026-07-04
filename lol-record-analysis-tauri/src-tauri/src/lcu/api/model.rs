@@ -57,9 +57,12 @@ pub struct Stats {
     pub item5: i32,
     #[serde(rename = "item6")]
     pub item6: i32,
-    #[serde(rename = "perkPrimaryStyle")]
+    // default：SGP(match-v5) 的 participant 没有扁平 perkPrimaryStyle/perkSubStyle
+    // （它们在嵌套的 perks.styles 里），加 default 让扁平 participant 可直接反序列化进
+    // Stats，再由 SGP 映射层从 perks.styles 回填。LCU 仍提供这两个字段，不受影响。
+    #[serde(rename = "perkPrimaryStyle", default)]
     pub perk_primary_style: i32,
-    #[serde(rename = "perkSubStyle")]
+    #[serde(rename = "perkSubStyle", default)]
     pub perk_sub_style: i32,
     #[serde(rename = "perk0", default)]
     pub perk0: i32,

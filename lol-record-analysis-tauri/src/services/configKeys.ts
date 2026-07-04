@@ -20,5 +20,12 @@ export const CONFIG_KEYS = {
   /** 用户自定义 DashScope API Key（留空用内置打包 key） */
   dashscopeApiKey: 'dashscopeApiKey',
   /** 玩家备注是否随 AI 分析请求发送到云端模型（默认开） */
-  aiUsePlayerNotes: 'aiUsePlayerNotes'
+  aiUsePlayerNotes: 'aiUsePlayerNotes',
+  /**
+   * 游戏安装根目录（免 WeGame 一键启动用）。
+   *
+   * 由后端在客户端「已连接」时从运行进程反推并自动记忆（见 Rust `command::launcher`），
+   * 前端一般无需读写；列在此处以收口该共享键名。
+   */
+  gameInstallPath: 'gameInstallPath'
 } as const

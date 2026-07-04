@@ -1,0 +1,193 @@
+//! # 免 WeGame 启动命令模块
+//!
+//! 直接拉起国服英雄联盟的「腾讯登录客户端」（`Launcher\Client.exe`，回退
+//! `TCLS\Client.exe`），跳过 WeGame 主客户端。WeGame 点「开始游戏」本质就是拉起
+//! 这个登录客户端；用绝对路径直接 spawn 它即可，登录后它会链式拉起
+//! `RiotClientServices → LeagueClient → LeagueClientUx`，随后本工具的 LCU 连接
+//! 自动就绪。注意：仍会弹腾讯登录窗，非免密登录。
+//!
+//! ## 安装目录发现（无需读注册表）
+//!
+//! 1. **config 记忆**（主来源）：客户端在线时由 [`remember_install_root`]（在
+//!    `game_state_monitor` 检测到「已连接」时调用）从运行进程反推根目录并持久化。
+//! 2. **进程反推**：极少数「已连着还点启动」时，直接从运行进程取。
+//! 3. **扫盘兜底**：遍历盘符找默认安装位置 `<盘>:\WeGameApps\英雄联盟`。
+//!
+//! 三者皆失败时返回明确错误，引导用户先手动打开一次游戏（之后即被记忆）。
+
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+
+use crate::config::{self, Value};
+
+/// 游戏安装根目录的 config 键；与前端 `CONFIG_KEYS.gameInstallPath` 对应。
+const GAME_INSTALL_PATH_KEY: &str = "gameInstallPath";
+
+/// 安装根目录下的登录客户端候选路径，按优先级排列。
+///
+/// 优先 `Launcher\Client.exe`（LeagueAkari 实测同款、最稳），回退 `TCLS\Client.exe`
+/// （部分版本/机器只装了这个）。仅拼路径、不查存在性，便于纯逻辑单测。
+fn launch_target_candidates(root: &Path) -> [PathBuf; 2] {
+    [
+        root.join("Launcher").join("Client.exe"),
+        root.join("TCLS").join("Client.exe"),
+    ]
+}
+
+/// 在安装根目录下定位首个真实存在的登录客户端 exe。
+fn resolve_launch_target(root: &Path) -> Option<PathBuf> {
+    launch_target_candidates(root)
+        .into_iter()
+        .find(|p| p.is_file())
+}
+
+/// 读取 config 中记忆的安装根目录（存在且仍是有效目录时才返回）。
+async fn read_remembered_root() -> Option<PathBuf> {
+    let value = config::get_config(GAME_INSTALL_PATH_KEY).await.ok()?;
+    let root = PathBuf::from(config::extract_string(&value)?);
+    root.is_dir().then_some(root)
+}
+
+/// 发现游戏安装根目录：config 记忆 → 运行进程反推 → 扫盘默认位置。
+async fn discover_game_root() -> Option<PathBuf> {
+    // 1) config 记忆（主来源）
+    if let Some(root) = read_remembered_root().await {
+        return Some(root);
+    }
+    // 2) 客户端正在运行时直接反推（少见：已连着还点启动）
+    if let Some(root) = crate::lcu::util::token::get_client_install_root() {
+        if root.is_dir() {
+            return Some(root);
+        }
+    }
+    // 3) 扫盘兜底：默认安装位置 <盘>:\WeGameApps\英雄联盟。
+    //    以「能否定位到登录客户端 exe」为准，避免命中残留空目录。
+    for drive in b'C'..=b'Z' {
+        let candidate = PathBuf::from(format!(r"{}:\WeGameApps\英雄联盟", drive as char));
+        if resolve_launch_target(&candidate).is_some() {
+            return Some(candidate);
+        }
+    }
+    None
+}
+
+/// 将安装根目录写入 config（前端包装格式 `{value: String}`）；与已存值一致则跳过写盘。
+async fn persist_install_root(root: &Path) {
+    if read_remembered_root().await.as_deref() == Some(root) {
+        return; // 已记忆且一致，免去重复落盘
+    }
+    let mut wrapped = HashMap::new();
+    wrapped.insert(
+        "value".to_string(),
+        Value::String(root.to_string_lossy().to_string()),
+    );
+    // 不打印具体路径：安装路径可能含用户名，日志开启上报时会外传。
+    match config::put_config(GAME_INSTALL_PATH_KEY.to_string(), Value::Map(wrapped)).await {
+        Ok(()) => log::info!("已记忆游戏安装目录，之后可免 WeGame 一键启动"),
+        Err(e) => log::warn!("记忆游戏安装目录失败: {}", e),
+    }
+}
+
+/// 在客户端「已连接」时记忆其安装目录。
+///
+/// 由 `game_state_monitor` 在「未连接 → 已连接」转变时调用。此刻
+/// `LeagueClientUx.exe` 在运行，可反推出根目录；持久化后即便游戏关闭也能一键启动。
+pub async fn remember_install_root() {
+    if let Some(root) = crate::lcu::util::token::get_client_install_root() {
+        persist_install_root(&root).await;
+    }
+}
+
+/// 免 WeGame 一键启动国服英雄联盟。
+///
+/// 发现安装根目录后，直接 spawn `Launcher\Client.exe`（回退 `TCLS\Client.exe`）。
+/// 成功仅表示登录客户端进程已拉起——随后会弹腾讯登录窗，用户登录后客户端链式
+/// 启动，本工具经 `game_state_monitor` 自动感知连接，无需在此等待。
+///
+/// # 返回值
+///
+/// - `Ok(())`: 登录客户端已拉起
+/// - `Err(String)`: 未找到安装目录 / 未找到登录客户端 exe / spawn 失败（如被杀软拦截）
+#[tauri::command]
+pub async fn launch_league() -> Result<(), String> {
+    let root = discover_game_root()
+        .await
+        .ok_or("未找到英雄联盟安装目录。请先手动打开一次游戏，之后即可一键启动。")?;
+    let target = resolve_launch_target(&root).ok_or_else(|| {
+        format!(
+            "在 {} 下未找到登录客户端（Launcher\\Client.exe 或 TCLS\\Client.exe），安装可能不完整。",
+            root.display()
+        )
+    })?;
+    // spawn 前把根目录记下来，下次直接命中（尤其首次经扫盘发现的情况）。
+    persist_install_root(&root).await;
+    spawn_detached(&target)?;
+    log::info!("已拉起国服登录客户端（免 WeGame）");
+    Ok(())
+}
+
+/// 启动目标 exe（工作目录设为其所在目录），需要提权时自动弹 UAC。
+///
+/// **必须用 `ShellExecuteW` 而非 `std::process::Command`**：国服 `Launcher\Client.exe`
+/// 的清单要求管理员权限（含 ACE/TP 反作弊驱动），`CreateProcess`（即 `Command::spawn`）
+/// 会以 `ERROR_ELEVATION_REQUIRED`（os error 740）失败。`ShellExecuteW` 用默认动词
+/// （`lpVerb = NULL`）会遵循 exe 清单——需要提权时自动弹 UAC（与 WeGame 启动游戏时
+/// 弹 UAC 一致），普通 exe 则正常启动。路径作为独立宽字符串参数传入，**不加引号**。
+/// 工作目录设为 exe 所在目录，避免其相对依赖的 dll 加载失败。
+fn spawn_detached(exe: &Path) -> Result<(), String> {
+    use std::ffi::OsStr;
+    use std::os::windows::ffi::OsStrExt;
+    use winapi::um::shellapi::ShellExecuteW;
+    use winapi::um::winuser::SW_SHOWNORMAL;
+
+    let work_dir = exe.parent().ok_or("无法推导启动工作目录")?;
+
+    // ShellExecuteW 需要以 null 结尾的宽字符串。
+    let to_wide = |s: &OsStr| -> Vec<u16> { s.encode_wide().chain(std::iter::once(0)).collect() };
+    let file = to_wide(exe.as_os_str());
+    let dir = to_wide(work_dir.as_os_str());
+
+    let result = unsafe {
+        ShellExecuteW(
+            std::ptr::null_mut(),
+            std::ptr::null(), // lpVerb = NULL：默认动词，遵循清单（要求提权则弹 UAC）
+            file.as_ptr(),
+            std::ptr::null(), // 无参数
+            dir.as_ptr(),     // 工作目录 = exe 所在目录
+            SW_SHOWNORMAL,
+        )
+    };
+
+    // ShellExecuteW 返回值 > 32 表示成功；<= 32 为错误码（用户取消 UAC 时为
+    // SE_ERR_ACCESSDENIED 等）。
+    if (result as isize) <= 32 {
+        return Err(format!(
+            "启动登录客户端失败（ShellExecuteW 错误码 {}）；若弹出 UAC 请点“是”授权。",
+            result as isize
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn launch_candidates_prefer_launcher_over_tcls() {
+        let root = Path::new(r"C:\WeGameApps\英雄联盟");
+        let candidates = launch_target_candidates(root);
+
+        // 均以 Client.exe 结尾
+        assert_eq!(candidates[0].file_name().unwrap(), "Client.exe");
+        assert_eq!(candidates[1].file_name().unwrap(), "Client.exe");
+        // 优先 Launcher，回退 TCLS
+        assert_eq!(
+            candidates[0].parent().unwrap().file_name().unwrap(),
+            "Launcher"
+        );
+        assert_eq!(candidates[1].parent().unwrap().file_name().unwrap(), "TCLS");
+        // 保持在安装根目录之下
+        assert!(candidates[0].starts_with(root));
+    }
+}

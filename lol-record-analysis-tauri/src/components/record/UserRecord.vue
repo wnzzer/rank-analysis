@@ -70,8 +70,20 @@
       />
     </n-card>
 
+    <!-- 跨区提示：段位/关系/近期数据不跨区，仅战绩可用 -->
+    <n-card
+      v-if="isCrossRegion"
+      class="record-panel-card panel-glass"
+      :bordered="false"
+      size="small"
+    >
+      <n-text depth="3" style="font-size: 12px; line-height: 1.6">
+        跨区查询：仅提供该大区的对局战绩，段位 / 胜率 / 标签不支持跨区。
+      </n-text>
+    </n-card>
+
     <!-- Friends & Rivals -->
-    <n-flex :wrap="false" align="stretch" :size="12">
+    <n-flex v-if="!isCrossRegion" :wrap="false" align="stretch" :size="12">
       <RelationshipPanel
         variant="friend"
         :summoners="recentData.friendAndDispute.friendsSummoner"
@@ -85,7 +97,7 @@
     </n-flex>
 
     <!-- Rank Cards -->
-    <n-flex vertical :size="12">
+    <n-flex v-if="!isCrossRegion" vertical :size="12">
       <RankCard
         label="单双排"
         :queue-info="rank.queueMap.RANKED_SOLO_5x5"
@@ -100,6 +112,7 @@
 
     <!-- Recent Stats -->
     <RecentStatsTable
+      v-if="!isCrossRegion"
       :recent-data="recentData"
       :mode="mode"
       :is-dark="isDark"
@@ -174,12 +187,34 @@ const flexRecentWinRate = ref<RecentWinRate>(defaultRecentWinRate())
 const recentData = ref<RecentData>(defaultRecentData())
 
 const route = useRoute()
+/** 跨区查询目标大区 platformId（空 = 当前区，走本地 LCU） */
+const region = computed(() => (route.query.region as string) ?? '')
+const isCrossRegion = computed(() => !!region.value)
 let name = ''
 
 const loadSummonerData = async (summonerName: string) => {
   if (!summonerName) return
 
   name = summonerName
+
+  // 跨区：段位/胜率/标签不支持跨区，只展示玩家名与大区，其余置默认。
+  // 对局战绩由右侧 MatchHistory 走 SGP，不在此处加载。
+  if (region.value) {
+    const [g, t] = summonerName.split('#')
+    summoner.value = { ...defaultSummoner(), gameName: g ?? summonerName, tagLine: t ?? '' }
+    rank.value = defaultRank()
+    solo5v5RecentWinRate.value = defaultRecentWinRate()
+    flexRecentWinRate.value = defaultRecentWinRate()
+    recentData.value = defaultRecentData()
+    tags.value = []
+    try {
+      const regions = await invoke<{ label: string; value: string }[]>('get_sgp_regions')
+      platformIdCn.value = regions.find(r => r.value === region.value)?.label ?? region.value
+    } catch {
+      platformIdCn.value = region.value
+    }
+    return
+  }
 
   // 需要 summoner 作为其余请求的依据，单独先取；其余调用互相独立，并行
   summoner.value = await invoke<Summoner>('get_summoner_by_name', { name })

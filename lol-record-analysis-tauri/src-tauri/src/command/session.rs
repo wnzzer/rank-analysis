@@ -59,7 +59,28 @@ use crate::lcu::api::session::Session;
 use crate::lcu::api::summoner::Summoner;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use tauri::{AppHandle, Emitter};
+
+/// Session 任务全局序列号——**只允许最新任务推送事件**。
+///
+/// WebSocket 监听器（`lcu::listener`）在 gameflow / 选人等事件上频繁触发
+/// [`get_session_data`]，每次都 spawn 一个并发任务。上一局结束（EndOfGame）
+/// 触发的任务要拉全部 10 人的战绩/段位、耗时数秒；紧接着新开一局的选人任务
+/// 很轻、先完成。若不做序列化，**旧局的慢任务会晚到并把上一局敌方数据覆盖回
+/// 前端**（表现为：新开一局时对局页仍显示上一局的敌方）。因此每个任务领取
+/// 递增序列号，推送前校验自己仍是最新——被更新任务超越的旧任务全部静默作废。
+static SESSION_TASK_SEQ: AtomicU64 = AtomicU64::new(0);
+
+/// 领取一个新的 session 任务序列号（使计数器 +1 并返回新值）。
+fn begin_session_task(counter: &AtomicU64) -> u64 {
+    counter.fetch_add(1, Ordering::SeqCst) + 1
+}
+
+/// 判断 `seq` 是否仍是最新任务（期间无更新任务领号）。
+fn is_latest_task(counter: &AtomicU64, seq: u64) -> bool {
+    counter.load(Ordering::SeqCst) == seq
+}
 
 /// 对局会话的完整展示数据，包含阶段、队列、所有小队及每个玩家的汇总信息。
 ///
@@ -178,16 +199,21 @@ pub struct PreGroupMarker {
 pub async fn get_session_data(app_handle: AppHandle) -> Result<(), String> {
     log::info!("get_session_data called");
 
+    // 领取序列号：一旦有更新的调用进来，本任务的所有推送将被作废（防旧局数据晚到覆盖）。
+    let seq = begin_session_task(&SESSION_TASK_SEQ);
+
     // 在后台线程处理，避免阻塞
     tokio::spawn(async move {
-        match process_session_data(app_handle.clone()).await {
+        match process_session_data(app_handle.clone(), seq).await {
             Ok(_) => {
-                log::info!("Session data processing completed");
+                log::info!("Session data processing completed (seq {})", seq);
             }
             Err(e) => {
                 log::error!("Failed to process session data: {}", e);
-                // 发送错误事件
-                let _ = app_handle.emit("session-error", e);
+                // 发送错误事件（旧任务的错误同样不打扰前端）
+                if is_latest_task(&SESSION_TASK_SEQ, seq) {
+                    let _ = app_handle.emit("session-error", e);
+                }
             }
         }
     });
@@ -221,13 +247,16 @@ pub async fn get_session_data(app_handle: AppHandle) -> Result<(), String> {
 /// 9. 检测预组队
 /// 10. 处理历史对局记录
 /// 11. 发送完成事件
-async fn process_session_data(app_handle: AppHandle) -> Result<(), String> {
+async fn process_session_data(app_handle: AppHandle, seq: u64) -> Result<(), String> {
     let my_summoner = Summoner::get_my_summoner().await?;
 
     let phase = get_phase().await?;
     let valid_phases = ["ChampSelect", "InProgress", "PreEndOfGame", "EndOfGame"];
     if !valid_phases.contains(&phase.as_str()) {
         log::info!("Not in a valid game phase: {}", phase);
+        if !is_latest_task(&SESSION_TASK_SEQ, seq) {
+            return Ok(());
+        }
         let empty_data = SessionData::default();
         app_handle
             .emit("session-complete", &empty_data)
@@ -284,9 +313,14 @@ async fn process_session_data(app_handle: AppHandle) -> Result<(), String> {
 
     let mode = session.game_data.queue.id;
 
-    push_basic_info(&mut session_data, &app_handle).await?;
+    push_basic_info(&mut session_data, &app_handle, seq).await?;
 
     for subteam_idx in 0..session_data.subteams.len() {
+        // 已有更新任务在跑：本任务是旧局/旧快照，放弃剩余重活（每人战绩/段位拉取）。
+        if !is_latest_task(&SESSION_TASK_SEQ, seq) {
+            log::info!("Session task {} superseded, aborting", seq);
+            return Ok(());
+        }
         let subteam_id = session_data.subteams[subteam_idx].subteam_id;
         let players_meta: Vec<crate::lcu::api::session::OnePlayer> = session_data.subteams
             [subteam_idx]
@@ -301,7 +335,15 @@ async fn process_session_data(app_handle: AppHandle) -> Result<(), String> {
             .collect();
 
         let mut filled: Vec<SessionSummoner> = Vec::with_capacity(players_meta.len());
-        process_subteam_parallel(&players_meta, &mut filled, mode, &app_handle, subteam_id).await?;
+        process_subteam_parallel(
+            &players_meta,
+            &mut filled,
+            mode,
+            &app_handle,
+            subteam_id,
+            seq,
+        )
+        .await?;
         session_data.subteams[subteam_idx].players = filled;
     }
 
@@ -318,7 +360,7 @@ async fn process_session_data(app_handle: AppHandle) -> Result<(), String> {
         }
     }
 
-    if !markers.is_empty() {
+    if !markers.is_empty() && is_latest_task(&SESSION_TASK_SEQ, seq) {
         app_handle
             .emit("session-pre-group", &markers)
             .map_err(|e| e.to_string())?;
@@ -327,6 +369,12 @@ async fn process_session_data(app_handle: AppHandle) -> Result<(), String> {
     insert_meet_gamers_record(&mut session_data, &my_summoner.puuid);
     delete_meet_gamers_record(&mut session_data);
 
+    // 最终校验：期间若有更新任务领号（如已进入下一局），本快照作废，
+    // 避免旧局的完整数据（含上一局敌方）晚到覆盖前端。
+    if !is_latest_task(&SESSION_TASK_SEQ, seq) {
+        log::info!("Session task {} superseded, dropping final emit", seq);
+        return Ok(());
+    }
     app_handle
         .emit("session-complete", &session_data)
         .map_err(|e| e.to_string())?;
@@ -543,6 +591,7 @@ async fn build_cherry_subteams(
 async fn push_basic_info(
     session_data: &mut SessionData,
     app_handle: &AppHandle,
+    seq: u64,
 ) -> Result<(), String> {
     async fn fill_team(team: &mut Vec<SessionSummoner>) {
         let futures = team.iter().map(|placeholder| {
@@ -576,6 +625,10 @@ async fn push_basic_info(
         fill_team(&mut subteam.players).await;
     }
 
+    // 旧任务的基础信息不再推送（防旧局快照晚到覆盖）。
+    if !is_latest_task(&SESSION_TASK_SEQ, seq) {
+        return Ok(());
+    }
     app_handle
         .emit("session-basic-info", &session_data)
         .map_err(|e| e.to_string())?;
@@ -591,6 +644,7 @@ async fn process_subteam_parallel(
     mode: i32,
     app_handle: &AppHandle,
     subteam_id: i32,
+    seq: u64,
 ) -> Result<(), String> {
     let futures = players.iter().map(|player| async move {
         if player.puuid.is_empty() {
@@ -680,8 +734,15 @@ async fn process_subteam_parallel(
 
     let fetched_players = futures::future::join_all(futures).await;
 
+    // 数据仍写回 result（供调用方组装最终快照），但旧任务不再逐个推送给前端。
+    let emit_allowed = is_latest_task(&SESSION_TASK_SEQ, seq);
+
     for (index, session_summoner) in fetched_players.into_iter().enumerate() {
         result.push(session_summoner.clone());
+
+        if !emit_allowed {
+            continue;
+        }
 
         #[derive(Serialize)]
         struct PlayerUpdate {
@@ -917,6 +978,31 @@ fn one_in_arr(e: &str, arr: &[String]) -> bool {
 mod tests {
     use super::*;
     use crate::lcu::api::session::{GameData, OnePlayer, Queue, Session};
+
+    #[test]
+    fn newer_session_task_supersedes_older() {
+        // 复现修复的竞态：旧局 EndOfGame 的慢任务不得在新局任务领号后继续推送
+        let counter = AtomicU64::new(0);
+        let old_task = begin_session_task(&counter);
+        assert!(is_latest_task(&counter, old_task), "唯一任务应是最新");
+
+        let new_task = begin_session_task(&counter);
+        assert!(
+            !is_latest_task(&counter, old_task),
+            "被超越的旧任务必须作废（防止上一局敌方数据晚到覆盖）"
+        );
+        assert!(is_latest_task(&counter, new_task));
+    }
+
+    #[test]
+    fn session_task_seq_is_monotonic() {
+        let counter = AtomicU64::new(0);
+        let a = begin_session_task(&counter);
+        let b = begin_session_task(&counter);
+        let c = begin_session_task(&counter);
+        assert!(a < b && b < c);
+        assert!(is_latest_task(&counter, c));
+    }
 
     fn make_session_classic() -> Session {
         Session {

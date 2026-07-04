@@ -405,6 +405,75 @@ pub fn get_auth() -> Result<(String, String), String> {
     get_auth_detailed().map_err(|e| e.to_string())
 }
 
+/// 从正在运行的 `LeagueClientUx.exe` 反推游戏安装根目录。
+///
+/// 客户端进程位于 `<root>\LeagueClient\LeagueClientUx.exe`，向上两级即安装根目录
+/// （其下有 `Launcher\Client.exe` / `TCLS\Client.exe` 腾讯登录客户端，供免 WeGame
+/// 一键启动）。仅在客户端运行时可用；游戏未启动时返回 `None`。
+///
+/// 供 [`crate::command::launcher`] 在"已连接"时记忆路径——之后即便游戏关闭，也能
+/// 凭记忆的路径直接拉起登录客户端，无需读注册表。
+pub fn get_client_install_root() -> Option<std::path::PathBuf> {
+    let pids = get_process_pid_by_name("LeagueClientUx.exe").ok()?;
+    for pid in pids {
+        let handle = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid) };
+        if handle.is_null() {
+            continue;
+        }
+        let _guard = ProcessHandle(handle);
+        if let Ok(exe_path) = get_process_image_path(handle) {
+            if let Some(root) = std::path::Path::new(&exe_path)
+                .parent() // <root>\LeagueClient
+                .and_then(|p| p.parent())
+            // <root>
+            {
+                return Some(root.to_path_buf());
+            }
+        }
+    }
+    None
+}
+
+/// 从运行中的 `LeagueClientUx.exe` 命令行提取 **Riot Client** 本地 API 认证。
+///
+/// LCU 由 `RiotClientServices` 拉起，其命令行同时带 `--riotclient-auth-token` 与
+/// `--riotclient-app-port`，指向 Riot Client 的本地 HTTP 服务（与 LCU 是**两个不同的
+/// 本地服务**）。跨区 `name#TAG → puuid` 的 `player-account/aliases` 查询在 RC 端口、
+/// 不在 LCU 端口，故全区搜索需要这份认证。返回 `(auth_token, app_port)`。
+pub fn get_riot_client_auth() -> Result<(String, String), String> {
+    let pids = get_process_pid_by_name("LeagueClientUx.exe")?;
+    if pids.is_empty() {
+        return Err("未找到英雄联盟客户端进程".to_string());
+    }
+    for pid in pids {
+        let cmd = match get_process_command_line(pid) {
+            Ok(c) if !c.is_empty() => c,
+            _ => continue,
+        };
+        let mut token: Option<String> = None;
+        let mut port: Option<String> = None;
+        for cap in AUTH_REGEX.captures_iter(&cmd) {
+            let key = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+            let val = cap
+                .get(2)
+                .map(|m| m.as_str())
+                .or_else(|| cap.get(3).map(|m| m.as_str()))
+                .unwrap_or("");
+            match key {
+                "riotclient-auth-token" => token = Some(val.to_string()),
+                "riotclient-app-port" => port = Some(val.to_string()),
+                _ => {}
+            }
+        }
+        if let (Some(t), Some(p)) = (token, port) {
+            if !t.is_empty() && !p.is_empty() {
+                return Ok((t, p));
+            }
+        }
+    }
+    Err("命令行中未找到 riotclient-auth-token / riotclient-app-port".to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

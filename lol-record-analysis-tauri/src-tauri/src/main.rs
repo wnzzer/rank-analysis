@@ -147,6 +147,10 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             command::fandom::update_fandom_data,
             command::fandom::get_aram_balance,
             command::system::relaunch_as_admin,
+            command::launcher::launch_league,
+            command::sgp::get_sgp_regions,
+            command::sgp::get_current_sgp_region,
+            command::sgp::get_sgp_match_history_by_name,
         ]);
 
     #[cfg(debug_assertions)]

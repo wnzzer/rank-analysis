@@ -48,3 +48,13 @@ export async function getGameModesByIpc() {
 export async function getAssetDetailsByIpc(typeString: 'item' | 'perk' | 'spell', ids: number[]) {
   return await invoke<AssetDetail[]>('get_asset_details', { typeString, ids })
 }
+
+/**
+ * 免 WeGame 一键启动国服英雄联盟登录客户端。
+ *
+ * 成功仅表示登录客户端已拉起（随后会弹腾讯登录窗，仍需登录）；后端未找到安装目录、
+ * 未找到登录客户端 exe 或 spawn 失败时，会 reject 一个中文错误说明。
+ */
+export async function launchLeagueByIpc(): Promise<void> {
+  await invoke('launch_league')
+}

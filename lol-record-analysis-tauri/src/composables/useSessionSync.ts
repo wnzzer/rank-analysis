@@ -178,6 +178,26 @@ export function useSessionSync() {
     }
   }
 
+  /**
+   * 新开一局：清空上一局残留的对局面板（尤其是敌方小队）并重新拉取。
+   *
+   * 结算后停留在对局页时，面板刻意保留上一局数据供复盘（空 phase 事件被忽略）。
+   * 但进入下一局选人时必须清场——否则在新数据到达前，右侧仍显示上一局的敌方。
+   * phase 置空让页面回到「等待加入游戏...」态，随后选人数据会立刻填充我方。
+   */
+  function resetForNewGame() {
+    sessionData.phase = ''
+    sessionData.type = ''
+    sessionData.typeCn = ''
+    sessionData.queueId = 0
+    sessionData.gameMode = ''
+    sessionData.isMultiTeam = false
+    sessionData.mySubteamId = 0
+    sessionData.cherrySubteamsPending = false
+    sessionData.subteams.splice(0, sessionData.subteams.length)
+    requestSessionData()
+  }
+
   let retryCount = 0
   function checkAndRetryFetch() {
     if (sessionData.phase !== 'InProgress' && sessionData.phase !== 'GameStart') return
@@ -274,6 +294,24 @@ export function useSessionSync() {
     unlisteners.push(
       await listen<string>('session-error', event => {
         console.error('Session error:', event.payload)
+      })
+    )
+
+    // 监听 game_state_monitor 的可靠 phase 流（每 2s 轮询 + 变化即推）：
+    // 检测到进入选人（= 新开一局）且面板还挂着上一局数据时，立即清场重拉。
+    // 以 sessionData.phase !== 'ChampSelect' 防抖——若选人数据已先行到达则无需清。
+    let lastMonitorPhase = ''
+    unlisteners.push(
+      await listen<{ phase: string | null }>('game-state-changed', event => {
+        const phase = event.payload.phase ?? ''
+        if (
+          phase === 'ChampSelect' &&
+          lastMonitorPhase !== 'ChampSelect' &&
+          sessionData.phase !== 'ChampSelect'
+        ) {
+          resetForNewGame()
+        }
+        lastMonitorPhase = phase
       })
     )
 
