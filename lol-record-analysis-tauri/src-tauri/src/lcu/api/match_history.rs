@@ -2,11 +2,12 @@
 //!
 //! 对应 `lol-match-history`：按 PUUID/「me」分页获取对局列表；支持详情增强与中文信息。
 
+use std::collections::HashMap;
 use std::{sync::LazyLock, time::Duration};
 
 use crate::{
     constant,
-    lcu::api::model::{Participant, ParticipantIdentity},
+    lcu::api::model::{Participant, ParticipantIdentity, Stats},
 };
 use moka::future::Cache;
 use serde::{Deserialize, Serialize};
@@ -25,6 +26,44 @@ pub(crate) fn resolve_queue_name_cn(queue_id: i32, game_mode: &str) -> String {
         return "斗魂竞技场".to_string();
     }
     "未知".to_string()
+}
+
+/// WeGame 式综合评分（0~10）：KDA、输出、参团率、承伤、经济、补刀、推塔 七维加权。
+///
+/// 各维归一到 0..1（KDA 用饱和函数 `kda/(kda+3)`，其余除以全场最大值），加权和乘 10。
+/// 权重：KDA 26% / 输出 22% / 参团 18% / 承伤 10% / 经济 10% / 补刀 8% / 推塔 6%。
+///
+/// ⚠️ 与前端 `useMatchDetailPlayers.ts::computeMatchScore` 同式——两端必须同步修改。
+pub(crate) fn wegame_score(
+    stats: &Stats,
+    team_kills: i32,
+    (max_damage, max_taken, max_gold, max_cs, max_turret): (i32, i32, i32, i32, i32),
+) -> f64 {
+    let kda = (stats.kills as f64 + stats.assists as f64) / f64::from(stats.deaths.max(1));
+    let n_kda = kda / (kda + 3.0);
+    let kp = if team_kills > 0 {
+        (f64::from(stats.kills + stats.assists) / f64::from(team_kills)).min(1.0)
+    } else {
+        0.0
+    };
+    let norm = |v: i32, m: i32| {
+        if m > 0 {
+            f64::from(v) / f64::from(m)
+        } else {
+            0.0
+        }
+    };
+    10.0 * (0.26 * n_kda
+        + 0.22 * norm(stats.total_damage_dealt_to_champions, max_damage)
+        + 0.18 * kp
+        + 0.10 * norm(stats.total_damage_taken, max_taken)
+        + 0.10 * norm(stats.gold_earned, max_gold)
+        + 0.08
+            * norm(
+                stats.total_minions_killed + stats.neutral_minions_killed,
+                max_cs,
+            )
+        + 0.06 * norm(stats.damage_dealt_to_turrets, max_turret))
 }
 
 /// 对局记录响应：平台 ID、索引范围、对局列表。
@@ -273,41 +312,169 @@ impl MatchHistory {
                 ((my_damage_taken / total_damage_taken as f64) * 100.0) as i32;
             my_stats.heal_rate = ((my_heal / total_heal as f64) * 100.0) as i32;
 
-            // MVP/SVP 计算：同队 KDA 最高者标记
-            let my_participant_id = game.participants[0].participant_id;
-            let my_kda = (game.participants[0].stats.kills as f64
-                + game.participants[0].stats.assists as f64)
-                / (game.participants[0].stats.deaths.max(1) as f64);
+            // MVP/SVP：WeGame 式综合评分——胜方最高分 MVP、败方最高分 SVP（此前为纯 KDA）。
+            // 评分函数 wegame_score 与前端 useMatchDetailPlayers.ts 同式，两端需同步修改。
+            let detail = &game.game_detail.participants;
 
-            let mut best_kda = my_kda;
-            let mut best_is_me = true;
-
-            for p in &game.game_detail.participants {
-                let same_team = if is_cherry && my_subteam > 0 {
-                    p.stats.player_subteam_id == my_subteam
+            // 参团率分母：所属队伍总击杀（CHERRY 按 subteam 分组）；同时收集全场各维最大值
+            let mut group_kills: HashMap<i32, i32> = HashMap::new();
+            let mut max_v = (0i32, 0i32, 0i32, 0i32, 0i32); // damage/taken/gold/cs/turret
+            for p in detail {
+                let key = if is_cherry && p.stats.player_subteam_id > 0 {
+                    p.stats.player_subteam_id
                 } else {
-                    p.team_id == team_id
+                    p.team_id
                 };
-                if same_team && p.participant_id != my_participant_id {
-                    let kda = (p.stats.kills as f64 + p.stats.assists as f64)
-                        / (p.stats.deaths.max(1) as f64);
-                    if kda > best_kda {
-                        best_kda = kda;
-                        best_is_me = false;
-                    }
-                }
+                *group_kills.entry(key).or_insert(0) += p.stats.kills;
+                max_v.0 = max_v.0.max(p.stats.total_damage_dealt_to_champions);
+                max_v.1 = max_v.1.max(p.stats.total_damage_taken);
+                max_v.2 = max_v.2.max(p.stats.gold_earned);
+                max_v.3 = max_v
+                    .3
+                    .max(p.stats.total_minions_killed + p.stats.neutral_minions_killed);
+                max_v.4 = max_v.4.max(p.stats.damage_dealt_to_turrets);
             }
-
-            if best_is_me {
-                game.mvp = if game.participants[0].stats.win {
-                    "MVP".to_string()
+            let score_of = |p: &Participant| {
+                let key = if is_cherry && p.stats.player_subteam_id > 0 {
+                    p.stats.player_subteam_id
                 } else {
-                    "SVP".to_string()
+                    p.team_id
                 };
+                wegame_score(&p.stats, *group_kills.get(&key).unwrap_or(&0), max_v)
+            };
+
+            let my_participant_id = game.participants[0].participant_id;
+            if let Some(me) = detail
+                .iter()
+                .find(|p| p.participant_id == my_participant_id)
+            {
+                let my_score = score_of(me);
+                // 与我同胜负侧的最高分（并列时我也算最高，与旧逻辑"平分我胜出"一致）
+                let best = detail
+                    .iter()
+                    .filter(|p| p.stats.win == me.stats.win)
+                    .map(&score_of)
+                    .fold(f64::MIN, f64::max);
+                if my_score >= best - 1e-9 {
+                    game.mvp = if me.stats.win {
+                        "MVP".to_string()
+                    } else {
+                        "SVP".to_string()
+                    };
+                }
             }
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod mvp_score_tests {
+    use super::*;
+
+    /// 测试造数：kda=(击杀,死亡,助攻)，econ=(输出,承伤,金币,补刀,推塔)
+    fn stats(kda: (i32, i32, i32), econ: (i32, i32, i32, i32, i32), win: bool) -> Stats {
+        Stats {
+            kills: kda.0,
+            deaths: kda.1,
+            assists: kda.2,
+            total_damage_dealt_to_champions: econ.0,
+            total_damage_taken: econ.1,
+            gold_earned: econ.2,
+            total_minions_killed: econ.3,
+            damage_dealt_to_turrets: econ.4,
+            win,
+            ..Default::default()
+        }
+    }
+
+    fn part(id: i32, team: i32, s: Stats) -> Participant {
+        Participant {
+            participant_id: id,
+            team_id: team,
+            champion_id: 1,
+            spell1_id: 0,
+            spell2_id: 0,
+            stats: s,
+        }
+    }
+
+    /// 场景：无死亡低伤"蹭分型"(10/0/8, KDA 18) vs 真核 carry(9/2/15, 全场最高
+    /// 输出/承伤/经济/补刀/推塔)。旧的纯 KDA 公式会选前者——新综合评分应选 carry。
+    fn farmer() -> Participant {
+        part(
+            1,
+            100,
+            stats((10, 0, 8), (8_000, 5_000, 9_000, 100, 0), true),
+        )
+    }
+    fn carry() -> Participant {
+        part(
+            2,
+            100,
+            stats((9, 2, 15), (40_000, 30_000, 15_000, 200, 5_000), true),
+        )
+    }
+    fn loser() -> Participant {
+        part(
+            6,
+            200,
+            stats((3, 8, 4), (12_000, 20_000, 8_000, 120, 500), false),
+        )
+    }
+
+    fn game_with_me(me: Participant) -> MatchHistory {
+        let mut game = Game {
+            game_mode: "CLASSIC".to_string(),
+            participants: vec![me],
+            ..Default::default()
+        };
+        game.game_detail.participants = vec![farmer(), carry(), loser()];
+        MatchHistory {
+            games: GamesWrapper { games: vec![game] },
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn composite_score_prefers_carry_over_no_death_farmer() {
+        let team_kills = 10 + 9;
+        let max_v = (40_000, 30_000, 15_000, 200, 5_000);
+        let s_farmer = wegame_score(&farmer().stats, team_kills, max_v);
+        let s_carry = wegame_score(&carry().stats, team_kills, max_v);
+        assert!(
+            s_carry > s_farmer,
+            "carry {s_carry:.2} 应高于蹭分型 {s_farmer:.2}"
+        );
+    }
+
+    #[test]
+    fn calculate_marks_composite_best_as_mvp() {
+        let mut mh = game_with_me(carry());
+        mh.calculate().unwrap();
+        assert_eq!(
+            mh.games.games[0].mvp, "MVP",
+            "综合评分最高的 carry 应为 MVP"
+        );
+    }
+
+    #[test]
+    fn calculate_denies_mvp_to_kda_farmer() {
+        let mut mh = game_with_me(farmer());
+        mh.calculate().unwrap();
+        // 旧纯 KDA 公式下 farmer(KDA 18)会拿 MVP；新公式下它不是综合最高分
+        assert_eq!(mh.games.games[0].mvp, "", "纯蹭 KDA 不应再拿 MVP");
+    }
+
+    #[test]
+    fn calculate_marks_loser_best_as_svp() {
+        let mut mh = game_with_me(loser());
+        mh.calculate().unwrap();
+        assert_eq!(
+            mh.games.games[0].mvp, "SVP",
+            "败方唯一玩家即败方最高分，应为 SVP"
+        );
     }
 }
 

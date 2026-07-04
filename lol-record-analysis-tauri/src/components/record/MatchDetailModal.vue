@@ -161,6 +161,21 @@
                       />
                       <div class="match-detail-player-text">
                         <div class="match-detail-player-text-row">
+                          <n-tooltip v-if="player.mvpTag" trigger="hover" placement="top">
+                            <template #trigger>
+                              <span
+                                class="match-detail-mvp-chip"
+                                :class="
+                                  player.mvpTag === 'MVP'
+                                    ? 'match-detail-mvp-chip--mvp'
+                                    : 'match-detail-mvp-chip--svp'
+                                "
+                                >{{ player.mvpTag }}</span
+                              >
+                            </template>
+                            综合评分 {{ player.score.toFixed(1) }} ·
+                            KDA/输出/参团/承伤/经济/补刀/推塔 七维加权
+                          </n-tooltip>
                           <span class="match-detail-player-display">{{ player.displayName }}</span>
                           <n-button
                             text
@@ -1172,6 +1187,30 @@ watch(
   gap: var(--space-4);
 }
 
+/* MVP/SVP 章：金/银双档，WeGame 式综合评分的胜败双方最高分 */
+.match-detail-mvp-chip {
+  --chip-color: #f2bf63;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  font-size: 10px;
+  font-weight: 800;
+  font-style: italic;
+  letter-spacing: 0.04em;
+  line-height: 1.3;
+  color: var(--chip-color);
+  background: color-mix(in srgb, var(--chip-color) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--chip-color) 45%, transparent);
+  flex-shrink: 0;
+}
+
+.match-detail-mvp-chip--mvp {
+  --chip-color: #f2bf63;
+}
+
+.match-detail-mvp-chip--svp {
+  --chip-color: #aab8c8;
+}
+
 .match-detail-player-text-row :deep(.n-tag) {
   color: var(--text-primary);
 }
@@ -1192,6 +1231,10 @@ watch(
 .match-detail-badge-kills {
   color: #f2bf63;
   background: rgba(242, 191, 99, 0.14);
+}
+.match-detail-badge-damage {
+  color: #e5a732;
+  background: rgba(229, 167, 50, 0.16);
 }
 .match-detail-badge-assists {
   color: #63d8b4;

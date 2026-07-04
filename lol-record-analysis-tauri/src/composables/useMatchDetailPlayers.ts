@@ -2,13 +2,15 @@
  * 战绩详情页的玩家数据整理：
  * - 将 game 拍平为 DetailPlayer[]
  * - 计算队伍汇总、所属 teamRelative 占比
- * - 打"最多杀人/助攻/推塔/金币/承伤/补兵" badges
+ * - 打"最多杀人/伤害/助攻/推塔/金币/承伤/补兵" badges
+ * - WeGame 式综合评分选 MVP（胜方最高分）/ SVP（败方最高分）
  */
 
 import { computed, type MaybeRefOrGetter, toValue, type Component } from 'vue'
 import {
   CashOutline,
   FlagOutline,
+  FlameOutline,
   FootstepsOutline,
   PeopleOutline,
   ShieldOutline,
@@ -41,6 +43,10 @@ export interface DetailPlayer {
   isMe: boolean
   win: boolean
   badges: PlayerBadge[]
+  /** WeGame 式综合评分（0~10），见 {@link computeMatchScore} */
+  score: number
+  /** 胜方最高分 MVP / 败方最高分 SVP，其余为空 */
+  mvpTag: 'MVP' | 'SVP' | ''
   teamRelative: {
     damage: number
     taken: number
@@ -65,6 +71,37 @@ function totalCs(stats: ParticipantStats) {
   return stats.totalMinionsKilled + stats.neutralMinionsKilled
 }
 
+/** 评分上下文：所属队伍总击杀（参团率分母）+ 全场各维度最大值（归一化分母） */
+export interface ScoreContext {
+  teamKills: number
+  max: { damage: number; taken: number; gold: number; cs: number; turret: number }
+}
+
+/**
+ * WeGame 式综合评分（0~10）：KDA、输出、参团率、承伤、经济、补刀、推塔 七维加权。
+ *
+ * 各维归一到 0..1（KDA 用饱和函数 kda/(kda+3)，其余除以全场最大值），加权和乘 10。
+ * 权重：KDA 26% / 输出 22% / 参团 18% / 承伤 10% / 经济 10% / 补刀 8% / 推塔 6%。
+ *
+ * ⚠️ 与后端 `match_history.rs::wegame_score` 同式——两端必须同步修改。
+ */
+export function computeMatchScore(s: ParticipantStats, ctx: ScoreContext): number {
+  const kda = (s.kills + s.assists) / Math.max(1, s.deaths)
+  const nKda = kda / (kda + 3)
+  const kp = ctx.teamKills > 0 ? Math.min(1, (s.kills + s.assists) / ctx.teamKills) : 0
+  const norm = (v: number, m: number) => (m > 0 ? v / m : 0)
+  return (
+    10 *
+    (0.26 * nKda +
+      0.22 * norm(s.totalDamageDealtToChampions, ctx.max.damage) +
+      0.18 * kp +
+      0.1 * norm(s.totalDamageTaken, ctx.max.taken) +
+      0.1 * norm(s.goldEarned, ctx.max.gold) +
+      0.08 * norm(totalCs(s), ctx.max.cs) +
+      0.06 * norm(s.damageDealtToTurrets, ctx.max.turret))
+  )
+}
+
 const badgeConfigs = [
   {
     key: 'kills',
@@ -72,6 +109,13 @@ const badgeConfigs = [
     icon: SkullOutline,
     className: 'match-detail-badge-kills',
     value: (s: ParticipantStats) => s.kills
+  },
+  {
+    key: 'damage',
+    label: '伤害最多',
+    icon: FlameOutline,
+    className: 'match-detail-badge-damage',
+    value: (s: ParticipantStats) => s.totalDamageDealtToChampions
   },
   {
     key: 'assists',
@@ -131,15 +175,50 @@ export function useMatchDetailPlayers(
     const groupKey = (p: Participant) =>
       isCherry && p.stats.playerSubteamId > 0 ? p.stats.playerSubteamId : p.teamId
 
-    const teamTotals = new Map<number, { damage: number; taken: number; heal: number }>()
+    const teamTotals = new Map<
+      number,
+      { damage: number; taken: number; heal: number; kills: number }
+    >()
     for (const p of participants) {
       const key = groupKey(p)
-      const cur = teamTotals.get(key) ?? { damage: 0, taken: 0, heal: 0 }
+      const cur = teamTotals.get(key) ?? { damage: 0, taken: 0, heal: 0, kills: 0 }
       cur.damage += p.stats.totalDamageDealtToChampions
       cur.taken += p.stats.totalDamageTaken
       cur.heal += p.stats.totalHeal
+      cur.kills += p.stats.kills
       teamTotals.set(key, cur)
     }
+
+    // WeGame 式评分：全场各维度最大值做归一化分母，逐人打分
+    const gameMax = { damage: 0, taken: 0, gold: 0, cs: 0, turret: 0 }
+    for (const p of participants) {
+      gameMax.damage = Math.max(gameMax.damage, p.stats.totalDamageDealtToChampions)
+      gameMax.taken = Math.max(gameMax.taken, p.stats.totalDamageTaken)
+      gameMax.gold = Math.max(gameMax.gold, p.stats.goldEarned)
+      gameMax.cs = Math.max(gameMax.cs, totalCs(p.stats))
+      gameMax.turret = Math.max(gameMax.turret, p.stats.damageDealtToTurrets)
+    }
+    const scoreById = new Map<number, number>()
+    for (const p of participants) {
+      scoreById.set(
+        p.participantId,
+        computeMatchScore(p.stats, {
+          teamKills: teamTotals.get(groupKey(p))?.kills ?? 0,
+          max: gameMax
+        })
+      )
+    }
+    // 胜方最高分 MVP、败方最高分 SVP（并列时取 participantId 小者，保证确定性）
+    const bestOf = (win: boolean) =>
+      [...participants]
+        .filter(p => p.stats.win === win)
+        .sort(
+          (a, b) =>
+            (scoreById.get(b.participantId) ?? 0) - (scoreById.get(a.participantId) ?? 0) ||
+            a.participantId - b.participantId
+        )[0]?.participantId
+    const mvpId = bestOf(true)
+    const svpId = bestOf(false)
 
     const badgeWinners = new Map<string, Set<number>>()
     for (const cfg of badgeConfigs) {
@@ -158,9 +237,15 @@ export function useMatchDetailPlayers(
         const displayName = identity
           ? `${identity.player.gameName}#${identity.player.tagLine}`
           : `玩家${p.participantId}`
-        const totals = teamTotals.get(groupKey(p)) ?? { damage: 0, taken: 0, heal: 0 }
+        const totals = teamTotals.get(groupKey(p)) ?? { damage: 0, taken: 0, heal: 0, kills: 0 }
 
         return {
+          score: scoreById.get(p.participantId) ?? 0,
+          mvpTag: (p.participantId === mvpId
+            ? 'MVP'
+            : p.participantId === svpId
+              ? 'SVP'
+              : '') as DetailPlayer['mvpTag'],
           participantId: p.participantId,
           teamId: p.teamId,
           championId: p.championId,
