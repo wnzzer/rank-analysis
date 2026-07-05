@@ -398,7 +398,14 @@ fn build_classic_subteams(session: &mut Session, session_data: &mut SessionData,
     }
 
     let selections = &session.game_data.player_champion_selections;
-    if selections.len() == 10 {
+    // 选人阶段绝不用 selections 回填：新选人早期 gameflow session 常残留
+    // **上一局**的 playerChampionSelections（10 条，可能包含自己），会把上一局
+    // 敌方灌回刚被清空的 team_two——表现为"第二局选人时对面还是上一局的人、
+    // 我同时出现在两边"。我方来自 champ-select session（权威），敌方在选人
+    // 阶段本就不可见，应保持为空。selections 回填仅服务于 InProgress 起始段
+    // gameflow 队伍数据不全的场景。
+    let in_champ_select = session.phase == "ChampSelect";
+    if selections.len() == 10 && !in_champ_select {
         let (first_five, second_five) = if need_swap {
             (&selections[5..10], &selections[0..5])
         } else {
@@ -1052,6 +1059,79 @@ mod tests {
             .players
             .iter()
             .any(|p| p.summoner.puuid == "ally-1"));
+    }
+
+    /// 造 10 条"上一局残留"的 selections（我在后五，模拟上一局在红色方）。
+    fn stale_selections_with_me(
+        my_puuid: &str,
+    ) -> Vec<crate::lcu::api::session::PlayerChampionSelection> {
+        (1..=10)
+            .map(|i| crate::lcu::api::session::PlayerChampionSelection {
+                champion_id: i,
+                puuid: if i == 7 {
+                    my_puuid.to_string()
+                } else {
+                    format!("stale-{}", i)
+                },
+            })
+            .collect()
+    }
+
+    /// 回归：新选人早期 gameflow session 残留上一局 selections 时，
+    /// 绝不能把上一局敌方灌回刚清空的 team_two（真机复现：第二局选人时
+    /// 对面显示上一局十人、且"我"同时出现在两边）。
+    #[test]
+    fn champselect_must_not_refill_enemy_from_stale_selections() {
+        let mut session = make_session_classic();
+        session.phase = "ChampSelect".into();
+        // 模拟 process_session_data 的 ChampSelect 分支：我方来自选人会话、敌方已清空
+        session.game_data.team_one.truncate(5);
+        session.game_data.team_two.clear();
+        // gameflow 残留：上一局的 10 条 selections（含"我"在后五）
+        session.game_data.player_champion_selections = stale_selections_with_me("ally-1");
+
+        let mut data = SessionData {
+            game_mode: "CLASSIC".into(),
+            ..Default::default()
+        };
+        build_classic_subteams(&mut session, &mut data, "ally-1");
+
+        assert_eq!(
+            data.subteams[1].players.len(),
+            0,
+            "选人阶段敌方必须保持为空，不得被上一局 selections 回填"
+        );
+        // 我方不受影响
+        assert_eq!(data.subteams[0].players.len(), 5);
+        // "我"绝不能出现在敌方
+        assert!(
+            !data.subteams[1]
+                .players
+                .iter()
+                .any(|p| p.summoner.puuid == "ally-1"),
+            "我不应出现在敌方小队"
+        );
+    }
+
+    /// 对照：InProgress 阶段 gameflow 队伍不全时，selections 回填行为保留。
+    #[test]
+    fn inprogress_still_refills_teams_from_selections() {
+        let mut session = make_session_classic();
+        session.phase = "InProgress".into();
+        session.game_data.team_two.clear(); // 模拟 gameflow 队伍数据不全
+        session.game_data.player_champion_selections = stale_selections_with_me("ally-1");
+
+        let mut data = SessionData {
+            game_mode: "CLASSIC".into(),
+            ..Default::default()
+        };
+        build_classic_subteams(&mut session, &mut data, "ally-1");
+
+        assert_eq!(
+            data.subteams[1].players.len(),
+            5,
+            "InProgress 下 selections 回填应保留（本局数据合法）"
+        );
     }
 
     #[test]
