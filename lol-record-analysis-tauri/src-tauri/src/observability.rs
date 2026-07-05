@@ -121,6 +121,13 @@ pub fn init() -> Option<sentry::ClientInitGuard> {
     Some(guard)
 }
 
+/// 当前设备的匿名 ID（供「关于」页展示，用户报障时附上即可在 Sentry 按 user.id 定位）。
+///
+/// 文件不存在时会生成并落盘——即使上报未开启也返回稳定 ID，便于将来开启后对上。
+pub fn current_device_id() -> String {
+    device_id(Path::new(DEVICE_ID_FILE))
+}
+
 /// 把当前登录大区（如 `HN1` / `TJ100`）设为全局 tag，供 Sentry 侧按大区切片。
 ///
 /// 大区是粗粒度服务器标识、非 PII。由 `game_state_monitor` 在 LCU 连接后调用；

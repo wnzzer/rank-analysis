@@ -8,6 +8,14 @@
 //! UAC，并与 `currentUser` 安装模式、自动更新静默重启相冲突。只在真正需要时提权，
 //! 普通使用路径不受影响。
 
+/// 获取匿名设备 ID（「关于」页展示用）。
+///
+/// 用户报障时附上此 ID，即可在 Sentry 侧按 `user.id` 精确定位其事件/日志/会话。
+#[tauri::command]
+pub fn get_device_id() -> String {
+    crate::observability::current_device_id()
+}
+
 /// 以管理员身份重新启动本程序。
 ///
 /// 通过 `ShellExecuteW` 的 `runas` 动词拉起一个提权实例（触发 UAC），成功后退出
