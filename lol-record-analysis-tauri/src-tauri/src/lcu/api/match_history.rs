@@ -22,10 +22,18 @@ pub(crate) fn resolve_queue_name_cn(queue_id: i32, game_mode: &str) -> String {
     if let Some(s) = constant::game::get_queue_id_to_cn(queue_id as u32) {
         return s.to_string();
     }
-    if game_mode == "CHERRY" {
-        return "斗魂竞技场".to_string();
+    // queueId 未收录时按 gameMode 兜底——新变种层出不穷，宁可给个模式级名字
+    // 也不要在卡片上顶着刺眼的"未知"。
+    match game_mode {
+        "CHERRY" => "斗魂竞技场".to_string(),
+        "ARAM" => "极地大乱斗".to_string(),
+        "URF" => "无限火力".to_string(),
+        "NEXUSBLITZ" => "极限闪击".to_string(),
+        "PRACTICETOOL" => "训练模式".to_string(),
+        "TUTORIAL" => "新手教程".to_string(),
+        "CLASSIC" => "召唤师峡谷".to_string(),
+        _ => "未知".to_string(),
     }
-    "未知".to_string()
 }
 
 /// WeGame 式综合评分（0~10）：KDA、输出、参团率、承伤、经济、补刀、推塔 七维加权。
@@ -498,8 +506,22 @@ mod queue_name_tests {
     }
 
     #[test]
-    fn unknown_non_cherry_queue_still_returns_unknown() {
-        assert_eq!(resolve_queue_name_cn(99999, "CLASSIC"), "未知");
+    fn unknown_queue_falls_back_to_game_mode_name() {
+        // 未收录 queueId 按 gameMode 给模式级名字，不再顶着"未知"
+        assert_eq!(resolve_queue_name_cn(99999, "CLASSIC"), "召唤师峡谷");
+        assert_eq!(resolve_queue_name_cn(99999, "ARAM"), "极地大乱斗");
+        assert_eq!(resolve_queue_name_cn(99999, "URF"), "无限火力");
+        // gameMode 也未知时才落到"未知"
         assert_eq!(resolve_queue_name_cn(99999, ""), "未知");
+        assert_eq!(resolve_queue_name_cn(99999, "SOMETHING_NEW"), "未知");
+    }
+
+    #[test]
+    fn newly_mapped_queue_ids_resolve() {
+        assert_eq!(resolve_queue_name_cn(480, "CLASSIC"), "快速匹配");
+        assert_eq!(resolve_queue_name_cn(870, "CLASSIC"), "人机");
+        // 真机实测：训练模式 queueId=3140 / gameMode=PRACTICETOOL（此前显示"未知"）
+        assert_eq!(resolve_queue_name_cn(3140, "PRACTICETOOL"), "训练模式");
+        assert_eq!(resolve_queue_name_cn(99999, "PRACTICETOOL"), "训练模式");
     }
 }

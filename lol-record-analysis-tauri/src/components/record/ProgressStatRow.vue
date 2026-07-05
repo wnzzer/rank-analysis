@@ -7,11 +7,12 @@
       <span v-if="rawValue !== undefined" class="progress-stat-raw-value">{{ rawValue }}</span>
       <div v-else class="progress-stat-raw-value progress-stat-raw-value-spacer"></div>
       <div class="progress-stat-center">
+        <!-- 6px：8px 显粗、5px 又衬不住 base 字号的百分比数字，取中 -->
         <n-progress
           type="line"
           :percentage="percent"
           :color="color"
-          :height="8"
+          :height="6"
           :show-indicator="false"
           rail-color="rgba(255, 255, 255, 0.1)"
         />
@@ -41,14 +42,16 @@ defineProps<{
 }
 
 .progress-stat-label-group {
-  /* 与 RecentStatsTable 同步收紧 */
-  width: 60px;
+  /* 74px 容下"图标+三字标签"（如 参团率）在大屏放大字号下不换行；
+     与 RecentStatsTable 同步 */
+  width: 74px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   color: var(--text-secondary);
   font-weight: 500;
   gap: var(--space-6);
+  white-space: nowrap;
 }
 
 .progress-stat-value-group {

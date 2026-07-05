@@ -8,7 +8,9 @@
     @click="openDetail"
     @keyup.enter="openDetail"
   >
-    <n-flex align="center" justify="space-between">
+    <!-- 固定列网格：所有卡片共用同一套列轨道，行与行严格对齐
+         （旧 space-between 弹性布局会让列落点随内容漂移） -->
+    <div class="record-card-grid">
       <n-flex vertical class="record-card-result">
         <span
           class="font-number record-card-result-label"
@@ -39,7 +41,7 @@
         </template>
       </div>
 
-      <n-flex vertical>
+      <n-flex vertical class="record-card-queue-block">
         <span class="font-number record-card-queue">{{ games.queueName }}</span>
         <span class="record-card-meta">
           <n-icon class="record-card-meta-icon">
@@ -50,16 +52,17 @@
       </n-flex>
 
       <n-flex justify="space-between" vertical class="record-card-kda-block">
-        <n-flex justify="space-between">
+        <!-- KDA + 技能/海克斯紧凑同组靠左（不再 space-between 把图标推到列右缘悬空） -->
+        <n-flex justify="start" align="center" :size="10">
           <span class="font-number record-card-kda">
             <span class="record-card-kda-kill">
               {{ games.participants[0].stats?.kills }}
             </span>
-            /
+            <span class="record-card-kda-sep">/</span>
             <span class="record-card-kda-death">
               {{ games.participants[0].stats?.deaths }}
             </span>
-            /
+            <span class="record-card-kda-sep">/</span>
             <span class="record-card-kda-assist">
               {{ games.participants[0].stats?.assists }}
             </span>
@@ -128,31 +131,35 @@
             </n-tooltip>
           </n-flex>
         </n-flex>
-        <!-- 装备区域（所有模式都显示） -->
+        <!-- 装备区域（所有模式都显示）；空格渲染内凹暗槽而非黑块 -->
         <n-flex class="record-card-item-slots" :size="1">
-          <n-tooltip
-            v-for="(itemId, index) in itemIds"
-            :key="`record-item-${index}`"
-            trigger="hover"
-            placement="top"
-            :disabled="!assets.detailOf('item', itemId)"
-          >
-            <template #trigger>
-              <LazyImg
-                :src="assets.srcOf('item', itemId)"
-                class="record-card-icon-slot"
-                alt="item"
+          <template v-for="(itemId, index) in itemIds" :key="`record-item-${index}`">
+            <n-tooltip
+              v-if="itemId > 0"
+              trigger="hover"
+              placement="top"
+              :disabled="!assets.detailOf('item', itemId)"
+            >
+              <template #trigger>
+                <LazyImg
+                  :src="assets.srcOf('item', itemId)"
+                  class="record-card-icon-slot"
+                  alt="item"
+                />
+              </template>
+              <AssetTooltipContent
+                v-if="assets.detailOf('item', itemId)"
+                :icon-src="assets.srcOf('item', itemId)"
+                :name="assets.detailOf('item', itemId)?.name ?? ''"
+                :description="assets.detailOf('item', itemId)?.description ?? ''"
               />
-            </template>
-            <AssetTooltipContent
-              v-if="assets.detailOf('item', itemId)"
-              :icon-src="assets.srcOf('item', itemId)"
-              :name="assets.detailOf('item', itemId)?.name ?? ''"
-              :description="assets.detailOf('item', itemId)?.description ?? ''"
-            />
-          </n-tooltip>
+            </n-tooltip>
+            <span v-else class="record-card-icon-slot record-card-item-empty" />
+          </template>
         </n-flex>
       </n-flex>
+
+      <!-- 输出/承伤/治疗统计盒（原版观感：图标+圆点+数值+百分比）；列宽固定保证行间对齐 -->
       <div class="record-card-stats-block">
         <StatDots
           :icon="FlameOutline"
@@ -181,7 +188,8 @@
           :percent="games.participants[0].stats?.healRate ?? 0"
         />
       </div>
-      <n-flex vertical justify="space-between" class="record-card-teams">
+
+      <div class="record-card-teams">
         <TeamAvatarGroup
           :identities="games.gameDetail.participantIdentities"
           :participants="games.gameDetail.participants"
@@ -190,7 +198,9 @@
           :is-dark="isDark"
           @nav-to-name="toNameRecord"
         />
+        <!-- 第二队为空（人机/残缺数据）时不渲染，避免出现灰色空 pill -->
         <TeamAvatarGroup
+          v-if="hasSecondTeam"
           :identities="games.gameDetail.participantIdentities"
           :participants="games.gameDetail.participants"
           :team-offset="5"
@@ -198,8 +208,8 @@
           :is-dark="isDark"
           @nav-to-name="toNameRecord"
         />
-      </n-flex>
-    </n-flex>
+      </div>
+    </div>
   </n-card>
 </template>
 
@@ -282,6 +292,11 @@ const itemIds = computed(() => {
   return [s.item0, s.item1, s.item2, s.item3, s.item4, s.item5, s.item6]
 })
 
+/** 第二队是否有数据（人机/残缺对局只有一队，隐藏空组避免灰 pill） */
+const hasSecondTeam = computed(
+  () => (props.games.gameDetail?.participantIdentities?.length ?? 0) > 5
+)
+
 /**
  * 优先使用父级（MatchHistory）批量预加载的资源 —— 同一页 N 张卡共享一次 IPC
  * 独立使用时（无 inject）退回自己的 preload
@@ -352,6 +367,15 @@ function openDetail() {
   width: 3px;
   border-radius: var(--radius-lg) 0 0 var(--radius-lg);
   z-index: 1;
+  transition:
+    width var(--dur-fast) var(--ease-expo),
+    filter var(--dur-fast) var(--ease-expo);
+}
+
+/* hover 微交互：胜负条增亮加宽，与卡片上浮联动 */
+.record-card:hover::before {
+  width: 4px;
+  filter: brightness(1.25);
 }
 
 .record-card-win::before {
@@ -364,6 +388,50 @@ function openDetail() {
   box-shadow: var(--glow-loss);
 }
 
+/* 胜负色 wash：极淡的结果色从左向右渐隐铺满卡面——胜负情绪不再只挤在
+   左缘 3px 里（op.gg/WeGame 的行业语言；详情页头部环境光同款手法） */
+.record-card-win {
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--semantic-win) 9%, transparent),
+      color-mix(in srgb, var(--semantic-win) 3%, transparent) 34%,
+      transparent 58%
+    ),
+    var(--glass-bg-mid) !important;
+}
+
+.record-card-loss {
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--semantic-loss) 8%, transparent),
+      color-mix(in srgb, var(--semantic-loss) 3%, transparent) 34%,
+      transparent 58%
+    ),
+    var(--glass-bg-mid) !important;
+}
+
+.theme-light .record-card-win {
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--semantic-win) 7%, transparent),
+      transparent 55%
+    ),
+    var(--glass-bg-mid) !important;
+}
+
+.theme-light .record-card-loss {
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--semantic-loss) 6%, transparent),
+      transparent 55%
+    ),
+    var(--glass-bg-mid) !important;
+}
+
 .record-card:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-lg), var(--glass-highlight) !important;
@@ -372,6 +440,24 @@ function openDetail() {
 .record-card:active {
   transform: scale(0.995);
   transition-duration: var(--dur-instant);
+}
+
+/* === 固定列网格：结果 | 头像 | 队列 | KDA+装备 | 三色条 | 队伍头像 ===
+   所有卡片共用同一套列轨道 → 行与行严格对齐 */
+.record-card-grid {
+  display: grid;
+  /* 固定列轨道保证行间对齐；space-between 把富余空隙均摊到列间——
+     还原原版的松弛呼吸感（1fr 会把空间全吞在一处，左侧显挤） */
+  grid-template-columns:
+    58px
+    clamp(42px, calc(42px + (100vw - 1100px) * 10 / 1100), 52px)
+    minmax(64px, 84px)
+    minmax(174px, 216px)
+    172px
+    140px;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-8);
 }
 
 /* === 结果列（胜利/失败 + 时长） === */
@@ -420,30 +506,56 @@ function openDetail() {
   display: block;
   width: clamp(42px, calc(42px + (100vw - 1100px) * 10 / 1100), 52px);
   height: clamp(42px, calc(42px + (100vw - 1100px) * 10 / 1100), 52px);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  box-sizing: border-box;
 }
 
+/* 胜负色细环：呼应左侧胜负条，一眼扫过整列即读出胜负节奏 */
+.record-card-win .record-card-champion-img {
+  border-color: color-mix(in srgb, var(--semantic-win) 45%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--semantic-win) 16%, transparent);
+}
+
+.record-card-loss .record-card-champion-img {
+  border-color: color-mix(in srgb, var(--semantic-loss) 40%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--semantic-loss) 14%, transparent);
+}
+
+/* MVP/SVP 徽章：金/银渐变 + 内高光 + 微光晕（替代平面色块贴纸） */
 .record-card-mvp {
   position: absolute;
-  left: 0;
-  bottom: 0;
+  left: -3px;
+  bottom: -3px;
   display: inline-block;
-  width: 20px;
-  height: 11px;
-  color: #000;
-  font-weight: bold;
+  padding: 0 5px;
+  height: 12px;
+  font-weight: 800;
+  font-style: italic;
   font-size: 8px;
-  line-height: 11px;
+  line-height: 12px;
+  letter-spacing: 0.03em;
   text-align: center;
-  border-radius: var(--radius-xs);
-  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius-pill);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    var(--shadow-sm);
 }
 
 .record-card-mvp-gold {
-  background-color: #ffd700;
+  color: #201500;
+  background: linear-gradient(180deg, #f6d365, #d4a017);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    0 0 8px rgba(244, 198, 88, 0.35);
 }
 
 .record-card-mvp-silver {
-  background-color: #ffffff;
+  color: #1c232b;
+  background: linear-gradient(180deg, #eef3f9, #aab8c8);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    0 0 8px rgba(190, 205, 222, 0.3);
 }
 
 /* === 队列名 === */
@@ -458,7 +570,8 @@ function openDetail() {
 }
 
 .record-card-kda > span {
-  font-weight: 500;
+  /* KDA 是卡片核心数据，加重一档立住主角地位 */
+  font-weight: 650;
   font-size: var(--font-size-base);
 }
 
@@ -471,11 +584,16 @@ function openDetail() {
 }
 
 .record-card-kda-assist {
-  /* 助攻金色：暂无 token，保留 hex */
-  color: #b8860b;
+  /* 助攻金色：#b8860b 在暗底几乎不可读，提亮一档 */
+  color: #d19a2f;
 }
 
-/* === 战绩统计块 === */
+/* 分隔符淡化：让三个数字成为主角（详情页同款纪律） */
+.record-card-kda-sep {
+  color: var(--text-tertiary);
+}
+
+/* === 输出/承伤/治疗统计盒（原版观感：带边框玻璃盒 + StatDots），定宽保对齐 === */
 .record-card-stats-block {
   display: flex;
   flex-direction: column;
@@ -488,15 +606,18 @@ function openDetail() {
   box-shadow: var(--shadow-sm);
 }
 
-/* === 队伍头像列 === */
+/* === 队伍头像列：两行胶囊 = 我方/敌方，列宽足够 5 人单行排布 === */
 .record-card-teams {
-  gap: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  justify-content: center;
 }
 
-/* === 装备/技能 图标槽 === */
+/* === 装备/技能 图标槽（2px 缝隙缓解密压感） === */
 .record-card-item-slots,
 .record-card-spell-icons {
-  gap: 1px;
+  gap: 2px;
 }
 
 .record-card-item-slots :deep(.n-image),
@@ -515,6 +636,13 @@ function openDetail() {
 
 .record-card-spell-icons {
   display: inline-flex;
+}
+
+/* 空装备格：内凹暗槽，与实图标同尺寸——黑块像图片加载失败 */
+.record-card-item-empty {
+  display: inline-block;
+  border-color: color-mix(in srgb, var(--glass-border) 55%, transparent) !important;
+  background: color-mix(in srgb, var(--bg-elevated) 45%, transparent) !important;
 }
 
 /* === 海克斯强化 === */

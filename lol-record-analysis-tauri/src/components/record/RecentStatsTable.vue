@@ -133,8 +133,9 @@ const cardContentStyle = 'padding: var(--space-12)'
 }
 
 .recent-stats-label-group {
-  /* 收紧到 60px 给右侧 KDA / progress / raw-value 让出 20px 空间 */
-  width: 60px;
+  /* 74px 容下大屏放大字号的三字标签，与 ProgressStatRow 同步 */
+  width: 74px;
+  white-space: nowrap;
   flex-shrink: 0;
   display: flex;
   align-items: center;
