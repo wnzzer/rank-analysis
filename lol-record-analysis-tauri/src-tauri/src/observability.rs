@@ -92,9 +92,20 @@ pub fn init() -> Option<sentry::ClientInitGuard> {
             // 国服网络下 sentry.io 常不可达：关闭时最多只等 1s flush（默认 2s），
             // 避免每次退出都顿挫。
             shutdown_timeout: std::time::Duration::from_secs(1),
-            // 关闭 release health 的 session 上报，省掉启动/关闭的网络包；
-            // 崩溃率统计对小项目意义不大，需要时再开。
-            auto_session_tracking: false,
+            // Release Health 会话：Sentry 原生的 DAU / WAU / 版本采用率 / crash-free
+            // 数据源（每次启动一个 session，配合 user.id 去重出活跃用户）。
+            auto_session_tracking: true,
+            session_mode: sentry::SessionMode::Application,
+            // 维度：debug / release 分环境，Sentry 侧所有面板都可按此过滤，
+            // 开发期自己的会话不再污染真实用户数据。
+            environment: Some(
+                if cfg!(debug_assertions) {
+                    "debug"
+                } else {
+                    "release"
+                }
+                .into(),
+            ),
             ..Default::default()
         },
     ));
@@ -108,6 +119,24 @@ pub fn init() -> Option<sentry::ClientInitGuard> {
     });
     log::info!("Sentry error reporting ENABLED");
     Some(guard)
+}
+
+/// 把当前登录大区（如 `HN1` / `TJ100`）设为全局 tag，供 Sentry 侧按大区切片。
+///
+/// 大区是粗粒度服务器标识、非 PII。由 `game_state_monitor` 在 LCU 连接后调用；
+/// 上报未开启时 `configure_scope` 是无客户端 no-op，无需额外判断。
+pub fn set_region_tag(platform_id: &str) {
+    sentry::configure_scope(|scope| {
+        scope.set_tag("region", platform_id);
+    });
+}
+
+/// 功能用量打点：向 Sentry Logs 发一条带 `feature` attribute 的结构化日志。
+///
+/// 在 Logs 面板按 `feature` 聚合即得各功能使用量 / 使用用户数（配合 user.id）。
+/// 只传静态功能名，不携带任何用户数据；上报未开启时为 no-op。
+pub fn track_feature(feature: &'static str) {
+    sentry::logger_info!(feature = feature, kind = "usage", "feature_used");
 }
 
 /// 读取或首次生成匿名设备 ID。
