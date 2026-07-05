@@ -123,6 +123,7 @@ pub async fn launch_league() -> Result<(), String> {
     persist_install_root(&root).await;
     spawn_detached(&target)?;
     log::info!("已拉起国服登录客户端（免 WeGame）");
+    crate::observability::track_feature("launch_league");
     Ok(())
 }
 

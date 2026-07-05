@@ -70,6 +70,7 @@ pub async fn get_sgp_match_history_by_name(
     beg_index: i32,
     count: i32,
 ) -> Result<MatchHistory, String> {
+    crate::observability::track_feature("sgp_cross_region_query");
     sgp::get_match_history_by_name(&region, &name, beg_index, count).await
 }
 

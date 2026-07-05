@@ -188,6 +188,14 @@ impl GameStateMonitor {
                 crate::command::launcher::remember_install_root().await;
             });
 
+            // 维度标签：把当前登录大区（HN1/TJ100…）挂到 Sentry 全局 scope，
+            // 错误/日志可按大区切片（粗粒度非 PII；上报关闭时为 no-op）。
+            tokio::spawn(async {
+                if let Ok(pid) = crate::lcu::api::sgp::get_current_platform_id().await {
+                    crate::observability::set_region_tag(&pid);
+                }
+            });
+
             if crate::lcu::api::asset::champion_cache_is_empty() {
                 log::info!("LCU 已连接，正在补全静态资源缓存...");
                 tokio::spawn(async move {
