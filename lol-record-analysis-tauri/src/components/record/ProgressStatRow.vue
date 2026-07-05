@@ -7,14 +7,14 @@
       <span v-if="rawValue !== undefined" class="progress-stat-raw-value">{{ rawValue }}</span>
       <div v-else class="progress-stat-raw-value progress-stat-raw-value-spacer"></div>
       <div class="progress-stat-center">
-        <!-- 5px 细条：8px 在小面板里显粗（与战绩卡/详情页的细条一个量级） -->
+        <!-- 6px：8px 显粗、5px 又衬不住 base 字号的百分比数字，取中 -->
         <n-progress
           type="line"
           :percentage="percent"
           :color="color"
-          :height="5"
+          :height="6"
           :show-indicator="false"
-          rail-color="rgba(255, 255, 255, 0.08)"
+          rail-color="rgba(255, 255, 255, 0.1)"
         />
       </div>
       <span class="progress-stat-value-text" :style="{ color }">{{ percent }}%</span>
