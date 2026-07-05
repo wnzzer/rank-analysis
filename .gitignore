@@ -17,11 +17,14 @@
 vendor/
 
 # IDE 和编辑器配置文件
-.vscode/*
-!.vscode/extensions.json
-!.vscode/settings.json
+.vscode/
 .idea/
 *.iml
+
+# 本地工具产物（浏览器自动化截图 / agent 头脑风暴草稿 / 本地设计文档）
+.playwright-mcp/
+.superpowers/
+docs/
 
 # Node.js 项目依赖
 node_modules/
@@ -72,4 +75,3 @@ wrangler.toml
 config.yaml
 
 app.log.*
-.vscode/settings.json
