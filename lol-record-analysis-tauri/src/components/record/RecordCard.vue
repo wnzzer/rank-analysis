@@ -388,6 +388,50 @@ function openDetail() {
   box-shadow: var(--glow-loss);
 }
 
+/* 胜负色 wash：极淡的结果色从左向右渐隐铺满卡面——胜负情绪不再只挤在
+   左缘 3px 里（op.gg/WeGame 的行业语言；详情页头部环境光同款手法） */
+.record-card-win {
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--semantic-win) 9%, transparent),
+      color-mix(in srgb, var(--semantic-win) 3%, transparent) 34%,
+      transparent 58%
+    ),
+    var(--glass-bg-mid) !important;
+}
+
+.record-card-loss {
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--semantic-loss) 8%, transparent),
+      color-mix(in srgb, var(--semantic-loss) 3%, transparent) 34%,
+      transparent 58%
+    ),
+    var(--glass-bg-mid) !important;
+}
+
+.theme-light .record-card-win {
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--semantic-win) 7%, transparent),
+      transparent 55%
+    ),
+    var(--glass-bg-mid) !important;
+}
+
+.theme-light .record-card-loss {
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--semantic-loss) 6%, transparent),
+      transparent 55%
+    ),
+    var(--glass-bg-mid) !important;
+}
+
 .record-card:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-lg), var(--glass-highlight) !important;
@@ -526,7 +570,8 @@ function openDetail() {
 }
 
 .record-card-kda > span {
-  font-weight: 500;
+  /* KDA 是卡片核心数据，加重一档立住主角地位 */
+  font-weight: 650;
   font-size: var(--font-size-base);
 }
 
@@ -569,10 +614,10 @@ function openDetail() {
   justify-content: center;
 }
 
-/* === 装备/技能 图标槽 === */
+/* === 装备/技能 图标槽（2px 缝隙缓解密压感） === */
 .record-card-item-slots,
 .record-card-spell-icons {
-  gap: 1px;
+  gap: 2px;
 }
 
 .record-card-item-slots :deep(.n-image),
