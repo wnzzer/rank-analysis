@@ -58,11 +58,11 @@
             <span class="record-card-kda-kill">
               {{ games.participants[0].stats?.kills }}
             </span>
-            /
+            <span class="record-card-kda-sep">/</span>
             <span class="record-card-kda-death">
               {{ games.participants[0].stats?.deaths }}
             </span>
-            /
+            <span class="record-card-kda-sep">/</span>
             <span class="record-card-kda-assist">
               {{ games.participants[0].stats?.assists }}
             </span>
@@ -367,6 +367,15 @@ function openDetail() {
   width: 3px;
   border-radius: var(--radius-lg) 0 0 var(--radius-lg);
   z-index: 1;
+  transition:
+    width var(--dur-fast) var(--ease-expo),
+    filter var(--dur-fast) var(--ease-expo);
+}
+
+/* hover 微交互：胜负条增亮加宽，与卡片上浮联动 */
+.record-card:hover::before {
+  width: 4px;
+  filter: brightness(1.25);
 }
 
 .record-card-win::before {
@@ -453,30 +462,56 @@ function openDetail() {
   display: block;
   width: clamp(42px, calc(42px + (100vw - 1100px) * 10 / 1100), 52px);
   height: clamp(42px, calc(42px + (100vw - 1100px) * 10 / 1100), 52px);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  box-sizing: border-box;
 }
 
+/* 胜负色细环：呼应左侧胜负条，一眼扫过整列即读出胜负节奏 */
+.record-card-win .record-card-champion-img {
+  border-color: color-mix(in srgb, var(--semantic-win) 45%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--semantic-win) 16%, transparent);
+}
+
+.record-card-loss .record-card-champion-img {
+  border-color: color-mix(in srgb, var(--semantic-loss) 40%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--semantic-loss) 14%, transparent);
+}
+
+/* MVP/SVP 徽章：金/银渐变 + 内高光 + 微光晕（替代平面色块贴纸） */
 .record-card-mvp {
   position: absolute;
-  left: 0;
-  bottom: 0;
+  left: -3px;
+  bottom: -3px;
   display: inline-block;
-  width: 20px;
-  height: 11px;
-  color: #000;
-  font-weight: bold;
+  padding: 0 5px;
+  height: 12px;
+  font-weight: 800;
+  font-style: italic;
   font-size: 8px;
-  line-height: 11px;
+  line-height: 12px;
+  letter-spacing: 0.03em;
   text-align: center;
-  border-radius: var(--radius-xs);
-  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius-pill);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    var(--shadow-sm);
 }
 
 .record-card-mvp-gold {
-  background-color: #ffd700;
+  color: #201500;
+  background: linear-gradient(180deg, #f6d365, #d4a017);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    0 0 8px rgba(244, 198, 88, 0.35);
 }
 
 .record-card-mvp-silver {
-  background-color: #ffffff;
+  color: #1c232b;
+  background: linear-gradient(180deg, #eef3f9, #aab8c8);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    0 0 8px rgba(190, 205, 222, 0.3);
 }
 
 /* === 队列名 === */
@@ -504,8 +539,13 @@ function openDetail() {
 }
 
 .record-card-kda-assist {
-  /* 助攻金色：暂无 token，保留 hex */
-  color: #b8860b;
+  /* 助攻金色：#b8860b 在暗底几乎不可读，提亮一档 */
+  color: #d19a2f;
+}
+
+/* 分隔符淡化：让三个数字成为主角（详情页同款纪律） */
+.record-card-kda-sep {
+  color: var(--text-tertiary);
 }
 
 /* === 输出/承伤/治疗统计盒（原版观感：带边框玻璃盒 + StatDots），定宽保对齐 === */

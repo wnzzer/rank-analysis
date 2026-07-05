@@ -45,6 +45,24 @@ const { isMobile } = useBreakpoint()
   margin: 0 auto;
 }
 
+/* 战绩列表滚动条细化：6px 圆角细条替代系统默认宽条（与详情页一致） */
+.record-content :deep(.n-layout-scroll-container)::-webkit-scrollbar {
+  width: 6px;
+}
+
+.record-content :deep(.n-layout-scroll-container)::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--text-tertiary) 35%, transparent);
+}
+
+.record-content :deep(.n-layout-scroll-container)::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--text-tertiary) 55%, transparent);
+}
+
+.record-content :deep(.n-layout-scroll-container)::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 /* UserRecord 面板隐藏滚动条 */
 :deep(.n-layout-sider .n-layout-scroll-container),
 :deep(.n-layout-sider .n-scrollbar-container) {
