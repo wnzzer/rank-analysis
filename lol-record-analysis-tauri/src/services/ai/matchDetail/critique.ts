@@ -26,8 +26,7 @@ export interface CritiqueOptions {
 }
 
 export type CritiqueOutcome =
-  | { ok: true; markdown: string }
-  | { ok: false; error: string; fallbackMarkdown: string }
+  { ok: true; markdown: string } | { ok: false; error: string; fallbackMarkdown: string }
 
 const STAGE2_SYSTEM_PROMPT =
   '你是 LOL 锐评写手，按用户给定的 markdown 模板输出，不要返回 JSON / 解释 / 前后缀。'
