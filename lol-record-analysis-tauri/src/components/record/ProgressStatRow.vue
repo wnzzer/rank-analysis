@@ -41,14 +41,16 @@ defineProps<{
 }
 
 .progress-stat-label-group {
-  /* 与 RecentStatsTable 同步收紧 */
-  width: 60px;
+  /* 74px 容下"图标+三字标签"（如 参团率）在大屏放大字号下不换行；
+     与 RecentStatsTable 同步 */
+  width: 74px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   color: var(--text-secondary);
   font-weight: 500;
   gap: var(--space-6);
+  white-space: nowrap;
 }
 
 .progress-stat-value-group {

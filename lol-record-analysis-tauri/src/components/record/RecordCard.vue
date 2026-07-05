@@ -418,12 +418,13 @@ function openDetail() {
    所有卡片共用同一套列轨道 → 行与行严格对齐 */
 .record-card-grid {
   display: grid;
+  /* 中列（KDA+装备）限宽防独吞；富余宽度给三色条列——大屏下条更长更易读 */
   grid-template-columns:
     58px
     clamp(42px, calc(42px + (100vw - 1100px) * 10 / 1100), 52px)
-    minmax(60px, 74px)
-    minmax(170px, 1fr)
-    142px
+    minmax(64px, 84px)
+    minmax(170px, 236px)
+    minmax(142px, 1fr)
     minmax(96px, 136px);
   align-items: center;
   gap: var(--space-8);

@@ -85,6 +85,7 @@ const cardContentStyle = 'padding: var(--space-10)'
 
 .rank-card-tier-text {
   font-size: var(--font-size-sm);
+  white-space: nowrap;
   font-weight: bold;
   text-align: center;
   line-height: var(--line-height-tight);

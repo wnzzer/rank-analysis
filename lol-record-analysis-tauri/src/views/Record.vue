@@ -2,7 +2,7 @@
   <n-layout class="record-page" has-sider style="height: 100%" :collapsed="isMobile">
     <n-layout-sider
       :collapsed-width="isMobile ? '100%' : undefined"
-      :width="isMobile ? '100%' : undefined"
+      :width="isMobile ? '100%' : 340"
     >
       <UserRecord></UserRecord>
     </n-layout-sider>
@@ -39,9 +39,10 @@ const { isMobile } = useBreakpoint()
   padding-top: var(--space-16);
 }
 
-/* 宽屏 (>1400) 时内容居中,上限 1280 防过宽稀疏 */
+/* 宽屏时内容居中：版心 920 —— 战绩卡各列内容宽约 900，
+   再宽只会在卡内产生空洞或把数据条拉到失衡长度 */
 .record-content-inner {
-  max-width: 1280px;
+  max-width: 920px;
   margin: 0 auto;
 }
 
