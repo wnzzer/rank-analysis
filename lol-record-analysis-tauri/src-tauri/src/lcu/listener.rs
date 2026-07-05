@@ -89,7 +89,9 @@ impl LcuListener {
 
                     // 订阅 OnJsonApiEvent (code 5)
                     // 这允许我们需要监听所有 JSON API 的事件
-                    let subscribe_msg = Message::Text(json!([5, "OnJsonApiEvent"]).to_string());
+                    // tungstenite 0.28：Message::Text 载荷从 String 改为 Utf8Bytes
+                    let subscribe_msg =
+                        Message::Text(json!([5, "OnJsonApiEvent"]).to_string().into());
                     if let Err(e) = write.send(subscribe_msg).await {
                         log::error!("订阅 LCU 事件失败: {}，2秒后重试...", e);
                         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
