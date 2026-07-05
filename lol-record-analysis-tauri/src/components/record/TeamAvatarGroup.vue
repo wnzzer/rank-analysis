@@ -1,7 +1,8 @@
 <template>
   <n-tag :bordered="false" size="small">
     <template #avatar>
-      <n-flex>
+      <!-- 紧凑间距：保证 5 个头像在战绩卡固定列宽内单行排布（队伍感依赖单行） -->
+      <n-flex :size="4" :wrap="false">
         <n-popover v-for="(identity, idx) in slotIdentities" :key="idx" trigger="hover">
           <template #trigger>
             <n-button text @click.stop="navigate(identity)">
