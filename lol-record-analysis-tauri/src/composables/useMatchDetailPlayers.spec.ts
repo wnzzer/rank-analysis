@@ -7,6 +7,7 @@ import type { Game, Participant, ParticipantStats } from '@renderer/types/domain
 vi.mock('@vicons/ionicons5', () => ({
   CashOutline: {},
   FlagOutline: {},
+  FlameOutline: {},
   FootstepsOutline: {},
   PeopleOutline: {},
   ShieldOutline: {},
@@ -149,5 +150,116 @@ describe('useMatchDetailPlayers - CHERRY mode grouping', () => {
     expect(sections).toHaveLength(2)
     expect(sections[0].title).toBe('胜方')
     expect(sections[1].title).toBe('败方')
+  })
+})
+
+describe('useMatchDetailPlayers - 伤害徽章与 WeGame 式 MVP', () => {
+  /** 无死亡低伤"蹭分型"(KDA 18) vs 真核 carry(全场最高输出/参团/经济)——
+   *  旧纯 KDA 逻辑会把 MVP 给前者，新综合评分应给 carry */
+  function makeGame(): Game {
+    return {
+      mvp: '',
+      gameDetail: { endOfGameResult: '', participantIdentities: [], participants: [] },
+      gameId: 3,
+      gameCreationDate: '2026-07-05T00:00:00Z',
+      gameDuration: 1800,
+      gameMode: 'CLASSIC',
+      gameType: '',
+      mapId: 11,
+      queueId: 420,
+      queueName: '单双排',
+      platformId: '',
+      participantIdentities: Array.from({ length: 4 }, (_, i) => ({
+        player: {
+          accountId: 0,
+          platformId: '',
+          gameName: `P${i + 1}`,
+          tagLine: '0001',
+          summonerName: '',
+          summonerId: 0
+        }
+      })),
+      participants: [
+        // 蹭分型：KDA 18 但输出/经济低
+        makeP(
+          1,
+          100,
+          makeStats({
+            win: true,
+            kills: 10,
+            deaths: 0,
+            assists: 8,
+            totalDamageDealtToChampions: 8000,
+            totalDamageTaken: 5000,
+            goldEarned: 9000,
+            totalMinionsKilled: 100
+          })
+        ),
+        // 真核 carry：KDA 12 但全场最高输出/承伤/经济/补刀/推塔
+        makeP(
+          2,
+          100,
+          makeStats({
+            win: true,
+            kills: 9,
+            deaths: 2,
+            assists: 15,
+            totalDamageDealtToChampions: 40000,
+            totalDamageTaken: 30000,
+            goldEarned: 15000,
+            totalMinionsKilled: 200,
+            damageDealtToTurrets: 5000
+          })
+        ),
+        // 败方两人
+        makeP(
+          3,
+          200,
+          makeStats({
+            win: false,
+            kills: 5,
+            deaths: 6,
+            assists: 3,
+            totalDamageDealtToChampions: 20000,
+            totalDamageTaken: 22000,
+            goldEarned: 10000,
+            totalMinionsKilled: 150
+          })
+        ),
+        makeP(
+          4,
+          200,
+          makeStats({
+            win: false,
+            kills: 1,
+            deaths: 9,
+            assists: 2,
+            totalDamageDealtToChampions: 6000,
+            totalDamageTaken: 15000,
+            goldEarned: 7000,
+            totalMinionsKilled: 80
+          })
+        )
+      ]
+    }
+  }
+
+  it('伤害最多者获得 damage 徽章', () => {
+    const { detailPlayers } = useMatchDetailPlayers(ref(makeGame()), ref(''))
+    const carry = detailPlayers.value.find(p => p.participantId === 2)!
+    expect(carry.badges.some(b => b.key === 'damage')).toBe(true)
+    const farmer = detailPlayers.value.find(p => p.participantId === 1)!
+    expect(farmer.badges.some(b => b.key === 'damage')).toBe(false)
+  })
+
+  it('综合评分把 MVP 给 carry 而非纯 KDA 蹭分型；败方最高分得 SVP', () => {
+    const { detailPlayers } = useMatchDetailPlayers(ref(makeGame()), ref(''))
+    const byId = (id: number) => detailPlayers.value.find(p => p.participantId === id)!
+    expect(byId(2).mvpTag).toBe('MVP')
+    expect(byId(1).mvpTag).toBe('')
+    expect(byId(3).mvpTag).toBe('SVP')
+    expect(byId(4).mvpTag).toBe('')
+    // 评分单调性：carry 分应高于蹭分型
+    expect(byId(2).score).toBeGreaterThan(byId(1).score)
   })
 })

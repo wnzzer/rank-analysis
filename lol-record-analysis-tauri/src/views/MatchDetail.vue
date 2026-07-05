@@ -80,9 +80,10 @@ function closeWindow() {
   --font-size-xl: clamp(18px, calc(18px + (100vw - 1100px) * 5 / 1100), 23px);
 }
 
-/* 宽屏 (>1700) 时内容居中, 上限 1600 防过宽稀疏 */
+/* 宽屏时内容居中：版心上限 1360，多余宽度变成对称留白——
+   避免弹性列把空间吐在表格中部形成大片死空间（松散、不成版心） */
 .match-detail-window-inner {
-  max-width: 1600px;
+  max-width: 1360px;
   margin: 0 auto;
   height: 100%;
 }
