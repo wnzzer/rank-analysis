@@ -8,7 +8,9 @@
     @click="openDetail"
     @keyup.enter="openDetail"
   >
-    <n-flex align="center" justify="space-between">
+    <!-- 固定列网格：所有卡片共用同一套列轨道，行与行严格对齐
+         （旧 space-between 弹性布局会让列落点随内容漂移） -->
+    <div class="record-card-grid">
       <n-flex vertical class="record-card-result">
         <span
           class="font-number record-card-result-label"
@@ -39,7 +41,7 @@
         </template>
       </div>
 
-      <n-flex vertical>
+      <n-flex vertical class="record-card-queue-block">
         <span class="font-number record-card-queue">{{ games.queueName }}</span>
         <span class="record-card-meta">
           <n-icon class="record-card-meta-icon">
@@ -50,7 +52,8 @@
       </n-flex>
 
       <n-flex justify="space-between" vertical class="record-card-kda-block">
-        <n-flex justify="space-between">
+        <!-- KDA + 技能/海克斯紧凑同组靠左（不再 space-between 把图标推到列右缘悬空） -->
+        <n-flex justify="start" align="center" :size="10">
           <span class="font-number record-card-kda">
             <span class="record-card-kda-kill">
               {{ games.participants[0].stats?.kills }}
@@ -128,60 +131,59 @@
             </n-tooltip>
           </n-flex>
         </n-flex>
-        <!-- 装备区域（所有模式都显示） -->
+        <!-- 装备区域（所有模式都显示）；空格渲染内凹暗槽而非黑块 -->
         <n-flex class="record-card-item-slots" :size="1">
-          <n-tooltip
-            v-for="(itemId, index) in itemIds"
-            :key="`record-item-${index}`"
-            trigger="hover"
-            placement="top"
-            :disabled="!assets.detailOf('item', itemId)"
-          >
-            <template #trigger>
-              <LazyImg
-                :src="assets.srcOf('item', itemId)"
-                class="record-card-icon-slot"
-                alt="item"
+          <template v-for="(itemId, index) in itemIds" :key="`record-item-${index}`">
+            <n-tooltip
+              v-if="itemId > 0"
+              trigger="hover"
+              placement="top"
+              :disabled="!assets.detailOf('item', itemId)"
+            >
+              <template #trigger>
+                <LazyImg
+                  :src="assets.srcOf('item', itemId)"
+                  class="record-card-icon-slot"
+                  alt="item"
+                />
+              </template>
+              <AssetTooltipContent
+                v-if="assets.detailOf('item', itemId)"
+                :icon-src="assets.srcOf('item', itemId)"
+                :name="assets.detailOf('item', itemId)?.name ?? ''"
+                :description="assets.detailOf('item', itemId)?.description ?? ''"
               />
-            </template>
-            <AssetTooltipContent
-              v-if="assets.detailOf('item', itemId)"
-              :icon-src="assets.srcOf('item', itemId)"
-              :name="assets.detailOf('item', itemId)?.name ?? ''"
-              :description="assets.detailOf('item', itemId)?.description ?? ''"
-            />
-          </n-tooltip>
+            </n-tooltip>
+            <span v-else class="record-card-icon-slot record-card-item-empty" />
+          </template>
         </n-flex>
       </n-flex>
+
+      <!-- 输出/承伤/治疗：值 + 队内占比横向条（与详情页同一套视觉语言），块宽固定保证行间对齐 -->
       <div class="record-card-stats-block">
-        <StatDots
-          :icon="FlameOutline"
-          tooltip="对英雄伤害占比"
-          :color="otherColor(games.participants[0].stats?.damageDealtToChampionsRate, isDark)"
-          :icon-background="isDark ? 'rgba(229, 167, 50, 0.18)' : 'rgba(229, 167, 50, 0.14)'"
-          :value="
-            formatCompactNumber(games.participants[0].stats?.totalDamageDealtToChampions ?? 0)
-          "
-          :percent="games.participants[0].stats?.damageDealtToChampionsRate ?? 0"
-        />
-        <StatDots
-          :icon="ShieldOutline"
-          tooltip="承伤占比"
-          :color="healColorAndTaken(games.participants[0].stats?.damageTakenRate, isDark)"
-          :icon-background="isDark ? 'rgba(92, 163, 234, 0.2)' : 'rgba(92, 163, 234, 0.12)'"
-          :value="formatCompactNumber(games.participants[0].stats?.totalDamageTaken ?? 0)"
-          :percent="games.participants[0].stats?.damageTakenRate ?? 0"
-        />
-        <StatDots
-          :icon="HeartOutline"
-          tooltip="治疗占比"
-          :color="healColorAndTaken(games.participants[0].stats?.healRate, isDark)"
-          :icon-background="isDark ? 'rgba(88, 182, 109, 0.2)' : 'rgba(88, 182, 109, 0.14)'"
-          :value="formatCompactNumber(games.participants[0].stats?.totalHeal ?? 0)"
-          :percent="games.participants[0].stats?.healRate ?? 0"
-        />
+        <n-tooltip
+          v-for="bar in statBars"
+          :key="`record-bar-${bar.key}`"
+          trigger="hover"
+          placement="left"
+        >
+          <template #trigger>
+            <div class="record-card-bar-row">
+              <span class="record-card-bar-value font-number">{{ bar.valueText }}</span>
+              <span class="record-card-bar-track">
+                <span
+                  class="record-card-bar-fill"
+                  :class="bar.fillClass"
+                  :style="{ width: bar.width }"
+                />
+              </span>
+            </div>
+          </template>
+          {{ bar.tooltip }}
+        </n-tooltip>
       </div>
-      <n-flex vertical justify="space-between" class="record-card-teams">
+
+      <div class="record-card-teams">
         <TeamAvatarGroup
           :identities="games.gameDetail.participantIdentities"
           :participants="games.gameDetail.participants"
@@ -190,7 +192,9 @@
           :is-dark="isDark"
           @nav-to-name="toNameRecord"
         />
+        <!-- 第二队为空（人机/残缺数据）时不渲染，避免出现灰色空 pill -->
         <TeamAvatarGroup
+          v-if="hasSecondTeam"
           :identities="games.gameDetail.participantIdentities"
           :participants="games.gameDetail.participants"
           :team-offset="5"
@@ -198,23 +202,21 @@
           :is-dark="isDark"
           @nav-to-name="toNameRecord"
         />
-      </n-flex>
-    </n-flex>
+      </div>
+    </div>
   </n-card>
 </template>
 
 <script lang="ts" setup>
-import { Time, CalendarNumber, FlameOutline, ShieldOutline, HeartOutline } from '@vicons/ionicons5'
+import { Time, CalendarNumber } from '@vicons/ionicons5'
 import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { formatCompactNumber } from '@renderer/utils/format'
-import { healColorAndTaken, otherColor } from '@renderer/utils/colors'
 import { assetPrefix } from '@renderer/services/http'
 import { useTheme } from '@renderer/composables/useTheme'
 import { augmentRarityClass } from '@renderer/utils/augment'
 import type { Game } from '@renderer/types/domain/match'
 import AssetTooltipContent from './AssetTooltipContent.vue'
-import StatDots from './StatDots.vue'
 import TeamAvatarGroup from './TeamAvatarGroup.vue'
 import LazyImg from '@renderer/components/common/LazyImg.vue'
 import { inject } from 'vue'
@@ -281,6 +283,44 @@ const itemIds = computed(() => {
   const s = props.games.participants[0].stats
   return [s.item0, s.item1, s.item2, s.item3, s.item4, s.item5, s.item6]
 })
+
+/**
+ * 输出/承伤/治疗三色条：宽度 = 队内占比（后端 calculate 已算好 0~100），
+ * 与详情页对比条同一套视觉语言；数值 + 占比进 tooltip。
+ */
+const statBars = computed(() => {
+  const s = props.games.participants[0].stats
+  const mk = (key: string, label: string, value: number, pct: number, fillClass: string) => ({
+    key,
+    label,
+    valueText: formatCompactNumber(value),
+    width: `${Math.max(3, Math.min(100, pct))}%`,
+    fillClass,
+    tooltip: `${label} ${value.toLocaleString()} · 占己方 ${pct}%`
+  })
+  return [
+    mk(
+      'damage',
+      '输出',
+      s?.totalDamageDealtToChampions ?? 0,
+      s?.damageDealtToChampionsRate ?? 0,
+      'record-card-bar-fill--damage'
+    ),
+    mk(
+      'taken',
+      '承伤',
+      s?.totalDamageTaken ?? 0,
+      s?.damageTakenRate ?? 0,
+      'record-card-bar-fill--taken'
+    ),
+    mk('heal', '治疗', s?.totalHeal ?? 0, s?.healRate ?? 0, 'record-card-bar-fill--heal')
+  ]
+})
+
+/** 第二队是否有数据（人机/残缺对局只有一队，隐藏空组避免灰 pill） */
+const hasSecondTeam = computed(
+  () => (props.games.gameDetail?.participantIdentities?.length ?? 0) > 5
+)
 
 /**
  * 优先使用父级（MatchHistory）批量预加载的资源 —— 同一页 N 张卡共享一次 IPC
@@ -372,6 +412,21 @@ function openDetail() {
 .record-card:active {
   transform: scale(0.995);
   transition-duration: var(--dur-instant);
+}
+
+/* === 固定列网格：结果 | 头像 | 队列 | KDA+装备 | 三色条 | 队伍头像 ===
+   所有卡片共用同一套列轨道 → 行与行严格对齐 */
+.record-card-grid {
+  display: grid;
+  grid-template-columns:
+    58px
+    clamp(42px, calc(42px + (100vw - 1100px) * 10 / 1100), 52px)
+    minmax(60px, 74px)
+    minmax(170px, 1fr)
+    142px
+    minmax(96px, 136px);
+  align-items: center;
+  gap: var(--space-8);
 }
 
 /* === 结果列（胜利/失败 + 时长） === */
@@ -475,22 +530,71 @@ function openDetail() {
   color: #b8860b;
 }
 
-/* === 战绩统计块 === */
+/* === 输出/承伤/治疗三色条（去盒子：裸条与详情页同语言，固定列宽保证对齐） === */
 .record-card-stats-block {
   display: flex;
   flex-direction: column;
-  gap: 0;
-  padding: var(--space-4) var(--space-8) 5px;
-  background: var(--glass-bg-low);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-md);
+  gap: 4px;
   min-width: 0;
-  box-shadow: var(--shadow-sm);
 }
 
-/* === 队伍头像列 === */
+.record-card-bar-row {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.record-card-bar-value {
+  font-size: var(--font-size-2xs);
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.record-card-bar-track {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.theme-light .record-card-bar-track {
+  background: rgba(0, 0, 0, 0.07);
+}
+
+.record-card-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  transition: width var(--dur-normal) var(--ease-expo);
+}
+
+.record-card-bar-fill--damage {
+  background: linear-gradient(90deg, rgba(229, 167, 50, 0.55), rgba(229, 167, 50, 0.95));
+}
+
+.record-card-bar-fill--taken {
+  background: linear-gradient(90deg, rgba(92, 163, 234, 0.5), rgba(92, 163, 234, 0.92));
+}
+
+.record-card-bar-fill--heal {
+  background: linear-gradient(90deg, rgba(88, 182, 109, 0.5), rgba(88, 182, 109, 0.92));
+}
+
+/* === 队伍头像列（去掉 n-tag 灰 pill 底，裸头像组更干净） === */
 .record-card-teams {
-  gap: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  justify-content: center;
+}
+
+.record-card-teams :deep(.n-tag) {
+  background: transparent;
+  padding: 0;
 }
 
 /* === 装备/技能 图标槽 === */
@@ -515,6 +619,13 @@ function openDetail() {
 
 .record-card-spell-icons {
   display: inline-flex;
+}
+
+/* 空装备格：内凹暗槽，与实图标同尺寸——黑块像图片加载失败 */
+.record-card-item-empty {
+  display: inline-block;
+  border-color: color-mix(in srgb, var(--glass-border) 55%, transparent) !important;
+  background: color-mix(in srgb, var(--bg-elevated) 45%, transparent) !important;
 }
 
 /* === 海克斯强化 === */
