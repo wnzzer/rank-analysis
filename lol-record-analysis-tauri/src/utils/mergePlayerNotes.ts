@@ -19,11 +19,15 @@ export interface MergeStats {
   invalid: number
 }
 
-/** 最低限度的结构校验:对象 + 数值 updatedAt + 字符串 label(防导入损坏文件) */
+/**
+ * 最低限度的结构校验:对象 + 有限数值 updatedAt + 字符串 label(防导入损坏文件)。
+ * 用 `Number.isFinite` 而非 `typeof === 'number'`:NaN 与任何数比较恒 false,
+ * 一旦并入就永远无法被更新的时间戳替换。
+ */
 function isValidNote(v: unknown): v is PlayerNote {
   if (!v || typeof v !== 'object') return false
   const n = v as Partial<PlayerNote>
-  return typeof n.updatedAt === 'number' && typeof n.label === 'string'
+  return Number.isFinite(n.updatedAt) && typeof n.label === 'string'
 }
 
 /**
@@ -43,7 +47,15 @@ export function mergeNotesMaps(
       stats.invalid++
       continue
     }
-    const existing = merged[puuid]
+    // `__proto__` 是保留键:普通对象字面量上 `merged['__proto__'] = note` 走原型
+    // setter,不会成为自有属性,直接拒绝(不可信输入不该有这种 puuid)。
+    if (puuid === '__proto__') {
+      stats.invalid++
+      continue
+    }
+    // 用 Object.hasOwn 判断存在性:`toString` 等键会命中原型链继承属性,
+    // 直接真值判断会把新条目误判为已存在而静默丢弃。
+    const existing = Object.hasOwn(merged, puuid) ? merged[puuid] : undefined
     if (!existing) {
       merged[puuid] = note
       stats.added++
