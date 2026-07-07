@@ -5,12 +5,17 @@
     title="新功能：备份与云同步"
     style="max-width: 420px"
     :mask-closable="false"
+    :close-on-esc="false"
   >
     <n-space vertical size="large">
-      <n-text>
-        「我标记过的人」现在支持导出/导入备份文件，以及可选的跨设备云同步（默认关闭）。 可到 设置 →
-        数据与同步 里开启。
-      </n-text>
+      <!-- 两句拆成两个 n-text：避免单个长文本节点被 prettier 折行后，
+           换行在 CJK 之间渲染成可见的半角空隙 -->
+      <n-space vertical :size="4">
+        <n-text>
+          「我标记过的人」现在支持导出/导入备份文件，以及可选的跨设备云同步（默认关闭）。
+        </n-text>
+        <n-text>可到 设置 → 数据与同步 里开启。</n-text>
+      </n-space>
       <n-space justify="end">
         <n-button @click="emit('decide', false)">知道了</n-button>
         <n-button type="primary" @click="emit('decide', true)">去看看</n-button>

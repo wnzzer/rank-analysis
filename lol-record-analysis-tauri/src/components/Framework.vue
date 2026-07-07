@@ -171,6 +171,10 @@ const showCloudNotice = ref(false)
  * `errorReportingConsentShown` 已为 true（老用户，本次启动不会再弹错误上报同意
  * 弹窗）时，本次启动才弹本弹窗；刚回答完错误上报弹窗的新用户，下次启动再弹。
  * 仅主窗口弹，排除 match-detail 子窗口。UI 见 {@link CloudSyncNoticeDialog}。
+ *
+ * 与姊妹函数不同，这里刻意不做 `isConnected` 门控、只用平坦的 1.5s 延时：本弹窗
+ * 是被动告知（看完即关，不要求用户当场做阻塞性决策），即使恰逢首屏加载出现，
+ * 也不至于让人误以为"弹窗导致加载失败"，不值得为它复制一套连接等待逻辑。
  */
 async function maybeShowCloudSyncNotice(): Promise<void> {
   if (isStandaloneDetailWindow.value) return
