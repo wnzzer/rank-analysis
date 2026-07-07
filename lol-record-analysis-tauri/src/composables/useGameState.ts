@@ -1,4 +1,4 @@
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, readonly, onMounted, onUnmounted } from 'vue'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import router from '../router'
@@ -48,6 +48,15 @@ interface SessionData {
 // 消费者 unmount 时清理。
 
 const isConnected = ref(false)
+
+/**
+ * LCU 连接状态的模块级只读引用。
+ *
+ * 供非组件上下文（如 cloudSync store）watch「连接建立」时机——值由本 composable
+ * 的单例监听器维护（主窗口 Framework 常驻挂载，监听始终在线），无需自建轮询。
+ */
+export const lcuConnected = readonly(isConnected)
+
 const currentPhase = ref<string | null>(null)
 const summoner = ref<GameStateEvent['summoner'] | null>(null)
 const reasonCode = ref<string | null>(null)
