@@ -48,6 +48,7 @@ env_logger = "0.11"
 base64 = "0.21"
 tauri-plugin-http = "2"
 tauri-plugin-process = "2"
+tauri-plugin-dialog = "2.7.1" # 导入导出文件选择对话框
 moka = { version = "0.12", features = ["future"] }
 phf = { version = "0.12", features = ["macros"] } # 用于静态配置编译期生成
 tokio = { version = "1", features = ["full"] }
@@ -72,4 +73,3 @@ sentry = { version = "0.42", features = ["log", "logs"] }
 tauri-plugin-sentry = "0.5"
 # 匿名设备 ID（observability.rs 持久化生成，仅用于 Sentry DAU 去重）
 uuid = { version = "1", features = ["v4"] }
-tauri-plugin-dialog = "2.7.1"
