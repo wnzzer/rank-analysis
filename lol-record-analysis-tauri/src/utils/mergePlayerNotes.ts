@@ -15,7 +15,7 @@ export interface MergeStats {
   replaced: number
   /** 本地更新(或同龄)、保持不变的条数 */
   kept: number
-  /** 结构非法被跳过的条数 */
+  /** 结构非法或键不安全、被跳过的条数 */
   invalid: number
 }
 
@@ -53,9 +53,10 @@ export function mergeNotesMaps(
       stats.invalid++
       continue
     }
-    // 用 Object.hasOwn 判断存在性:`toString` 等键会命中原型链继承属性,
+    // 用 hasOwnProperty 判断存在性:`toString` 等键会命中原型链继承属性,
     // 直接真值判断会把新条目误判为已存在而静默丢弃。
-    const existing = Object.hasOwn(merged, puuid) ? merged[puuid] : undefined
+    // (不用 Object.hasOwn:那是 ES2022 API,项目 tsconfig target/lib 是 ES2020。)
+    const existing = Object.prototype.hasOwnProperty.call(merged, puuid) ? merged[puuid] : undefined
     if (!existing) {
       merged[puuid] = note
       stats.added++
