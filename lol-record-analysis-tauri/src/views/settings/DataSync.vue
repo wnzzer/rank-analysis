@@ -139,12 +139,19 @@ async function handleExport(): Promise<void> {
 async function handleImport(): Promise<void> {
   const path = await open({ multiple: false, filters: [{ name: 'JSON', extensions: ['json'] }] })
   if (!path || Array.isArray(path)) return
+  // 读文件与 parse 分开 catch：Rust 侧的「文件过大」「仅支持 .json」等文案需原样透传
+  let content: string
+  try {
+    content = await invoke<string>('read_text_file', { path })
+  } catch (e) {
+    message.error(String(e))
+    return
+  }
   let parsed: unknown
   try {
-    const content = await invoke<string>('read_text_file', { path })
     parsed = JSON.parse(content)
   } catch {
-    message.error('文件读取失败或不是合法 JSON')
+    message.error('文件内容不是合法 JSON')
     return
   }
   if (!isBackupFile(parsed)) {
@@ -162,11 +169,14 @@ async function handleImport(): Promise<void> {
   }
 }
 
-/** 备份文件结构校验：version 匹配且 playerNotes 是普通对象（非 null/数组） */
-function isBackupFile(v: unknown): v is { version: number; playerNotes: PlayerNotesMap } {
+/** 备份文件结构校验：type 标记 + version 匹配且 playerNotes 是普通对象（非 null/数组） */
+function isBackupFile(
+  v: unknown
+): v is { version: number; type: 'rank-analysis-backup'; playerNotes: PlayerNotesMap } {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return false
-  const b = v as { version?: unknown; playerNotes?: unknown }
+  const b = v as { version?: unknown; type?: unknown; playerNotes?: unknown }
   return (
+    b.type === 'rank-analysis-backup' &&
     b.version === BACKUP_VERSION &&
     typeof b.playerNotes === 'object' &&
     b.playerNotes !== null &&
