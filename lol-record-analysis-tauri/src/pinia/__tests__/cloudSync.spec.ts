@@ -105,6 +105,28 @@ describe('useCloudSyncStore', () => {
     expect(store.lastSyncAt).not.toBeNull()
   })
 
+  it('pull 回的畸形 payload（null/数组/字符串）被跳过,合法 payload 正常并入,push 照常', async () => {
+    mockGet.mockResolvedValue(undefined)
+    const notesStore = usePlayerNotesStore()
+    mockInvoke.mockImplementation(async cmd => {
+      if (cmd === 'get_my_summoner') return { puuid: 'me' }
+      if (cmd === 'cloud_pull_notes')
+        // 云端行任何人可插入:jsonb 列可存 null/数组/原始值,容器必须当不可信输入
+        return [
+          null,
+          [1, 2],
+          'str',
+          { p2: { note: 'ok', label: 'friendly', gameName: 'B', tagLine: '2', updatedAt: 5 } }
+        ]
+      return undefined
+    })
+    const store = useCloudSyncStore()
+    await expect(store.syncNow()).resolves.toBeUndefined()
+    expect(notesStore.getNote('p2')?.note).toBe('ok')
+    expect(mockInvoke.mock.calls.some(c => c[0] === 'cloud_push_notes')).toBe(true)
+    expect(store.lastError).toBeNull()
+  })
+
   it('同步失败记录 lastError,syncing 复位', async () => {
     mockGet.mockResolvedValue(undefined)
     mockInvoke.mockRejectedValue('云端连接失败: timeout')

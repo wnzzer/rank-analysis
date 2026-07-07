@@ -29,6 +29,11 @@ export type NoteLabel = 'friendly' | 'normal' | 'careful' | 'blacklist'
  * @property updatedAt - 最后更新时间（毫秒时间戳）
  * @property encounters - 遇见记录（在哪些对局里标记/碰到过 ta），按 gameId 去重、
  *   最近在前，复刻"遇见过"效果。复用 {@link OneGamePlayer} 以便直接用 MettingPlayersCard 渲染。
+ * @property deleted - 墓碑：删除标记。物理删除会被云同步的合并"复活"（云端/其他
+ *   设备仍持有旧活备注，合并时被当成新增并回），所以删除改写成墓碑条目——
+ *   随"updatedAt 新者赢"的合并自然传播，使删除在多设备间生效。墓碑的内容
+ *   字段已清空（note 空串、encounters 丢弃），仅保留 gameName/tagLine 便于调试。
+ *   store 的 getNote/count/list 对墓碑透明（视同不存在）。
  */
 export interface PlayerNote {
   note: string
@@ -37,6 +42,7 @@ export interface PlayerNote {
   tagLine: string
   updatedAt: number
   encounters?: OneGamePlayer[]
+  deleted?: true
 }
 
 /**
