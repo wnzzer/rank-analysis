@@ -31,6 +31,8 @@
       ]
     },
     "mcp-bridge:default",
-    "sentry:default"
+    "sentry:default",
+    "dialog:allow-open",
+    "dialog:allow-save"
   ]
 }

@@ -72,3 +72,4 @@ sentry = { version = "0.42", features = ["log", "logs"] }
 tauri-plugin-sentry = "0.5"
 # 匿名设备 ID（observability.rs 持久化生成，仅用于 Sentry DAU 去重）
 uuid = { version = "1", features = ["v4"] }
+tauri-plugin-dialog = "2.7.1"
