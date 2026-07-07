@@ -234,6 +234,7 @@ describe('usePlayerNotesStore', () => {
       const store = usePlayerNotesStore()
       await store.setNote('p1', { note: 'local', label: 'normal', gameName: 'A', tagLine: '1' })
       const localTs = store.getNote('p1')!.updatedAt
+      mockPut.mockClear() // 排除 setNote 自身的落盘，确保断言命中的是 importNotes 的 persist
 
       const stats = await store.importNotes({
         p1: {
@@ -249,6 +250,11 @@ describe('usePlayerNotesStore', () => {
       expect(stats).toEqual({ added: 1, replaced: 0, kept: 1, invalid: 0 })
       expect(store.getNote('p1')!.note).toBe('local') // 本地更新,未被覆盖
       expect(store.getNote('p2')!.note).toBe('new')
+      // 正向落盘断言：合并结果（含新增的 p2）确实写盘了
+      expect(mockPut).toHaveBeenCalledWith(
+        'playerNotes',
+        expect.objectContaining({ p2: expect.any(Object) })
+      )
     })
 
     it('无实际变化时不落盘', async () => {

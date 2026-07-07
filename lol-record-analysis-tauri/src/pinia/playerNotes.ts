@@ -162,16 +162,16 @@ export const usePlayerNotesStore = defineStore('playerNotes', () => {
   }
 
   /**
-   * 批量并入外部备注表(手动导入 / 云端拉取共用),同 puuid 按 updatedAt 新者赢。
-   * 无实际变化(仅 kept/invalid)时不落盘、不广播。
+   * 批量并入外部备注表（手动导入 / 云端拉取共用），同 puuid 按 updatedAt 新者赢。
+   * 无实际变化（仅 kept/invalid）时不落盘、不广播。
    * @param incoming - 外部备注表
-   * @returns 合并统计,供 UI 反馈
+   * @returns 合并统计，供 UI 反馈
    */
   async function importNotes(incoming: PlayerNotesMap): Promise<MergeStats> {
     const { merged, stats } = mergeNotesMaps(notes.value, incoming)
     if (stats.added === 0 && stats.replaced === 0) return stats
     notes.value = merged
-    // 与 loadFromConfig 同理:把单调时钟顶到并入后的最大 updatedAt,防止后续写入回退
+    // 与 loadFromConfig 同理：把单调时钟顶到并入后的最大 updatedAt，防止后续写入回退
     for (const note of Object.values(merged)) {
       if (note.updatedAt > lastTs) lastTs = note.updatedAt
     }
