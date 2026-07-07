@@ -4,6 +4,7 @@ import { emit, listen } from '@tauri-apps/api/event'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import type { NoteLabel, PlayerNote, PlayerNotesMap } from '@renderer/types/domain/playerNote'
 import type { OneGamePlayer } from '@renderer/types/domain/analysis'
+import { mergeNotesMaps, type MergeStats } from '@renderer/utils/mergePlayerNotes'
 
 /** 持久化 key，复用 config 系统，无需新增 Rust command */
 const STORAGE_KEY = 'playerNotes'
@@ -161,6 +162,24 @@ export const usePlayerNotesStore = defineStore('playerNotes', () => {
   }
 
   /**
+   * 批量并入外部备注表(手动导入 / 云端拉取共用),同 puuid 按 updatedAt 新者赢。
+   * 无实际变化(仅 kept/invalid)时不落盘、不广播。
+   * @param incoming - 外部备注表
+   * @returns 合并统计,供 UI 反馈
+   */
+  async function importNotes(incoming: PlayerNotesMap): Promise<MergeStats> {
+    const { merged, stats } = mergeNotesMaps(notes.value, incoming)
+    if (stats.added === 0 && stats.replaced === 0) return stats
+    notes.value = merged
+    // 与 loadFromConfig 同理:把单调时钟顶到并入后的最大 updatedAt,防止后续写入回退
+    for (const note of Object.values(merged)) {
+      if (note.updatedAt > lastTs) lastTs = note.updatedAt
+    }
+    await persist()
+    return stats
+  }
+
+  /**
    * 整表落盘，并广播变更通知其他窗口重载。
    * 落盘失败时**重新抛出**——否则 setNote/removeNote 即使写盘失败也会 resolve，
    * 上层 try/catch 永远进不去，用户看到"已保存/已删除"却实际未持久化。
@@ -176,5 +195,5 @@ export const usePlayerNotesStore = defineStore('playerNotes', () => {
     emit(NOTES_CHANGED_EVENT).catch(() => {})
   }
 
-  return { notes, count, list, init, getNote, setNote, removeNote }
+  return { notes, count, list, init, getNote, setNote, removeNote, importNotes }
 })

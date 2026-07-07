@@ -228,4 +228,45 @@ describe('usePlayerNotesStore', () => {
       ).rejects.toThrow()
     })
   })
+
+  describe('importNotes', () => {
+    it('合并传入表并落盘,返回统计', async () => {
+      const store = usePlayerNotesStore()
+      await store.setNote('p1', { note: 'local', label: 'normal', gameName: 'A', tagLine: '1' })
+      const localTs = store.getNote('p1')!.updatedAt
+
+      const stats = await store.importNotes({
+        p1: {
+          note: 'stale',
+          label: 'careful',
+          gameName: 'A',
+          tagLine: '1',
+          updatedAt: localTs - 1
+        },
+        p2: { note: 'new', label: 'friendly', gameName: 'B', tagLine: '2', updatedAt: 123 }
+      })
+
+      expect(stats).toEqual({ added: 1, replaced: 0, kept: 1, invalid: 0 })
+      expect(store.getNote('p1')!.note).toBe('local') // 本地更新,未被覆盖
+      expect(store.getNote('p2')!.note).toBe('new')
+    })
+
+    it('无实际变化时不落盘', async () => {
+      const store = usePlayerNotesStore()
+      mockPut.mockClear()
+      const stats = await store.importNotes({})
+      expect(stats.added + stats.replaced).toBe(0)
+      expect(mockPut).not.toHaveBeenCalled()
+    })
+
+    it('导入后 lastTs 不回退:再 setNote 的时间戳大于导入的最大 updatedAt', async () => {
+      const store = usePlayerNotesStore()
+      const future = Date.now() + 60_000
+      await store.importNotes({
+        p9: { note: 'x', label: 'normal', gameName: 'C', tagLine: '3', updatedAt: future }
+      })
+      await store.setNote('p10', { note: 'y', label: 'normal', gameName: 'D', tagLine: '4' })
+      expect(store.getNote('p10')!.updatedAt).toBeGreaterThan(future)
+    })
+  })
 })
