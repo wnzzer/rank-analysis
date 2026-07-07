@@ -92,6 +92,7 @@ async fn load_session() -> Option<CloudSession> {
     }
 }
 
+/// 把会话序列化为 JSON 字符串，持久化到 config（键 [`SESSION_CONFIG_KEY`]）
 async fn save_session(session: &CloudSession) -> Result<(), String> {
     let json = serde_json::to_string(session).map_err(|e| e.to_string())?;
     config::put_config(SESSION_CONFIG_KEY.to_string(), Value::String(json)).await
@@ -154,9 +155,14 @@ async fn ensure_session() -> Result<CloudSession, String> {
 ///
 /// # 返回值
 /// - `Ok(Vec<Value>)`: 各设备写入的 payload 列表（可能为空）
-/// - `Err(String)`: 网络失败或非 2xx 响应
+/// - `Err(String)`: puuid 格式非法、网络失败或非 2xx 响应
 #[tauri::command]
 pub async fn cloud_pull_notes(puuid: String) -> Result<Vec<serde_json::Value>, String> {
+    // puuid 要拼进 PostgREST 查询串：命令边界的不信任输入，限定 UUID 字符集防注入。
+    // 正常路径 puuid 来自 LCU，恒为 UUID 格式，不受影响。
+    if !puuid.chars().all(|c| c.is_ascii_hexdigit() || c == '-') {
+        return Err("puuid 格式非法".to_string());
+    }
     let session = ensure_session().await?;
     let url = format!(
         "{SUPABASE_URL}/rest/v1/sync_data?puuid=eq.{puuid}&data_type=eq.{DATA_TYPE_NOTES}&select=payload"
@@ -213,27 +219,53 @@ pub async fn cloud_push_notes(puuid: String, payload: serde_json::Value) -> Resu
     Ok(())
 }
 
+/// 备份文件大小上限（字节）：备注备份远小于此，超限说明选错了文件
+const MAX_BACKUP_FILE_SIZE: u64 = 10 * 1024 * 1024;
+
+/// 校验备份文件路径：只允许 `.json` 扩展名（不区分大小写）
+///
+/// # 防御意图
+///
+/// 这两个文件命令暴露给 webview，若前端被注入（本应用 CSP 宽松且存在 v-html
+/// 渲染远程内容的面板），`read_text_file` + `cloud_push_notes` 可组合成
+/// 「读任意本地文件 → 外传云端」的攻击链。限定 `.json` 扩展名把「任意文件
+/// 读写原语」收敛为「仅备份文件读写」，正常导入导出流程（plugin-dialog 过滤
+/// `.json`）完全不受影响。
+fn validate_backup_path(path: &str) -> Result<(), String> {
+    if path.to_lowercase().ends_with(".json") {
+        Ok(())
+    } else {
+        Err("仅支持 .json 备份文件".to_string())
+    }
+}
+
 /// 把文本写入用户经系统对话框选定的路径（导出备份用，路径来自 plugin-dialog）
 ///
 /// # 参数
-/// - `path`: 目标文件路径
+/// - `path`: 目标文件路径（必须以 `.json` 结尾，见 [`validate_backup_path`]）
 /// - `content`: 待写入的文本内容
 #[tauri::command]
 pub async fn save_text_file(path: String, content: String) -> Result<(), String> {
-    std::fs::write(&path, content).map_err(|e| format!("写入文件失败: {e}"))
+    validate_backup_path(&path)?;
+    std::fs::write(&path, content).map_err(|e| format!("写入文件失败 {path}: {e}"))
 }
 
 /// 读取用户经系统对话框选定的文本文件（导入备份用）
 ///
 /// # 参数
-/// - `path`: 待读取文件路径
+/// - `path`: 待读取文件路径（必须以 `.json` 结尾，见 [`validate_backup_path`]）
 ///
 /// # 返回值
 /// - `Ok(String)`: 文件文本内容
-/// - `Err(String)`: 读取失败（文件不存在/权限/编码问题）
+/// - `Err(String)`: 路径非法、文件过大或读取失败（文件不存在/权限/编码问题）
 #[tauri::command]
 pub async fn read_text_file(path: String) -> Result<String, String> {
-    std::fs::read_to_string(&path).map_err(|e| format!("读取文件失败: {e}"))
+    validate_backup_path(&path)?;
+    let meta = std::fs::metadata(&path).map_err(|e| format!("读取文件失败 {path}: {e}"))?;
+    if meta.len() > MAX_BACKUP_FILE_SIZE {
+        return Err("文件过大（>10MB），不是备份文件".to_string());
+    }
+    std::fs::read_to_string(&path).map_err(|e| format!("读取文件失败 {path}: {e}"))
 }
 
 #[cfg(test)]
@@ -249,6 +281,22 @@ mod tests {
     #[test]
     fn should_not_refresh_when_fresh() {
         assert!(!needs_refresh(1000, 100)); // 100 + 60 < 1000
+    }
+
+    #[test]
+    fn should_accept_json_backup_path_case_insensitive() {
+        assert!(validate_backup_path("C:\\backup\\notes.json").is_ok());
+        assert!(validate_backup_path("/tmp/notes.JSON").is_ok());
+        assert!(validate_backup_path("notes.Json").is_ok());
+    }
+
+    #[test]
+    fn should_reject_non_json_backup_path() {
+        assert!(validate_backup_path("C:\\Windows\\system32\\config\\SAM").is_err());
+        assert!(validate_backup_path("/etc/passwd").is_err());
+        assert!(validate_backup_path("notes.json.exe").is_err());
+        assert!(validate_backup_path("notes.txt").is_err());
+        assert!(validate_backup_path("").is_err());
     }
 
     #[test]
