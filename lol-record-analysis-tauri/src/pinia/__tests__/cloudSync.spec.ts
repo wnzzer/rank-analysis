@@ -166,6 +166,25 @@ describe('useCloudSyncStore', () => {
       expect(pushes.length).toBe(1)
     })
 
+    it('挂起防抖期间关闭开关,30s 后不再推送(隐私契约)', async () => {
+      vi.useFakeTimers()
+      mockGet.mockResolvedValue(undefined)
+      mockHappyInvoke()
+      const store = useCloudSyncStore()
+      const notesStore = usePlayerNotesStore()
+      await store.setEnabled(true)
+      await flushAsync()
+
+      await notesStore.setNote('a', { note: '1', label: 'normal', gameName: 'A', tagLine: '1' })
+      // 30s 防抖窗口内用户关掉开关：挂起的推送必须被取消
+      await store.setEnabled(false)
+      mockInvoke.mockClear()
+
+      await vi.advanceTimersByTimeAsync(30_000)
+      await flushAsync()
+      expect(mockInvoke).not.toHaveBeenCalled()
+    })
+
     it('未开启时 notes 变更不触发任何云端调用', async () => {
       vi.useFakeTimers()
       mockGet.mockResolvedValue(undefined)

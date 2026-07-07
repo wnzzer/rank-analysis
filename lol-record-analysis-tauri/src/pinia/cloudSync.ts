@@ -55,10 +55,12 @@ export const useCloudSyncStore = defineStore('cloudSync', () => {
 
   /**
    * 防抖到期后的推送执行体。
+   * 开关已被关掉时直接放弃——用户经风险弹窗明确关闭后，挂起的推送不能再发出。
    * 若此刻一次同步尚在途，5 秒后重试——否则 in-flight 同步在 importNotes 前
    * 失败时，本次变更的推送会被 skip-when-syncing 永久搁浅。
    */
   function flushAutoPush(): void {
+    if (!enabled.value) return
     if (syncing.value) {
       autoPushTimer = setTimeout(flushAutoPush, AUTO_PUSH_RETRY_MS)
       return
@@ -129,6 +131,10 @@ export const useCloudSyncStore = defineStore('cloudSync', () => {
     if (v) {
       startAutoPush()
       syncNow().catch(() => {})
+    } else if (autoPushTimer) {
+      // 关闭开关时取消挂起的防抖推送，避免关掉后 timer 到点仍发出一次同步
+      clearTimeout(autoPushTimer)
+      autoPushTimer = null
     }
   }
 
