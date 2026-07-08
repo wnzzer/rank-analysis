@@ -94,24 +94,104 @@ describe('usePlayerNotesStore', () => {
     })
   })
 
-  describe('removeNote', () => {
-    it('删除内存条目并落盘', async () => {
+  describe('removeNote（墓碑）', () => {
+    it('删除写墓碑而非物理删除：getNote/count/list 不可见，底层 map 留 deleted 条目', async () => {
       const store = usePlayerNotesStore()
-      await store.setNote('p', { note: 'x', label: 'normal', gameName: 'G', tagLine: 'T' })
+      await store.setNote('p', { note: 'x', label: 'careful', gameName: 'G', tagLine: 'T' })
       mockPut.mockClear()
 
       await store.removeNote('p')
 
+      // 对消费者透明：读不到、数不到、列不出
       expect(store.getNote('p')).toBeUndefined()
+      expect(store.count).toBe(0)
+      expect(store.list.length).toBe(0)
+      // 底层 map 保留墓碑（同步时随合并传播删除），内容字段已清空
+      const tomb = store.notes['p']
+      expect(tomb?.deleted).toBe(true)
+      expect(tomb?.note).toBe('')
+      expect(tomb?.encounters).toBeUndefined()
+      // 墓碑随整表落盘
       expect(mockPut).toHaveBeenCalledWith(
         'playerNotes',
-        expect.not.objectContaining({ p: expect.anything() })
+        expect.objectContaining({ p: expect.objectContaining({ deleted: true }) })
       )
     })
 
-    it('删除不存在的 puuid 不报错', async () => {
+    it('删除不存在的 puuid 不报错、不写墓碑', async () => {
       const store = usePlayerNotesStore()
+      mockPut.mockClear()
       await expect(store.removeNote('ghost')).resolves.not.toThrow()
+      expect(store.notes['ghost']).toBeUndefined()
+      expect(mockPut).not.toHaveBeenCalled()
+    })
+
+    it('墓碑传播：并入更旧的活备注时墓碑赢（kept），删除不被复活', async () => {
+      const store = usePlayerNotesStore()
+      await store.setNote('p', { note: 'x', label: 'normal', gameName: 'G', tagLine: 'T' })
+      await store.removeNote('p')
+      const tombTs = store.notes['p'].updatedAt
+
+      // 模拟云端另一设备残留的旧活备注（updatedAt < 墓碑）
+      const stats = await store.importNotes({
+        p: { note: 'stale', label: 'careful', gameName: 'G', tagLine: 'T', updatedAt: tombTs - 1 }
+      })
+
+      expect(stats.kept).toBe(1)
+      expect(stats.added + stats.replaced).toBe(0)
+      expect(store.getNote('p')).toBeUndefined()
+      expect(store.notes['p'].deleted).toBe(true)
+    })
+
+    it('删除后重新标记：setNote 覆盖墓碑，getNote 恢复返回', async () => {
+      const store = usePlayerNotesStore()
+      await store.setNote('p', { note: 'x', label: 'normal', gameName: 'G', tagLine: 'T' })
+      await store.removeNote('p')
+
+      await store.setNote('p', { note: '回归', label: 'friendly', gameName: 'G', tagLine: 'T' })
+
+      expect(store.getNote('p')?.note).toBe('回归')
+      expect(store.notes['p'].deleted).toBeUndefined()
+      expect(store.count).toBe(1)
+    })
+  })
+
+  describe('墓碑 GC（loadFromConfig）', () => {
+    it('载入时清理超过 30 天的旧墓碑，保留新墓碑与活备注', async () => {
+      const now = Date.now()
+      const DAY = 24 * 60 * 60 * 1000
+      mockGet.mockResolvedValue({
+        oldTomb: {
+          note: '',
+          label: 'normal',
+          gameName: 'O',
+          tagLine: '1',
+          updatedAt: now - 31 * DAY,
+          deleted: true
+        },
+        freshTomb: {
+          note: '',
+          label: 'normal',
+          gameName: 'F',
+          tagLine: '2',
+          updatedAt: now - 1 * DAY,
+          deleted: true
+        },
+        live: {
+          note: '很老但没删',
+          label: 'careful',
+          gameName: 'L',
+          tagLine: '3',
+          updatedAt: now - 100 * DAY
+        }
+      })
+      const store = usePlayerNotesStore()
+      await store.init()
+
+      expect(store.notes['oldTomb']).toBeUndefined()
+      expect(store.notes['freshTomb']?.deleted).toBe(true)
+      // 活备注不受 TTL 影响，再老也保留
+      expect(store.getNote('live')?.note).toBe('很老但没删')
     })
   })
 
@@ -226,6 +306,53 @@ describe('usePlayerNotesStore', () => {
       await expect(
         store.setNote('p', { note: 'x', label: 'normal', gameName: 'G', tagLine: 'T' })
       ).rejects.toThrow()
+    })
+  })
+
+  describe('importNotes', () => {
+    it('合并传入表并落盘,返回统计', async () => {
+      const store = usePlayerNotesStore()
+      await store.setNote('p1', { note: 'local', label: 'normal', gameName: 'A', tagLine: '1' })
+      const localTs = store.getNote('p1')!.updatedAt
+      mockPut.mockClear() // 排除 setNote 自身的落盘，确保断言命中的是 importNotes 的 persist
+
+      const stats = await store.importNotes({
+        p1: {
+          note: 'stale',
+          label: 'careful',
+          gameName: 'A',
+          tagLine: '1',
+          updatedAt: localTs - 1
+        },
+        p2: { note: 'new', label: 'friendly', gameName: 'B', tagLine: '2', updatedAt: 123 }
+      })
+
+      expect(stats).toEqual({ added: 1, replaced: 0, kept: 1, invalid: 0 })
+      expect(store.getNote('p1')!.note).toBe('local') // 本地更新,未被覆盖
+      expect(store.getNote('p2')!.note).toBe('new')
+      // 正向落盘断言：合并结果（含新增的 p2）确实写盘了
+      expect(mockPut).toHaveBeenCalledWith(
+        'playerNotes',
+        expect.objectContaining({ p2: expect.any(Object) })
+      )
+    })
+
+    it('无实际变化时不落盘', async () => {
+      const store = usePlayerNotesStore()
+      mockPut.mockClear()
+      const stats = await store.importNotes({})
+      expect(stats.added + stats.replaced).toBe(0)
+      expect(mockPut).not.toHaveBeenCalled()
+    })
+
+    it('导入后 lastTs 不回退:再 setNote 的时间戳大于导入的最大 updatedAt', async () => {
+      const store = usePlayerNotesStore()
+      const future = Date.now() + 60_000
+      await store.importNotes({
+        p9: { note: 'x', label: 'normal', gameName: 'C', tagLine: '3', updatedAt: future }
+      })
+      await store.setNote('p10', { note: 'y', label: 'normal', gameName: 'D', tagLine: '4' })
+      expect(store.getNote('p10')!.updatedAt).toBeGreaterThan(future)
     })
   })
 })

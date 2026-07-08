@@ -68,6 +68,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_dialog::init())
         .register_asynchronous_uri_scheme_protocol("asset", move |_ctx, request, responder| {
             let path = request.uri().path();
             // path is like /champion/123
@@ -152,6 +153,10 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             command::sgp::get_sgp_regions,
             command::sgp::get_current_sgp_region,
             command::sgp::get_sgp_match_history_by_name,
+            command::cloud_sync::cloud_pull_notes,
+            command::cloud_sync::cloud_push_notes,
+            command::cloud_sync::save_text_file,
+            command::cloud_sync::read_text_file,
         ]);
 
     #[cfg(debug_assertions)]

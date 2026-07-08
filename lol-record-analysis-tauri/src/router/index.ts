@@ -61,6 +61,12 @@ const routes: Array<RouteRecordRaw> = [
         meta: { title: '我标记过的人' }
       },
       {
+        path: '/Settings/DataSync',
+        name: 'DataSync',
+        component: () => import('@renderer/views/settings/DataSync.vue'),
+        meta: { title: '数据与同步' }
+      },
+      {
         path: '/Settings/About',
         name: 'About',
         component: () => import('@renderer/views/settings/About.vue'),

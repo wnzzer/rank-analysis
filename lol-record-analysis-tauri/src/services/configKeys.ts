@@ -21,6 +21,10 @@ export const CONFIG_KEYS = {
   dashscopeApiKey: 'dashscopeApiKey',
   /** 玩家备注是否随 AI 分析请求发送到云端模型（默认开） */
   aiUsePlayerNotes: 'aiUsePlayerNotes',
+  /** 云同步开关（默认关，开启需经风险告知弹窗） */
+  cloudSyncEnabled: 'cloudSyncEnabled',
+  /** 是否已向用户介绍过云同步功能（首次启动一次性弹窗用） */
+  cloudSyncNoticeShown: 'cloudSyncNoticeShown',
   /**
    * 游戏安装根目录（免 WeGame 一键启动用）。
    *

@@ -39,6 +39,7 @@
 
 pub mod ai;
 pub mod asset;
+pub mod cloud_sync;
 pub mod config;
 pub mod fandom;
 pub mod info;

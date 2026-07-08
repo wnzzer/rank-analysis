@@ -3,6 +3,7 @@
     <MatchDetail v-if="isStandaloneDetailWindow" />
     <n-flex v-else vertical size="large">
       <ErrorReportingConsentDialog v-model:show="showConsent" @decide="onConsentDecide" />
+      <CloudSyncNoticeDialog :show="showCloudNotice" @decide="onCloudNoticeDecide" />
       <!-- 整体布局 -->
       <n-layout>
         <!-- 顶部区域 -->
@@ -33,7 +34,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useMessage } from 'naive-ui'
 
@@ -41,6 +42,7 @@ import Header from './Header.vue'
 import SideNavigation from './SideNavigation.vue'
 import MatchDetail from '@renderer/views/MatchDetail.vue'
 import ErrorReportingConsentDialog from '@renderer/components/common/ErrorReportingConsentDialog.vue'
+import CloudSyncNoticeDialog from '@renderer/components/common/CloudSyncNoticeDialog.vue'
 import { useGameState } from '@renderer/composables/useGameState'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import { CONFIG_KEYS } from '@renderer/services/configKeys'
@@ -63,6 +65,7 @@ import { CONFIG_KEYS } from '@renderer/services/configKeys'
  */
 
 const route = useRoute()
+const router = useRouter()
 const currentWindow = getCurrentWindow()
 
 /**
@@ -158,8 +161,50 @@ async function onConsentDecide(enabled: boolean): Promise<void> {
   putConfigByIpc(CONFIG_KEYS.errorReportingConsentShown, true).catch(() => {})
 }
 
+/** 是否展示云同步功能告知弹窗 */
+const showCloudNotice = ref(false)
+
+/**
+ * 首次启动（或升级后首次）一次性介绍云同步功能。
+ *
+ * 时机：排在错误上报同意弹窗之后，避免两个模态框叠放——仅当
+ * `errorReportingConsentShown` 已为 true（老用户，本次启动不会再弹错误上报同意
+ * 弹窗）时，本次启动才弹本弹窗；刚回答完错误上报弹窗的新用户，下次启动再弹。
+ * 仅主窗口弹，排除 match-detail 子窗口。UI 见 {@link CloudSyncNoticeDialog}。
+ *
+ * 与姊妹函数不同，这里刻意不做 `isConnected` 门控、只用平坦的 1.5s 延时：本弹窗
+ * 是被动告知（看完即关，不要求用户当场做阻塞性决策），即使恰逢首屏加载出现，
+ * 也不至于让人误以为"弹窗导致加载失败"，不值得为它复制一套连接等待逻辑。
+ */
+async function maybeShowCloudSyncNotice(): Promise<void> {
+  if (isStandaloneDetailWindow.value) return
+  try {
+    const noticeShown = await getConfigByIpc<boolean>(CONFIG_KEYS.cloudSyncNoticeShown)
+    if (noticeShown) return
+    const consentShown = await getConfigByIpc<boolean>(CONFIG_KEYS.errorReportingConsentShown)
+    if (!consentShown) return // 本次启动让位给错误上报弹窗
+  } catch {
+    return
+  }
+  window.setTimeout(() => {
+    showCloudNotice.value = true
+  }, 1500)
+}
+
+/**
+ * 处理云同步告知弹窗的用户选择。两种选择都标记"已告知"，之后不再弹；
+ * 仅当选择"去看看"时跳转到设置页的数据与同步页签，不在此处开启任何开关。
+ * @param goto - true 跳转设置页，false 仅关闭
+ */
+function onCloudNoticeDecide(goto: boolean): void {
+  showCloudNotice.value = false
+  putConfigByIpc(CONFIG_KEYS.cloudSyncNoticeShown, true).catch(() => {})
+  if (goto) router.push({ name: 'DataSync' })
+}
+
 onMounted(() => {
   maybeAskErrorReportingConsent()
+  maybeShowCloudSyncNotice()
 })
 
 /**
