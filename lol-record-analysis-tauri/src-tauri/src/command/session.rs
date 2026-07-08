@@ -653,91 +653,144 @@ async fn process_subteam_parallel(
     subteam_id: i32,
     seq: u64,
 ) -> Result<(), String> {
-    let futures = players.iter().map(|player| async move {
-        if player.puuid.is_empty() {
-            return SessionSummoner {
-                champion_id: player.champion_id,
-                champion_key: format!("champion_{}", player.champion_id),
-                is_loading: false,
-                ..Default::default()
-            };
-        }
+    #[derive(Serialize)]
+    struct PlayerUpdate {
+        #[serde(rename = "subteamId")]
+        subteam_id: i32,
+        index: usize,
+        total: usize,
+        player: SessionSummoner,
+    }
 
-        let count = crate::config::get_config("matchHistoryCount")
-            .await
-            .ok()
-            .as_ref()
-            .and_then(crate::config::extract_int)
-            .map(|n| n as i32)
-            .unwrap_or(4);
-        let puuid = player.puuid.clone();
-        // 选人早期 champion_id 为 0 表示未选定，此时按「未知」处理而非「英雄 0」
-        let champion_id = Some(player.champion_id).filter(|&id| id > 0);
+    let total = players.len();
 
-        let (summoner, match_history, rank) = tokio::join!(
-            async {
-                Summoner::get_summoner_by_puuid(&puuid)
-                    .await
-                    .unwrap_or_default()
-            },
-            async {
-                match MatchHistory::get_match_history_by_puuid(&puuid, 0, count - 1).await {
-                    Ok(mut mh) => {
+    let futures = players
+        .iter()
+        .enumerate()
+        .map(|(index, player)| async move {
+            if player.puuid.is_empty() {
+                return SessionSummoner {
+                    champion_id: player.champion_id,
+                    champion_key: format!("champion_{}", player.champion_id),
+                    is_loading: false,
+                    ..Default::default()
+                };
+            }
+
+            let count = crate::config::get_config("matchHistoryCount")
+                .await
+                .ok()
+                .as_ref()
+                .and_then(crate::config::extract_int)
+                .map(|n| n as i32)
+                .unwrap_or(4);
+            let puuid = player.puuid.clone();
+            let champion_id = Some(player.champion_id).filter(|&id| id > 0);
+
+            let (summoner, match_history, rank) = tokio::join!(
+                async {
+                    Summoner::get_summoner_by_puuid(&puuid)
+                        .await
+                        .unwrap_or_default()
+                },
+                async {
+                    let mut result = if let Some(mut mh) =
+                        MatchHistory::try_get_cached_slice(&puuid, 0, count - 1).await
+                    {
                         mh.enrich_info_cn().ok();
                         mh
+                    } else {
+                        let puuid_for_cache = puuid.clone();
+                        tokio::spawn(async move {
+                            MatchHistory::fill_cache(&puuid_for_cache).await;
+                        });
+                        match MatchHistory::get_by_puuid(&puuid, 0, count - 1).await {
+                            Ok(mut mh) => {
+                                mh.enrich_info_cn().ok();
+                                mh
+                            }
+                            Err(_) => MatchHistory::default(),
+                        }
+                    };
+                    if result.games.games.len() > count as usize {
+                        result.games.games.truncate(count as usize);
                     }
-                    Err(_) => MatchHistory::default(),
+                    result
+                },
+                async {
+                    match Rank::get_rank_by_puuid(&puuid).await {
+                        Ok(mut r) => {
+                            r.enrich_cn_info();
+                            r
+                        }
+                        Err(_) => Rank::default(),
+                    }
                 }
-            },
-            async {
-                match Rank::get_rank_by_puuid(&puuid).await {
-                    Ok(mut r) => {
-                        r.enrich_cn_info();
-                        r
-                    }
-                    Err(_) => Rank::default(),
+            );
+
+            // 先推送基础数据（无 user_tag），让 UI 尽早渲染玩家战绩卡片
+            if is_latest_task(&SESSION_TASK_SEQ, seq) {
+                let basic = SessionSummoner {
+                    champion_id: player.champion_id,
+                    champion_key: format!("champion_{}", player.champion_id),
+                    summoner: summoner.clone(),
+                    match_history: match_history.clone(),
+                    user_tag: UserTag::default(),
+                    rank: rank.clone(),
+                    meet_games: Vec::new(),
+                    pre_group_markers: PreGroupMarker::default(),
+                    is_loading: false,
+                };
+                let update = PlayerUpdate {
+                    subteam_id,
+                    index,
+                    total,
+                    player: basic,
+                };
+                if let Err(e) = app_handle.emit("session-player-update", &update) {
+                    log::error!("Failed to emit player update event: {}", e);
                 }
             }
-        );
 
-        let user_tag = crate::command::user_tag::get_user_tag_by_puuid(&puuid, mode, champion_id)
-            .await
-            .unwrap_or_else(|_| UserTag {
-                recent_data: crate::command::user_tag::RecentData {
-                    kda: 0.0,
-                    kills: 0.0,
-                    deaths: 0.0,
-                    assists: 0.0,
-                    select_mode: mode,
-                    select_mode_cn: QUEUE_ID_TO_CN
-                        .get(&(mode as u32))
-                        .unwrap_or(&"未知模式")
-                        .to_string(),
-                    select_wins: 0,
-                    select_losses: 0,
-                    group_rate: 0,
-                    average_gold: 0,
-                    gold_rate: 0,
-                    average_damage_dealt_to_champions: 0,
-                    damage_dealt_to_champions_rate: 0,
-                    friend_and_dispute: Default::default(),
-                    one_game_players_map: None,
-                },
-                tag: Vec::new(),
-            });
+            let user_tag =
+                crate::command::user_tag::get_user_tag_by_puuid(&puuid, mode, champion_id)
+                    .await
+                    .unwrap_or_else(|_| UserTag {
+                        recent_data: crate::command::user_tag::RecentData {
+                            kda: 0.0,
+                            kills: 0.0,
+                            deaths: 0.0,
+                            assists: 0.0,
+                            select_mode: mode,
+                            select_mode_cn: QUEUE_ID_TO_CN
+                                .get(&(mode as u32))
+                                .unwrap_or(&"未知模式")
+                                .to_string(),
+                            select_wins: 0,
+                            select_losses: 0,
+                            group_rate: 0,
+                            average_gold: 0,
+                            gold_rate: 0,
+                            average_damage_dealt_to_champions: 0,
+                            damage_dealt_to_champions_rate: 0,
+                            friend_and_dispute: Default::default(),
+                            one_game_players_map: None,
+                        },
+                        tag: Vec::new(),
+                    });
 
-        SessionSummoner {
-            champion_id: player.champion_id,
-            champion_key: format!("champion_{}", player.champion_id),
-            summoner,
-            match_history,
-            user_tag,
-            rank,
-            meet_games: Vec::new(),
-            pre_group_markers: PreGroupMarker::default(),
-            is_loading: false,
-        }
-    });
+            SessionSummoner {
+                champion_id: player.champion_id,
+                champion_key: format!("champion_{}", player.champion_id),
+                summoner,
+                match_history,
+                user_tag,
+                rank,
+                meet_games: Vec::new(),
+                pre_group_markers: PreGroupMarker::default(),
+                is_loading: false,
+            }
+        });
 
     let fetched_players = futures::future::join_all(futures).await;
 
@@ -749,15 +802,6 @@ async fn process_subteam_parallel(
 
         if !emit_allowed {
             continue;
-        }
-
-        #[derive(Serialize)]
-        struct PlayerUpdate {
-            #[serde(rename = "subteamId")]
-            subteam_id: i32,
-            index: usize,
-            total: usize,
-            player: SessionSummoner,
         }
 
         let update = PlayerUpdate {
