@@ -130,9 +130,15 @@ static MATCH_HISTORY_CACHE: LazyLock<Cache<String, MatchHistory>> = LazyLock::ne
         .build()
 });
 
+const MAX_CACHE_END: i32 = 49;
+
 impl MatchHistory {
     /// 内部：按 PUUID 与索引范围请求 LCU 对局列表。
-    async fn get_by_puuid(puuid: &str, begin_index: i32, end_index: i32) -> Result<Self, String> {
+    pub(crate) async fn get_by_puuid(
+        puuid: &str,
+        begin_index: i32,
+        end_index: i32,
+    ) -> Result<Self, String> {
         let uri = format!(
             "lol-match-history/v1/products/lol/{}/matches?begIndex={}&endIndex={}",
             puuid, begin_index, end_index
@@ -153,7 +159,7 @@ impl MatchHistory {
         Ok(match_history)
     }
 
-    /// 按 PUUID 与索引范围获取对局记录；在 0..=49 范围内使用缓存。
+    /// 按 PUUID 与索引范围获取对局记录；首次访问时缓存完整 50 场（0-49），后续命中后切片返回。
     pub async fn get_match_history_by_puuid(
         puuid: &str,
         beg_index: i32,
@@ -165,59 +171,80 @@ impl MatchHistory {
             beg_index,
             end_index
         );
-        let max_cache_end_index = 49;
 
-        // 参数验证
         if beg_index < 0 || end_index < 0 {
             return Err("索引不能为负数".to_string());
         }
-
-        // 允许 beg_index == end_index：matchHistoryCount=1 时请求区间为 (0, 0)，表示单场
         if beg_index > end_index {
             return Err("开始索引不能大于结束索引".to_string());
         }
 
-        // 如果没有用户缓存，且在缓存范围内，则获取缓存
-        if !MATCH_HISTORY_CACHE.contains_key(puuid) && end_index <= max_cache_end_index {
-            let cache = MatchHistory::get_by_puuid(puuid, 0, max_cache_end_index).await?;
-            MATCH_HISTORY_CACHE.insert(puuid.to_string(), cache).await;
+        if end_index > MAX_CACHE_END {
+            return MatchHistory::get_by_puuid(puuid, beg_index, end_index).await;
         }
 
-        let res = if end_index <= max_cache_end_index {
-            let history = MATCH_HISTORY_CACHE
-                .get(puuid)
-                .await
-                .ok_or_else(|| format!("未找到缓存的比赛历史: {}", puuid))?
-                .clone();
+        let history = MATCH_HISTORY_CACHE
+            .try_get_with(puuid.to_string(), async {
+                MatchHistory::get_by_puuid(puuid, 0, MAX_CACHE_END).await
+            })
+            .await
+            .map_err(|e| e.to_string())?;
 
-            let beg = beg_index as usize;
-            let end = end_index as usize;
-            let total_games = history.games.games.len();
+        let total_games = history.games.games.len();
+        let beg = beg_index as usize;
+        let end = end_index as usize;
 
-            if beg >= total_games {
-                return Err(format!(
-                    "开始索引 {} 超出范围，总游戏数 {}",
-                    beg, total_games
-                ));
-            }
+        if end >= total_games {
+            return MatchHistory::get_by_puuid(puuid, beg_index, end_index).await;
+        }
+        if beg >= total_games {
+            return Err(format!(
+                "开始索引 {} 超出范围，总游戏数 {}",
+                beg, total_games
+            ));
+        }
 
-            let actual_end = std::cmp::min(end + 1, total_games);
+        let actual_end = std::cmp::min(end + 1, total_games);
+        if beg >= actual_end {
+            return Err(format!("有效范围为空：{} >= {}", beg, actual_end));
+        }
 
-            if beg >= actual_end {
-                return Err(format!("有效范围为空：{} >= {}", beg, actual_end));
-            }
+        Ok(MatchHistory {
+            games: GamesWrapper {
+                games: history.games.games[beg..actual_end].to_vec(),
+            },
+            ..history
+        })
+    }
 
-            MatchHistory {
-                games: GamesWrapper {
-                    games: history.games.games[beg..actual_end].to_vec(),
-                },
-                ..history
-            }
-        } else {
-            MatchHistory::get_by_puuid(puuid, beg_index, end_index).await?
-        };
+    /// 纯读缓存并切片，不触发 LCU 请求。命中则返回切片后的数据，未命中或数据不足返回 None。
+    pub async fn try_get_cached_slice(puuid: &str, beg: i32, end: i32) -> Option<MatchHistory> {
+        let cached = MATCH_HISTORY_CACHE.get(puuid).await?;
+        let total = cached.games.games.len();
+        let b = beg as usize;
+        let e = end as usize;
+        if e >= total {
+            return None;
+        }
+        let actual_end = std::cmp::min(e + 1, total);
+        if b >= actual_end {
+            return None;
+        }
+        Some(MatchHistory {
+            games: GamesWrapper {
+                games: cached.games.games[b..actual_end].to_vec(),
+            },
+            ..cached
+        })
+    }
 
-        Ok(res)
+    /// 异步补全缓存：用 try_get_with 保证并发下只有一个线程拉 0-49。
+    pub async fn fill_cache(puuid: &str) {
+        let _ = MATCH_HISTORY_CACHE
+            .try_get_with(puuid.to_string(), async {
+                MatchHistory::get_by_puuid(puuid, 0, MAX_CACHE_END).await
+            })
+            .await;
     }
 
     /// 为每条对局拉取详情（game_detail）并写入。
