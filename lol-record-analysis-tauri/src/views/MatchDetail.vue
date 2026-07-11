@@ -93,8 +93,8 @@ function closeWindow() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 0 6px 0 10px;
+  gap: var(--space-12);
+  padding: 0 var(--space-6) 0 var(--space-10);
   box-sizing: border-box;
   background:
     linear-gradient(
@@ -116,9 +116,9 @@ function closeWindow() {
 
 .match-detail-window-close {
   height: 20px;
-  padding: 0 8px;
+  padding: 0 var(--space-8);
   border: 1px solid var(--border-subtle);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: color-mix(in srgb, var(--bg-elevated) 88%, transparent);
   color: var(--text-primary);
   font-size: 10px;

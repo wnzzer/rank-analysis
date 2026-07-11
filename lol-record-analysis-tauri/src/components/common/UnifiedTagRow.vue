@@ -141,7 +141,7 @@ defineExpose({ solidifyTag })
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-4);
 }
 
 .unified-tag-chip {

@@ -4,7 +4,7 @@
       <template #header>
         <div class="header-container">
           <div class="title">关于我们</div>
-          <n-button text style="font-size: 24px" @click="openOfficialWebsite()">
+          <n-button text style="font-size: var(--font-size-2xl)" @click="openOfficialWebsite()">
             <n-icon>
               <svg viewBox="0 0 24 24" fill="currentColor">
                 <path
@@ -193,11 +193,8 @@ const checkForUpdates = async () => {
         content: () =>
           h('div', [
             h('p', `检测到新版本 ${update.version}，是否立即更新？`),
-            h('div', { style: 'margin-top: 12px; font-weight: bold;' }, '更新内容：'),
+            h('div', { style: 'margin-top: var(--space-12); font-weight: bold;' }, '更新内容：'),
             h('div', {
-              // 添加样式使 Markdown 内容更易读，并限制高度防止弹窗过长
-              style:
-                'max-height: 300px; overflow-y: auto; background: rgba(0,0,0,0.05); padding: 12px; border-radius: 6px; margin-top: 8px; line-height: 1.6;',
               class: 'update-log-content',
               innerHTML: md.render(update.body || '暂无更新日志'),
               onClick: (e: MouseEvent) => {
@@ -251,7 +248,7 @@ const checkForUpdates = async () => {
                   h(
                     'p',
                     {
-                      style: `margin-top: ${hasTotal ? '12px' : '0'}; color: var(--text-secondary); font-size: 12px;`
+                      style: `margin-top: ${hasTotal ? 'var(--space-12)' : '0'}; color: var(--text-secondary); font-size: var(--font-size-sm);`
                     },
                     hasTotal
                       ? `已下载 ${fmtMB(downloaded.value)} MB / ${fmtMB(contentLength.value)} MB`
@@ -337,7 +334,7 @@ const sendEmail = () => {
 }
 
 .title {
-  font-size: 18px;
+  font-size: var(--font-size-xl);
   font-weight: 700;
   color: var(--text-primary);
 }
@@ -349,15 +346,15 @@ const sendEmail = () => {
 .logo-section {
   display: flex;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: var(--space-20);
 }
 
 .logo {
-  margin-right: 20px;
+  margin-right: var(--space-20);
 }
 
 .app-info h2 {
-  margin: 0 0 8px 0;
+  margin: 0 0 var(--space-8) 0;
 }
 
 .app-info p {
@@ -371,19 +368,19 @@ const sendEmail = () => {
 }
 
 .version-tag {
-  background-color: #e8f4fd;
-  color: #1890ff;
-  padding: 2px 8px;
+  background-color: color-mix(in srgb, var(--accent-blue) 14%, transparent);
+  color: var(--accent-blue);
+  padding: var(--space-2) var(--space-8);
   border-radius: var(--radius-sm);
-  font-size: 12px;
-  margin-right: 10px;
+  font-size: var(--font-size-sm);
+  margin-right: var(--space-10);
 }
 
 .update-check-option {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin: 15px 0;
+  margin: var(--space-16) 0;
 }
 
 .nav-options {
@@ -408,16 +405,25 @@ const sendEmail = () => {
 }
 
 .device-id-text {
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
-  margin-right: 10px;
+  margin-right: var(--space-10);
   user-select: text;
 }
 </style>
 
 <style>
+.update-log-content {
+  max-height: 300px;
+  overflow-y: auto;
+  background: var(--glass-bg-mid);
+  padding: var(--space-12);
+  border-radius: var(--radius-sm);
+  margin-top: var(--space-8);
+  line-height: 1.6;
+}
 .update-log-content a {
-  color: #4096ff !important;
+  color: var(--accent-blue) !important;
   text-decoration: none;
   cursor: pointer;
 }

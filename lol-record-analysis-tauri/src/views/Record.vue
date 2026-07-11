@@ -51,7 +51,7 @@ const { isMobile } = useBreakpoint()
 }
 
 .record-content :deep(.n-layout-scroll-container)::-webkit-scrollbar-thumb {
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   background: color-mix(in srgb, var(--text-tertiary) 35%, transparent);
 }
 

@@ -157,7 +157,7 @@
           >
         </div>
 
-        <n-divider style="margin: 8px 0" />
+        <n-divider style="margin: var(--space-8) 0" />
 
         <!-- Checks -->
         <div class="section-label">计算与校验 (Check)</div>
@@ -280,7 +280,7 @@
           >✕</n-button
         >
       </div>
-      <div style="padding: 10px">
+      <div style="padding: var(--space-10)">
         <n-select
           v-if="condition.type === 'currentQueue'"
           size="small"
@@ -521,14 +521,14 @@ function emitUpdate() {
 <style scoped>
 .condition-node {
   border-left: 3px solid v-bind('themeVars.borderColor');
-  padding-left: 12px;
-  margin-top: 10px;
-  margin-bottom: 10px;
+  padding-left: var(--space-12);
+  margin-top: var(--space-10);
+  margin-bottom: var(--space-10);
 }
 
 .group-node {
   border: 1px dashed v-bind('themeVars.borderColor');
-  padding: 8px;
+  padding: var(--space-8);
   border-radius: var(--radius-md);
   background-color: v-bind('themeVars.actionColor');
 }
@@ -541,17 +541,17 @@ function emitUpdate() {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: var(--space-8);
 }
 
 .children-container {
-  padding-left: 8px;
+  padding-left: var(--space-8);
 }
 .empty-placeholder {
   color: v-bind('themeVars.textColorDisabled');
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   font-style: italic;
-  padding: 4px;
+  padding: var(--space-4);
 }
 
 /* Leaf Node Styling */
@@ -564,25 +564,25 @@ function emitUpdate() {
 
 .leaf-header {
   background-color: v-bind('themeVars.tableHeaderColor');
-  padding: 4px 8px;
+  padding: var(--space-4) var(--space-8);
   border-bottom: 1px solid v-bind('themeVars.dividerColor');
   border-radius: var(--radius-md) var(--radius-md) 0 0;
   height: 28px;
 }
 .leaf-title {
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   font-weight: bold;
   color: v-bind('themeVars.textColor2');
 }
 
 .leaf-body {
-  padding: 10px;
+  padding: var(--space-10);
 }
 
 .section-label {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   color: v-bind('themeVars.textColor3');
-  margin-bottom: 4px;
+  margin-bottom: var(--space-4);
   font-weight: bold;
 }
 
@@ -591,9 +591,9 @@ function emitUpdate() {
 .refresh-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-8);
   align-items: center;
-  margin-bottom: 6px;
+  margin-bottom: var(--space-6);
 }
 
 .sel-type {
@@ -614,13 +614,13 @@ function emitUpdate() {
   min-width: 150px;
 }
 .text-label {
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 .row-remove-btn {
   margin-left: auto;
 }
 .add-filter-btn {
-  margin-top: 4px;
+  margin-top: var(--space-4);
   width: 100%;
 }
 </style>

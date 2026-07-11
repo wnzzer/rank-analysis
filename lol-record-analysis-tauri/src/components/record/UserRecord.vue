@@ -77,7 +77,7 @@
       :bordered="false"
       size="small"
     >
-      <n-text depth="3" style="font-size: 12px; line-height: 1.6">
+      <n-text depth="3" style="font-size: var(--font-size-sm); line-height: 1.6">
         跨区查询：仅提供该大区的对局战绩，段位 / 胜率 / 标签不支持跨区。
       </n-text>
     </n-card>

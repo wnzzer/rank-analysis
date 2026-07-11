@@ -193,7 +193,7 @@ async function onDelete() {
   border: none;
   background: transparent;
   cursor: pointer;
-  padding: 2px;
+  padding: var(--space-2);
   border-radius: var(--radius-pill);
   transition: background var(--dur-fast, 0.15s) var(--ease-expo, ease);
 }
@@ -217,7 +217,7 @@ async function onDelete() {
 }
 
 .note-add-icon {
-  font-size: 13px;
+  font-size: var(--font-size-base);
   color: var(--text-quaternary, var(--text-tertiary));
   opacity: 0.55;
   transition: opacity var(--dur-fast, 0.15s) var(--ease-expo, ease);
@@ -227,7 +227,7 @@ async function onDelete() {
   color: var(--text-secondary);
 }
 .size-normal .note-add-icon {
-  font-size: 16px;
+  font-size: var(--font-size-lg);
 }
 
 /* ---- 弹层 ---- */
@@ -263,11 +263,11 @@ async function onDelete() {
   justify-content: center;
   min-width: 16px;
   height: 16px;
-  padding: 0 4px;
+  padding: 0 var(--space-4);
   border-radius: var(--radius-pill, 999px);
   background: var(--glass-bg-low, rgba(255, 255, 255, 0.06));
   color: var(--text-tertiary);
-  font-size: 10px;
+  font-size: var(--font-size-2xs);
 }
 .note-encounters-scroll {
   max-height: 196px;
@@ -303,8 +303,8 @@ async function onDelete() {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 5px 2px;
+  gap: var(--space-4);
+  padding: 5px var(--space-2);
   font-size: var(--font-size-xs, 12px);
   color: var(--text-secondary);
   background: var(--glass-bg-low, rgba(255, 255, 255, 0.04));

@@ -100,7 +100,7 @@ function close() {
 
       <div v-if="loading" style="padding: 40px; text-align: center">
         <n-spin />
-        <div style="margin-top: 12px; color: var(--n-text-color-disabled)">
+        <div style="margin-top: var(--space-12); color: var(--n-text-color-disabled)">
           AI 分析中（约 5-10s）
         </div>
       </div>
@@ -113,7 +113,10 @@ function close() {
         <n-empty description="AI 暂时不可用">
           <template #extra>
             <n-button @click="load(true)">重试</n-button>
-            <n-text depth="3" style="display: block; margin-top: 8px; font-size: 12px">
+            <n-text
+              depth="3"
+              style="display: block; margin-top: var(--space-8); font-size: var(--font-size-sm)"
+            >
               {{ outcome.error }}
             </n-text>
           </template>
@@ -129,7 +132,11 @@ function close() {
       </div>
 
       <div v-else-if="outcome?.kind === 'ok'">
-        <n-text v-if="outcome.result.droppedCount > 0" depth="3" style="font-size: 12px">
+        <n-text
+          v-if="outcome.result.droppedCount > 0"
+          depth="3"
+          style="font-size: var(--font-size-sm)"
+        >
           AI 产出
           {{ outcome.result.good.length + outcome.result.bad.length + outcome.result.droppedCount }}
           条建议，{{ outcome.result.droppedCount }} 条无效已过滤
@@ -145,7 +152,9 @@ function close() {
 
         <template v-else>
           <template v-for="section in sections" :key="section.title">
-            <div class="section-title" :style="{ marginTop: '16px' }">{{ section.title }}</div>
+            <div class="section-title" :style="{ marginTop: 'var(--space-16)' }">
+              {{ section.title }}
+            </div>
             <n-space v-if="section.items.length > 0">
               <n-card
                 v-for="s in section.items"
@@ -155,13 +164,19 @@ function close() {
                 :style="s.adopted ? 'opacity: 0.5' : ''"
               >
                 <n-tag :type="section.tagType" size="small" round>{{ s.name }}</n-tag>
-                <div style="margin-top: 8px; font-size: 12px; color: var(--n-text-color-2)">
+                <div
+                  style="
+                    margin-top: var(--space-8);
+                    font-size: var(--font-size-sm);
+                    color: var(--n-text-color-2);
+                  "
+                >
                   {{ s.desc }}
                 </div>
                 <n-button
                   size="small"
                   type="primary"
-                  style="margin-top: 8px; width: 100%"
+                  style="margin-top: var(--space-8); width: 100%"
                   :disabled="s.adopted || adoptingIds.has(s.id)"
                   :loading="adoptingIds.has(s.id)"
                   @click="adopt(s)"
@@ -170,7 +185,7 @@ function close() {
                 </n-button>
               </n-card>
             </n-space>
-            <div v-else style="color: var(--n-text-color-disabled); font-size: 12px">
+            <div v-else style="color: var(--n-text-color-disabled); font-size: var(--font-size-sm)">
               {{ section.emptyText }}
             </div>
           </template>
@@ -183,6 +198,6 @@ function close() {
 <style scoped>
 .section-title {
   font-weight: 600;
-  margin-bottom: 8px;
+  margin-bottom: var(--space-8);
 }
 </style>

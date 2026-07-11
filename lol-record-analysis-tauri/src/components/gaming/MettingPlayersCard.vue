@@ -18,7 +18,7 @@
 
           <!-- Middle: Stats & Info -->
           <div class="info-section">
-            <div class="kda-row">
+            <div class="kda-row font-number">
               <span class="kda-val kill">{{ meetGame.kills }}</span>
               <span class="kda-sep">/</span>
               <span class="kda-val death">{{ meetGame.deaths }}</span>
@@ -150,7 +150,6 @@ defineProps<{
 .kda-row {
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-semibold);
-  font-family: 'Oswald', sans-serif;
   white-space: nowrap;
 }
 
@@ -163,8 +162,7 @@ defineProps<{
 }
 
 .kda-val.assist {
-  /* TODO: --semantic-warn token —— 当前无 warn/highlight semantic 令牌，保留原 orange */
-  color: #d38b2a;
+  color: var(--semantic-warn);
 }
 
 .kda-sep {

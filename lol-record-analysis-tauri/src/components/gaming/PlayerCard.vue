@@ -472,7 +472,7 @@ const { isAramMode, balanceTags, overallBalanceStatus } = useAramBalance(
 
 :deep(.n-tag--warning-type) {
   background: rgba(251, 191, 36, 0.1) !important;
-  color: #d97706 !important;
+  color: var(--semantic-warn) !important;
   border: 1px solid rgba(251, 191, 36, 0.2) !important;
 }
 

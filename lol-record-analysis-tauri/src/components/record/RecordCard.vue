@@ -528,11 +528,11 @@ function openDetail() {
   left: -3px;
   bottom: -3px;
   display: inline-block;
-  padding: 0 5px;
+  padding: 0 var(--space-4);
   height: 12px;
   font-weight: 800;
   font-style: italic;
-  font-size: 8px;
+  font-size: var(--font-size-3xs);
   line-height: 12px;
   letter-spacing: 0.03em;
   text-align: center;
@@ -585,7 +585,7 @@ function openDetail() {
 
 .record-card-kda-assist {
   /* 助攻金色：#b8860b 在暗底几乎不可读，提亮一档 */
-  color: #d19a2f;
+  color: var(--accent-gold-deep);
 }
 
 /* 分隔符淡化：让三个数字成为主角（详情页同款纪律） */
@@ -598,7 +598,7 @@ function openDetail() {
   display: flex;
   flex-direction: column;
   gap: 0;
-  padding: var(--space-4) var(--space-8) 5px;
+  padding: var(--space-4) var(--space-8);
   background: var(--glass-bg-low);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
@@ -610,14 +610,14 @@ function openDetail() {
 .record-card-teams {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-2);
   justify-content: center;
 }
 
 /* === 装备/技能 图标槽（2px 缝隙缓解密压感） === */
 .record-card-item-slots,
 .record-card-spell-icons {
-  gap: 2px;
+  gap: var(--space-2);
 }
 
 .record-card-item-slots :deep(.n-image),

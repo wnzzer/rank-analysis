@@ -12,7 +12,7 @@
       <n-form-item label="匿名错误上报">
         <n-space vertical :size="4">
           <n-switch v-model:value="errorReporting" @update:value="handleReportingUpdate" />
-          <n-text :depth="3" style="font-size: 12px">
+          <n-text :depth="3" style="font-size: var(--font-size-sm)">
             开启后，崩溃与报错（已脱敏，不含召唤师名 / puuid）会上报以便排查问题。重启后生效。
           </n-text>
         </n-space>
@@ -26,7 +26,7 @@
             placeholder="留空使用内置 Key"
             @blur="handleDashscopeKeyUpdate"
           />
-          <n-text :depth="3" style="font-size: 12px">
+          <n-text :depth="3" style="font-size: var(--font-size-sm)">
             填入你自己的 DashScope (通义千问) API Key 则走你的额度；留空使用内置 Key。
           </n-text>
         </n-space>
@@ -34,7 +34,7 @@
       <n-form-item label="AI 分析携带玩家备注">
         <n-space vertical :size="4">
           <n-switch v-model:value="aiUseNotes" @update:value="handleAiUseNotesUpdate" />
-          <n-text :depth="3" style="font-size: 12px">
+          <n-text :depth="3" style="font-size: var(--font-size-sm)">
             开启后你的玩家备注会随分析请求发送到 AI 服务。
           </n-text>
         </n-space>

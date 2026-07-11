@@ -164,18 +164,18 @@ function save() {
 
 <style scoped>
 .field {
-  margin-bottom: 16px;
+  margin-bottom: var(--space-16);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-6);
 }
 .footer {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--space-8);
 }
 .hint {
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--n-text-color-disabled);
 }
 </style>

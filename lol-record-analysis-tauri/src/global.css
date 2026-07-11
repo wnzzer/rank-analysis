@@ -91,6 +91,31 @@
   --radius-xs: 3px;
   --radius-pill: 999px;
 
+  /* === 控件几何（Int UI 双档制：控件 4px / 浮层 8px） === */
+  --radius-control: 4px;
+  --radius-overlay: 8px;
+  /* 镂空描边控件：静默态细边，hover 只提亮边框不加底色 */
+  --border-control: rgba(255, 255, 255, 0.16);
+  --border-control-hover: rgba(255, 255, 255, 0.34);
+
+  /* === Focus ring（实心环，替代默认光晕） === */
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 1px;
+  --focus-ring-color: rgba(61, 155, 122, 0.85);
+
+  /* === 数据语义高亮（收编各组件散落的一次性 hex） === */
+  --accent-gold: #f2bf63;
+  --accent-gold-deep: #e5a732;
+  --accent-blue: #59b5ff;
+  --accent-sky: #38bdf8;
+  --semantic-win-bright: #5ecfa4;
+  --semantic-loss-bright: #e57878;
+
+  /* === 字阶补全（展示用大字与极小字） === */
+  --font-size-3xs: 9px;
+  --font-size-2xl: 24px;
+  --font-size-3xl: 28px;
+
   /* === RecordCard win/loss 渐变（深色） === */
   --win-bar-gradient: linear-gradient(180deg, #5ecfa4, #2d7a5e);
   --loss-bar-gradient: linear-gradient(180deg, #e57878, #8a3232);
@@ -125,11 +150,26 @@
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.15);
   --win-bar-gradient: linear-gradient(180deg, #4abd92, #2d8a6c);
   --loss-bar-gradient: linear-gradient(180deg, #d96565, #a33b3b);
+  --border-control: rgba(0, 0, 0, 0.18);
+  --border-control-hover: rgba(0, 0, 0, 0.38);
+  --focus-ring-color: rgba(45, 138, 108, 0.85);
+  --accent-gold: #b8862a;
+  --accent-gold-deep: #9c6f1e;
+  --accent-blue: #2f7fd1;
+  --accent-sky: #0284c7;
+  --semantic-win-bright: #2d9d76;
+  --semantic-loss-bright: #cf5f5f;
 }
 
 .font-number {
   font-family: 'Oswald', sans-serif;
   letter-spacing: 0.5px;
+}
+
+/* JB 风格实心 focus ring：键盘聚焦时 2px 实心环 + 1px 间隙，替代光晕 */
+:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
 }
 
 /* 减少动效偏好：可访问性 */

@@ -118,7 +118,6 @@ defineProps<{ games: Game[] }>()
 }
 
 .kda-text {
-  font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   font-weight: var(--font-weight-bold);
   /* 12→18px 随 viewport 平滑放大 (900→3000) */
   font-size: clamp(12px, calc(12px + (100vw - 900px) * 6 / 2100), 18px);

@@ -104,13 +104,13 @@ async function launchLeague() {
 <style scoped>
 .admin-btn {
   margin-top: var(--space-12, 12px);
-  padding: 6px 16px;
-  font-size: 12px;
-  font-weight: 600;
+  padding: var(--space-6) var(--space-16);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
   color: #fff;
   background: var(--semantic-win, #3d9b7a);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   transition:
     filter 0.15s ease,
