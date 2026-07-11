@@ -55,6 +55,9 @@ pub struct OnePlayer {
     /// CHERRY 模式下的 lobby 阶段编号；同 ID 的玩家是同小队（仅作弱信号，最终以 stats.playerSubteamId 为准）
     #[serde(default)]
     pub team_participant_id: i32,
+    /// 选人状态："none"|"intent"|"picking"|"locked"；非选人阶段为空字符串
+    #[serde(default)]
+    pub pick_state: String,
 }
 
 impl Session {
