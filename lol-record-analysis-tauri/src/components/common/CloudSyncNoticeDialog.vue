@@ -6,6 +6,7 @@
     style="max-width: 420px"
     :mask-closable="false"
     :close-on-esc="false"
+    :auto-focus="false"
   >
     <n-space vertical size="large">
       <!-- 两句拆成两个 n-text：避免单个长文本节点被 prettier 折行后，

@@ -3,6 +3,7 @@
     :show="show"
     :mask-closable="false"
     :close-on-esc="false"
+    :auto-focus="false"
     transform-origin="center"
     @update:show="$emit('update:show', $event)"
   >
