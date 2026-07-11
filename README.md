@@ -80,21 +80,50 @@ Built with **Tauri 2.0**, it pairs Rust's performance with a web frontend in a *
 - **Auto Accept**: Automatically accepts matches when found
 - **Rule-based Pick/Ban**: A configurable rule engine picks/bans by role × ally/enemy champion conditions (falls back to a fixed preset list)
 
+### 🗂️ Notes, Tags & Data Sync
+- **Player Notes**: Leave a note + color label (friendly / normal / careful / blacklist) on players you meet — surfaced automatically next time you run into them
+- **Tag Management**: A dozen toggleable behavior tags (win streak, loss streak, smurf suspect, hot streak, slump...), with AI-suggested personalized tags based on your recent history
+- **Cloud Sync & Backup**: Player notes and full config sync across devices (last-write-wins merge), plus one-click JSON export/import
+
 ## 📸 Screenshots
 
+**Match History** — look up any summoner, dark / light theme
+
 <div align="center">
-  <img src="./public/1.png" alt="Main Interface Preview" width="45%" />
-  <img src="./public/1-2.png" alt="Main Interface Preview" width="45%" />
+  <img src="./public/1.png" alt="Match History (dark)" width="49%" />
+  <img src="./public/1-2.png" alt="Match History (light)" width="49%" />
 </div>
+
+**Live Match Analysis** — recent records, rank, tags and premade detection for all 10 players, automatically on game start
+
 <div align="center">
-  <img src="./public/2.png" alt="Analysis Feature Demo" width="45%" />
-  <img src="./public/3.png" alt="Automation Feature Demo" width="45%" />
+  <img src="./public/2.png" alt="Live Match Analysis" width="80%" />
 </div>
+
+**Match Details** — a dedicated window with per-player KDA / gold / damage, plus one-click AI review
+
 <div align="center">
-  <img src="./public/4.png" alt="Tag Management" width="45%" />
+  <img src="./public/5.png" alt="Match Details with AI review entry" width="80%" />
 </div>
+
+**Player Notes & Tag Management**
+
 <div align="center">
-  <img src="./public/5.png" alt="AI Analysis" width="45%" />
+  <img src="./public/6.png" alt="Player Notes" width="49%" />
+  <img src="./public/4.png" alt="Tag Management" width="49%" />
+</div>
+
+**Automation & General Settings**
+
+<div align="center">
+  <img src="./public/3.png" alt="Automation Settings" width="49%" />
+  <img src="./public/8.png" alt="General Settings" width="49%" />
+</div>
+
+**Backup & Cloud Sync**
+
+<div align="center">
+  <img src="./public/7.png" alt="Data & Sync" width="80%" />
 </div>
 
 ## 🚀 Usage

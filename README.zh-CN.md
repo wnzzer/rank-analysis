@@ -80,21 +80,50 @@
 - **自动接受**：匹配成功后自动接受。
 - **规则化 BP**：可配置的规则引擎按「位置 × 队友/敌方英雄」条件自动选人/禁用（未命中时回退到固定预设列表）。
 
+### 🗂️ 备注、标签与数据同步
+- **玩家备注**：给遇到过的玩家留下「备注 + 颜色标记」（友好/一般/小心/拉黑），再次相遇时自动提示。
+- **标签管理**：内置十余种可开关的行为标签（连胜、连败、炸鱼嫌疑、手热、低谷……），支持 AI 分析你的近期战绩后推荐个性化标签。
+- **云同步与备份**：玩家备注与全量配置可跨设备云同步（按最后更新时间合并），也可一键导出/导入 JSON 全量备份。
+
 ## 📸 软件预览
 
+**战绩查询** —— 可查询任意召唤师，深色 / 浅色主题
+
 <div align="center">
-  <img src="./public/1.png" alt="软件主界面预览" width="45%" />
-  <img src="./public/1-2.png" alt="软件主界面预览" width="45%" />
+  <img src="./public/1.png" alt="战绩查询（深色主题）" width="49%" />
+  <img src="./public/1-2.png" alt="战绩查询（浅色主题）" width="49%" />
 </div>
+
+**实时对局分析** —— 进入对局自动展示 10 名玩家的近期战绩、段位、标签与开黑关系
+
 <div align="center">
-  <img src="./public/2.png" alt="分析功能演示" width="45%" />
-  <img src="./public/3.png" alt="自动化功能演示" width="45%" />
+  <img src="./public/2.png" alt="实时对局分析" width="80%" />
 </div>
+
+**对局详情** —— 独立窗口展示全员 KDA / 经济 / 输出承伤，一键 AI 整局复盘
+
 <div align="center">
-  <img src="./public/4.png" alt="标签管理" width="45%" />
+  <img src="./public/5.png" alt="对局详情与 AI 复盘入口" width="80%" />
 </div>
+
+**玩家备注与标签管理**
+
 <div align="center">
-  <img src="./public/5.png" alt="AI 分析" width="45%" />
+  <img src="./public/6.png" alt="我标记过的人" width="49%" />
+  <img src="./public/4.png" alt="标签管理" width="49%" />
+</div>
+
+**自动化与常规设置**
+
+<div align="center">
+  <img src="./public/3.png" alt="自动化设置" width="49%" />
+  <img src="./public/8.png" alt="常规设置" width="49%" />
+</div>
+
+**数据备份与云同步**
+
+<div align="center">
+  <img src="./public/7.png" alt="数据与同步" width="80%" />
 </div>
 
 ## 🚀 使用方法
