@@ -659,7 +659,10 @@ fn match_filter(game: &crate::lcu::api::match_history::Game, filter: &MatchFilte
     let p = &game.participants[0];
 
     match filter {
-        MatchFilter::Queue { ids } => ids.contains(&game.queue_id),
+        // 队列按中文名分组匹配（如「人机(入门)」对应新旧 830/870 两个 ID，选项去重后只存代表 ID）
+        MatchFilter::Queue { ids } => ids.iter().any(|id| {
+            crate::constant::game::queue_ids_same_group(game.queue_id as u32, *id as u32)
+        }),
         MatchFilter::Champion { ids } => ids.contains(&p.champion_id),
         MatchFilter::Stat { metric, op, value } => {
             let v = extract_game_metric(game, metric);

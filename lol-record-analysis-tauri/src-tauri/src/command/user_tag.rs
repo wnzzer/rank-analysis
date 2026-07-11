@@ -590,7 +590,10 @@ fn count_gold_and_group_and_damage_dealt_to_champions(
     let mut all_damage_dealt_to_champions = 1;
 
     for game in &match_history.games.games {
-        if mode != 0 && game.queue_id != mode {
+        // 模式筛选按中文名分组匹配（如「人机(入门)」对应新旧 830/870 两个队列 ID）
+        if mode != 0
+            && !crate::constant::game::queue_ids_same_group(game.queue_id as u32, mode as u32)
+        {
             continue;
         }
 
@@ -653,7 +656,10 @@ fn count_win_and_loss(match_history: &MatchHistory, mode: i32) -> (i32, i32) {
     let mut select_losses = 0;
 
     for game in &match_history.games.games {
-        if mode == 0 || game.queue_id == mode {
+        // 模式筛选按中文名分组匹配（如「人机(入门)」对应新旧 830/870 两个队列 ID）
+        if mode == 0
+            || crate::constant::game::queue_ids_same_group(game.queue_id as u32, mode as u32)
+        {
             if game.participants[0].stats.win {
                 select_wins += 1;
             } else {
@@ -682,7 +688,10 @@ fn count_kda(match_history: &MatchHistory, mode: i32) -> (f64, f64, f64) {
     let mut assists = 0;
 
     for game in &match_history.games.games {
-        if mode != 0 && game.queue_id != mode {
+        // 模式筛选按中文名分组匹配（如「人机(入门)」对应新旧 830/870 两个队列 ID）
+        if mode != 0
+            && !crate::constant::game::queue_ids_same_group(game.queue_id as u32, mode as u32)
+        {
             continue;
         }
 

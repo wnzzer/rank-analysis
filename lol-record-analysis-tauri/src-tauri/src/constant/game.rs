@@ -85,12 +85,15 @@ pub static QUEUE_ID_TO_CN: phf::Map<u32, &'static str> = phf_map! {
     480u32 => "快速匹配",
     490u32 => "匹配",
     700u32 => "冠军杯赛",
-    830u32 => "人机",
-    840u32 => "人机",
-    850u32 => "人机",
-    870u32 => "人机",
-    880u32 => "人机",
-    890u32 => "人机",
+    // 人机（合作对抗 AI）：830/840/850 为旧版队列（7.19 版本弃用，仅存在于老战绩），
+    // 870/880/890 为现行 ID，难度一一对应（入门/新手/一般）；
+    // 旧队列不单独标注，缺省共用同难度中文名，筛选经 queue_ids_same_group 按名称分组匹配
+    830u32 => "人机(入门)",
+    840u32 => "人机(新手)",
+    850u32 => "人机(一般)",
+    870u32 => "人机(入门)",
+    880u32 => "人机(新手)",
+    890u32 => "人机(一般)",
     900u32 => "无限乱斗",
     1700u32 => "斗魂竞技场",
     1900u32 => "无限火力",
@@ -387,4 +390,51 @@ pub fn get_queue_type_to_cn(key: &str) -> Option<&'static str> {
 
 pub fn get_queue_id_to_cn(key: u32) -> Option<&'static str> {
     QUEUE_ID_TO_CN.get(&key).copied()
+}
+
+/// 判断两个队列 ID 是否属于同一模式分组（ID 相同，或中文名相同）。
+///
+/// 多个队列 ID 会共用同一中文名（如新旧人机队列同难度：830/870 均为「人机(入门)」、
+/// 430/490 均为「匹配」）。模式筛选的下拉选项按中文名去重后只保留一个代表 ID，
+/// 过滤对局时必须按中文名分组匹配，否则只能命中代表 ID 对应的那一个队列。
+pub fn queue_ids_same_group(a: u32, b: u32) -> bool {
+    if a == b {
+        return true;
+    }
+    match (QUEUE_ID_TO_CN.get(&a), QUEUE_ID_TO_CN.get(&b)) {
+        (Some(x), Some(y)) => x == y,
+        _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn same_id_should_match() {
+        assert!(queue_ids_same_group(420, 420));
+    }
+
+    #[test]
+    fn bot_queues_same_difficulty_should_be_same_group() {
+        // 新旧两代人机队列同难度中文名相同，应视为同组
+        assert!(queue_ids_same_group(830, 870)); // 入门
+        assert!(queue_ids_same_group(840, 880)); // 新手
+        assert!(queue_ids_same_group(850, 890)); // 一般
+    }
+
+    #[test]
+    fn different_modes_should_not_match() {
+        assert!(!queue_ids_same_group(420, 440));
+        assert!(!queue_ids_same_group(830, 420));
+        // 不同难度的人机不属于同组
+        assert!(!queue_ids_same_group(840, 890));
+    }
+
+    #[test]
+    fn unknown_ids_should_only_match_exactly() {
+        assert!(!queue_ids_same_group(999999, 830));
+        assert!(queue_ids_same_group(999999, 999999));
+    }
 }

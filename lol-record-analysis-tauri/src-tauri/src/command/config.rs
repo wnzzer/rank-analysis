@@ -157,6 +157,12 @@ pub struct GameModeOption {
 /// # 返回值
 ///
 /// 游戏模式选项列表，第一项为「全部」（ID 为 0），其余按 ID 排序
+///
+/// # 去重规则
+///
+/// 多个队列 ID 共用同一中文名（如新旧人机队列同难度、430/490 均为「匹配」），
+/// 选项按中文名去重，保留最小 ID 作为代表；
+/// 过滤对局时经 `queue_ids_same_group` 按中文名分组匹配
 #[tauri::command]
 pub fn get_game_modes() -> Vec<GameModeOption> {
     let mut options = vec![GameModeOption {
@@ -174,7 +180,32 @@ pub fn get_game_modes() -> Vec<GameModeOption> {
         .collect();
 
     modes.sort_by_key(|k| k.value);
+    let mut seen = std::collections::HashSet::new();
+    modes.retain(|m| seen.insert(m.label.clone()));
     options.extend(modes);
 
     options
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 模式选项不应出现重复中文名（人机有 6 个队列 ID、匹配有 2 个）
+    #[test]
+    fn game_modes_should_have_unique_labels() {
+        let options = get_game_modes();
+        let mut labels: Vec<&str> = options.iter().map(|o| o.label.as_str()).collect();
+        let total = labels.len();
+        labels.sort_unstable();
+        labels.dedup();
+        assert_eq!(labels.len(), total, "模式选项存在重复中文名");
+    }
+
+    #[test]
+    fn game_modes_should_start_with_all_option() {
+        let options = get_game_modes();
+        assert_eq!(options[0].label, "全部");
+        assert_eq!(options[0].value, 0);
+    }
 }
