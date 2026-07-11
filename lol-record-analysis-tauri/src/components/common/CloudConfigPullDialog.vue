@@ -6,6 +6,7 @@
     style="max-width: 420px"
     :mask-closable="false"
     :close-on-esc="false"
+    :auto-focus="false"
   >
     <n-space vertical size="large">
       <n-space vertical :size="4">
