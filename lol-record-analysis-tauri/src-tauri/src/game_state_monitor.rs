@@ -186,6 +186,9 @@ impl GameStateMonitor {
             // 之后即便游戏关闭也能免 WeGame 一键启动（见 command::launcher）。
             tokio::spawn(async {
                 crate::command::launcher::remember_install_root().await;
+                // 顺手清除登录客户端注册的 LOL 开机自启项：能连上国服客户端说明
+                // 本工具已提权，此刻删 HKLM 值必然有权限（见 command::launcher）。
+                crate::command::launcher::purge_login_client_autostart();
             });
 
             // 维度标签：把当前登录大区（HN1/TJ100…）挂到 Sentry 全局 scope，
@@ -219,6 +222,14 @@ impl GameStateMonitor {
                         log::error!("获取 LCU 认证信息失败: {}", e);
                     }
                 }
+            });
+        }
+
+        // 刚断开（之前连接，现在断开）：客户端退出时可能重新注册了 LOL 开机
+        // 自启，再清一次，避免"最后一局退出后残留自启项"。
+        if !new_state.connected && self.last_state.connected {
+            tokio::spawn(async {
+                crate::command::launcher::purge_login_client_autostart();
             });
         }
 

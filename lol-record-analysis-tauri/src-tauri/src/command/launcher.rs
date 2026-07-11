@@ -98,6 +98,85 @@ pub async fn remember_install_root() {
     }
 }
 
+/// 开机自启 Run 键的注册表子路径（HKLM 与 HKCU 共用）。
+const RUN_KEY_PATH: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
+
+/// 判断 Run 键中某条值的数据是否指向腾讯登录客户端的开机自启程序。
+///
+/// 登录客户端（`Launcher\Client.exe`）被拉起后，会以管理员权限把
+/// `<安装根>\Launcher\startup_runner.exe` 注册为开机自启（值名形如 `Client_26`，
+/// 随版本变化），导致每次开机自动弹出 LOL 登录窗。这里按「文件名 + 父目录名」
+/// 双重匹配定位，与值名、安装盘符无关，也不会误删其他软件的自启项。
+fn is_login_client_autostart(data: &str) -> bool {
+    let path = Path::new(data.trim().trim_matches('"'));
+    let name_is = |name: Option<&std::ffi::OsStr>, expect: &str| {
+        name.is_some_and(|n| n.eq_ignore_ascii_case(expect))
+    };
+    name_is(path.file_name(), "startup_runner.exe")
+        && name_is(path.parent().and_then(Path::file_name), "Launcher")
+}
+
+/// 清理腾讯登录客户端注册的 LOL 开机自启项。
+///
+/// 免 WeGame 直接拉起 `Launcher\Client.exe` 后（经 WeGame 启动亦可能发生），它会
+/// 把 `startup_runner.exe` 写入机器级 Run 键（实测在 HKLM 的 32 位视图，即
+/// `WOW6432Node`），使 LOL 每次开机自启。本函数扫描 HKLM（64/32 位视图）与 HKCU
+/// 的 Run 键，删除所有指向 `Launcher\startup_runner.exe` 的值。
+///
+/// 删除 HKLM 值需要管理员权限。国服客户端本身以管理员运行，本工具要连上它时
+/// 已经提权，故在「已连接/刚断开」时机调用基本必然成功；无权限时记日志静默
+/// 跳过，待下次提权运行时再清。
+pub fn purge_login_client_autostart() {
+    use winreg::enums::{
+        HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_QUERY_VALUE, KEY_SET_VALUE, KEY_WOW64_32KEY,
+        KEY_WOW64_64KEY,
+    };
+    use winreg::types::FromRegValue;
+    use winreg::RegKey;
+
+    // HKLM 需分别查 64/32 位视图（后者即 WOW6432Node）；HKCU 的 Run 键不受
+    // WOW64 重定向影响，查一次即可。
+    let views = [
+        (HKEY_LOCAL_MACHINE, KEY_WOW64_64KEY),
+        (HKEY_LOCAL_MACHINE, KEY_WOW64_32KEY),
+        (HKEY_CURRENT_USER, 0),
+    ];
+    for (hive, view) in views {
+        // 先只读枚举定位目标值名，再以写权限打开删除：普通权限下多数情况
+        // 无目标值，避免无谓的 HKLM 写权限请求失败刷日志。
+        let Ok(key) =
+            RegKey::predef(hive).open_subkey_with_flags(RUN_KEY_PATH, KEY_QUERY_VALUE | view)
+        else {
+            continue;
+        };
+        let targets: Vec<String> = key
+            .enum_values()
+            .filter_map(Result::ok)
+            .filter(|(_, value)| {
+                String::from_reg_value(value).is_ok_and(|data| is_login_client_autostart(&data))
+            })
+            .map(|(name, _)| name)
+            .collect();
+        if targets.is_empty() {
+            continue;
+        }
+        let writable =
+            match RegKey::predef(hive).open_subkey_with_flags(RUN_KEY_PATH, KEY_SET_VALUE | view) {
+                Ok(k) => k,
+                Err(e) => {
+                    log::info!("发现 LOL 开机自启项但当前无权限清理（需管理员）: {}", e);
+                    continue;
+                }
+            };
+        for name in targets {
+            match writable.delete_value(&name) {
+                Ok(()) => log::info!("已移除腾讯登录客户端注册的 LOL 开机自启项（{}）", name),
+                Err(e) => log::warn!("移除 LOL 开机自启项 {} 失败: {}", name, e),
+            }
+        }
+    }
+}
+
 /// 免 WeGame 一键启动国服英雄联盟。
 ///
 /// 发现安装根目录后，直接 spawn `Launcher\Client.exe`（回退 `TCLS\Client.exe`）。
@@ -190,5 +269,34 @@ mod tests {
         assert_eq!(candidates[1].parent().unwrap().file_name().unwrap(), "TCLS");
         // 保持在安装根目录之下
         assert!(candidates[0].starts_with(root));
+    }
+
+    #[test]
+    fn login_client_autostart_matches_launcher_startup_runner() {
+        // 实测被注册的形态（HKLM\...\Run\Client_26）
+        assert!(is_login_client_autostart(
+            r"C:\WeGameApps\英雄联盟\Launcher\startup_runner.exe"
+        ));
+        // 自定义安装盘符/路径、带引号、大小写差异均应命中
+        assert!(is_login_client_autostart(
+            r#""D:\Games\LOL\launcher\Startup_Runner.EXE""#
+        ));
+    }
+
+    #[test]
+    fn login_client_autostart_ignores_unrelated_entries() {
+        // 其他软件的自启项不能误删
+        assert!(!is_login_client_autostart(
+            r"C:\Program Files\Tencent\QQNT\QQ.exe"
+        ));
+        // 文件名相同但不在 Launcher 目录下（防止碰瓷同名 exe）
+        assert!(!is_login_client_autostart(
+            r"C:\SomeApp\bin\startup_runner.exe"
+        ));
+        // 父目录对但文件名不对
+        assert!(!is_login_client_autostart(
+            r"C:\WeGameApps\英雄联盟\Launcher\Client.exe"
+        ));
+        assert!(!is_login_client_autostart(""));
     }
 }
