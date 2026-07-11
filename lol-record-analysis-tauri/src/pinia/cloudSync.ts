@@ -123,6 +123,8 @@ export const useCloudSyncStore = defineStore('cloudSync', () => {
    * 同步新 → 静默应用；否则推送。
    */
   async function syncConfig(puuid: string): Promise<void> {
+    // 首次确认弹窗未决:不重新评估,等用户裁决(防重复弹窗/与 resolve 竞态)
+    if (pendingCloudConfig.value !== null) return
     const pulled = await invoke<CloudConfig | null>('cloud_pull_config', { puuid })
     const local = await invoke<Record<string, unknown>>('get_cloud_config_snapshot')
     const syncedOnce =
@@ -147,8 +149,8 @@ export const useCloudSyncStore = defineStore('cloudSync', () => {
       await pushConfig(puuid)
       return
     }
-    const lastSyncAt = (await getConfigByIpc<number>(CONFIG_KEYS.configLastSyncAt)) ?? 0
-    if (pulled && pulled.updatedAt > lastSyncAt) {
+    const lastConfigSyncMs = (await getConfigByIpc<number>(CONFIG_KEYS.configLastSyncAt)) ?? 0
+    if (pulled && pulled.updatedAt > lastConfigSyncMs) {
       await applyCloudConfig(pulled)
     } else {
       await pushConfig(puuid)
@@ -163,6 +165,8 @@ export const useCloudSyncStore = defineStore('cloudSync', () => {
     const pending = pendingCloudConfig.value
     if (!pending) return
     pendingCloudConfig.value = null
+    // 与 syncNow 互斥:裁决执行期间挡住防抖/手动触发的并发同步
+    syncing.value = true
     try {
       if (useCloud) {
         await applyCloudConfig(pending)
@@ -173,6 +177,8 @@ export const useCloudSyncStore = defineStore('cloudSync', () => {
     } catch (e) {
       lastError.value = String(e)
       throw e
+    } finally {
+      syncing.value = false
     }
   }
 

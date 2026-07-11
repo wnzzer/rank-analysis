@@ -349,5 +349,22 @@ describe('useCloudSyncStore', () => {
       expect(mockInvoke).not.toHaveBeenCalledWith('apply_config_snapshot', expect.anything())
       expect(mockInvoke).not.toHaveBeenCalledWith('cloud_push_config', expect.anything())
     })
+
+    it('弹窗未决期间再次 syncNow:不重复评估、不覆盖 pending、不 apply/push 配置', async () => {
+      mockGetConfig({ configSyncedOnce: undefined })
+      mockConfigInvoke({
+        pulled: { updatedAt: 100, config: { theme: { value: 'dark' } } },
+        local: { theme: { value: 'light' } }
+      })
+      const store = useCloudSyncStore()
+      await store.syncNow()
+      const pendingRef = store.pendingCloudConfig
+      mockInvoke.mockClear()
+      await store.syncNow()
+      expect(store.pendingCloudConfig).toBe(pendingRef)
+      expect(mockInvoke).not.toHaveBeenCalledWith('cloud_pull_config', expect.anything())
+      expect(mockInvoke).not.toHaveBeenCalledWith('apply_config_snapshot', expect.anything())
+      expect(mockInvoke).not.toHaveBeenCalledWith('cloud_push_config', expect.anything())
+    })
   })
 })
