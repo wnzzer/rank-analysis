@@ -77,5 +77,6 @@ wrangler.toml
 *.DS_Store
 
 config.yaml
+opgg_cache_*.json
 
 app.log.*

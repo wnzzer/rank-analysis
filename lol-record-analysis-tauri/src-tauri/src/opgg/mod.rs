@@ -8,5 +8,5 @@
 //! [`crate::command::opgg`]。
 
 pub mod api;
-// pub mod cache; // Task 2 放开
+pub mod cache;
 pub mod data;
