@@ -3,7 +3,7 @@
     <!-- 手动备份 -->
     <n-card title="手动备份" size="small">
       <n-space vertical>
-        <n-text :depth="3" style="font-size: 12px">
+        <n-text :depth="3" style="font-size: var(--font-size-sm)">
           导出全量备份(应用设置 + 玩家备注)为 JSON 文件,或从备份文件恢复。 备份文件包含你填写的 API
           key,请妥善保管。
         </n-text>

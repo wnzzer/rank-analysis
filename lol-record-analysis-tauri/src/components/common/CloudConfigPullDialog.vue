@@ -10,7 +10,7 @@
     <n-space vertical size="large">
       <n-space vertical :size="4">
         <n-text>云端存在一份配置(更新于 {{ updatedAtText }}),与本机当前配置不一致。</n-text>
-        <n-text :depth="3" style="font-size: 12px">
+        <n-text :depth="3" style="font-size: var(--font-size-sm)">
           「使用云端配置」会覆盖本机的设置与标记;「保留本机」会把本机配置推送覆盖云端。
         </n-text>
       </n-space>
