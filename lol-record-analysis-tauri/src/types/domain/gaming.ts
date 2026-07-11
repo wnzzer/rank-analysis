@@ -28,6 +28,10 @@ export interface SessionSummoner {
   meetGames: OneGamePlayer[]
   preGroupMarkers: PreGroupMarkers
   isLoading?: boolean
+  /**
+   * 选人状态：none/intent/picking/locked（非选人期为空）
+   */
+  pickState?: string
 }
 
 export interface Subteam {
