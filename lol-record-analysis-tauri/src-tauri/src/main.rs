@@ -157,6 +157,11 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             command::cloud_sync::cloud_push_notes,
             command::cloud_sync::save_text_file,
             command::cloud_sync::read_text_file,
+            command::cloud_sync::cloud_pull_config,
+            command::cloud_sync::cloud_push_config,
+            command::cloud_sync::get_cloud_config_snapshot,
+            command::cloud_sync::apply_config_snapshot,
+            command::cloud_sync::export_backup,
         ]);
 
     #[cfg(debug_assertions)]
@@ -175,6 +180,18 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     }
 
     app_builder = app_builder.setup(move |app| {
+        // 配置变更 → 通知前端调度防抖云推送。只发云同步口径内的键:
+        // 黑名单键(含 configLastSyncAt 这类同步自身写的标记)不发,否则
+        // 每次同步落盘标记又触发下一轮同步,永不收敛。
+        // 覆盖两条写路径:前端 putConfigByIpc 与 Rust 直写(如 save_tag_configs)。
+        let config_event_handle = app.handle().clone();
+        lol_record_analysis_app_lib::config::register_on_change_callback(move |key, _| {
+            if lol_record_analysis_app_lib::config::allowed_in_cloud(key) {
+                use tauri::Emitter;
+                let _ = config_event_handle.emit("config-changed", key);
+            }
+        });
+
         // 启动自动化系统
         tauri::async_runtime::spawn(async move {
             log::info!("Starting automation system...");

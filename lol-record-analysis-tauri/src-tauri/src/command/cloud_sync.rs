@@ -219,6 +219,135 @@ pub async fn cloud_push_notes(puuid: String, payload: serde_json::Value) -> Resu
     Ok(())
 }
 
+/// 云端配置行的数据类型标识
+const DATA_TYPE_CONFIG: &str = "appConfig";
+
+/// 云端配置行 payload:`updatedAt` 放 payload 内而非依赖数据库列,
+/// 免去 sync_data 表结构迁移;毫秒时间戳由推送方(本地时钟)盖。
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ConfigPayload {
+    #[serde(rename = "updatedAt")]
+    pub updated_at: u64,
+    pub config: std::collections::HashMap<String, crate::config::Value>,
+}
+
+/// 从多设备的 appConfig payload 行里挑 updatedAt 最大的一份。
+///
+/// 云端行任何人可写,逐行当不可信输入:反序列化失败的行直接跳过;
+/// 解析成功后再按云端黑名单剔键(防脏 payload 夹带 cloudSyncSession 等)。
+fn pick_latest_config(rows: Vec<serde_json::Value>) -> Option<ConfigPayload> {
+    rows.into_iter()
+        .filter_map(|v| serde_json::from_value::<ConfigPayload>(v).ok())
+        .max_by_key(|p| p.updated_at)
+        .map(|mut p| {
+            p.config.retain(|k, _| crate::config::allowed_in_cloud(k));
+            p
+        })
+}
+
+/// 拉取云端最新一份配置(所有设备行中 updatedAt 最大者);云端无配置返回 None
+#[tauri::command]
+pub async fn cloud_pull_config(puuid: String) -> Result<Option<ConfigPayload>, String> {
+    if !puuid.chars().all(|c| c.is_ascii_hexdigit() || c == '-') {
+        return Err("puuid 格式非法".to_string());
+    }
+    let session = ensure_session().await?;
+    let url = format!(
+        "{SUPABASE_URL}/rest/v1/sync_data?puuid=eq.{puuid}&data_type=eq.{DATA_TYPE_CONFIG}&select=payload"
+    );
+    let resp = http()
+        .get(url)
+        .header("apikey", SUPABASE_PUBLISHABLE_KEY)
+        .header("Authorization", format!("Bearer {}", session.access_token))
+        .send()
+        .await
+        .map_err(|e| format!("云端连接失败: {e}"))?;
+    if !resp.status().is_success() {
+        return Err(format!("拉取失败: HTTP {}", resp.status()));
+    }
+    #[derive(Deserialize)]
+    struct Row {
+        payload: serde_json::Value,
+    }
+    let rows: Vec<Row> = resp.json().await.map_err(|e| e.to_string())?;
+    Ok(pick_latest_config(
+        rows.into_iter().map(|r| r.payload).collect(),
+    ))
+}
+
+/// 把本机云同步口径快照推送到本设备的 appConfig 行。
+///
+/// 快照在 Rust 侧现取现滤——前端无法传入自定义 payload,杜绝绕过黑名单。
+#[tauri::command]
+pub async fn cloud_push_config(puuid: String) -> Result<(), String> {
+    let session = ensure_session().await?;
+    let payload = ConfigPayload {
+        updated_at: now_unix() * 1000,
+        config: crate::config::config_snapshot(true).await,
+    };
+    let url = format!("{SUPABASE_URL}/rest/v1/sync_data?on_conflict=owner_id,puuid,data_type");
+    let body = json!([{
+        "owner_id": session.user_id,
+        "puuid": puuid,
+        "data_type": DATA_TYPE_CONFIG,
+        "payload": payload,
+    }]);
+    let resp = http()
+        .post(url)
+        .header("apikey", SUPABASE_PUBLISHABLE_KEY)
+        .header("Authorization", format!("Bearer {}", session.access_token))
+        .header("Prefer", "resolution=merge-duplicates")
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| format!("云端连接失败: {e}"))?;
+    if !resp.status().is_success() {
+        return Err(format!("推送失败: HTTP {}", resp.status()));
+    }
+    Ok(())
+}
+
+/// 前端做"云端 vs 本地"内容比对用的本地快照(云同步口径,已过滤,无敏感键)
+#[tauri::command]
+pub async fn get_cloud_config_snapshot(
+) -> Result<std::collections::HashMap<String, crate::config::Value>, String> {
+    Ok(crate::config::config_snapshot(true).await)
+}
+
+/// 应用一份外来配置快照(云端拉取确认后 / 备份文件导入确认后)
+#[tauri::command]
+pub async fn apply_config_snapshot(
+    snapshot: std::collections::HashMap<String, crate::config::Value>,
+) -> Result<(), String> {
+    crate::config::apply_config_snapshot_map(snapshot).await
+}
+
+/// 导出 v2 全量备份文件:{version, type, exportedAt, playerNotes, appConfig}。
+///
+/// appConfig 用文件口径快照(含 dashscopeApiKey——文件由用户自己保管);
+/// playerNotes 从 config 读出并解掉 `{value:...}` 包装,与前端 importNotes
+/// 期望的裸 PlayerNotesMap 形状一致。
+#[tauri::command]
+pub async fn export_backup(path: String) -> Result<(), String> {
+    validate_backup_path(&path)?;
+    let notes = match crate::config::get_config("playerNotes").await? {
+        crate::config::Value::Map(m) => m
+            .get("value")
+            .cloned()
+            .unwrap_or(crate::config::Value::Map(std::collections::HashMap::new())),
+        _ => crate::config::Value::Map(std::collections::HashMap::new()),
+    };
+    let backup = json!({
+        "version": 2,
+        "type": "rank-analysis-backup",
+        "exportedAt": now_unix() * 1000,
+        "playerNotes": notes,
+        "appConfig": crate::config::config_snapshot(false).await,
+    });
+    let content = serde_json::to_string_pretty(&backup).map_err(|e| e.to_string())?;
+    std::fs::write(&path, content).map_err(|e| format!("写入文件失败 {path}: {e}"))
+}
+
 /// 备份文件大小上限（字节）：备注备份远小于此，超限说明选错了文件
 const MAX_BACKUP_FILE_SIZE: u64 = 10 * 1024 * 1024;
 
@@ -311,5 +440,60 @@ mod tests {
         let back: CloudSession = serde_json::from_str(&json).unwrap();
         assert_eq!(back.user_id, "u");
         assert_eq!(back.expires_at, 42);
+    }
+
+    #[test]
+    fn config_payload_serde_shape() {
+        // 前端按 { updatedAt, config } 读取;serde rename 必须精确
+        let mut cfg = std::collections::HashMap::new();
+        cfg.insert(
+            "theme".to_string(),
+            crate::config::Value::String("dark".into()),
+        );
+        let p = ConfigPayload {
+            updated_at: 1_783_700_000_000,
+            config: cfg,
+        };
+        let json = serde_json::to_value(&p).unwrap();
+        assert_eq!(json["updatedAt"], 1_783_700_000_000_u64);
+        assert_eq!(json["config"]["theme"], "dark");
+        let back: ConfigPayload = serde_json::from_value(json).unwrap();
+        assert_eq!(back.updated_at, 1_783_700_000_000);
+    }
+
+    #[test]
+    fn pick_latest_should_choose_max_updated_at_and_skip_malformed() {
+        let rows = vec![
+            serde_json::json!({ "updatedAt": 100, "config": { "theme": "light" } }),
+            serde_json::json!(null),   // 云端脏数据
+            serde_json::json!([1, 2]), // 云端脏数据
+            serde_json::json!({ "updatedAt": 200, "config": { "theme": "dark" } }),
+            serde_json::json!({ "config": {} }), // 缺 updatedAt
+        ];
+        let latest = pick_latest_config(rows).unwrap();
+        assert_eq!(latest.updated_at, 200);
+        assert!(matches!(
+            latest.config.get("theme"),
+            Some(crate::config::Value::String(s)) if s == "dark"
+        ));
+    }
+
+    #[test]
+    fn pick_latest_should_filter_cloud_blacklist_keys() {
+        // 云端行任何人可写:payload 里混入黑名单键必须在解析时剔除
+        let rows = vec![serde_json::json!({
+            "updatedAt": 1,
+            "config": { "theme": "dark", "cloudSyncSession": "evil", "dashscopeApiKey": "sk" }
+        })];
+        let latest = pick_latest_config(rows).unwrap();
+        assert!(latest.config.contains_key("theme"));
+        assert!(!latest.config.contains_key("cloudSyncSession"));
+        assert!(!latest.config.contains_key("dashscopeApiKey"));
+    }
+
+    #[test]
+    fn pick_latest_should_return_none_when_all_malformed() {
+        assert!(pick_latest_config(vec![serde_json::json!("junk")]).is_none());
+        assert!(pick_latest_config(vec![]).is_none());
     }
 }

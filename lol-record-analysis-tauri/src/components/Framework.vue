@@ -4,6 +4,12 @@
     <n-flex v-else vertical size="large">
       <ErrorReportingConsentDialog v-model:show="showConsent" @decide="onConsentDecide" />
       <CloudSyncNoticeDialog :show="showCloudNotice" @decide="onCloudNoticeDecide" />
+      <!-- 让位给错误上报/云同步告知弹窗，关掉后本弹窗自然浮现（pendingCloudConfig 响应式） -->
+      <CloudConfigPullDialog
+        :show="cloudStore.pendingCloudConfig !== null && !showConsent && !showCloudNotice"
+        :updated-at="cloudStore.pendingCloudConfig?.updatedAt ?? 0"
+        @decide="onCloudConfigDecide"
+      />
       <!-- 整体布局 -->
       <n-layout>
         <!-- 顶部区域 -->
@@ -43,9 +49,11 @@ import SideNavigation from './SideNavigation.vue'
 import MatchDetail from '@renderer/views/MatchDetail.vue'
 import ErrorReportingConsentDialog from '@renderer/components/common/ErrorReportingConsentDialog.vue'
 import CloudSyncNoticeDialog from '@renderer/components/common/CloudSyncNoticeDialog.vue'
+import CloudConfigPullDialog from './common/CloudConfigPullDialog.vue'
 import { useGameState } from '@renderer/composables/useGameState'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import { CONFIG_KEYS } from '@renderer/services/configKeys'
+import { useCloudSyncStore } from '@renderer/pinia/cloudSync'
 
 /**
  * 应用主布局框架组件
@@ -200,6 +208,18 @@ function onCloudNoticeDecide(goto: boolean): void {
   showCloudNotice.value = false
   putConfigByIpc(CONFIG_KEYS.cloudSyncNoticeShown, true).catch(() => {})
   if (goto) router.push({ name: 'DataSync' })
+}
+
+const cloudStore = useCloudSyncStore()
+
+/** 首次配置同步弹窗裁决:成功/失败都给 toast 反馈,失败细节在 store.lastError */
+async function onCloudConfigDecide(useCloud: boolean): Promise<void> {
+  try {
+    await cloudStore.resolveCloudConfig(useCloud)
+    message.success(useCloud ? '已应用云端配置' : '已保留本机配置并推送云端')
+  } catch {
+    message.error(cloudStore.lastError ?? '配置同步失败')
+  }
 }
 
 onMounted(() => {

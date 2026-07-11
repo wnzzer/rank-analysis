@@ -359,6 +359,80 @@ pub fn read_bool_sync(key: &str) -> bool {
         .unwrap_or(false)
 }
 
+/// 备份/同步黑名单:文件导出与云同步**都**排除的键。
+///
+/// 设备凭据(cloudSyncSession)、本机路径(gameInstallPath)、设备级开关与标记
+/// (cloudSyncEnabled / 弹窗记录 / 同步标记)跨设备无意义甚至有害;playerNotes
+/// 在备份文件里是独立顶层字段、在云端走独立合并通道,不进 appConfig 快照。
+/// 新增敏感/设备级键时必须同步登记此表(黑名单制:漏登记 = 被同步出去)。
+pub const BACKUP_BLACKLIST: &[&str] = &[
+    "cloudSyncSession",
+    "gameInstallPath",
+    "cloudSyncEnabled",
+    "errorReportingConsentShown",
+    "cloudSyncNoticeShown",
+    "configSyncedOnce",
+    "configLastSyncAt",
+    "playerNotes",
+];
+
+/// 仅云端额外排除的键:云端按 puuid 寻址、任何人可读,API key 放上去等于公开;
+/// 文件备份由用户自己保管,保留。
+pub const CLOUD_ONLY_BLACKLIST: &[&str] = &["dashscopeApiKey"];
+
+/// 该键是否允许进入文件备份
+pub fn allowed_in_backup(key: &str) -> bool {
+    !BACKUP_BLACKLIST.contains(&key)
+}
+
+/// 该键是否允许上云
+pub fn allowed_in_cloud(key: &str) -> bool {
+    allowed_in_backup(key) && !CLOUD_ONLY_BLACKLIST.contains(&key)
+}
+
+/// 取黑名单过滤后的配置快照(值保持存储形状原样,含 `{value:...}` 包装)。
+///
+/// - `for_cloud = false`:文件备份口径(保留 dashscopeApiKey)
+/// - `for_cloud = true`:云同步口径(额外剔除 CLOUD_ONLY_BLACKLIST)
+///
+/// 过滤收口在 Rust 侧:前端拿不到未过滤快照,杜绝前端漏过滤导致凭据外泄。
+pub async fn config_snapshot(for_cloud: bool) -> HashMap<String, Value> {
+    let allowed: fn(&str) -> bool = if for_cloud {
+        allowed_in_cloud
+    } else {
+        allowed_in_backup
+    };
+    get_cache()
+        .await
+        .iter()
+        .filter(|(k, _)| allowed(k.as_ref()))
+        .map(|(k, v)| (k.as_ref().clone(), v.clone()))
+        .collect()
+}
+
+/// 从外来快照中筛出允许写入本地的键值对(纯函数,供 apply 与单测共用)。
+///
+/// 拆出纯函数是为了可测性:apply 本体经 put_config 落盘,单测直接调用会
+/// 重写真实 config.yaml,故只对过滤逻辑做单元覆盖。
+fn filter_snapshot_for_apply(snapshot: HashMap<String, Value>) -> Vec<(String, Value)> {
+    snapshot
+        .into_iter()
+        .filter(|(key, _)| allowed_in_backup(key))
+        .collect()
+}
+
+/// 把一份外来快照(备份文件 appConfig / 云端 config)逐键写入本地配置。
+///
+/// 黑名单键即使出现在快照里也跳过(防云端脏数据/手改备份文件覆盖设备凭据);
+/// 写入走 [`put_config`],自然触发变更回调(自动化模块热更新、config-changed
+/// 事件),值按原样写入——快照里的值已是 `{value:...}` 存储形状,不重复包装。
+pub async fn apply_config_snapshot_map(snapshot: HashMap<String, Value>) -> Result<(), String> {
+    for (key, value) in filter_snapshot_for_apply(snapshot) {
+        put_config(key, value).await?;
+    }
+    Ok(())
+}
+
 /// 从缓存获取配置值。
 ///
 /// 如果键不存在，返回根据键名推断的默认值。
@@ -609,5 +683,76 @@ mod tests {
         let deserialized: HashMap<String, Value> = serde_yaml::from_str(&yaml).unwrap();
 
         assert_eq!(map, deserialized);
+    }
+
+    #[test]
+    fn should_exclude_blacklist_keys_from_backup_and_cloud() {
+        // 设备凭据/本机路径/设备级标记:两边都排除
+        for key in [
+            "cloudSyncSession",
+            "gameInstallPath",
+            "cloudSyncEnabled",
+            "errorReportingConsentShown",
+            "cloudSyncNoticeShown",
+            "configSyncedOnce",
+            "configLastSyncAt",
+            "playerNotes",
+        ] {
+            assert!(!allowed_in_backup(key), "{key} 不应进文件备份");
+            assert!(!allowed_in_cloud(key), "{key} 不应上云");
+        }
+        // API key:文件保留、云端排除
+        assert!(allowed_in_backup("dashscopeApiKey"));
+        assert!(!allowed_in_cloud("dashscopeApiKey"));
+        // 普通键:两边都进
+        assert!(allowed_in_backup("theme"));
+        assert!(allowed_in_cloud("theme"));
+    }
+
+    #[tokio::test]
+    async fn snapshot_should_filter_by_blacklist() {
+        // 全局 cache 在测试间共享:用带前缀的唯一键断言"包含/不包含",不断言总量
+        get_cache()
+            .await
+            .insert("snapTest.theme".to_string(), Value::String("dark".into()))
+            .await;
+        get_cache()
+            .await
+            .insert(
+                "cloudSyncSession".to_string(),
+                Value::String("secret".into()),
+            )
+            .await;
+        get_cache()
+            .await
+            .insert(
+                "dashscopeApiKey".to_string(),
+                Value::String("sk-xxx".into()),
+            )
+            .await;
+
+        let file_snap = config_snapshot(false).await;
+        assert!(file_snap.contains_key("snapTest.theme"));
+        assert!(file_snap.contains_key("dashscopeApiKey"));
+        assert!(!file_snap.contains_key("cloudSyncSession"));
+
+        let cloud_snap = config_snapshot(true).await;
+        assert!(cloud_snap.contains_key("snapTest.theme"));
+        assert!(!cloud_snap.contains_key("dashscopeApiKey"));
+        assert!(!cloud_snap.contains_key("cloudSyncSession"));
+    }
+
+    #[test]
+    fn apply_filter_should_skip_blacklist_and_keep_others() {
+        let mut snap = HashMap::new();
+        snap.insert("theme".to_string(), Value::String("dark".into()));
+        snap.insert("cloudSyncSession".to_string(), Value::String("evil".into()));
+        snap.insert("dashscopeApiKey".to_string(), Value::String("sk".into()));
+        let kept = filter_snapshot_for_apply(snap);
+        let keys: Vec<&str> = kept.iter().map(|(k, _)| k.as_str()).collect();
+        assert!(keys.contains(&"theme"));
+        // 备份文件允许恢复 API key(黑名单只挡设备级键)
+        assert!(keys.contains(&"dashscopeApiKey"));
+        assert!(!keys.contains(&"cloudSyncSession"));
     }
 }

@@ -4,12 +4,11 @@
     <n-card title="手动备份" size="small">
       <n-space vertical>
         <n-text :depth="3" style="font-size: var(--font-size-sm)">
-          把「我标记过的人」导出为 JSON 文件，或从备份文件导入（同一玩家按更新时间新者保留）。
+          导出全量备份(应用设置 + 玩家备注)为 JSON 文件,或从备份文件恢复。 备份文件包含你填写的 API
+          key,请妥善保管。
         </n-text>
         <n-space>
-          <n-button size="small" :disabled="notesStore.count === 0" @click="handleExport">
-            导出备注（{{ notesStore.count }} 条）
-          </n-button>
+          <n-button size="small" @click="handleExport">导出全量备份</n-button>
           <n-button size="small" @click="handleImport">从文件导入</n-button>
         </n-space>
       </n-space>
@@ -53,7 +52,9 @@
     >
       <n-space vertical size="large">
         <ol class="risk-list">
-          <li>你的备注将<b>明文</b>存储在第三方云端（Supabase / AWS 海外节点）。</li>
+          <li>
+            你的备注与应用设置(不含 API key)将<b>明文</b>存储在第三方云端(Supabase / AWS 海外节点)。
+          </li>
           <li>
             数据按你的召唤师标识（puuid）存取，而 puuid 对局内队友、对手及战绩网站均可见——
             <b>任何知道你 puuid 的人理论上都能查询到你同步的备注</b>。
@@ -86,14 +87,14 @@ import { save, open } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
 import { usePlayerNotesStore } from '@renderer/pinia/playerNotes'
 import { useCloudSyncStore } from '@renderer/pinia/cloudSync'
-import type { PlayerNotesMap } from '@renderer/types/domain/playerNote'
-
-/** 导出文件格式版本，导入时校验；后续扩展同步内容时递增并做兼容分支 */
-const BACKUP_VERSION = 1
+import { useSettingsStore } from '@renderer/pinia/setting'
+import { isBackupFileV2 } from '@renderer/utils/backupFile'
+import type { MergeStats } from '@renderer/utils/mergePlayerNotes'
 
 const message = useMessage()
 const notesStore = usePlayerNotesStore()
 const cloudStore = useCloudSyncStore()
+const settingsStore = useSettingsStore()
 
 const showRiskModal = ref(false)
 const riskAcknowledged = ref(false)
@@ -106,26 +107,16 @@ const syncStatusText = computed(() => {
   return '本次启动尚未同步'
 })
 
-/** 导出：系统保存对话框选路径 → Rust 写文件 */
+/** 导出:系统保存对话框选路径 → Rust export_backup 全量写文件(过滤在 Rust 侧) */
 async function handleExport(): Promise<void> {
   const path = await save({
-    defaultPath: `rank-analysis-notes-${new Date().toISOString().slice(0, 10)}.json`,
+    defaultPath: `rank-analysis-backup-${new Date().toISOString().slice(0, 10)}.json`,
     filters: [{ name: 'JSON', extensions: ['json'] }]
   })
   if (!path) return
-  const content = JSON.stringify(
-    {
-      version: BACKUP_VERSION,
-      type: 'rank-analysis-backup',
-      exportedAt: Date.now(),
-      playerNotes: notesStore.notes
-    },
-    null,
-    2
-  )
   try {
-    await invoke('save_text_file', { path, content })
-    message.success(`已导出 ${notesStore.count} 条备注`)
+    await invoke('export_backup', { path })
+    message.success('已导出全量备份')
   } catch (e) {
     message.error(String(e))
   }
@@ -154,34 +145,28 @@ async function handleImport(): Promise<void> {
     message.error('文件内容不是合法 JSON')
     return
   }
-  if (!isBackupFile(parsed)) {
-    message.error('不是本应用导出的备份文件')
+  if (!isBackupFileV2(parsed)) {
+    message.error('不是本应用导出的备份文件,或版本不支持')
     return
   }
+  let stats: MergeStats
   try {
-    const stats = await notesStore.importNotes(parsed.playerNotes)
-    message.success(
-      `导入完成：新增 ${stats.added}，更新 ${stats.replaced}，保留本地 ${stats.kept}` +
-        (stats.invalid ? `，跳过损坏 ${stats.invalid}` : '')
-    )
+    stats = await notesStore.importNotes(parsed.playerNotes)
   } catch (e) {
-    message.error(`导入失败：${String(e)}`)
+    message.error(`导入失败:${String(e)}`)
+    return
   }
-}
-
-/** 备份文件结构校验：type 标记 + version 匹配且 playerNotes 是普通对象（非 null/数组） */
-function isBackupFile(
-  v: unknown
-): v is { version: number; type: 'rank-analysis-backup'; playerNotes: PlayerNotesMap } {
-  if (!v || typeof v !== 'object' || Array.isArray(v)) return false
-  const b = v as { version?: unknown; type?: unknown; playerNotes?: unknown }
-  return (
-    b.type === 'rank-analysis-backup' &&
-    b.version === BACKUP_VERSION &&
-    typeof b.playerNotes === 'object' &&
-    b.playerNotes !== null &&
-    !Array.isArray(b.playerNotes)
-  )
+  const notesSummary =
+    `备注新增 ${stats.added},更新 ${stats.replaced},保留本地 ${stats.kept}` +
+    (stats.invalid ? `,跳过损坏 ${stats.invalid}` : '')
+  try {
+    await invoke('apply_config_snapshot', { snapshot: parsed.appConfig })
+    await settingsStore.initTheme()
+    message.success(`导入完成:配置已恢复;${notesSummary}`)
+  } catch (e) {
+    // 备注已真实落盘,配置失败必须如实分开报,否则用户误以为整次导入失败
+    message.warning(`备注已导入(${notesSummary}),但配置恢复失败:${String(e)}`)
+  }
 }
 
 /** 开关交互：开=先过风险弹窗；关=直接关 */
