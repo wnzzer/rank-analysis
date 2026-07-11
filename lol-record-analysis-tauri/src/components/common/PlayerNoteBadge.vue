@@ -218,7 +218,7 @@ async function onDelete() {
 
 .note-add-icon {
   font-size: var(--font-size-base);
-  color: var(--text-quaternary, var(--text-tertiary));
+  color: var(--text-tertiary);
   opacity: 0.55;
   transition: opacity var(--dur-fast, 0.15s) var(--ease-expo, ease);
 }

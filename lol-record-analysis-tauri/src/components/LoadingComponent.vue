@@ -64,9 +64,9 @@ defineProps<{ hint?: string }>()
   border-radius: 50%;
   border: 2px solid transparent;
   border-top-color: var(--semantic-win);
-  border-right-color: rgba(61, 155, 122, 0.35);
+  border-right-color: color-mix(in srgb, var(--semantic-win) 35%, transparent);
   animation: loading-spin 1.2s cubic-bezier(0.6, 0.2, 0.4, 0.9) infinite;
-  filter: drop-shadow(0 0 6px rgba(61, 155, 122, 0.4));
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--semantic-win) 40%, transparent));
 }
 
 .loading-center {
@@ -75,8 +75,8 @@ defineProps<{ hint?: string }>()
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: rgba(61, 155, 122, 0.08);
-  border: 1px solid rgba(61, 155, 122, 0.2);
+  background: color-mix(in srgb, var(--semantic-win) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--semantic-win) 20%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -112,11 +112,11 @@ defineProps<{ hint?: string }>()
   border-radius: var(--radius-pill);
   background: linear-gradient(
     90deg,
-    rgba(61, 155, 122, 0) 0%,
-    rgba(61, 155, 122, 0.5) 40%,
-    rgba(61, 155, 122, 0.7) 50%,
-    rgba(61, 155, 122, 0.5) 60%,
-    rgba(61, 155, 122, 0) 100%
+    color-mix(in srgb, var(--semantic-win) 0%, transparent) 0%,
+    color-mix(in srgb, var(--semantic-win) 50%, transparent) 40%,
+    color-mix(in srgb, var(--semantic-win) 70%, transparent) 50%,
+    color-mix(in srgb, var(--semantic-win) 50%, transparent) 60%,
+    color-mix(in srgb, var(--semantic-win) 0%, transparent) 100%
   );
   background-size: 200% 100%;
   animation: shimmer 1.8s ease-in-out infinite;
@@ -142,23 +142,18 @@ defineProps<{ hint?: string }>()
 
 /* 亮色主题 */
 .theme-light .loading-ring {
-  border-right-color: rgba(45, 138, 108, 0.3);
-  filter: drop-shadow(0 0 5px rgba(45, 138, 108, 0.35));
-}
-
-.theme-light .loading-center {
-  background: rgba(45, 138, 108, 0.08);
-  border-color: rgba(45, 138, 108, 0.2);
+  border-right-color: color-mix(in srgb, var(--semantic-win) 30%, transparent);
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--semantic-win) 35%, transparent));
 }
 
 .theme-light .loading-shimmer-bar {
   background: linear-gradient(
     90deg,
-    rgba(45, 138, 108, 0) 0%,
-    rgba(45, 138, 108, 0.4) 40%,
-    rgba(45, 138, 108, 0.6) 50%,
-    rgba(45, 138, 108, 0.4) 60%,
-    rgba(45, 138, 108, 0) 100%
+    color-mix(in srgb, var(--semantic-win) 0%, transparent) 0%,
+    color-mix(in srgb, var(--semantic-win) 40%, transparent) 40%,
+    color-mix(in srgb, var(--semantic-win) 60%, transparent) 50%,
+    color-mix(in srgb, var(--semantic-win) 40%, transparent) 60%,
+    color-mix(in srgb, var(--semantic-win) 0%, transparent) 100%
   );
   background-size: 200% 100%;
 }

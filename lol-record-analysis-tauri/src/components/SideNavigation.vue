@@ -191,10 +191,16 @@ const goGaming = () => {
 }
 
 .nav-item--active {
-  background: rgba(61, 155, 122, 0.14);
+  background: color-mix(in srgb, var(--semantic-win) 14%, transparent);
   color: var(--semantic-win);
-  border-color: rgba(61, 155, 122, 0.2);
-  box-shadow: 0 0 12px rgba(61, 155, 122, 0.15);
+  border-color: color-mix(in srgb, var(--semantic-win) 20%, transparent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--semantic-win) 15%, transparent);
+}
+
+/* 键盘聚焦时让位给全局 focus ring，激活态描边/辉光暂时退场，避免双环 */
+.nav-item--active:focus-visible {
+  border-color: transparent;
+  box-shadow: none;
 }
 
 /* Active indicator — INSIDE the button, NOT bleeding outside */
@@ -208,7 +214,7 @@ const goGaming = () => {
   height: 18px;
   background: var(--win-bar-gradient);
   border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
-  box-shadow: 0 0 8px rgba(61, 155, 122, 0.4);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--semantic-win) 40%, transparent);
 }
 
 .nav-item-label {
@@ -255,12 +261,12 @@ const goGaming = () => {
 }
 
 .status-icon-btn--on {
-  background: rgba(61, 155, 122, 0.12);
+  background: color-mix(in srgb, var(--semantic-win) 12%, transparent);
   color: var(--semantic-win);
 }
 
 .status-icon-btn--blue {
-  background: rgba(56, 189, 248, 0.1);
+  background: color-mix(in srgb, var(--accent-sky) 10%, transparent);
   color: var(--accent-sky);
 }
 
@@ -276,13 +282,13 @@ const goGaming = () => {
 
 .status-dot--green {
   background: var(--semantic-win-bright);
-  box-shadow: 0 0 5px rgba(74, 222, 128, 0.6);
+  box-shadow: 0 0 5px color-mix(in srgb, var(--semantic-win-bright) 60%, transparent);
   animation: dot-pulse 2s ease-in-out infinite;
 }
 
 .status-dot--blue {
   background: var(--accent-sky);
-  box-shadow: 0 0 5px rgba(56, 189, 248, 0.5);
+  box-shadow: 0 0 5px color-mix(in srgb, var(--accent-sky) 50%, transparent);
   animation: dot-pulse 2s ease-in-out infinite;
 }
 
@@ -301,29 +307,29 @@ const goGaming = () => {
 }
 
 .theme-light .nav-item--active {
-  background: rgba(45, 138, 108, 0.12);
-  border-color: rgba(45, 138, 108, 0.18);
+  background: color-mix(in srgb, var(--semantic-win) 12%, transparent);
+  border-color: color-mix(in srgb, var(--semantic-win) 18%, transparent);
+}
+
+.theme-light .nav-item--active:focus-visible {
+  border-color: transparent;
+  box-shadow: none;
 }
 
 .theme-light .nav-item--active::before {
-  background: linear-gradient(180deg, #0d9668, #2d8a6c);
-  box-shadow: 0 0 6px rgba(45, 138, 108, 0.3);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--semantic-win) 30%, transparent);
 }
 
 .theme-light .status-icon-btn--on {
-  background: rgba(45, 138, 108, 0.1);
-}
-
-.theme-light .status-icon-btn--blue {
-  background: rgba(2, 132, 199, 0.1);
+  background: color-mix(in srgb, var(--semantic-win) 10%, transparent);
 }
 
 .theme-light .status-dot--green {
   background: var(--semantic-win);
-  box-shadow: 0 0 4px rgba(13, 150, 104, 0.4);
+  box-shadow: 0 0 4px color-mix(in srgb, var(--semantic-win-bright) 40%, transparent);
 }
 
 .theme-light .status-dot--blue {
-  box-shadow: 0 0 4px rgba(2, 132, 199, 0.35);
+  box-shadow: 0 0 4px color-mix(in srgb, var(--accent-sky) 35%, transparent);
 }
 </style>

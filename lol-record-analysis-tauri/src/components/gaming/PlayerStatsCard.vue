@@ -124,9 +124,11 @@ const selectWinRate = computed(() => winRate(props.recent.selectWins, props.rece
   width: 240px;
   z-index: 100;
   background: var(--bg-elevated);
-  /* 半透明 win 色描边，强调激活态；alpha 自定义保留 rgba */
-  border-color: rgba(61, 155, 122, 0.25);
-  box-shadow: var(--shadow-lg);
+  border-color: color-mix(in srgb, var(--semantic-win) 25%, transparent);
+  /* 外圈 2px 底色"暗缝"把浮层从下方内容里切出来，再叠常规投影 */
+  box-shadow:
+    0 0 0 2px var(--bg-base),
+    var(--shadow-lg);
 }
 
 .stats-header {
