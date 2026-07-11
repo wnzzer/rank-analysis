@@ -63,7 +63,8 @@ export function buildThemeOverrides(isDark: boolean): GlobalThemeOverrides {
       borderColor: glassBorder
     },
     Input: {
-      borderRadius: radiusControl,
+      // 输入/筛选类控件用 8px 档:比 JB 的 4px 控件档更圆润(用户口味),按钮仍走 4px
+      borderRadius: radiusMd,
       color: glassMid,
       border: `1px solid ${glassBorder}`,
       borderFocus: `1px solid ${primary}`,
@@ -86,7 +87,7 @@ export function buildThemeOverrides(isDark: boolean): GlobalThemeOverrides {
       textColorPressed: textPrimary
     },
     Select: {
-      borderRadius: radiusControl
+      borderRadius: radiusMd
     },
     Pagination: {
       itemBorderRadius: radiusControl
