@@ -5,20 +5,34 @@
       <n-tag v-if="isMine" size="small" type="success" :bordered="false">我方</n-tag>
     </div>
     <div class="subteam-card-body">
-      <PlayerCard
+      <template
         v-for="(p, i) of subteam.players"
-        :key="`subteam-${subteam.subteamId}-${i}-${p.summoner.puuid}`"
-        :session-summoner="p"
-        :type-cn="typeCn"
-        :mode-type="modeType"
-        :queue-id="queueId"
-        :img-url="tiersBySubteam[subteam.subteamId]?.[i]?.imgUrl ?? ''"
-        :tier-cn="tiersBySubteam[subteam.subteamId]?.[i]?.tierCn ?? '无'"
-        :team="isMine ? 'mine' : 'enemy'"
-        :density="density"
-      />
+        :key="`subteam-${subteam.subteamId}-${i}-${p.summoner.puuid || p.championId}`"
+      >
+        <ChampionIntelCard
+          v-if="phase === 'ChampSelect' && !p.summoner.puuid"
+          :champion-id="p.championId"
+          :pick-state="p.pickState"
+          :mode="opggMode"
+          :my-champion-ids="isMine ? [] : myChampionIds"
+          :density="density"
+          :style="{ '--stagger-i': i }"
+        />
+        <PlayerCard
+          v-else
+          :session-summoner="p"
+          :type-cn="typeCn"
+          :mode-type="modeType"
+          :queue-id="queueId"
+          :img-url="tiersBySubteam[subteam.subteamId]?.[i]?.imgUrl ?? ''"
+          :tier-cn="tiersBySubteam[subteam.subteamId]?.[i]?.tierCn ?? '无'"
+          :team="isMine ? 'mine' : 'enemy'"
+          :density="density"
+          :style="{ '--stagger-i': i }"
+        />
+      </template>
       <div v-for="i in placeholderCount" :key="`placeholder-${i}`" class="subteam-card-empty">
-        <span>已离开</span>
+        <span>{{ phase === 'ChampSelect' ? '等待选人…' : '已离开' }}</span>
       </div>
     </div>
   </div>
@@ -28,8 +42,10 @@
 import { computed } from 'vue'
 import { NTag } from 'naive-ui'
 import PlayerCard from './PlayerCard.vue'
+import ChampionIntelCard from './ChampionIntelCard.vue'
 import type { Subteam } from '@renderer/types/domain/gaming'
 import type { TierDisplay } from '@renderer/composables/useSessionTiers'
+import type { OpggMode } from '@renderer/services/opgg'
 
 interface Props {
   subteam: Subteam
@@ -40,9 +56,20 @@ interface Props {
   queueId: number
   tiersBySubteam: Record<number, TierDisplay[]>
   density: 'normal' | 'compact'
+  /** 会话阶段（ChampSelect 时启用敌方情报卡渲染 + 空位占位文案） */
+  phase?: string
+  /** OP.GG 数据模式，透传给情报卡 */
+  opggMode?: OpggMode
+  /** 我方已亮出的英雄 id 列表，仅敌方情报卡用于克制提示 */
+  myChampionIds?: number[]
 }
 
-const props = withDefaults(defineProps<Props>(), { density: 'normal' })
+const props = withDefaults(defineProps<Props>(), {
+  density: 'normal',
+  phase: '',
+  opggMode: 'ranked',
+  myChampionIds: () => []
+})
 const placeholderCount = computed(() =>
   Math.max(0, props.expectedSize - props.subteam.players.length)
 )

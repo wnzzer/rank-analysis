@@ -53,6 +53,14 @@
         <div class="ai-result-content ai-report" v-html="renderedAIResult"></div>
       </n-modal>
 
+      <div v-if="sessionData.phase === 'ChampSelect'" class="gaming-intel-banner">
+        选人中 · {{ sessionData.typeCn }}
+        <template v-if="opggStatus">
+          · OP.GG {{ opggStatus.patch
+          }}<span v-if="opggStatus.stale" class="banner-stale">（数据滞后）</span>
+        </template>
+      </div>
+
       <div class="gaming-grid" :class="{ 'gaming-grid-multi': sessionData.isMultiTeam }">
         <SubteamCard
           v-for="st of orderedSubteams"
@@ -65,6 +73,9 @@
           :queue-id="sessionData.queueId"
           :tiers-by-subteam="tiersBySubteam"
           :density="density"
+          :phase="sessionData.phase"
+          :opgg-mode="opggMode"
+          :my-champion-ids="myChampionIds"
         />
       </div>
     </div>
@@ -72,7 +83,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import { SettingsOutline, SparklesOutline } from '@vicons/ionicons5'
 import { useMessage } from 'naive-ui'
@@ -83,6 +94,12 @@ import { analyzeGameWithAIStream, type StreamCallbacks } from '@renderer/service
 import { renderAnalysisReport } from '@renderer/services/ai/matchDetail/renderReport'
 import { useSessionSync } from '@renderer/composables/useSessionSync'
 import { useSessionTiers } from '@renderer/composables/useSessionTiers'
+import {
+  ensureOpggData,
+  getOpggStatus,
+  queueIdToOpggMode,
+  type OpggStatus
+} from '@renderer/services/opgg'
 
 const { sessionData, requestSessionData } = useSessionSync()
 const tiersBySubteam = useSessionTiers(sessionData)
@@ -101,6 +118,22 @@ const orderedSubteams = computed(() => {
     .sort((a, b) => a.subteamId - b.subteamId)
   return my ? [my, ...others] : others
 })
+
+/** 当前对局对应的 OP.GG 数据模式（ARAM 队列走 aram，其余走 ranked） */
+const opggMode = computed(() => queueIdToOpggMode(sessionData.queueId))
+
+/** 我方已亮出的英雄 id 列表（用于敌方情报卡的克制提示，过滤未选中的 0/负值） */
+const myChampionIds = computed(
+  () =>
+    orderedSubteams.value
+      .find(s => s.subteamId === sessionData.mySubteamId)
+      ?.players.map(p => p.championId)
+      .filter(id => id > 0) ?? []
+)
+
+/** OP.GG 数据状态（版本号/是否滞后），驱动选人期数据横幅 */
+const opggStatus = ref<OpggStatus | null>(null)
+watch(opggMode, m => getOpggStatus(m).then(s => (opggStatus.value = s)), { immediate: true })
 
 const showConfig = ref(false)
 const matchCount = ref(4)
@@ -175,6 +208,10 @@ onMounted(async () => {
       }, 5000)
     }, 2000)
   }
+
+  // OP.GG 数据兜底刷新：后端启动已预热，此处 fire-and-forget 兜底软件长开超 12h 未重启的场景
+  void ensureOpggData('ranked')
+  void ensureOpggData('aram')
 })
 </script>
 
@@ -208,6 +245,18 @@ onMounted(async () => {
 .gaming-config-hint {
   font-size: var(--font-size-sm);
   color: var(--text-tertiary);
+}
+
+.gaming-intel-banner {
+  text-align: center;
+  font-size: 12px;
+  opacity: 0.7;
+  margin-bottom: var(--space-8);
+}
+
+.banner-stale {
+  /* 品牌 token 名为 --semantic-loss（无对应 --semantic-lose 定义） */
+  color: var(--semantic-loss);
 }
 
 .ai-result-content {
