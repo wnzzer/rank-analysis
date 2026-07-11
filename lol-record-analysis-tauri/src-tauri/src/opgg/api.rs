@@ -9,7 +9,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 const BASE_URL: &str = "https://lol-api-champion.op.gg/api/global/champions";
 /// ranked 数据取 emerald+ 分段（样本大且贴近排位主流生态）。
 const RANKED_TIER_PARAM: &str = "tier=emerald_plus";
-/// 与 fandom::api 一致的浏览器 UA——OP.GG 对无 UA 请求可能拒绝。
+/// 同 fandom::api 风格的浏览器 UA——OP.GG 对无 UA 请求可能拒绝。
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 
 /// OP.GG 原始响应（只解出需要的字段，其余忽略；可空字段全部 Option 容错）。

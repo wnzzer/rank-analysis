@@ -99,6 +99,7 @@ impl Default for AppState {
     ///
     /// - `http_port`: 未初始化的 `OnceLock`
     /// - `fandom_cache`: 2 小时 TTL 的 Moka 缓存
+    /// - `opgg_cache`: 无 TTL 的 Moka 缓存（理由见字段文档）
     ///
     /// # 示例
     ///

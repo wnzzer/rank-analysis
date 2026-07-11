@@ -36,11 +36,30 @@ pub struct OpggStatus {
     pub champion_count: usize,
 }
 
+/// 当前 unix 秒；系统时钟异常时返回 0。
 fn now_secs() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0)
+}
+
+/// 校验模式是否在白名单（"ranked"/"aram"）内。
+///
+/// # 参数
+/// - `mode`: 待校验的模式字符串
+///
+/// # 错误
+/// 不在白名单时返回 Err，消息附带合法取值提示。
+fn validate_mode(mode: &str) -> Result<(), String> {
+    if VALID_MODES.contains(&mode) {
+        Ok(())
+    } else {
+        Err(format!(
+            "invalid opgg mode: {} (expected ranked|aram)",
+            mode
+        ))
+    }
 }
 
 /// 从快照生成状态对象。
@@ -103,9 +122,7 @@ where
     F: FnOnce(String) -> Fut,
     Fut: std::future::Future<Output = Result<OpggSnapshot, String>>,
 {
-    if !VALID_MODES.contains(&mode) {
-        return Err(format!("invalid opgg mode: {}", mode));
-    }
+    validate_mode(mode)?;
 
     // 1. 内存 fresh
     if let Some(snap) = mem_cache.get(mode).await {
@@ -184,7 +201,8 @@ pub async fn update_opgg_data(
 
 /// 查询单英雄元数据（T级/胜率等）。position 传 LCU 命名（TOP/JUNGLE/MIDDLE/BOTTOM/UTILITY）。
 ///
-/// 快照不存在（从未成功拉取）时返回 Ok(None) 而非 Err——数据缺失是常态降级路径。
+/// 非法模式（不在 ranked/aram 白名单）返回 Err；数据未拉取仍是 Ok(None)——
+/// 数据缺失是常态降级路径，不应与参数错误混淆。
 #[tauri::command]
 pub async fn get_champion_meta(
     mode: String,
@@ -192,6 +210,7 @@ pub async fn get_champion_meta(
     position: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<Option<ChampionMeta>, String> {
+    validate_mode(&mode)?;
     match state.opgg_cache.get(&mode).await {
         Some(snap) => Ok(select_meta(&snap, champion_id, position.as_deref())),
         None => Ok(None),
@@ -199,24 +218,30 @@ pub async fn get_champion_meta(
 }
 
 /// 批量查询多个英雄的对线克制数据（服务本局 10 英雄一次取齐）。
+///
+/// 非法模式返回 Err；数据未拉取仍是 Ok(空 map)。
 #[tauri::command]
 pub async fn get_lane_counters(
     mode: String,
     champion_ids: Vec<i32>,
     state: State<'_, AppState>,
 ) -> Result<HashMap<i32, Vec<LaneCounter>>, String> {
+    validate_mode(&mode)?;
     match state.opgg_cache.get(&mode).await {
         Some(snap) => Ok(collect_counters(&snap, &champion_ids)),
         None => Ok(HashMap::new()),
     }
 }
 
-/// 查询某模式的数据状态；从未成功拉取过返回 Ok(None)。
+/// 查询某模式的数据状态。
+///
+/// 非法模式返回 Err；从未成功拉取过仍是 Ok(None)。
 #[tauri::command]
 pub async fn get_opgg_status(
     mode: String,
     state: State<'_, AppState>,
 ) -> Result<Option<OpggStatus>, String> {
+    validate_mode(&mode)?;
     let now = now_secs();
     match state.opgg_cache.get(&mode).await {
         Some(snap) => {
@@ -302,6 +327,16 @@ mod tests {
         assert_eq!(s.champion_count, 1);
     }
 
+    #[test]
+    fn validate_mode_should_accept_whitelisted_and_reject_others() {
+        assert!(validate_mode("ranked").is_ok());
+        assert!(validate_mode("aram").is_ok());
+
+        let err = validate_mode("urf").unwrap_err();
+        assert!(err.contains("invalid opgg mode"));
+        assert!(err.contains("expected ranked|aram"));
+    }
+
     // ---- ensure_snapshot_impl（降级链编排）----
 
     use crate::opgg::cache::TTL_SECS;
@@ -361,6 +396,39 @@ mod tests {
         );
         assert!(!stale);
         assert_eq!(snap.fetched_at, NOW - 100);
+    }
+
+    #[tokio::test]
+    async fn ensure_should_promote_fresh_disk_without_fetching() {
+        let cache_map = mem_cache();
+
+        let fetch_called = AtomicBool::new(false);
+        let (snap, stale) = ensure_snapshot_impl(
+            &cache_map,
+            "ranked",
+            NOW,
+            |_m| {
+                fetch_called.store(true, Ordering::SeqCst);
+                async { Err::<OpggSnapshot, String>("should not fetch".into()) }
+            },
+            |_mode| Some(snapshot_at(NOW - 100)),
+            disk_save_ok,
+        )
+        .await
+        .unwrap();
+
+        assert!(
+            !fetch_called.load(Ordering::SeqCst),
+            "磁盘 fresh 不应触发拉取"
+        );
+        assert!(!stale);
+        assert_eq!(snap.fetched_at, NOW - 100);
+        // 磁盘命中应回填内存，后续查询命令可复用
+        let cached = cache_map
+            .get("ranked")
+            .await
+            .expect("磁盘 fresh 应写入内存");
+        assert_eq!(cached.fetched_at, NOW - 100);
     }
 
     #[tokio::test]
