@@ -81,43 +81,56 @@ fn collect_counters(snap: &OpggSnapshot, champion_ids: &[i32]) -> HashMap<i32, V
         .collect()
 }
 
-/// 获取某模式快照的核心编排（命令层与启动预热共用）。
+/// 降级链编排的可注入实现（供单测注入假 fetch / 假磁盘）。
 ///
-/// # 返回值
-/// `(快照, stale)`：stale=true 表示拉取失败、返回的是过期缓存。
-pub async fn ensure_opgg_snapshot(
-    state: &AppState,
+/// 与 [`ensure_opgg_snapshot`] 行为完全一致，仅把外部效应
+/// （HTTP 拉取、磁盘读写、当前时间）参数化。
+///
+/// # 参数
+/// - `mem_cache`: 内存缓存（无 TTL，保留最后已知快照供降级）
+/// - `now`: 当前 unix 秒（新鲜度判定基准）
+/// - `fetch`: HTTP 拉取（生产为 `api::fetch_mode`）
+/// - `disk_load` / `disk_save`: 磁盘缓存读写（生产为 `cache::load` / `cache::save`）
+async fn ensure_snapshot_impl<F, Fut>(
+    mem_cache: &moka::future::Cache<String, Arc<OpggSnapshot>>,
     mode: &str,
-) -> Result<(Arc<OpggSnapshot>, bool), String> {
+    now: i64,
+    fetch: F,
+    disk_load: impl Fn(&str) -> Option<OpggSnapshot>,
+    disk_save: impl Fn(&OpggSnapshot) -> Result<(), String>,
+) -> Result<(Arc<OpggSnapshot>, bool), String>
+where
+    F: FnOnce(String) -> Fut,
+    Fut: std::future::Future<Output = Result<OpggSnapshot, String>>,
+{
     if !VALID_MODES.contains(&mode) {
         return Err(format!("invalid opgg mode: {}", mode));
     }
-    let now = now_secs();
 
     // 1. 内存 fresh
-    if let Some(snap) = state.opgg_cache.get(mode).await {
+    if let Some(snap) = mem_cache.get(mode).await {
         if cache::is_fresh(&snap, now) {
             return Ok((snap, false));
         }
     }
 
     // 2. 磁盘 fresh（跨重启复用）
-    if let Some(disk) = cache::load(mode) {
+    if let Some(disk) = disk_load(mode) {
         if cache::is_fresh(&disk, now) {
             let arc = Arc::new(disk);
-            state.opgg_cache.insert(mode.to_string(), arc.clone()).await;
+            mem_cache.insert(mode.to_string(), arc.clone()).await;
             return Ok((arc, false));
         }
     }
 
     // 3. HTTP 拉取
-    match api::fetch_mode(mode).await {
+    match fetch(mode.to_string()).await {
         Ok(snap) => {
-            if let Err(e) = cache::save(&snap) {
+            if let Err(e) = disk_save(&snap) {
                 log::warn!("OP.GG cache save failed: {}", e);
             }
             let arc = Arc::new(snap);
-            state.opgg_cache.insert(mode.to_string(), arc.clone()).await;
+            mem_cache.insert(mode.to_string(), arc.clone()).await;
             Ok((arc, false))
         }
         Err(e) => {
@@ -127,17 +140,36 @@ pub async fn ensure_opgg_snapshot(
                 mode,
                 e
             );
-            if let Some(snap) = state.opgg_cache.get(mode).await {
+            if let Some(snap) = mem_cache.get(mode).await {
                 return Ok((snap, true));
             }
-            if let Some(disk) = cache::load(mode) {
+            if let Some(disk) = disk_load(mode) {
                 let arc = Arc::new(disk);
-                state.opgg_cache.insert(mode.to_string(), arc.clone()).await;
+                mem_cache.insert(mode.to_string(), arc.clone()).await;
                 return Ok((arc, true));
             }
             Err(e)
         }
     }
+}
+
+/// 获取某模式快照的核心编排（命令层与启动预热共用）。
+///
+/// # 返回值
+/// `(快照, stale)`：stale=true 表示拉取失败、返回的是过期缓存。
+pub async fn ensure_opgg_snapshot(
+    state: &AppState,
+    mode: &str,
+) -> Result<(Arc<OpggSnapshot>, bool), String> {
+    ensure_snapshot_impl(
+        &state.opgg_cache,
+        mode,
+        now_secs(),
+        |m| async move { api::fetch_mode(&m).await },
+        cache::load,
+        cache::save,
+    )
+    .await
 }
 
 /// 更新（或确保）某模式的 OP.GG 数据，返回数据状态。
@@ -268,5 +300,177 @@ mod tests {
         assert_eq!(s.patch, "16.13");
         assert!(s.stale);
         assert_eq!(s.champion_count, 1);
+    }
+
+    // ---- ensure_snapshot_impl（降级链编排）----
+
+    use crate::opgg::cache::TTL_SECS;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    /// 测试基准时刻。
+    const NOW: i64 = 2_000_000_000;
+
+    /// 指定拉取时刻的快照（内容复用 [`snapshot`]）。
+    fn snapshot_at(fetched_at: i64) -> OpggSnapshot {
+        OpggSnapshot {
+            fetched_at,
+            ..snapshot()
+        }
+    }
+
+    /// 空内存缓存（与 `AppState::opgg_cache` 同构：无 TTL）。
+    fn mem_cache() -> moka::future::Cache<String, Arc<OpggSnapshot>> {
+        moka::future::Cache::builder().build()
+    }
+
+    /// 恒不命中的磁盘读。
+    fn disk_none(_mode: &str) -> Option<OpggSnapshot> {
+        None
+    }
+
+    /// 恒成功的磁盘写。
+    fn disk_save_ok(_snap: &OpggSnapshot) -> Result<(), String> {
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn ensure_should_return_fresh_memory_without_fetching() {
+        let cache_map = mem_cache();
+        cache_map
+            .insert("ranked".into(), Arc::new(snapshot_at(NOW - 100)))
+            .await;
+
+        let fetch_called = AtomicBool::new(false);
+        let (snap, stale) = ensure_snapshot_impl(
+            &cache_map,
+            "ranked",
+            NOW,
+            |_m| {
+                fetch_called.store(true, Ordering::SeqCst);
+                async { Err::<OpggSnapshot, String>("should not fetch".into()) }
+            },
+            disk_none,
+            disk_save_ok,
+        )
+        .await
+        .unwrap();
+
+        assert!(
+            !fetch_called.load(Ordering::SeqCst),
+            "内存 fresh 不应触发拉取"
+        );
+        assert!(!stale);
+        assert_eq!(snap.fetched_at, NOW - 100);
+    }
+
+    #[tokio::test]
+    async fn ensure_should_fetch_and_cache_on_success() {
+        let cache_map = mem_cache();
+        let saved = AtomicBool::new(false);
+
+        let (snap, stale) = ensure_snapshot_impl(
+            &cache_map,
+            "ranked",
+            NOW,
+            |_m| async { Ok(snapshot_at(NOW)) },
+            disk_none,
+            |_s| {
+                saved.store(true, Ordering::SeqCst);
+                Ok(())
+            },
+        )
+        .await
+        .unwrap();
+
+        assert!(!stale);
+        assert_eq!(snap.fetched_at, NOW);
+        assert!(saved.load(Ordering::SeqCst), "拉取成功应落盘");
+        let cached = cache_map.get("ranked").await.expect("拉取成功应写入内存");
+        assert_eq!(cached.fetched_at, NOW);
+    }
+
+    #[tokio::test]
+    async fn ensure_should_fall_back_to_stale_memory_on_fetch_failure() {
+        let cache_map = mem_cache();
+        // 过期快照仍留在内存（opgg_cache 无 TTL 的意义所在）
+        cache_map
+            .insert("ranked".into(), Arc::new(snapshot_at(NOW - TTL_SECS - 100)))
+            .await;
+
+        let (snap, stale) = ensure_snapshot_impl(
+            &cache_map,
+            "ranked",
+            NOW,
+            |_m| async { Err::<OpggSnapshot, String>("network down".into()) },
+            disk_none,
+            disk_save_ok,
+        )
+        .await
+        .unwrap();
+
+        assert!(stale, "拉取失败回退过期内存应标 stale");
+        assert_eq!(snap.fetched_at, NOW - TTL_SECS - 100);
+    }
+
+    #[tokio::test]
+    async fn ensure_should_fall_back_to_stale_disk_on_fetch_failure() {
+        let cache_map = mem_cache();
+
+        let (snap, stale) = ensure_snapshot_impl(
+            &cache_map,
+            "ranked",
+            NOW,
+            |_m| async { Err::<OpggSnapshot, String>("network down".into()) },
+            |_mode| Some(snapshot_at(NOW - TTL_SECS - 100)),
+            disk_save_ok,
+        )
+        .await
+        .unwrap();
+
+        assert!(stale, "拉取失败回退过期磁盘应标 stale");
+        assert_eq!(snap.fetched_at, NOW - TTL_SECS - 100);
+        // 降级结果也应写入内存，后续查询命令可用
+        assert!(cache_map.get("ranked").await.is_some());
+    }
+
+    #[tokio::test]
+    async fn ensure_should_err_when_fetch_fails_and_no_cache_anywhere() {
+        let cache_map = mem_cache();
+
+        let err = ensure_snapshot_impl(
+            &cache_map,
+            "ranked",
+            NOW,
+            |_m| async { Err::<OpggSnapshot, String>("network down".into()) },
+            disk_none,
+            disk_save_ok,
+        )
+        .await
+        .unwrap_err();
+
+        assert_eq!(err, "network down");
+    }
+
+    #[tokio::test]
+    async fn ensure_should_reject_invalid_mode() {
+        let cache_map = mem_cache();
+
+        let fetch_called = AtomicBool::new(false);
+        let err = ensure_snapshot_impl(
+            &cache_map,
+            "urf",
+            NOW,
+            |_m| {
+                fetch_called.store(true, Ordering::SeqCst);
+                async { Err::<OpggSnapshot, String>("should not fetch".into()) }
+            },
+            disk_none,
+            disk_save_ok,
+        )
+        .await
+        .unwrap_err();
+
+        assert!(err.contains("invalid opgg mode"));
+        assert!(!fetch_called.load(Ordering::SeqCst));
     }
 }

@@ -80,8 +80,15 @@ pub struct AppState {
 
     /// OP.GG 快照内存缓存。
     ///
-    /// 键为模式（"ranked" / "aram"），值为完整快照。TTL 12 小时，
-    /// 与磁盘缓存（`opgg::cache`）互为补充：内存快、磁盘跨重启。
+    /// 键为模式（"ranked" / "aram"），值为完整快照，与磁盘缓存
+    /// （`opgg::cache`）互为补充：内存快、磁盘跨重启。
+    ///
+    /// # 为什么不设 TTL
+    ///
+    /// 内存须保留"最后已知快照"供拉取失败时降级（`ensure_opgg_snapshot`
+    /// 的过期缓存回退分支）。若设 moka TTL，条目一到期即被驱逐，降级分支
+    /// 永远拿不到数据。新鲜度由 `opgg::cache::is_fresh` 单独裁决；键至多
+    /// 2 个（"ranked"/"aram"），无内存压力。
     pub opgg_cache: Cache<String, std::sync::Arc<crate::opgg::data::OpggSnapshot>>,
 }
 
@@ -106,9 +113,7 @@ impl Default for AppState {
             fandom_cache: Cache::builder()
                 .time_to_live(Duration::from_secs(2 * 60 * 60))
                 .build(),
-            opgg_cache: Cache::builder()
-                .time_to_live(Duration::from_secs(12 * 60 * 60))
-                .build(),
+            opgg_cache: Cache::builder().build(),
         }
     }
 }
