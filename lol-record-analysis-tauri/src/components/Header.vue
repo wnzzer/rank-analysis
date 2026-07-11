@@ -225,9 +225,9 @@ const closeWindow = (): void => {
   width: 22px;
   height: 22px;
   border-radius: var(--radius-sm);
-  background: rgba(61, 155, 122, 0.18);
-  border: 1px solid rgba(61, 155, 122, 0.28);
-  box-shadow: 0 0 10px rgba(61, 155, 122, 0.18);
+  background: color-mix(in srgb, var(--semantic-win) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--semantic-win) 28%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--semantic-win) 18%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -273,12 +273,8 @@ const closeWindow = (): void => {
 
 /* 聚焦时整框发光 */
 .header-center:focus-within .header-search :deep(.n-input-wrapper) {
-  box-shadow: 0 0 0 2px rgba(61, 155, 122, 0.2);
-  border-color: rgba(61, 155, 122, 0.35) !important;
-}
-
-.theme-light .header-center:focus-within .header-search :deep(.n-input-wrapper) {
-  box-shadow: 0 0 0 2px rgba(45, 138, 108, 0.2);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--semantic-win) 20%, transparent);
+  border-color: color-mix(in srgb, var(--semantic-win) 35%, transparent) !important;
 }
 
 /* 前缀：大区下拉触发器（小号文字 + 箭头，hover 淡底） */
@@ -382,7 +378,7 @@ const closeWindow = (): void => {
 }
 
 .close-btn:hover {
-  background-color: rgba(196, 92, 92, 0.75);
+  background-color: color-mix(in srgb, var(--semantic-loss) 75%, transparent);
   color: white;
 }
 

@@ -84,7 +84,7 @@
             <n-button
               size="tiny"
               @click="nextPage"
-              :disabled="page == 5 || isRequestingMatchHostory"
+              :disabled="page == 5 || isRequestingMatchHostory || noMoreMatches"
             >
               <template #icon>
                 <n-icon>
@@ -192,6 +192,14 @@ const games = computed<Game[]>(() => matchHistory.value?.games?.games ?? [])
 
 /** 是否启用了任何筛选条件（用于区分"无数据"与"筛选无结果"） */
 const hasFilter = computed(() => filterChampionId.value > 0 || filterQueueId.value > 0)
+
+/**
+ * 已到最后一页：无筛选时每页固定请求 10 条，不满 10 条即无下页；
+ * 筛选分页按命中数续推，只能以"当前页为空"兜底判断。
+ */
+const noMoreMatches = computed(() =>
+  hasFilter.value ? games.value.length === 0 : games.value.length < 10
+)
 
 async function openDetail(game: Game) {
   await openMatchDetailWindow(game)
