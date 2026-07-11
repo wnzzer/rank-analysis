@@ -248,10 +248,15 @@ pub async fn get_filter_match_history_by_name(
 ///
 /// # 匹配逻辑
 ///
-/// - 队列匹配: `filter_queue_id <= 0` 或 `game.queue_id == filter_queue_id`
+/// - 队列匹配: `filter_queue_id <= 0` 或与对局队列属于同一模式分组
+///   （多个队列 ID 共用同一中文名，如新旧人机队列同难度，按分组而非精确 ID 匹配）
 /// - 英雄匹配: `filter_champion_id <= 0` 或参与者中使用了指定英雄
 fn game_matches_filters(game: &Game, filter_queue_id: i32, filter_champion_id: i32) -> bool {
-    let queue_matches = filter_queue_id <= 0 || game.queue_id == filter_queue_id;
+    let queue_matches = filter_queue_id <= 0
+        || crate::constant::game::queue_ids_same_group(
+            game.queue_id as u32,
+            filter_queue_id as u32,
+        );
     let champion_matches = filter_champion_id <= 0
         || game
             .participants

@@ -546,7 +546,7 @@ mod queue_name_tests {
     #[test]
     fn newly_mapped_queue_ids_resolve() {
         assert_eq!(resolve_queue_name_cn(480, "CLASSIC"), "快速匹配");
-        assert_eq!(resolve_queue_name_cn(870, "CLASSIC"), "人机");
+        assert_eq!(resolve_queue_name_cn(870, "CLASSIC"), "人机(入门)");
         // 真机实测：训练模式 queueId=3140 / gameMode=PRACTICETOOL（此前显示"未知"）
         assert_eq!(resolve_queue_name_cn(3140, "PRACTICETOOL"), "训练模式");
         assert_eq!(resolve_queue_name_cn(99999, "PRACTICETOOL"), "训练模式");
