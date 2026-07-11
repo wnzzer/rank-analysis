@@ -134,27 +134,18 @@ const MAX_CACHE_END: i32 = 49;
 
 impl MatchHistory {
     /// 内部：按 PUUID 与索引范围请求 LCU 对局列表。
-    pub(crate) async fn get_by_puuid(
-        puuid: &str,
-        begin_index: i32,
-        end_index: i32,
-    ) -> Result<Self, String> {
+    ///
+    /// ⚠️ LCU 按 puuid 整包缓存该端点结果：冷 puuid 的**首个请求区间决定它缓存
+    /// 几场**，之后 begIndex/endIndex 被忽略、永远整包返回缓存内容（真机实测）。
+    /// 因此对可能未被 LCU 缓存过的 puuid，首个请求必须是 0..=[`MAX_CACHE_END`]
+    /// 全量——保持本函数私有，外部一律走 [`Self::get_match_history_by_puuid`]。
+    async fn get_by_puuid(puuid: &str, begin_index: i32, end_index: i32) -> Result<Self, String> {
         let uri = format!(
             "lol-match-history/v1/products/lol/{}/matches?begIndex={}&endIndex={}",
             puuid, begin_index, end_index
         );
         log::info!("build url {}", uri);
 
-        let match_history = lcu_get::<Self>(&uri).await?;
-        Ok(match_history)
-    }
-
-    /// 获取当前登录账号的对局记录（LCU「me」接口）。
-    pub async fn get_my_match_history(begin_index: i32, end_index: i32) -> Result<Self, String> {
-        let uri = format!(
-            "lol-match-history/v1/products/lol/me/matches?beginIndex={}%26endIndex={}",
-            begin_index, end_index
-        );
         let match_history = lcu_get::<Self>(&uri).await?;
         Ok(match_history)
     }
@@ -215,36 +206,6 @@ impl MatchHistory {
             },
             ..history
         })
-    }
-
-    /// 纯读缓存并切片，不触发 LCU 请求。命中则返回切片后的数据，未命中或数据不足返回 None。
-    pub async fn try_get_cached_slice(puuid: &str, beg: i32, end: i32) -> Option<MatchHistory> {
-        let cached = MATCH_HISTORY_CACHE.get(puuid).await?;
-        let total = cached.games.games.len();
-        let b = beg as usize;
-        let e = end as usize;
-        if e >= total {
-            return None;
-        }
-        let actual_end = std::cmp::min(e + 1, total);
-        if b >= actual_end {
-            return None;
-        }
-        Some(MatchHistory {
-            games: GamesWrapper {
-                games: cached.games.games[b..actual_end].to_vec(),
-            },
-            ..cached
-        })
-    }
-
-    /// 异步补全缓存：用 try_get_with 保证并发下只有一个线程拉 0-49。
-    pub async fn fill_cache(puuid: &str) {
-        let _ = MATCH_HISTORY_CACHE
-            .try_get_with(puuid.to_string(), async {
-                MatchHistory::get_by_puuid(puuid, 0, MAX_CACHE_END).await
-            })
-            .await;
     }
 
     /// 为每条对局拉取详情（game_detail）并写入。
