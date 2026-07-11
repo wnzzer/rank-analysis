@@ -6,11 +6,14 @@
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import { CONFIG_KEYS } from '@renderer/services/configKeys'
 import { lcuConnected } from '@renderer/composables/useGameState'
+import { deepEqual } from '@renderer/utils/deepEqual'
 import { usePlayerNotesStore } from './playerNotes'
+import { useSettingsStore } from './setting'
 import type { PlayerNotesMap } from '@renderer/types/domain/playerNote'
 
 /** 备注变更后自动推送的防抖窗口（毫秒） */
@@ -35,6 +38,7 @@ function isStandaloneDetailWindow(): boolean {
  * 合并语义在 utils/mergePlayerNotes，网络在 Rust command，本 store 不碰两者细节。
  * 触发时机：app 启动（开关开时）、LCU 连接建立后补触发、设置页手动、
  * 开关打开时、备注变更后防抖推送。同步流程只在主窗口跑（详情窗口只读开关）。
+ * 配置同步：首次经用户确认，之后整份后写胜（LWW）；变更经 config-changed 事件走同一防抖。
  *
  * 注意：云端拉取必须发生在 importNotes 之外——importNotes 的读-合-写临界区是
  * 同步的，往里插 await 会打开丢更新窗口。
@@ -48,6 +52,129 @@ export const useCloudSyncStore = defineStore('cloudSync', () => {
   const lastSyncAt = ref<number | null>(null)
   /** 最近一次失败信息，成功后清空 */
   const lastError = ref<string | null>(null)
+
+  /** 云端配置 payload 形状（Rust ConfigPayload 的序列化结果） */
+  interface CloudConfig {
+    updatedAt: number
+    config: Record<string, unknown>
+  }
+
+  /** 首次同步待确认的云端配置；非 null 时 UI 弹确认窗（Framework 渲染） */
+  const pendingCloudConfig = ref<CloudConfig | null>(null)
+
+  /** 待确认弹窗对应的 puuid（resolve 时推送/落标记用） */
+  let pendingPuuid = ''
+  /** 本地有未推送的配置变更（config-changed 事件置位，推送后清零） */
+  let configDirty = false
+  /** 正在应用外来快照：期间的 config-changed 事件不算 dirty，防拉取→写入→再推送回环 */
+  let applyingConfig = false
+  let configWatchStarted = false
+
+  /** 标记本地配置已变更（config-changed 监听与测试共用入口） */
+  function markConfigDirty(): void {
+    if (applyingConfig) return
+    configDirty = true
+  }
+
+  /**
+   * 监听 Rust 侧 config-changed（已按云同步口径过滤），变更后走既有防抖推送。
+   * 复用 notes 的 autoPushTimer/flushAutoPush——防抖到点执行的 syncNow 现在
+   * 同时同步备注与配置，无需第二套定时器。
+   */
+  function startConfigWatch(): void {
+    if (configWatchStarted) return
+    configWatchStarted = true
+    listen<string>('config-changed', () => {
+      markConfigDirty()
+      if (!enabled.value) return
+      if (autoPushTimer) clearTimeout(autoPushTimer)
+      autoPushTimer = setTimeout(flushAutoPush, AUTO_PUSH_DEBOUNCE_MS)
+    }).catch(() => {})
+  }
+
+  /** 推送本机配置到云端并更新 LWW 基准 */
+  async function pushConfig(puuid: string): Promise<void> {
+    await invoke('cloud_push_config', { puuid })
+    configDirty = false
+    await putConfigByIpc(CONFIG_KEYS.configLastSyncAt, Date.now())
+  }
+
+  /** 应用云端配置（确认覆盖/静默 LWW 共用）：写入期间抑制 dirty 标记，完成后重载主题 */
+  async function applyCloudConfig(cloud: CloudConfig): Promise<void> {
+    applyingConfig = true
+    try {
+      await invoke('apply_config_snapshot', { snapshot: cloud.config })
+    } finally {
+      applyingConfig = false
+    }
+    configDirty = false
+    await putConfigByIpc(CONFIG_KEYS.configLastSyncAt, Date.now())
+    // 立即生效：theme 是唯一初始化后不再读 config 的展示态，其余设置页打开时现读
+    await useSettingsStore().initTheme()
+  }
+
+  /**
+   * 配置同步（syncNow 内、备注同步后调用）。
+   *
+   * 首次（无 configSyncedOnce 标记）：云端有且不一致 → 挂起弹窗等用户裁决
+   * （不落标记——中途关 app 下次重走首次流程）；云端为空 → 推送播种；
+   * 一致 → 只落标记。
+   * 之后：内容一致 → 无事；本地有未推变更 → 推送（后写胜）；云端行比上次
+   * 同步新 → 静默应用；否则推送。
+   */
+  async function syncConfig(puuid: string): Promise<void> {
+    const pulled = await invoke<CloudConfig | null>('cloud_pull_config', { puuid })
+    const local = await invoke<Record<string, unknown>>('get_cloud_config_snapshot')
+    const syncedOnce =
+      (await getConfigByIpc<boolean>(CONFIG_KEYS.configSyncedOnce).catch(() => false)) === true
+
+    if (!syncedOnce) {
+      if (pulled && !deepEqual(pulled.config, local)) {
+        pendingPuuid = puuid
+        pendingCloudConfig.value = pulled
+        return
+      }
+      if (!pulled) await pushConfig(puuid)
+      await putConfigByIpc(CONFIG_KEYS.configSyncedOnce, true)
+      return
+    }
+
+    if (pulled && deepEqual(pulled.config, local)) {
+      configDirty = false
+      return
+    }
+    if (configDirty) {
+      await pushConfig(puuid)
+      return
+    }
+    const lastSyncAt = (await getConfigByIpc<number>(CONFIG_KEYS.configLastSyncAt)) ?? 0
+    if (pulled && pulled.updatedAt > lastSyncAt) {
+      await applyCloudConfig(pulled)
+    } else {
+      await pushConfig(puuid)
+    }
+  }
+
+  /**
+   * 首次确认弹窗的裁决入口（Framework 的弹窗按钮调用）。
+   * @param useCloud - true 用云端覆盖本地；false 保留本地并推送覆盖云端
+   */
+  async function resolveCloudConfig(useCloud: boolean): Promise<void> {
+    const pending = pendingCloudConfig.value
+    if (!pending) return
+    pendingCloudConfig.value = null
+    try {
+      if (useCloud) {
+        await applyCloudConfig(pending)
+      } else {
+        await pushConfig(pendingPuuid)
+      }
+      await putConfigByIpc(CONFIG_KEYS.configSyncedOnce, true)
+    } catch (e) {
+      lastError.value = String(e)
+      throw e
+    }
+  }
 
   let autoPushStarted = false
   let autoPushTimer: ReturnType<typeof setTimeout> | null = null
@@ -115,6 +242,7 @@ export const useCloudSyncStore = defineStore('cloudSync', () => {
     // 详情窗口只镜像开关状态，不承担同步（见 isStandaloneDetailWindow）
     if (isStandaloneDetailWindow()) return
     startConnectionRetrigger()
+    startConfigWatch()
     if (enabled.value) {
       startAutoPush()
       syncNow().catch(() => {})
@@ -161,6 +289,7 @@ export const useCloudSyncStore = defineStore('cloudSync', () => {
         await notesStore.importNotes(payload)
       }
       await invoke('cloud_push_notes', { puuid: me.puuid, payload: notesStore.notes })
+      await syncConfig(me.puuid)
       lastSyncAt.value = Date.now()
     } catch (e) {
       lastError.value = String(e)
@@ -170,5 +299,16 @@ export const useCloudSyncStore = defineStore('cloudSync', () => {
     }
   }
 
-  return { enabled, syncing, lastSyncAt, lastError, init, setEnabled, syncNow }
+  return {
+    enabled,
+    syncing,
+    lastSyncAt,
+    lastError,
+    pendingCloudConfig,
+    init,
+    setEnabled,
+    syncNow,
+    resolveCloudConfig,
+    markConfigDirty
+  }
 })

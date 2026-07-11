@@ -44,11 +44,13 @@ async function flushAsync(): Promise<void> {
   for (let i = 0; i < 20; i++) await Promise.resolve()
 }
 
-/** 常规成功路径的 invoke mock：无云端数据，pull 返回空 */
+/** 常规成功路径的 invoke mock:云端无数据,pull 均返回空 */
 function mockHappyInvoke(): void {
   mockInvoke.mockImplementation(async cmd => {
     if (cmd === 'get_my_summoner') return { puuid: 'me' }
     if (cmd === 'cloud_pull_notes') return []
+    if (cmd === 'cloud_pull_config') return null
+    if (cmd === 'get_cloud_config_snapshot') return {}
     return undefined
   })
 }
@@ -218,6 +220,134 @@ describe('useCloudSyncStore', () => {
       await vi.advanceTimersByTimeAsync(30_000)
       await flushAsync()
       expect(mockInvoke).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('配置同步', () => {
+    /** 按键名精确 mock getConfigByIpc:开关开、首次标记与 LWW 基准可注入 */
+    function mockGetConfig(over: Record<string, unknown> = {}): void {
+      mockGet.mockImplementation(async key => {
+        if (key === 'cloudSyncEnabled') return true
+        if (key in over) return over[key]
+        return undefined
+      })
+    }
+
+    /** 组合 invoke mock:云端配置/本地快照可注入 */
+    function mockConfigInvoke(opts: {
+      pulled?: { updatedAt: number; config: Record<string, unknown> } | null
+      local?: Record<string, unknown>
+    }): void {
+      mockInvoke.mockImplementation(async cmd => {
+        if (cmd === 'get_my_summoner') return { puuid: 'me' }
+        if (cmd === 'cloud_pull_notes') return []
+        if (cmd === 'cloud_pull_config') return opts.pulled ?? null
+        if (cmd === 'get_cloud_config_snapshot') return opts.local ?? {}
+        return undefined
+      })
+    }
+
+    it('首次同步:云端有配置且不一致 → 设置 pendingCloudConfig,不静默应用', async () => {
+      mockGetConfig({ configSyncedOnce: undefined })
+      mockConfigInvoke({
+        pulled: { updatedAt: 100, config: { theme: { value: 'dark' } } },
+        local: { theme: { value: 'light' } }
+      })
+      const store = useCloudSyncStore()
+      await store.syncNow()
+      expect(store.pendingCloudConfig).not.toBeNull()
+      expect(mockInvoke).not.toHaveBeenCalledWith('apply_config_snapshot', expect.anything())
+      // 弹窗未决前不写首次标记:中途关 app 下次重新走首次流程
+      expect(mockPut).not.toHaveBeenCalledWith('configSyncedOnce', true)
+    })
+
+    it('首次同步:确认覆盖 → apply + 写首次标记与 LWW 基准', async () => {
+      mockGetConfig({ configSyncedOnce: undefined })
+      mockConfigInvoke({
+        pulled: { updatedAt: 100, config: { theme: { value: 'dark' } } },
+        local: { theme: { value: 'light' } }
+      })
+      const store = useCloudSyncStore()
+      await store.syncNow()
+      await store.resolveCloudConfig(true)
+      expect(mockInvoke).toHaveBeenCalledWith('apply_config_snapshot', {
+        snapshot: { theme: { value: 'dark' } }
+      })
+      expect(mockPut).toHaveBeenCalledWith('configSyncedOnce', true)
+      expect(mockPut).toHaveBeenCalledWith('configLastSyncAt', expect.any(Number))
+      expect(store.pendingCloudConfig).toBeNull()
+    })
+
+    it('首次同步:拒绝覆盖 → 推送本地覆盖云端', async () => {
+      mockGetConfig({ configSyncedOnce: undefined })
+      mockConfigInvoke({
+        pulled: { updatedAt: 100, config: { theme: { value: 'dark' } } },
+        local: { theme: { value: 'light' } }
+      })
+      const store = useCloudSyncStore()
+      await store.syncNow()
+      await store.resolveCloudConfig(false)
+      expect(mockInvoke).not.toHaveBeenCalledWith('apply_config_snapshot', expect.anything())
+      expect(mockInvoke).toHaveBeenCalledWith('cloud_push_config', { puuid: 'me' })
+      expect(mockPut).toHaveBeenCalledWith('configSyncedOnce', true)
+    })
+
+    it('首次同步:云端为空 → 静默推送播种,不弹窗', async () => {
+      mockGetConfig({ configSyncedOnce: undefined })
+      mockConfigInvoke({ pulled: null, local: { theme: { value: 'light' } } })
+      const store = useCloudSyncStore()
+      await store.syncNow()
+      expect(store.pendingCloudConfig).toBeNull()
+      expect(mockInvoke).toHaveBeenCalledWith('cloud_push_config', { puuid: 'me' })
+      expect(mockPut).toHaveBeenCalledWith('configSyncedOnce', true)
+    })
+
+    it('首次同步:云端与本地一致 → 不弹窗不推送,只落标记', async () => {
+      mockGetConfig({ configSyncedOnce: undefined })
+      const same = { theme: { value: 'dark' } }
+      mockConfigInvoke({ pulled: { updatedAt: 100, config: same }, local: same })
+      const store = useCloudSyncStore()
+      await store.syncNow()
+      expect(store.pendingCloudConfig).toBeNull()
+      expect(mockInvoke).not.toHaveBeenCalledWith('cloud_push_config', expect.anything())
+      expect(mockPut).toHaveBeenCalledWith('configSyncedOnce', true)
+    })
+
+    it('后续同步:云端更新且无本地未推变更 → 静默应用', async () => {
+      mockGetConfig({ configSyncedOnce: true, configLastSyncAt: 50 })
+      mockConfigInvoke({
+        pulled: { updatedAt: 100, config: { theme: { value: 'dark' } } },
+        local: { theme: { value: 'light' } }
+      })
+      const store = useCloudSyncStore()
+      await store.syncNow()
+      expect(mockInvoke).toHaveBeenCalledWith('apply_config_snapshot', {
+        snapshot: { theme: { value: 'dark' } }
+      })
+      expect(store.pendingCloudConfig).toBeNull()
+    })
+
+    it('后续同步:本地有未推送变更 → 推送胜过云端(后写胜)', async () => {
+      mockGetConfig({ configSyncedOnce: true, configLastSyncAt: 50 })
+      mockConfigInvoke({
+        pulled: { updatedAt: 100, config: { theme: { value: 'dark' } } },
+        local: { theme: { value: 'light' } }
+      })
+      const store = useCloudSyncStore()
+      store.markConfigDirty() // 模拟 config-changed 事件的效果
+      await store.syncNow()
+      expect(mockInvoke).not.toHaveBeenCalledWith('apply_config_snapshot', expect.anything())
+      expect(mockInvoke).toHaveBeenCalledWith('cloud_push_config', { puuid: 'me' })
+    })
+
+    it('后续同步:内容一致 → 不 apply 不 push', async () => {
+      mockGetConfig({ configSyncedOnce: true, configLastSyncAt: 50 })
+      const same = { theme: { value: 'dark' } }
+      mockConfigInvoke({ pulled: { updatedAt: 100, config: same }, local: same })
+      const store = useCloudSyncStore()
+      await store.syncNow()
+      expect(mockInvoke).not.toHaveBeenCalledWith('apply_config_snapshot', expect.anything())
+      expect(mockInvoke).not.toHaveBeenCalledWith('cloud_push_config', expect.anything())
     })
   })
 })
