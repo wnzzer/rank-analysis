@@ -1,8 +1,16 @@
 //! OP.GG 内部 API 客户端：响应解析（HTTP 拉取见 `fetch_mode`，Task 3 添加）。
 
 use crate::opgg::data::{normalize_position, ChampionMeta, LaneCounter, OpggSnapshot};
+use reqwest::Client;
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+const BASE_URL: &str = "https://lol-api-champion.op.gg/api/global/champions";
+/// ranked 数据取 emerald+ 分段（样本大且贴近排位主流生态）。
+const RANKED_TIER_PARAM: &str = "tier=emerald_plus";
+/// 与 fandom::api 一致的浏览器 UA——OP.GG 对无 UA 请求可能拒绝。
+const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 
 /// OP.GG 原始响应（只解出需要的字段，其余忽略；可空字段全部 Option 容错）。
 #[derive(Deserialize)]
@@ -52,6 +60,53 @@ struct RawCounter {
     champion_id: i32,
     play: i64,
     win: i64,
+}
+
+/// 拼接某模式的请求 URL（仅 ranked 需要 tier 参数）。
+pub fn mode_url(mode: &str) -> String {
+    if mode == "ranked" {
+        format!("{}/{}?{}", BASE_URL, mode, RANKED_TIER_PARAM)
+    } else {
+        format!("{}/{}", BASE_URL, mode)
+    }
+}
+
+/// 拉取并解析某模式的完整快照。
+///
+/// # 参数
+/// - `mode`: "ranked" | "aram"
+///
+/// # 错误
+/// 网络失败、非 2xx、响应解析失败时返回 Err；调用方负责降级到缓存。
+pub async fn fetch_mode(mode: &str) -> Result<OpggSnapshot, String> {
+    let url = mode_url(mode);
+    log::info!("Fetching OP.GG data: {}", url);
+
+    let client = Client::builder()
+        .user_agent(USER_AGENT)
+        .timeout(std::time::Duration::from_secs(20))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let resp = client.get(&url).send().await.map_err(|e| e.to_string())?;
+    if !resp.status().is_success() {
+        return Err(format!("OP.GG returned status {}", resp.status()));
+    }
+    let body = resp.text().await.map_err(|e| e.to_string())?;
+
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|e| e.to_string())?
+        .as_secs() as i64;
+
+    let snap = parse_snapshot(mode, &body, now)?;
+    log::info!(
+        "OP.GG {} snapshot: patch {}, {} champions",
+        mode,
+        snap.patch,
+        snap.champions.len()
+    );
+    Ok(snap)
 }
 
 /// 把 OP.GG 响应体解析为 [`OpggSnapshot`]。
@@ -222,5 +277,27 @@ mod tests {
         assert_eq!(crate::opgg::data::normalize_position("SUPPORT"), "UTILITY");
         assert_eq!(crate::opgg::data::normalize_position("TOP"), "TOP");
         assert_eq!(crate::opgg::data::normalize_position("JUNGLE"), "JUNGLE");
+    }
+
+    #[test]
+    fn mode_url_should_add_tier_param_only_for_ranked() {
+        assert_eq!(
+            mode_url("ranked"),
+            "https://lol-api-champion.op.gg/api/global/champions/ranked?tier=emerald_plus"
+        );
+        assert_eq!(
+            mode_url("aram"),
+            "https://lol-api-champion.op.gg/api/global/champions/aram"
+        );
+    }
+
+    /// 真实网络冒烟测试：默认忽略，本机联调时 `cargo test opgg -- --ignored` 手动跑。
+    #[tokio::test]
+    #[ignore]
+    async fn live_fetch_ranked_should_return_snapshot() {
+        let snap = fetch_mode("ranked").await.expect("live fetch");
+        assert!(!snap.patch.is_empty());
+        assert!(snap.champions.len() > 100);
+        assert!(!snap.counters.is_empty());
     }
 }
