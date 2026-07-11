@@ -87,6 +87,12 @@
 
 ## 📸 软件预览
 
+**AI 整局复盘** —— 一句话定论 + 谁尽力 / 谁背锅 / 谁被打爆，每条结论都挂着真实数据
+
+<div align="center">
+  <img src="./public/9.png" alt="AI 整局复盘" width="80%" />
+</div>
+
 **战绩查询** —— 可查询任意召唤师，深色 / 浅色主题
 
 <div align="center">

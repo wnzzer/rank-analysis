@@ -87,6 +87,12 @@ Built with **Tauri 2.0**, it pairs Rust's performance with a web frontend in a *
 
 ## 📸 Screenshots
 
+**AI Full-Match Review** — a one-line verdict plus who carried / who fed / who got stomped, every call backed by real numbers
+
+<div align="center">
+  <img src="./public/9.png" alt="AI Full-Match Review" width="80%" />
+</div>
+
 **Match History** — look up any summoner, dark / light theme
 
 <div align="center">
