@@ -687,46 +687,44 @@ async fn process_subteam_parallel(
             let puuid = player.puuid.clone();
             let champion_id = Some(player.champion_id).filter(|&id| id > 0);
 
-            let (summoner, match_history, rank) = tokio::join!(
-                async {
-                    Summoner::get_summoner_by_puuid(&puuid)
-                        .await
-                        .unwrap_or_default()
-                },
-                async {
-                    let mut result = if let Some(mut mh) =
-                        MatchHistory::try_get_cached_slice(&puuid, 0, count - 1).await
-                    {
-                        mh.enrich_info_cn().ok();
-                        mh
-                    } else {
-                        let puuid_for_cache = puuid.clone();
-                        tokio::spawn(async move {
-                            MatchHistory::fill_cache(&puuid_for_cache).await;
-                        });
-                        match MatchHistory::get_by_puuid(&puuid, 0, count - 1).await {
-                            Ok(mut mh) => {
-                                mh.enrich_info_cn().ok();
-                                mh
+            let (summoner, match_history, rank) =
+                tokio::join!(
+                    async {
+                        Summoner::get_summoner_by_puuid(&puuid)
+                            .await
+                            .unwrap_or_default()
+                    },
+                    async {
+                        // 必须走缓存路径（miss 时固定拉满 0-49 再切片），不能裸拉 0..count-1：
+                        // LCU 按 puuid 整包缓存战绩，冷 puuid 的**首个请求区间会钉死它缓存的
+                        // 场数**，之后 begIndex/endIndex 被忽略、永远整包返回。若这里先发小区间
+                        // 请求，战绩页/标签计算从此只能拿到 count 场（真机实测复现）。
+                        let mut result =
+                            match MatchHistory::get_match_history_by_puuid(&puuid, 0, count - 1)
+                                .await
+                            {
+                                Ok(mut mh) => {
+                                    mh.enrich_info_cn().ok();
+                                    mh
+                                }
+                                Err(_) => MatchHistory::default(),
+                            };
+                        // 玩家总场数不足时会落到直连分支，LCU 可能无视区间整包返回，兜底截断
+                        if result.games.games.len() > count as usize {
+                            result.games.games.truncate(count as usize);
+                        }
+                        result
+                    },
+                    async {
+                        match Rank::get_rank_by_puuid(&puuid).await {
+                            Ok(mut r) => {
+                                r.enrich_cn_info();
+                                r
                             }
-                            Err(_) => MatchHistory::default(),
+                            Err(_) => Rank::default(),
                         }
-                    };
-                    if result.games.games.len() > count as usize {
-                        result.games.games.truncate(count as usize);
                     }
-                    result
-                },
-                async {
-                    match Rank::get_rank_by_puuid(&puuid).await {
-                        Ok(mut r) => {
-                            r.enrich_cn_info();
-                            r
-                        }
-                        Err(_) => Rank::default(),
-                    }
-                }
-            );
+                );
 
             // 先推送基础数据（无 user_tag），让 UI 尽早渲染玩家战绩卡片
             if is_latest_task(&SESSION_TASK_SEQ, seq) {

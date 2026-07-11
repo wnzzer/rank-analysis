@@ -29,10 +29,31 @@ static SINGLEFLIGHT: LazyLock<moka::future::Cache<String, String>> = LazyLock::n
 fn get_client() -> &'static Client {
     HTTP_CLIENT.get_or_init(|| {
         Client::builder()
+            // 本客户端只连 127.0.0.1（LCU / Riot Client），必须绕过一切代理：
+            // reqwest 默认会读环境变量与 Windows 系统代理，玩家开加速器/Clash 且
+            // 例外名单不含 127.0.0.1 时，本地请求会被劫持到代理导致直接失败。
+            // 同类项目 LeagueAkari 对 LCU/RC axios 亦显式 `proxy: false`。
+            .no_proxy()
             .danger_accept_invalid_certs(true)
             .timeout(Duration::from_secs(50))
             .build()
             .expect("Failed to build reqwest client")
+    })
+}
+
+/// 外网公开资源（CommunityDragon 等）专用客户端。
+///
+/// 与 [`get_client`] 刻意分离：外网请求**保留**系统/环境代理支持（国内网络访问
+/// CommunityDragon 常需代理），且走正常 TLS 校验，不沿用本地客户端的
+/// `danger_accept_invalid_certs`。
+static EXTERNAL_CLIENT: OnceLock<Client> = OnceLock::new();
+
+fn external_client() -> &'static Client {
+    EXTERNAL_CLIENT.get_or_init(|| {
+        Client::builder()
+            .timeout(Duration::from_secs(50))
+            .build()
+            .expect("Failed to build external reqwest client")
     })
 }
 
@@ -249,7 +270,7 @@ pub async fn lcu_get_img_as_binary(uri: &str) -> Result<(Vec<u8>, String), Strin
 
 /// 外部 HTTP GET + JSON 反序列化（不走 LCU 认证/限流，用于 CommunityDragon 等公开资源）
 pub async fn external_get_json<T: DeserializeOwned>(url: &str) -> Result<T, String> {
-    let resp = get_client()
+    let resp = external_client()
         .get(url)
         .send()
         .await
