@@ -1,0 +1,65 @@
+{
+  "data": [
+    {
+      "id": 86,
+      "is_rotation": false,
+      "is_rip": false,
+      "average_stats": {
+        "play": 280051, "win_rate": 0.517106, "pick_rate": 0.0871455,
+        "ban_rate": 0.068954, "kda": 1.84497, "tier": 1, "rank": 7,
+        "tier_data": { "tier": 1, "rank": 7, "rank_prev": 7, "rank_prev_patch": 7 }
+      },
+      "positions": [
+        {
+          "name": "TOP",
+          "stats": {
+            "play": 259070, "win_rate": 0.517991, "pick_rate": 0.0815533,
+            "role_rate": 0.925081, "ban_rate": 0.0689323, "kda": 1.823866,
+            "tier_data": { "tier": 1, "rank": 1, "rank_prev": 1, "rank_prev_patch": 1 }
+          },
+          "counters": [
+            { "champion_id": 10, "play": 4710, "win": 2107 },
+            { "champion_id": 133, "play": 1158, "win": 531 },
+            { "champion_id": 23, "play": 4468, "win": 2080 }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 999,
+      "is_rotation": false,
+      "is_rip": false,
+      "average_stats": {
+        "play": 100000, "win_rate": 0.5, "pick_rate": 0.05,
+        "ban_rate": 0.01, "kda": 2.0, "tier": 3, "rank": 60,
+        "tier_data": { "tier": 3, "rank": 60, "rank_prev": 60, "rank_prev_patch": 60 }
+      },
+      "positions": [
+        {
+          "name": "MID",
+          "stats": {
+            "play": 70000, "win_rate": 0.51, "pick_rate": 0.04,
+            "role_rate": 0.7, "ban_rate": 0.01, "kda": 2.1,
+            "tier_data": { "tier": 2, "rank": 20, "rank_prev": 20, "rank_prev_patch": 20 }
+          },
+          "counters": [ { "champion_id": 86, "play": 2000, "win": 900 } ]
+        },
+        {
+          "name": "ADC",
+          "stats": {
+            "play": 30000, "win_rate": 0.49, "pick_rate": 0.01,
+            "role_rate": 0.3, "ban_rate": 0.01, "kda": 1.9,
+            "tier_data": { "tier": 4, "rank": 50, "rank_prev": 50, "rank_prev_patch": 50 }
+          },
+          "counters": []
+        }
+      ]
+    }
+  ],
+  "meta": {
+    "version": "16.13",
+    "cached_at": "2026-07-11 17:48:44",
+    "match_count": 32136034,
+    "analyzed_at": "2026-07-11T17:48:44+09:00"
+  }
+}
