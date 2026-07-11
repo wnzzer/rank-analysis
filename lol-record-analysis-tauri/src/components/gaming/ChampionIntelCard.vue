@@ -83,11 +83,17 @@ watch(
       hints.value = []
       return
     }
+    // 竞态守卫：选人阶段 championId 快速变化时，旧请求晚到不得覆盖新英雄数据
+    const requestChampionId = id
     await loadChampionNames()
+    if (props.championId !== requestChampionId) return
     name.value = getChampionName(id)
-    meta.value = await getChampionMeta(props.mode, id)
+    const fetchedMeta = await getChampionMeta(props.mode, id)
+    if (props.championId !== requestChampionId) return
+    meta.value = fetchedMeta
     if (props.mode === 'ranked' && myIds.length > 0) {
       const counters = await getLaneCounters(props.mode, [id, ...myIds])
+      if (props.championId !== requestChampionId) return
       hints.value = findCounterHints(id, [...myIds], counters)
     } else {
       hints.value = []
