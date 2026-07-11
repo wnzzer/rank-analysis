@@ -97,7 +97,13 @@ mod tests {
 
     #[test]
     fn default_path_should_be_mode_scoped_relative_file() {
-        assert_eq!(default_path("ranked").to_str().unwrap(), "opgg_cache_ranked.json");
-        assert_eq!(default_path("aram").to_str().unwrap(), "opgg_cache_aram.json");
+        assert_eq!(
+            default_path("ranked").to_str().unwrap(),
+            "opgg_cache_ranked.json"
+        );
+        assert_eq!(
+            default_path("aram").to_str().unwrap(),
+            "opgg_cache_aram.json"
+        );
     }
 }
