@@ -144,6 +144,7 @@ mod tests {
             champion_id: 0,
             puuid: puuid.to_string(),
             assigned_position: position.to_string(),
+            cell_id: 0,
         }
     }
 
@@ -203,6 +204,7 @@ mod tests {
             champion_id,
             puuid: "x".to_string(),
             assigned_position: "".to_string(),
+            cell_id: 0,
         }
     }
 
@@ -255,6 +257,7 @@ mod tests {
             champion_id,
             puuid: "y".to_string(),
             assigned_position: "".to_string(),
+            cell_id: 0,
         }
     }
 

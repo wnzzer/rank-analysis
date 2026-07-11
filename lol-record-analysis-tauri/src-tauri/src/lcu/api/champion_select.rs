@@ -55,6 +55,9 @@ pub struct OnePlayer {
     pub puuid: String,
     #[serde(default)]
     pub assigned_position: String,
+    /// 选人格子 ID（0~4 我方、5~9 敌方；旧接口无此字段时默认 0）
+    #[serde(default)]
+    pub cell_id: i32,
 }
 
 #[derive(Debug, Clone)]
@@ -74,6 +77,52 @@ impl SelectSessionCache {
 
 static SELECT_CACHE: LazyLock<Mutex<SelectSessionCache>> =
     LazyLock::new(|| Mutex::new(SelectSessionCache::new()));
+
+/// 从选人会话推导每个格子的选人状态。
+///
+/// 状态优先级：已完成 pick(champion>0)=locked > 进行中 pick=picking >
+/// 亮出英雄未锁=intent > 无信息=none。ban 类 action 不参与。
+/// actions 缺失该格信息但队伍条目已有英雄时兜底为 locked
+/// （某些时点 LCU 会清空已结束的 action 轮次）。
+pub fn derive_pick_states(session: &SelectSession) -> std::collections::HashMap<i32, String> {
+    use std::collections::HashMap;
+    let mut states: HashMap<i32, String> = HashMap::new();
+
+    let all_players = session.my_team.iter().chain(session.their_team.iter());
+    for p in all_players {
+        let mut state = "none";
+        let mut intent_champion = p.champion_id;
+
+        for action in session.actions.iter().flatten() {
+            if action.actor_cell_id != p.cell_id || action.action_type != "pick" {
+                continue;
+            }
+            if action.completed && action.champion_id > 0 {
+                state = "locked";
+                break;
+            }
+            if action.is_in_progress {
+                state = "picking";
+            } else if action.champion_id > 0 && state == "none" {
+                state = "intent";
+            }
+            if action.champion_id > 0 {
+                intent_champion = action.champion_id;
+            }
+        }
+
+        // 兜底：无 action 佐证但队伍条目已有英雄 → 视为已锁定
+        if state == "none" && p.champion_id > 0 {
+            state = "locked";
+        }
+        // 亮出英雄但未在选（intent 需有英雄可展示）
+        if state == "intent" && intent_champion <= 0 {
+            state = "none";
+        }
+        states.insert(p.cell_id, state.to_string());
+    }
+    states
+}
 
 pub async fn get_champion_select_session() -> Result<SelectSession, String> {
     {
@@ -152,5 +201,79 @@ mod tests {
         assert_eq!(s.their_team[0].champion_id, 2);
         assert_eq!(s.my_team[0].assigned_position, "middle");
         assert_eq!(s.their_team[0].assigned_position, "");
+    }
+
+    fn mk_session(
+        my: Vec<(i32, i32)>, // (cell_id, champion_id)
+        their: Vec<(i32, i32)>,
+        actions: Vec<Action>,
+    ) -> SelectSession {
+        let mk = |v: Vec<(i32, i32)>| {
+            v.into_iter()
+                .map(|(cell_id, champion_id)| OnePlayer {
+                    champion_id,
+                    puuid: String::new(),
+                    assigned_position: String::new(),
+                    cell_id,
+                })
+                .collect()
+        };
+        SelectSession {
+            my_team: mk(my),
+            their_team: mk(their),
+            actions: vec![actions],
+            timer: Timer::default(),
+            local_player_cell_id: 0,
+        }
+    }
+
+    fn pick_action(cell: i32, champ: i32, completed: bool, in_progress: bool) -> Action {
+        Action {
+            actor_cell_id: cell,
+            id: cell,
+            champion_id: champ,
+            completed,
+            is_ally_action: true,
+            is_in_progress: in_progress,
+            action_type: "pick".into(),
+        }
+    }
+
+    #[test]
+    fn should_derive_locked_picking_intent_none() {
+        let s = mk_session(
+            vec![(0, 86), (1, 0)],
+            vec![(5, 10), (6, 0)],
+            vec![
+                pick_action(0, 86, true, false),  // 已锁定
+                pick_action(1, 0, false, true),   // 正在选(未亮英雄)
+                pick_action(5, 10, false, false), // 亮出未锁 → intent
+            ],
+        );
+        let m = derive_pick_states(&s);
+        assert_eq!(m[&0], "locked");
+        assert_eq!(m[&1], "picking");
+        assert_eq!(m[&5], "intent");
+        assert_eq!(m[&6], "none");
+    }
+
+    #[test]
+    fn should_ignore_ban_actions_and_fallback_to_locked_without_actions() {
+        // ban action 不影响 pick 态；无 actions 但队伍条目有英雄 → locked 兜底
+        let mut ban = pick_action(0, 266, true, false);
+        ban.action_type = "ban".into();
+        let s = mk_session(vec![(0, 86)], vec![], vec![ban]);
+        let m = derive_pick_states(&s);
+        assert_eq!(m[&0], "locked");
+    }
+
+    #[test]
+    fn should_deserialize_cell_id_with_default() {
+        let raw = r#"{"championId": 1, "puuid": "p1", "assignedPosition": "middle"}"#;
+        let p: OnePlayer = serde_json::from_str(raw).unwrap();
+        assert_eq!(p.cell_id, 0); // 缺字段不炸
+        let raw2 = r#"{"championId": 1, "puuid": "p1", "cellId": 7}"#;
+        let p2: OnePlayer = serde_json::from_str(raw2).unwrap();
+        assert_eq!(p2.cell_id, 7);
     }
 }
