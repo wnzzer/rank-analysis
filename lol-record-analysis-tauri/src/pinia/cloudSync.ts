@@ -289,7 +289,7 @@ export const useCloudSyncStore = defineStore('cloudSync', () => {
         // 云端行任何人可插入（spec 接受的开放写入面），容器形状必须当不可信输入
         // 过滤——jsonb 列可存 JSON null/数组/原始值，直接喂 importNotes 的
         // Object.entries 会抛 TypeError，该 puuid 的同步从此永久失败（受害者
-        // 还删不掉毒行）。与 DataSync.vue 的 isBackupFile 容器校验对称；
+        // 还删不掉毒行）。与 utils/backupFile 的 isBackupFileV2 容器校验对称；
         // 条目级校验在 mergeNotesMaps 的 isValidNote，这里只管容器。
         if (!payload || typeof payload !== 'object' || Array.isArray(payload)) continue
         await notesStore.importNotes(payload)

@@ -89,6 +89,7 @@ import { usePlayerNotesStore } from '@renderer/pinia/playerNotes'
 import { useCloudSyncStore } from '@renderer/pinia/cloudSync'
 import { useSettingsStore } from '@renderer/pinia/setting'
 import { isBackupFileV2 } from '@renderer/utils/backupFile'
+import type { MergeStats } from '@renderer/utils/mergePlayerNotes'
 
 const message = useMessage()
 const notesStore = usePlayerNotesStore()
@@ -148,16 +149,23 @@ async function handleImport(): Promise<void> {
     message.error('不是本应用导出的备份文件,或版本不支持')
     return
   }
+  let stats: MergeStats
   try {
-    const stats = await notesStore.importNotes(parsed.playerNotes)
-    await invoke('apply_config_snapshot', { snapshot: parsed.appConfig })
-    await settingsStore.initTheme()
-    message.success(
-      `导入完成:配置已恢复;备注新增 ${stats.added},更新 ${stats.replaced},保留本地 ${stats.kept}` +
-        (stats.invalid ? `,跳过损坏 ${stats.invalid}` : '')
-    )
+    stats = await notesStore.importNotes(parsed.playerNotes)
   } catch (e) {
     message.error(`导入失败:${String(e)}`)
+    return
+  }
+  const notesSummary =
+    `备注新增 ${stats.added},更新 ${stats.replaced},保留本地 ${stats.kept}` +
+    (stats.invalid ? `,跳过损坏 ${stats.invalid}` : '')
+  try {
+    await invoke('apply_config_snapshot', { snapshot: parsed.appConfig })
+    await settingsStore.initTheme()
+    message.success(`导入完成:配置已恢复;${notesSummary}`)
+  } catch (e) {
+    // 备注已真实落盘,配置失败必须如实分开报,否则用户误以为整次导入失败
+    message.warning(`备注已导入(${notesSummary}),但配置恢复失败:${String(e)}`)
   }
 }
 

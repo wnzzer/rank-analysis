@@ -4,8 +4,9 @@
     <n-flex v-else vertical size="large">
       <ErrorReportingConsentDialog v-model:show="showConsent" @decide="onConsentDecide" />
       <CloudSyncNoticeDialog :show="showCloudNotice" @decide="onCloudNoticeDecide" />
+      <!-- 让位给错误上报/云同步告知弹窗，关掉后本弹窗自然浮现（pendingCloudConfig 响应式） -->
       <CloudConfigPullDialog
-        :show="cloudStore.pendingCloudConfig !== null"
+        :show="cloudStore.pendingCloudConfig !== null && !showConsent && !showCloudNotice"
         :updated-at="cloudStore.pendingCloudConfig?.updatedAt ?? 0"
         @decide="onCloudConfigDecide"
       />
