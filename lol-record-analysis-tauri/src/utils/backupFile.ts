@@ -29,6 +29,8 @@ export function isBackupFileV2(v: unknown): v is BackupFileV2 {
   return (
     v.type === 'rank-analysis-backup' &&
     v.version === BACKUP_VERSION &&
+    typeof v.exportedAt === 'number' &&
+    Number.isFinite(v.exportedAt) &&
     isPlainObject(v.playerNotes) &&
     isPlainObject(v.appConfig)
   )

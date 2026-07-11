@@ -27,5 +27,7 @@ describe('isBackupFileV2', () => {
     expect(isBackupFileV2({ ...valid, playerNotes: [1] })).toBe(false)
     expect(isBackupFileV2({ ...valid, appConfig: null })).toBe(false)
     expect(isBackupFileV2({ ...valid, type: 'other' })).toBe(false)
+    expect(isBackupFileV2({ ...valid, exportedAt: 'abc' })).toBe(false)
+    expect(isBackupFileV2({ ...valid, exportedAt: undefined })).toBe(false)
   })
 })
