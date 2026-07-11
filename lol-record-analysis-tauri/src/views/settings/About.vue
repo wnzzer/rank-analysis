@@ -368,8 +368,8 @@ const sendEmail = () => {
 }
 
 .version-tag {
-  background-color: #e8f4fd;
-  color: #1890ff;
+  background-color: color-mix(in srgb, var(--accent-blue) 14%, transparent);
+  color: var(--accent-blue);
   padding: var(--space-2) var(--space-8);
   border-radius: var(--radius-sm);
   font-size: var(--font-size-sm);

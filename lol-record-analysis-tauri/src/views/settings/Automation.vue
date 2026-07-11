@@ -43,7 +43,7 @@
       <div class="rules-section">
         <div class="section-title">
           规则（按顺序匹配，第一条命中即用）
-          <n-button size="small" type="primary" @click="openPickEdit()">+ 添加规则</n-button>
+          <n-button size="small" type="primary" ghost @click="openPickEdit()">+ 添加规则</n-button>
         </div>
         <VueDraggable
           :model-value="pickRules"
@@ -132,7 +132,7 @@
       <div class="rules-section">
         <div class="section-title">
           规则（按顺序匹配，第一条命中即用）
-          <n-button size="small" type="primary" @click="openBanEdit()">+ 添加规则</n-button>
+          <n-button size="small" type="primary" ghost @click="openBanEdit()">+ 添加规则</n-button>
         </div>
         <VueDraggable
           :model-value="banRules"
