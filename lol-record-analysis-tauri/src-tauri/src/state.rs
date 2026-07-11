@@ -77,6 +77,12 @@ pub struct AppState {
     /// 缓存键为英雄 ID，值为平衡数据。
     /// 使用 2 小时的 TTL（生存时间）自动过期数据。
     pub fandom_cache: Cache<i32, AramBalanceData>,
+
+    /// OP.GG 快照内存缓存。
+    ///
+    /// 键为模式（"ranked" / "aram"），值为完整快照。TTL 12 小时，
+    /// 与磁盘缓存（`opgg::cache`）互为补充：内存快、磁盘跨重启。
+    pub opgg_cache: Cache<String, std::sync::Arc<crate::opgg::data::OpggSnapshot>>,
 }
 
 impl Default for AppState {
@@ -99,6 +105,9 @@ impl Default for AppState {
             http_port: OnceLock::new(),
             fandom_cache: Cache::builder()
                 .time_to_live(Duration::from_secs(2 * 60 * 60))
+                .build(),
+            opgg_cache: Cache::builder()
+                .time_to_live(Duration::from_secs(12 * 60 * 60))
                 .build(),
         }
     }
