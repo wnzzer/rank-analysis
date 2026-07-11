@@ -209,9 +209,11 @@ onMounted(async () => {
     }, 2000)
   }
 
-  // OP.GG 数据兜底刷新：后端启动已预热，此处 fire-and-forget 兜底软件长开超 12h 未重启的场景
-  void ensureOpggData('ranked')
-  void ensureOpggData('aram')
+  // OP.GG 数据兜底刷新：后端启动已预热，此处 fire-and-forget 兜底软件长开超 12h 未重启的场景。
+  // 两个模式都刷新完成后，重新拉取当前模式状态以更新横幅（版本号/滞后标记跟着变化）。
+  void Promise.all([ensureOpggData('ranked'), ensureOpggData('aram')]).then(() =>
+    getOpggStatus(opggMode.value).then(s => (opggStatus.value = s))
+  )
 })
 </script>
 

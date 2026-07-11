@@ -75,25 +75,39 @@ function counterText(h: CounterHint): string {
     : `克制你方${my} ${formatWinRate(1 - h.myWinRate)}`
 }
 
+/**
+ * 上一次实际发起处理的请求标识（championId + myChampionIds 内容拼接）。
+ * Gaming.vue 的 computed 每次会话事件都会重新生成 myChampionIds 数组，
+ * 引用必变但内容常不变；watch 用 `[championId, myChampionIds]` 数组做浅比较
+ * 必然每次触发。这里做内容级去重：内容不变则整个回调直接跳过，避免每事件重拉。
+ */
+let lastRequestKey = ''
+
 watch(
   () => [props.championId, props.myChampionIds] as const,
   async ([id, myIds]) => {
+    // 内容级去重：id 与 myIds 拼接后的 key 未变化，说明本次触发只是引用抖动，直接跳过
+    const requestKey = `${id}|${myIds.join(',')}`
+    if (requestKey === lastRequestKey) return
+    lastRequestKey = requestKey
+
     if (!id || id <= 0) {
       meta.value = null
       hints.value = []
       return
     }
-    // 竞态守卫：选人阶段 championId 快速变化时，旧请求晚到不得覆盖新英雄数据
-    const requestChampionId = id
+    // 竞态守卫：选人阶段 championId/myChampionIds 快速变化时，旧请求晚到不得覆盖新数据。
+    // 用 requestKey 而非单独的 championId 比较，可同时覆盖"同英雄但我方阵容变化"的窄竞态。
+    const requestKeySnapshot = requestKey
     await loadChampionNames()
-    if (props.championId !== requestChampionId) return
+    if (lastRequestKey !== requestKeySnapshot) return
     name.value = getChampionName(id)
     const fetchedMeta = await getChampionMeta(props.mode, id)
-    if (props.championId !== requestChampionId) return
+    if (lastRequestKey !== requestKeySnapshot) return
     meta.value = fetchedMeta
     if (props.mode === 'ranked' && myIds.length > 0) {
       const counters = await getLaneCounters(props.mode, [id, ...myIds])
-      if (props.championId !== requestChampionId) return
+      if (lastRequestKey !== requestKeySnapshot) return
       hints.value = findCounterHints(id, [...myIds], counters)
     } else {
       hints.value = []
@@ -113,6 +127,9 @@ watch(
   border-radius: 10px;
   background: var(--n-color, transparent);
   min-height: 56px;
+  /* 入场：复用全局 fade-up + 错位 stagger（对齐 PlayerCard 入场节奏） */
+  animation: fade-up var(--dur-normal) var(--ease-expo) both;
+  animation-delay: calc(var(--stagger) * var(--stagger-i, 0));
 }
 .intel-compact {
   padding: 6px 8px;
@@ -165,11 +182,18 @@ watch(
   opacity: 0.55;
 }
 
-/* ---- 三态动画 ---- */
+/* ---- 三态动画 ----
+ * 三态各自的 animation 简写会整体覆盖 .intel-card 上的入场 fade-up（同选择器
+ * 特异性下后声明的规则整体替换而非合并），所以这里都显式把 fade-up 复合进去，
+ * 用逗号分隔的第二个动画承载各态自身效果，animation-delay 也按位置一一对应。
+ */
 /* 意向：亮出未锁 → 半透明 + 呼吸 */
 .intel-intent {
   opacity: 0.8;
-  animation: intel-breathe 2s ease-in-out infinite;
+  animation:
+    fade-up var(--dur-normal) var(--ease-expo) both,
+    intel-breathe 2s ease-in-out infinite;
+  animation-delay: calc(var(--stagger) * var(--stagger-i, 0)), 0s;
 }
 @keyframes intel-breathe {
   0%,
@@ -183,7 +207,10 @@ watch(
 /* 正在选：边框脉冲高亮 */
 .intel-picking {
   border-color: var(--semantic-win, #18a058);
-  animation: intel-pulse 1.2s ease-in-out infinite;
+  animation:
+    fade-up var(--dur-normal) var(--ease-expo) both,
+    intel-pulse 1.2s ease-in-out infinite;
+  animation-delay: calc(var(--stagger) * var(--stagger-i, 0)), 0s;
 }
 @keyframes intel-pulse {
   0%,
@@ -196,7 +223,10 @@ watch(
 }
 /* 锁定：定格入场（scale + fade），仅播一次 */
 .intel-locked {
-  animation: intel-lock-in var(--dur-normal, 0.25s) var(--ease-expo, ease-out) both;
+  animation:
+    fade-up var(--dur-normal) var(--ease-expo) both,
+    intel-lock-in var(--dur-normal, 0.25s) var(--ease-expo, ease-out) both;
+  animation-delay: calc(var(--stagger) * var(--stagger-i, 0)), 0s;
 }
 @keyframes intel-lock-in {
   from {
@@ -209,6 +239,7 @@ watch(
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .intel-card,
   .intel-intent,
   .intel-picking,
   .intel-locked {

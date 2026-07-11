@@ -14,7 +14,7 @@
           :champion-id="p.championId"
           :pick-state="p.pickState"
           :mode="opggMode"
-          :my-champion-ids="isMine ? [] : myChampionIds"
+          :my-champion-ids="isMine ? EMPTY_IDS : myChampionIds"
           :density="density"
           :style="{ '--stagger-i': i }"
         />
@@ -46,6 +46,14 @@ import ChampionIntelCard from './ChampionIntelCard.vue'
 import type { Subteam } from '@renderer/types/domain/gaming'
 import type { TierDisplay } from '@renderer/composables/useSessionTiers'
 import type { OpggMode } from '@renderer/services/opgg'
+
+/**
+ * 空英雄 id 列表的稳定引用。
+ * 若在模板里内联 `:my-champion-ids="isMine ? [] : myChampionIds"`，`isMine` 分支每次
+ * 重渲染都会产生一个新的 `[]`，导致 ChampionIntelCard 的 watch 认为数组"变了"而重拉数据。
+ * 提到 setup 顶层，让同一组件实例在整个生命周期内复用同一个空数组引用。
+ */
+const EMPTY_IDS: number[] = []
 
 interface Props {
   subteam: Subteam
