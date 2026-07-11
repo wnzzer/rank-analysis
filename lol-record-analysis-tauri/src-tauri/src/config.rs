@@ -410,16 +410,24 @@ pub async fn config_snapshot(for_cloud: bool) -> HashMap<String, Value> {
         .collect()
 }
 
+/// 从外来快照中筛出允许写入本地的键值对(纯函数,供 apply 与单测共用)。
+///
+/// 拆出纯函数是为了可测性:apply 本体经 put_config 落盘,单测直接调用会
+/// 重写真实 config.yaml,故只对过滤逻辑做单元覆盖。
+fn filter_snapshot_for_apply(snapshot: HashMap<String, Value>) -> Vec<(String, Value)> {
+    snapshot
+        .into_iter()
+        .filter(|(key, _)| allowed_in_backup(key))
+        .collect()
+}
+
 /// 把一份外来快照(备份文件 appConfig / 云端 config)逐键写入本地配置。
 ///
 /// 黑名单键即使出现在快照里也跳过(防云端脏数据/手改备份文件覆盖设备凭据);
 /// 写入走 [`put_config`],自然触发变更回调(自动化模块热更新、config-changed
 /// 事件),值按原样写入——快照里的值已是 `{value:...}` 存储形状,不重复包装。
 pub async fn apply_config_snapshot_map(snapshot: HashMap<String, Value>) -> Result<(), String> {
-    for (key, value) in snapshot {
-        if !allowed_in_backup(&key) {
-            continue;
-        }
+    for (key, value) in filter_snapshot_for_apply(snapshot) {
         put_config(key, value).await?;
     }
     Ok(())
@@ -732,5 +740,19 @@ mod tests {
         assert!(cloud_snap.contains_key("snapTest.theme"));
         assert!(!cloud_snap.contains_key("dashscopeApiKey"));
         assert!(!cloud_snap.contains_key("cloudSyncSession"));
+    }
+
+    #[test]
+    fn apply_filter_should_skip_blacklist_and_keep_others() {
+        let mut snap = HashMap::new();
+        snap.insert("theme".to_string(), Value::String("dark".into()));
+        snap.insert("cloudSyncSession".to_string(), Value::String("evil".into()));
+        snap.insert("dashscopeApiKey".to_string(), Value::String("sk".into()));
+        let kept = filter_snapshot_for_apply(snap);
+        let keys: Vec<&str> = kept.iter().map(|(k, _)| k.as_str()).collect();
+        assert!(keys.contains(&"theme"));
+        // 备份文件允许恢复 API key(黑名单只挡设备级键)
+        assert!(keys.contains(&"dashscopeApiKey"));
+        assert!(!keys.contains(&"cloudSyncSession"));
     }
 }
