@@ -311,33 +311,7 @@ jobs:
           fail_on_unmatched_files: false
 
 
-  # --- 任务二：通知 UpgradeLink ---
-  upgradelink-upload:
-    name: Notify UpgradeLink Service
-    needs: build-and-release
-    permissions:
-      contents: write 
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: ⏳ Wait for Release Assets
-        run: sleep 30 
-
-      - name: 🔗 Send a request to UpgradeLink
-        uses: toolsetlink/upgradelink-action@3.0.2
-        with:
-          access_key: ${{ secrets.UPGRADE_LINK_ACCESS_KEY }}
-          access_secret: ${{ secrets.UPGRADE_LINK_ACCESS_SECRET }}
-          config: |
-            {
-              "app_type": "tauri",
-              "request": {
-                "app_key": "${{ secrets.UPGRADE_LINK_TAURI_KEY }}",
-                "latest_json_url": "https://github.com/wnzzer/rank-analysis/releases/download/${{ needs.build-and-release.outputs.tauri_version }}/latest.json"
-              }
-            }
-
-  # --- 任务三：同步 Release（含安装包）到 GitCode 国内镜像 ---
+  # --- 任务二：同步 Release（含安装包）到 GitCode 国内镜像 ---
   # GitCode 走华为云 OBS 预签名上传：GET upload_url -> PUT 文件（OBS 自动回调注册附件）。
   # 注意：API 返回的 browser_download_url 用 api.gitcode.com（会 404），真正能匿名下载的是
   # gitcode.com host，所以 latest.json 里的下载链接改写成 gitcode.com。
