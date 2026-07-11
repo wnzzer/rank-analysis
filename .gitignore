@@ -22,9 +22,13 @@ vendor/
 *.iml
 
 # 本地工具产物（浏览器自动化截图 / agent 头脑风暴草稿 / 本地设计文档）
+# docs/ 整体忽略，仅放行 specs（评审通过的设计文档需要入库）
 .playwright-mcp/
 .superpowers/
-docs/
+docs/*
+!docs/superpowers/
+docs/superpowers/*
+!docs/superpowers/specs/
 
 # Node.js 项目依赖
 node_modules/
