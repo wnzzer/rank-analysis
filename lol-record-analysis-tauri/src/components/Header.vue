@@ -224,14 +224,14 @@ const closeWindow = (): void => {
 .logo-badge {
   width: 22px;
   height: 22px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: rgba(61, 155, 122, 0.18);
   border: 1px solid rgba(61, 155, 122, 0.28);
   box-shadow: 0 0 10px rgba(61, 155, 122, 0.18);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   font-weight: 900;
   color: var(--semantic-win);
   flex-shrink: 0;
@@ -241,7 +241,7 @@ const closeWindow = (): void => {
 .header-title {
   color: var(--text-primary);
   font-weight: 700;
-  font-size: 14px;
+  font-size: var(--font-size-md);
   letter-spacing: 0.02em;
 }
 
@@ -285,14 +285,14 @@ const closeWindow = (): void => {
 .region-trigger {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--space-2);
   height: 20px;
-  padding: 0 4px;
+  padding: 0 var(--space-4);
   border: none;
-  border-radius: 5px;
+  border-radius: var(--radius-control);
   background: transparent;
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   line-height: 1;
   cursor: pointer;
   white-space: nowrap;
@@ -316,7 +316,7 @@ const closeWindow = (): void => {
 .region-divider {
   width: 1px;
   height: 14px;
-  margin: 0 8px 0 5px;
+  margin: 0 var(--space-8) 0 5px;
   background: var(--glass-border);
   flex-shrink: 0;
 }
@@ -356,8 +356,8 @@ const closeWindow = (): void => {
 }
 
 .window-control-btn {
-  padding: 6px 12px;
-  font-size: 14px;
+  padding: var(--space-6) var(--space-12);
+  font-size: var(--font-size-md);
   color: var(--text-secondary);
   border-radius: var(--radius-sm);
   height: 100%;

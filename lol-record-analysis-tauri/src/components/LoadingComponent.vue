@@ -80,7 +80,7 @@ defineProps<{ hint?: string }>()
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
+  font-size: var(--font-size-base);
   animation: loading-pulse 2s ease-in-out infinite;
 }
 
@@ -88,12 +88,12 @@ defineProps<{ hint?: string }>()
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-4);
 }
 
 .loading-text {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--text-secondary);
   letter-spacing: 0.04em;
@@ -101,7 +101,7 @@ defineProps<{ hint?: string }>()
 
 .loading-hint {
   margin: 0;
-  font-size: 10px;
+  font-size: var(--font-size-2xs);
   color: var(--text-tertiary);
   letter-spacing: 0.02em;
 }
@@ -109,7 +109,7 @@ defineProps<{ hint?: string }>()
 .loading-shimmer-bar {
   width: 120px;
   height: 2px;
-  border-radius: 99px;
+  border-radius: var(--radius-pill);
   background: linear-gradient(
     90deg,
     rgba(61, 155, 122, 0) 0%,

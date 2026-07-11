@@ -81,7 +81,7 @@ const iconStyle = computed<CSSProperties>(() => ({
 .stat-dots-icon-wrap {
   width: 18px;
   height: 18px;
-  border-radius: 5px; /* 18px 方块的视觉圆角,介于 xs(3) 和 sm(6) 之间 */
+  border-radius: var(--radius-control);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -89,7 +89,7 @@ const iconStyle = computed<CSSProperties>(() => ({
 }
 
 .stat-dots-short-label {
-  font-size: 9px; /* 小标签字号,低于 --font-size-2xs(10),保留 */
+  font-size: var(--font-size-3xs);
   line-height: 1;
   font-weight: 700;
 }
@@ -150,7 +150,7 @@ const iconStyle = computed<CSSProperties>(() => ({
 }
 
 .stat-dots-row-compact .stat-dots-track {
-  gap: 2px; /* compact 模式 dot 间距,无对应 token */
+  gap: var(--space-2);
 }
 
 .stat-dots-row-compact .stat-dot {

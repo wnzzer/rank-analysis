@@ -88,8 +88,8 @@ function setIds(ids: number[]) {
 <style scoped>
 .rule-condition-row {
   display: flex;
-  gap: 8px;
+  gap: var(--space-8);
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: var(--space-8);
 }
 </style>

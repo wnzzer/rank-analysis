@@ -3,7 +3,7 @@
     <!-- 手动备份 -->
     <n-card title="手动备份" size="small">
       <n-space vertical>
-        <n-text :depth="3" style="font-size: 12px">
+        <n-text :depth="3" style="font-size: var(--font-size-sm)">
           把「我标记过的人」导出为 JSON 文件，或从备份文件导入（同一玩家按更新时间新者保留）。
         </n-text>
         <n-space>
@@ -21,7 +21,7 @@
         <n-space align="center" justify="space-between">
           <n-space vertical :size="4">
             <n-text>跨设备同步玩家备注</n-text>
-            <n-text :depth="3" style="font-size: 12px">
+            <n-text :depth="3" style="font-size: var(--font-size-sm)">
               按当前登录的召唤师（puuid）存取，明文存储于第三方云端，开启前请阅读风险说明。
             </n-text>
           </n-space>
@@ -37,7 +37,7 @@
           >
             立即同步
           </n-button>
-          <n-text :depth="3" style="font-size: 12px">{{ syncStatusText }}</n-text>
+          <n-text :depth="3" style="font-size: var(--font-size-sm)">{{ syncStatusText }}</n-text>
         </n-space>
       </n-space>
     </n-card>

@@ -17,12 +17,14 @@ function cssVar(name: string, fallback: string): string {
  * @param isDark 当前是否暗色主题（用于选取 Layout.color 等主题相关 fallback）
  */
 export function buildThemeOverrides(isDark: boolean): GlobalThemeOverrides {
-  const radiusSm = cssVar('--radius-sm', '6px')
+  const radiusControl = cssVar('--radius-control', '4px')
+  const radiusOverlay = cssVar('--radius-overlay', '8px')
   const radiusMd = cssVar('--radius-md', '8px')
   const radiusLg = cssVar('--radius-lg', '12px')
   const radiusPill = cssVar('--radius-pill', '999px')
   const space8 = cssVar('--space-8', '8px')
   const space12 = cssVar('--space-12', '12px')
+  const fontSizeBase = cssVar('--font-size-base', '13px')
   // Theme-dependent values can't go through cssVar() — .theme-light class is on
   // n-config-provider's root, not document.documentElement, so getComputedStyle
   // always returns :root values. Use isDark ternaries directly (matches pre-refactor behavior).
@@ -31,11 +33,28 @@ export function buildThemeOverrides(isDark: boolean): GlobalThemeOverrides {
   const glassBorder = isDark ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.08)'
   const shadowMd = isDark ? '0 2px 8px rgba(0,0,0,0.45)' : '0 2px 8px rgba(0,0,0,0.12)'
   const semanticWin = isDark ? '#3d9b7a' : '#2d8a6c'
+  const textPrimary = isDark ? 'rgba(255,255,255,0.92)' : 'rgba(0,0,0,0.88)'
+  // 镂空描边控件：静默态细边，hover 只提亮边框（不加底色）
+  const controlBorder = isDark ? 'rgba(255,255,255,0.16)' : 'rgba(0,0,0,0.18)'
+  const controlBorderHover = isDark ? 'rgba(255,255,255,0.34)' : 'rgba(0,0,0,0.38)'
+  // 主色统一到应用强调色（semantic-win），hover/pressed 逐级变深（Int UI 惯例，与 macOS 提亮相反）
+  const primary = semanticWin
+  const primaryHover = isDark ? '#378b6e' : '#28795f'
+  const primaryPressed = isDark ? '#317c62' : '#236a53'
+  const focusRing = isDark ? 'rgba(61,155,122,0.35)' : 'rgba(45,138,108,0.35)'
 
   return {
     common: {
-      borderRadius: radiusMd,
-      borderRadiusSmall: radiusSm
+      borderRadius: radiusControl,
+      borderRadiusSmall: cssVar('--radius-xs', '3px'),
+      fontSize: fontSizeBase,
+      fontSizeMedium: fontSizeBase,
+      heightMedium: '28px',
+      heightSmall: '24px',
+      primaryColor: primary,
+      primaryColorHover: primaryHover,
+      primaryColorPressed: primaryPressed,
+      primaryColorSuppl: primaryHover
     },
     Card: {
       borderRadius: radiusLg,
@@ -44,29 +63,46 @@ export function buildThemeOverrides(isDark: boolean): GlobalThemeOverrides {
       borderColor: glassBorder
     },
     Input: {
-      borderRadius: radiusMd,
+      borderRadius: radiusControl,
       color: glassMid,
-      border: `1px solid ${glassBorder}`
+      border: `1px solid ${glassBorder}`,
+      borderFocus: `1px solid ${primary}`,
+      boxShadowFocus: `0 0 0 2px ${focusRing}`
     },
     Button: {
-      borderRadiusSmall: radiusSm,
-      borderRadiusMedium: radiusMd
+      borderRadiusSmall: radiusControl,
+      borderRadiusMedium: radiusControl,
+      // 默认（secondary）按钮 = 镂空描边：透明底 + 1px 边，hover 只提亮边框
+      color: 'transparent',
+      colorHover: 'transparent',
+      colorFocus: 'transparent',
+      colorPressed: glassMid,
+      border: `1px solid ${controlBorder}`,
+      borderHover: `1px solid ${controlBorderHover}`,
+      borderFocus: `1px solid ${controlBorderHover}`,
+      borderPressed: `1px solid ${controlBorderHover}`,
+      textColorHover: textPrimary,
+      textColorFocus: textPrimary,
+      textColorPressed: textPrimary
     },
     Select: {
-      borderRadius: radiusMd
+      borderRadius: radiusControl
     },
     Pagination: {
-      itemBorderRadius: radiusMd
+      itemBorderRadius: radiusControl
     },
     Tag: {
       borderRadius: radiusPill
     },
     Tooltip: {
-      borderRadius: radiusMd,
+      borderRadius: radiusOverlay,
       padding: `${space8} ${space12}`
     },
     Popover: {
-      borderRadius: radiusMd
+      borderRadius: radiusOverlay
+    },
+    Dropdown: {
+      borderRadius: radiusOverlay
     },
     Skeleton: {
       borderRadius: radiusMd

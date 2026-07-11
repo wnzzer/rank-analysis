@@ -739,8 +739,17 @@ watch(
   box-sizing: border-box;
   color: var(--text-primary);
   background:
-    radial-gradient(circle at top left, rgba(61, 155, 122, 0.14), transparent 28%),
-    radial-gradient(circle at top right, rgba(92, 163, 234, 0.16), transparent 32%), var(--bg-base);
+    radial-gradient(
+      circle at top left,
+      color-mix(in srgb, var(--semantic-win) 14%, transparent),
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at top right,
+      color-mix(in srgb, var(--accent-blue) 16%, transparent),
+      transparent 32%
+    ),
+    var(--bg-base);
 }
 
 .match-detail-shell {
@@ -760,7 +769,7 @@ watch(
   padding: var(--space-10) var(--space-12);
   border-bottom: 1px solid var(--border-subtle);
   /* 头部单独一层极轻的表面色，与正文区分层次 */
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent);
+  background: linear-gradient(180deg, var(--glass-bg-low), transparent);
 }
 
 .match-detail-header--win {
@@ -815,7 +824,7 @@ watch(
 /* 结果徽章：色字 + 淡底 + 内描边微光，比通用 tag 更有份量 */
 .match-detail-result-pill {
   --result-color: var(--semantic-win);
-  padding: 2px 10px;
+  padding: var(--space-2) var(--space-10);
   border-radius: var(--radius-pill);
   font-size: var(--font-size-sm);
   font-weight: 700;
@@ -969,7 +978,7 @@ watch(
 }
 
 .match-detail-body::-webkit-scrollbar-thumb {
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   background: color-mix(in srgb, var(--text-tertiary) 35%, transparent);
 }
 
@@ -997,7 +1006,7 @@ watch(
 }
 
 .theme-light .match-detail-team-card {
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--bg-elevated);
 }
 
 /* 队伍标签行：色点 + 色字 + 数据，纯排版、无底无框 */
@@ -1021,7 +1030,7 @@ watch(
 .match-detail-team-accent {
   width: 4px;
   height: 16px;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   background: var(--team-color);
   box-shadow: 0 0 8px color-mix(in srgb, var(--team-color) 55%, transparent);
   flex-shrink: 0;
@@ -1079,7 +1088,7 @@ watch(
 }
 
 .theme-light .match-detail-column-header {
-  background: rgba(0, 0, 0, 0.02);
+  background: var(--glass-bg-low);
 }
 
 .match-detail-team-rows {
@@ -1189,10 +1198,10 @@ watch(
 
 /* MVP/SVP 章：金/银双档，WeGame 式综合评分的胜败双方最高分 */
 .match-detail-mvp-chip {
-  --chip-color: #f2bf63;
-  padding: 1px 6px;
+  --chip-color: var(--accent-gold);
+  padding: 1px var(--space-6);
   border-radius: var(--radius-pill);
-  font-size: 10px;
+  font-size: var(--font-size-2xs);
   font-weight: 800;
   font-style: italic;
   letter-spacing: 0.04em;
@@ -1204,7 +1213,7 @@ watch(
 }
 
 .match-detail-mvp-chip--mvp {
-  --chip-color: #f2bf63;
+  --chip-color: var(--accent-gold);
 }
 
 .match-detail-mvp-chip--svp {
@@ -1222,39 +1231,38 @@ watch(
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-highlight);
 }
 
-/* 战绩荣誉徽章配色：与战绩页 KDA/输出/承伤 色系一致,
-   暂无 token 对应,保留 hex 作为视觉锚点 */
+/* 战绩荣誉徽章配色：与战绩页 KDA/输出/承伤 色系一致 */
 .match-detail-badge-kills {
-  color: #f2bf63;
-  background: rgba(242, 191, 99, 0.14);
+  color: var(--accent-gold);
+  background: color-mix(in srgb, var(--accent-gold) 14%, transparent);
 }
 .match-detail-badge-damage {
-  color: #e5a732;
-  background: rgba(229, 167, 50, 0.16);
+  color: var(--accent-gold-deep);
+  background: color-mix(in srgb, var(--accent-gold-deep) 16%, transparent);
 }
 .match-detail-badge-assists {
-  color: #63d8b4;
-  background: rgba(99, 216, 180, 0.14);
+  color: var(--semantic-win-bright);
+  background: color-mix(in srgb, var(--semantic-win-bright) 14%, transparent);
 }
 .match-detail-badge-turrets {
-  color: #59b5ff;
-  background: rgba(89, 181, 255, 0.14);
+  color: var(--accent-blue);
+  background: color-mix(in srgb, var(--accent-blue) 14%, transparent);
 }
 .match-detail-badge-gold {
-  color: #f7d35f;
-  background: rgba(247, 211, 95, 0.14);
+  color: var(--accent-gold);
+  background: color-mix(in srgb, var(--accent-gold) 14%, transparent);
 }
 .match-detail-badge-taken {
-  color: #ef7d7d;
-  background: rgba(239, 125, 125, 0.14);
+  color: var(--semantic-loss-bright);
+  background: color-mix(in srgb, var(--semantic-loss-bright) 14%, transparent);
 }
 .match-detail-badge-cs {
-  color: #7eb8ff;
-  background: rgba(126, 184, 255, 0.14);
+  color: var(--accent-blue);
+  background: color-mix(in srgb, var(--accent-blue) 14%, transparent);
 }
 
 .match-detail-build-cell {
@@ -1274,7 +1282,7 @@ watch(
 
 .match-detail-spells {
   display: flex;
-  gap: 2px;
+  gap: var(--space-2);
 }
 
 .match-detail-spell-icon,
@@ -1283,7 +1291,7 @@ watch(
   /* 18→22px 随 viewport：比旧 16 大一档，看得清图标细节 */
   width: clamp(18px, calc(18px + (100vw - 1100px) * 4 / 1100), 22px);
   height: clamp(18px, calc(18px + (100vw - 1100px) * 4 / 1100), 22px);
-  border-radius: 4px;
+  border-radius: var(--radius-control);
   border: 1px solid var(--border-subtle);
   background: var(--bg-elevated);
   object-fit: cover;
@@ -1292,7 +1300,7 @@ watch(
 .match-detail-perks {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--space-2);
 }
 
 .match-detail-augment-icon-shell {
@@ -1305,7 +1313,7 @@ watch(
   /* 紧凑: 16→20 跟 spell/item/perk 同步 */
   width: clamp(16px, calc(16px + (100vw - 1100px) * 4 / 1100), 20px);
   height: clamp(16px, calc(16px + (100vw - 1100px) * 4 / 1100), 20px);
-  border-radius: 4px;
+  border-radius: var(--radius-control);
   border: 1px solid var(--augment-border);
   background: var(--augment-background);
   box-sizing: border-box;
@@ -1361,14 +1369,14 @@ watch(
 .match-detail-items {
   display: flex;
   flex-wrap: wrap;
-  gap: 2px;
+  gap: var(--space-2);
 }
 
 /* 空装备格：内凹暗槽，与实图标同尺寸——避免黑块被误读为图片加载失败 */
 .match-detail-item-empty {
   width: clamp(18px, calc(18px + (100vw - 1100px) * 4 / 1100), 22px);
   height: clamp(18px, calc(18px + (100vw - 1100px) * 4 / 1100), 22px);
-  border-radius: 4px;
+  border-radius: var(--radius-control);
   border: 1px solid color-mix(in srgb, var(--border-subtle) 55%, transparent);
   background: color-mix(in srgb, var(--bg-elevated) 45%, transparent);
   box-sizing: border-box;
@@ -1445,29 +1453,37 @@ watch(
 
 .match-detail-bar-track {
   height: 4px;
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-xs);
+  background: var(--glass-bg-mid);
   overflow: hidden;
 }
 
 .theme-light .match-detail-bar-track {
-  background: rgba(0, 0, 0, 0.07);
+  background: var(--glass-bg-high);
 }
 
 .match-detail-bar-fill {
   display: block;
   height: 100%;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   transition: width var(--dur-normal) var(--ease-expo);
 }
 
 /* 三色与旧图标底色同系：输出琥珀 / 承伤蓝 / 治疗绿 */
 .match-detail-bar-fill--damage {
-  background: linear-gradient(90deg, rgba(229, 167, 50, 0.55), rgba(229, 167, 50, 0.95));
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--accent-gold-deep) 55%, transparent),
+    color-mix(in srgb, var(--accent-gold-deep) 95%, transparent)
+  );
 }
 
 .match-detail-bar-fill--taken {
-  background: linear-gradient(90deg, rgba(92, 163, 234, 0.5), rgba(92, 163, 234, 0.92));
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--accent-blue) 50%, transparent),
+    color-mix(in srgb, var(--accent-blue) 92%, transparent)
+  );
 }
 
 .match-detail-bar-fill--heal {

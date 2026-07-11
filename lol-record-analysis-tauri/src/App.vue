@@ -54,8 +54,8 @@ body {
   z-index: 9999;
   background-color: var(--bg-surface);
   color: var(--text-primary);
-  padding-left: 12px;
-  font-size: 14px;
+  padding-left: var(--space-12);
+  font-size: var(--font-size-md);
 }
 
 .content {

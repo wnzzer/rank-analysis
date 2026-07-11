@@ -80,7 +80,7 @@
             closable
             :bordered="false"
             @close="deletePickData(item)"
-            style="margin-right: 15px"
+            style="margin-right: var(--space-16)"
           >
             {{ options.filter(option => option.value === item)?.[0]?.label || `英雄 ${item}` }}
             <template #avatar>
@@ -104,7 +104,7 @@
           style="width: 170px"
         />
       </n-flex>
-      <n-text depth="3" style="font-size: 12px">拖动可以改变选择英雄的优先级</n-text>
+      <n-text depth="3" style="font-size: var(--font-size-sm)">拖动可以改变选择英雄的优先级</n-text>
 
       <RuleEditModal
         v-model:show="pickModalShow"
@@ -169,7 +169,7 @@
             closable
             @close="deleteBanData(item)"
             :bordered="false"
-            style="margin-right: 15px"
+            style="margin-right: var(--space-16)"
           >
             {{ options.filter(option => option.value === item)?.[0]?.label || `英雄 ${item}` }}
             <template #avatar>
@@ -193,7 +193,7 @@
           style="width: 170px"
         />
       </n-flex>
-      <n-text depth="3" style="font-size: 12px">拖动可以改变禁用英雄的优先级</n-text>
+      <n-text depth="3" style="font-size: var(--font-size-sm)">拖动可以改变禁用英雄的优先级</n-text>
 
       <RuleEditModal
         v-model:show="banModalShow"
@@ -362,7 +362,7 @@ const addPickData = async (value: any) => {
 
 <style scoped>
 .setting-title {
-  font-size: 16px;
+  font-size: var(--font-size-lg);
   font-weight: 700;
   margin-bottom: var(--space-16);
   color: var(--text-primary);
@@ -376,7 +376,7 @@ const addPickData = async (value: any) => {
 }
 
 .setting-label {
-  font-size: 14px;
+  font-size: var(--font-size-md);
   display: flex;
   align-items: center;
   gap: var(--space-4);
@@ -386,20 +386,20 @@ const addPickData = async (value: any) => {
 .radio-label {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-4);
 }
 
 .setting-item-icon {
   flex-shrink: 0;
 }
 .setting-item-icon-accept {
-  color: #5ca3ea;
+  color: var(--accent-blue);
 }
 .setting-item-icon-pick {
   color: var(--semantic-win);
 }
 .setting-item-icon-start {
-  color: #5ca3ea;
+  color: var(--accent-blue);
 }
 
 .icon {
@@ -407,7 +407,7 @@ const addPickData = async (value: any) => {
 }
 
 .rules-section {
-  margin-bottom: 12px;
+  margin-bottom: var(--space-12);
 }
 
 .section-title {
@@ -415,14 +415,14 @@ const addPickData = async (value: any) => {
   justify-content: space-between;
   align-items: center;
   font-weight: 600;
-  margin: 12px 0 8px;
+  margin: var(--space-12) 0 var(--space-8);
 }
 
 .rule-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 0;
+  gap: var(--space-8);
+  padding: var(--space-6) 0;
   border-bottom: 1px solid var(--n-border-color);
 }
 
@@ -434,6 +434,6 @@ const addPickData = async (value: any) => {
 .rule-summary {
   flex: 1;
   color: var(--n-text-color-disabled);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 </style>

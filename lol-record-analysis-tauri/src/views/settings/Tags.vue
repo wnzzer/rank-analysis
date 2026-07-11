@@ -312,12 +312,12 @@ async function deleteTag(id: string) {
 .condition-editor-container {
   max-height: 500px;
   overflow-y: auto;
-  padding: 10px;
+  padding: var(--space-10);
   border: 1px solid v-bind('themeVars.borderColor');
   border-radius: var(--radius-sm);
 }
 .empty-root {
   text-align: center;
-  padding: 20px;
+  padding: var(--space-20);
 }
 </style>

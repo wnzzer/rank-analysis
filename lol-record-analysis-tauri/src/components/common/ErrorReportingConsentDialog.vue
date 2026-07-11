@@ -143,14 +143,14 @@ defineEmits<{
     both;
 }
 .consent-icon {
-  font-size: 28px;
+  font-size: var(--font-size-3xl);
   color: var(--semantic-win);
 }
 
 .consent-title {
   margin: 0 0 var(--space-6, 6px);
   text-align: center;
-  font-size: 18px;
+  font-size: var(--font-size-xl);
   font-weight: 700;
   letter-spacing: 0.2px;
   color: var(--text-primary);
@@ -193,7 +193,7 @@ defineEmits<{
   border-radius: var(--radius-md, 8px);
   background: color-mix(in srgb, var(--semantic-win) 12%, transparent);
   color: var(--semantic-win);
-  font-size: 16px;
+  font-size: var(--font-size-lg);
 }
 .consent-point-text {
   display: flex;

@@ -120,14 +120,14 @@ const cardContentStyle = 'padding: var(--space-10)'
 
 .rank-card-win-badge.good {
   color: var(--semantic-win);
-  background: rgba(61, 155, 122, 0.14);
-  border-color: rgba(61, 155, 122, 0.22);
+  background: color-mix(in srgb, var(--semantic-win) 14%, transparent);
+  border-color: color-mix(in srgb, var(--semantic-win) 22%, transparent);
 }
 
 .rank-card-win-badge.bad {
   color: var(--semantic-loss);
-  background: rgba(196, 92, 92, 0.1);
-  border-color: rgba(196, 92, 92, 0.18);
+  background: color-mix(in srgb, var(--semantic-loss) 10%, transparent);
+  border-color: color-mix(in srgb, var(--semantic-loss) 18%, transparent);
 }
 
 .rank-card-win-badge.normal {

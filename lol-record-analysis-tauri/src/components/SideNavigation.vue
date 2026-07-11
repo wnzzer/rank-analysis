@@ -140,7 +140,7 @@ const goGaming = () => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 6px 0 4px;
+  padding: var(--space-6) 0 var(--space-4);
   overflow: hidden;
 }
 
@@ -148,16 +148,16 @@ const goGaming = () => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: var(--space-2);
   flex: 1;
   width: 100%;
-  padding: 0 8px;
+  padding: 0 var(--space-8);
 }
 
 .nav-item {
   width: 100%;
   height: 44px;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -166,7 +166,7 @@ const goGaming = () => {
   border: 1px solid transparent;
   background: transparent;
   color: var(--text-tertiary);
-  font-size: 9px;
+  font-size: var(--font-size-3xs);
   font-weight: 500;
   letter-spacing: 0.02em;
   cursor: pointer;
@@ -180,7 +180,7 @@ const goGaming = () => {
 }
 
 .nav-item:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--glass-bg-mid);
   color: var(--text-secondary);
   transform: scale(1.04);
 }
@@ -206,30 +206,30 @@ const goGaming = () => {
   transform: translateY(-50%);
   width: 3px;
   height: 18px;
-  background: linear-gradient(180deg, #5ecfa4, #2d7a5e);
-  border-radius: 0 3px 3px 0;
+  background: var(--win-bar-gradient);
+  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
   box-shadow: 0 0 8px rgba(61, 155, 122, 0.4);
 }
 
 .nav-item-label {
-  font-size: 9px;
+  font-size: var(--font-size-3xs);
 }
 
 /* Status icons */
 .status-icons {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 0 8px;
+  gap: var(--space-2);
+  padding: 0 var(--space-8);
   width: 100%;
   flex-shrink: 0;
-  margin-bottom: 6px;
+  margin-bottom: var(--space-6);
 }
 
 .status-icon-btn {
   width: 100%;
   height: 28px;
-  border-radius: 7px;
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -245,7 +245,7 @@ const goGaming = () => {
 }
 
 .status-icon-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--glass-bg-mid);
   color: var(--text-secondary);
 }
 
@@ -261,7 +261,7 @@ const goGaming = () => {
 
 .status-icon-btn--blue {
   background: rgba(56, 189, 248, 0.1);
-  color: #38bdf8;
+  color: var(--accent-sky);
 }
 
 .status-dot {
@@ -275,13 +275,13 @@ const goGaming = () => {
 }
 
 .status-dot--green {
-  background: #4ade80;
+  background: var(--semantic-win-bright);
   box-shadow: 0 0 5px rgba(74, 222, 128, 0.6);
   animation: dot-pulse 2s ease-in-out infinite;
 }
 
 .status-dot--blue {
-  background: #38bdf8;
+  background: var(--accent-sky);
   box-shadow: 0 0 5px rgba(56, 189, 248, 0.5);
   animation: dot-pulse 2s ease-in-out infinite;
 }
@@ -293,11 +293,11 @@ const goGaming = () => {
 
 /* LIGHT THEME */
 .theme-light .nav-item:hover {
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--glass-bg-high);
 }
 
 .theme-light .status-icon-btn:hover:not(:disabled) {
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--glass-bg-high);
 }
 
 .theme-light .nav-item--active {
@@ -316,16 +316,14 @@ const goGaming = () => {
 
 .theme-light .status-icon-btn--blue {
   background: rgba(2, 132, 199, 0.1);
-  color: #0369a1;
 }
 
 .theme-light .status-dot--green {
-  background: #0d9668;
+  background: var(--semantic-win);
   box-shadow: 0 0 4px rgba(13, 150, 104, 0.4);
 }
 
 .theme-light .status-dot--blue {
-  background: #0284c7;
   box-shadow: 0 0 4px rgba(2, 132, 199, 0.35);
 }
 </style>
