@@ -157,6 +157,11 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             command::cloud_sync::cloud_push_notes,
             command::cloud_sync::save_text_file,
             command::cloud_sync::read_text_file,
+            command::cloud_sync::cloud_pull_config,
+            command::cloud_sync::cloud_push_config,
+            command::cloud_sync::get_cloud_config_snapshot,
+            command::cloud_sync::apply_config_snapshot,
+            command::cloud_sync::export_backup,
         ]);
 
     #[cfg(debug_assertions)]
