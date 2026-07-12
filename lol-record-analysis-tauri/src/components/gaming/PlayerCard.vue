@@ -8,7 +8,8 @@
       props.team === 'mine' && 'player-card-team-mine',
       props.team === 'enemy' && 'player-card-team-enemy',
       `player-card-density-${props.density}`,
-      pickStateClassName
+      pickStateClassName,
+      justSwapped && 'pc-swapped'
     ]"
     size="small"
     :bordered="true"
@@ -181,7 +182,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, toRef, watch } from 'vue'
+import { computed, nextTick, onUnmounted, ref, toRef, watch } from 'vue'
 import { NCard, NFlex, NAvatar, NImage, NButton, NIcon, NEllipsis, NPopover, NTag } from 'naive-ui'
 import { CopyOutline, HelpCircleOutline } from '@vicons/ionicons5'
 import MettingPlayersCard from './MettingPlayersCard.vue'
@@ -199,7 +200,7 @@ import LazyImg from '@renderer/components/common/LazyImg.vue'
 import PlayerNoteBadge from '@renderer/components/common/PlayerNoteBadge.vue'
 import UnifiedTagRow from '@renderer/components/common/UnifiedTagRow.vue'
 import { getChampionMeta, type ChampionMeta, type OpggMode } from '@renderer/services/opgg'
-import { tierBadge, formatWinRate, playerCardPickStateClass } from './championIntel'
+import { tierBadge, formatWinRate, playerCardPickStateClass, isChampionSwap } from './championIntel'
 
 interface Props {
   sessionSummoner: SessionSummoner
@@ -235,6 +236,40 @@ const cardContentStyle = 'padding: var(--space-4);'
 
 /** pickState → 根元素修饰类，驱动选人四态动画（意向/选择中/禁用中/已锁定） */
 const pickStateClassName = computed(() => playerCardPickStateClass(props.pickState))
+
+/**
+ * 换人一次性闪烁反馈：仅当已锁定（pickState === 'locked'）后 championId 仍发生真实变化
+ * （对应选人阶段锁定后的英雄交换 trade）时点亮 `pc-swapped`，~600ms 后自动移除。
+ * 未锁定期换意向是常态，不触发；机制与 ChampionIntelCard 同款（先归零一帧再点亮，保证连续
+ * 快速换人也能重播动画）。
+ */
+const justSwapped = ref(false)
+let swapFlashTimer: ReturnType<typeof setTimeout> | null = null
+
+function triggerSwapFlash(): void {
+  if (swapFlashTimer) clearTimeout(swapFlashTimer)
+  justSwapped.value = false
+  void nextTick(() => {
+    justSwapped.value = true
+    swapFlashTimer = setTimeout(() => {
+      justSwapped.value = false
+      swapFlashTimer = null
+    }, 600)
+  })
+}
+
+onUnmounted(() => {
+  if (swapFlashTimer) clearTimeout(swapFlashTimer)
+})
+
+watch(
+  () => props.sessionSummoner.championId,
+  (id, oldId) => {
+    if (props.pickState === 'locked' && isChampionSwap(oldId, id)) {
+      triggerSwapFlash()
+    }
+  }
+)
 
 const settingsStore = useSettingsStore()
 const { isDark } = useTheme()
@@ -706,11 +741,30 @@ watch(
   filter: saturate(80%);
 }
 
+/* 换人闪烁：一次性反馈，动画只落在头像元素上（同 ChampionIntelCard 的 intel-swapped 机制），
+ * 不往 .player-card 的 fade-up/四态逗号动画列表里加第三项，避免破坏既有组合规则。
+ */
+.player-card.pc-swapped .champion-img {
+  animation: pc-swap-flash 0.5s ease-out;
+}
+@keyframes pc-swap-flash {
+  0% {
+    filter: brightness(1);
+  }
+  40% {
+    filter: brightness(1.6);
+  }
+  100% {
+    filter: brightness(1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .player-card.pc-intent,
   .player-card.pc-picking,
   .player-card.pc-banning,
-  .player-card.pc-locked {
+  .player-card.pc-locked,
+  .player-card.pc-swapped .champion-img {
     animation: none;
   }
 }

@@ -7,7 +7,7 @@
     <div class="subteam-card-body">
       <template
         v-for="(p, i) of subteam.players"
-        :key="`subteam-${subteam.subteamId}-${i}-${p.summoner.puuid || p.championId}`"
+        :key="`subteam-${subteam.subteamId}-${i}-${p.summoner.puuid}`"
       >
         <ChampionIntelCard
           v-if="phase === 'ChampSelect' && !p.summoner.puuid"

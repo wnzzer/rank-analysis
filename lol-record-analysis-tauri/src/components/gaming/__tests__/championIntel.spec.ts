@@ -3,7 +3,8 @@ import {
   pickStateClass,
   playerCardPickStateClass,
   tierBadge,
-  formatWinRate
+  formatWinRate,
+  isChampionSwap
 } from '../championIntel'
 
 describe('championIntel helpers', () => {
@@ -38,5 +39,14 @@ describe('championIntel helpers', () => {
     expect(formatWinRate(0.5183)).toBe('51.8%')
     expect(formatWinRate(0)).toBe('--')
     expect(formatWinRate(undefined)).toBe('--')
+  })
+  it('isChampionSwap 仅在新旧 championId 均为正数且不相等时判定为真换人', () => {
+    expect(isChampionSwap(1, 2)).toBe(true)
+    expect(isChampionSwap(1, 1)).toBe(false)
+    expect(isChampionSwap(0, 1)).toBe(false)
+    expect(isChampionSwap(undefined, 1)).toBe(false)
+    expect(isChampionSwap(1, 0)).toBe(false)
+    expect(isChampionSwap(1, undefined)).toBe(false)
+    expect(isChampionSwap(undefined, undefined)).toBe(false)
   })
 })

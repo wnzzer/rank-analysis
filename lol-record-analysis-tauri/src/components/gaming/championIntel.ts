@@ -109,6 +109,24 @@ export function tierBadge(tier: number): { label: string; color: string; bg: str
 }
 
 /**
+ * 判断两次 championId 变化是否构成"真正的换人"（trade swap），而非首次亮出/清空。
+ * ChampionIntelCard 与 PlayerCard 共用此判定来决定是否播放一次性换人闪烁动画。
+ * @param oldId - 变化前的 championId
+ * @param newId - 变化后的 championId
+ * @returns 仅当 oldId、newId 均为正数且不相等时为 true（首次从 0/undefined 亮出英雄不算换人）
+ * @example
+ * ```ts
+ * isChampionSwap(0, 1) // false（首次亮出）
+ * isChampionSwap(1, 2) // true（真换人）
+ * isChampionSwap(1, 1) // false（未变化）
+ * isChampionSwap(undefined, 1) // false（初次挂载）
+ * ```
+ */
+export function isChampionSwap(oldId: number | undefined, newId: number | undefined): boolean {
+  return !!oldId && oldId > 0 && !!newId && newId > 0 && oldId !== newId
+}
+
+/**
  * 胜率显示：将 0~1 的小数格式化为百分比字符串
  * @param rate - 胜率（0~1），缺省或 <=0 视为无数据
  * @returns 形如 '51.8%' 的字符串；无数据时返回 '--'

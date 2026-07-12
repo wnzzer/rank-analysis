@@ -1,7 +1,12 @@
 <template>
   <div
     class="intel-card"
-    :class="[pickStateClass(pickState), `intel-${density}`, isEmpty && 'intel-empty']"
+    :class="[
+      pickStateClass(pickState),
+      `intel-${density}`,
+      isEmpty && 'intel-empty',
+      justSwapped && 'intel-swapped'
+    ]"
   >
     <!-- 未亮英雄：占位（虚线边框 + 居中提示，picking 态同样吃 intel-picking 动画） -->
     <template v-if="isEmpty">
@@ -50,12 +55,12 @@
  * 展示英雄头像/名字 + OP.GG T级/胜率 + 对我方阵容的克制提示，
  * pick-state 驱动三态动画（intent 呼吸 / picking 边框脉冲 / locked 定格入场）。
  */
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useAssetUrl } from '@renderer/composables/useAssetUrl'
 import { getChampionName, loadChampionNames } from '@renderer/services/ai/champion-names'
 import { getChampionMeta, getLaneCounters, findCounterHints } from '@renderer/services/opgg'
 import type { ChampionMeta, CounterHint, OpggMode } from '@renderer/services/opgg'
-import { pickStateClass, tierBadge, formatWinRate } from './championIntel'
+import { pickStateClass, tierBadge, formatWinRate, isChampionSwap } from './championIntel'
 
 const props = withDefaults(
   defineProps<{
@@ -94,6 +99,29 @@ function counterText(h: CounterHint): string {
 }
 
 /**
+ * 换人一次性闪烁反馈：旧值>0 且新值>0 且不等（真换人，非首次亮出）时点亮 `intel-swapped`，
+ * ~600ms 后自动移除。触发时先归零一帧（nextTick）再点亮，保证连续快速换人也能重播动画。
+ */
+const justSwapped = ref(false)
+let swapFlashTimer: ReturnType<typeof setTimeout> | null = null
+
+function triggerSwapFlash(): void {
+  if (swapFlashTimer) clearTimeout(swapFlashTimer)
+  justSwapped.value = false
+  void nextTick(() => {
+    justSwapped.value = true
+    swapFlashTimer = setTimeout(() => {
+      justSwapped.value = false
+      swapFlashTimer = null
+    }, 600)
+  })
+}
+
+onUnmounted(() => {
+  if (swapFlashTimer) clearTimeout(swapFlashTimer)
+})
+
+/**
  * 上一次实际发起处理的请求标识（championId + myChampionIds 内容拼接）。
  * Gaming.vue 的 computed 每次会话事件都会重新生成 myChampionIds 数组，
  * 引用必变但内容常不变；watch 用 `[championId, myChampionIds]` 数组做浅比较
@@ -103,7 +131,11 @@ let lastRequestKey = ''
 
 watch(
   () => [props.championId, props.myChampionIds] as const,
-  async ([id, myIds]) => {
+  async ([id, myIds], oldSource) => {
+    // 真换人检测：与请求去重 key 无关，仅比较 championId 本身（oldSource 首次触发为 undefined）
+    if (isChampionSwap(oldSource?.[0], id)) {
+      triggerSwapFlash()
+    }
     // 内容级去重：id 与 myIds 拼接后的 key 未变化，说明本次触发只是引用抖动，直接跳过
     const requestKey = `${id}|${myIds.join(',')}`
     if (requestKey === lastRequestKey) return
@@ -362,6 +394,27 @@ watch(
   }
 }
 
+/* 换人闪烁：一次性反馈，动画只落在头像元素上（用卡片级 .intel-swapped 修饰类做触发开关），
+ * 不往 .intel-card 的入场/三态逗号动画列表里加第三项，避免破坏既有组合规则。
+ */
+.intel-card.intel-swapped .intel-avatar {
+  animation: intel-swap-flash 0.5s ease-out;
+}
+@keyframes intel-swap-flash {
+  0% {
+    filter: brightness(1);
+    box-shadow: 0 0 0 0 transparent;
+  }
+  40% {
+    filter: brightness(1.6);
+    box-shadow: 0 0 10px 2px rgba(230, 193, 90, 0.55);
+  }
+  100% {
+    filter: brightness(1);
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .intel-card,
   .intel-intent,
@@ -369,7 +422,8 @@ watch(
   .intel-banning,
   .intel-locked,
   .intel-picking .intel-avatar,
-  .intel-banning .intel-avatar {
+  .intel-banning .intel-avatar,
+  .intel-card.intel-swapped .intel-avatar {
     animation: none;
   }
 }
