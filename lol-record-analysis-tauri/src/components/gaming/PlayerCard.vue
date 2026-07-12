@@ -634,7 +634,7 @@ watch(
     filter: drop-shadow(0 0 0 transparent);
   }
   50% {
-    filter: drop-shadow(0 0 10px rgba(230, 193, 90, 0.45));
+    filter: drop-shadow(0 0 6px rgba(230, 193, 90, 0.22));
   }
 }
 
@@ -652,7 +652,7 @@ watch(
     filter: drop-shadow(0 0 0 rgba(34, 197, 94, 0));
   }
   50% {
-    filter: drop-shadow(0 0 8px rgba(34, 197, 94, 0.5));
+    filter: drop-shadow(0 0 5px rgba(34, 197, 94, 0.25));
   }
 }
 
@@ -670,7 +670,7 @@ watch(
     filter: drop-shadow(0 0 0 rgba(239, 68, 68, 0));
   }
   50% {
-    filter: drop-shadow(0 0 8px rgba(239, 68, 68, 0.5));
+    filter: drop-shadow(0 0 5px rgba(239, 68, 68, 0.25));
   }
 }
 
@@ -679,17 +679,17 @@ watch(
 .player-card.pc-locked {
   animation:
     fade-up var(--dur-normal) var(--ease-expo) both,
-    pc-lock-in 0.4s var(--ease-expo) both;
+    pc-lock-in 0.28s var(--ease-expo) both;
   animation-delay: calc(var(--stagger) * var(--stagger-i, 0)), 0s;
 }
 @keyframes pc-lock-in {
   0% {
-    transform: scale(0.98);
-    filter: drop-shadow(0 0 6px rgba(34, 197, 94, 0.55));
+    transform: scale(0.99);
+    filter: drop-shadow(0 0 6px rgba(34, 197, 94, 0.28));
   }
   60% {
-    transform: scale(1.02);
-    filter: drop-shadow(0 0 3px rgba(34, 197, 94, 0.3));
+    transform: scale(1.008);
+    filter: drop-shadow(0 0 3px rgba(34, 197, 94, 0.14));
   }
   100% {
     transform: scale(1);
@@ -702,8 +702,8 @@ watch(
 .player-card.pc-intent .champion-img,
 .player-card.pc-picking .champion-img,
 .player-card.pc-banning .champion-img {
-  opacity: 0.55;
-  filter: saturate(70%);
+  opacity: 0.7;
+  filter: saturate(80%);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -147,8 +147,8 @@ watch(
   background: var(--n-color, transparent);
   min-height: 56px;
   /* 入场：自有 intel-enter keyframe，比全局 fade-up 更大幅度（+scale）更易察觉 */
-  animation: intel-enter 0.45s var(--ease-expo) both;
-  animation-delay: calc(90ms * var(--stagger-i, 0));
+  animation: intel-enter 0.32s var(--ease-expo) both;
+  animation-delay: calc(55ms * var(--stagger-i, 0));
 }
 .intel-compact {
   padding: 6px 8px;
@@ -249,7 +249,7 @@ watch(
 @keyframes intel-enter {
   from {
     opacity: 0;
-    transform: translateY(14px) scale(0.95);
+    transform: translateY(8px) scale(0.975);
   }
   to {
     opacity: 1;
@@ -261,9 +261,9 @@ watch(
 .intel-intent {
   border-color: rgba(230, 193, 90, 0.55);
   animation:
-    intel-enter 0.45s var(--ease-expo) both,
+    intel-enter 0.32s var(--ease-expo) both,
     intel-breathe 2s ease-in-out infinite;
-  animation-delay: calc(90ms * var(--stagger-i, 0)), 0s;
+  animation-delay: calc(55ms * var(--stagger-i, 0)), 0s;
 }
 .intel-intent .intel-avatar {
   border-color: rgba(230, 193, 90, 0.7);
@@ -271,12 +271,12 @@ watch(
 @keyframes intel-breathe {
   0%,
   100% {
-    opacity: 0.7;
+    opacity: 0.82;
     box-shadow: 0 0 0 0 transparent;
   }
   50% {
     opacity: 1;
-    box-shadow: 0 0 14px 2px rgba(230, 193, 90, 0.45);
+    box-shadow: 0 0 9px 1px rgba(230, 193, 90, 0.22);
   }
 }
 
@@ -285,9 +285,9 @@ watch(
   border: 2px solid var(--semantic-win, #18a058);
   background: rgba(24, 160, 88, 0.06);
   animation:
-    intel-enter 0.45s var(--ease-expo) both,
+    intel-enter 0.32s var(--ease-expo) both,
     intel-pulse 1.1s ease-in-out infinite;
-  animation-delay: calc(90ms * var(--stagger-i, 0)), 0s;
+  animation-delay: calc(55ms * var(--stagger-i, 0)), 0s;
 }
 .intel-picking .intel-avatar {
   border-color: var(--semantic-win, #18a058);
@@ -296,10 +296,10 @@ watch(
 @keyframes intel-pulse {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(24, 160, 88, 0.18);
+    box-shadow: 0 0 0 0 rgba(24, 160, 88, 0.1);
   }
   50% {
-    box-shadow: 0 0 0 6px rgba(24, 160, 88, 0.18);
+    box-shadow: 0 0 0 3px rgba(24, 160, 88, 0.1);
   }
 }
 @keyframes intel-avatar-pulse {
@@ -308,7 +308,7 @@ watch(
     border-color: var(--semantic-win, #18a058);
   }
   50% {
-    border-color: rgba(24, 160, 88, 0.4);
+    border-color: rgba(24, 160, 88, 0.7);
   }
 }
 
@@ -318,9 +318,9 @@ watch(
   border: 2px solid var(--semantic-loss, #d03050);
   background: rgba(208, 48, 80, 0.06);
   animation:
-    intel-enter 0.45s var(--ease-expo) both,
+    intel-enter 0.32s var(--ease-expo) both,
     intel-ban-pulse 1.1s ease-in-out infinite;
-  animation-delay: calc(90ms * var(--stagger-i, 0)), 0s;
+  animation-delay: calc(55ms * var(--stagger-i, 0)), 0s;
 }
 .intel-banning .intel-avatar {
   border-color: var(--semantic-loss, #d03050);
@@ -328,32 +328,32 @@ watch(
 @keyframes intel-ban-pulse {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(208, 48, 80, 0.18);
+    box-shadow: 0 0 0 0 rgba(208, 48, 80, 0.1);
   }
   50% {
-    box-shadow: 0 0 0 6px rgba(208, 48, 80, 0.18);
+    box-shadow: 0 0 0 3px rgba(208, 48, 80, 0.1);
   }
 }
 
 /* 锁定：定格入场，bounce 过冲 + 一次性 ring 闪光收敛，仅播一次 */
 .intel-locked {
   animation:
-    intel-enter 0.45s var(--ease-expo) both,
-    intel-lock-in 0.4s var(--ease-expo) both;
-  animation-delay: calc(90ms * var(--stagger-i, 0)), 0s;
+    intel-enter 0.32s var(--ease-expo) both,
+    intel-lock-in 0.28s var(--ease-expo) both;
+  animation-delay: calc(55ms * var(--stagger-i, 0)), 0s;
 }
 .intel-locked .intel-avatar {
   border-color: var(--semantic-win, #18a058);
 }
 @keyframes intel-lock-in {
   0% {
-    transform: scale(0.82);
-    opacity: 0.3;
-    box-shadow: 0 0 0 3px rgba(24, 160, 88, 0.55);
+    transform: scale(0.92);
+    opacity: 0.6;
+    box-shadow: 0 0 0 2px rgba(24, 160, 88, 0.28);
   }
   55% {
-    transform: scale(1.05);
-    box-shadow: 0 0 0 3px rgba(24, 160, 88, 0.25);
+    transform: scale(1.015);
+    box-shadow: 0 0 0 2px rgba(24, 160, 88, 0.12);
   }
   100% {
     transform: scale(1);

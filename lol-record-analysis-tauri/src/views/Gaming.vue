@@ -446,13 +446,13 @@ onMounted(async () => {
   filter: grayscale(1) brightness(0.7);
   border: 1px solid rgba(196, 92, 92, 0.5);
   /* 新 ban 弹入：仅在元素首次挂载时播放一次（列表增长时旧图标不会重新触发） */
-  animation: ban-pop 0.3s var(--ease-expo) both;
+  animation: ban-pop 0.24s var(--ease-expo) both;
 }
 
 @keyframes ban-pop {
   from {
     opacity: 0;
-    transform: scale(0.5);
+    transform: scale(0.75);
   }
   to {
     opacity: 1;
