@@ -25,7 +25,7 @@
             type="info"
             class="gaming-ai-btn"
             :loading="aiLoading"
-            :disabled="!sessionData.phase || sessionData.phase === 'ChampSelect'"
+            :disabled="!sessionData.phase"
             @click="handleAIAnalysis"
           >
             <template #icon>
@@ -33,7 +33,7 @@
             </template>
           </n-button>
         </template>
-        ✨ AI分析功能：点击可智能分析双方阵容和玩家战绩
+        ✨ AI分析功能：选人阶段分析阵容情报，对局中分析双方阵容和玩家战绩
       </n-tooltip>
 
       <n-modal v-model:show="showConfig" preset="card" title="显示设置" style="width: 400px">
@@ -49,7 +49,12 @@
       </n-modal>
 
       <!-- AI 分析结果弹窗 -->
-      <n-modal v-model:show="showAIResult" preset="card" title="AI 分析" style="width: 600px">
+      <n-modal
+        v-model:show="showAIResult"
+        preset="card"
+        :title="aiResultTitle"
+        style="width: 600px"
+      >
         <div class="ai-result-content ai-report" v-html="renderedAIResult"></div>
       </n-modal>
 
@@ -144,7 +149,11 @@ import { useMessage } from 'naive-ui'
 
 import LoadingComponent from '@renderer/components/LoadingComponent.vue'
 import SubteamCard from '@renderer/components/gaming/SubteamCard.vue'
-import { analyzeGameWithAIStream, type StreamCallbacks } from '@renderer/services/ai'
+import {
+  analyzeChampSelectWithAIStream,
+  analyzeGameWithAIStream,
+  type StreamCallbacks
+} from '@renderer/services/ai'
 import { renderAnalysisReport } from '@renderer/services/ai/matchDetail/renderReport'
 import { useSessionSync } from '@renderer/composables/useSessionSync'
 import { useSessionTiers } from '@renderer/composables/useSessionTiers'
@@ -224,6 +233,10 @@ const showAITooltip = ref(false)
 let hasShownAITip = false
 
 const renderedAIResult = computed(() => renderAnalysisReport(aiResult.value))
+/** 弹窗标题：选人期是「阵容分析」，对局中/赛后沿用旧的「AI 分析」 */
+const aiResultTitle = computed(() =>
+  sessionData.phase === 'ChampSelect' ? '选人期阵容分析' : 'AI 分析'
+)
 
 const handleUpdateConfig = async (value: number | null) => {
   if (!value) return
@@ -257,7 +270,11 @@ const handleAIAnalysis = async () => {
         aiLoading.value = false
       }
     }
-    await analyzeGameWithAIStream(sessionData, 'team', callbacks)
+    if (sessionData.phase === 'ChampSelect') {
+      await analyzeChampSelectWithAIStream(sessionData, opggMode.value, callbacks)
+    } else {
+      await analyzeGameWithAIStream(sessionData, 'team', callbacks)
+    }
   } catch (e: any) {
     message.error('AI 分析出错: ' + (e.message || '未知错误'))
     aiLoading.value = false
