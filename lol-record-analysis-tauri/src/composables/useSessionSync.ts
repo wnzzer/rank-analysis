@@ -196,6 +196,7 @@ export function useSessionSync() {
     sessionData.isMultiTeam = false
     sessionData.mySubteamId = 0
     sessionData.cherrySubteamsPending = false
+    sessionData.champSelect = undefined
     sessionData.subteams.splice(0, sessionData.subteams.length)
     requestSessionData()
   }
@@ -228,6 +229,9 @@ export function useSessionSync() {
     sessionData.isMultiTeam = !!data.isMultiTeam
     sessionData.mySubteamId = data.mySubteamId ?? 0
     sessionData.cherrySubteamsPending = !!data.cherrySubteamsPending
+    // 后端仅在 ChampSelect 期间下发该字段（skip_serializing_if）；离开选人后
+    // 事件里 data.champSelect 缺席 → undefined 直接覆盖旧值，面板自动清空阶段/ban 展示。
+    sessionData.champSelect = data.champSelect
   }
 
   /**

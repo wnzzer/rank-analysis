@@ -28,6 +28,7 @@
           :tier-cn="tiersBySubteam[subteam.subteamId]?.[i]?.tierCn ?? '无'"
           :team="isMine ? 'mine' : 'enemy'"
           :density="density"
+          :opgg-mode="opggMode"
           :style="{ '--stagger-i': i }"
         />
       </template>

@@ -99,6 +99,18 @@
                   <LazyImg v-else class="tier-icon" :src="imgUrl" alt="tier" />
                   <span class="tier-text">{{ tierCn }}</span>
                 </n-flex>
+                <!-- 当前英雄的 OP.GG T 级/胜率 chip：opggMode 未传或无数据时不渲染（无占位） -->
+                <span v-if="opggMeta" class="opgg-chip">
+                  <span
+                    v-if="opggBadge.label"
+                    class="opgg-chip-tier"
+                    :style="{ color: opggBadge.color, backgroundColor: opggBadge.bg }"
+                    >{{ opggBadge.label }}</span
+                  >
+                  <span class="opgg-chip-rate" :class="opggWinRateClass">{{
+                    formatWinRate(opggMeta.winRate)
+                  }}</span>
+                </span>
                 <!-- ARAM Balance Status -->
                 <n-popover
                   v-if="balanceTags.length > 0 && isAramMode"
@@ -168,7 +180,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, toRef } from 'vue'
+import { computed, ref, toRef, watch } from 'vue'
 import { NCard, NFlex, NAvatar, NImage, NButton, NIcon, NEllipsis, NPopover, NTag } from 'naive-ui'
 import { CopyOutline, HelpCircleOutline } from '@vicons/ionicons5'
 import MettingPlayersCard from './MettingPlayersCard.vue'
@@ -185,6 +197,8 @@ import PlayerStatsCard from './PlayerStatsCard.vue'
 import LazyImg from '@renderer/components/common/LazyImg.vue'
 import PlayerNoteBadge from '@renderer/components/common/PlayerNoteBadge.vue'
 import UnifiedTagRow from '@renderer/components/common/UnifiedTagRow.vue'
+import { getChampionMeta, type ChampionMeta, type OpggMode } from '@renderer/services/opgg'
+import { tierBadge, formatWinRate } from './championIntel'
 
 interface Props {
   sessionSummoner: SessionSummoner
@@ -195,6 +209,12 @@ interface Props {
   queueId: number
   team?: 'blue' | 'red' | 'mine' | 'enemy' | undefined
   density?: 'normal' | 'compact'
+  /**
+   * OP.GG 数据模式：驱动当前英雄 T 级/胜率 chip。
+   * PlayerCard 目前仅被 SubteamCard（对局页）复用，未传（如未来被非对局场景复用）时
+   * 完全不发起请求、也不渲染 chip。
+   */
+  opggMode?: OpggMode
 }
 
 const props = withDefaults(defineProps<Props>(), { team: undefined, density: 'normal' })
@@ -217,6 +237,44 @@ const isHiddenRecord = computed(
 const { isAramMode, balanceTags, overallBalanceStatus } = useAramBalance(
   toRef(() => props.sessionSummoner.championId),
   toRef(() => props.queueId)
+)
+
+/** 当前英雄的 OP.GG 元数据（T 级/胜率），驱动 chip；championId<=0 或 opggMode 未传时保持 null */
+const opggMeta = ref<ChampionMeta | null>(null)
+const opggBadge = computed(() => tierBadge(opggMeta.value?.tier ?? 0))
+/** 胜率语义色：>=52% 绿、<=48% 红，与 ChampionIntelCard 同一套规则 */
+const opggWinRateClass = computed(() => {
+  const rate = opggMeta.value?.winRate
+  if (rate === undefined || rate <= 0) return ''
+  if (rate >= 0.52) return 'opgg-chip-rate-good'
+  if (rate <= 0.48) return 'opgg-chip-rate-bad'
+  return ''
+})
+
+/**
+ * 上一次实际发起处理的请求标识（championId + opggMode 拼接）。
+ * 与 ChampionIntelCard 同款内容级请求守卫：key 未变则跳过，避免同局内每次会话事件重拉。
+ */
+let lastOpggRequestKey = ''
+
+watch(
+  () => [props.sessionSummoner.championId, props.opggMode] as const,
+  async ([championId, mode]) => {
+    const requestKey = `${championId}|${mode ?? ''}`
+    if (requestKey === lastOpggRequestKey) return
+    lastOpggRequestKey = requestKey
+
+    if (!mode || !championId || championId <= 0) {
+      opggMeta.value = null
+      return
+    }
+    // 竞态守卫：旧请求晚到不得覆盖新数据（英雄/模式快速切换场景）
+    const requestKeySnapshot = requestKey
+    const fetchedMeta = await getChampionMeta(mode, championId)
+    if (lastOpggRequestKey !== requestKeySnapshot) return
+    opggMeta.value = fetchedMeta
+  },
+  { immediate: true }
 )
 </script>
 
@@ -294,6 +352,42 @@ const { isAramMode, balanceTags, overallBalanceStatus } = useAramBalance(
 
 .tier-row {
   gap: var(--space-4);
+}
+
+/* 当前英雄 OP.GG T 级/胜率 chip：样式简化版复用 ChampionIntelCard 的 intel-tier/intel-winrate 语义 */
+.opgg-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--font-size-2xs);
+  padding: 0 var(--space-6);
+  height: 18px;
+  line-height: 18px;
+  border-radius: 999px;
+  background: rgba(128, 128, 128, 0.12);
+}
+
+.opgg-chip-tier {
+  font-weight: 700;
+  padding: 0 4px;
+  border-radius: 999px;
+}
+
+.opgg-chip-rate {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+
+.opgg-chip-rate-good {
+  color: var(--semantic-win);
+  opacity: 1;
+  font-weight: 600;
+}
+
+.opgg-chip-rate-bad {
+  color: var(--semantic-loss);
+  opacity: 1;
+  font-weight: 600;
 }
 
 .balance-tag {

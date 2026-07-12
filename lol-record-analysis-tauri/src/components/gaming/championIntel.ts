@@ -4,16 +4,17 @@
  * 与组件渲染解耦，便于单测覆盖 pick-state 分类、T 级徽章语义色、胜率格式化等纯计算。
  */
 
-/** 选人阶段 pick 态：未选中 / 意向 / 选择中 / 已锁定 */
-export type PickState = 'none' | 'intent' | 'picking' | 'locked'
+/** 选人阶段 pick 态：未选中 / 意向 / 禁用中 / 选择中 / 已锁定 */
+export type PickState = 'none' | 'intent' | 'banning' | 'picking' | 'locked'
 
 /**
- * pick 态 → 卡片修饰类名（驱动 CSS 三态动画）
+ * pick 态 → 卡片修饰类名（驱动 CSS 多态动画）
  * @param state - pick 态字符串，缺省或未知值一律兜底为 'none'
- * @returns 'intel-intent' | 'intel-picking' | 'intel-locked' | 'intel-none'
+ * @returns 'intel-intent' | 'intel-banning' | 'intel-picking' | 'intel-locked' | 'intel-none'
  * @example
  * ```ts
  * pickStateClass('locked') // 'intel-locked'
+ * pickStateClass('banning') // 'intel-banning'
  * pickStateClass(undefined) // 'intel-none'
  * ```
  */
@@ -21,6 +22,8 @@ export function pickStateClass(state: string | undefined): string {
   switch (state) {
     case 'intent':
       return 'intel-intent'
+    case 'banning':
+      return 'intel-banning'
     case 'picking':
       return 'intel-picking'
     case 'locked':

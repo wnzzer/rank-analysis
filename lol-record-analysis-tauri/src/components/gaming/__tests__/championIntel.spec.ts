@@ -2,9 +2,10 @@ import { describe, it, expect } from 'vitest'
 import { pickStateClass, tierBadge, formatWinRate } from '../championIntel'
 
 describe('championIntel helpers', () => {
-  it('pickStateClass 四态映射与兜底', () => {
+  it('pickStateClass 五态映射与兜底', () => {
     expect(pickStateClass('locked')).toBe('intel-locked')
     expect(pickStateClass('picking')).toBe('intel-picking')
+    expect(pickStateClass('banning')).toBe('intel-banning')
     expect(pickStateClass('intent')).toBe('intel-intent')
     expect(pickStateClass(undefined)).toBe('intel-none')
     expect(pickStateClass('')).toBe('intel-none')

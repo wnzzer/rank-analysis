@@ -8,7 +8,7 @@
       <div class="intel-placeholder">
         <span class="intel-placeholder-icon">❓</span>
         <span class="intel-placeholder-text">{{
-          pickState === 'picking' ? '正在选择…' : '尚未选择'
+          pickState === 'picking' ? '正在选择…' : pickState === 'banning' ? '禁用中…' : '尚未选择'
         }}</span>
       </div>
     </template>
@@ -312,6 +312,29 @@ watch(
   }
 }
 
+/* 禁用中：红色粗边框 + 外扩 ring 呼吸（威胁感），类比 intel-picking 但复用
+   --semantic-loss 色系，与「选择中」形成正/负两极的视觉对比 */
+.intel-banning {
+  border: 2px solid var(--semantic-loss, #d03050);
+  background: rgba(208, 48, 80, 0.06);
+  animation:
+    intel-enter 0.45s var(--ease-expo) both,
+    intel-ban-pulse 1.1s ease-in-out infinite;
+  animation-delay: calc(90ms * var(--stagger-i, 0)), 0s;
+}
+.intel-banning .intel-avatar {
+  border-color: var(--semantic-loss, #d03050);
+}
+@keyframes intel-ban-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(208, 48, 80, 0.18);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(208, 48, 80, 0.18);
+  }
+}
+
 /* 锁定：定格入场，bounce 过冲 + 一次性 ring 闪光收敛，仅播一次 */
 .intel-locked {
   animation:
@@ -343,8 +366,10 @@ watch(
   .intel-card,
   .intel-intent,
   .intel-picking,
+  .intel-banning,
   .intel-locked,
-  .intel-picking .intel-avatar {
+  .intel-picking .intel-avatar,
+  .intel-banning .intel-avatar {
     animation: none;
   }
 }
