@@ -285,7 +285,7 @@ async fn process_session_data(app_handle: AppHandle, seq: u64) -> Result<(), Str
                 champ_select_view = Some(view);
                 let to_one_player = |p: &crate::lcu::api::champion_select::OnePlayer| {
                     crate::lcu::api::session::OnePlayer {
-                        champion_id: p.champion_id,
+                        champion_id: crate::lcu::api::champion_select::display_champion_id(p),
                         puuid: p.puuid.clone(),
                         // 我方选人期有 assignedPosition(小写)，转大写供位置排序；敌方为空
                         selected_position: p.assigned_position.to_uppercase(),

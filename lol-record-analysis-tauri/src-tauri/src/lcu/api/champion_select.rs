@@ -58,6 +58,21 @@ pub struct OnePlayer {
     /// 选人格子 ID（0~4 我方、5~9 敌方；旧接口无此字段时默认 0）
     #[serde(default)]
     pub cell_id: i32,
+    /// 悬停中（未锁定）的意向英雄 ID。LCU 在队友「正在选用」但还未点击锁定时
+    /// 通过 myTeam[].championPickIntent 推送；敌方通常为 0（隐藏）。
+    /// 旧接口/字段缺失时默认 0。
+    #[serde(default)]
+    pub champion_pick_intent: i32,
+}
+
+/// 选人期该格用于展示的英雄：已锁定用 `champion_id`，否则回退悬停意向
+/// `champion_pick_intent`（尚未锁定时 LCU 才会填充该字段）。
+pub fn display_champion_id(p: &OnePlayer) -> i32 {
+    if p.champion_id > 0 {
+        p.champion_id
+    } else {
+        p.champion_pick_intent
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -98,8 +113,10 @@ pub struct ChampSelectView {
 ///
 /// 状态优先级：已完成 pick(champion>0)=locked > 进行中 ban=banning >
 /// 进行中 pick=picking > 亮出英雄未锁=intent > 无信息=none。
-/// actions 缺失该格信息但队伍条目已有英雄时兜底为 locked
-/// （某些时点 LCU 会清空已结束的 action 轮次）。
+/// actions 缺失该格信息时按队伍条目兜底：`champion_id>0`（真锁定）→ locked；
+/// 否则 `champion_pick_intent>0`（LCU 推送的悬停意向，如队友「正在选用」尚未
+/// 点击锁定）→ intent（某些时点 LCU 会清空已结束的 action 轮次，只能靠队伍
+/// 条目兜底）。
 ///
 /// 是 [`derive_pick_states`] 与 [`derive_champ_select_view`] 共用的唯一实现，
 /// 避免两份格子状态推导逻辑分叉。
@@ -148,8 +165,12 @@ fn derive_cell_states(session: &SelectSession) -> std::collections::HashMap<i32,
         };
 
         // 兜底：无 action 佐证但队伍条目已有英雄 → 视为已锁定
+        // 注意 p.champion_id>0 才是真锁定；championPickIntent>0 不得走这条兜底。
         if state == "none" && p.champion_id > 0 {
             state = "locked";
+        } else if state == "none" && p.champion_id == 0 && p.champion_pick_intent > 0 {
+            // 兜底：无 action 佐证、未锁定，但 LCU 推送了悬停意向 → intent
+            state = "intent";
         }
         states.insert(p.cell_id, state.to_string());
     }
@@ -316,6 +337,7 @@ mod tests {
                     puuid: String::new(),
                     assigned_position: String::new(),
                     cell_id,
+                    champion_pick_intent: 0,
                 })
                 .collect()
         };
@@ -376,6 +398,68 @@ mod tests {
         let raw2 = r#"{"championId": 1, "puuid": "p1", "cellId": 7}"#;
         let p2: OnePlayer = serde_json::from_str(raw2).unwrap();
         assert_eq!(p2.cell_id, 7);
+    }
+
+    #[test]
+    fn should_deserialize_champion_pick_intent_with_default() {
+        // 缺字段（旧接口/敌方通常不下发）默认 0，不炸
+        let raw = r#"{"championId": 0, "puuid": "p1"}"#;
+        let p: OnePlayer = serde_json::from_str(raw).unwrap();
+        assert_eq!(p.champion_pick_intent, 0);
+
+        // LCU 悬停未锁时下发的意向英雄 ID
+        let raw2 = r#"{"championId": 0, "puuid": "p1", "championPickIntent": 157}"#;
+        let p2: OnePlayer = serde_json::from_str(raw2).unwrap();
+        assert_eq!(p2.champion_pick_intent, 157);
+    }
+
+    fn mk_player(champion_id: i32, champion_pick_intent: i32) -> OnePlayer {
+        OnePlayer {
+            champion_id,
+            puuid: String::new(),
+            assigned_position: String::new(),
+            cell_id: 0,
+            champion_pick_intent,
+        }
+    }
+
+    #[test]
+    fn display_champion_id_prefers_locked_champion_over_intent() {
+        // 已锁定：即使 intent 字段仍残留旧值，也应展示 champion_id
+        let p = mk_player(86, 157);
+        assert_eq!(display_champion_id(&p), 86);
+    }
+
+    #[test]
+    fn display_champion_id_falls_back_to_intent_when_not_locked() {
+        // 未锁定（champion_id=0）：展示悬停意向
+        let p = mk_player(0, 157);
+        assert_eq!(display_champion_id(&p), 157);
+    }
+
+    #[test]
+    fn display_champion_id_is_zero_when_neither_locked_nor_hovered() {
+        let p = mk_player(0, 0);
+        assert_eq!(display_champion_id(&p), 0);
+    }
+
+    #[test]
+    fn cell_state_is_intent_when_pick_intent_present_without_any_action() {
+        // 选人期刚进入、还没有该格的 action 记录，但 myTeam 已推送 championPickIntent
+        // → 应识别为 intent，而不是误判 locked 或 none。
+        let mut s = mk_session(vec![(0, 0)], vec![], vec![]);
+        s.my_team[0].champion_pick_intent = 157;
+        let m = derive_pick_states(&s);
+        assert_eq!(m[&0], "intent");
+    }
+
+    #[test]
+    fn cell_state_stays_locked_when_champion_id_set_without_any_action() {
+        // 回归：champion_id>0（真锁定）无 action 佐证时仍应兜底为 locked，
+        // 不应被 championPickIntent 的新分支影响。
+        let s = mk_session(vec![(0, 86)], vec![], vec![]);
+        let m = derive_pick_states(&s);
+        assert_eq!(m[&0], "locked");
     }
 
     fn ban_action(cell: i32, champ: i32, completed: bool, in_progress: bool, ally: bool) -> Action {

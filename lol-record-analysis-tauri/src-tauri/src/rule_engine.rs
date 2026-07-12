@@ -145,6 +145,7 @@ mod tests {
             puuid: puuid.to_string(),
             assigned_position: position.to_string(),
             cell_id: 0,
+            champion_pick_intent: 0,
         }
     }
 
@@ -205,6 +206,7 @@ mod tests {
             puuid: "x".to_string(),
             assigned_position: "".to_string(),
             cell_id: 0,
+            champion_pick_intent: 0,
         }
     }
 
@@ -258,6 +260,7 @@ mod tests {
             puuid: "y".to_string(),
             assigned_position: "".to_string(),
             cell_id: 0,
+            champion_pick_intent: 0,
         }
     }
 
