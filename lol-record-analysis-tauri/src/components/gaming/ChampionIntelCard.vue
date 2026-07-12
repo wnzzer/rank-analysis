@@ -1,7 +1,10 @@
 <template>
-  <div class="intel-card" :class="[pickStateClass(pickState), `intel-${density}`]">
-    <!-- 未亮英雄：占位（picking 态高亮呼吸） -->
-    <template v-if="!championId || championId <= 0">
+  <div
+    class="intel-card"
+    :class="[pickStateClass(pickState), `intel-${density}`, isEmpty && 'intel-empty']"
+  >
+    <!-- 未亮英雄：占位（虚线边框 + 居中提示，picking 态同样吃 intel-picking 动画） -->
+    <template v-if="isEmpty">
       <div class="intel-placeholder">
         <span class="intel-placeholder-icon">❓</span>
         <span class="intel-placeholder-text">{{
@@ -14,10 +17,15 @@
       <div class="intel-body">
         <div class="intel-row">
           <span class="intel-name">{{ name }}</span>
-          <span v-if="badge.label" class="intel-tier" :style="{ color: badge.color }">{{
-            badge.label
+          <span
+            v-if="badge.label"
+            class="intel-tier"
+            :style="{ color: badge.color, backgroundColor: badge.bg }"
+            >{{ badge.label }}</span
+          >
+          <span class="intel-winrate" :class="winRateClass">{{
+            formatWinRate(meta?.winRate)
           }}</span>
-          <span class="intel-winrate">{{ formatWinRate(meta?.winRate) }}</span>
         </div>
         <div class="intel-row intel-sub">
           <span v-if="pickState === 'intent'" class="intel-state-tag">意向</span>
@@ -66,6 +74,16 @@ const name = ref('')
 const meta = ref<ChampionMeta | null>(null)
 const hints = ref<CounterHint[]>([])
 const badge = computed(() => tierBadge(meta.value?.tier ?? 0))
+/** 未亮出英雄：走占位分支（虚线卡 + 居中 ❓） */
+const isEmpty = computed(() => !props.championId || props.championId <= 0)
+/** 胜率语义色：>=52% 绿、<=48% 红，其余用默认色（模板里不设 class） */
+const winRateClass = computed(() => {
+  const rate = meta.value?.winRate
+  if (rate === undefined || rate <= 0) return ''
+  if (rate >= 0.52) return 'intel-winrate-good'
+  if (rate <= 0.48) return 'intel-winrate-bad'
+  return ''
+})
 
 /** 名字辅助：克制提示里显示我方英雄名 */
 function counterText(h: CounterHint): string {
@@ -123,21 +141,30 @@ watch(
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
+  box-sizing: border-box;
   border: 1px solid var(--n-border-color, rgba(128, 128, 128, 0.2));
   border-radius: 10px;
   background: var(--n-color, transparent);
   min-height: 56px;
-  /* 入场：复用全局 fade-up + 错位 stagger（对齐 PlayerCard 入场节奏） */
-  animation: fade-up var(--dur-normal) var(--ease-expo) both;
-  animation-delay: calc(var(--stagger) * var(--stagger-i, 0));
+  /* 入场：自有 intel-enter keyframe，比全局 fade-up 更大幅度（+scale）更易察觉 */
+  animation: intel-enter 0.45s var(--ease-expo) both;
+  animation-delay: calc(90ms * var(--stagger-i, 0));
 }
 .intel-compact {
   padding: 6px 8px;
   min-height: 44px;
 }
 .intel-avatar {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  border: 2px solid transparent;
+  flex-shrink: 0;
+  transition: border-color var(--dur-normal) var(--ease-expo);
+}
+.intel-compact .intel-avatar {
+  width: 36px;
+  height: 36px;
   border-radius: 8px;
 }
 .intel-body {
@@ -152,14 +179,30 @@ watch(
 .intel-name {
   font-weight: 600;
 }
+/* T 级徽章：pill chip，颜色/背景来自 tierBadge() 的 color/bg 字段 */
 .intel-tier {
   font-weight: 700;
-  font-size: 12px;
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  line-height: 1.5;
+  white-space: nowrap;
 }
 .intel-winrate {
   margin-left: auto;
   font-variant-numeric: tabular-nums;
+  text-align: right;
   opacity: 0.85;
+}
+.intel-winrate-good {
+  color: var(--semantic-win, #18a058);
+  opacity: 1;
+  font-weight: 600;
+}
+.intel-winrate-bad {
+  color: var(--semantic-loss, #d03050);
+  opacity: 1;
+  font-weight: 600;
 }
 .intel-sub {
   margin-top: 2px;
@@ -169,11 +212,18 @@ watch(
 .intel-state-tag {
   opacity: 0.7;
 }
+/* 克制提示：小 pill，背景用语义色 8% 透明度 */
+.intel-counter {
+  padding: 1px 6px;
+  border-radius: 999px;
+}
 .intel-counter-good {
   color: var(--semantic-win, #18a058);
+  background: color-mix(in srgb, var(--semantic-win, #18a058) 8%, transparent);
 }
 .intel-counter-bad {
   color: var(--semantic-loss, #d03050);
+  background: color-mix(in srgb, var(--semantic-loss, #d03050) 8%, transparent);
 }
 .intel-placeholder {
   display: flex;
@@ -181,68 +231,120 @@ watch(
   gap: 8px;
   opacity: 0.55;
 }
+.intel-placeholder-icon {
+  font-size: 16px;
+}
+/* 未锁定占位卡：虚线边框 + 居中内容（picking 态被下方 .intel-picking 的实线+脉冲覆盖） */
+.intel-empty {
+  border-style: dashed;
+  justify-content: center;
+}
 
-/* ---- 三态动画 ----
- * 三态各自的 animation 简写会整体覆盖 .intel-card 上的入场 fade-up（同选择器
- * 特异性下后声明的规则整体替换而非合并），所以这里都显式把 fade-up 复合进去，
- * 用逗号分隔的第二个动画承载各态自身效果，animation-delay 也按位置一一对应。
+/* ---- 入场 + 三态动画 ----
+ * intel-enter 恒为逗号组合里的第一个 animation-name（位序对齐 delay 列表的第一项），
+ * 各 pick-state 类在此基础上追加第二段动画承载状态本身的效果；三态的 animation 简写
+ * 会整体覆盖 .intel-card 上的入场声明（同特异性下后声明整体替换而非合并），所以这里
+ * 都显式把 intel-enter 复合进去。
  */
-/* 意向：亮出未锁 → 半透明 + 呼吸 */
+@keyframes intel-enter {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 意向：半透明呼吸 + 琥珀光晕 + 琥珀细边框，比旧版明显得多 */
 .intel-intent {
-  opacity: 0.8;
+  border-color: rgba(230, 193, 90, 0.55);
   animation:
-    fade-up var(--dur-normal) var(--ease-expo) both,
+    intel-enter 0.45s var(--ease-expo) both,
     intel-breathe 2s ease-in-out infinite;
-  animation-delay: calc(var(--stagger) * var(--stagger-i, 0)), 0s;
+  animation-delay: calc(90ms * var(--stagger-i, 0)), 0s;
+}
+.intel-intent .intel-avatar {
+  border-color: rgba(230, 193, 90, 0.7);
 }
 @keyframes intel-breathe {
   0%,
   100% {
+    opacity: 0.7;
     box-shadow: 0 0 0 0 transparent;
   }
   50% {
-    box-shadow: 0 0 10px 1px rgba(99, 226, 183, 0.35);
+    opacity: 1;
+    box-shadow: 0 0 14px 2px rgba(230, 193, 90, 0.45);
   }
 }
-/* 正在选：边框脉冲高亮 */
+
+/* 正在选：绿色粗边框 + 外扩 ring 呼吸 + 极淡绿 tint，头像同步脉冲 */
 .intel-picking {
-  border-color: var(--semantic-win, #18a058);
+  border: 2px solid var(--semantic-win, #18a058);
+  background: rgba(24, 160, 88, 0.06);
   animation:
-    fade-up var(--dur-normal) var(--ease-expo) both,
-    intel-pulse 1.2s ease-in-out infinite;
-  animation-delay: calc(var(--stagger) * var(--stagger-i, 0)), 0s;
+    intel-enter 0.45s var(--ease-expo) both,
+    intel-pulse 1.1s ease-in-out infinite;
+  animation-delay: calc(90ms * var(--stagger-i, 0)), 0s;
+}
+.intel-picking .intel-avatar {
+  border-color: var(--semantic-win, #18a058);
+  animation: intel-avatar-pulse 1.1s ease-in-out infinite;
 }
 @keyframes intel-pulse {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(24, 160, 88, 0.45);
+    box-shadow: 0 0 0 0 rgba(24, 160, 88, 0.18);
   }
   50% {
-    box-shadow: 0 0 0 4px rgba(24, 160, 88, 0.12);
+    box-shadow: 0 0 0 6px rgba(24, 160, 88, 0.18);
   }
 }
-/* 锁定：定格入场（scale + fade），仅播一次 */
+@keyframes intel-avatar-pulse {
+  0%,
+  100% {
+    border-color: var(--semantic-win, #18a058);
+  }
+  50% {
+    border-color: rgba(24, 160, 88, 0.4);
+  }
+}
+
+/* 锁定：定格入场，bounce 过冲 + 一次性 ring 闪光收敛，仅播一次 */
 .intel-locked {
   animation:
-    fade-up var(--dur-normal) var(--ease-expo) both,
-    intel-lock-in var(--dur-normal, 0.25s) var(--ease-expo, ease-out) both;
-  animation-delay: calc(var(--stagger) * var(--stagger-i, 0)), 0s;
+    intel-enter 0.45s var(--ease-expo) both,
+    intel-lock-in 0.4s var(--ease-expo) both;
+  animation-delay: calc(90ms * var(--stagger-i, 0)), 0s;
+}
+.intel-locked .intel-avatar {
+  border-color: var(--semantic-win, #18a058);
 }
 @keyframes intel-lock-in {
-  from {
-    transform: scale(0.88);
-    opacity: 0.4;
+  0% {
+    transform: scale(0.82);
+    opacity: 0.3;
+    box-shadow: 0 0 0 3px rgba(24, 160, 88, 0.55);
   }
-  to {
+  55% {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 3px rgba(24, 160, 88, 0.25);
+  }
+  100% {
     transform: scale(1);
     opacity: 1;
+    box-shadow: 0 0 0 0 transparent;
   }
 }
+
 @media (prefers-reduced-motion: reduce) {
   .intel-card,
   .intel-intent,
   .intel-picking,
-  .intel-locked {
+  .intel-locked,
+  .intel-picking .intel-avatar {
     animation: none;
   }
 }

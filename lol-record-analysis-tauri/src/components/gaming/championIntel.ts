@@ -31,29 +31,49 @@ export function pickStateClass(state: string | undefined): string {
 }
 
 /**
- * T 级数字 → 徽章文案与语义色 token
+ * T 级数字 → 徽章文案、语义色 token 与背景色（pill chip 用）
  * @param tier - OP.GG 英雄强度分级（1 最强 ~ 5 最弱，0 表示无数据）
- * @returns 徽章文案（如 'T1'）与对应 CSS 变量颜色；tier 为 0 时返回空徽章
+ * @returns 徽章文案（如 'T1'）、CSS 变量颜色、对应色 15% 透明度背景；tier 为 0 时全空
  * @example
  * ```ts
- * tierBadge(1) // { label: 'T1', color: 'var(--semantic-win)' }
- * tierBadge(0) // { label: '', color: '' }
+ * tierBadge(1) // { label: 'T1', color: 'var(--semantic-win)', bg: 'color-mix(...)' }
+ * tierBadge(0) // { label: '', color: '', bg: '' }
  * ```
  */
-export function tierBadge(tier: number): { label: string; color: string } {
+export function tierBadge(tier: number): { label: string; color: string; bg: string } {
   switch (tier) {
     case 1:
-      return { label: 'T1', color: 'var(--semantic-win)' }
+      return {
+        label: 'T1',
+        color: 'var(--semantic-win)',
+        bg: 'color-mix(in srgb, var(--semantic-win) 15%, transparent)'
+      }
     case 2:
-      return { label: 'T2', color: 'var(--accent-blue)' }
+      return {
+        label: 'T2',
+        color: 'var(--accent-blue)',
+        bg: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)'
+      }
     case 3:
-      return { label: 'T3', color: 'var(--text-secondary)' }
+      return {
+        label: 'T3',
+        color: 'var(--text-secondary)',
+        bg: 'color-mix(in srgb, var(--text-secondary) 15%, transparent)'
+      }
     case 4:
-      return { label: 'T4', color: 'var(--text-tertiary)' }
+      return {
+        label: 'T4',
+        color: 'var(--text-tertiary)',
+        bg: 'color-mix(in srgb, var(--text-tertiary) 15%, transparent)'
+      }
     case 5:
-      return { label: 'T5', color: 'var(--text-tertiary)' }
+      return {
+        label: 'T5',
+        color: 'var(--text-tertiary)',
+        bg: 'color-mix(in srgb, var(--text-tertiary) 15%, transparent)'
+      }
     default:
-      return { label: '', color: '' }
+      return { label: '', color: '', bg: '' }
   }
 }
 

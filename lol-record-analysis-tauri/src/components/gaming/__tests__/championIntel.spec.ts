@@ -14,6 +14,11 @@ describe('championIntel helpers', () => {
     expect(tierBadge(0).label).toBe('')
     expect(tierBadge(5).label).toBe('T5')
   })
+  it('tierBadge 返回 pill chip 背景色，tier 0 时全空', () => {
+    expect(tierBadge(1).bg).toContain('var(--semantic-win)')
+    expect(tierBadge(2).bg).toContain('var(--accent-blue)')
+    expect(tierBadge(0)).toEqual({ label: '', color: '', bg: '' })
+  })
   it('formatWinRate', () => {
     expect(formatWinRate(0.5183)).toBe('51.8%')
     expect(formatWinRate(0)).toBe('--')
