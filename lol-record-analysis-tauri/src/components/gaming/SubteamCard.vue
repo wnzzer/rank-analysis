@@ -29,6 +29,7 @@
           :team="isMine ? 'mine' : 'enemy'"
           :density="density"
           :opgg-mode="opggMode"
+          :pick-state="phase === 'ChampSelect' ? p.pickState : ''"
           :style="{ '--stagger-i': i }"
         />
       </template>

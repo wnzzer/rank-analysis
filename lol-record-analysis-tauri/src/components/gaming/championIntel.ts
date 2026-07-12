@@ -34,6 +34,34 @@ export function pickStateClass(state: string | undefined): string {
 }
 
 /**
+ * pick 态 → PlayerCard 修饰类名（我方选人期四态动画）
+ * 与 pickStateClass 的区别：PlayerCard 常驻对局中样式，非选人期（'none'/空/未知值）
+ * 一律不加类，避免对局中卡片被误套选人态视觉。
+ * @param state - pick 态字符串，缺省或未知值统一兜底为无类
+ * @returns 'pc-intent' | 'pc-picking' | 'pc-banning' | 'pc-locked' | ''（无修饰）
+ * @example
+ * ```ts
+ * playerCardPickStateClass('locked') // 'pc-locked'
+ * playerCardPickStateClass('none') // ''
+ * playerCardPickStateClass(undefined) // ''
+ * ```
+ */
+export function playerCardPickStateClass(state: string | undefined): string {
+  switch (state) {
+    case 'intent':
+      return 'pc-intent'
+    case 'picking':
+      return 'pc-picking'
+    case 'banning':
+      return 'pc-banning'
+    case 'locked':
+      return 'pc-locked'
+    default:
+      return ''
+  }
+}
+
+/**
  * T 级数字 → 徽章文案、语义色 token 与背景色（pill chip 用）
  * @param tier - OP.GG 英雄强度分级（1 最强 ~ 5 最弱，0 表示无数据）
  * @returns 徽章文案（如 'T1'）、CSS 变量颜色、对应色 15% 透明度背景；tier 为 0 时全空
