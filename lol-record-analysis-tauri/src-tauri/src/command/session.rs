@@ -96,6 +96,8 @@ fn is_latest_task(counter: &AtomicU64, seq: u64) -> bool {
 /// - `subteams`: 所有小队，CLASSIC 长度 2，CHERRY 长度 1~8
 /// - `cherry_subteams_pending`: CHERRY 模式下当前分队是否仍是占位数据（EOG 端点尚未返回权威 subteamId）。
 ///   true 表示前端应继续轮询直到该端点 ready。CLASSIC 模式恒为 false。
+/// - `champ_select`: 选人阶段的结构化视图（会话级阶段 + 双方已 ban 列表）。
+///   仅 `phase == "ChampSelect"` 时为 `Some`，其余阶段为 `None` 且不序列化该字段。
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionData {
@@ -110,6 +112,8 @@ pub struct SessionData {
     pub subteams: Vec<Subteam>,
     #[serde(default)]
     pub cherry_subteams_pending: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub champ_select: Option<crate::lcu::api::champion_select::ChampSelectView>,
 }
 
 /// 一个小队的展示数据：编号 + 玩家列表。
@@ -269,11 +273,16 @@ async fn process_session_data(app_handle: AppHandle, seq: u64) -> Result<(), Str
 
     let mut session = Session::get_session().await?;
 
+    // 选人阶段的结构化视图（会话级阶段 + 双方已 ban 列表），随后写入 session_data.champ_select；
+    // 非选人阶段 / 拉取失败时保持 None。
+    let mut champ_select_view: Option<crate::lcu::api::champion_select::ChampSelectView> = None;
+
     if phase == "ChampSelect" {
         match get_champion_select_session().await {
             Ok(select_session) => {
-                let pick_states =
-                    crate::lcu::api::champion_select::derive_pick_states(&select_session);
+                let (view, pick_states) =
+                    crate::lcu::api::champion_select::derive_champ_select_view(&select_session);
+                champ_select_view = Some(view);
                 let to_one_player = |p: &crate::lcu::api::champion_select::OnePlayer| {
                     crate::lcu::api::session::OnePlayer {
                         champion_id: p.champion_id,
@@ -320,6 +329,7 @@ async fn process_session_data(app_handle: AppHandle, seq: u64) -> Result<(), Str
         my_subteam_id: 0,
         subteams: Vec::new(),
         cherry_subteams_pending: false,
+        champ_select: champ_select_view,
     };
 
     if is_multi_team {
@@ -1055,7 +1065,39 @@ fn one_in_arr(e: &str, arr: &[String]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lcu::api::champion_select::ChampSelectView;
     use crate::lcu::api::session::{GameData, OnePlayer, Queue, Session};
+
+    /// `champ_select` 应以 camelCase（`champSelect`/`myBans`/`theirBans`）序列化，
+    /// 供前端直接消费选人阶段流视图。
+    #[test]
+    fn champ_select_field_serializes_camel_case_when_present() {
+        let data = SessionData {
+            phase: "ChampSelect".into(),
+            champ_select: Some(ChampSelectView {
+                stage: "banning".into(),
+                my_bans: vec![266],
+                their_bans: vec![103],
+            }),
+            ..Default::default()
+        };
+        let json = serde_json::to_value(&data).unwrap();
+        assert_eq!(json["champSelect"]["stage"], "banning");
+        assert_eq!(json["champSelect"]["myBans"][0], 266);
+        assert_eq!(json["champSelect"]["theirBans"][0], 103);
+    }
+
+    /// 非选人阶段 `champ_select` 为 None 时，字段应整体省略（skip_serializing_if）。
+    #[test]
+    fn champ_select_field_omitted_when_none() {
+        let data = SessionData {
+            phase: "InProgress".into(),
+            champ_select: None,
+            ..Default::default()
+        };
+        let json = serde_json::to_value(&data).unwrap();
+        assert!(json.get("champSelect").is_none());
+    }
 
     #[test]
     fn newer_session_task_supersedes_older() {
