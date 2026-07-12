@@ -21,7 +21,7 @@ vi.mock('@renderer/services/opgg', () => ({
     championId === 238
       ? {
           championId: 238,
-          position: 'mid',
+          position: 'JUNGLE',
           tier: 1,
           rank: 1,
           winRate: 0.532,
@@ -149,6 +149,12 @@ describe('buildChampSelectPrompt', () => {
     expect(prompt).toContain('T1')
   })
 
+  it('includes 敌方主分路（中文，来自 OP.GG position）', async () => {
+    // mock 里 championId 238（劫）的 meta.position 为 'JUNGLE'
+    const prompt = await buildChampSelectPrompt(makeSessionData({}), 'ranked')
+    expect(prompt).toContain('主分路打野')
+  })
+
   it('includes ban 名字', async () => {
     const prompt = await buildChampSelectPrompt(makeSessionData({}), 'ranked')
     expect(prompt).toContain('李青') // 我方 ban
@@ -200,5 +206,45 @@ describe('buildChampSelectPrompt', () => {
   it('shows "敌方不可见" when enemy subteam is entirely absent (随机英雄模式)', async () => {
     const prompt = await buildChampSelectPrompt(makeSessionData({ noEnemySubteam: true }), 'aram')
     expect(prompt).toContain('敌方不可见')
+  })
+
+  it('禁止选人类建议 when 我方全部锁定 (allMyLocked)', async () => {
+    const session = makeSessionData({})
+    // 我方乙从 championId=0/none 改为已选且已锁定 → 我方两人均 locked，触发 allMyLocked
+    session.subteams[0].players[1] = makeMyPlayer({
+      name: '我方乙',
+      puuid: 'p2',
+      championId: 55,
+      pickState: 'locked',
+      tierCn: '铂金II'
+    })
+    const prompt = await buildChampSelectPrompt(session, 'ranked')
+    expect(prompt).toContain('禁止给出任何选英雄')
+  })
+
+  it('允许选人类建议 when 我方尚未全部锁定', async () => {
+    // 默认 fixture：我方乙 championId=0/pickState='none' → 未全部锁定
+    const prompt = await buildChampSelectPrompt(makeSessionData({}), 'ranked')
+    expect(prompt).toContain('尚未结束')
+  })
+
+  it('禁止选人类建议 when stage 为 finalization（即使 pickState 数据未跟上）', async () => {
+    const session = makeSessionData({})
+    session.champSelect!.stage = 'finalization'
+    const prompt = await buildChampSelectPrompt(session, 'ranked')
+    expect(prompt).toContain('禁止给出任何选英雄')
+  })
+
+  it('includes 数据指标引用纪律（禁止出场率/ban率等未提供指标，区分英雄版本数据与玩家个人数据）', async () => {
+    const prompt = await buildChampSelectPrompt(makeSessionData({}), 'ranked')
+    expect(prompt).toContain('出场率')
+    expect(prompt).toContain('版本胜率')
+    expect(prompt).toContain('不是英雄的版本数据')
+  })
+
+  it('includes 禁止职能标签纪律', async () => {
+    const prompt = await buildChampSelectPrompt(makeSessionData({}), 'ranked')
+    expect(prompt).toContain('禁止给英雄贴')
+    expect(prompt).toContain('主分路≠职能')
   })
 })

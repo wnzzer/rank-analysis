@@ -29,6 +29,25 @@ function stageLabel(stage: string | undefined): string {
   return (stage && STAGE_CN[stage]) || '未知'
 }
 
+/**
+ * OP.GG 主分路（LCU 命名，见 opgg::data::normalize_position）→ 中文。
+ * 注意：这是 OP.GG 统计意义上的"主分路"，不是英雄职能（坦克/刺客/法师...）——
+ * 材料没有职能字段，禁止据此推断或标注职能。
+ */
+const POSITION_CN: Record<string, string> = {
+  TOP: '上单',
+  JUNGLE: '打野',
+  MIDDLE: '中单',
+  BOTTOM: '下路',
+  UTILITY: '辅助'
+}
+
+/** OP.GG 主分路 → 中文展示片段，position 为空串（aram 等无分路模式）时不展示该段 */
+function positionSegment(position: string | undefined): string {
+  const cn = position ? POSITION_CN[position] : undefined
+  return cn ? `｜主分路${cn}` : ''
+}
+
 /** ban 列表 → 英雄名字串，空列表显示"无" */
 function banListText(ids: number[]): string {
   return ids.length > 0 ? ids.map(id => getChampionName(id)).join('、') : '无'
@@ -85,6 +104,15 @@ export async function buildChampSelectPrompt(
   const revealedEnemies = enemyPlayers.filter(p => p.championId > 0)
   const hiddenCount = enemyPlayers.length - revealedEnemies.length
 
+  // 我方是否已全部锁定：每个我方玩家都已选英雄(championId>0)且 pickState 为 locked。
+  // 用于决定分析纪律里能不能给"选/抢/换英雄"类建议——已经锁定的选人建议是幻觉的重灾区。
+  const allMyLocked =
+    myPlayers.length > 0 && myPlayers.every(p => p.championId > 0 && p.pickState === 'locked')
+  const suggestionDiscipline =
+    allMyLocked || sessionData.champSelect?.stage === 'finalization'
+      ? '当前所有选择已锁定：禁止给出任何选英雄/抢英雄/换英雄类建议，只允许给对局执行层面的建议（对线思路/资源决策/注意事项）'
+      : '选人尚未结束，可以给选人建议，但只能针对我方尚未锁定的位置'
+
   const myBans = sessionData.champSelect?.myBans ?? []
   const theirBans = sessionData.champSelect?.theirBans ?? []
 
@@ -122,7 +150,7 @@ export async function buildChampSelectPrompt(
         hints.length > 0
           ? '｜' + hints.map(h => counterHintText(h.myWinRate, h.myChampionId)).join('，')
           : ''
-      return `- ${name}｜${tierLabel(meta?.tier)}/胜率${winRateText}${hintText}`
+      return `- ${name}${positionSegment(meta?.position)}｜${tierLabel(meta?.tier)}/胜率${winRateText}${hintText}`
     })
     if (hiddenCount > 0) {
       lines.push(`- 其余 ${hiddenCount} 人未亮出`)
@@ -152,6 +180,9 @@ ${enemyBlock}
 - "近期常用英雄"战绩 ≠ 本局英雄：玩家本局锁定的英雄若不在其常用列表中，不能当成他不熟练的证据，只能如实说"本局英雄非其常用英雄，风格未知"。
 - 禁止编造英雄的技能、被动机制、连招或数值——材料里没给出的机制信息一律不许提。
 - "补位"仅指位置状态（本局位置偏离主玩位置），不代表水平高低；禁止生造"XX流"之类的术语。
+- ${suggestionDiscipline}
+- 材料中的每个数字都有明确的指标名：敌方英雄的"胜率"是 OP.GG 版本胜率；我方玩家"常用"括号里的胜率/场次是该玩家个人近期数据，不是英雄的版本数据。禁止使用材料中不存在的指标名（如"出场率""ban率"——材料未提供），禁止把玩家个人数据说成英雄版本数据。
+- 禁止给英雄贴"坦克/刺客/法师/射手"等职能标签或基于职能给玩法建议——材料未提供英雄职能信息，主分路≠职能。
 
 ===== 输出要求 =====
 给一份约 250 字的速读分析，严格按下面 markdown 模板，章节标题与顺序不可改：
