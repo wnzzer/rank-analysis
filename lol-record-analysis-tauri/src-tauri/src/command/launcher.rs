@@ -206,6 +206,54 @@ pub async fn launch_league() -> Result<(), String> {
     Ok(())
 }
 
+/// 关闭客户端兜底强杀的进程链，先杀渲染层（Ux）再杀主进程。
+///
+/// 刻意不含对局进程 `League of Legends.exe`：对局中强退会被判定为逃跑
+/// （掉胜点 + 排队惩罚），代价远超「客户端没关干净」，故只关客户端本体。
+const CLIENT_PROCESS_CHAIN: [&str; 2] = ["LeagueClientUx.exe", "LeagueClient.exe"];
+
+/// LCU 空 JSON 请求体（`process-control` 退出端点不需要参数）。
+#[derive(serde::Serialize)]
+struct EmptyJsonBody {}
+
+/// 关闭正在运行的英雄联盟客户端。
+///
+/// 优先走 LCU 的 `POST /process-control/v1/process/quit` 让客户端优雅退出
+/// （等同于点客户端右上角关闭，客户端自行收尾并带走整条进程链）；LCU 不可用
+/// 或请求失败（客户端卡死等）时，兜底按进程名强杀
+/// `LeagueClientUx.exe` / `LeagueClient.exe`。
+///
+/// # 返回值
+///
+/// - `Ok(())`: 已发出优雅退出指令，或已强制结束至少一个客户端进程
+/// - `Err(String)`: 两条路径都失败（通常是客户端本就没在运行）
+#[tauri::command]
+pub async fn close_league() -> Result<(), String> {
+    crate::observability::track_feature("close_league");
+
+    let graceful = crate::lcu::util::http::lcu_post::<serde_json::Value, _>(
+        "process-control/v1/process/quit",
+        &EmptyJsonBody {},
+    )
+    .await;
+    if graceful.is_ok() {
+        log::info!("已通过 LCU 优雅退出游戏客户端");
+        return Ok(());
+    }
+
+    // LCU 打不通时按进程名强杀兜底；单个进程名失败不影响其余
+    let killed: u32 = CLIENT_PROCESS_CHAIN
+        .iter()
+        .map(|name| crate::lcu::util::token::kill_processes_by_name(name).unwrap_or(0))
+        .sum();
+    if killed > 0 {
+        log::info!("已强制结束 {} 个游戏客户端进程", killed);
+        Ok(())
+    } else {
+        Err("未检测到正在运行的游戏客户端。".to_string())
+    }
+}
+
 /// 启动目标 exe（工作目录设为其所在目录），需要提权时自动弹 UAC。
 ///
 /// **必须用 `ShellExecuteW` 而非 `std::process::Command`**：国服 `Launcher\Client.exe`

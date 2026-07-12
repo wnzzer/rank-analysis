@@ -92,8 +92,9 @@ function handleConnectionRoute(state: GameStateEvent) {
       console.log('📍 Auto navigated to Record page')
     }
   } else {
-    // 游戏客户端断开连接，跳转 Loading
-    if (currentPath !== '/Loading') {
+    // 游戏客户端断开连接，跳转 Loading。设置页豁免：设置不依赖 LCU 连接，
+    // 且状态事件每 ≤10s 心跳一次，不豁免会把正在改设置的用户反复踢回 Loading
+    if (currentPath !== '/Loading' && !currentPath.startsWith('/Settings')) {
       router.push({
         path: '/Loading'
       })

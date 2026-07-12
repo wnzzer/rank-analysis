@@ -150,6 +150,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             command::system::relaunch_as_admin,
             command::system::get_device_id,
             command::launcher::launch_league,
+            command::launcher::close_league,
             command::sgp::get_sgp_regions,
             command::sgp::get_current_sgp_region,
             command::sgp::get_sgp_match_history_by_name,

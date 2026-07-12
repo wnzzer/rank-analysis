@@ -13,12 +13,12 @@ use std::sync::LazyLock;
 use winapi::shared::minwindef::{DWORD, FALSE};
 use winapi::shared::ntdef::UNICODE_STRING;
 use winapi::um::handleapi::{CloseHandle, INVALID_HANDLE_VALUE};
-use winapi::um::processthreadsapi::OpenProcess;
+use winapi::um::processthreadsapi::{OpenProcess, TerminateProcess};
 use winapi::um::tlhelp32::{
     CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
 };
 use winapi::um::winbase::QueryFullProcessImageNameW;
-use winapi::um::winnt::{HANDLE, PROCESS_QUERY_LIMITED_INFORMATION};
+use winapi::um::winnt::{HANDLE, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_TERMINATE};
 
 /// `Windows` `ERROR_ACCESS_DENIED`：`OpenProcess` 对更高完整性级别（如以管理员
 /// 身份运行的客户端）的进程会返回此错误。
@@ -110,6 +110,50 @@ fn get_process_pid_by_name(name: &str) -> Result<Vec<DWORD>, String> {
     }
 
     Ok(pids)
+}
+
+/// 按进程名强制结束所有匹配进程。
+///
+/// 用于关闭游戏客户端的兜底路径（LCU 优雅退出不可用时，见
+/// `command::launcher::close_league`）。逐个 `OpenProcess(PROCESS_TERMINATE)` +
+/// `TerminateProcess`；单个进程失败只记日志、不影响其余进程。
+///
+/// # 参数
+/// - `name`: 进程名（如 `LeagueClientUx.exe`），匹配规则与
+///   [`get_process_pid_by_name`] 一致（不区分大小写的包含匹配）
+///
+/// # 返回值
+/// - `Ok(u32)`: 成功结束的进程数（未找到匹配进程时为 0）
+/// - `Err(String)`: 创建进程快照失败
+pub fn kill_processes_by_name(name: &str) -> Result<u32, String> {
+    let pids = get_process_pid_by_name(name)?;
+    let mut killed = 0u32;
+    for pid in pids {
+        unsafe {
+            let handle = OpenProcess(PROCESS_TERMINATE, FALSE, pid);
+            if handle.is_null() {
+                log::warn!(
+                    "无法打开进程 {}（{}）以结束: {}",
+                    pid,
+                    name,
+                    std::io::Error::last_os_error()
+                );
+                continue;
+            }
+            let _handle_guard = ProcessHandle(handle);
+            if TerminateProcess(handle, 1) == FALSE {
+                log::warn!(
+                    "结束进程 {}（{}）失败: {}",
+                    pid,
+                    name,
+                    std::io::Error::last_os_error()
+                );
+            } else {
+                killed += 1;
+            }
+        }
+    }
+    Ok(killed)
 }
 
 fn get_process_command_line(pid: DWORD) -> Result<String, CmdError> {
