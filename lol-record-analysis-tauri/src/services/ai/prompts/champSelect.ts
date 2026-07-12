@@ -108,10 +108,14 @@ export async function buildChampSelectPrompt(
   // 用于决定分析纪律里能不能给"选/抢/换英雄"类建议——已经锁定的选人建议是幻觉的重灾区。
   const allMyLocked =
     myPlayers.length > 0 && myPlayers.every(p => p.championId > 0 && p.pickState === 'locked')
-  const suggestionDiscipline =
-    allMyLocked || sessionData.champSelect?.stage === 'finalization'
-      ? '当前所有选择已锁定：禁止给出任何选英雄/抢英雄/换英雄类建议，只允许给对局执行层面的建议（对线思路/资源决策/注意事项）'
-      : '选人尚未结束，可以给选人建议，但只能针对我方尚未锁定的位置'
+  const picksSettled = allMyLocked || sessionData.champSelect?.stage === 'finalization'
+  const suggestionDiscipline = picksSettled
+    ? '当前所有选择已锁定：禁止给出任何选英雄/抢英雄/换英雄类建议，只允许给对局执行层面的建议（对线思路/资源决策/注意事项）'
+    : '选人尚未结束，可以给选人建议，但只能针对我方尚未锁定的位置'
+  // 输出模板里的建议示例词必须与上面的纪律同频——锁定后模板再出现「选人」示例会诱导幻觉
+  const suggestionTemplateLine = picksSettled
+    ? '- 2-3 条面向对局执行的建议（对线思路/资源决策/团战注意事项）'
+    : '- 2-3 条针对当前 BP 阶段可执行的建议（选人/克制/资源分配）'
 
   const myBans = sessionData.champSelect?.myBans ?? []
   const theirBans = sessionData.champSelect?.theirBans ?? []
@@ -194,7 +198,7 @@ ${enemyBlock}
 {结合敌方英雄的 T 级/胜率/克制关系，指出我方最该注意的点；信息不足就说"数据不足"}
 
 ## 给我方的建议
-- 2-3 条针对当前 BP 阶段可执行的建议（选人/克制/资源分配）
+${suggestionTemplateLine}
 
 【语气】像懂哥开黑前的速读：简洁、戏谑、有梗；不辱骂、不地域黑、不人身攻击；
 只用给定数据里的数字，缺数据就说"数据不足"而不是编。`
