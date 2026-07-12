@@ -181,31 +181,29 @@ impl MatchHistory {
             .await
             .map_err(|e| e.to_string())?;
 
-        let total_games = history.games.games.len();
-        let beg = beg_index as usize;
-        let end = end_index as usize;
+        Ok(Self::slice_page(
+            history,
+            beg_index as usize,
+            end_index as usize,
+        ))
+    }
 
-        if end >= total_games {
-            return MatchHistory::get_by_puuid(puuid, beg_index, end_index).await;
-        }
-        if beg >= total_games {
-            return Err(format!(
-                "开始索引 {} 超出范围，总游戏数 {}",
-                beg, total_games
-            ));
-        }
-
-        let actual_end = std::cmp::min(end + 1, total_games);
-        if beg >= actual_end {
-            return Err(format!("有效范围为空：{} >= {}", beg, actual_end));
-        }
-
-        Ok(MatchHistory {
+    /// 从整包缓存切出请求页 `[beg_index, end_index]`（闭区间），越界自动截断。
+    ///
+    /// 缓存的 0..=[`MAX_CACHE_END`] 包在玩家总场次不足 50 时已是其全部历史，
+    /// 此时重拉 LCU 只会拿回整包（warm puuid 的区间参数被忽略，见
+    /// [`Self::get_by_puuid`]），曾导致翻页内容整包重复——一律本地切片。
+    /// 起始索引越界时返回空页而非报错，让前端翻页自然终止。
+    fn slice_page(history: MatchHistory, beg_index: usize, end_index: usize) -> MatchHistory {
+        let total = history.games.games.len();
+        let end = std::cmp::min(end_index + 1, total);
+        let beg = std::cmp::min(beg_index, end);
+        MatchHistory {
             games: GamesWrapper {
-                games: history.games.games[beg..actual_end].to_vec(),
+                games: history.games.games[beg..end].to_vec(),
             },
             ..history
-        })
+        }
     }
 
     /// 为每条对局拉取详情（game_detail）并写入。
@@ -471,6 +469,67 @@ mod mvp_score_tests {
             mh.games.games[0].mvp, "SVP",
             "败方唯一玩家即败方最高分，应为 SVP"
         );
+    }
+}
+
+#[cfg(test)]
+mod slice_page_tests {
+    use super::*;
+
+    /// 造一个含 n 场对局的整包缓存，game_id 依次为 0..n。
+    fn history_of(n: i64) -> MatchHistory {
+        MatchHistory {
+            platform_id: "TJ100".to_string(),
+            games: GamesWrapper {
+                games: (0..n)
+                    .map(|id| Game {
+                        game_id: id,
+                        ..Default::default()
+                    })
+                    .collect(),
+            },
+            ..Default::default()
+        }
+    }
+
+    fn ids(mh: &MatchHistory) -> Vec<i64> {
+        mh.games.games.iter().map(|g| g.game_id).collect()
+    }
+
+    #[test]
+    fn slices_requested_page_within_range() {
+        let page = MatchHistory::slice_page(history_of(15), 0, 9);
+        assert_eq!(ids(&page), (0..10).collect::<Vec<_>>());
+    }
+
+    /// Bug 场景：15 场玩家翻第 2 页（10..19）——应返回尾部 5 场，
+    /// 而不是重拉 LCU 拿回整包 15 场导致翻页内容重复。
+    #[test]
+    fn clamps_tail_page_past_total() {
+        let page = MatchHistory::slice_page(history_of(15), 10, 19);
+        assert_eq!(ids(&page), (10..15).collect::<Vec<_>>());
+    }
+
+    /// 恰好 10 场的玩家翻第 2 页：起始索引已越界，应返回空页
+    /// （前端 noMoreMatches 依赖 games.length < 10 终止翻页），而非报错。
+    #[test]
+    fn returns_empty_page_when_beg_past_total() {
+        let page = MatchHistory::slice_page(history_of(10), 10, 19);
+        assert!(ids(&page).is_empty());
+    }
+
+    /// 零场次新号请求 0..49：应返回空页而非报错（rank 页等调用方 beg 恒为 0）。
+    #[test]
+    fn returns_empty_for_zero_game_account() {
+        let page = MatchHistory::slice_page(history_of(0), 0, 49);
+        assert!(ids(&page).is_empty());
+    }
+
+    /// 整包顶层字段（platform_id 等）应随切片保留。
+    #[test]
+    fn keeps_top_level_fields() {
+        let page = MatchHistory::slice_page(history_of(15), 10, 19);
+        assert_eq!(page.platform_id, "TJ100");
     }
 }
 
