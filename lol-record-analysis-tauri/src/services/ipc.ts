@@ -58,3 +58,13 @@ export async function getAssetDetailsByIpc(typeString: 'item' | 'perk' | 'spell'
 export async function launchLeagueByIpc(): Promise<void> {
   await invoke('launch_league')
 }
+
+/**
+ * 关闭正在运行的英雄联盟客户端。
+ *
+ * 后端优先走 LCU 优雅退出（等同点客户端右上角关闭），LCU 不可用时兜底强杀
+ * 客户端进程链；客户端本就没在运行时 reject 一个中文错误说明。
+ */
+export async function closeLeagueByIpc(): Promise<void> {
+  await invoke('close_league')
+}

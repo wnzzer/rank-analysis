@@ -36,6 +36,25 @@
       </n-input>
     </div>
     <div class="header-right">
+      <n-popconfirm positive-text="关闭游戏" negative-text="取消" @positive-click="closeLeague">
+        <template #trigger>
+          <n-tooltip trigger="hover">
+            <template #trigger>
+              <n-button
+                quaternary
+                circle
+                class="header-icon-btn close-league-btn"
+                :disabled="!isConnected"
+                :loading="closingLeague"
+              >
+                <n-icon :component="PowerOutline" />
+              </n-button>
+            </template>
+            {{ isConnected ? '关闭游戏客户端' : '游戏客户端未运行' }}
+          </n-tooltip>
+        </template>
+        确定关闭游戏客户端？
+      </n-popconfirm>
       <n-tooltip trigger="hover">
         <template #trigger>
           <n-button quaternary circle class="header-icon-btn" @click="openGithubLink">
@@ -87,14 +106,17 @@ import {
   CloseOutline,
   SunnyOutline,
   MoonOutline,
-  ChevronDownOutline
+  ChevronDownOutline,
+  PowerOutline
 } from '@vicons/ionicons5'
-import { darkTheme } from 'naive-ui'
+import { darkTheme, useMessage } from 'naive-ui'
 import { Window } from '@tauri-apps/api/window'
 import { openUrl } from '@tauri-apps/plugin-opener'
 
 import router from '@renderer/router'
 import { useSettingsStore } from '@renderer/pinia/setting'
+import { useGameState } from '@renderer/composables/useGameState'
+import { closeLeagueByIpc } from '@renderer/services/ipc'
 
 /**
  * 应用顶部导航栏组件
@@ -147,6 +169,34 @@ const onRegionSelect = (key: string): void => {
 
 /** 设置状态管理 Store */
 const settingsStore = useSettingsStore()
+
+/** LCU 连接状态：仅在客户端运行（已连接）时允许点击关闭游戏 */
+const { isConnected } = useGameState()
+
+const message = useMessage()
+
+/** 关闭游戏请求进行中（防重复点击 + 按钮 loading 态） */
+const closingLeague = ref(false)
+
+/**
+ * 关闭游戏客户端（顶栏电源按钮的确认回调）
+ *
+ * 调用后端 close_league：优先 LCU 优雅退出，失败兜底强杀客户端进程链。
+ * 成功/失败均以 message 反馈；连接断开由 game-state-changed 事件自然驱动
+ * UI（按钮变为禁用态），无需在此额外处理。
+ */
+const closeLeague = async (): Promise<void> => {
+  if (closingLeague.value) return
+  closingLeague.value = true
+  try {
+    await closeLeagueByIpc()
+    message.success('已关闭游戏客户端')
+  } catch (e) {
+    message.error(String(e))
+  } finally {
+    closingLeague.value = false
+  }
+}
 
 /**
  * 主题开关状态
@@ -339,6 +389,16 @@ const closeWindow = (): void => {
   color: var(--text-primary);
   background-color: var(--glass-bg-high);
   transform: scale(1.08);
+}
+
+/* 关闭游戏按钮：hover 用败方红提示这是个"下线"动作；禁用态（未连接）淡化 */
+.close-league-btn:hover:not(:disabled) {
+  color: var(--semantic-loss);
+  background-color: color-mix(in srgb, var(--semantic-loss) 14%, transparent);
+}
+
+.close-league-btn:disabled {
+  opacity: 0.4;
 }
 
 .header-theme-switch {

@@ -21,8 +21,8 @@
         <n-icon :size="18"><GameControllerOutline /></n-icon>
         <span class="nav-item-label">对局</span>
       </button>
+      <!-- 设置不依赖 LCU 连接，未连接（Loading 页）时也保持可见可进 -->
       <button
-        v-if="!!mySummoner?.gameName"
         type="button"
         class="nav-item"
         :class="{ 'nav-item--active': getFirstPath(router.currentRoute.value.path) === 'Settings' }"
@@ -100,10 +100,13 @@ watch(
 )
 
 function handleMenuClick(key: string) {
-  // 跳转到对应路由
+  // 跳转到对应路由；未连接时（如从 Loading 页进设置）没有召唤师信息，不带 name
+  // 参数，避免生成 "undefined#undefined" 的脏 query
   router.push({
     name: key,
-    query: { name: mySummoner.value.gameName + '#' + mySummoner.value.tagLine }
+    query: mySummoner.value?.gameName
+      ? { name: mySummoner.value.gameName + '#' + mySummoner.value.tagLine }
+      : undefined
   })
 }
 
