@@ -1,5 +1,6 @@
 <template>
-  <div class="subteam-card" :class="{ 'subteam-card-mine': isMine }">
+  <!-- 我方标识只保留头部「我方」tag——外层绿框/发光按用户反馈移除，降低视觉噪音 -->
+  <div class="subteam-card">
     <div class="subteam-card-header">
       <span class="subteam-card-title">队伍 {{ subteam.subteamId }}</span>
       <n-tag v-if="isMine" size="small" type="success" :bordered="false">我方</n-tag>
@@ -97,12 +98,6 @@ const placeholderCount = computed(() =>
   min-height: 0;
   height: 100%;
   box-sizing: border-box;
-}
-
-.subteam-card-mine {
-  border-color: var(--semantic-win);
-  /* tinted ring：保持 rgba 以与卡片 token 颜色一致的发光感，复用全局 --glow-win 风格 */
-  box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.3);
 }
 
 .subteam-card-header {
