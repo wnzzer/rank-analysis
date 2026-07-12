@@ -11,7 +11,7 @@ import { getConfigByIpc } from '@renderer/services/ipc'
 import { CONFIG_KEYS } from '@renderer/services/configKeys'
 import type { AIAnalysisResult, MatchDetailAnalysisOptions, StreamCallbacks } from './types'
 import { loadChampionNames } from './champion-names'
-import { requestAIContentStream } from './stream'
+import { DEFAULT_SYSTEM_PROMPT, requestAIContentStream } from './stream'
 import { buildPlayerAnalysisPrompt, buildTeamAnalysisPrompt } from './prompts/team'
 import { buildChampSelectPrompt } from './prompts/champSelect'
 import { analyzeMatchDetail } from './matchDetail'
@@ -81,7 +81,9 @@ export async function analyzeChampSelectWithAIStream(
   try {
     await loadChampionNames()
     const prompt = await buildChampSelectPrompt(sessionData, opggMode)
-    await requestAIContentStream(prompt, callbacks, IN_GAME_SYSTEM_PROMPT)
+    // 用 stream.ts 的 DEFAULT_SYSTEM_PROMPT（含"所有结论都必须绑定数据证据"的反幻觉指令），
+    // 与选人期 prompt 里的分析纪律硬规则配套；不沿用对局中的 IN_GAME_SYSTEM_PROMPT。
+    await requestAIContentStream(prompt, callbacks, DEFAULT_SYSTEM_PROMPT)
   } catch (error: any) {
     console.error('Champ select AI analysis error:', error)
     callbacks.onError(error.message || '网络请求失败')

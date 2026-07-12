@@ -1,12 +1,14 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { buildChampSelectPrompt } from '../champSelect'
+import { findCounterHints } from '@renderer/services/opgg'
 import type { SessionData, SessionSummoner } from '@renderer/types/domain/gaming'
 
 const CHAMP_NAMES: Record<number, string> = {
   103: '阿狸',
   238: '劫',
   64: '李青',
-  55: '卡特琳娜'
+  55: '卡特琳娜',
+  266: '剑魔'
 }
 
 vi.mock('../../champion-names', () => ({
@@ -126,6 +128,12 @@ function makeSessionData(opts: {
 }
 
 describe('buildChampSelectPrompt', () => {
+  beforeEach(() => {
+    // 清掉上一个用例遗留的 mockReturnValueOnce 队列，回到默认"无克制提示"
+    vi.mocked(findCounterHints).mockReset()
+    vi.mocked(findCounterHints).mockReturnValue([])
+  })
+
   it('includes 模式/我方玩家名与段位', async () => {
     const prompt = await buildChampSelectPrompt(makeSessionData({}), 'ranked')
     expect(prompt).toContain('单双排位')
@@ -161,6 +169,32 @@ describe('buildChampSelectPrompt', () => {
     const prompt = await buildChampSelectPrompt(makeSessionData({}), 'ranked')
     // 我方乙 championId=0 → 显示"未选"，不应出现"未锁定"误标
     expect(prompt).toContain('未选')
+  })
+
+  it('annotates （未锁定） when my player has champion but pickState !== locked', async () => {
+    const session = makeSessionData({})
+    // 我方乙改为已选英雄但仍在 picking → 名字后要带"（未锁定）"标注
+    session.subteams[0].players[1] = makeMyPlayer({
+      name: '我方乙',
+      puuid: 'p2',
+      championId: 55,
+      pickState: 'picking',
+      tierCn: '铂金II'
+    })
+    const prompt = await buildChampSelectPrompt(session, 'ranked')
+    expect(prompt).toContain('卡特琳娜（未锁定）')
+  })
+
+  it('renders 「怕我方」 counter hint with percent when enemy fears my champion', async () => {
+    vi.mocked(findCounterHints).mockReturnValueOnce([{ myChampionId: 266, myWinRate: 0.56 }])
+    const prompt = await buildChampSelectPrompt(makeSessionData({}), 'ranked')
+    expect(prompt).toContain('怕我方剑魔（56%）')
+  })
+
+  it('renders 「克制我方」 counter hint with percent when enemy counters my champion', async () => {
+    vi.mocked(findCounterHints).mockReturnValueOnce([{ myChampionId: 266, myWinRate: 0.44 }])
+    const prompt = await buildChampSelectPrompt(makeSessionData({}), 'ranked')
+    expect(prompt).toContain('克制我方剑魔（56%）')
   })
 
   it('shows "敌方不可见" when enemy subteam is entirely absent (随机英雄模式)', async () => {
