@@ -287,8 +287,10 @@ async fn process_session_data(app_handle: AppHandle, seq: u64) -> Result<(), Str
                     crate::lcu::api::session::OnePlayer {
                         champion_id: crate::lcu::api::champion_select::display_champion_id(p),
                         puuid: p.puuid.clone(),
-                        // 我方选人期有 assignedPosition(小写)，转大写供位置排序；敌方为空
-                        selected_position: p.assigned_position.to_uppercase(),
+                        // 选人期刻意不填 position——保持 LCU my_team/their_team 的原始顺序（=客户端选人界面的排列）。
+                        // 进入对局后 gameflow 数据才带 position 做分路排序。sort_by_key 是稳定排序，
+                        // 全部 weight 99 时原序保留。
+                        selected_position: String::new(),
                         team_participant_id: 0,
                         pick_state: pick_states
                             .get(&p.cell_id)
@@ -1505,5 +1507,55 @@ mod tests {
             .count();
         assert_eq!(pair_count, 4);
         assert_eq!(solo_count, 8);
+    }
+
+    /// 回归：选人期我方玩家顺序应与客户端一致，不按分路重排。
+    /// 构造 ChampSelect 场景 team_one 五人（selected_position 全空、champion_id 依次 1..5 标识顺序），
+    /// 断言 build_classic_subteams 后玩家 champion_id 顺序仍为 1..5（未被重排）。
+    #[test]
+    fn champselect_preserves_player_order_without_reordering_by_position() {
+        let mut session = Session {
+            phase: "ChampSelect".into(),
+            game_data: GameData {
+                game_id: 5,
+                is_custom_game: false,
+                queue: Queue {
+                    queue_type: "RANKED_SOLO_5x5".into(),
+                    id: 420,
+                    game_mode: "CLASSIC".into(),
+                },
+                player_champion_selections: vec![],
+                // 选人期我方五人，champion_id 依次 1..5（用来标识顺序），selected_position 全空
+                team_one: (1..=5)
+                    .map(|i| OnePlayer {
+                        champion_id: i,
+                        puuid: format!("champ-{}", i),
+                        selected_position: String::new(),
+                        team_participant_id: 0,
+                        pick_state: String::new(),
+                    })
+                    .collect(),
+                team_two: vec![],
+            },
+        };
+
+        let mut data = SessionData {
+            game_mode: "CLASSIC".into(),
+            ..Default::default()
+        };
+        build_classic_subteams(&mut session, &mut data, "champ-1");
+
+        // 我方五人应保持原序 1..5，不因 selected_position 为空就被 sort_by_key 重排
+        assert_eq!(data.subteams[0].players.len(), 5);
+        let champion_ids: Vec<i32> = data.subteams[0]
+            .players
+            .iter()
+            .map(|p| p.champion_id)
+            .collect();
+        assert_eq!(
+            champion_ids,
+            vec![1, 2, 3, 4, 5],
+            "选人期玩家顺序应保持客户端选人界面排列"
+        );
     }
 }
