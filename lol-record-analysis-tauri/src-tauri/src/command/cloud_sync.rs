@@ -19,8 +19,10 @@ const SUPABASE_PUBLISHABLE_KEY: &str = "sb_publishable_ksZfyme84izJY9oTWC4VOw_l9
 
 /// 会话在 config.yaml 里的存储键（序列化为 JSON 字符串存 Value::String）
 const SESSION_CONFIG_KEY: &str = "cloudSyncSession";
-/// 云端行的数据类型标识，v1 只有玩家备注
+/// 云端备注行的数据类型标识
 const DATA_TYPE_NOTES: &str = "playerNotes";
+/// 云端配置行的数据类型标识
+const DATA_TYPE_CONFIG: &str = "appConfig";
 /// access_token 过期前多少秒就触发刷新（留网络往返余量）
 const REFRESH_MARGIN_SECS: u64 = 60;
 
@@ -148,24 +150,24 @@ async fn ensure_session() -> Result<CloudSession, String> {
     Ok(session)
 }
 
-/// 拉取云端某 puuid 下所有设备的备注 payload 列表（前端负责合并）
+/// puuid 拼进 PostgREST 查询串前的校验：命令边界的不信任输入，限定 UUID 字符集防注入。
 ///
-/// # 参数
-/// - `puuid`: 召唤师 PUUID
-///
-/// # 返回值
-/// - `Ok(Vec<Value>)`: 各设备写入的 payload 列表（可能为空）
-/// - `Err(String)`: puuid 格式非法、网络失败或非 2xx 响应
-#[tauri::command]
-pub async fn cloud_pull_notes(puuid: String) -> Result<Vec<serde_json::Value>, String> {
-    // puuid 要拼进 PostgREST 查询串：命令边界的不信任输入，限定 UUID 字符集防注入。
-    // 正常路径 puuid 来自 LCU，恒为 UUID 格式，不受影响。
-    if !puuid.chars().all(|c| c.is_ascii_hexdigit() || c == '-') {
+/// 空串必须显式拒绝——`chars().all(...)` 对空串恒真，曾放行空 puuid 读写云端
+/// 以 "" 为键的共享行（所有同状态用户混写一行，跨用户数据串流）。
+/// 正常路径 puuid 来自 LCU，恒为 UUID 格式，不受影响。
+fn validate_puuid(puuid: &str) -> Result<(), String> {
+    if puuid.is_empty() || !puuid.chars().all(|c| c.is_ascii_hexdigit() || c == '-') {
         return Err("puuid 格式非法".to_string());
     }
+    Ok(())
+}
+
+/// 拉取云端某 puuid + data_type 下所有设备的 payload 行（notes/config 共用）
+async fn pull_payloads(puuid: &str, data_type: &str) -> Result<Vec<serde_json::Value>, String> {
+    validate_puuid(puuid)?;
     let session = ensure_session().await?;
     let url = format!(
-        "{SUPABASE_URL}/rest/v1/sync_data?puuid=eq.{puuid}&data_type=eq.{DATA_TYPE_NOTES}&select=payload"
+        "{SUPABASE_URL}/rest/v1/sync_data?puuid=eq.{puuid}&data_type=eq.{data_type}&select=payload"
     );
     let resp = http()
         .get(url)
@@ -185,23 +187,19 @@ pub async fn cloud_pull_notes(puuid: String) -> Result<Vec<serde_json::Value>, S
     Ok(rows.into_iter().map(|r| r.payload).collect())
 }
 
-/// 把本设备合并后的完整备注表 upsert 到自己的行
-///
-/// # 参数
-/// - `puuid`: 召唤师 PUUID
-/// - `payload`: 合并后的完整备注 JSON
-///
-/// # 返回值
-/// - `Ok(())`: 推送成功
-/// - `Err(String)`: 网络失败或非 2xx 响应
-#[tauri::command]
-pub async fn cloud_push_notes(puuid: String, payload: serde_json::Value) -> Result<(), String> {
+/// 把 payload upsert 到本设备的 (owner_id, puuid, data_type) 行（notes/config 共用）
+async fn push_payload(
+    puuid: &str,
+    data_type: &str,
+    payload: serde_json::Value,
+) -> Result<(), String> {
+    validate_puuid(puuid)?;
     let session = ensure_session().await?;
     let url = format!("{SUPABASE_URL}/rest/v1/sync_data?on_conflict=owner_id,puuid,data_type");
     let body = json!([{
         "owner_id": session.user_id,
         "puuid": puuid,
-        "data_type": DATA_TYPE_NOTES,
+        "data_type": data_type,
         "payload": payload,
     }]);
     let resp = http()
@@ -219,8 +217,32 @@ pub async fn cloud_push_notes(puuid: String, payload: serde_json::Value) -> Resu
     Ok(())
 }
 
-/// 云端配置行的数据类型标识
-const DATA_TYPE_CONFIG: &str = "appConfig";
+/// 拉取云端某 puuid 下所有设备的备注 payload 列表（前端负责合并）
+///
+/// # 参数
+/// - `puuid`: 召唤师 PUUID
+///
+/// # 返回值
+/// - `Ok(Vec<Value>)`: 各设备写入的 payload 列表（可能为空）
+/// - `Err(String)`: puuid 格式非法、网络失败或非 2xx 响应
+#[tauri::command]
+pub async fn cloud_pull_notes(puuid: String) -> Result<Vec<serde_json::Value>, String> {
+    pull_payloads(&puuid, DATA_TYPE_NOTES).await
+}
+
+/// 把本设备合并后的完整备注表 upsert 到自己的行
+///
+/// # 参数
+/// - `puuid`: 召唤师 PUUID
+/// - `payload`: 合并后的完整备注 JSON
+///
+/// # 返回值
+/// - `Ok(())`: 推送成功
+/// - `Err(String)`: puuid 格式非法、网络失败或非 2xx 响应
+#[tauri::command]
+pub async fn cloud_push_notes(puuid: String, payload: serde_json::Value) -> Result<(), String> {
+    push_payload(&puuid, DATA_TYPE_NOTES, payload).await
+}
 
 /// 云端配置行 payload:`updatedAt` 放 payload 内而非依赖数据库列,
 /// 免去 sync_data 表结构迁移;毫秒时间戳由推送方(本地时钟)盖。
@@ -248,30 +270,8 @@ fn pick_latest_config(rows: Vec<serde_json::Value>) -> Option<ConfigPayload> {
 /// 拉取云端最新一份配置(所有设备行中 updatedAt 最大者);云端无配置返回 None
 #[tauri::command]
 pub async fn cloud_pull_config(puuid: String) -> Result<Option<ConfigPayload>, String> {
-    if !puuid.chars().all(|c| c.is_ascii_hexdigit() || c == '-') {
-        return Err("puuid 格式非法".to_string());
-    }
-    let session = ensure_session().await?;
-    let url = format!(
-        "{SUPABASE_URL}/rest/v1/sync_data?puuid=eq.{puuid}&data_type=eq.{DATA_TYPE_CONFIG}&select=payload"
-    );
-    let resp = http()
-        .get(url)
-        .header("apikey", SUPABASE_PUBLISHABLE_KEY)
-        .header("Authorization", format!("Bearer {}", session.access_token))
-        .send()
-        .await
-        .map_err(|e| format!("云端连接失败: {e}"))?;
-    if !resp.status().is_success() {
-        return Err(format!("拉取失败: HTTP {}", resp.status()));
-    }
-    #[derive(Deserialize)]
-    struct Row {
-        payload: serde_json::Value,
-    }
-    let rows: Vec<Row> = resp.json().await.map_err(|e| e.to_string())?;
     Ok(pick_latest_config(
-        rows.into_iter().map(|r| r.payload).collect(),
+        pull_payloads(&puuid, DATA_TYPE_CONFIG).await?,
     ))
 }
 
@@ -280,31 +280,16 @@ pub async fn cloud_pull_config(puuid: String) -> Result<Option<ConfigPayload>, S
 /// 快照在 Rust 侧现取现滤——前端无法传入自定义 payload,杜绝绕过黑名单。
 #[tauri::command]
 pub async fn cloud_push_config(puuid: String) -> Result<(), String> {
-    let session = ensure_session().await?;
     let payload = ConfigPayload {
         updated_at: now_unix() * 1000,
         config: crate::config::config_snapshot(true).await,
     };
-    let url = format!("{SUPABASE_URL}/rest/v1/sync_data?on_conflict=owner_id,puuid,data_type");
-    let body = json!([{
-        "owner_id": session.user_id,
-        "puuid": puuid,
-        "data_type": DATA_TYPE_CONFIG,
-        "payload": payload,
-    }]);
-    let resp = http()
-        .post(url)
-        .header("apikey", SUPABASE_PUBLISHABLE_KEY)
-        .header("Authorization", format!("Bearer {}", session.access_token))
-        .header("Prefer", "resolution=merge-duplicates")
-        .json(&body)
-        .send()
-        .await
-        .map_err(|e| format!("云端连接失败: {e}"))?;
-    if !resp.status().is_success() {
-        return Err(format!("推送失败: HTTP {}", resp.status()));
-    }
-    Ok(())
+    push_payload(
+        &puuid,
+        DATA_TYPE_CONFIG,
+        serde_json::to_value(payload).map_err(|e| e.to_string())?,
+    )
+    .await
 }
 
 /// 前端做"云端 vs 本地"内容比对用的本地快照(云同步口径,已过滤,无敏感键)
@@ -368,17 +353,6 @@ fn validate_backup_path(path: &str) -> Result<(), String> {
     }
 }
 
-/// 把文本写入用户经系统对话框选定的路径（导出备份用，路径来自 plugin-dialog）
-///
-/// # 参数
-/// - `path`: 目标文件路径（必须以 `.json` 结尾，见 [`validate_backup_path`]）
-/// - `content`: 待写入的文本内容
-#[tauri::command]
-pub async fn save_text_file(path: String, content: String) -> Result<(), String> {
-    validate_backup_path(&path)?;
-    std::fs::write(&path, content).map_err(|e| format!("写入文件失败 {path}: {e}"))
-}
-
 /// 读取用户经系统对话框选定的文本文件（导入备份用）
 ///
 /// # 参数
@@ -410,6 +384,26 @@ mod tests {
     #[test]
     fn should_not_refresh_when_fresh() {
         assert!(!needs_refresh(1000, 100)); // 100 + 60 < 1000
+    }
+
+    #[test]
+    fn validate_puuid_accepts_uuid_format() {
+        assert!(validate_puuid("70d5f089-1234-abcd-ef00-0123456789ab").is_ok());
+        assert!(validate_puuid("DEADBEEF-0000-1111-2222-333344445555").is_ok());
+    }
+
+    /// 空串对 `chars().all(...)` 恒真——曾绕过校验读写云端以 "" 为键的共享行，
+    /// 造成跨用户数据串流；必须显式拒绝。
+    #[test]
+    fn validate_puuid_rejects_empty() {
+        assert!(validate_puuid("").is_err());
+    }
+
+    #[test]
+    fn validate_puuid_rejects_injection_chars() {
+        assert!(validate_puuid("abc&data_type=eq.appConfig").is_err());
+        assert!(validate_puuid("x'; drop table").is_err());
+        assert!(validate_puuid("汉字").is_err());
     }
 
     #[test]

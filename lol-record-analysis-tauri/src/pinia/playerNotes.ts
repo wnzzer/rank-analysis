@@ -4,7 +4,10 @@ import { emit, listen } from '@tauri-apps/api/event'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import type { NoteLabel, PlayerNote, PlayerNotesMap } from '@renderer/types/domain/playerNote'
 import type { OneGamePlayer } from '@renderer/types/domain/analysis'
-import { mergeNotesMaps, type MergeStats } from '@renderer/utils/mergePlayerNotes'
+import { mergeNotesMaps, TOMBSTONE_TTL_MS, type MergeStats } from '@renderer/utils/mergePlayerNotes'
+
+/** 备注写入来源：用户操作（编辑/手动导入）或云同步合并 */
+export type NotesMutationOrigin = 'user' | 'sync'
 
 /** 持久化 key，复用 config 系统，无需新增 Rust command */
 const STORAGE_KEY = 'playerNotes'
@@ -20,16 +23,6 @@ const NOTES_CHANGED_EVENT = 'player-notes-changed'
 
 /** 单个玩家最多保留的遇见记录条数（最近在前，超出截断） */
 const MAX_ENCOUNTERS = 20
-
-/**
- * 墓碑保留时长：30 天。
- *
- * 墓碑（`deleted: true` 条目）的唯一使命是把"删除"随合并传播到云端与其他
- * 设备，之后就是死重——不 GC 的话 map 只增不减。30 天窗口的取值权衡：
- * 太短则长期离线的设备错过删除传播（回线后其旧活备注会复活该条目）；
- * 太长则墓碑堆积。30 天足以覆盖绝大多数设备的回线周期。
- */
-const TOMBSTONE_TTL_MS = 30 * 24 * 60 * 60 * 1000
 
 /** 时间字符串转毫秒，无效值归零（用于遇见记录排序） */
 function toTimestamp(date: string): number {
@@ -66,6 +59,15 @@ function mergeEncounters(
 export const usePlayerNotesStore = defineStore('playerNotes', () => {
   /** 内存副本：puuid -> 备注 */
   const notes = ref<PlayerNotesMap>({})
+
+  /**
+   * 用户来源写操作的单调计数（setNote/removeNote/手动导入，含其他窗口广播来的）。
+   *
+   * 云同步的防抖调度信号：只有用户改动需要排期推送——若直接 watch `notes`
+   * 引用，云同步自己 pull 合并的写入也会调度 30s 后再来一轮同步，形成
+   * "每次有合并的同步都附赠一轮空同步"的自触发回环。
+   */
+  const userMutationSeq = ref(0)
 
   /**
    * 单调递增时间戳：保证同一毫秒内的多次写入仍有稳定先后，
@@ -131,8 +133,11 @@ export const usePlayerNotesStore = defineStore('playerNotes', () => {
     if (!syncRegistered) {
       syncRegistered = true
       // 收到其他窗口的变更广播后重载；loadFromConfig 不再 emit，无回环。
-      listen(NOTES_CHANGED_EVENT, () => {
+      // 用户来源的广播同时递增 userMutationSeq——详情窗口的编辑要靠主窗口
+      // 的防抖调度才能推送云端；sync 来源不递增（防同步自触发）。
+      listen<{ origin?: NotesMutationOrigin }>(NOTES_CHANGED_EVENT, event => {
         loadFromConfig()
+        if (event.payload?.origin !== 'sync') userMutationSeq.value++
       }).catch(error => console.error('Failed to listen player-notes-changed:', error))
     }
   }
@@ -170,6 +175,7 @@ export const usePlayerNotesStore = defineStore('playerNotes', () => {
       ...notes.value,
       [puuid]: { ...rest, updatedAt: nextTs(), ...(encounters ? { encounters } : {}) }
     }
+    userMutationSeq.value++
     await persist()
   }
 
@@ -199,18 +205,24 @@ export const usePlayerNotesStore = defineStore('playerNotes', () => {
         deleted: true
       }
     }
+    userMutationSeq.value++
     await persist()
   }
 
   /**
    * 批量并入外部备注表（手动导入 / 云端拉取共用），同 puuid 按 updatedAt 新者赢。
-   * 无实际变化（仅 kept/invalid）时不落盘、不广播。
+   * 无实际变化（仅 kept/invalid/expired）时不落盘、不广播。
    * 墓碑就是普通条目，走同一套"新者赢"——较新的墓碑压过旧活备注（删除传播），
-   * 较新的活备注压过旧墓碑（删除后重新标记），无需特判。
+   * 较新的活备注压过旧墓碑（删除后重新标记）；过期墓碑由 mergeNotesMaps 拦下。
    * @param incoming - 外部备注表
+   * @param origin - 写入来源：'user'（默认，手动导入）会触发云同步防抖调度，
+   *   'sync'（云同步 pull 合并）不触发——否则每次有合并的同步都自触发下一轮
    * @returns 合并统计，供 UI 反馈
    */
-  async function importNotes(incoming: PlayerNotesMap): Promise<MergeStats> {
+  async function importNotes(
+    incoming: PlayerNotesMap,
+    origin: NotesMutationOrigin = 'user'
+  ): Promise<MergeStats> {
     const { merged, stats } = mergeNotesMaps(notes.value, incoming)
     if (stats.added === 0 && stats.replaced === 0) return stats
     notes.value = merged
@@ -218,7 +230,8 @@ export const usePlayerNotesStore = defineStore('playerNotes', () => {
     for (const note of Object.values(merged)) {
       if (note.updatedAt > lastTs) lastTs = note.updatedAt
     }
-    await persist()
+    if (origin === 'user') userMutationSeq.value++
+    await persist(origin)
     return stats
   }
 
@@ -226,8 +239,9 @@ export const usePlayerNotesStore = defineStore('playerNotes', () => {
    * 整表落盘，并广播变更通知其他窗口重载。
    * 落盘失败时**重新抛出**——否则 setNote/removeNote 即使写盘失败也会 resolve，
    * 上层 try/catch 永远进不去，用户看到"已保存/已删除"却实际未持久化。
+   * @param origin - 广播携带的来源标记，各窗口据此决定是否调度云同步推送
    */
-  async function persist(): Promise<void> {
+  async function persist(origin: NotesMutationOrigin = 'user'): Promise<void> {
     try {
       await putConfigByIpc(STORAGE_KEY, notes.value)
     } catch (error) {
@@ -235,8 +249,8 @@ export const usePlayerNotesStore = defineStore('playerNotes', () => {
       throw error
     }
     // 落盘成功后再广播
-    emit(NOTES_CHANGED_EVENT).catch(() => {})
+    emit(NOTES_CHANGED_EVENT, { origin }).catch(() => {})
   }
 
-  return { notes, count, list, init, getNote, setNote, removeNote, importNotes }
+  return { notes, count, list, userMutationSeq, init, getNote, setNote, removeNote, importNotes }
 })

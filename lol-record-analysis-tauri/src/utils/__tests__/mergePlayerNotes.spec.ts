@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mergeNotesMaps } from '../mergePlayerNotes'
+import { mergeNotesMaps, TOMBSTONE_TTL_MS } from '../mergePlayerNotes'
 import type { PlayerNotesMap } from '@renderer/types/domain/playerNote'
 
 function note(updatedAt: number, text = 'x'): PlayerNotesMap[string] {
@@ -10,7 +10,7 @@ describe('mergeNotesMaps', () => {
   it('新 puuid 直接加入,计入 added', () => {
     const { merged, stats } = mergeNotesMaps({}, { p1: note(100) })
     expect(merged.p1.updatedAt).toBe(100)
-    expect(stats).toEqual({ added: 1, replaced: 0, kept: 0, invalid: 0 })
+    expect(stats).toEqual({ added: 1, replaced: 0, kept: 0, invalid: 0, expired: 0 })
   })
 
   it('同 puuid 时间戳新者赢', () => {
@@ -49,7 +49,7 @@ describe('mergeNotesMaps', () => {
 
   it('toString 等原型链键的合法 note 正常 added', () => {
     const { merged, stats } = mergeNotesMaps({}, { toString: note(100, 'proto-key') })
-    expect(stats).toEqual({ added: 1, replaced: 0, kept: 0, invalid: 0 })
+    expect(stats).toEqual({ added: 1, replaced: 0, kept: 0, invalid: 0, expired: 0 })
     expect(merged.toString).toEqual(note(100, 'proto-key'))
   })
 
@@ -70,7 +70,7 @@ describe('mergeNotesMaps', () => {
       p4: note(NaN)
     } as unknown as PlayerNotesMap
     const { merged, stats } = mergeNotesMaps({ p1: note(100, 'old') }, incoming)
-    expect(stats).toEqual({ added: 1, replaced: 1, kept: 0, invalid: 2 })
+    expect(stats).toEqual({ added: 1, replaced: 1, kept: 0, invalid: 2, expired: 0 })
     expect(merged.p1.note).toBe('newer')
     expect(merged.p2.note).toBe('fresh')
   })
@@ -79,5 +79,49 @@ describe('mergeNotesMaps', () => {
     const base = { p1: note(100) }
     mergeNotesMaps(base, { p2: note(50) })
     expect(Object.keys(base)).toEqual(['p1'])
+  })
+
+  describe('墓碑 TTL(过期删除标记不随合并复活)', () => {
+    const NOW = 1_800_000_000_000
+
+    function tombstone(updatedAt: number): PlayerNotesMap[string] {
+      return { note: '', label: 'normal', gameName: 'A', tagLine: '1', updatedAt, deleted: true }
+    }
+
+    it('过期墓碑(超过 TTL)被跳过,计入 expired,不并入结果', () => {
+      const dead = tombstone(NOW - TOMBSTONE_TTL_MS - 1)
+      const { merged, stats } = mergeNotesMaps({}, { p1: dead }, NOW)
+      expect(merged.p1).toBeUndefined()
+      expect(stats.expired).toBe(1)
+      expect(stats.added).toBe(0)
+    })
+
+    it('未过期墓碑正常参与新者赢(删除传播不受影响)', () => {
+      const fresh = tombstone(NOW - 1000)
+      const { merged, stats } = mergeNotesMaps(
+        { p1: note(NOW - 2000, 'alive') },
+        { p1: fresh },
+        NOW
+      )
+      expect(merged.p1.deleted).toBe(true)
+      expect(stats.replaced).toBe(1)
+      expect(stats.expired).toBe(0)
+    })
+
+    it('活备注不受 TTL 影响(再老也照常合并)', () => {
+      const ancient = note(NOW - TOMBSTONE_TTL_MS * 10, 'old-but-alive')
+      const { merged, stats } = mergeNotesMaps({}, { p1: ancient }, NOW)
+      expect(merged.p1.note).toBe('old-but-alive')
+      expect(stats.added).toBe(1)
+      expect(stats.expired).toBe(0)
+    })
+
+    it('过期墓碑不能压过本地条目(跳过即保持本地)', () => {
+      const dead = tombstone(NOW - TOMBSTONE_TTL_MS - 1)
+      const { merged, stats } = mergeNotesMaps({ p1: note(1, 'local') }, { p1: dead }, NOW)
+      expect(merged.p1.note).toBe('local')
+      expect(merged.p1.deleted).toBeUndefined()
+      expect(stats.expired).toBe(1)
+    })
   })
 })
