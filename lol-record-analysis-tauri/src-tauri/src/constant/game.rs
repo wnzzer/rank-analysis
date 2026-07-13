@@ -395,19 +395,36 @@ pub fn get_queue_id_to_cn(key: u32) -> Option<&'static str> {
     QUEUE_ID_TO_CN.get(&key).copied()
 }
 
-/// 判断两个队列 ID 是否属于同一模式分组（ID 相同，或中文名相同）。
+/// 同玩法多队列 ID 的规范化映射：别名 ID → 该组的「代表 ID」。
 ///
-/// 多个队列 ID 会共用同一中文名（如新旧人机队列同难度：830/870 均为「人机(入门)」、
-/// 430/490 均为「匹配」）。模式筛选的下拉选项按中文名去重后只保留一个代表 ID，
-/// 过滤对局时必须按中文名分组匹配，否则只能命中代表 ID 对应的那一个队列。
+/// 分组语义的唯一来源。此前分组靠 [`QUEUE_ID_TO_CN`] 中文名字符串相等判定，
+/// 显示文案与筛选语义被绑死——改名/消歧义/本地化任一中文名都会静默改变
+/// 战绩筛选和标签统计的分组结果，且无编译期信号。现在显示名只管显示，
+/// 新增别名队列时在这里加一行即可。
+///
+/// 只收录别名队列，未收录的 ID 自成一组。代表 ID 取每组最小值，
+/// 与模式下拉选项去重后保留的 ID 一致（见 `get_game_modes`）。
+pub static QUEUE_ID_CANONICAL: phf::Map<u32, u32> = phf_map! {
+    // 匹配：430 旧版 / 490 现行（快速对局）
+    490u32 => 430u32,
+    // 人机（合作对抗 AI）：830/840/850 为 7.19 弃用的旧队列（仅存在于老战绩），
+    // 870/880/890 为现行 ID，难度一一对应（入门/新手/一般）
+    870u32 => 830u32,
+    880u32 => 840u32,
+    890u32 => 850u32,
+};
+
+/// 队列 ID 的分组代表 ID（非别名 ID 返回自身）
+pub fn canonical_queue_id(id: u32) -> u32 {
+    QUEUE_ID_CANONICAL.get(&id).copied().unwrap_or(id)
+}
+
+/// 判断两个队列 ID 是否属于同一模式分组（规范化后相等）。
+///
+/// 模式筛选的下拉选项按分组去重后只保留代表 ID，过滤对局时必须按分组
+/// 匹配，否则只能命中代表 ID 对应的那一个队列。
 pub fn queue_ids_same_group(a: u32, b: u32) -> bool {
-    if a == b {
-        return true;
-    }
-    match (QUEUE_ID_TO_CN.get(&a), QUEUE_ID_TO_CN.get(&b)) {
-        (Some(x), Some(y)) => x == y,
-        _ => false,
-    }
+    canonical_queue_id(a) == canonical_queue_id(b)
 }
 
 #[cfg(test)]
@@ -439,5 +456,41 @@ mod tests {
     fn unknown_ids_should_only_match_exactly() {
         assert!(!queue_ids_same_group(999999, 830));
         assert!(queue_ids_same_group(999999, 999999));
+    }
+
+    #[test]
+    fn canonical_maps_alias_to_representative() {
+        assert_eq!(canonical_queue_id(490), 430);
+        assert_eq!(canonical_queue_id(870), 830);
+        assert_eq!(canonical_queue_id(880), 840);
+        assert_eq!(canonical_queue_id(890), 850);
+    }
+
+    #[test]
+    fn canonical_keeps_non_alias_ids() {
+        assert_eq!(canonical_queue_id(420), 420);
+        assert_eq!(canonical_queue_id(450), 450);
+        assert_eq!(canonical_queue_id(999999), 999999);
+    }
+
+    /// 分组语义不再依赖中文名：每个别名的代表 ID 必须也在 CN 表里有名字，
+    /// 且代表自身不得再是别名（防止链式映射）。
+    #[test]
+    fn canonical_representatives_are_terminal_and_named() {
+        for (alias, rep) in QUEUE_ID_CANONICAL.entries() {
+            assert!(
+                QUEUE_ID_CANONICAL.get(rep).is_none(),
+                "代表 {rep} 自身不能是别名（来自 {alias}）"
+            );
+            assert!(
+                QUEUE_ID_TO_CN.get(rep).is_some(),
+                "代表 {rep} 缺少中文名（来自 {alias}）"
+            );
+        }
+    }
+
+    #[test]
+    fn matched_queues_430_490_are_same_group() {
+        assert!(queue_ids_same_group(430, 490));
     }
 }

@@ -160,9 +160,9 @@ pub struct GameModeOption {
 ///
 /// # 去重规则
 ///
-/// 多个队列 ID 共用同一中文名（如新旧人机队列同难度、430/490 均为「匹配」），
-/// 选项按中文名去重，保留最小 ID 作为代表；
-/// 过滤对局时经 `queue_ids_same_group` 按中文名分组匹配
+/// 多个队列 ID 属于同一玩法分组（如新旧人机队列同难度、430/490 均为「匹配」），
+/// 选项按 `canonical_queue_id` 分组去重，保留最小 ID（即代表 ID）；
+/// 过滤对局时经 `queue_ids_same_group` 按分组匹配
 #[tauri::command]
 pub fn get_game_modes() -> Vec<GameModeOption> {
     let mut options = vec![GameModeOption {
@@ -181,7 +181,7 @@ pub fn get_game_modes() -> Vec<GameModeOption> {
 
     modes.sort_by_key(|k| k.value);
     let mut seen = std::collections::HashSet::new();
-    modes.retain(|m| seen.insert(m.label.clone()));
+    modes.retain(|m| seen.insert(constant::game::canonical_queue_id(m.value as u32)));
     options.extend(modes);
 
     options
