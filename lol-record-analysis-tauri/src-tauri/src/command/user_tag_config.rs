@@ -484,14 +484,9 @@ impl EvalContext<'_> {
 
             // 按分组匹配而非精确 contains：配置里存的可能是别名队列 ID
             // （新旧人机、430/490 匹配），LCU 报的当前队列则恒为现行 ID
-            TagCondition::CurrentQueue { ids } => ids
-                .iter()
-                .any(|id| {
-                    crate::constant::game::queue_ids_same_group(
-                        *id as u32,
-                        self.current_mode as u32,
-                    )
-                }),
+            TagCondition::CurrentQueue { ids } => ids.iter().any(|id| {
+                crate::constant::game::queue_ids_same_group(*id as u32, self.current_mode as u32)
+            }),
             TagCondition::CurrentChampion { ids } => {
                 // 未注入当前英雄（如战绩页场景）时恒不命中
                 if let Some(curr) = self.current_champion {
