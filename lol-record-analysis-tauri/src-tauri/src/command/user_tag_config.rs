@@ -482,7 +482,16 @@ impl EvalContext<'_> {
             TagCondition::Or { conditions } => conditions.iter().any(|c| self.evaluate_node(c)),
             TagCondition::Not { condition } => !self.evaluate_node(condition),
 
-            TagCondition::CurrentQueue { ids } => ids.contains(&self.current_mode),
+            // 按分组匹配而非精确 contains：配置里存的可能是别名队列 ID
+            // （新旧人机、430/490 匹配），LCU 报的当前队列则恒为现行 ID
+            TagCondition::CurrentQueue { ids } => ids
+                .iter()
+                .any(|id| {
+                    crate::constant::game::queue_ids_same_group(
+                        *id as u32,
+                        self.current_mode as u32,
+                    )
+                }),
             TagCondition::CurrentChampion { ids } => {
                 // 未注入当前英雄（如战绩页场景）时恒不命中
                 if let Some(curr) = self.current_champion {
@@ -1342,6 +1351,27 @@ mod tests {
             },
         );
         assert!(over);
+    }
+
+    #[test]
+    fn current_queue_matches_alias_ids_across_generations() {
+        let history = make_history(vec![]);
+        // 配置里存的是旧人机 850（一般），LCU 报的当前队列是现行 890 → 同组应命中
+        let ctx = EvalContext {
+            history: &history,
+            current_mode: 890,
+            current_champion: None,
+        };
+        assert!(ctx.evaluate_node(&TagCondition::CurrentQueue { ids: vec![850] }));
+        // 反向：配置存现行匹配 490，当前队列为 430
+        let ctx2 = EvalContext {
+            history: &history,
+            current_mode: 430,
+            current_champion: None,
+        };
+        assert!(ctx2.evaluate_node(&TagCondition::CurrentQueue { ids: vec![490] }));
+        // 不同玩法（大乱斗 450）不得命中
+        assert!(!ctx2.evaluate_node(&TagCondition::CurrentQueue { ids: vec![450] }));
     }
 
     #[test]
