@@ -77,6 +77,19 @@ pub struct AppState {
     /// 缓存键为英雄 ID，值为平衡数据。
     /// 使用 2 小时的 TTL（生存时间）自动过期数据。
     pub fandom_cache: Cache<i32, AramBalanceData>,
+
+    /// OP.GG 快照内存缓存。
+    ///
+    /// 键为模式（"ranked" / "aram"），值为完整快照，与磁盘缓存
+    /// （`opgg::cache`）互为补充：内存快、磁盘跨重启。
+    ///
+    /// # 为什么不设 TTL
+    ///
+    /// 内存须保留"最后已知快照"供拉取失败时降级（`ensure_opgg_snapshot`
+    /// 的过期缓存回退分支）。若设 moka TTL，条目一到期即被驱逐，降级分支
+    /// 永远拿不到数据。新鲜度由 `opgg::cache::is_fresh` 单独裁决；键至多
+    /// 2 个（"ranked"/"aram"），无内存压力。
+    pub opgg_cache: Cache<String, std::sync::Arc<crate::opgg::data::OpggSnapshot>>,
 }
 
 impl Default for AppState {
@@ -86,6 +99,7 @@ impl Default for AppState {
     ///
     /// - `http_port`: 未初始化的 `OnceLock`
     /// - `fandom_cache`: 2 小时 TTL 的 Moka 缓存
+    /// - `opgg_cache`: 无 TTL 的 Moka 缓存（理由见字段文档）
     ///
     /// # 示例
     ///
@@ -100,6 +114,7 @@ impl Default for AppState {
             fandom_cache: Cache::builder()
                 .time_to_live(Duration::from_secs(2 * 60 * 60))
                 .build(),
+            opgg_cache: Cache::builder().build(),
         }
     }
 }

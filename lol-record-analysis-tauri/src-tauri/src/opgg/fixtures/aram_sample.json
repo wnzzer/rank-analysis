@@ -1,0 +1,21 @@
+{
+  "data": [
+    {
+      "id": 1,
+      "is_rotation": false,
+      "is_rip": false,
+      "average_stats": {
+        "play": 96224, "win_rate": 0.522313, "pick_rate": 0.0594868,
+        "ban_rate": null, "kda": 2.882699, "tier": 2, "rank": 36,
+        "tier_data": { "tier": 2, "rank": 36, "rank_prev": 36, "rank_prev_patch": 39 }
+      },
+      "positions": null
+    }
+  ],
+  "meta": {
+    "version": "16.13",
+    "cached_at": "2026-07-11 18:06:42",
+    "match_count": 16175700,
+    "analyzed_at": "2026-07-11T18:06:42+09:00"
+  }
+}
