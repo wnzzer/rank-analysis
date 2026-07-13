@@ -7,6 +7,20 @@
  */
 import type { PlayerNote, PlayerNotesMap } from '@renderer/types/domain/playerNote'
 
+/**
+ * 墓碑保留时长：30 天。
+ *
+ * 墓碑（`deleted: true` 条目）的唯一使命是把"删除"随合并传播到云端与其他
+ * 设备，之后就是死重——不清理的话 map 只增不减。30 天窗口的取值权衡：
+ * 太短则长期离线的设备错过删除传播（回线后其旧活备注会复活该条目）；
+ * 太长则墓碑堆积。30 天足以覆盖绝大多数设备的回线周期。
+ *
+ * 过期裁决放在 {@link mergeNotesMaps}（所有外部数据的必经信任边界）：
+ * 若只在加载时过滤内存，云端行里的老墓碑每次 pull 都会被当"新增"并入、
+ * 落盘再推回云端，GC 永远无法收敛。
+ */
+export const TOMBSTONE_TTL_MS = 30 * 24 * 60 * 60 * 1000
+
 /** 合并统计,供导入/同步完成后的 UI 反馈 */
 export interface MergeStats {
   /** 本地原本没有、新增的条数 */
@@ -17,6 +31,8 @@ export interface MergeStats {
   kept: number
   /** 结构非法或键不安全、被跳过的条数 */
   invalid: number
+  /** 过期墓碑(删除标记超过 {@link TOMBSTONE_TTL_MS})、被跳过的条数 */
+  expired: number
 }
 
 /**
@@ -34,17 +50,26 @@ function isValidNote(v: unknown): v is PlayerNote {
  * 合并两张备注表,不修改入参。
  * @param base - 本地表(冲突时的"守方")
  * @param incoming - 传入表(导入文件 / 云端拉取)
+ * @param now - 当前时刻(毫秒),墓碑过期判定用;默认 `Date.now()`,测试可注入
  * @returns 合并结果与统计
  */
 export function mergeNotesMaps(
   base: PlayerNotesMap,
-  incoming: PlayerNotesMap
+  incoming: PlayerNotesMap,
+  now: number = Date.now()
 ): { merged: PlayerNotesMap; stats: MergeStats } {
   const merged: PlayerNotesMap = { ...base }
-  const stats: MergeStats = { added: 0, replaced: 0, kept: 0, invalid: 0 }
+  const stats: MergeStats = { added: 0, replaced: 0, kept: 0, invalid: 0, expired: 0 }
+  const expireBefore = now - TOMBSTONE_TTL_MS
   for (const [puuid, note] of Object.entries(incoming)) {
     if (!isValidNote(note)) {
       stats.invalid++
+      continue
+    }
+    // 过期墓碑不参与合并:它的"删除传播"使命早已完成,并入只会让加载时
+    // 的 GC 白做(复活→落盘→推回云端的循环)。跳过即保持本地现状。
+    if (note.deleted && note.updatedAt < expireBefore) {
+      stats.expired++
       continue
     }
     // `__proto__` 是保留键:普通对象字面量上 `merged['__proto__'] = note` 走原型

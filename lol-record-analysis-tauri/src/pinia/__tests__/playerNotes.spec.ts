@@ -327,7 +327,7 @@ describe('usePlayerNotesStore', () => {
         p2: { note: 'new', label: 'friendly', gameName: 'B', tagLine: '2', updatedAt: 123 }
       })
 
-      expect(stats).toEqual({ added: 1, replaced: 0, kept: 1, invalid: 0 })
+      expect(stats).toEqual({ added: 1, replaced: 0, kept: 1, invalid: 0, expired: 0 })
       expect(store.getNote('p1')!.note).toBe('local') // 本地更新,未被覆盖
       expect(store.getNote('p2')!.note).toBe('new')
       // 正向落盘断言：合并结果（含新增的 p2）确实写盘了
@@ -353,6 +353,43 @@ describe('usePlayerNotesStore', () => {
       })
       await store.setNote('p10', { note: 'y', label: 'normal', gameName: 'D', tagLine: '4' })
       expect(store.getNote('p10')!.updatedAt).toBeGreaterThan(future)
+    })
+  })
+
+  describe('userMutationSeq（云同步防抖的调度信号）', () => {
+    it('setNote / removeNote 递增', async () => {
+      const store = usePlayerNotesStore()
+      const before = store.userMutationSeq
+      await store.setNote('p1', { note: 'x', label: 'normal', gameName: 'A', tagLine: '1' })
+      expect(store.userMutationSeq).toBe(before + 1)
+      await store.removeNote('p1')
+      expect(store.userMutationSeq).toBe(before + 2)
+    })
+
+    it('用户来源 importNotes 有实际变化时递增', async () => {
+      const store = usePlayerNotesStore()
+      const before = store.userMutationSeq
+      await store.importNotes({
+        p2: { note: 'n', label: 'normal', gameName: 'B', tagLine: '2', updatedAt: 1 }
+      })
+      expect(store.userMutationSeq).toBe(before + 1)
+    })
+
+    it('sync 来源 importNotes 不递增（同步合并不得自触发下一轮推送）', async () => {
+      const store = usePlayerNotesStore()
+      const before = store.userMutationSeq
+      await store.importNotes(
+        { p3: { note: 'r', label: 'normal', gameName: 'C', tagLine: '3', updatedAt: 1 } },
+        'sync'
+      )
+      expect(store.userMutationSeq).toBe(before)
+    })
+
+    it('无实际变化的 importNotes 不递增', async () => {
+      const store = usePlayerNotesStore()
+      const before = store.userMutationSeq
+      await store.importNotes({})
+      expect(store.userMutationSeq).toBe(before)
     })
   })
 })

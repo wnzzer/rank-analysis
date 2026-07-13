@@ -81,7 +81,7 @@ describe('useCloudSyncStore', () => {
     await store.setEnabled(true)
     expect(mockPut).toHaveBeenCalledWith('cloudSyncEnabled', true)
     await vi.waitFor(() =>
-      expect(mockInvoke).toHaveBeenCalledWith('cloud_push_notes', expect.anything())
+      expect(mockInvoke).toHaveBeenCalledWith('cloud_pull_notes', expect.anything())
     )
   })
 
@@ -125,7 +125,8 @@ describe('useCloudSyncStore', () => {
     const store = useCloudSyncStore()
     await expect(store.syncNow()).resolves.toBeUndefined()
     expect(notesStore.getNote('p2')?.note).toBe('ok')
-    expect(mockInvoke.mock.calls.some(c => c[0] === 'cloud_push_notes')).toBe(true)
+    // 本地无云端缺的内容（合并后与云端并集一致），按需推送策略下不再 upsert
+    expect(mockInvoke.mock.calls.some(c => c[0] === 'cloud_push_notes')).toBe(false)
     expect(store.lastError).toBeNull()
   })
 
@@ -164,7 +165,7 @@ describe('useCloudSyncStore', () => {
     mockHappyInvoke()
     mockConnected.value = true
     await vi.waitFor(() =>
-      expect(mockInvoke).toHaveBeenCalledWith('cloud_push_notes', expect.anything())
+      expect(mockInvoke).toHaveBeenCalledWith('cloud_pull_notes', expect.anything())
     )
     await vi.waitFor(() => expect(store.lastSyncAt).not.toBeNull())
   })
@@ -220,6 +221,87 @@ describe('useCloudSyncStore', () => {
       await vi.advanceTimersByTimeAsync(30_000)
       await flushAsync()
       expect(mockInvoke).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('同步流程整形(单次落盘/按需推送/不自触发)', () => {
+    it('多设备行内存合并后,notes 只落盘一次', async () => {
+      mockGet.mockResolvedValue(undefined)
+      mockInvoke.mockImplementation(async cmd => {
+        if (cmd === 'get_my_summoner') return { puuid: 'me' }
+        if (cmd === 'cloud_pull_notes')
+          return [
+            { p2: { note: 'dev-a', label: 'friendly', gameName: 'B', tagLine: '2', updatedAt: 5 } },
+            { p3: { note: 'dev-b', label: 'normal', gameName: 'C', tagLine: '3', updatedAt: 6 } }
+          ]
+        return undefined
+      })
+      const store = useCloudSyncStore()
+      const notesStore = usePlayerNotesStore()
+      await store.syncNow()
+      expect(notesStore.getNote('p2')?.note).toBe('dev-a')
+      expect(notesStore.getNote('p3')?.note).toBe('dev-b')
+      const notePersists = mockPut.mock.calls.filter(c => c[0] === 'playerNotes')
+      expect(notePersists.length).toBe(1)
+    })
+
+    it('无任何变化的同步跳过 cloud_push_notes(不打无谓 upsert)', async () => {
+      mockGet.mockResolvedValue(undefined)
+      mockHappyInvoke()
+      const store = useCloudSyncStore()
+      await store.syncNow()
+      expect(mockInvoke.mock.calls.some(c => c[0] === 'cloud_push_notes')).toBe(false)
+      expect(store.lastSyncAt).not.toBeNull()
+    })
+
+    it('本地有云端缺的内容时照常推送', async () => {
+      mockGet.mockResolvedValue(undefined)
+      mockHappyInvoke()
+      const notesStore = usePlayerNotesStore()
+      await notesStore.setNote('p1', { note: 'l', label: 'normal', gameName: 'A', tagLine: '1' })
+      const store = useCloudSyncStore()
+      await store.syncNow()
+      expect(mockInvoke.mock.calls.some(c => c[0] === 'cloud_push_notes')).toBe(true)
+    })
+
+    it('同步并入的远端变更不自触发下一轮防抖同步', async () => {
+      vi.useFakeTimers()
+      mockGet.mockResolvedValue(undefined)
+      mockInvoke.mockImplementation(async cmd => {
+        if (cmd === 'get_my_summoner') return { puuid: 'me' }
+        if (cmd === 'cloud_pull_notes')
+          return [
+            { p2: { note: 'remote', label: 'friendly', gameName: 'B', tagLine: '2', updatedAt: 5 } }
+          ]
+        if (cmd === 'cloud_pull_config') return null
+        if (cmd === 'get_cloud_config_snapshot') return {}
+        return undefined
+      })
+      const store = useCloudSyncStore()
+      await store.setEnabled(true) // 启动防抖监听 + 立即同步(并入 p2)
+      await flushAsync()
+      mockInvoke.mockClear()
+
+      await vi.advanceTimersByTimeAsync(31_000)
+      await flushAsync()
+      // 旧实现:watcher 观察 notes 引用,sync 自己的合并也会调度 30s 后再同步一轮
+      expect(mockInvoke.mock.calls.some(c => c[0] === 'cloud_pull_notes')).toBe(false)
+    })
+
+    it('用户 setNote 仍会调度防抖同步(信号未被误杀)', async () => {
+      vi.useFakeTimers()
+      mockGet.mockResolvedValue(undefined)
+      mockHappyInvoke()
+      const store = useCloudSyncStore()
+      const notesStore = usePlayerNotesStore()
+      await store.setEnabled(true)
+      await flushAsync()
+      mockInvoke.mockClear()
+
+      await notesStore.setNote('a', { note: '1', label: 'normal', gameName: 'A', tagLine: '1' })
+      await vi.advanceTimersByTimeAsync(31_000)
+      await flushAsync()
+      expect(mockInvoke.mock.calls.some(c => c[0] === 'cloud_pull_notes')).toBe(true)
     })
   })
 

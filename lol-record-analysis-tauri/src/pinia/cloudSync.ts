@@ -12,6 +12,8 @@ import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import { CONFIG_KEYS } from '@renderer/services/configKeys'
 import { lcuConnected } from '@renderer/composables/useGameState'
 import { deepEqual } from '@renderer/utils/deepEqual'
+import { isPlainObject } from '@renderer/utils/backupFile'
+import { mergeNotesMaps } from '@renderer/utils/mergePlayerNotes'
 import { usePlayerNotesStore } from './playerNotes'
 import { useSettingsStore } from './setting'
 import type { PlayerNotesMap } from '@renderer/types/domain/playerNote'
@@ -86,9 +88,7 @@ export const useCloudSyncStore = defineStore('cloudSync', () => {
     configWatchStarted = true
     listen<string>('config-changed', () => {
       markConfigDirty()
-      if (!enabled.value) return
-      if (autoPushTimer) clearTimeout(autoPushTimer)
-      autoPushTimer = setTimeout(flushAutoPush, AUTO_PUSH_DEBOUNCE_MS)
+      scheduleAutoPush()
     }).catch(() => {})
   }
 
@@ -125,10 +125,14 @@ export const useCloudSyncStore = defineStore('cloudSync', () => {
   async function syncConfig(puuid: string): Promise<void> {
     // 首次确认弹窗未决:不重新评估,等用户裁决(防重复弹窗/与 resolve 竞态)
     if (pendingCloudConfig.value !== null) return
-    const pulled = await invoke<CloudConfig | null>('cloud_pull_config', { puuid })
-    const local = await invoke<Record<string, unknown>>('get_cloud_config_snapshot')
-    const syncedOnce =
-      (await getConfigByIpc<boolean>(CONFIG_KEYS.configSyncedOnce).catch(() => false)) === true
+    // 三个读取互相独立:本地 IPC 与云端往返并行,不给同步转圈平白叠加延迟
+    const [pulled, local, syncedOnce] = await Promise.all([
+      invoke<CloudConfig | null>('cloud_pull_config', { puuid }),
+      invoke<Record<string, unknown>>('get_cloud_config_snapshot'),
+      getConfigByIpc<boolean>(CONFIG_KEYS.configSyncedOnce)
+        .catch(() => false)
+        .then(v => v === true)
+    ])
 
     if (!syncedOnce) {
       if (pulled && !deepEqual(pulled.config, local)) {
@@ -201,20 +205,24 @@ export const useCloudSyncStore = defineStore('cloudSync', () => {
     syncNow().catch(() => {})
   }
 
-  /** 备注变更后延迟推送（合并短时间内的连续编辑，避免每次落盘都打云端） */
+  /** （重新）调度一次防抖同步：notes 用户变更与 config-changed 共用同一个定时器 */
+  function scheduleAutoPush(): void {
+    if (!enabled.value) return
+    if (autoPushTimer) clearTimeout(autoPushTimer)
+    autoPushTimer = setTimeout(flushAutoPush, AUTO_PUSH_DEBOUNCE_MS)
+  }
+
+  /**
+   * 备注变更后延迟推送（合并短时间内的连续编辑，避免每次落盘都打云端）。
+   *
+   * 调度信号是 userMutationSeq（仅用户来源写操作递增）而非 notes 引用本身：
+   * 云同步 pull 合并的写入不该再调度下一轮同步，否则形成自触发回环。
+   */
   function startAutoPush(): void {
     if (autoPushStarted || isStandaloneDetailWindow()) return
     autoPushStarted = true
     const notesStore = usePlayerNotesStore()
-    // notes 的写路径都是整体替换引用（setNote/removeNote/importNotes），浅 watch 足够
-    watch(
-      () => notesStore.notes,
-      () => {
-        if (!enabled.value) return
-        if (autoPushTimer) clearTimeout(autoPushTimer)
-        autoPushTimer = setTimeout(flushAutoPush, AUTO_PUSH_DEBOUNCE_MS)
-      }
-    )
+    watch(() => notesStore.userMutationSeq, scheduleAutoPush)
   }
 
   /**
@@ -273,8 +281,9 @@ export const useCloudSyncStore = defineStore('cloudSync', () => {
   }
 
   /**
-   * 执行一次完整同步：当前召唤师 puuid → 拉取所有设备的行 → 逐份并入本地
-   * （updatedAt 新者赢）→ 把合并结果推回本设备的行。
+   * 执行一次完整同步：当前召唤师 puuid → 拉取所有设备的行 → 内存合并成
+   * 云端并集 → 一次性并入本地（updatedAt 新者赢，至多一次落盘+广播）→
+   * 仅当本地有云端缺的内容时才推回本设备的行。
    * @throws 网络/LCU 未连接等失败，错误已记入 lastError
    */
   async function syncNow(): Promise<void> {
@@ -285,16 +294,24 @@ export const useCloudSyncStore = defineStore('cloudSync', () => {
       const me = await invoke<{ puuid: string }>('get_my_summoner')
       const payloads = await invoke<PlayerNotesMap[]>('cloud_pull_notes', { puuid: me.puuid })
       const notesStore = usePlayerNotesStore()
+      // 云端行任何人可插入（spec 接受的开放写入面），容器形状必须当不可信输入
+      // 过滤——jsonb 列可存 JSON null/数组/原始值，直接喂 mergeNotesMaps 的
+      // Object.entries 会抛 TypeError，该 puuid 的同步从此永久失败（受害者
+      // 还删不掉毒行）。条目级校验在 mergeNotesMaps 的 isValidNote，这里只管容器。
+      // 先在内存里把各设备行合并成一张并集表，再一次性并入本地——
+      // 逐份 importNotes 会造成 N 次全表落盘 + N 次跨窗口广播。
+      let cloudUnion: PlayerNotesMap = {}
       for (const payload of payloads) {
-        // 云端行任何人可插入（spec 接受的开放写入面），容器形状必须当不可信输入
-        // 过滤——jsonb 列可存 JSON null/数组/原始值，直接喂 importNotes 的
-        // Object.entries 会抛 TypeError，该 puuid 的同步从此永久失败（受害者
-        // 还删不掉毒行）。与 utils/backupFile 的 isBackupFileV2 容器校验对称；
-        // 条目级校验在 mergeNotesMaps 的 isValidNote，这里只管容器。
-        if (!payload || typeof payload !== 'object' || Array.isArray(payload)) continue
-        await notesStore.importNotes(payload)
+        if (!isPlainObject(payload)) continue
+        cloudUnion = mergeNotesMaps(cloudUnion, payload).merged
       }
-      await invoke('cloud_push_notes', { puuid: me.puuid, payload: notesStore.notes })
+      await notesStore.importNotes(cloudUnion, 'sync')
+      // 本地有云端并集缺少/更旧的条目才需要推送；无变化的同步（启动、连接
+      // 补触发的常态路径）不再对云端做无谓的全量 upsert。
+      const { stats: pushNeed } = mergeNotesMaps(cloudUnion, notesStore.notes)
+      if (pushNeed.added > 0 || pushNeed.replaced > 0) {
+        await invoke('cloud_push_notes', { puuid: me.puuid, payload: notesStore.notes })
+      }
       await syncConfig(me.puuid)
       lastSyncAt.value = Date.now()
     } catch (e) {

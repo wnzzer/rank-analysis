@@ -156,7 +156,6 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             command::sgp::get_sgp_match_history_by_name,
             command::cloud_sync::cloud_pull_notes,
             command::cloud_sync::cloud_push_notes,
-            command::cloud_sync::save_text_file,
             command::cloud_sync::read_text_file,
             command::cloud_sync::cloud_pull_config,
             command::cloud_sync::cloud_push_config,
