@@ -96,6 +96,8 @@ fn is_latest_task(counter: &AtomicU64, seq: u64) -> bool {
 /// - `subteams`: 所有小队，CLASSIC 长度 2，CHERRY 长度 1~8
 /// - `cherry_subteams_pending`: CHERRY 模式下当前分队是否仍是占位数据（EOG 端点尚未返回权威 subteamId）。
 ///   true 表示前端应继续轮询直到该端点 ready。CLASSIC 模式恒为 false。
+/// - `champ_select`: 选人阶段的结构化视图（会话级阶段 + 双方已 ban 列表）。
+///   仅 `phase == "ChampSelect"` 时为 `Some`，其余阶段为 `None` 且不序列化该字段。
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionData {
@@ -110,6 +112,8 @@ pub struct SessionData {
     pub subteams: Vec<Subteam>,
     #[serde(default)]
     pub cherry_subteams_pending: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub champ_select: Option<crate::lcu::api::champion_select::ChampSelectView>,
 }
 
 /// 一个小队的展示数据：编号 + 玩家列表。
@@ -156,6 +160,9 @@ pub struct SessionSummoner {
     pub pre_group_markers: PreGroupMarker,
     /// 是否仍在加载中
     pub is_loading: bool,
+    /// 选人状态："none"|"intent"|"picking"|"locked"；非选人阶段为空字符串
+    #[serde(default)]
+    pub pick_state: String,
 }
 
 /// 预组队标记，用于标识同一预组队内的成员名称与类型。
@@ -266,20 +273,41 @@ async fn process_session_data(app_handle: AppHandle, seq: u64) -> Result<(), Str
 
     let mut session = Session::get_session().await?;
 
+    // 选人阶段的结构化视图（会话级阶段 + 双方已 ban 列表），随后写入 session_data.champ_select；
+    // 非选人阶段 / 拉取失败时保持 None。
+    let mut champ_select_view: Option<crate::lcu::api::champion_select::ChampSelectView> = None;
+
     if phase == "ChampSelect" {
         match get_champion_select_session().await {
             Ok(select_session) => {
-                session.game_data.team_one = select_session
-                    .my_team
-                    .into_iter()
-                    .map(|p| crate::lcu::api::session::OnePlayer {
-                        champion_id: p.champion_id,
-                        puuid: p.puuid,
+                let (view, pick_states) =
+                    crate::lcu::api::champion_select::derive_champ_select_view(&select_session);
+                champ_select_view = Some(view);
+                let to_one_player = |p: &crate::lcu::api::champion_select::OnePlayer| {
+                    crate::lcu::api::session::OnePlayer {
+                        champion_id: crate::lcu::api::champion_select::display_champion_id(p),
+                        puuid: p.puuid.clone(),
+                        // 选人期刻意不填 position——保持 LCU my_team/their_team 的原始顺序（=客户端选人界面的排列）。
+                        // 进入对局后 gameflow 数据才带 position 做分路排序。sort_by_key 是稳定排序，
+                        // 全部 weight 99 时原序保留。
                         selected_position: String::new(),
                         team_participant_id: 0,
-                    })
+                        pick_state: pick_states
+                            .get(&p.cell_id)
+                            .cloned()
+                            .unwrap_or_else(|| "none".to_string()),
+                    }
+                };
+                session.game_data.team_one =
+                    select_session.my_team.iter().map(to_one_player).collect();
+                // 敌方：champ-select 会话的 theirTeam 是本局权威数据（championId 随锁定
+                // 逐个可见；排位下 puuid 匿名为空，仅展示英雄不展示身份）。
+                // 旧局 selections 残留的防回填守卫（in_champ_select）保持不变。
+                session.game_data.team_two = select_session
+                    .their_team
+                    .iter()
+                    .map(to_one_player)
                     .collect();
-                session.game_data.team_two.clear();
             }
             Err(e) => {
                 log::warn!("Failed to get champion select session: {}", e);
@@ -303,6 +331,7 @@ async fn process_session_data(app_handle: AppHandle, seq: u64) -> Result<(), Str
         my_subteam_id: 0,
         subteams: Vec::new(),
         cherry_subteams_pending: false,
+        champ_select: champ_select_view,
     };
 
     if is_multi_team {
@@ -331,6 +360,7 @@ async fn process_session_data(app_handle: AppHandle, seq: u64) -> Result<(), Str
                 puuid: p.summoner.puuid.clone(),
                 selected_position: String::new(),
                 team_participant_id: 0,
+                pick_state: p.pick_state.clone(),
             })
             .collect();
 
@@ -419,6 +449,7 @@ fn build_classic_subteams(session: &mut Session, session_data: &mut SessionData,
                     puuid: s.puuid.clone(),
                     selected_position: String::new(),
                     team_participant_id: 0,
+                    pick_state: String::new(),
                 })
                 .collect();
         }
@@ -430,6 +461,7 @@ fn build_classic_subteams(session: &mut Session, session_data: &mut SessionData,
                     puuid: s.puuid.clone(),
                     selected_position: String::new(),
                     team_participant_id: 0,
+                    pick_state: String::new(),
                 })
                 .collect();
         }
@@ -463,6 +495,7 @@ fn build_classic_subteams(session: &mut Session, session_data: &mut SessionData,
                     puuid: p.puuid.clone(),
                     ..Default::default()
                 },
+                pick_state: p.pick_state.clone(),
                 ..Default::default()
             })
             .collect()
@@ -507,6 +540,7 @@ async fn build_cherry_subteams(
                 puuid: s.puuid.clone(),
                 selected_position: String::new(),
                 team_participant_id: 0,
+                pick_state: String::new(),
             })
             .collect();
     }
@@ -569,6 +603,7 @@ async fn build_cherry_subteams(
             puuid: p.puuid.clone(),
             ..Default::default()
         },
+        pick_state: p.pick_state.clone(),
         ..Default::default()
     };
 
@@ -604,12 +639,14 @@ async fn push_basic_info(
         let futures = team.iter().map(|placeholder| {
             let puuid = placeholder.summoner.puuid.clone();
             let champion_id = placeholder.champion_id;
+            let pick_state = placeholder.pick_state.clone();
             async move {
                 if puuid.is_empty() {
                     return SessionSummoner {
                         champion_id,
                         champion_key: format!("champion_{}", champion_id),
                         is_loading: false,
+                        pick_state,
                         ..Default::default()
                     };
                 }
@@ -621,6 +658,7 @@ async fn push_basic_info(
                     champion_key: format!("champion_{}", champion_id),
                     summoner,
                     is_loading: true,
+                    pick_state,
                     ..Default::default()
                 }
             }
@@ -673,6 +711,7 @@ async fn process_subteam_parallel(
                     champion_id: player.champion_id,
                     champion_key: format!("champion_{}", player.champion_id),
                     is_loading: false,
+                    pick_state: player.pick_state.clone(),
                     ..Default::default()
                 };
             }
@@ -738,6 +777,7 @@ async fn process_subteam_parallel(
                     meet_games: Vec::new(),
                     pre_group_markers: PreGroupMarker::default(),
                     is_loading: false,
+                    pick_state: player.pick_state.clone(),
                 };
                 let update = PlayerUpdate {
                     subteam_id,
@@ -787,6 +827,7 @@ async fn process_subteam_parallel(
                 meet_games: Vec::new(),
                 pre_group_markers: PreGroupMarker::default(),
                 is_loading: false,
+                pick_state: player.pick_state.clone(),
             }
         });
 
@@ -1026,7 +1067,39 @@ fn one_in_arr(e: &str, arr: &[String]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lcu::api::champion_select::ChampSelectView;
     use crate::lcu::api::session::{GameData, OnePlayer, Queue, Session};
+
+    /// `champ_select` 应以 camelCase（`champSelect`/`myBans`/`theirBans`）序列化，
+    /// 供前端直接消费选人阶段流视图。
+    #[test]
+    fn champ_select_field_serializes_camel_case_when_present() {
+        let data = SessionData {
+            phase: "ChampSelect".into(),
+            champ_select: Some(ChampSelectView {
+                stage: "banning".into(),
+                my_bans: vec![266],
+                their_bans: vec![103],
+            }),
+            ..Default::default()
+        };
+        let json = serde_json::to_value(&data).unwrap();
+        assert_eq!(json["champSelect"]["stage"], "banning");
+        assert_eq!(json["champSelect"]["myBans"][0], 266);
+        assert_eq!(json["champSelect"]["theirBans"][0], 103);
+    }
+
+    /// 非选人阶段 `champ_select` 为 None 时，字段应整体省略（skip_serializing_if）。
+    #[test]
+    fn champ_select_field_omitted_when_none() {
+        let data = SessionData {
+            phase: "InProgress".into(),
+            champ_select: None,
+            ..Default::default()
+        };
+        let json = serde_json::to_value(&data).unwrap();
+        assert!(json.get("champSelect").is_none());
+    }
 
     #[test]
     fn newer_session_task_supersedes_older() {
@@ -1071,6 +1144,7 @@ mod tests {
                         puuid: format!("ally-{}", i),
                         selected_position: "TOP".into(),
                         team_participant_id: 0,
+                        pick_state: String::new(),
                     })
                     .collect(),
                 team_two: (6..=10)
@@ -1079,6 +1153,7 @@ mod tests {
                         puuid: format!("enemy-{}", i),
                         selected_position: "TOP".into(),
                         team_participant_id: 0,
+                        pick_state: String::new(),
                     })
                     .collect(),
             },
@@ -1126,7 +1201,8 @@ mod tests {
     fn champselect_must_not_refill_enemy_from_stale_selections() {
         let mut session = make_session_classic();
         session.phase = "ChampSelect".into();
-        // 模拟 process_session_data 的 ChampSelect 分支：我方来自选人会话、敌方已清空
+        // 模拟 process_session_data 的 ChampSelect 分支：我方来自选人会话、
+        // 敌方来自 their_team（此处为空 vec，模拟选人早期敌方尚未亮出任何英雄）
         session.game_data.team_one.truncate(5);
         session.game_data.team_two.clear();
         // gameflow 残留：上一局的 10 条 selections（含"我"在后五）
@@ -1152,6 +1228,65 @@ mod tests {
                 .iter()
                 .any(|p| p.summoner.puuid == "ally-1"),
             "我不应出现在敌方小队"
+        );
+    }
+
+    /// 选人期敌方必须从 their_team 填充（仅英雄无身份），pick_state 贯穿。
+    #[test]
+    fn champselect_fills_enemy_from_their_team_with_pick_state() {
+        let mut session = make_session_classic();
+        session.phase = "ChampSelect".into();
+        // 模拟 ChampSelect 分支产物：我方 5 人已选、敌方 3 人已亮（2 锁定 1 意向）
+        session.game_data.team_one.truncate(5);
+        session.game_data.team_two = vec![
+            crate::lcu::api::session::OnePlayer {
+                champion_id: 10,
+                puuid: String::new(),
+                selected_position: String::new(),
+                team_participant_id: 0,
+                pick_state: "locked".into(),
+            },
+            crate::lcu::api::session::OnePlayer {
+                champion_id: 55,
+                puuid: String::new(),
+                selected_position: String::new(),
+                team_participant_id: 0,
+                pick_state: "intent".into(),
+            },
+            crate::lcu::api::session::OnePlayer {
+                champion_id: 0,
+                puuid: String::new(),
+                selected_position: String::new(),
+                team_participant_id: 0,
+                pick_state: "none".into(),
+            },
+        ];
+        // 残留 selections 依旧不得回填（守卫回归）
+        session.game_data.player_champion_selections = stale_selections_with_me("ally-1");
+
+        let mut data = SessionData {
+            game_mode: "CLASSIC".into(),
+            ..Default::default()
+        };
+        build_classic_subteams(&mut session, &mut data, "ally-1");
+
+        assert_eq!(data.subteams[1].players.len(), 3, "敌方应来自 their_team");
+        assert_eq!(data.subteams[1].players[0].champion_id, 10);
+        assert_eq!(data.subteams[1].players[0].pick_state, "locked");
+        assert_eq!(data.subteams[1].players[1].pick_state, "intent");
+        assert!(
+            data.subteams[1]
+                .players
+                .iter()
+                .all(|p| p.summoner.puuid.is_empty()),
+            "选人期敌方不应有身份"
+        );
+        assert!(
+            !data.subteams[1]
+                .players
+                .iter()
+                .any(|p| p.summoner.puuid == "ally-1"),
+            "我不应出现在敌方"
         );
     }
 
@@ -1201,6 +1336,7 @@ mod tests {
                     puuid: format!("p-{}-{}", tpid, slot),
                     selected_position: "NONE".into(),
                     team_participant_id: tpid,
+                    pick_state: String::new(),
                 });
             }
         }
@@ -1268,18 +1404,21 @@ mod tests {
                         puuid: "a".into(),
                         selected_position: "".into(),
                         team_participant_id: 1,
+                        pick_state: String::new(),
                     },
                     OnePlayer {
                         champion_id: 2,
                         puuid: "b".into(),
                         selected_position: "".into(),
                         team_participant_id: 1,
+                        pick_state: String::new(),
                     },
                     OnePlayer {
                         champion_id: 3,
                         puuid: "c".into(),
                         selected_position: "".into(),
                         team_participant_id: 4,
+                        pick_state: String::new(),
                     },
                 ],
                 team_two: vec![],
@@ -1310,6 +1449,7 @@ mod tests {
                     puuid: format!("paired-{}-{}", tpid, slot),
                     selected_position: "NONE".into(),
                     team_participant_id: tpid,
+                    pick_state: String::new(),
                 });
             }
         }
@@ -1319,6 +1459,7 @@ mod tests {
                 puuid: format!("solo-{}", tpid),
                 selected_position: "NONE".into(),
                 team_participant_id: tpid,
+                pick_state: String::new(),
             });
         }
         let mut session = Session {
@@ -1366,5 +1507,55 @@ mod tests {
             .count();
         assert_eq!(pair_count, 4);
         assert_eq!(solo_count, 8);
+    }
+
+    /// 回归：选人期我方玩家顺序应与客户端一致，不按分路重排。
+    /// 构造 ChampSelect 场景 team_one 五人（selected_position 全空、champion_id 依次 1..5 标识顺序），
+    /// 断言 build_classic_subteams 后玩家 champion_id 顺序仍为 1..5（未被重排）。
+    #[test]
+    fn champselect_preserves_player_order_without_reordering_by_position() {
+        let mut session = Session {
+            phase: "ChampSelect".into(),
+            game_data: GameData {
+                game_id: 5,
+                is_custom_game: false,
+                queue: Queue {
+                    queue_type: "RANKED_SOLO_5x5".into(),
+                    id: 420,
+                    game_mode: "CLASSIC".into(),
+                },
+                player_champion_selections: vec![],
+                // 选人期我方五人，champion_id 依次 1..5（用来标识顺序），selected_position 全空
+                team_one: (1..=5)
+                    .map(|i| OnePlayer {
+                        champion_id: i,
+                        puuid: format!("champ-{}", i),
+                        selected_position: String::new(),
+                        team_participant_id: 0,
+                        pick_state: String::new(),
+                    })
+                    .collect(),
+                team_two: vec![],
+            },
+        };
+
+        let mut data = SessionData {
+            game_mode: "CLASSIC".into(),
+            ..Default::default()
+        };
+        build_classic_subteams(&mut session, &mut data, "champ-1");
+
+        // 我方五人应保持原序 1..5，不因 selected_position 为空就被 sort_by_key 重排
+        assert_eq!(data.subteams[0].players.len(), 5);
+        let champion_ids: Vec<i32> = data.subteams[0]
+            .players
+            .iter()
+            .map(|p| p.champion_id)
+            .collect();
+        assert_eq!(
+            champion_ids,
+            vec![1, 2, 3, 4, 5],
+            "选人期玩家顺序应保持客户端选人界面排列"
+        );
     }
 }

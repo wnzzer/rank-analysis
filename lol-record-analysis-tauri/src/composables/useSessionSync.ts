@@ -50,7 +50,7 @@ function updatePreGroupMarkers(subteams: Subteam[], markers: Record<string, PreG
  * 生成玩家状态的轻量签名：同 puuid 下若以下关键字段全部一致，视为"数据未变"可跳过更新。
  * 远快于 JSON.stringify 整个对象（后者会序列化 matchHistory.games.games 等大数组）。
  */
-function playerSignature(p: SessionSummoner): string {
+export function playerSignature(p: SessionSummoner): string {
   const solo = p.rank?.queueMap?.RANKED_SOLO_5x5
   return [
     p.summoner.puuid,
@@ -61,7 +61,8 @@ function playerSignature(p: SessionSummoner): string {
     p.meetGames?.length ?? -1,
     solo?.tier ?? '',
     solo?.leaguePoints ?? -1,
-    p.preGroupMarkers?.name ?? ''
+    p.preGroupMarkers?.name ?? '',
+    p.pickState ?? ''
   ].join('|')
 }
 
@@ -103,7 +104,7 @@ function syncSubteams(current: Subteam[], next: Subteam[], mode: 'basic' | 'full
   current.sort((a, b) => a.subteamId - b.subteamId)
 }
 
-function syncPlayers(
+export function syncPlayers(
   currentTeam: SessionSummoner[],
   newTeam: SessionSummoner[],
   mode: 'basic' | 'full'
@@ -121,6 +122,7 @@ function syncPlayers(
           oldPlayer.championId = newPlayer.championId
           oldPlayer.championKey = newPlayer.championKey
           oldPlayer.summoner = newPlayer.summoner
+          oldPlayer.pickState = newPlayer.pickState
         } else {
           currentTeam[i] = newPlayer
         }
@@ -194,6 +196,7 @@ export function useSessionSync() {
     sessionData.isMultiTeam = false
     sessionData.mySubteamId = 0
     sessionData.cherrySubteamsPending = false
+    sessionData.champSelect = undefined
     sessionData.subteams.splice(0, sessionData.subteams.length)
     requestSessionData()
   }
@@ -226,6 +229,9 @@ export function useSessionSync() {
     sessionData.isMultiTeam = !!data.isMultiTeam
     sessionData.mySubteamId = data.mySubteamId ?? 0
     sessionData.cherrySubteamsPending = !!data.cherrySubteamsPending
+    // 后端仅在 ChampSelect 期间下发该字段（skip_serializing_if）；离开选人后
+    // 事件里 data.champSelect 缺席 → undefined 直接覆盖旧值，面板自动清空阶段/ban 展示。
+    sessionData.champSelect = data.champSelect
   }
 
   /**

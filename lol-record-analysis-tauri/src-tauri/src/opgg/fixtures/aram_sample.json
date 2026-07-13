@@ -5,8 +5,13 @@
       "is_rotation": false,
       "is_rip": false,
       "average_stats": {
-        "play": 96224, "win_rate": 0.522313, "pick_rate": 0.0594868,
-        "ban_rate": null, "kda": 2.882699, "tier": 2, "rank": 36,
+        "play": 96224,
+        "win_rate": 0.522313,
+        "pick_rate": 0.0594868,
+        "ban_rate": null,
+        "kda": 2.882699,
+        "tier": 2,
+        "rank": 36,
         "tier_data": { "tier": 2, "rank": 36, "rank_prev": 36, "rank_prev_patch": 39 }
       },
       "positions": null

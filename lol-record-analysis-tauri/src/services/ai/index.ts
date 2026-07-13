@@ -5,12 +5,15 @@
  */
 
 import type { Game } from '@renderer/types/domain/match'
+import type { SessionData } from '@renderer/types/domain/gaming'
+import type { OpggMode } from '@renderer/services/opgg'
 import { getConfigByIpc } from '@renderer/services/ipc'
 import { CONFIG_KEYS } from '@renderer/services/configKeys'
 import type { AIAnalysisResult, MatchDetailAnalysisOptions, StreamCallbacks } from './types'
 import { loadChampionNames } from './champion-names'
-import { requestAIContentStream } from './stream'
+import { DEFAULT_SYSTEM_PROMPT, requestAIContentStream } from './stream'
 import { buildPlayerAnalysisPrompt, buildTeamAnalysisPrompt } from './prompts/team'
+import { buildChampSelectPrompt } from './prompts/champSelect'
 import { analyzeMatchDetail } from './matchDetail'
 import type { RecentPlayerProfile } from './shared/types'
 
@@ -60,6 +63,31 @@ export async function analyzeGameWithAI(
       onError: (error: string) => resolve({ success: false, error })
     })
   })
+}
+
+/**
+ * 选人阶段（ChampSelect）AI 阵容分析：无需等进入对局，选人期即可用。
+ * 我方走 puuid 齐全的画像摘要，敌方靠 OP.GG 静态数据（T 级/胜率/克制）撑情报。
+ *
+ * @param sessionData - 对局会话数据（含 champSelect 结构化视图）
+ * @param opggMode - OP.GG 数据模式，决定敌方情报是否含分路克制数据
+ * @param callbacks - 流式回调
+ */
+export async function analyzeChampSelectWithAIStream(
+  sessionData: SessionData,
+  opggMode: OpggMode,
+  callbacks: StreamCallbacks
+): Promise<void> {
+  try {
+    await loadChampionNames()
+    const prompt = await buildChampSelectPrompt(sessionData, opggMode)
+    // 用 stream.ts 的 DEFAULT_SYSTEM_PROMPT（含"所有结论都必须绑定数据证据"的反幻觉指令），
+    // 与选人期 prompt 里的分析纪律硬规则配套；不沿用对局中的 IN_GAME_SYSTEM_PROMPT。
+    await requestAIContentStream(prompt, callbacks, DEFAULT_SYSTEM_PROMPT)
+  } catch (error: any) {
+    console.error('Champ select AI analysis error:', error)
+    callbacks.onError(error.message || '网络请求失败')
+  }
 }
 
 /**

@@ -28,11 +28,28 @@ export interface SessionSummoner {
   meetGames: OneGamePlayer[]
   preGroupMarkers: PreGroupMarkers
   isLoading?: boolean
+  /**
+   * 选人状态：none/intent/picking/banning/locked（非选人期为空）
+   */
+  pickState?: string
 }
 
 export interface Subteam {
   subteamId: number
   players: SessionSummoner[]
+}
+
+/**
+ * 选人阶段的结构化视图：会话级阶段 + 双方已 ban 列表。
+ * 由后端从 timer.phase + actions 推导，非选人期（无 ChampSelect 数据）整体缺席。
+ */
+export interface ChampSelect {
+  /** 会话级阶段: planning(预选) | banning(禁用) | picking(选人) | finalization(确认) | ''(未知) */
+  stage: string
+  /** 我方已 ban 的英雄 id 列表 */
+  myBans: number[]
+  /** 敌方已 ban 的英雄 id 列表 */
+  theirBans: number[]
 }
 
 export interface SessionData {
@@ -50,4 +67,9 @@ export interface SessionData {
    * CLASSIC 模式恒为 false。
    */
   cherrySubteamsPending?: boolean
+  /**
+   * 选人阶段结构化视图（阶段 + 双方 ban 列表）。
+   * 仅 ChampSelect 期间存在；非选人期该字段整体缺席（后端 skip_serializing_if）。
+   */
+  champSelect?: ChampSelect
 }
