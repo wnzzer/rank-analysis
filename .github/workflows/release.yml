@@ -96,6 +96,14 @@ jobs:
       - name: 📝 Rename, Compress, and Set Paths
         id: prepare_assets
         shell: pwsh
+        # 兜底签名分支（构建未产出 .sig 时走 `tauri signer sign`）需要密钥——
+        # GH Actions 的 env 是 step 级作用域，构建步骤的密钥不会带到本步骤，
+        # 缺了就报 "TAURI_PRIVATE_KEY is missing"（2026-07-11 四次发版失败根因）。
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_KEY_PASSWORD }}
+          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }} # 脚本自检+CLI 旧名兼容
+          TAURI_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_KEY_PASSWORD }}
         run: |
           # 获取上一步解析出的版本号
           $version = "${{ steps.get_version.outputs.tauri_version }}" 
