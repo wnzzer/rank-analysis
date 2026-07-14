@@ -138,6 +138,23 @@ docs: 更新 README 中的安装说明
 - 保持更改尽可能小和专注
 - 响应审查意见
 
+## 🚀 发版流程
+
+版本号以 **git tag 为唯一真相源**，发一个版本只需推 tag：
+
+```bash
+git tag v1.8.8
+git push origin v1.8.8
+```
+
+推送 `v*` tag 会触发 `Release Build` workflow，自动完成构建、签名、生成 changelog、创建 GitHub Release 与 `latest.json`，并同步到 GitCode 国内镜像。
+
+约定：
+
+- `src-tauri/tauri.conf.json` 里的 `version` 是**占位值（`0.0.0`），不要手动改**。CI 会在构建时从 tag 名反推版本号写入（仅构建用，不回写仓库）。
+- tag 命名需匹配 `v*`，且符合 `.github/cliff.toml` 的 `tag_pattern = "v?[0-9].*"`（`beta`/`alpha` 会被 changelog 跳过）。
+- 需要手动补发时，可在 Actions 页手动运行 `Release Build` 并在 `version` 输入框填入版本号（如 `v1.8.8`）。
+
 ## 🔒 安全问题
 
 如果您发现安全漏洞，请不要公开报告。请直接联系项目维护者。
