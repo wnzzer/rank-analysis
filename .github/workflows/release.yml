@@ -198,10 +198,7 @@ jobs:
           
           echo "setup_path=$setupPath" >> $env:GITHUB_OUTPUT
           echo "portable_path=$portablePath" >> $env:GITHUB_OUTPUT
-          echo "sig_path=$sigPath" >> $env:GITHUB_OUTPUT 
-        env:
-          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_KEY_PASSWORD }}
+          echo "sig_path=$sigPath" >> $env:GITHUB_OUTPUT
 
       - name: 🔍 Get Previous Tag
         id: get_prev_tag
