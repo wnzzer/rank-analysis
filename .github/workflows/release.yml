@@ -1,8 +1,16 @@
 name: Release Build
 
 on:
+  # 主路径：推送 v* tag 即发版（tag 名是唯一的版本真相源）
+  push:
+    tags: ['v*']
+  # 兜底：手动补发，必须显式填 version（无 tag 时的版本来源）
   workflow_dispatch:
     inputs:
+      version:
+        description: 'Version to release, e.g. v1.8.8 (required for manual run)'
+        required: false
+        default: ''
       notes:
         description: 'Release Notes (optional)'
         required: false
@@ -44,39 +52,48 @@ jobs:
       - name: 📦 Install dependencies
         run: npm ci
 
-      # --- 核心步骤：智能获取版本号 ---
+      # --- 核心步骤：从 tag 解析版本号（tag 为唯一真相源）---
+      # tag 触发时用 tag 名；手动触发时用 workflow_dispatch 的 version 输入。
+      # 仓库里 tauri.conf.json 的 version 只是占位值，不参与这里的解析。
       - name: 🔍 Get App Version
         id: get_version
         shell: pwsh
         run: |
-          $configPath = "src-tauri/tauri.conf.json"
-          $configJson = Get-Content $configPath | Out-String | ConvertFrom-Json
-
-          # 适配 Tauri v1 package.version 和 Tauri v2 top-level version
-          if ($configJson.version) {
-              $tauriVersion = $configJson.version
-          } elseif ($configJson.package.version) {
-              $tauriVersion = $configJson.package.version
+          if ("${{ github.ref_type }}" -eq "tag") {
+              $tauriVersion = "${{ github.ref_name }}"
+          } else {
+              $tauriVersion = "${{ github.event.inputs.version }}"
           }
 
-          # 兜底：从 Cargo.toml 读
-          if ([string]::IsNullOrEmpty($tauriVersion)) {
-              $tomlPath = "src-tauri/Cargo.toml"
-              $tomlContent = Get-Content $tomlPath | Select-String -Pattern '^version\s*=\s*"(.+?)"'
-              if ($tomlContent) {
-                  $tauriVersion = $tomlContent.Matches[0].Groups[1].Value
-              } else {
-                  Write-Error "Could not find version in tauri.conf.json or Cargo.toml"
-                  exit 1
-              }
+          if ([string]::IsNullOrWhiteSpace($tauriVersion)) {
+              Write-Error "No version resolved. Push a tag like v1.8.8, or provide the 'version' input on manual run."
+              exit 1
           }
 
           # GitHub Release 惯例：tag 以 'v' 开头
           if ($tauriVersion -notlike 'v*') {
               $tauriVersion = "v$tauriVersion"
           }
-          Write-Host "Release Version: $tauriVersion"
+          $cleanVersion = $tauriVersion -replace '^v',''
+
+          Write-Host "Release Version: $tauriVersion (clean: $cleanVersion)"
           echo "tauri_version=$tauriVersion" >> $env:GITHUB_OUTPUT
+          echo "clean_version=$cleanVersion" >> $env:GITHUB_OUTPUT
+
+      # --- 把解析出的版本号写进 tauri.conf.json（仅 runner 工作区，不回写仓库）---
+      - name: 🔧 Sync version into tauri.conf.json
+        shell: bash
+        env:
+          CLEAN: ${{ steps.get_version.outputs.clean_version }}
+        run: |
+          node -e '
+            const fs = require("fs");
+            const f = "src-tauri/tauri.conf.json";
+            const j = JSON.parse(fs.readFileSync(f, "utf8"));
+            j.version = process.env.CLEAN;
+            fs.writeFileSync(f, JSON.stringify(j, null, 2) + "\n");
+            console.log("tauri.conf.json version set to " + j.version);
+          '
 
       # --- 构建并签名 ---
       - name: 🔨 Build Tauri App (Signed)
