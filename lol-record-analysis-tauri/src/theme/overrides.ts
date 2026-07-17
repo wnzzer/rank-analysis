@@ -28,15 +28,16 @@ export function buildThemeOverrides(isDark: boolean): GlobalThemeOverrides {
   // Theme-dependent values can't go through cssVar() — .theme-light class is on
   // n-config-provider's root, not document.documentElement, so getComputedStyle
   // always returns :root values. Use isDark ternaries directly (matches pre-refactor behavior).
-  const bgBase = isDark ? '#0d0d0f' : '#f0f2f5'
-  const glassMid = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.035)'
-  const glassBorder = isDark ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.08)'
-  const shadowMd = isDark ? '0 2px 8px rgba(0,0,0,0.45)' : '0 2px 8px rgba(0,0,0,0.12)'
+  // 浅色值与 global.css .theme-light 的冷瓷基调保持一致（冷墨 20,30,35）
+  const bgBase = isDark ? '#0d0d0f' : '#eff1f3'
+  const glassMid = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(20,30,35,0.04)'
+  const glassBorder = isDark ? 'rgba(255,255,255,0.09)' : 'rgba(20,30,35,0.09)'
+  const shadowMd = isDark ? '0 2px 8px rgba(0,0,0,0.45)' : '0 4px 10px rgba(20,30,35,0.09)'
   const semanticWin = isDark ? '#3d9b7a' : '#2d8a6c'
-  const textPrimary = isDark ? 'rgba(255,255,255,0.92)' : 'rgba(0,0,0,0.88)'
+  const textPrimary = isDark ? 'rgba(255,255,255,0.92)' : 'rgba(20,30,35,0.94)'
   // 镂空描边控件：静默态细边，hover 只提亮边框（不加底色）
-  const controlBorder = isDark ? 'rgba(255,255,255,0.16)' : 'rgba(0,0,0,0.18)'
-  const controlBorderHover = isDark ? 'rgba(255,255,255,0.34)' : 'rgba(0,0,0,0.38)'
+  const controlBorder = isDark ? 'rgba(255,255,255,0.16)' : 'rgba(20,30,35,0.2)'
+  const controlBorderHover = isDark ? 'rgba(255,255,255,0.34)' : 'rgba(20,30,35,0.4)'
   // 主色统一到应用强调色（semantic-win），hover/pressed 逐级变深（Int UI 惯例，与 macOS 提亮相反）
   const primary = semanticWin
   const primaryHover = isDark ? '#378b6e' : '#28795f'
