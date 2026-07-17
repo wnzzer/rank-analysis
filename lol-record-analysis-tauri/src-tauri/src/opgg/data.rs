@@ -18,6 +18,9 @@ pub struct ChampionMeta {
     pub tier: i32,
     /// 同分路排名（无数据为 0）
     pub rank: i32,
+    /// 上一 patch 的同分路排名（无数据为 0；serde 默认兼容旧磁盘缓存）
+    #[serde(default)]
+    pub rank_prev_patch: i32,
     /// 胜率（0~1）
     pub win_rate: f64,
     /// 登场率（0~1）

@@ -78,5 +78,6 @@ wrangler.toml
 
 config.yaml
 opgg_cache_*.json
+patch_notes_cache.json
 
 app.log.*

@@ -81,3 +81,46 @@ pub async fn get_aram_balance(
 ) -> Result<Option<AramBalanceData>, String> {
     Ok(state.fandom_cache.get(&id).await)
 }
+
+/// 查询英雄在指定版本的官方补丁改动（LoL Wiki `V{patch}` 页解析）。
+///
+/// # 参数
+///
+/// - `champion_id`: 英雄 ID（经 LCU 英雄缓存映射为英文 alias 再匹配 wiki 名）
+/// - `patch`: 版本号（如 "16.14"，前端从 OP.GG 状态取）
+///
+/// # 返回值
+///
+/// - `Ok(Some(ChampionPatchNote))`: 该英雄本版本有改动（方向 + 英文条目）
+/// - `Ok(None)`: 本版本无改动，或英雄缓存尚未就绪（未连接客户端时）
+///
+/// # 缓存策略
+///
+/// 快照按 patch 三级缓存（内存/磁盘/网络，TTL 24h），网络失败降级空快照，
+/// 不会因 wiki 不可达阻塞选人页。
+#[tauri::command]
+pub async fn get_champion_patch_note(
+    champion_id: i64,
+    patch: String,
+) -> Result<Option<crate::fandom::patch_notes::ChampionPatchNote>, String> {
+    use crate::fandom::patch_notes;
+
+    // 英雄 ID → LCU 英文 alias（如 91 → "Talon"）；缓存未就绪时静默返回 None
+    let alias = {
+        let cache = crate::lcu::api::asset::CHAMPION_CACHE
+            .read()
+            .map_err(|e| e.to_string())?;
+        match cache.get(&champion_id) {
+            Some(c) => c.alias.clone(),
+            None => return Ok(None),
+        }
+    };
+    let alias_key = patch_notes::normalize_champion_name(&alias);
+    let snapshot = patch_notes::get_or_fetch(&patch).await;
+    let hit = snapshot
+        .champions
+        .iter()
+        .find(|(wiki_key, _)| patch_notes::wiki_name_to_alias_key(wiki_key) == alias_key)
+        .map(|(_, note)| note.clone());
+    Ok(hit)
+}

@@ -46,6 +46,8 @@ struct RawStats {
 struct RawTierData {
     tier: Option<i32>,
     rank: Option<i32>,
+    /// 上一 patch 的排名（OP.GG 白送的跨版本趋势，驱动「版本走强/走弱」徽章）
+    rank_prev_patch: Option<i32>,
 }
 
 #[derive(Deserialize)]
@@ -154,6 +156,7 @@ pub fn parse_snapshot(mode: &str, body: &str, fetched_at: i64) -> Result<OpggSna
                         position: position.clone(),
                         tier: tier_data.and_then(|t| t.tier).or(stats.tier).unwrap_or(0),
                         rank: tier_data.and_then(|t| t.rank).or(stats.rank).unwrap_or(0),
+                        rank_prev_patch: tier_data.and_then(|t| t.rank_prev_patch).unwrap_or(0),
                         win_rate: stats.win_rate.unwrap_or(0.0),
                         pick_rate: stats.pick_rate.unwrap_or(0.0),
                         ban_rate: stats.ban_rate.unwrap_or(0.0),
@@ -185,6 +188,11 @@ pub fn parse_snapshot(mode: &str, body: &str, fetched_at: i64) -> Result<OpggSna
                     position: String::new(),
                     tier: stats.tier.unwrap_or(0),
                     rank: stats.rank.unwrap_or(0),
+                    rank_prev_patch: stats
+                        .tier_data
+                        .as_ref()
+                        .and_then(|t| t.rank_prev_patch)
+                        .unwrap_or(0),
                     win_rate: stats.win_rate.unwrap_or(0.0),
                     pick_rate: stats.pick_rate.unwrap_or(0.0),
                     ban_rate: stats.ban_rate.unwrap_or(0.0),
@@ -227,6 +235,8 @@ mod tests {
         assert_eq!(garen.len(), 1);
         assert_eq!(garen[0].position, "TOP");
         assert_eq!(garen[0].tier, 1);
+        // 跨版本趋势字段：来自 tier_data.rank_prev_patch
+        assert_eq!(garen[0].rank_prev_patch, 1);
         assert!((garen[0].win_rate - 0.517991).abs() < 1e-6);
         assert!(garen[0].is_main_position);
 
