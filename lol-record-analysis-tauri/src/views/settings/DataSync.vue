@@ -102,10 +102,19 @@ const riskAcknowledged = ref(false)
 const syncStatusText = computed(() => {
   if (cloudStore.syncing) return '同步中…'
   if (cloudStore.lastError) return `上次同步失败：${cloudStore.lastError}`
-  if (cloudStore.lastSyncAt)
-    return `上次同步：${new Date(cloudStore.lastSyncAt).toLocaleTimeString()}`
+  if (cloudStore.lastSyncAt) return `上次同步：${formatSyncTime(cloudStore.lastSyncAt)}`
   return '本次启动尚未同步'
 })
+
+/**
+ * 上次同步时间展示：当天只显时间，跨天补日期。
+ * 只显 toLocaleTimeString 会让昨天 22:51 的同步看起来像刚同步过。
+ */
+function formatSyncTime(ts: number): string {
+  const d = new Date(ts)
+  const sameDay = d.toDateString() === new Date().toDateString()
+  return sameDay ? d.toLocaleTimeString() : d.toLocaleString()
+}
 
 /** 导出:系统保存对话框选路径 → Rust export_backup 全量写文件(过滤在 Rust 侧) */
 async function handleExport(): Promise<void> {

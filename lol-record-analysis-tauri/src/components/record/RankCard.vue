@@ -10,11 +10,13 @@
         <span class="rank-card-type-label">{{ label }}</span>
         <img :src="tierImage(queueInfo.tier)" class="rank-card-img" />
         <div class="rank-card-tier-text">
-          {{ queueInfo.tierCn }} {{ divisionOrPoint(queueInfo) }}
+          {{ formatTierText(queueInfo) }}
         </div>
       </div>
       <div class="rank-card-stats">
-        <div class="rank-card-win-badge" :class="badgeClass">胜率 {{ recent.winRate }}%</div>
+        <div class="rank-card-win-badge" :class="badgeClass">
+          {{ hasGames ? `胜率 ${recent.winRate}%` : '暂无对局' }}
+        </div>
         <n-flex justify="space-between" size="small" class="rank-card-stats-row">
           <span class="rank-card-stat-text">胜场: {{ recent.wins }}</span>
           <span class="rank-card-stat-text">负场: {{ recent.losses }}</span>
@@ -29,7 +31,7 @@ import { computed } from 'vue'
 import { NCard, NFlex } from 'naive-ui'
 import type { QueueInfo } from '@renderer/types/domain/player'
 import type { RecentWinRate } from '@renderer/types/domain/player'
-import { divisionOrPoint } from '@renderer/utils/rank'
+import { formatTierText } from '@renderer/utils/rank'
 import { tierImage } from '@renderer/utils/tier-image'
 
 const props = defineProps<{
@@ -38,7 +40,11 @@ const props = defineProps<{
   recent: RecentWinRate
 }>()
 
+/** 0 胜 0 负说明该队列没打过，红色「胜率 0%」会被误读成连败 */
+const hasGames = computed(() => props.recent.wins + props.recent.losses > 0)
+
 const badgeClass = computed(() => {
+  if (!hasGames.value) return 'normal'
   if (props.recent.winRate >= 58) return 'good'
   if (props.recent.winRate <= 49) return 'bad'
   return 'normal'
