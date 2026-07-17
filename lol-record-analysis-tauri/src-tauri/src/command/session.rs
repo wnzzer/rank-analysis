@@ -169,7 +169,8 @@ pub struct SessionSummoner {
 ///
 /// # 字段说明
 ///
-/// - `name`: 队伍名称（如 "队伍1", "队伍2"）
+/// - `name`: 预组队组名（如 "队伍1", "队伍2"；与对局页两侧「队伍 1 / 队伍 2」列标题
+///   同词但含义不同——前端徽章上有 tooltip 说明这是预组队分组，跟敌我阵营无关）
 /// - `marker_type`: 标记类型（用于前端样式，如 "success", "warning", "error", "info"）
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]

@@ -6,7 +6,7 @@
 import { computed, type MaybeRefOrGetter, toValue } from 'vue'
 import type { SessionData, SessionSummoner } from '@renderer/types/domain/gaming'
 import { tierImage } from '@renderer/utils/tier-image'
-import { divisionOrPoint } from '@renderer/utils/rank'
+import { formatTierText } from '@renderer/utils/rank'
 
 export interface TierDisplay {
   imgUrl: string
@@ -22,8 +22,7 @@ function pickQueueInfo(player: SessionSummoner, queueType: string) {
 
 function toDisplay(player: SessionSummoner, queueType: string): TierDisplay {
   const q = pickQueueInfo(player, queueType)
-  const tierCn = q.tierCn ? `${q.tierCn.slice(-2)} ${divisionOrPoint(q)}` : '无'
-  return { imgUrl: tierImage(q.tier), tierCn }
+  return { imgUrl: tierImage(q.tier), tierCn: formatTierText(q, { short: true }) }
 }
 
 /** 返回 subteamId → TierDisplay[]（按玩家在小队中的顺序） */

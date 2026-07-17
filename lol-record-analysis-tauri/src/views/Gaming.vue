@@ -1,6 +1,15 @@
+<!--
+  注意：本组件被 Framework 的 <Transition mode="out-in"> 包裹，模板根层级
+  （含各 v-if 分支的直接子级）必须保持单元素——dev 模式下模板注释会保留成
+  vnode，与元素并列会让根变成 Fragment，离场过渡卡死（表现为切页黑屏、点不回去）。
+  要写注释请放元素内部或这里。
+-->
 <template>
   <template v-if="!sessionData.phase">
-    <LoadingComponent>等待加入游戏...</LoadingComponent>
+    <LoadingComponent :hint="isConnected ? '进入英雄选择后这里会自动展示对局分析' : undefined">
+      <!-- 已连接时不提示「启动客户端」——那会跟左下角的绿色连接灯自相矛盾 -->
+      {{ isConnected ? '等待加入游戏...' : '未连接到客户端' }}
+    </LoadingComponent>
   </template>
   <template v-else>
     <div class="gaming-page">
@@ -135,6 +144,7 @@
           :phase="sessionData.phase"
           :opgg-mode="opggMode"
           :my-champion-ids="myChampionIds"
+          :my-puuid="mySummonerPuuid"
         />
       </div>
     </div>
@@ -157,6 +167,7 @@ import {
 import { renderAnalysisReport } from '@renderer/services/ai/matchDetail/renderReport'
 import { useSessionSync } from '@renderer/composables/useSessionSync'
 import { useSessionTiers } from '@renderer/composables/useSessionTiers'
+import { useGameState } from '@renderer/composables/useGameState'
 import { useAssetUrl } from '@renderer/composables/useAssetUrl'
 import {
   ensureOpggData,
@@ -176,6 +187,10 @@ const STAGE_STEPS: Array<{ key: string; label: string }> = [
 const { sessionData, requestSessionData } = useSessionSync()
 const tiersBySubteam = useSessionTiers(sessionData)
 const { getChampionUrl } = useAssetUrl()
+const { isConnected, summoner: mySummoner } = useGameState()
+
+/** 自己的 puuid，用于在玩家卡上标出「我」 */
+const mySummonerPuuid = computed(() => mySummoner.value?.puuid ?? '')
 
 const density = computed<'normal' | 'compact'>(() =>
   sessionData.isMultiTeam ? 'compact' : 'normal'
@@ -313,6 +328,8 @@ onMounted(async () => {
 <style lang="css" scoped>
 .gaming-page {
   padding: var(--space-16);
+  /* 右缘悬浮按钮（设置/AI）占一条竖向通道，多留白避免压在卡片内容上 */
+  padding-right: calc(var(--space-16) + 40px);
   height: 100%;
   box-sizing: border-box;
   position: relative;

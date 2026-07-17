@@ -15,10 +15,13 @@
           alt="champion"
           class="history-champ-img"
         />
-        <div class="kda-text">
-          <span class="kill">{{ game.participants[0].stats?.kills }}</span>
-          / <span class="death">{{ game.participants[0].stats?.deaths }}</span> /
-          <span class="assist">{{ game.participants[0].stats?.assists }}</span>
+        <!-- font-number: 与战绩页 RecordCard 同款 Oswald 数字字体；分隔符弱化不抢数字 -->
+        <div class="kda-text font-number">
+          <span class="kill">{{ game.participants[0].stats?.kills }}</span
+          ><span class="kda-sep">/</span
+          ><span class="death">{{ game.participants[0].stats?.deaths }}</span
+          ><span class="kda-sep">/</span
+          ><span class="assist">{{ game.participants[0].stats?.assists }}</span>
         </div>
         <n-tooltip trigger="hover">
           <template #trigger>
@@ -80,16 +83,12 @@ defineProps<{ games: Game[] }>()
   border-left-color: color-mix(in srgb, var(--semantic-win) 70%, transparent);
 }
 
-/* 固定列宽 grid：胜负 / 头像 / KDA / 模式 —— 跨行跨卡片严格对齐 */
-/* 模式列宽也随 viewport 平滑放大 (60→80px), 配合 queue-name 字号 10→14px 容纳 5 字"海克斯乱斗" */
-/* minmax(0, 1fr) 阻止 KDA 大数字 (15/10/33) 把 1fr 列撑大挤掉 queue 列 */
+/* 列宽策略：胜负(定宽) / 头像(自适应图) / KDA(max-content 永不裁数字) / 模式(弹性+省略号)。
+   旧版 KDA 用 minmax(0,1fr)+nowrap，KDA 大数字(27/10/19)超出列宽时直接压到模式列上
+  （「海克斯乱斗」等长模式名尤其明显）；数字必须完整，模式名可省略（有 hover tooltip 兜底） */
 .history-row {
   display: grid;
-  grid-template-columns: 18px 24px minmax(0, 1fr) clamp(
-      60px,
-      calc(60px + (100vw - 900px) * 20 / 2100),
-      80px
-    );
+  grid-template-columns: 18px auto max-content minmax(0, 1fr);
   align-items: center;
   gap: var(--space-6);
 }
@@ -127,6 +126,16 @@ defineProps<{ games: Game[] }>()
   white-space: nowrap;
 }
 
+/* 每个数字占 2ch 槽位居中：K/D/A 位数不同（4 vs 46）时斜杠位置仍逐行对齐，
+   三位数极端值靠 min-width 自然撑开（只影响该行） */
+.kill,
+.death,
+.assist {
+  display: inline-block;
+  min-width: 2ch;
+  text-align: center;
+}
+
 .kill {
   color: var(--semantic-win);
 }
@@ -137,6 +146,12 @@ defineProps<{ games: Game[] }>()
 
 .assist {
   color: var(--text-secondary);
+}
+
+.kda-sep {
+  color: var(--text-tertiary);
+  font-weight: var(--font-weight-normal, 400);
+  margin: 0 1px;
 }
 
 .queue-name {

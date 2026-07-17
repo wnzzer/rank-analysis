@@ -31,6 +31,7 @@
           <span class="intel-winrate" :class="winRateClass">{{
             formatWinRate(meta?.winRate)
           }}</span>
+          <PatchNoteBadge :champion-id="championId" :mode="mode" />
         </div>
         <div class="intel-row intel-sub">
           <span v-if="pickState === 'intent'" class="intel-state-tag">意向</span>
@@ -61,6 +62,7 @@ import { getChampionName, loadChampionNames } from '@renderer/services/ai/champi
 import { getChampionMeta, getLaneCounters, findCounterHints } from '@renderer/services/opgg'
 import type { ChampionMeta, CounterHint, OpggMode } from '@renderer/services/opgg'
 import { pickStateClass, tierBadge, formatWinRate, isChampionSwap } from './championIntel'
+import PatchNoteBadge from './PatchNoteBadge.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -344,26 +346,26 @@ watch(
   }
 }
 
-/* 禁用中：红色粗边框 + 外扩 ring 呼吸（威胁感），类比 intel-picking 但复用
-   --semantic-loss 色系，与「选择中」形成正/负两极的视觉对比 */
+/* 禁用中：ban 阶段全队（含对面 5 个占位）同时点亮，红色必须克制——
+   1px 半透明边框 + 慢速微呼吸，仅提示状态；威胁感交给文案「禁用中…」 */
 .intel-banning {
-  border: 2px solid var(--semantic-loss, #d03050);
-  background: rgba(208, 48, 80, 0.06);
+  border: 1px solid color-mix(in srgb, var(--semantic-loss, #d03050) 45%, transparent);
+  background: rgba(208, 48, 80, 0.04);
   animation:
     intel-enter 0.32s var(--ease-expo) both,
-    intel-ban-pulse 1.1s ease-in-out infinite;
+    intel-ban-pulse 2s ease-in-out infinite;
   animation-delay: calc(55ms * var(--stagger-i, 0)), 0s;
 }
 .intel-banning .intel-avatar {
-  border-color: var(--semantic-loss, #d03050);
+  border-color: color-mix(in srgb, var(--semantic-loss, #d03050) 55%, transparent);
 }
 @keyframes intel-ban-pulse {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(208, 48, 80, 0.1);
+    box-shadow: 0 0 0 0 rgba(208, 48, 80, 0.08);
   }
   50% {
-    box-shadow: 0 0 0 3px rgba(208, 48, 80, 0.1);
+    box-shadow: 0 0 0 2px rgba(208, 48, 80, 0.08);
   }
 }
 
