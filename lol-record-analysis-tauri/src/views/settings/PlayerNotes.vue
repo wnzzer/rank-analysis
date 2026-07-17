@@ -112,6 +112,8 @@ const columns = computed<DataTableColumns<Row>>(() => [
   {
     title: '玩家',
     key: 'gameName',
+    // 固定最小宽度 + tag 禁止折行：否则窄窗口下 #12345 会在数字中间断行
+    minWidth: 200,
     render(row) {
       return h(
         'div',
@@ -119,12 +121,15 @@ const columns = computed<DataTableColumns<Row>>(() => [
         [
           h(
             NEllipsis,
-            { style: 'max-width:160px;font-weight:600' },
+            { style: 'max-width:220px;font-weight:600' },
             { default: () => row.gameName || '(未知)' }
           ),
           h(
             'span',
-            { style: 'color:var(--text-tertiary);font-size:var(--font-size-sm)' },
+            {
+              style:
+                'color:var(--text-tertiary);font-size:var(--font-size-sm);white-space:nowrap;flex:none'
+            },
             `#${row.tagLine}`
           )
         ]
@@ -136,7 +141,7 @@ const columns = computed<DataTableColumns<Row>>(() => [
     key: 'note',
     render(row) {
       if (!row.note) return h('span', { style: 'color:var(--text-tertiary)' }, '—')
-      return h(NEllipsis, { style: 'max-width:240px' }, { default: () => row.note })
+      return h(NEllipsis, { style: 'max-width:360px' }, { default: () => row.note })
     }
   },
   {

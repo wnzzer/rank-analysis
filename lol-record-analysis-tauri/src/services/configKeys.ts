@@ -35,5 +35,7 @@ export const CONFIG_KEYS = {
    * 由后端在客户端「已连接」时从运行进程反推并自动记忆（见 Rust `command::launcher`），
    * 前端一般无需读写；列在此处以收口该共享键名。
    */
-  gameInstallPath: 'gameInstallPath'
+  gameInstallPath: 'gameInstallPath',
+  /** 页面缩放比例（Ctrl+滚轮调节，0.7~1.5；见 composables/useZoom） */
+  zoomFactor: 'settings.ui.zoomFactor'
 } as const

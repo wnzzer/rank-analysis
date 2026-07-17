@@ -7,6 +7,7 @@
     "core:default",
     "opener:default",
     "core:webview:allow-create-webview-window",
+    "core:webview:allow-set-webview-zoom",
     "core:window:allow-create",
     "core:window:allow-minimize",
     "core:window:allow-maximize",

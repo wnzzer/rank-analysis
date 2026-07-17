@@ -879,18 +879,27 @@ pub fn get_default_tags() -> Vec<TagConfig> {
             good: false,
             enabled: true,
             is_default: true,
-            condition: TagCondition::History {
-                filters: vec![MatchFilter::Queue {
-                    ids: QUEUE_IDS
-                        .iter()
-                        .filter(|&id| *id != 420 && *id != 440)
-                        .cloned()
-                        .collect(),
-                }],
-                refresh: MatchRefresh::Count {
-                    op: Operator::Gt,
-                    value: 5.0,
-                },
+            // 排位专属：只在当前对局是单双排/灵活组排时展示。
+            // 乱斗等娱乐队列里「非排位场次多」几乎人人命中，标签沦为噪音
+            condition: TagCondition::And {
+                conditions: vec![
+                    TagCondition::CurrentQueue {
+                        ids: vec![QUEUE_SOLO_5X5, QUEUE_FLEX],
+                    },
+                    TagCondition::History {
+                        filters: vec![MatchFilter::Queue {
+                            ids: QUEUE_IDS
+                                .iter()
+                                .filter(|&id| *id != 420 && *id != 440)
+                                .cloned()
+                                .collect(),
+                        }],
+                        refresh: MatchRefresh::Count {
+                            op: Operator::Gt,
+                            value: 5.0,
+                        },
+                    },
+                ],
             },
         },
         TagConfig {
@@ -1125,6 +1134,45 @@ fn merge_missing_defaults(mut tags: Vec<TagConfig>) -> Vec<TagConfig> {
     tags
 }
 
+/// 条件树中是否已含 CurrentQueue 节点（用于迁移幂等判断）。
+fn condition_has_current_queue(c: &TagCondition) -> bool {
+    match c {
+        TagCondition::CurrentQueue { .. } => true,
+        TagCondition::And { conditions } | TagCondition::Or { conditions } => {
+            conditions.iter().any(condition_has_current_queue)
+        }
+        TagCondition::Not { condition } => condition_has_current_queue(condition),
+        _ => false,
+    }
+}
+
+/// 一次性迁移：「娱乐」标签补上排位专属门控。
+///
+/// 旧版条件只有 History（非排位场次多），在乱斗等娱乐队列里几乎人人命中、沦为噪音。
+/// 就地把原条件包进 `And[CurrentQueue(排位), 原条件]`——用户自调的阈值原样保留。
+/// 幂等：条件树里已有 CurrentQueue（无论是迁移过还是用户自己加的）则不动。
+///
+/// # 返回值
+/// 是否发生了迁移（调用方据此决定要不要落盘）
+fn migrate_casual_ranked_only(tags: &mut [TagConfig]) -> bool {
+    let mut changed = false;
+    for t in tags.iter_mut() {
+        if t.id == "default_casual" && !condition_has_current_queue(&t.condition) {
+            let inner = t.condition.clone();
+            t.condition = TagCondition::And {
+                conditions: vec![
+                    TagCondition::CurrentQueue {
+                        ids: vec![QUEUE_SOLO_5X5, QUEUE_FLEX],
+                    },
+                    inner,
+                ],
+            };
+            changed = true;
+        }
+    }
+    changed
+}
+
 /// 加载标签配置。
 ///
 /// 如果配置文件不存在，会自动创建默认配置；
@@ -1138,8 +1186,9 @@ pub async fn load_config() -> Vec<TagConfig> {
         Ok(val) => {
             let tags = config_value_to_tags(val);
             let before = tags.len();
-            let merged = merge_missing_defaults(tags);
-            if merged.len() != before {
+            let mut merged = merge_missing_defaults(tags);
+            let migrated = migrate_casual_ranked_only(&mut merged);
+            if merged.len() != before || migrated {
                 let _ = save_tag_configs(merged.clone()).await;
             }
             merged
@@ -1707,5 +1756,54 @@ mod tests {
         // 幂等：再 merge 不再增长
         let len = merged.len();
         assert_eq!(merge_missing_defaults(merged).len(), len);
+    }
+
+    /// 造一个旧版（无 CurrentQueue 门控）的「娱乐」标签配置
+    fn legacy_casual_tag() -> TagConfig {
+        TagConfig {
+            id: "default_casual".to_string(),
+            name: "娱乐".to_string(),
+            desc: "排位比例较少".to_string(),
+            good: false,
+            enabled: true,
+            is_default: true,
+            condition: TagCondition::History {
+                filters: vec![MatchFilter::Queue { ids: vec![450] }],
+                refresh: MatchRefresh::Count {
+                    op: Operator::Gt,
+                    value: 5.0,
+                },
+            },
+        }
+    }
+
+    #[test]
+    fn should_migrate_legacy_casual_to_ranked_only_once() {
+        let mut tags = vec![legacy_casual_tag()];
+        // 首次迁移：包上 CurrentQueue 门控
+        assert!(migrate_casual_ranked_only(&mut tags));
+        assert!(condition_has_current_queue(&tags[0].condition));
+        // 用户自调的 History 阈值保留在内层
+        if let TagCondition::And { conditions } = &tags[0].condition {
+            assert!(matches!(conditions[1], TagCondition::History { .. }));
+        } else {
+            panic!("expected And-wrapped condition");
+        }
+        // 幂等：已迁移过不再动
+        assert!(!migrate_casual_ranked_only(&mut tags));
+    }
+
+    #[test]
+    fn casual_tag_should_only_hit_in_ranked_lobby() {
+        let casual = get_default_tags()
+            .into_iter()
+            .find(|t| t.id == "default_casual")
+            .unwrap();
+        // 近 20 场大量非排位（450 ARAM）→ History 条件满足
+        let history = make_history((0..10).map(|_| make_game(1, true, 450)).collect());
+        // 当前在排位（420）→ 展示
+        assert!(casual.evaluate(&history, 420, None).is_some());
+        // 当前在乱斗等非排位队列 → 不展示
+        assert!(casual.evaluate(&history, 450, None).is_none());
     }
 }

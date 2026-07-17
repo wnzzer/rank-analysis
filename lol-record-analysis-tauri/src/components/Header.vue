@@ -9,7 +9,7 @@
         class="input-lolid header-search"
         type="text"
         size="small"
-        placeholder="输入召唤师"
+        placeholder="召唤师名#Tag"
         v-model:value="searchValue"
         @keyup.enter="onClinkSearch"
       >
@@ -254,12 +254,13 @@ const closeWindow = (): void => {
 }
 </script>
 <style lang="css" scoped>
+/* 不加 backdrop-filter：顶栏底色近实色，模糊毫无视觉贡献；且透明窗口
+   （tauri transparent:true）+ backdrop-filter 会诱发 WebView2 合成层
+   冻结——运行时切主题后顶栏卡死在旧主题配色，整页刷新才恢复 */
 .header-inner {
   width: 100%;
   height: 100%;
   align-items: center;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
 }
 
 .header-left {

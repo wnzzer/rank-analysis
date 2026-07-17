@@ -73,6 +73,9 @@
                     {{ sessionSummoner?.summoner.gameName }}
                   </n-ellipsis>
                 </n-button>
+                <n-tag v-if="isSelf" size="small" type="success" round :bordered="false">
+                  我
+                </n-tag>
                 <n-button
                   text
                   size="tiny"
@@ -102,17 +105,23 @@
                   <span class="tier-text">{{ tierCn }}</span>
                 </n-flex>
                 <!-- 当前英雄的 OP.GG T 级/胜率 chip：opggMode 未传或无数据时不渲染（无占位） -->
-                <span v-if="opggMeta" class="opgg-chip">
-                  <span
-                    v-if="opggBadge.label"
-                    class="opgg-chip-tier"
-                    :style="{ color: opggBadge.color, backgroundColor: opggBadge.bg }"
-                    >{{ opggBadge.label }}</span
-                  >
-                  <span class="opgg-chip-rate" :class="opggWinRateClass">{{
-                    formatWinRate(opggMeta.winRate)
-                  }}</span>
-                </span>
+                <n-tooltip v-if="opggMeta" trigger="hover">
+                  <template #trigger>
+                    <span class="opgg-chip">
+                      <span
+                        v-if="opggBadge.label"
+                        class="opgg-chip-tier"
+                        :style="{ color: opggBadge.color, backgroundColor: opggBadge.bg }"
+                        >{{ opggBadge.label }}</span
+                      >
+                      <span class="opgg-chip-rate" :class="opggWinRateClass">{{
+                        formatWinRate(opggMeta.winRate)
+                      }}</span>
+                    </span>
+                  </template>
+                  OP.GG：该英雄在当前模式的梯度与全球胜率（非玩家个人胜率）
+                </n-tooltip>
+                <PatchNoteBadge :champion-id="sessionSummoner.championId" :mode="opggMode" />
                 <!-- ARAM Balance Status -->
                 <n-popover
                   v-if="balanceTags.length > 0 && isAramMode"
@@ -146,16 +155,17 @@
             </div>
 
             <div class="profile-tags">
-              <n-tag
-                v-if="sessionSummoner.preGroupMarkers?.name"
-                size="small"
-                :type="sessionSummoner.preGroupMarkers.type as any"
-              >
-                {{ sessionSummoner.preGroupMarkers.name }}
-              </n-tag>
+              <n-tooltip v-if="sessionSummoner.preGroupMarkers?.name" trigger="hover">
+                <template #trigger>
+                  <n-tag size="small" :type="sessionSummoner.preGroupMarkers.type as any">
+                    {{ sessionSummoner.preGroupMarkers.name }}
+                  </n-tag>
+                </template>
+                预组队：近期多次同队，大概率一起排的；编号仅区分不同组
+              </n-tooltip>
               <n-tag v-if="sessionSummoner.meetGames?.length > 0" type="warning" size="small" round>
                 <n-popover trigger="hover">
-                  <template #trigger>遇见过</template>
+                  <template #trigger>遇见过 ×{{ sessionSummoner.meetGames.length }}</template>
                   <MettingPlayersCard :meet-games="sessionSummoner.meetGames"></MettingPlayersCard>
                 </n-popover>
               </n-tag>
@@ -183,7 +193,18 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onUnmounted, ref, toRef, watch } from 'vue'
-import { NCard, NFlex, NAvatar, NImage, NButton, NIcon, NEllipsis, NPopover, NTag } from 'naive-ui'
+import {
+  NCard,
+  NFlex,
+  NAvatar,
+  NImage,
+  NButton,
+  NIcon,
+  NEllipsis,
+  NPopover,
+  NTag,
+  NTooltip
+} from 'naive-ui'
 import { CopyOutline, HelpCircleOutline } from '@vicons/ionicons5'
 import MettingPlayersCard from './MettingPlayersCard.vue'
 import { useCopy } from '@renderer/composables/useCopy'
@@ -198,6 +219,7 @@ import PlayerHistoryGrid from './PlayerHistoryGrid.vue'
 import PlayerStatsCard from './PlayerStatsCard.vue'
 import LazyImg from '@renderer/components/common/LazyImg.vue'
 import PlayerNoteBadge from '@renderer/components/common/PlayerNoteBadge.vue'
+import PatchNoteBadge from './PatchNoteBadge.vue'
 import UnifiedTagRow from '@renderer/components/common/UnifiedTagRow.vue'
 import { getChampionMeta, type ChampionMeta, type OpggMode } from '@renderer/services/opgg'
 import { tierBadge, formatWinRate, playerCardPickStateClass, isChampionSwap } from './championIntel'
@@ -223,12 +245,15 @@ interface Props {
    * 非选人期（对局中等）恒为空，PlayerCard 不带任何选人态修饰。
    */
   pickState?: string
+  /** 是否是自己：名字旁标「我」，与战绩详情窗口的约定一致 */
+  isSelf?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   team: undefined,
   density: 'normal',
-  pickState: ''
+  pickState: '',
+  isSelf: false
 })
 
 /** n-card content-style：用 token 控制内边距（P0 收紧为 --space-4 让 4 场 1 屏装下） */
@@ -691,12 +716,14 @@ watch(
   }
 }
 
+/* 禁用阶段是全队同时进行的——ban 时 5 张卡（加敌方 5 个占位）一起变红，
+   所以这里刻意比 pc-picking 克制：1px 半透明边框 + 更慢更弱的呼吸，只做状态提示不抢焦点 */
 .player-card.pc-banning {
-  border-width: 2px !important;
-  border-color: var(--semantic-loss) !important;
+  border-width: 1px !important;
+  border-color: color-mix(in srgb, var(--semantic-loss) 45%, transparent) !important;
   animation:
     fade-up var(--dur-normal) var(--ease-expo) both,
-    pc-ban-pulse 1.1s ease-in-out infinite;
+    pc-ban-pulse 2s ease-in-out infinite;
   animation-delay: calc(var(--stagger) * var(--stagger-i, 0)), 0s;
 }
 @keyframes pc-ban-pulse {
@@ -705,7 +732,7 @@ watch(
     filter: drop-shadow(0 0 0 rgba(239, 68, 68, 0));
   }
   50% {
-    filter: drop-shadow(0 0 5px rgba(239, 68, 68, 0.25));
+    filter: drop-shadow(0 0 3px rgba(239, 68, 68, 0.12));
   }
 }
 

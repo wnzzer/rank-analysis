@@ -12,7 +12,8 @@ const palette = {
   light: {
     good: '#2d8a6c',
     bad: '#b84242',
-    neutral: 'rgba(0, 0, 0, 0.6)'
+    // 冷墨而非纯黑：纯黑 60% 在浅色卡面上是一根「脏黑棒」
+    neutral: 'rgba(20, 30, 35, 0.55)'
   }
 }
 

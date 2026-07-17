@@ -14,6 +14,8 @@ export interface ChampionMeta {
   position: string
   tier: number
   rank: number
+  /** 上一 patch 的同分路排名（0 = 无数据），用于「版本走强/走弱」趋势 */
+  rankPrevPatch: number
   winRate: number
   pickRate: number
   banRate: number

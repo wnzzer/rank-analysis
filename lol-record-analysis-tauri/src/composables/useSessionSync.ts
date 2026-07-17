@@ -52,6 +52,10 @@ function updatePreGroupMarkers(subteams: Subteam[], markers: Record<string, PreG
  */
 export function playerSignature(p: SessionSummoner): string {
   const solo = p.rank?.queueMap?.RANKED_SOLO_5x5
+  // recentData（近期数据面板的模式/KDA/胜率等）必须参与签名：
+  // 玩家常先以「战绩已到、近期数据未算好」的包到达，若签名不含这些字段，
+  // 补算完成的包会被当成「无变化」跳过，面板就永远停在 KDA 0 / 胜率 0%
+  const r = p.userTag?.recentData
   return [
     p.summoner.puuid,
     p.championId,
@@ -62,12 +66,41 @@ export function playerSignature(p: SessionSummoner): string {
     solo?.tier ?? '',
     solo?.leaguePoints ?? -1,
     p.preGroupMarkers?.name ?? '',
-    p.pickState ?? ''
+    p.pickState ?? '',
+    r?.selectMode ?? -1,
+    r?.selectWins ?? -1,
+    r?.selectLosses ?? -1,
+    r?.kda ?? -1,
+    r?.kills ?? -1,
+    r?.deaths ?? -1,
+    r?.assists ?? -1,
+    r?.groupRate ?? -1,
+    r?.damageDealtToChampionsRate ?? -1
   ].join('|')
 }
 
 function findSubteam(subteams: Subteam[], subteamId: number): Subteam | undefined {
   return subteams.find(s => s.subteamId === subteamId)
+}
+
+/**
+ * 原位合并玩家数据：保持数组槽位里的对象身份不变。
+ * 整体替换对象会让 PlayerCard 的 props 引用变化 → 内部 watcher（OP.GG chip 拉取等）
+ * 全部重跑，选人期 pickState 高频变化时表现为卡片抖动/闪烁。
+ * @param preserveLocalFields - 保留旧对象的 meetGames/preGroupMarkers
+ *（session-player-update 单玩家事件不带这两个字段的有效值，由独立事件维护）
+ */
+function mergePlayerInPlace(
+  oldPlayer: SessionSummoner,
+  newPlayer: SessionSummoner,
+  preserveLocalFields: boolean
+) {
+  const { meetGames, preGroupMarkers } = oldPlayer
+  Object.assign(oldPlayer, newPlayer)
+  if (preserveLocalFields) {
+    oldPlayer.meetGames = meetGames
+    oldPlayer.preGroupMarkers = preGroupMarkers
+  }
 }
 
 function updatePlayerInSubteam(
@@ -82,6 +115,11 @@ function updatePlayerInSubteam(
   if (oldPlayer && oldPlayer.summoner.puuid === newPlayer.summoner.puuid) {
     newPlayer.meetGames = oldPlayer.meetGames
     newPlayer.preGroupMarkers = oldPlayer.preGroupMarkers
+    // 防闪烁守卫：加载占位不回退已加载内容、签名一致视为无变化直接跳过
+    if (newPlayer.isLoading && !oldPlayer.isLoading) return
+    if (playerSignature(newPlayer) === playerSignature(oldPlayer)) return
+    mergePlayerInPlace(oldPlayer, newPlayer, true)
+    return
   }
   st.players[index] = newPlayer
 }
@@ -127,12 +165,18 @@ export function syncPlayers(
           currentTeam[i] = newPlayer
         }
       } else {
-        let shouldUpdate = true
         if (oldPlayer && oldPlayer.summoner.puuid === newPlayer.summoner.puuid) {
-          if (newPlayer.isLoading && !oldPlayer.isLoading) shouldUpdate = false
-          else if (playerSignature(newPlayer) === playerSignature(oldPlayer)) shouldUpdate = false
+          // 同一玩家：加载占位不回退、签名一致跳过，有变化则原位合并（保持对象身份，
+          // full 事件带权威的 meetGames/preGroupMarkers，不保留旧值）
+          if (newPlayer.isLoading && !oldPlayer.isLoading) continue
+          if (playerSignature(newPlayer) === playerSignature(oldPlayer)) continue
+          mergePlayerInPlace(oldPlayer, newPlayer, false)
+        } else if (oldPlayer && !oldPlayer.isLoading && newPlayer.isLoading) {
+          // 同一格位从「已加载的玩家」被刷成「无身份的加载占位」（puuid 对不上）：
+          // 保留旧内容等真实数据到达，避免 内容→转圈→内容 的闪烁
+        } else {
+          currentTeam[i] = newPlayer
         }
-        if (shouldUpdate) currentTeam[i] = newPlayer
       }
     } else {
       currentTeam.push(newPlayer)

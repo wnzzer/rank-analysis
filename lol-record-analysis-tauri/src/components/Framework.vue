@@ -51,6 +51,7 @@ import ErrorReportingConsentDialog from '@renderer/components/common/ErrorReport
 import CloudSyncNoticeDialog from '@renderer/components/common/CloudSyncNoticeDialog.vue'
 import CloudConfigPullDialog from './common/CloudConfigPullDialog.vue'
 import { useGameState } from '@renderer/composables/useGameState'
+import { useZoom } from '@renderer/composables/useZoom'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import { CONFIG_KEYS } from '@renderer/services/configKeys'
 import { useCloudSyncStore } from '@renderer/pinia/cloudSync'
@@ -93,6 +94,9 @@ const isStandaloneDetailWindow = computed(() => currentWindow.label.startsWith('
  * 包含自动跳转逻辑：当检测到游戏开始时自动切换到对局页面
  */
 const { isConnected } = useGameState()
+
+// 浏览器式缩放（Ctrl+滚轮 / Ctrl±0）：Framework 是所有窗口的根，详情窗一并生效
+useZoom()
 
 const message = useMessage()
 

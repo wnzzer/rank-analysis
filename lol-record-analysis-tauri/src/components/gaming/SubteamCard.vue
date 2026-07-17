@@ -31,6 +31,7 @@
           :density="density"
           :opgg-mode="opggMode"
           :pick-state="phase === 'ChampSelect' ? p.pickState : ''"
+          :is-self="!!myPuuid && p.summoner.puuid === myPuuid"
           :style="{ '--stagger-i': i }"
         />
       </template>
@@ -73,13 +74,16 @@ interface Props {
   opggMode?: OpggMode
   /** 我方已亮出的英雄 id 列表，仅敌方情报卡用于克制提示 */
   myChampionIds?: number[]
+  /** 自己的 puuid，用于在对应玩家卡上标「我」（空 = 不标） */
+  myPuuid?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
   density: 'normal',
   phase: '',
   opggMode: 'ranked',
-  myChampionIds: () => []
+  myChampionIds: () => [],
+  myPuuid: ''
 })
 const placeholderCount = computed(() =>
   Math.max(0, props.expectedSize - props.subteam.players.length)

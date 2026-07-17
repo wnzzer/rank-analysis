@@ -264,6 +264,7 @@ mod tests {
             position: position.into(),
             tier: 1,
             rank: 1,
+            rank_prev_patch: 0,
             win_rate: 0.52,
             pick_rate: 0.1,
             ban_rate: 0.05,

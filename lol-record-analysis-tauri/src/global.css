@@ -121,37 +121,43 @@
   --loss-bar-gradient: linear-gradient(180deg, #e57878, #8a3232);
 }
 
-/* 浅色主题 Token */
+/* 浅色主题 Token —— 冷瓷（porcelain）
+   经真机 A/B 调色实验（近白 vs 冷瓷）后定稿：画布是明亮的冷中性近白，
+   卡片纯白靠细投影+发丝边分离；身份绿只活在点缀（胜负色/激活态/标签）里，
+   不给世界罩色——冷中性底反而让绿色点缀更突出。
+   墨色统一用冷墨（20,30,35），纯黑 alpha 在浅色下显脏 */
 .theme-light {
-  --bg-base: #f0f2f5;
-  --bg-surface: #f6f9f8;
+  --bg-base: #eff1f3;
+  --bg-surface: #fafbfc;
   --bg-elevated: #ffffff;
-  --border-subtle: rgba(0, 0, 0, 0.08);
-  --text-primary: rgba(0, 0, 0, 0.88);
-  --text-secondary: rgba(0, 0, 0, 0.6);
-  --text-tertiary: rgba(0, 0, 0, 0.45);
+  --border-subtle: rgba(20, 30, 35, 0.09);
+  --text-primary: rgba(20, 30, 35, 0.94);
+  --text-secondary: rgba(20, 30, 35, 0.6);
+  --text-tertiary: rgba(20, 30, 35, 0.42);
   --semantic-win: #2d8a6c;
   --semantic-loss: #b84242;
   /* 浅色主题琥珀，加深以保证对比度 */
   --semantic-warn: #b8842f;
   --team-blue: rgba(59, 130, 246, 0.25);
   --team-red: rgba(239, 68, 68, 0.25);
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.08);
-  --shadow-card-hover: 0 2px 8px rgba(0, 0, 0, 0.12);
-  --glass-bg-low: rgba(0, 0, 0, 0.02);
-  --glass-bg-mid: rgba(0, 0, 0, 0.035);
-  --glass-bg-high: rgba(0, 0, 0, 0.06);
-  --glass-border: rgba(0, 0, 0, 0.08);
+  /* 双层投影：1px 贴地暗缝 + 短距柔影，白卡从瓷底上「浮」起来 */
+  --shadow-card: 0 1px 2px rgba(20, 30, 35, 0.06), 0 2px 6px rgba(20, 30, 35, 0.05);
+  --shadow-card-hover: 0 6px 16px rgba(20, 30, 35, 0.1);
+  --glass-bg-low: rgba(20, 30, 35, 0.025);
+  --glass-bg-mid: rgba(20, 30, 35, 0.04);
+  --glass-bg-high: rgba(20, 30, 35, 0.06);
+  --glass-border: rgba(20, 30, 35, 0.09);
   --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.7);
-  --glow-win: 0 0 10px rgba(45, 138, 108, 0.22);
-  --glow-loss: 0 0 10px rgba(184, 66, 66, 0.18);
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
-  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.12);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.15);
+  /* 浅色不做发光：白底上的彩色光晕读作污渍而非氛围 */
+  --glow-win: 0 0 0 rgba(0, 0, 0, 0);
+  --glow-loss: 0 0 0 rgba(0, 0, 0, 0);
+  --shadow-sm: 0 1px 2px rgba(20, 30, 35, 0.07);
+  --shadow-md: 0 4px 10px rgba(20, 30, 35, 0.09);
+  --shadow-lg: 0 12px 32px rgba(20, 30, 35, 0.14);
   --win-bar-gradient: linear-gradient(180deg, #4abd92, #2d8a6c);
   --loss-bar-gradient: linear-gradient(180deg, #d96565, #a33b3b);
-  --border-control: rgba(0, 0, 0, 0.18);
-  --border-control-hover: rgba(0, 0, 0, 0.38);
+  --border-control: rgba(20, 30, 35, 0.2);
+  --border-control-hover: rgba(20, 30, 35, 0.4);
   --focus-ring-color: rgba(45, 138, 108, 0.85);
   --accent-gold: #b8862a;
   --accent-gold-deep: #9c6f1e;
@@ -164,6 +170,36 @@
 .font-number {
   font-family: 'Oswald', sans-serif;
   letter-spacing: 0.5px;
+}
+
+/* ========== 浅色主题材质补丁 ==========
+   深色的「玻璃面板」（透明底+细边）在白底上退化成线框，掉价的主因。
+   浅色统一升级为「纸面」：白底 + ink 细边 + 低层投影。
+   组件侧的 .panel-glass 用了 !important，这里以更高特异度覆盖 */
+.theme-light .panel-glass {
+  background: var(--bg-elevated) !important;
+  border: 1px solid var(--border-subtle) !important;
+  box-shadow: var(--shadow-card) !important;
+}
+
+/* 对局页队伍容器/玩家迷你战绩：同款纸面处理（组件侧无 !important，特异度即可覆盖） */
+.theme-light .subteam-card {
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-card);
+}
+
+/* 机体壳统一：顶栏 + 左侧导航共用 surface 面，内容画布用更深的玉青底，
+   「壳浅于画布」让内容区像嵌进机体的一块屏（Framework 侧写了 !important，
+   这里用更高特异度 + !important 覆盖，仅浅色生效） */
+.theme-light .n-layout-header.header {
+  background-color: var(--bg-surface) !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
+  box-shadow: none;
+}
+
+.theme-light .n-layout-sider.left {
+  background-color: var(--bg-surface) !important;
+  border-right: 1px solid var(--border-subtle) !important;
 }
 
 /* JB 风格实心 focus ring：键盘聚焦时 2px 实心环 + 1px 间隙，替代光晕 */
