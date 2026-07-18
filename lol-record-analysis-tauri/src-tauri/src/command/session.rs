@@ -163,6 +163,10 @@ pub struct SessionSummoner {
     /// 选人状态："none"|"intent"|"picking"|"locked"；非选人阶段为空字符串
     #[serde(default)]
     pub pick_state: String,
+    /// 本局官方分配分路（LCU 小写命名，如 "middle"）；仅选人期我方有值，
+    /// 供 AI 选人分析拼对线关系用——缺了它模型只能靠猜，会猜出前后矛盾的分路。
+    #[serde(default)]
+    pub assigned_position: String,
 }
 
 /// 预组队标记，用于标识同一预组队内的成员名称与类型。
@@ -229,6 +233,29 @@ pub async fn get_session_data(app_handle: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// 选人会话玩家 → gameflow 形状的 `session::OnePlayer`。
+///
+/// - `selected_position` 刻意留空——保持 LCU my_team/their_team 的原始顺序
+///   （=客户端选人界面的排列）。进入对局后 gameflow 数据才带 position 做分路排序。
+///   sort_by_key 是稳定排序，全部 weight 99 时原序保留。
+/// - `assigned_position` 原样透传（我方有值、敌方 LCU 恒为空），供 AI 分析拼对线关系。
+fn champ_select_to_one_player(
+    p: &crate::lcu::api::champion_select::OnePlayer,
+    pick_states: &std::collections::HashMap<i32, String>,
+) -> crate::lcu::api::session::OnePlayer {
+    crate::lcu::api::session::OnePlayer {
+        champion_id: crate::lcu::api::champion_select::display_champion_id(p),
+        puuid: p.puuid.clone(),
+        selected_position: String::new(),
+        team_participant_id: 0,
+        pick_state: pick_states
+            .get(&p.cell_id)
+            .cloned()
+            .unwrap_or_else(|| "none".to_string()),
+        assigned_position: p.assigned_position.clone(),
+    }
+}
+
 /// 实际处理会话数据：拉取 phase/session、组队、补全玩家信息并依次推送事件。
 ///
 /// 这是内部核心处理函数，负责完整的会话数据获取和事件推送流程。
@@ -285,19 +312,7 @@ async fn process_session_data(app_handle: AppHandle, seq: u64) -> Result<(), Str
                     crate::lcu::api::champion_select::derive_champ_select_view(&select_session);
                 champ_select_view = Some(view);
                 let to_one_player = |p: &crate::lcu::api::champion_select::OnePlayer| {
-                    crate::lcu::api::session::OnePlayer {
-                        champion_id: crate::lcu::api::champion_select::display_champion_id(p),
-                        puuid: p.puuid.clone(),
-                        // 选人期刻意不填 position——保持 LCU my_team/their_team 的原始顺序（=客户端选人界面的排列）。
-                        // 进入对局后 gameflow 数据才带 position 做分路排序。sort_by_key 是稳定排序，
-                        // 全部 weight 99 时原序保留。
-                        selected_position: String::new(),
-                        team_participant_id: 0,
-                        pick_state: pick_states
-                            .get(&p.cell_id)
-                            .cloned()
-                            .unwrap_or_else(|| "none".to_string()),
-                    }
+                    champ_select_to_one_player(p, &pick_states)
                 };
                 session.game_data.team_one =
                     select_session.my_team.iter().map(to_one_player).collect();
@@ -362,6 +377,7 @@ async fn process_session_data(app_handle: AppHandle, seq: u64) -> Result<(), Str
                 selected_position: String::new(),
                 team_participant_id: 0,
                 pick_state: p.pick_state.clone(),
+                assigned_position: p.assigned_position.clone(),
             })
             .collect();
 
@@ -451,6 +467,7 @@ fn build_classic_subteams(session: &mut Session, session_data: &mut SessionData,
                     selected_position: String::new(),
                     team_participant_id: 0,
                     pick_state: String::new(),
+                    assigned_position: String::new(),
                 })
                 .collect();
         }
@@ -463,6 +480,7 @@ fn build_classic_subteams(session: &mut Session, session_data: &mut SessionData,
                     selected_position: String::new(),
                     team_participant_id: 0,
                     pick_state: String::new(),
+                    assigned_position: String::new(),
                 })
                 .collect();
         }
@@ -497,6 +515,7 @@ fn build_classic_subteams(session: &mut Session, session_data: &mut SessionData,
                     ..Default::default()
                 },
                 pick_state: p.pick_state.clone(),
+                assigned_position: p.assigned_position.clone(),
                 ..Default::default()
             })
             .collect()
@@ -542,6 +561,7 @@ async fn build_cherry_subteams(
                 selected_position: String::new(),
                 team_participant_id: 0,
                 pick_state: String::new(),
+                assigned_position: String::new(),
             })
             .collect();
     }
@@ -605,6 +625,7 @@ async fn build_cherry_subteams(
             ..Default::default()
         },
         pick_state: p.pick_state.clone(),
+        assigned_position: p.assigned_position.clone(),
         ..Default::default()
     };
 
@@ -641,6 +662,7 @@ async fn push_basic_info(
             let puuid = placeholder.summoner.puuid.clone();
             let champion_id = placeholder.champion_id;
             let pick_state = placeholder.pick_state.clone();
+            let assigned_position = placeholder.assigned_position.clone();
             async move {
                 if puuid.is_empty() {
                     return SessionSummoner {
@@ -648,6 +670,7 @@ async fn push_basic_info(
                         champion_key: format!("champion_{}", champion_id),
                         is_loading: false,
                         pick_state,
+                        assigned_position,
                         ..Default::default()
                     };
                 }
@@ -660,6 +683,7 @@ async fn push_basic_info(
                     summoner,
                     is_loading: true,
                     pick_state,
+                    assigned_position,
                     ..Default::default()
                 }
             }
@@ -713,6 +737,7 @@ async fn process_subteam_parallel(
                     champion_key: format!("champion_{}", player.champion_id),
                     is_loading: false,
                     pick_state: player.pick_state.clone(),
+                    assigned_position: player.assigned_position.clone(),
                     ..Default::default()
                 };
             }
@@ -779,6 +804,7 @@ async fn process_subteam_parallel(
                     pre_group_markers: PreGroupMarker::default(),
                     is_loading: false,
                     pick_state: player.pick_state.clone(),
+                    assigned_position: player.assigned_position.clone(),
                 };
                 let update = PlayerUpdate {
                     subteam_id,
@@ -829,6 +855,7 @@ async fn process_subteam_parallel(
                 pre_group_markers: PreGroupMarker::default(),
                 is_loading: false,
                 pick_state: player.pick_state.clone(),
+                assigned_position: player.assigned_position.clone(),
             }
         });
 
@@ -1146,6 +1173,7 @@ mod tests {
                         selected_position: "TOP".into(),
                         team_participant_id: 0,
                         pick_state: String::new(),
+                        assigned_position: String::new(),
                     })
                     .collect(),
                 team_two: (6..=10)
@@ -1155,6 +1183,7 @@ mod tests {
                         selected_position: "TOP".into(),
                         team_participant_id: 0,
                         pick_state: String::new(),
+                        assigned_position: String::new(),
                     })
                     .collect(),
             },
@@ -1246,6 +1275,7 @@ mod tests {
                 selected_position: String::new(),
                 team_participant_id: 0,
                 pick_state: "locked".into(),
+                assigned_position: String::new(),
             },
             crate::lcu::api::session::OnePlayer {
                 champion_id: 55,
@@ -1253,6 +1283,7 @@ mod tests {
                 selected_position: String::new(),
                 team_participant_id: 0,
                 pick_state: "intent".into(),
+                assigned_position: String::new(),
             },
             crate::lcu::api::session::OnePlayer {
                 champion_id: 0,
@@ -1260,6 +1291,7 @@ mod tests {
                 selected_position: String::new(),
                 team_participant_id: 0,
                 pick_state: "none".into(),
+                assigned_position: String::new(),
             },
         ];
         // 残留 selections 依旧不得回填（守卫回归）
@@ -1288,6 +1320,59 @@ mod tests {
                 .iter()
                 .any(|p| p.summoner.puuid == "ally-1"),
             "我不应出现在敌方"
+        );
+    }
+
+    /// 选人期我方 assigned_position（LCU 官方分配的本局分路）必须透传到
+    /// SessionSummoner——AI 选人分析要靠它拼对线关系，丢了模型只能瞎猜。
+    #[test]
+    fn classic_propagates_assigned_position_to_players() {
+        let mut session = make_session_classic();
+        session.phase = "ChampSelect".into();
+        session.game_data.team_one.truncate(5);
+        let lanes = ["top", "jungle", "middle", "bottom", "utility"];
+        for (i, p) in session.game_data.team_one.iter_mut().enumerate() {
+            p.assigned_position = lanes[i].to_string();
+        }
+        session.game_data.team_two.clear();
+
+        let mut data = SessionData {
+            game_mode: "CLASSIC".into(),
+            ..Default::default()
+        };
+        build_classic_subteams(&mut session, &mut data, "ally-1");
+
+        let positions: Vec<String> = data.subteams[0]
+            .players
+            .iter()
+            .map(|p| p.assigned_position.clone())
+            .collect();
+        assert_eq!(
+            positions,
+            vec!["top", "jungle", "middle", "bottom", "utility"],
+            "我方本局分路必须原样透传"
+        );
+    }
+
+    /// 选人会话 → session::OnePlayer 的映射必须带上 assigned_position 与 pick_state。
+    #[test]
+    fn champ_select_to_one_player_carries_assigned_position() {
+        let p = crate::lcu::api::champion_select::OnePlayer {
+            champion_id: 10,
+            puuid: "p1".into(),
+            assigned_position: "middle".into(),
+            cell_id: 0,
+            champion_pick_intent: 0,
+        };
+        let mut pick_states = std::collections::HashMap::new();
+        pick_states.insert(0, "locked".to_string());
+        let one = champ_select_to_one_player(&p, &pick_states);
+        assert_eq!(one.assigned_position, "middle");
+        assert_eq!(one.pick_state, "locked");
+        assert_eq!(one.champion_id, 10);
+        assert!(
+            one.selected_position.is_empty(),
+            "选人期不填 selected_position，保持客户端原始排列"
         );
     }
 
@@ -1338,6 +1423,7 @@ mod tests {
                     selected_position: "NONE".into(),
                     team_participant_id: tpid,
                     pick_state: String::new(),
+                    assigned_position: String::new(),
                 });
             }
         }
@@ -1406,6 +1492,7 @@ mod tests {
                         selected_position: "".into(),
                         team_participant_id: 1,
                         pick_state: String::new(),
+                        assigned_position: String::new(),
                     },
                     OnePlayer {
                         champion_id: 2,
@@ -1413,6 +1500,7 @@ mod tests {
                         selected_position: "".into(),
                         team_participant_id: 1,
                         pick_state: String::new(),
+                        assigned_position: String::new(),
                     },
                     OnePlayer {
                         champion_id: 3,
@@ -1420,6 +1508,7 @@ mod tests {
                         selected_position: "".into(),
                         team_participant_id: 4,
                         pick_state: String::new(),
+                        assigned_position: String::new(),
                     },
                 ],
                 team_two: vec![],
@@ -1451,6 +1540,7 @@ mod tests {
                     selected_position: "NONE".into(),
                     team_participant_id: tpid,
                     pick_state: String::new(),
+                    assigned_position: String::new(),
                 });
             }
         }
@@ -1461,6 +1551,7 @@ mod tests {
                 selected_position: "NONE".into(),
                 team_participant_id: tpid,
                 pick_state: String::new(),
+                assigned_position: String::new(),
             });
         }
         let mut session = Session {
@@ -1534,6 +1625,7 @@ mod tests {
                         selected_position: String::new(),
                         team_participant_id: 0,
                         pick_state: String::new(),
+                        assigned_position: String::new(),
                     })
                     .collect(),
                 team_two: vec![],

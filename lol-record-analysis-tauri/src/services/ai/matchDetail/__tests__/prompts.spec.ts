@@ -219,4 +219,89 @@ describe('buildStage2Prompt', () => {
     const prompt = buildStage2Prompt(sampleAttribution, snap, [])
     expect(prompt).toMatch(/自由发挥|无固定词库/)
   })
+
+  it('renders 玩家名册 from backfilled verdict fields（英雄/分路/胜负/label）', () => {
+    const snap = makeSnapshot()
+    const attribution: AttributionResult = {
+      winReason: '下路碾压',
+      verdicts: [
+        {
+          ...sampleAttribution.verdicts[0],
+          name: '幽默的二次元',
+          champion: '赏金猎人',
+          teamPosition: 'BOTTOM',
+          teamResult: '胜方',
+          label: '尽力'
+        },
+        {
+          ...sampleAttribution.verdicts[0],
+          participantId: 8,
+          name: '天神下凡来撸',
+          champion: '天神下凡英雄',
+          teamPosition: 'JUNGLE',
+          teamResult: '败方',
+          label: '被连累'
+        }
+      ]
+    }
+    const prompt = buildStage2Prompt(attribution, snap, [])
+    expect(prompt).toContain('【玩家名册】')
+    expect(prompt).toContain('幽默的二次元｜赏金猎人｜下路｜胜方｜尽力')
+    expect(prompt).toContain('天神下凡来撸｜天神下凡英雄｜打野｜败方｜被连累')
+  })
+
+  it('omits 分路 segment in 名册 when teamPosition 为空（无分路模式）', () => {
+    const snap = makeSnapshot()
+    const attribution: AttributionResult = {
+      winReason: 'x',
+      verdicts: [
+        {
+          ...sampleAttribution.verdicts[0],
+          name: '大乱斗玩家',
+          champion: '光辉女郎',
+          teamPosition: '',
+          teamResult: '胜方',
+          label: '正常'
+        }
+      ]
+    }
+    const prompt = buildStage2Prompt(attribution, snap, [])
+    expect(prompt).toContain('大乱斗玩家｜光辉女郎｜胜方｜正常')
+  })
+
+  it('states label→章节 固定映射（败方被连累不得进谁尽力了）', () => {
+    const snap = makeSnapshot()
+    const prompt = buildStage2Prompt(sampleAttribution, snap, [])
+    expect(prompt).toContain('尽力 →「谁尽力了」')
+    expect(prompt).toContain('犯罪/缚地灵 →「谁要背锅」')
+    expect(prompt).toContain('被爆/被连累 →「谁被打爆 / 被连累」')
+  })
+
+  it('forbids 同一玩家重复上榜多个章节', () => {
+    const snap = makeSnapshot()
+    const prompt = buildStage2Prompt(sampleAttribution, snap, [])
+    expect(prompt).toContain('只能出现在自己 label 对应的那一个章节')
+  })
+
+  it('forbids 名册外分路 and 材料外数据性比较', () => {
+    const snap = makeSnapshot()
+    const prompt = buildStage2Prompt(sampleAttribution, snap, [])
+    expect(prompt).toContain('只能照抄【玩家名册】')
+    expect(prompt).toContain('数据性比较')
+  })
+})
+
+describe('buildStage1Prompt — 位置感知纪律', () => {
+  const snap = makeSnapshot()
+
+  it('exempts UTILITY from damageShare/goldShare 负面证据', () => {
+    const prompt = buildStage1Prompt(snap, '')
+    expect(prompt).toContain('UTILITY')
+    expect(prompt).toContain('不构成负面证据')
+  })
+
+  it('requires finalCall 分路表述以 snapshot.teamPosition 为准', () => {
+    const prompt = buildStage1Prompt(snap, '')
+    expect(prompt).toContain('必须以该玩家 snapshot 的 teamPosition 为准')
+  })
 })

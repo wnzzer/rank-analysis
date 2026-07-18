@@ -14,6 +14,8 @@
 import { extractPlayerInsight } from '../player-insight'
 import { getChampionName } from '../champion-names'
 import { getChampionMeta, getLaneCounters, findCounterHints } from '@renderer/services/opgg'
+import { getChampionPatchNote } from '@renderer/services/patchNotes'
+import type { ChangeDirection } from '@renderer/services/patchNotes'
 import type { OpggMode, LaneCounter } from '@renderer/services/opgg'
 import type { SessionData, SessionSummoner } from '@renderer/types/domain/gaming'
 
@@ -42,10 +44,23 @@ const POSITION_CN: Record<string, string> = {
   UTILITY: '辅助'
 }
 
-/** OP.GG 主分路 → 中文展示片段，position 为空串（aram 等无分路模式）时不展示该段 */
+/**
+ * OP.GG 主分路 → 中文展示片段，position 为空串（aram 等无分路模式）时不展示该段。
+ * 带"（推测）"标注：这是版本统计上该英雄最常见的分路，不是本局的权威分路——
+ * 敌方本局实际分路 LCU 不下发，不标注会诱导模型把统计当事实拼对线。
+ */
 function positionSegment(position: string | undefined): string {
   const cn = position ? POSITION_CN[position] : undefined
-  return cn ? `｜主分路${cn}` : ''
+  return cn ? `｜主分路${cn}（推测）` : ''
+}
+
+/**
+ * LCU 本局分配分路（小写命名，如 "middle"）→ 中文展示片段。
+ * 空串（匹配/大乱斗等无分配模式）时不展示该段。
+ */
+function assignedPositionSegment(position: string | undefined): string {
+  const cn = position ? POSITION_CN[position.toUpperCase()] : undefined
+  return cn ? `｜本局分路${cn}` : ''
 }
 
 /** ban 列表 → 英雄名字串，空列表显示"无" */
@@ -68,12 +83,44 @@ function myPlayerLine(p: SessionSummoner): string {
           `${c.champion}(${c.winRate}%/${c.games}场)`
       )
       .join('、') || '无近期数据'
-  return `- ${insight.name}（${insight.tier}）本局：${champLabel}｜近期胜率 ${insight.recentStats.winRate}% KDA ${insight.recentStats.kda}｜主打位置 ${insight.mainPosition}｜常用：${topChampsText}`
+  return `- ${insight.name}（${insight.tier}）本局：${champLabel}${assignedPositionSegment(p.assignedPosition)}｜近期胜率 ${insight.recentStats.winRate}% KDA ${insight.recentStats.kda}｜主打位置 ${insight.mainPosition}｜常用：${topChampsText}`
 }
 
 /** OP.GG tier 数字 → 展示文案，0/undefined 视为无数据 */
 function tierLabel(tier: number | undefined): string {
   return tier ? `T${tier}` : '无数据'
+}
+
+/** 改动方向 → 中文 */
+const DIRECTION_CN: Record<ChangeDirection, string> = {
+  buff: '加强',
+  nerf: '削弱',
+  adjusted: '调整'
+}
+
+/** 单英雄改动条目上限——当前公告单英雄普遍 ≤6 条，超出截断防 prompt 膨胀 */
+const PATCH_LINES_MAX = 8
+
+/**
+ * 构建【本版本英雄改动】区块内容（不含标题行）。
+ * 只列有改动的英雄；双方均无改动时返回固定句，让模型明确"没有"而不是自行脑补。
+ * @param entries - (敌我前缀, championId) 列表，顺序即输出顺序
+ */
+async function buildPatchNotesBlock(
+  entries: { side: string; championId: number }[]
+): Promise<string> {
+  const notes = await Promise.all(
+    entries.map(async e => ({ ...e, note: await getChampionPatchNote(e.championId) }))
+  )
+  const lines = notes
+    .filter(e => e.note)
+    .map(e => {
+      const note = e.note!
+      const truncated = note.lines.length > PATCH_LINES_MAX
+      const body = note.lines.slice(0, PATCH_LINES_MAX).join('；') + (truncated ? '…' : '')
+      return `- ${e.side}${getChampionName(e.championId)}｜${DIRECTION_CN[note.direction]}：${body}`
+    })
+  return lines.length > 0 ? lines.join('\n') : '双方英雄本版本均无官方改动。'
 }
 
 /** 克制提示 → 一句话文案，正向（怕我方）与负向（克制我方）分开措辞 */
@@ -165,6 +212,14 @@ export async function buildChampSelectPrompt(
   // ranked 有分路对线概念，aram/其它模式没有，用「关键威胁」代替「关键对线」
   const laneSectionTitle = opggMode === 'ranked' ? '关键对线' : '关键威胁'
 
+  // 本局双方英雄的国服版本改动（我方在前，与上文块顺序一致；未亮出的敌方自然缺席）
+  const patchNotesBlock = await buildPatchNotesBlock([
+    ...myPlayers
+      .filter(p => p.championId > 0)
+      .map(p => ({ side: '我方', championId: p.championId })),
+    ...revealedEnemies.map(p => ({ side: '敌方', championId: p.championId }))
+  ])
+
   return `你是LOL资深分析师，现在是选人阶段，请基于以下信息给出速读分析：
 
 【对局】
@@ -179,14 +234,19 @@ ${myBlock}
 【敌方情报】
 ${enemyBlock}
 
+【本版本英雄改动】（数据源：国服更新公告；只列有改动的英雄，未列出=本版本无改动）
+${patchNotesBlock}
+
 ===== 分析纪律（硬规则，必须遵守）=====
 - 敌方只有英雄没有玩家身份，禁止臆测敌方玩家的水平、段位或操作习惯。
 - "近期常用英雄"战绩 ≠ 本局英雄：玩家本局锁定的英雄若不在其常用列表中，不能当成他不熟练的证据，只能如实说"本局英雄非其常用英雄，风格未知"。
-- 禁止编造英雄的技能、被动机制、连招或数值——材料里没给出的机制信息一律不许提。
+- 禁止编造英雄的技能、被动机制、连招或数值——材料里没给出的机制信息一律不许提。唯一例外：【本版本英雄改动】里明确给出的技能名与数值可以原样引用，禁止改写或外推；改动只能用来说明强弱趋势（被加强/被削弱），禁止把"→"左边的旧数值当成现状。
 - "补位"仅指位置状态（本局位置偏离主玩位置），不代表水平高低；禁止生造"XX流"之类的术语。
 - ${suggestionDiscipline}
 - 材料中的每个数字都有明确的指标名：敌方英雄的"胜率"是 OP.GG 版本胜率；我方玩家"常用"括号里的胜率/场次是该玩家个人近期数据，不是英雄的版本数据。禁止使用材料中不存在的指标名（如"出场率""ban率"——材料未提供），禁止把玩家个人数据说成英雄版本数据。
 - 禁止给英雄贴"坦克/刺客/法师/射手"等职能标签或基于职能给玩法建议——材料未提供英雄职能信息，主分路≠职能。
+- 分路只认材料字段：我方玩家的"本局分路"是官方分配的权威数据；敌方"主分路（推测）"只是 OP.GG 版本统计，不是本局实际分路。拼对线关系必须以我方"本局分路"为锚，敌方对位只能说"推测对位"；禁止同一英雄在不同章节出现不同分路；材料没给分路的英雄一律不提分路。
+- 全文（包括建议）每次提到英雄名都必须带"我方/敌方"前缀，禁止省略——严禁把敌方英雄写成我方、把我方英雄写成敌方。
 
 ===== 输出要求 =====
 给一份约 250 字的速读分析，严格按下面 markdown 模板，章节标题与顺序不可改：
@@ -195,7 +255,7 @@ ${enemyBlock}
 {一两句话点出双方阵容强弱/风格差异，基于上面给出的数据}
 
 ## ${laneSectionTitle}
-{结合敌方英雄的 T 级/胜率/克制关系，指出我方最该注意的点；信息不足就说"数据不足"}
+{结合敌方英雄的 T 级/胜率/克制关系与本版本改动，指出我方最该注意的点；信息不足就说"数据不足"}
 
 ## 给我方的建议
 ${suggestionTemplateLine}

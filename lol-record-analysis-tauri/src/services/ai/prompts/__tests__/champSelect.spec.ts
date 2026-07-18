@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { buildChampSelectPrompt } from '../champSelect'
 import { findCounterHints } from '@renderer/services/opgg'
+import { getChampionPatchNote } from '@renderer/services/patchNotes'
 import type { SessionData, SessionSummoner } from '@renderer/types/domain/gaming'
 
 const CHAMP_NAMES: Record<number, string> = {
@@ -14,6 +15,10 @@ const CHAMP_NAMES: Record<number, string> = {
 vi.mock('../../champion-names', () => ({
   getChampionName: vi.fn((id: number) => CHAMP_NAMES[id] || `英雄${id}`),
   loadChampionNames: vi.fn(async () => {})
+}))
+
+vi.mock('@renderer/services/patchNotes', () => ({
+  getChampionPatchNote: vi.fn(async () => null)
 }))
 
 vi.mock('@renderer/services/opgg', () => ({
@@ -43,6 +48,7 @@ function makeMyPlayer(opts: {
   championId: number
   pickState: string
   tierCn: string
+  assignedPosition?: string
 }): SessionSummoner {
   return {
     championId: opts.championId,
@@ -59,7 +65,8 @@ function makeMyPlayer(opts: {
     rank: { queueMap: { RANKED_SOLO_5x5: { tierCn: opts.tierCn } } },
     meetGames: [],
     preGroupMarkers: { name: '', type: '' },
-    pickState: opts.pickState
+    pickState: opts.pickState,
+    assignedPosition: opts.assignedPosition
   } as unknown as SessionSummoner
 }
 
@@ -132,6 +139,9 @@ describe('buildChampSelectPrompt', () => {
     // 清掉上一个用例遗留的 mockReturnValueOnce 队列，回到默认"无克制提示"
     vi.mocked(findCounterHints).mockReset()
     vi.mocked(findCounterHints).mockReturnValue([])
+    // 版本改动默认全 null（无改动），需要改动数据的用例自行覆盖
+    vi.mocked(getChampionPatchNote).mockReset()
+    vi.mocked(getChampionPatchNote).mockResolvedValue(null)
   })
 
   it('includes 模式/我方玩家名与段位', async () => {
@@ -246,5 +256,101 @@ describe('buildChampSelectPrompt', () => {
     const prompt = await buildChampSelectPrompt(makeSessionData({}), 'ranked')
     expect(prompt).toContain('禁止给英雄贴')
     expect(prompt).toContain('主分路≠职能')
+  })
+
+  it('includes 我方本局分路 when assignedPosition present（LCU 小写命名）', async () => {
+    const session = makeSessionData({})
+    session.subteams[0].players[0] = makeMyPlayer({
+      name: '我方甲',
+      puuid: 'p1',
+      championId: 103,
+      pickState: 'locked',
+      tierCn: '钻石IV',
+      assignedPosition: 'middle'
+    })
+    const prompt = await buildChampSelectPrompt(session, 'ranked')
+    expect(prompt).toContain('本局分路中单')
+  })
+
+  it('omits 本局分路 segment when assignedPosition absent（匹配/大乱斗无分配）', async () => {
+    const prompt = await buildChampSelectPrompt(makeSessionData({}), 'ranked')
+    const myLine = prompt.split('\n').find(l => l.includes('我方甲'))
+    expect(myLine).toBeDefined()
+    expect(myLine).not.toContain('本局分路')
+  })
+
+  it('annotates 敌方主分路 as 推测（OP.GG 统计非本局权威）', async () => {
+    const prompt = await buildChampSelectPrompt(makeSessionData({}), 'ranked')
+    expect(prompt).toContain('主分路打野（推测）')
+  })
+
+  it('includes 分路一致性纪律：对线以我方本局分路为锚，禁止同一英雄前后分路矛盾', async () => {
+    const prompt = await buildChampSelectPrompt(makeSessionData({}), 'ranked')
+    expect(prompt).toContain('禁止同一英雄在不同章节出现不同分路')
+  })
+
+  it('includes 敌我前缀纪律：全文提英雄必须带我方/敌方前缀', async () => {
+    const prompt = await buildChampSelectPrompt(makeSessionData({}), 'ranked')
+    expect(prompt).toContain('必须带"我方/敌方"前缀')
+  })
+
+  it('lists 有改动英雄 in 【本版本英雄改动】 with 敌我前缀 + 方向 + 条目', async () => {
+    vi.mocked(getChampionPatchNote).mockImplementation(async (id: number) => {
+      if (id === 238)
+        return {
+          champion: '劫（7月16日更新）',
+          direction: 'nerf',
+          lines: ['Q - 影奥义！诸刃', '基础伤害：80 → 70']
+        }
+      if (id === 103)
+        return {
+          champion: '阿狸（7月16日更新）',
+          direction: 'buff',
+          lines: ['W - 妖异狐火', '冷却时间：9秒 → 8秒']
+        }
+      return null
+    })
+    const prompt = await buildChampSelectPrompt(makeSessionData({}), 'ranked')
+    expect(prompt).toContain('【本版本英雄改动】')
+    expect(prompt).toContain('敌方劫｜削弱：Q - 影奥义！诸刃；基础伤害：80 → 70')
+    expect(prompt).toContain('我方阿狸｜加强：W - 妖异狐火；冷却时间：9秒 → 8秒')
+  })
+
+  it('omits 无改动英雄 from 改动节（未列出即无改动）', async () => {
+    vi.mocked(getChampionPatchNote).mockImplementation(async (id: number) =>
+      id === 238
+        ? { champion: '劫（7月16日更新）', direction: 'nerf', lines: ['基础伤害下调'] }
+        : null
+    )
+    const prompt = await buildChampSelectPrompt(makeSessionData({}), 'ranked')
+    const section = prompt.split('【本版本英雄改动】')[1].split('=====')[0]
+    expect(section).toContain('敌方劫')
+    expect(section).not.toContain('阿狸')
+  })
+
+  it('shows 固定句 when 双方英雄均无改动', async () => {
+    const prompt = await buildChampSelectPrompt(makeSessionData({}), 'ranked')
+    expect(prompt).toContain('双方英雄本版本均无官方改动')
+  })
+
+  it('truncates 超过 8 条的改动条目并加省略号', async () => {
+    vi.mocked(getChampionPatchNote).mockImplementation(async (id: number) =>
+      id === 238
+        ? {
+            champion: '劫（7月16日更新）',
+            direction: 'adjusted',
+            lines: ['条1', '条2', '条3', '条4', '条5', '条6', '条7', '条8', '条9', '条10']
+          }
+        : null
+    )
+    const prompt = await buildChampSelectPrompt(makeSessionData({}), 'ranked')
+    expect(prompt).toContain('敌方劫｜调整：条1；条2；条3；条4；条5；条6；条7；条8…')
+    expect(prompt).not.toContain('条9')
+  })
+
+  it('includes 机制引用纪律例外：只准引用版本改动材料且禁止改写数字', async () => {
+    const prompt = await buildChampSelectPrompt(makeSessionData({}), 'ranked')
+    expect(prompt).toContain('唯一例外')
+    expect(prompt).toContain('禁止改写或外推')
   })
 })
