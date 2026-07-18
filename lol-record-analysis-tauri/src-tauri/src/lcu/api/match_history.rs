@@ -130,6 +130,10 @@ static MATCH_HISTORY_CACHE: LazyLock<Cache<String, MatchHistory>> = LazyLock::ne
         .build()
 });
 
+/// LCU 整包缓存窗口上限（0..=49 共 50 场）。
+///
+/// 冷 puuid 的首个请求必须覆盖到此索引（见 [`MatchHistory::get_by_puuid`]），
+/// 且这也是 LCU 能可靠提供的历史深度上限——首拉 50 场后区间参数即被忽略。
 const MAX_CACHE_END: i32 = 49;
 
 impl MatchHistory {
@@ -150,7 +154,11 @@ impl MatchHistory {
         Ok(match_history)
     }
 
-    /// 按 PUUID 与索引范围获取对局记录；首次访问时缓存完整 50 场（0-49），后续命中后切片返回。
+    /// 按 PUUID 与索引范围获取对局记录。
+    ///
+    /// 无论调用方要哪一页，实际打 LCU 的永远是 0..=[`MAX_CACHE_END`] 整包
+    /// （Moka 缓存 60s），再本地切片出请求页；超出窗口的区间被 clamp，
+    /// 起始越界得到空页让前端翻页自然终止。
     pub async fn get_match_history_by_puuid(
         puuid: &str,
         beg_index: i32,
@@ -170,9 +178,12 @@ impl MatchHistory {
             return Err("开始索引不能大于结束索引".to_string());
         }
 
-        if end_index > MAX_CACHE_END {
-            return MatchHistory::get_by_puuid(puuid, beg_index, end_index).await;
-        }
+        // ⚠️ 这里绝不按调用方区间直连 LCU：冷 puuid 会被小区间/深分页请求把
+        // LCU 缓存钉死在错误大小，warm puuid 则无视区间整包返回（真机实测，
+        // 见 get_by_puuid 注释）。此前 end_index > 49 时直接透传，曾导致战绩页
+        // 深翻页（50-59）拿回整包 0-49 重复数据。窗口外的历史 LCU 无法可靠
+        // 提供，一律 clamp 进 0..=MAX_CACHE_END，深翻页切出空页终止。
+        let end_in_window = end_index.min(MAX_CACHE_END);
 
         let history = MATCH_HISTORY_CACHE
             .try_get_with(puuid.to_string(), async {
@@ -184,7 +195,7 @@ impl MatchHistory {
         Ok(Self::slice_page(
             history,
             beg_index as usize,
-            end_index as usize,
+            end_in_window as usize,
         ))
     }
 
@@ -515,6 +526,14 @@ mod slice_page_tests {
     #[test]
     fn returns_empty_page_when_beg_past_total() {
         let page = MatchHistory::slice_page(history_of(10), 10, 19);
+        assert!(ids(&page).is_empty());
+    }
+
+    /// 深翻页（第 6 页 50..59 会被 clamp 成 50..49）超出 LCU 可靠窗口：
+    /// 应得空页终止翻页，而非旧行为直连 LCU 拿回整包重复数据。
+    #[test]
+    fn returns_empty_page_beyond_cache_window() {
+        let page = MatchHistory::slice_page(history_of(50), 50, 49);
         assert!(ids(&page).is_empty());
     }
 
