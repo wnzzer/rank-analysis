@@ -38,7 +38,7 @@ export function validateExtraction(extracted, whitelist, articleText) {
     errors.push(`champions 数量越界: ${Array.isArray(champs) ? champs.length : typeof champs}`)
     return { ok: false, errors, champions: [] }
   }
-  const article = norm(articleText)
+  const articleLines = articleText.split('\n').map(norm)
   const out = []
   for (const c of champs) {
     const name = (c?.name ?? '').trim()
@@ -60,8 +60,13 @@ export function validateExtraction(extracted, whitelist, articleText) {
       errors.push(`lines 非法: ${name}`)
       continue
     }
-    // 防 AI 改写：每个英雄至少一条逐字命中原文（忽略空白）
-    if (!c.lines.some(l => article.includes(norm(l)))) {
+    // 防 AI 改写（包括跨行伪造）：每个英雄至少一条逐字命中原文单行（忽略空白）
+    if (
+      !c.lines.some(l => {
+        const n = norm(l)
+        return n && articleLines.some(al => al.includes(n))
+      })
+    ) {
       errors.push(`条目疑似改写（无一条命中原文）: ${name}`)
       continue
     }
@@ -73,5 +78,5 @@ export function validateExtraction(extracted, whitelist, articleText) {
       lines: c.lines.map(l => l.trim())
     })
   }
-  return { ok: errors.length === 0, errors, champions: out }
+  return { ok: errors.length === 0, errors, champions: errors.length === 0 ? out : [] }
 }

@@ -69,3 +69,23 @@ test('条目原文比对忽略空白差异', () => {
   )
   assert.equal(r.ok, true)
 })
+
+test('拒绝：跨行拼接的伪造条目', () => {
+  const r = validateExtraction(
+    extracted(champ({ lines: ['潮涌治疗量'] })), // 跨行拼接：'W 潮涌' + '治疗量：...'
+    wl(),
+    ARTICLE
+  )
+  assert.equal(r.ok, false)
+  assert.match(r.errors.join(), /改写/)
+})
+
+test('失败时 champions 为空数组', () => {
+  const r = validateExtraction(
+    extracted(champ({ name: '娜美子' }), champ()), // 第一个名字不在白名单，第二个合法
+    wl(),
+    ARTICLE
+  )
+  assert.equal(r.ok, false)
+  assert.equal(r.champions.length, 0)
+})
