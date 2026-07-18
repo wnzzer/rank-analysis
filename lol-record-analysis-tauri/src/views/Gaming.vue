@@ -288,7 +288,7 @@ const handleAIAnalysis = async () => {
     if (sessionData.phase === 'ChampSelect') {
       await analyzeChampSelectWithAIStream(sessionData, opggMode.value, callbacks)
     } else {
-      await analyzeGameWithAIStream(sessionData, 'team', callbacks)
+      await analyzeGameWithAIStream(sessionData, 'team', callbacks, { opggMode: opggMode.value })
     }
   } catch (e: any) {
     message.error('AI 分析出错: ' + (e.message || '未知错误'))

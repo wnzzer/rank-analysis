@@ -25,6 +25,9 @@ export { renderFallbackCritique } from './critiqueTemplate'
 export interface AnalyzeOptions {
   /** 词库样本（Stage 2 prompt 注入）。若 tagSuggest vocab 模块尚未实现可传 []。 */
   vocabSamples?: string[]
+  /** 'player' 时 Stage 2 输出单人复盘（需 participantId）；Stage 1 归因两模式共享 */
+  mode?: 'overview' | 'player'
+  participantId?: number
 }
 
 export type AnalyzeOutcome =
@@ -99,8 +102,12 @@ export async function analyzeMatchDetail(
   }
 
   // ─── Stage 2: critique (streaming) ───
-  // Try cached markdown first
-  const stage2Key = `ai_match_detail_stage2_${snapshot.gameId}_${snapshot.modeContext.kind}`
+  // Try cached markdown first；单人模式缓存按 participantId 区分——
+  // 曾因忽略 mode 导致"单人复盘" tab 输出整局内容且缓存互串。
+  const isPlayerMode = options.mode === 'player' && options.participantId != null
+  const stage2Key = isPlayerMode
+    ? `ai_match_detail_stage2_${snapshot.gameId}_${snapshot.modeContext.kind}_p${options.participantId}`
+    : `ai_match_detail_stage2_${snapshot.gameId}_${snapshot.modeContext.kind}`
   let cachedMarkdown: string | null = null
   try {
     cachedMarkdown = sessionStorage.getItem(stage2Key)
@@ -114,7 +121,9 @@ export async function analyzeMatchDetail(
   }
 
   const critiqueOut = await runCritiqueStage(snapshot, attribution, callbacks, {
-    vocabSamples: options.vocabSamples
+    vocabSamples: options.vocabSamples,
+    mode: options.mode,
+    participantId: options.participantId
   })
   if (!critiqueOut.ok) {
     const fallback = renderFallbackCritique(attribution)

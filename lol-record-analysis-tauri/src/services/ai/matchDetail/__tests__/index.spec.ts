@@ -244,4 +244,47 @@ describe('analyzeMatchDetail', () => {
     expect(mockRequest).toHaveBeenCalledTimes(0)
     expect(out.ok).toBe(true)
   })
+
+  it('player 模式走单人复盘 prompt 且缓存 key 按 participantId 区分', async () => {
+    mockRequest.mockResolvedValue({ success: true, content: fakeAttributionJson() })
+    mockStream.mockImplementation(async (_p, callbacks) => {
+      callbacks.onChunk('## 一句话定档\n单人内容。\n')
+      callbacks.onDone()
+    })
+
+    const out = await analyzeMatchDetail(
+      makeGame(),
+      null,
+      { onChunk: () => {}, onDone: () => {}, onError: () => {} },
+      { mode: 'player', participantId: 1 }
+    )
+    expect(out.ok).toBe(true)
+    // 单人 prompt：包含目标玩家区块
+    const prompt = mockStream.mock.calls[0][0] as string
+    expect(prompt).toContain('【目标玩家】')
+    expect(prompt).toContain('P1#0000')
+    // 缓存 key 带 participantId，不与整局互串
+    expect(sessionStorage.getItem('ai_match_detail_stage2_12345_ranked_p1')).toContain('单人内容')
+    expect(sessionStorage.getItem('ai_match_detail_stage2_12345_ranked')).toBeNull()
+  })
+
+  it('整局缓存命中不影响 player 模式（缓存不互串回归）', async () => {
+    sessionStorage.setItem('ai_match_detail_stage2_12345_ranked', '整局缓存内容')
+    sessionStorage.setItem('ai_match_detail_stage1_12345_ranked', fakeAttributionJson())
+    mockStream.mockImplementation(async (_p, callbacks) => {
+      callbacks.onChunk('单人新内容')
+      callbacks.onDone()
+    })
+
+    const chunks: string[] = []
+    const out = await analyzeMatchDetail(
+      makeGame(),
+      null,
+      { onChunk: c => chunks.push(c), onDone: () => {}, onError: () => {} },
+      { mode: 'player', participantId: 2 }
+    )
+    expect(out.ok).toBe(true)
+    expect(chunks.join('')).toContain('单人新内容')
+    expect(chunks.join('')).not.toContain('整局缓存内容')
+  })
 })

@@ -12,6 +12,7 @@
 import type { MatchSnapshot } from '../shared/snapshot'
 import { requestAIContentStream } from '../stream'
 import { buildStage2Prompt } from './prompts/stage2-critique'
+import { buildStage2PlayerPrompt } from './prompts/stage2-player'
 import { renderFallbackCritique } from './critiqueTemplate'
 import type { AttributionResult } from './types'
 
@@ -23,6 +24,9 @@ export interface CritiqueCallbacks {
 
 export interface CritiqueOptions {
   vocabSamples?: string[]
+  /** 'player' 时聚焦单个玩家（需 participantId），默认整局锐评 */
+  mode?: 'overview' | 'player'
+  participantId?: number
 }
 
 export type CritiqueOutcome =
@@ -45,7 +49,15 @@ export async function runCritiqueStage(
   callbacks: CritiqueCallbacks,
   options: CritiqueOptions = {}
 ): Promise<CritiqueOutcome> {
-  const userPrompt = buildStage2Prompt(attribution, snapshot, options.vocabSamples ?? [])
+  const userPrompt =
+    options.mode === 'player' && options.participantId != null
+      ? buildStage2PlayerPrompt(
+          attribution,
+          snapshot,
+          options.participantId,
+          options.vocabSamples ?? []
+        )
+      : buildStage2Prompt(attribution, snapshot, options.vocabSamples ?? [])
 
   let accumulated = ''
   let errored = false
