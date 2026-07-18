@@ -1,4 +1,5 @@
 pub mod automation;
+pub mod cn_patch_notes;
 pub mod command;
 pub mod config;
 pub mod constant;
