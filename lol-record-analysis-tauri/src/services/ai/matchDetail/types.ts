@@ -33,6 +33,15 @@ export interface Verdict {
   evidenceMetrics: EvidenceMetric[]
   mitigatingFactors: MitigatingFactor[]
   finalCall: string
+  /**
+   * 以下三个字段由 validator 从 snapshot 确定性回填（模型输出的值会被覆盖）：
+   * Stage 2 锐评靠它们锚定英雄/分路/胜负，杜绝"下路写成中路"类编造。
+   * participantId 不在快照时保持 undefined。
+   */
+  champion?: string
+  /** LCU teamPosition 原值（TOP/JUNGLE/MIDDLE/BOTTOM/UTILITY/''） */
+  teamPosition?: string
+  teamResult?: '胜方' | '败方'
 }
 
 export interface AttributionResult {

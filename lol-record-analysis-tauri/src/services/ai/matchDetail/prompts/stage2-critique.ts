@@ -6,7 +6,32 @@
  */
 
 import type { MatchSnapshot } from '../../shared/snapshot'
-import type { AttributionResult } from '../types'
+import type { AttributionResult, Verdict } from '../types'
+
+/** LCU teamPosition → 中文分路（与选人 prompt 的用词一致） */
+const POSITION_CN: Record<string, string> = {
+  TOP: '上单',
+  JUNGLE: '打野',
+  MIDDLE: '中单',
+  BOTTOM: '下路',
+  UTILITY: '辅助'
+}
+
+/**
+ * 名册一行：`- 名字｜英雄｜分路｜胜负方｜label`。
+ * 三个快照回填字段（champion/teamPosition/teamResult）缺席的段直接省略——
+ * 无分路模式 teamPosition 为空串，participantId 不在快照时三者都 undefined。
+ */
+function rosterLine(v: Verdict): string {
+  const segments = [
+    v.name,
+    v.champion,
+    v.teamPosition ? POSITION_CN[v.teamPosition] : undefined,
+    v.teamResult,
+    v.label
+  ]
+  return '- ' + segments.filter(Boolean).join('｜')
+}
 
 export function buildStage2Prompt(
   attribution: AttributionResult,
@@ -24,6 +49,9 @@ ${vocabSamples.join('、')}`
 
 【输入：归因结果】
 ${JSON.stringify(attribution, null, 2)}
+
+【玩家名册】（快照事实：名字｜英雄｜分路｜胜负方｜label，禁止偏离）
+${attribution.verdicts.map(rosterLine).join('\n')}
 
 【模式上下文】
 ${snapshot.modeContext.description}
@@ -48,6 +76,11 @@ ${snapshot.modeContext.description}
 ## 关键证据
 - 3-5 条 bullet，每条带至少 1 个数字
 - 优先选 evidenceMetrics 里 teamRank 极端的指标
+
+【硬规则（违反任意一条即为废稿）】
+- 章节归属由名册里的 label 固定映射，禁止自行挪动：尽力 →「谁尽力了」；犯罪/缚地灵 →「谁要背锅」；被爆/被连累 →「谁被打爆 / 被连累」；正常 → 不单独上榜（只可出现在关键证据）。败方玩家绝不出现在「谁尽力了」。每名玩家只能出现在自己 label 对应的那一个章节，禁止同一人重复上榜多个章节。
+- 玩家的分路、英雄、胜负方只能照抄【玩家名册】——禁止写名册之外的分路（例如把下路玩家写成"中路"），禁止臆造英雄定位。
+- 禁止编造材料外的数据性比较或断言（例如"死得比补刀多"这种说法需要补刀数据支撑，evidenceMetrics 里没有就不准写）；夸张修辞必须建立在已给出的数字上。
 
 【语气原则】
 - 锐评感优先：有梗、戏谑、网感

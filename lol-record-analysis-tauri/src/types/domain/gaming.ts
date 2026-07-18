@@ -32,6 +32,11 @@ export interface SessionSummoner {
    * 选人状态：none/intent/picking/banning/locked（非选人期为空）
    */
   pickState?: string
+  /**
+   * 本局官方分配分路（LCU 小写命名 top/jungle/middle/bottom/utility）；
+   * 仅选人期我方有值（敌方 LCU 恒为空），匹配/大乱斗等无分配模式为空
+   */
+  assignedPosition?: string
 }
 
 export interface Subteam {

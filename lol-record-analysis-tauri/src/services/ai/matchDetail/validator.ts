@@ -132,6 +132,22 @@ export function validateAttribution(rawJson: string, snapshot: MatchSnapshot): V
     )
   }
 
+  // ─── Layer 4: 确定性回填（快照事实覆盖模型输出） ───
+  // 英雄/分路/胜负方是快照里的既有事实，由 TS 写入而非信任模型——Stage 2 锐评
+  // 曾因缺这些字段把下路写成"中路核弹手"、把败方塞进"谁尽力了"（真机截图复现）。
+  for (const v of result.verdicts) {
+    const playerSnap = snapshot.players.find((p: any) => p.participantId === v.participantId) as any
+    if (!playerSnap) {
+      v.champion = undefined
+      v.teamPosition = undefined
+      v.teamResult = undefined
+      continue
+    }
+    v.champion = playerSnap.champion
+    v.teamPosition = playerSnap.teamPosition
+    v.teamResult = playerSnap.win ? '胜方' : '败方'
+  }
+
   return { ok: true, value: result }
 }
 

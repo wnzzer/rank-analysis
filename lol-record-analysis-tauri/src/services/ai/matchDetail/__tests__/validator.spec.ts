@@ -328,4 +328,94 @@ describe('validateAttribution', () => {
       if (out.ok) expect(out.value.verdicts[0].mitigatingFactors).toHaveLength(0)
     })
   })
+
+  describe('deterministic backfill: champion / teamPosition / teamResult', () => {
+    /** 带英雄/分路/胜负的快照——回填数据源 */
+    function snapshotWithRoster(): MatchSnapshot {
+      const players: any[] = [
+        {
+          participantId: 1,
+          teamId: 100,
+          name: 'P1',
+          champion: '赏金猎人',
+          teamPosition: 'BOTTOM',
+          win: true,
+          recentProfile: null
+        },
+        {
+          participantId: 2,
+          teamId: 200,
+          name: 'P2',
+          champion: '牧魂人',
+          teamPosition: 'TOP',
+          win: false,
+          recentProfile: null
+        },
+        {
+          participantId: 3,
+          teamId: 200,
+          name: 'P3',
+          champion: '曙光女神',
+          teamPosition: 'UTILITY',
+          win: false,
+          recentProfile: null
+        },
+        {
+          participantId: 4,
+          teamId: 100,
+          name: 'P4',
+          champion: '疾风剑豪',
+          teamPosition: 'MIDDLE',
+          win: true,
+          recentProfile: null
+        }
+      ]
+      return { players } as unknown as MatchSnapshot
+    }
+
+    it('backfills 三字段 from snapshot for every verdict（含胜败两侧）', () => {
+      const result = validResult([
+        validVerdict(1, '尽力'),
+        validVerdict(2, '被爆'),
+        validVerdict(3, '正常'),
+        validVerdict(4, '正常')
+      ])
+      const out = validateAttribution(JSON.stringify(result), snapshotWithRoster())
+      expect(out.ok).toBe(true)
+      if (out.ok) {
+        expect(out.value.verdicts[0].champion).toBe('赏金猎人')
+        expect(out.value.verdicts[0].teamPosition).toBe('BOTTOM')
+        expect(out.value.verdicts[0].teamResult).toBe('胜方')
+        expect(out.value.verdicts[1].champion).toBe('牧魂人')
+        expect(out.value.verdicts[1].teamResult).toBe('败方')
+        expect(out.value.verdicts[2].teamPosition).toBe('UTILITY')
+      }
+    })
+
+    it('overrides 模型自带的 champion/teamPosition（快照为准）', () => {
+      const verdict = { ...validVerdict(1, '尽力'), champion: '编造英雄', teamPosition: 'MIDDLE' }
+      const result = validResult([verdict, validVerdict(2), validVerdict(3), validVerdict(4)])
+      const out = validateAttribution(JSON.stringify(result), snapshotWithRoster())
+      expect(out.ok).toBe(true)
+      if (out.ok) {
+        expect(out.value.verdicts[0].champion).toBe('赏金猎人')
+        expect(out.value.verdicts[0].teamPosition).toBe('BOTTOM')
+      }
+    })
+
+    it('leaves 字段 undefined when participantId 不在快照（校验仍通过）', () => {
+      const result = validResult([
+        validVerdict(99, '正常'),
+        validVerdict(2),
+        validVerdict(3),
+        validVerdict(4)
+      ])
+      const out = validateAttribution(JSON.stringify(result), snapshotWithRoster())
+      expect(out.ok).toBe(true)
+      if (out.ok) {
+        expect(out.value.verdicts[0].champion).toBeUndefined()
+        expect(out.value.verdicts[0].teamResult).toBeUndefined()
+      }
+    })
+  })
 })
