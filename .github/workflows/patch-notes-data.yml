@@ -21,13 +21,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 拉全量历史，否则 GitCode 镜像推送会缺 commit（对齐 sync-gitcode.yml）
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22
 
       - name: Run pipeline tests
-        run: node --test scripts/patch-notes/
+        run: node --test scripts/patch-notes/*.test.mjs
 
       - name: Generate patch notes data
         env:
@@ -48,7 +50,7 @@ jobs:
           git add data/patch-notes
           LABEL=$(node -e "console.log(JSON.parse(require('fs').readFileSync('data/patch-notes/cn-latest.json','utf8')).patchLabel)")
           git commit -m "chore(data): 更新国服英雄改动 ${LABEL}"
-          git push
+          git push origin HEAD:main
           echo "pushed=true" >> "$GITHUB_OUTPUT"
 
       # GITHUB_TOKEN 的 push 不触发 sync-gitcode（GitHub 防递归），这里自带镜像推送
