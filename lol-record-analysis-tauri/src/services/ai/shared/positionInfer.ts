@@ -82,5 +82,11 @@ export function inferTeamPosition(input: PositionInferInput): TeamPosition {
     }
   }
 
+  // 技能全无信号时按职业分布兜底：ADC/辅助英雄的分路集中度极高
+  // （国服真机实测 MF 带闪现+疾行，治疗/屏障规则接不住）。
+  // 战士刻意不兜底——中单剑豪这类误判上单的代价大于收益。
+  if (ADC_CHAMPIONS.has(championId)) return 'BOTTOM'
+  if (SUPPORT_CHAMPIONS.has(championId)) return 'UTILITY'
+
   return 'UNKNOWN'
 }

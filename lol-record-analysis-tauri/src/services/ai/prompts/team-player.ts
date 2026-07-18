@@ -4,13 +4,20 @@
 
 import { extractPlayerDeepDive } from '../player-insight'
 import { buildNoteBrief } from '../shared/noteBrief'
+import { getChampionName } from '../champion-names'
+import { getChampionPatchNote } from '@renderer/services/patchNotes'
+import { assignedPositionCn } from './shared/opggIntel'
+import { DIRECTION_CN } from './shared/patchNotes'
 
 /**
  * 构建单玩家深度分析 prompt
  * @param player - 会话玩家对象（SessionSummoner 形状）
  * @param opts.useNotes - 是否注入使用者手动备注（隐私开关，默认 false，fail-closed）
  */
-export function buildPlayerAnalysisPrompt(player: any, opts: { useNotes?: boolean } = {}): string {
+export async function buildPlayerAnalysisPrompt(
+  player: any,
+  opts: { useNotes?: boolean } = {}
+): Promise<string> {
   const noteBrief =
     opts.useNotes === true ? buildNoteBrief(player.summoner?.puuid ?? '') : undefined
   const noteSection = noteBrief
@@ -25,12 +32,24 @@ export function buildPlayerAnalysisPrompt(player: any, opts: { useNotes?: boolea
 
   const { topChampions, positionStats, detailedGames } = extractPlayerDeepDive(player)
 
+  // 本局上下文：英雄 + 权威分路 + 该英雄本版本改动
+  const championId: number = player.championId ?? 0
+  const currentChampion = championId > 0 ? getChampionName(championId) : '未知'
+  const laneCn = assignedPositionCn(player.assignedPosition)
+  const patchNote = championId > 0 ? await getChampionPatchNote(championId) : null
+  const patchNoteLine = patchNote
+    ? `本局英雄本版本改动（国服公告，机制引用唯一合法来源）：${DIRECTION_CN[patchNote.direction]}：${patchNote.lines.join('；')}`
+    : '本局英雄本版本无官方改动。'
+
   return `你是LOL资深分析师，请详细分析这个玩家：
 
 【玩家基本信息】
 名称：${player.summoner?.gameName || '未知'} #${player.summoner?.tagLine}
 等级：${player.summoner?.summonerLevel}
 段位：${player.rank?.queueMap?.RANKED_SOLO_5x5?.tierCn || '无'}
+本局英雄：${currentChampion}
+本局分路：${laneCn || '无（该模式无分路概念或未获取）'}
+${patchNoteLine}
 
 【近期统计】
 模式：${recent?.selectModeCn || '未知'}
@@ -51,6 +70,12 @@ ${tags.length > 0 ? tags.map((t: any) => `• ${t.tagName}(${t.tagDesc}) - ${t.g
 ${noteSection}
 【最近15场详细战绩】
 ${JSON.stringify(detailedGames, null, 2)}
+
+===== 分析纪律（硬规则，必须遵守）=====
+- 禁止编造英雄的技能、被动机制、连招或数值——材料里没给出的机制信息一律不许提。唯一例外："本局英雄本版本改动"里明确给出的技能名与数值可以原样引用，禁止改写或外推。
+- 禁止给英雄贴"坦克/刺客/法师/射手"等职能标签或基于职能下结论——材料未提供职能信息，主分路≠职能。
+- 材料里的数字都有明确指标名（胜率/KDA/场均/参团率/伤害占比/英雄场次），禁止使用材料中不存在的指标名，禁止把该玩家个人数据说成英雄版本数据。
+- 分路只认材料："本局分路"是权威数据；位置分布是历史统计。本局分路与主玩位置不一致时如实说"补位"，不得引申水平高低。
 
 ===== 输出要求 =====
 基于上面的数据，给一份这名玩家的速读画像（总长控制在 ~300 字内）。

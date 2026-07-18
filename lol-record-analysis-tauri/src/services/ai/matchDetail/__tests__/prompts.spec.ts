@@ -289,6 +289,20 @@ describe('buildStage2Prompt', () => {
     expect(prompt).toContain('只能照抄【玩家名册】')
     expect(prompt).toContain('数据性比较')
   })
+
+  it('forbids 装备/符文推荐（材料无出装数据）', () => {
+    const snap = makeSnapshot()
+    const prompt = buildStage2Prompt(sampleAttribution, snap, [])
+    expect(prompt).toContain('禁止推荐或点评具体装备')
+  })
+
+  it('hasLanes=false 时确定性注入分路词禁令；ranked 不注入', () => {
+    const aramSnap = makeSnapshot({ queueId: 450, gameMode: 'ARAM' })
+    const aramPrompt = buildStage2Prompt(sampleAttribution, aramSnap, [])
+    expect(aramPrompt).toContain('本模式无分路')
+    const rankedPrompt2 = buildStage2Prompt(sampleAttribution, makeSnapshot(), [])
+    expect(rankedPrompt2).not.toContain('本模式无分路')
+  })
 })
 
 describe('buildStage1Prompt — 位置感知纪律', () => {

@@ -14,8 +14,13 @@
 import { extractPlayerInsight } from '../player-insight'
 import { getChampionName } from '../champion-names'
 import { getChampionMeta, getLaneCounters, findCounterHints } from '@renderer/services/opgg'
-import { getChampionPatchNote } from '@renderer/services/patchNotes'
-import type { ChangeDirection } from '@renderer/services/patchNotes'
+import { buildPatchNotesBlock, PATCH_NOTES_SECTION_HEADER } from './shared/patchNotes'
+import {
+  assignedPositionSegment,
+  counterHintText,
+  positionSegment,
+  tierLabel
+} from './shared/opggIntel'
 import type { OpggMode, LaneCounter } from '@renderer/services/opgg'
 import type { SessionData, SessionSummoner } from '@renderer/types/domain/gaming'
 
@@ -29,38 +34,6 @@ const STAGE_CN: Record<string, string> = {
 
 function stageLabel(stage: string | undefined): string {
   return (stage && STAGE_CN[stage]) || '未知'
-}
-
-/**
- * OP.GG 主分路（LCU 命名，见 opgg::data::normalize_position）→ 中文。
- * 注意：这是 OP.GG 统计意义上的"主分路"，不是英雄职能（坦克/刺客/法师...）——
- * 材料没有职能字段，禁止据此推断或标注职能。
- */
-const POSITION_CN: Record<string, string> = {
-  TOP: '上单',
-  JUNGLE: '打野',
-  MIDDLE: '中单',
-  BOTTOM: '下路',
-  UTILITY: '辅助'
-}
-
-/**
- * OP.GG 主分路 → 中文展示片段，position 为空串（aram 等无分路模式）时不展示该段。
- * 带"（推测）"标注：这是版本统计上该英雄最常见的分路，不是本局的权威分路——
- * 敌方本局实际分路 LCU 不下发，不标注会诱导模型把统计当事实拼对线。
- */
-function positionSegment(position: string | undefined): string {
-  const cn = position ? POSITION_CN[position] : undefined
-  return cn ? `｜主分路${cn}（推测）` : ''
-}
-
-/**
- * LCU 本局分配分路（小写命名，如 "middle"）→ 中文展示片段。
- * 空串（匹配/大乱斗等无分配模式）时不展示该段。
- */
-function assignedPositionSegment(position: string | undefined): string {
-  const cn = position ? POSITION_CN[position.toUpperCase()] : undefined
-  return cn ? `｜本局分路${cn}` : ''
 }
 
 /** ban 列表 → 英雄名字串，空列表显示"无" */
@@ -84,51 +57,6 @@ function myPlayerLine(p: SessionSummoner): string {
       )
       .join('、') || '无近期数据'
   return `- ${insight.name}（${insight.tier}）本局：${champLabel}${assignedPositionSegment(p.assignedPosition)}｜近期胜率 ${insight.recentStats.winRate}% KDA ${insight.recentStats.kda}｜主打位置 ${insight.mainPosition}｜常用：${topChampsText}`
-}
-
-/** OP.GG tier 数字 → 展示文案，0/undefined 视为无数据 */
-function tierLabel(tier: number | undefined): string {
-  return tier ? `T${tier}` : '无数据'
-}
-
-/** 改动方向 → 中文 */
-const DIRECTION_CN: Record<ChangeDirection, string> = {
-  buff: '加强',
-  nerf: '削弱',
-  adjusted: '调整'
-}
-
-/** 单英雄改动条目上限——当前公告单英雄普遍 ≤6 条，超出截断防 prompt 膨胀 */
-const PATCH_LINES_MAX = 8
-
-/**
- * 构建【本版本英雄改动】区块内容（不含标题行）。
- * 只列有改动的英雄；双方均无改动时返回固定句，让模型明确"没有"而不是自行脑补。
- * @param entries - (敌我前缀, championId) 列表，顺序即输出顺序
- */
-async function buildPatchNotesBlock(
-  entries: { side: string; championId: number }[]
-): Promise<string> {
-  const notes = await Promise.all(
-    entries.map(async e => ({ ...e, note: await getChampionPatchNote(e.championId) }))
-  )
-  const lines = notes
-    .filter(e => e.note)
-    .map(e => {
-      const note = e.note!
-      const truncated = note.lines.length > PATCH_LINES_MAX
-      const body = note.lines.slice(0, PATCH_LINES_MAX).join('；') + (truncated ? '…' : '')
-      return `- ${e.side}${getChampionName(e.championId)}｜${DIRECTION_CN[note.direction]}：${body}`
-    })
-  return lines.length > 0 ? lines.join('\n') : '双方英雄本版本均无官方改动。'
-}
-
-/** 克制提示 → 一句话文案，正向（怕我方）与负向（克制我方）分开措辞 */
-function counterHintText(myWinRate: number, myChampionId: number): string {
-  const myName = getChampionName(myChampionId)
-  return myWinRate >= 0.5
-    ? `怕我方${myName}（${(myWinRate * 100).toFixed(0)}%）`
-    : `克制我方${myName}（${((1 - myWinRate) * 100).toFixed(0)}%）`
 }
 
 /**
@@ -234,7 +162,7 @@ ${myBlock}
 【敌方情报】
 ${enemyBlock}
 
-【本版本英雄改动】（数据源：国服更新公告；只列有改动的英雄，未列出=本版本无改动）
+${PATCH_NOTES_SECTION_HEADER}
 ${patchNotesBlock}
 
 ===== 分析纪律（硬规则，必须遵守）=====

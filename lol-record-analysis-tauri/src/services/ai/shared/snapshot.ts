@@ -16,6 +16,7 @@ import type {
 } from '@renderer/types/domain/match'
 import { getChampionName } from '../champion-names'
 import { classifyMode } from './modeContext'
+import { inferTeamPosition } from './positionInfer'
 import { spellIdsToNames } from './summonerSpells'
 import type { ModeContext, RecentPlayerProfile, TeamPosition } from './types'
 
@@ -89,13 +90,14 @@ function safePerMinute(value: number, durationSeconds: number): number {
 }
 
 function readTeamPosition(participant: Participant): TeamPosition {
-  // LCU sometimes returns participant.teamPosition (newer schema)
-  // or participant.timeline.lane / role (older)
-  const tp = (participant as any).teamPosition
-  if (tp === 'TOP' || tp === 'JUNGLE' || tp === 'MIDDLE' || tp === 'BOTTOM' || tp === 'UTILITY') {
-    return tp
-  }
-  return 'UNKNOWN'
+  // LCU 战绩常整局缺 teamPosition/timeline.lane（国服真机实测 10 人全缺）——
+  // 有值时透传，缺失时用召唤师技能+英雄启发式推断（惩戒→打野等），
+  // 推不出再落 UNKNOWN（消费方按无分路降级）。
+  return inferTeamPosition({
+    teamPosition: (participant as any).teamPosition ?? '',
+    spellIds: [participant.spell1Id, participant.spell2Id],
+    championId: participant.championId
+  })
 }
 
 export function buildMatchSnapshot(
@@ -176,9 +178,11 @@ export function buildMatchSnapshot(
       csm: safePerMinute(totalCs(stats), durationSeconds),
       items: modeContext.hasItemBuild ? getItemIds(stats) : [],
       trinketId: (stats as any).item6 ?? 0,
-      wardScore: (stats as any).visionScore ?? 0,
-      controlWardsPlaced: (stats as any).sightWardsBoughtInGame ?? 0,
-      visionWardsBought: (stats as any).visionWardsBoughtInGame ?? 0,
+      // 视野三项：国服 LCU 战绩实测不下发这些字段——缺失必须是 null 而非 0，
+      // 否则模型会拿假 0 冤枉玩家"整局没插眼"（真机复现）。
+      wardScore: (stats as any).visionScore ?? null,
+      controlWardsPlaced: (stats as any).sightWardsBoughtInGame ?? null,
+      visionWardsBought: (stats as any).visionWardsBoughtInGame ?? null,
       // 多杀字段已在类型上声明（后端曾丢弃该字段导致这里恒为 0，现已透传）
       multiKills: {
         double: stats.doubleKills ?? 0,

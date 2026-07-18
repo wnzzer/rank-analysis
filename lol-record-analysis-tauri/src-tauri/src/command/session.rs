@@ -515,7 +515,14 @@ fn build_classic_subteams(session: &mut Session, session_data: &mut SessionData,
                     ..Default::default()
                 },
                 pick_state: p.pick_state.clone(),
-                assigned_position: p.assigned_position.clone(),
+                // 本局分路两源合一：选人期来自 champ-select 的 assignedPosition（小写），
+                // InProgress 起 gameflow 只有 selectedPosition（大写）——空则回填，
+                // 大小写由前端统一 toUpperCase 归一。
+                assigned_position: if p.assigned_position.is_empty() {
+                    p.selected_position.clone()
+                } else {
+                    p.assigned_position.clone()
+                },
                 ..Default::default()
             })
             .collect()
@@ -625,7 +632,12 @@ async fn build_cherry_subteams(
             ..Default::default()
         },
         pick_state: p.pick_state.clone(),
-        assigned_position: p.assigned_position.clone(),
+        // 同 build_classic_subteams：空则回填 gameflow 的 selectedPosition
+        assigned_position: if p.assigned_position.is_empty() {
+            p.selected_position.clone()
+        } else {
+            p.assigned_position.clone()
+        },
         ..Default::default()
     };
 
@@ -1373,6 +1385,36 @@ mod tests {
         assert!(
             one.selected_position.is_empty(),
             "选人期不填 selected_position，保持客户端原始排列"
+        );
+    }
+
+    /// InProgress 阶段 gameflow 只有 selected_position（assigned_position 为空），
+    /// 必须回填进 SessionSummoner.assigned_position——对局中 AI 分析靠它拼对线。
+    #[test]
+    fn inprogress_backfills_assigned_position_from_selected_position() {
+        let mut session = make_session_classic();
+        session.phase = "InProgress".into();
+        let lanes = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"];
+        for (i, p) in session.game_data.team_one.iter_mut().enumerate() {
+            p.selected_position = lanes[i].to_string();
+            p.assigned_position = String::new();
+        }
+
+        let mut data = SessionData {
+            game_mode: "CLASSIC".into(),
+            ..Default::default()
+        };
+        build_classic_subteams(&mut session, &mut data, "ally-1");
+
+        let positions: Vec<String> = data.subteams[0]
+            .players
+            .iter()
+            .map(|p| p.assigned_position.clone())
+            .collect();
+        assert_eq!(
+            positions,
+            vec!["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"],
+            "selected_position 应回填为本局分路"
         );
     }
 

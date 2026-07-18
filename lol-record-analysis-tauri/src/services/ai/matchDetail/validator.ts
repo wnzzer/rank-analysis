@@ -89,21 +89,33 @@ export function validateAttribution(rawJson: string, snapshot: MatchSnapshot): V
         error: `verdict[${i}].evidenceMetrics length ${v.evidenceMetrics.length} < 3`
       }
     }
-    for (let j = 0; j < v.evidenceMetrics.length; j++) {
-      const m = v.evidenceMetrics[j]
-      if (!m || typeof m.metric !== 'string' || typeof m.value !== 'number') {
-        return {
-          ok: false,
-          error: `verdict[${i}].evidenceMetrics[${j}] must have {metric:string, value:number}`
+    // 逐条清洗而非硬毙：真机复现模型偶发把 value 写成 "36.3%" 字符串，
+    // 一条坏证据不该废掉整份多 verdict 归因（连重试都会同样失败 → 复盘静默不可用）。
+    // 字符串数字/百分比 coerce 成 number；救不动的摘除；全摘光的 verdict 在下方剔除。
+    v.evidenceMetrics = v.evidenceMetrics
+      .map(m => {
+        if (!m || typeof m.metric !== 'string') return null
+        // 类型上 value 是 number，但这里是未信任的模型 JSON——按 unknown 处理
+        const raw: unknown = (m as { value?: unknown }).value
+        if (typeof raw === 'number' && Number.isFinite(raw)) return m
+        if (typeof raw === 'string') {
+          const parsedValue = Number(raw.replace(/[%,，\s]/g, ''))
+          if (Number.isFinite(parsedValue)) return { ...m, value: parsedValue }
         }
-      }
-    }
+        return null
+      })
+      .filter((m): m is NonNullable<typeof m> => m !== null)
     if (!Array.isArray(v.mitigatingFactors)) {
       return {
         ok: false,
         error: `verdict[${i}].mitigatingFactors must be an array (use [] when empty)`
       }
     }
+  }
+  // 清洗后证据被摘光的 verdict 整条剔除（无数字支撑的判定不给用户看）
+  candidate.verdicts = candidate.verdicts.filter(v => (v as Verdict).evidenceMetrics.length > 0)
+  if (candidate.verdicts.length === 0) {
+    return { ok: false, error: 'all verdicts dropped after evidence sanitization' }
   }
 
   // ─── Layer 3: data-grounding（清洗，不再硬毙） ───

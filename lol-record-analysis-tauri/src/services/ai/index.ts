@@ -26,13 +26,11 @@ export type {
 export { requestAIContentStream } from './stream'
 export type { AttributionResult, MatchAIState } from './matchDetail'
 
-const IN_GAME_SYSTEM_PROMPT =
-  '你是一个LOL游戏分析师，擅长分析玩家战绩和给出游戏建议。请用简洁的中文回复，不要太长。'
-
 export async function analyzeGameWithAIStream(
   gameData: any,
   type: 'team' | 'player' = 'team',
-  callbacks: StreamCallbacks
+  callbacks: StreamCallbacks,
+  opts: { opggMode?: OpggMode } = {}
 ): Promise<void> {
   try {
     await loadChampionNames()
@@ -40,9 +38,11 @@ export async function analyzeGameWithAIStream(
     const useNotes = (await getConfigByIpc<boolean>(CONFIG_KEYS.aiUsePlayerNotes)) !== false
     const prompt =
       type === 'team'
-        ? buildTeamAnalysisPrompt(gameData, { useNotes })
-        : buildPlayerAnalysisPrompt(gameData, { useNotes })
-    await requestAIContentStream(prompt, callbacks, IN_GAME_SYSTEM_PROMPT)
+        ? await buildTeamAnalysisPrompt(gameData, { useNotes, opggMode: opts.opggMode })
+        : await buildPlayerAnalysisPrompt(gameData, { useNotes })
+    // DEFAULT_SYSTEM_PROMPT 带"所有结论都必须绑定数据证据"反幻觉指令，
+    // 与 prompt 内纪律区配套（旧的弱版 IN_GAME_SYSTEM_PROMPT 已淘汰）。
+    await requestAIContentStream(prompt, callbacks, DEFAULT_SYSTEM_PROMPT)
   } catch (error: any) {
     console.error('AI analysis error:', error)
     callbacks.onError(error.message || '网络请求失败')
@@ -95,13 +95,14 @@ export async function analyzeChampSelectWithAIStream(
  *
  * @param game        LCU Game 对象
  * @param callbacks   流式回调
- * @param _options    旧 API 兼容字段 mode/participantId 被忽略（新流程统一输出全队复盘）
+ * @param options     mode: 'overview' 整局锐评 / 'player' 单人复盘（需 participantId）。
+ *                    Stage 1 归因两模式共享缓存，Stage 2 按模式与目标玩家分别缓存。
  * @param extras      profileMap 与词库样本（可选）
  */
 export async function analyzeMatchDetailWithAIStream(
   game: Game,
   callbacks: StreamCallbacks,
-  _options: MatchDetailAnalysisOptions = {},
+  options: MatchDetailAnalysisOptions = {},
   extras?: {
     profileMap?: Map<string, RecentPlayerProfile | null> | null
     vocabSamples?: string[]
@@ -110,7 +111,9 @@ export async function analyzeMatchDetailWithAIStream(
   try {
     await loadChampionNames()
     const out = await analyzeMatchDetail(game, extras?.profileMap ?? null, callbacks, {
-      vocabSamples: extras?.vocabSamples
+      vocabSamples: extras?.vocabSamples,
+      mode: options.mode,
+      participantId: options.participantId
     })
     if (!out.ok && out.stage === 'critique' && out.fallbackMarkdown) {
       // The Stage 2 stream already called onError; emit the fallback so UI shows something

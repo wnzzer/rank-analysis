@@ -11,6 +11,7 @@
  */
 
 import MarkdownIt from 'markdown-it'
+import { dedupeSectionMentions } from './postprocess'
 
 // html:false 阻断 AI/外部数据中夹带 raw HTML（XSS 防线，CSP 之外的纵深防御）
 const md = new MarkdownIt({ html: false, breaks: true, linkify: true })
@@ -54,7 +55,8 @@ const NUMBER_PATTERN = '\\d[\\d,]*(?:\\.\\d+)?(?:%|k|万)?'
  */
 export function renderAnalysisReport(markdown: string): string {
   if (!markdown) return ''
-  return enhance(md.render(markdown))
+  // 确定性去重：模型偶发把同一玩家写进两个人物章节，代码层兜底（见 postprocess.ts）
+  return enhance(md.render(dedupeSectionMentions(markdown)))
 }
 
 /** DOM 走查：名字加粗 + 数字高亮，仅改文本节点。 */

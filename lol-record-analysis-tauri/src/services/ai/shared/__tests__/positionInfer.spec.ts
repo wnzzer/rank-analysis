@@ -119,6 +119,36 @@ describe('inferTeamPosition', () => {
     })
   })
 
+  describe('champion-class fallback（技能无信号时按职业分布兜底）', () => {
+    it('ADC 英雄 + 闪现疾行（无治疗/屏障）→ BOTTOM（国服真机：MF 闪疾走下路）', () => {
+      expect(
+        inferTeamPosition({
+          teamPosition: '',
+          spellIds: [4, 6],
+          championId: 21 // 赏金猎人
+        })
+      ).toBe('BOTTOM')
+    })
+    it('辅助英雄 + 闪现点燃 → UTILITY', () => {
+      expect(
+        inferTeamPosition({
+          teamPosition: '',
+          spellIds: [4, 14],
+          championId: 412 // 锤石
+        })
+      ).toBe('UTILITY')
+    })
+    it('战士英雄不做职业兜底（中单剑豪误判上单的风险大于收益）→ UNKNOWN', () => {
+      expect(
+        inferTeamPosition({
+          teamPosition: '',
+          spellIds: [4, 6],
+          championId: 122 // 诺克萨斯之手
+        })
+      ).toBe('UNKNOWN')
+    })
+  })
+
   describe('unknown fallback', () => {
     it('no Smite/Teleport/Heal cues + unknown champ → UNKNOWN', () => {
       expect(
