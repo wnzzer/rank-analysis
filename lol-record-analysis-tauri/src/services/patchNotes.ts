@@ -15,10 +15,10 @@ import { getOpggStatus } from './opgg'
 export type ChangeDirection = 'buff' | 'nerf' | 'adjusted'
 
 export interface ChampionPatchNote {
-  /** 展示名：CN 源为国服中文名，Wiki 兜底源为英文展示名 */
+  /** 展示名：CN 源为「名字（7月16日更新）」格式的中文名，Wiki 兜底源为英文展示名 */
   champion: string
   direction: ChangeDirection
-  /** 改动条目：CN 源为公告原文条目（含「名字（7月16日更新）」等格式），Wiki 兜底源为已清洗 wiki 标记的英文原文 */
+  /** 改动条目：CN 源为公告原文条目（中文），Wiki 兜底源为已清洗 wiki 标记的英文原文 */
   lines: string[]
 }
 
