@@ -1,0 +1,60 @@
+# .github/workflows/patch-notes-data.yml
+name: Patch Notes Data
+
+# 国服版本更新公告 → AI 结构化抽取 → data/patch-notes/ 静态 JSON
+# 详细设计: docs/superpowers/specs/2026-07-18-cn-patch-notes-ai-pipeline-design.md
+on:
+  schedule:
+    - cron: '0 */6 * * *' # 每 6 小时对一次 docid，未变则零成本跳过
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  models: read
+
+concurrency:
+  group: patch-notes-data
+  cancel-in-progress: true
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run pipeline tests
+        run: node --test scripts/patch-notes/
+
+      - name: Generate patch notes data
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/patch-notes/run.mjs
+
+      - name: Commit and push if changed
+        id: commit
+        run: |
+          # 含首次运行的 untracked 文件，故用 status 而非 diff 判断
+          if [ -z "$(git status --porcelain -- data/patch-notes)" ]; then
+            echo "no data changes"
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/patch-notes
+          LABEL=$(node -e "console.log(JSON.parse(require('fs').readFileSync('data/patch-notes/cn-latest.json','utf8')).patchLabel)")
+          git commit -m "chore(data): 更新国服英雄改动 ${LABEL}"
+          git push
+          echo "pushed=true" >> "$GITHUB_OUTPUT"
+
+      # GITHUB_TOKEN 的 push 不触发 sync-gitcode（GitHub 防递归），这里自带镜像推送
+      - name: Mirror to GitCode
+        if: steps.commit.outputs.pushed == 'true'
+        env:
+          GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
+        run: |
+          git push "https://wnzzer:${GITCODE_TOKEN}@gitcode.com/wnzzer/rank-analysis.git" HEAD:main --force
