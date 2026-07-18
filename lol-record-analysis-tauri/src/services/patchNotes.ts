@@ -1,8 +1,11 @@
 /**
  * 版本补丁英雄改动查询（Rust get_champion_patch_note 的类型安全包装）
  *
- * patch 版本号取自 OP.GG 状态（ranked 快照）；网络型失败一律返回 null——
- * 无补丁信息是常态降级，不阻塞选人页渲染。
+ * 双源：Rust 端优先走国服中文公告（CN 源，不依赖 patch 号，独立于 OP.GG 可用），
+ * 查不到时兜底走 Wiki 英文（需要 patch 号）。patch 版本号取自 OP.GG 状态
+ * （ranked 快照），仅 Wiki 兜底路径需要；OP.GG 不可达时以空串调用，
+ * 让 CN 源不受影响。网络型失败一律返回 null——无补丁信息是常态降级，
+ * 不阻塞选人页渲染。
  */
 
 import { invoke } from '@tauri-apps/api/core'
@@ -12,10 +15,10 @@ import { getOpggStatus } from './opgg'
 export type ChangeDirection = 'buff' | 'nerf' | 'adjusted'
 
 export interface ChampionPatchNote {
-  /** wiki 展示名（英文） */
+  /** 展示名：CN 源为国服中文名，Wiki 兜底源为英文展示名 */
   champion: string
   direction: ChangeDirection
-  /** 改动条目（英文原文，已清洗 wiki 标记） */
+  /** 改动条目：CN 源为公告原文条目（含「名字（7月16日更新）」等格式），Wiki 兜底源为已清洗 wiki 标记的英文原文 */
   lines: string[]
 }
 
@@ -51,11 +54,11 @@ export function getChampionPatchNote(championId: number): Promise<ChampionPatchN
   let cached = noteCache.get(championId)
   if (!cached) {
     cached = (async () => {
+      // patch 号仅 Wiki 兜底路径需要；OP.GG 不可达时仍以空串调用，让 CN 源独立可用
       const patch = await getCurrentPatch()
-      if (!patch) return null
       return await invoke<ChampionPatchNote | null>('get_champion_patch_note', {
         championId,
-        patch
+        patch: patch ?? ''
       })
     })().catch(error => {
       console.warn('[patchNotes] getChampionPatchNote failed:', error)

@@ -33,7 +33,7 @@ if (!candidate) {
   process.exit(0)
 }
 const existing = readExisting()
-if (existing?.docId === candidate.iDocID) {
+if (existing?.docId === String(candidate.iDocID)) {
   console.log(`docid 未变（${candidate.iDocID}），无需更新`)
   process.exit(0)
 }
@@ -47,6 +47,40 @@ if (extracted.isPatchNotes !== true) {
   process.exit(0)
 }
 
+// sIdxTime 为北京时间（UTC+8）
+const publishedAtEpoch = Math.floor(
+  new Date(candidate.sIdxTime.replace(' ', 'T') + '+08:00').getTime() / 1000
+)
+
+/** 组装产出对象并写入 latest + archive；docId 强制转 string 防上游类型漂移破坏 Rust 端反序列化 */
+function writeOut(champions) {
+  const out = {
+    schemaVersion: 1,
+    docId: String(candidate.iDocID),
+    title: candidate.sTitle,
+    patchLabel: deriveLabel(candidate.sTitle),
+    publishedAt: candidate.sIdxTime.slice(0, 10),
+    publishedAtEpoch,
+    generatedAt: new Date().toISOString(),
+    sourceUrl: candidate.sRedirectURL,
+    champions
+  }
+  fs.mkdirSync(path.join(DATA_DIR, 'archive'), { recursive: true })
+  const json = JSON.stringify(out, null, 2) + '\n'
+  fs.writeFileSync(LATEST, json)
+  fs.writeFileSync(path.join(DATA_DIR, 'archive', `${out.docId}.json`), json)
+  return out
+}
+
+// 合法的零改动公告（如仅修 bug 的停机公告）：AI 判定为版本公告但未抽出任何英雄改动。
+// champions 为空数组时无条目可过白名单校验，直接跳过 validateExtraction 写入空改动并
+// 记录 docid，避免下界校验判定越界 exit 1、docid 未落盘导致每 6h 红灯到下期公告。
+if (Array.isArray(extracted.champions) && extracted.champions.length === 0) {
+  const out = writeOut([])
+  console.log(`本期公告无英雄平衡改动，已记录 docid（${out.patchLabel}）`)
+  process.exit(0)
+}
+
 const whitelist = await fetchWhitelist()
 const result = validateExtraction(extracted, whitelist, text)
 if (!result.ok) {
@@ -54,23 +88,5 @@ if (!result.ok) {
   process.exit(1)
 }
 
-// sIdxTime 为北京时间（UTC+8）
-const publishedAtEpoch = Math.floor(
-  new Date(candidate.sIdxTime.replace(' ', 'T') + '+08:00').getTime() / 1000
-)
-const out = {
-  schemaVersion: 1,
-  docId: candidate.iDocID,
-  title: candidate.sTitle,
-  patchLabel: deriveLabel(candidate.sTitle),
-  publishedAt: candidate.sIdxTime.slice(0, 10),
-  publishedAtEpoch,
-  generatedAt: new Date().toISOString(),
-  sourceUrl: candidate.sRedirectURL,
-  champions: result.champions
-}
-fs.mkdirSync(path.join(DATA_DIR, 'archive'), { recursive: true })
-const json = JSON.stringify(out, null, 2) + '\n'
-fs.writeFileSync(LATEST, json)
-fs.writeFileSync(path.join(DATA_DIR, 'archive', `${out.docId}.json`), json)
+const out = writeOut(result.champions)
 console.log(`已写入 ${out.champions.length} 个英雄的改动（${out.patchLabel}）`)

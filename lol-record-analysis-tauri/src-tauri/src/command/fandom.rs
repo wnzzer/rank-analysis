@@ -127,6 +127,12 @@ pub async fn get_champion_patch_note(
         }
     }
 
+    // patch 号仅 Wiki 路径需要；空串（OP.GG 不可达时前端传入）直接视为无兜底数据，
+    // 避免用空版本号去拉 wiki 的 "V" 页
+    if patch.is_empty() {
+        return Ok(None);
+    }
+
     // 英雄 ID → LCU 英文 alias（如 91 → "Talon"）；缓存未就绪时静默返回 None
     let alias = {
         let cache = crate::lcu::api::asset::CHAMPION_CACHE

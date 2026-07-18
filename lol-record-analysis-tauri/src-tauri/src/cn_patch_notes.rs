@@ -249,4 +249,20 @@ mod tests {
         assert_eq!(note.lines, vec!["W 潮涌 治疗量：60 → 65"]);
         assert!(note_for(&data, 1).is_none());
     }
+
+    /// 契约测试：CI 管线产出的真实数据文件必须能被本客户端解析。
+    /// 任一侧 schema 漂移（字段名/类型/枚举值）都会在这里红灯，而不是线上静默降级。
+    #[test]
+    fn repo_data_file_should_satisfy_client_contract() {
+        let json = include_str!("../../../data/patch-notes/cn-latest.json");
+        let data = parse_data(json).expect("仓库内 cn-latest.json 应符合 schema v1 契约");
+        assert!(!data.doc_id.is_empty());
+        assert!(!data.patch_label.is_empty());
+        assert!(data.published_at_epoch > 0);
+        for c in &data.champions {
+            assert!(c.champion_id > 0);
+            assert!(!c.name.is_empty());
+            assert!(!c.lines.is_empty());
+        }
+    }
 }
