@@ -11,6 +11,7 @@ import {
   CashOutline,
   FlagOutline,
   FlameOutline,
+  FlashOutline,
   FootstepsOutline,
   PeopleOutline,
   ShieldOutline,
@@ -100,6 +101,46 @@ export function computeMatchScore(s: ParticipantStats, ctx: ScoreContext): numbe
       0.08 * norm(totalCs(s), ctx.max.cs) +
       0.06 * norm(s.damageDealtToTurrets, ctx.max.turret))
   )
+}
+
+/**
+ * 多杀荣誉徽章：三杀及以上才上榜（双杀太常见，出徽章反而注水），
+ * 次数 >1 时 label 带 "×N"。顺序即展示顺序：五杀 > 四杀 > 三杀，整体排在"最多"类徽章前。
+ */
+const multiKillBadgeConfigs = [
+  {
+    key: 'penta',
+    label: '五杀',
+    className: 'match-detail-badge-penta',
+    value: (s: ParticipantStats) => s.pentaKills ?? 0
+  },
+  {
+    key: 'quadra',
+    label: '四杀',
+    className: 'match-detail-badge-quadra',
+    value: (s: ParticipantStats) => s.quadraKills ?? 0
+  },
+  {
+    key: 'triple',
+    label: '三杀',
+    className: 'match-detail-badge-triple',
+    value: (s: ParticipantStats) => s.tripleKills ?? 0
+  }
+]
+
+/** 单玩家的多杀徽章列表（无多杀时为空数组） */
+function multiKillBadges(stats: ParticipantStats): PlayerBadge[] {
+  return multiKillBadgeConfigs
+    .filter(cfg => cfg.value(stats) > 0)
+    .map(cfg => {
+      const count = cfg.value(stats)
+      return {
+        key: cfg.key,
+        label: count > 1 ? `${cfg.label}×${count}` : cfg.label,
+        icon: FlashOutline,
+        className: cfg.className
+      }
+    })
 }
 
 const badgeConfigs = [
@@ -258,14 +299,17 @@ export function useMatchDetailPlayers(
           tagLine: identity?.player.tagLine ?? '',
           isMe: displayName === toValue(currentPlayerKey),
           win: p.stats.win,
-          badges: badgeConfigs
-            .filter(cfg => badgeWinners.get(cfg.label)?.has(p.participantId))
-            .map(cfg => ({
-              key: cfg.key,
-              label: cfg.label,
-              icon: cfg.icon,
-              className: cfg.className
-            })),
+          badges: [
+            ...multiKillBadges(p.stats),
+            ...badgeConfigs
+              .filter(cfg => badgeWinners.get(cfg.label)?.has(p.participantId))
+              .map(cfg => ({
+                key: cfg.key,
+                label: cfg.label,
+                icon: cfg.icon,
+                className: cfg.className
+              }))
+          ],
           teamRelative: {
             damage: safeRelativePercent(p.stats.totalDamageDealtToChampions, totals.damage),
             taken: safeRelativePercent(p.stats.totalDamageTaken, totals.taken),

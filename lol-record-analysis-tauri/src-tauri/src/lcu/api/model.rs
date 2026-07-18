@@ -83,6 +83,16 @@ pub struct Stats {
     pub kills: i32,
     pub deaths: i32,
     pub assists: i32,
+    // 多杀次数（LCU 与 SGP match-v5 同名扁平字段）。default：旧缓存/残缺数据无此字段时为 0。
+    // ⚠️ 曾因未声明被 serde 丢弃，导致前端详情页与 AI snapshot 的 multiKills 恒为 0。
+    #[serde(rename = "doubleKills", default)]
+    pub double_kills: i32,
+    #[serde(rename = "tripleKills", default)]
+    pub triple_kills: i32,
+    #[serde(rename = "quadraKills", default)]
+    pub quadra_kills: i32,
+    #[serde(rename = "pentaKills", default)]
+    pub penta_kills: i32,
     #[serde(rename = "goldEarned")]
     pub gold_earned: i32,
     #[serde(rename = "goldSpent")]
@@ -168,5 +178,39 @@ mod tests {
         let stats: Stats = serde_json::from_str(json).unwrap();
         assert_eq!(stats.player_subteam_id, 0);
         assert_eq!(stats.subteam_placement, 0);
+    }
+
+    /// 多杀字段必须透传——曾因 Stats 未声明这些字段被 serde 丢弃，
+    /// 前端详情页与 AI 复盘 snapshot 的 multiKills 一直拿到 0。
+    #[test]
+    fn should_deserialize_multi_kill_fields() {
+        let json = r#"{
+            "win": true,
+            "item0": 0, "item1": 0, "item2": 0, "item3": 0, "item4": 0, "item5": 0, "item6": 0,
+            "perkPrimaryStyle": 0, "perkSubStyle": 0,
+            "kills": 19, "deaths": 3, "assists": 21,
+            "goldEarned": 25500, "goldSpent": 24000,
+            "totalDamageDealtToChampions": 82700, "totalDamageDealt": 200000,
+            "totalDamageTaken": 35200, "totalHeal": 10300,
+            "totalMinionsKilled": 200,
+            "doubleKills": 3, "tripleKills": 2, "quadraKills": 1, "pentaKills": 1
+        }"#;
+        let stats: Stats = serde_json::from_str(json).unwrap();
+        assert_eq!(stats.double_kills, 3);
+        assert_eq!(stats.triple_kills, 2);
+        assert_eq!(stats.quadra_kills, 1);
+        assert_eq!(stats.penta_kills, 1);
+    }
+
+    /// 旧缓存/SGP 缺字段时默认 0，且序列化输出 camelCase 供前端消费。
+    #[test]
+    fn should_default_and_serialize_multi_kill_fields() {
+        let stats = Stats {
+            penta_kills: 1,
+            ..Default::default()
+        };
+        let json = serde_json::to_string(&stats).unwrap();
+        assert!(json.contains("\"pentaKills\":1"));
+        assert!(json.contains("\"tripleKills\":0"));
     }
 }

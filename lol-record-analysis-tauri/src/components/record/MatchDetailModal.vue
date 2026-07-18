@@ -1265,6 +1265,20 @@ watch(
   background: color-mix(in srgb, var(--accent-blue) 14%, transparent);
 }
 
+/* 多杀荣誉徽章：五杀金（底色更浓一档以示最高荣誉）/ 四杀琥珀 / 三杀蓝 */
+.match-detail-badge-penta {
+  color: var(--accent-gold);
+  background: color-mix(in srgb, var(--accent-gold) 22%, transparent);
+}
+.match-detail-badge-quadra {
+  color: var(--semantic-warn);
+  background: color-mix(in srgb, var(--semantic-warn) 16%, transparent);
+}
+.match-detail-badge-triple {
+  color: var(--accent-sky);
+  background: color-mix(in srgb, var(--accent-sky) 14%, transparent);
+}
+
 .match-detail-build-cell {
   display: flex;
   flex-direction: column;

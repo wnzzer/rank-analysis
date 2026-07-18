@@ -8,6 +8,7 @@ vi.mock('@vicons/ionicons5', () => ({
   CashOutline: {},
   FlagOutline: {},
   FlameOutline: {},
+  FlashOutline: {},
   FootstepsOutline: {},
   PeopleOutline: {},
   ShieldOutline: {},
@@ -261,5 +262,71 @@ describe('useMatchDetailPlayers - 伤害徽章与 WeGame 式 MVP', () => {
     expect(byId(4).mvpTag).toBe('')
     // 评分单调性：carry 分应高于蹭分型
     expect(byId(2).score).toBeGreaterThan(byId(1).score)
+  })
+})
+
+describe('useMatchDetailPlayers - 多杀徽章', () => {
+  function makeGame(statsOverrides: Partial<ParticipantStats>): Game {
+    return {
+      mvp: '',
+      gameDetail: { endOfGameResult: '', participantIdentities: [], participants: [] },
+      gameId: 9,
+      gameCreationDate: '2026-07-18T00:00:00Z',
+      gameDuration: 2400,
+      gameMode: 'CLASSIC',
+      gameType: '',
+      mapId: 11,
+      queueId: 420,
+      queueName: '单双排位',
+      platformId: '',
+      participantIdentities: Array.from({ length: 2 }, (_, i) => ({
+        player: {
+          accountId: 0,
+          platformId: '',
+          gameName: `P${i + 1}`,
+          tagLine: '0001',
+          summonerName: '',
+          summonerId: 0
+        }
+      })),
+      participants: [
+        makeP(1, 100, makeStats({ win: true, kills: 19, ...statsOverrides })),
+        makeP(2, 200, makeStats({ win: false, kills: 2 }))
+      ]
+    }
+  }
+
+  const badgesOf = (game: Game, id: number) => {
+    const { detailPlayers } = useMatchDetailPlayers(ref(game), ref(''))
+    return detailPlayers.value.find(p => p.participantId === id)!.badges
+  }
+
+  it('五杀 1 次 → "五杀" 徽章', () => {
+    const badges = badgesOf(makeGame({ pentaKills: 1 }), 1)
+    const penta = badges.find(b => b.key === 'penta')
+    expect(penta?.label).toBe('五杀')
+  })
+
+  it('三杀 2 次 → "三杀×2" 徽章，且排在"最多"类徽章前面', () => {
+    const badges = badgesOf(makeGame({ tripleKills: 2 }), 1)
+    const triple = badges.find(b => b.key === 'triple')
+    expect(triple?.label).toBe('三杀×2')
+    const tripleIdx = badges.findIndex(b => b.key === 'triple')
+    const killsIdx = badges.findIndex(b => b.key === 'kills')
+    expect(killsIdx).toBeGreaterThan(-1)
+    expect(tripleIdx).toBeLessThan(killsIdx)
+  })
+
+  it('四杀 + 五杀同局 → 两枚徽章，五杀在前', () => {
+    const badges = badgesOf(makeGame({ pentaKills: 1, quadraKills: 1 }), 1)
+    const keys = badges.map(b => b.key)
+    expect(keys.indexOf('penta')).toBeGreaterThan(-1)
+    expect(keys.indexOf('quadra')).toBeGreaterThan(-1)
+    expect(keys.indexOf('penta')).toBeLessThan(keys.indexOf('quadra'))
+  })
+
+  it('无多杀 → 不出多杀徽章；双杀不出徽章', () => {
+    const badges = badgesOf(makeGame({ doubleKills: 3 }), 1)
+    expect(badges.some(b => ['penta', 'quadra', 'triple'].includes(b.key))).toBe(false)
   })
 })
