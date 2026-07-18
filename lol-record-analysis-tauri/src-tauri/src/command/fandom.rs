@@ -94,6 +94,11 @@ pub async fn get_aram_balance(
 /// - `Ok(Some(ChampionPatchNote))`: 该英雄本版本有改动（方向 + 英文条目）
 /// - `Ok(None)`: 本版本无改动，或英雄缓存尚未就绪（未连接客户端时）
 ///
+/// # 数据源优先级
+///
+/// 1. 国服公告中文明细（CI 管线产出的静态 JSON，21 天新鲜度守卫）
+/// 2. LoL Wiki `V{patch}` 英文条目（原有逻辑，作为降级层）
+///
 /// # 缓存策略
 ///
 /// 快照按 patch 三级缓存（内存/磁盘/网络，TTL 24h），网络失败降级空快照，
@@ -104,6 +109,23 @@ pub async fn get_champion_patch_note(
     patch: String,
 ) -> Result<Option<crate::fandom::patch_notes::ChampionPatchNote>, String> {
     use crate::fandom::patch_notes;
+
+    // 国服中文源优先：CI 管线产出的数据自带 championId，直接按 id 命中；
+    // 快照过期（>21 天，跨版本）或未命中该英雄时降级 Wiki 英文源
+    let cn = crate::cn_patch_notes::get_or_fetch().await;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+    if let Some(data) = cn
+        .data
+        .as_ref()
+        .filter(|d| crate::cn_patch_notes::is_fresh(d, now))
+    {
+        if let Some(note) = crate::cn_patch_notes::note_for(data, champion_id) {
+            return Ok(Some(note));
+        }
+    }
 
     // 英雄 ID → LCU 英文 alias（如 91 → "Talon"）；缓存未就绪时静默返回 None
     let alias = {
