@@ -36,8 +36,10 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: node scripts/patch-notes/run.mjs
 
+      # ref 守卫：从非 main 分支 dispatch（如合并前验证）时绝不推送，防止把未审代码快进上 main
       - name: Commit and push if changed
         id: commit
+        if: github.ref == 'refs/heads/main'
         run: |
           # 含首次运行的 untracked 文件，故用 status 而非 diff 判断
           if [ -z "$(git status --porcelain -- data/patch-notes)" ]; then
