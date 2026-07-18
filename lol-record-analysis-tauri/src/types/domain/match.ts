@@ -36,6 +36,11 @@ export interface ParticipantStats {
   kills: number
   deaths: number
   assists: number
+  /** 多杀次数（LCU/SGP 同名字段；旧缓存数据可能缺失，消费方需 `?? 0` 兜底） */
+  doubleKills?: number
+  tripleKills?: number
+  quadraKills?: number
+  pentaKills?: number
   goldEarned: number
   goldSpent: number
   totalDamageDealtToChampions: number

@@ -108,6 +108,26 @@ describe('buildMatchSnapshot', () => {
     expect(snap.players[0].role).toBe('NONE')
   })
 
+  it('passes through multiKills（后端曾丢字段导致恒 0 的回归锚点）', () => {
+    const p = makeParticipant()
+    p.stats.doubleKills = 3
+    p.stats.tripleKills = 2
+    p.stats.quadraKills = 1
+    p.stats.pentaKills = 1
+    const snap = buildMatchSnapshot(makeGame({ participants: [p] }))
+    expect(snap.players[0].multiKills).toEqual({ double: 3, triple: 2, quadra: 1, penta: 1 })
+  })
+
+  it('defaults multiKills to 0 when 旧缓存数据缺字段', () => {
+    const p = makeParticipant()
+    delete (p.stats as any).doubleKills
+    delete (p.stats as any).tripleKills
+    delete (p.stats as any).quadraKills
+    delete (p.stats as any).pentaKills
+    const snap = buildMatchSnapshot(makeGame({ participants: [p] }))
+    expect(snap.players[0].multiKills).toEqual({ double: 0, triple: 0, quadra: 0, penta: 0 })
+  })
+
   it('augment mode → items array is empty', () => {
     const snap = buildMatchSnapshot(makeGame({ queueId: 2400, gameMode: 'ARAM' }))
     expect(snap.players[0].items).toEqual([])

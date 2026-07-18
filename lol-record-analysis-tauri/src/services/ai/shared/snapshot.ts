@@ -179,11 +179,12 @@ export function buildMatchSnapshot(
       wardScore: (stats as any).visionScore ?? 0,
       controlWardsPlaced: (stats as any).sightWardsBoughtInGame ?? 0,
       visionWardsBought: (stats as any).visionWardsBoughtInGame ?? 0,
+      // 多杀字段已在类型上声明（后端曾丢弃该字段导致这里恒为 0，现已透传）
       multiKills: {
-        double: (stats as any).doubleKills ?? 0,
-        triple: (stats as any).tripleKills ?? 0,
-        quadra: (stats as any).quadraKills ?? 0,
-        penta: (stats as any).pentaKills ?? 0
+        double: stats.doubleKills ?? 0,
+        triple: stats.tripleKills ?? 0,
+        quadra: stats.quadraKills ?? 0,
+        penta: stats.pentaKills ?? 0
       },
       recentProfile: profileMap?.get(puuid) ?? null
     }
