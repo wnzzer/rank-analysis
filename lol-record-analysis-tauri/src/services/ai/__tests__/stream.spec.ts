@@ -55,6 +55,25 @@ describe('mapStreamEvent', () => {
   })
 })
 
+describe('requestAIContentStream jsonMode', () => {
+  it('jsonMode=true 时 request 带 responseFormat=json_object，缺省不带', async () => {
+    const { invoke } = await import('@tauri-apps/api/core')
+    const mockInvoke = invoke as unknown as ReturnType<typeof vi.fn>
+    mockInvoke.mockReset()
+    mockInvoke.mockResolvedValue(undefined)
+
+    // invoke 还会被配置读取（get_config）调用，只看 stream_ai_analysis 的请求体
+    const streamRequests = () =>
+      mockInvoke.mock.calls.filter(c => c[0] === 'stream_ai_analysis').map(c => c[1].request)
+
+    await requestAIContentStream('p', makeCallbacks(), 'sys', 'qwen-flash', { jsonMode: true })
+    expect(streamRequests()[0].responseFormat).toBe('json_object')
+
+    await requestAIContentStream('p', makeCallbacks())
+    expect(streamRequests()[1].responseFormat).toBeUndefined()
+  })
+})
+
 describe('requestAIContentStream 终态恰好一次', () => {
   it('首个终态后忽略后续 done/error', async () => {
     const { invoke } = await import('@tauri-apps/api/core')

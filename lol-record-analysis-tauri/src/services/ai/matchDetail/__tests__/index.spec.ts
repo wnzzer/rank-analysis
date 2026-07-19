@@ -230,7 +230,8 @@ describe('analyzeMatchDetail', () => {
         finalCall: 'x'
       }))
     })
-    sessionStorage.setItem('ai_match_detail_stage1_12345_ranked', cached)
+    // Stage 1 缓存键与 requestAIContent 的键统一（含模型后缀）
+    sessionStorage.setItem('ai_match_detail_stage1_12345_ranked_qwen-flash', cached)
     mockStream.mockImplementation(async (_p, callbacks) => {
       callbacks.onChunk('cached run')
       callbacks.onDone()
@@ -270,7 +271,7 @@ describe('analyzeMatchDetail', () => {
 
   it('整局缓存命中不影响 player 模式（缓存不互串回归）', async () => {
     sessionStorage.setItem('ai_match_detail_stage2_12345_ranked', '整局缓存内容')
-    sessionStorage.setItem('ai_match_detail_stage1_12345_ranked', fakeAttributionJson())
+    sessionStorage.setItem('ai_match_detail_stage1_12345_ranked_qwen-flash', fakeAttributionJson())
     mockStream.mockImplementation(async (_p, callbacks) => {
       callbacks.onChunk('单人新内容')
       callbacks.onDone()

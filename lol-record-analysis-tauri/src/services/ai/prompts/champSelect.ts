@@ -16,6 +16,14 @@ import { getChampionName } from '../champion-names'
 import { getChampionMeta, getLaneCounters, findCounterHints } from '@renderer/services/opgg'
 import { buildPatchNotesBlock, PATCH_NOTES_SECTION_HEADER } from './shared/patchNotes'
 import {
+  LANE_RULE_CHAMP_SELECT,
+  metricNameRule,
+  RULE_NO_FABRICATED_MECHANICS,
+  RULE_NO_ROLE_TAGS,
+  RULE_SIDE_PREFIX,
+  RULE_TOP_CHAMPS_NOT_CURRENT
+} from './shared/discipline'
+import {
   assignedPositionSegment,
   counterHintText,
   positionSegment,
@@ -167,14 +175,14 @@ ${patchNotesBlock}
 
 ===== 分析纪律（硬规则，必须遵守）=====
 - 敌方只有英雄没有玩家身份，禁止臆测敌方玩家的水平、段位或操作习惯。
-- "近期常用英雄"战绩 ≠ 本局英雄：玩家本局锁定的英雄若不在其常用列表中，不能当成他不熟练的证据，只能如实说"本局英雄非其常用英雄，风格未知"。
-- 禁止编造英雄的技能、被动机制、连招或数值——材料里没给出的机制信息一律不许提。唯一例外：【本版本英雄改动】里明确给出的技能名与数值可以原样引用，禁止改写或外推；改动只能用来说明强弱趋势（被加强/被削弱），禁止把"→"左边的旧数值当成现状。
+- ${RULE_TOP_CHAMPS_NOT_CURRENT}
+- ${RULE_NO_FABRICATED_MECHANICS}
 - "补位"仅指位置状态（本局位置偏离主玩位置），不代表水平高低；禁止生造"XX流"之类的术语。
 - ${suggestionDiscipline}
-- 材料中的每个数字都有明确的指标名：敌方英雄的"胜率"是 OP.GG 版本胜率；我方玩家"常用"括号里的胜率/场次是该玩家个人近期数据，不是英雄的版本数据。禁止使用材料中不存在的指标名（如"出场率""ban率"——材料未提供），禁止把玩家个人数据说成英雄版本数据。
-- 禁止给英雄贴"坦克/刺客/法师/射手"等职能标签或基于职能给玩法建议——材料未提供英雄职能信息，主分路≠职能。
-- 分路只认材料字段：我方玩家的"本局分路"是官方分配的权威数据；敌方"主分路（推测）"只是 OP.GG 版本统计，不是本局实际分路。拼对线关系必须以我方"本局分路"为锚，敌方对位只能说"推测对位"；禁止同一英雄在不同章节出现不同分路；材料没给分路的英雄一律不提分路。
-- 全文（包括建议）每次提到英雄名都必须带"我方/敌方"前缀，禁止省略——严禁把敌方英雄写成我方、把我方英雄写成敌方。
+- ${metricNameRule('我方玩家"常用"括号里的胜率/场次')}
+- ${RULE_NO_ROLE_TAGS}
+- ${LANE_RULE_CHAMP_SELECT}
+- ${RULE_SIDE_PREFIX}
 
 ===== 输出要求 =====
 给一份约 250 字的速读分析，严格按下面 markdown 模板，章节标题与顺序不可改：

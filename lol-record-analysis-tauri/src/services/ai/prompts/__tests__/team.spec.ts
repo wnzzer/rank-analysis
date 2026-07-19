@@ -129,8 +129,8 @@ describe('buildTeamAnalysisPrompt', () => {
 
   it('includes 本局分路（currentLane 中文，来自 assignedPosition）', async () => {
     const prompt = await buildTeamAnalysisPrompt(makeSessionData(), { opggMode: 'ranked' })
-    expect(prompt).toContain('"currentLane": "中单"')
-    expect(prompt).toContain('"currentLane": "打野"')
+    expect(prompt).toContain('"currentLane":"中单"')
+    expect(prompt).toContain('"currentLane":"打野"')
   })
 
   it('includes 预组队情报区块（按 marker name 分组列名单）', async () => {

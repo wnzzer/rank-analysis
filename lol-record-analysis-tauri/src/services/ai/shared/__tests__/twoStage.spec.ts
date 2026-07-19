@@ -145,6 +145,93 @@ describe('runTwoStage', () => {
     }
   })
 
+  it('skips stage 1 entirely when precomputedStage1 is provided', async () => {
+    mockStream.mockImplementation(async (_p, callbacks) => {
+      callbacks.onChunk('{"bar":"hi"}')
+      callbacks.onDone()
+    })
+
+    const result = await runTwoStage<{ foo: number }, { bar: string }>({
+      precomputedStage1: { foo: 42 },
+      stage1: {
+        systemPrompt: 'S1',
+        userPrompt: 'U1',
+        parse: () => ({ ok: false, error: 'should not be called' })
+      },
+      stage2: {
+        buildSystemPrompt: () => 'S2',
+        buildUserPrompt: s => JSON.stringify(s),
+        parse: raw => ({ ok: true, value: JSON.parse(raw) })
+      }
+    })
+
+    expect(mockRequest).not.toHaveBeenCalled()
+    expect(result.kind).toBe('ok')
+    if (result.kind === 'ok') {
+      expect(result.stage1).toEqual({ foo: 42 })
+    }
+  })
+
+  it('passes jsonMode through to both stages', async () => {
+    mockRequest.mockResolvedValueOnce({ success: true, content: '{"foo":1}' })
+    mockStream.mockImplementation(async (_p, callbacks) => {
+      callbacks.onChunk('{}')
+      callbacks.onDone()
+    })
+
+    await runTwoStage<unknown, unknown>({
+      stage1: {
+        systemPrompt: 'S1',
+        userPrompt: 'U1',
+        parse: () => ({ ok: true, value: {} }),
+        jsonMode: true
+      },
+      stage2: {
+        buildSystemPrompt: () => 'S2',
+        buildUserPrompt: () => 'U2',
+        parse: () => ({ ok: true, value: {} }),
+        jsonMode: true
+      }
+    })
+
+    // requestAIContent(prompt, cacheKey, systemPrompt, model, opts)
+    expect(mockRequest.mock.calls[0][4]).toEqual({ jsonMode: true })
+    // requestAIContentStream(prompt, callbacks, systemPrompt, model, opts)
+    expect(mockStream.mock.calls[0][4]).toEqual({ jsonMode: true })
+  })
+
+  it('invalidates the stage 1 cacheKey before retrying on parse error', async () => {
+    // requestAIContent 会把解析不过的坏产物也写缓存；不失效的话重试只会拿回同一份坏内容
+    sessionStorage.setItem('s1_cache_key', 'invalid')
+    mockRequest
+      .mockResolvedValueOnce({ success: true, content: 'invalid' })
+      .mockResolvedValueOnce({ success: true, content: '{"foo":2}' })
+    mockStream.mockImplementation(async (_p, callbacks) => {
+      callbacks.onChunk('{"bar":"ok"}')
+      callbacks.onDone()
+    })
+
+    const result = await runTwoStage<{ foo: number }, { bar: string }>({
+      stage1: {
+        systemPrompt: 'S1',
+        userPrompt: 'U1',
+        cacheKey: 's1_cache_key',
+        parse: raw => {
+          if (raw === 'invalid') return { ok: false, error: 'bad' }
+          return { ok: true, value: JSON.parse(raw) }
+        }
+      },
+      stage2: {
+        buildSystemPrompt: () => 'S2',
+        buildUserPrompt: s => JSON.stringify(s),
+        parse: raw => ({ ok: true, value: JSON.parse(raw) })
+      }
+    })
+
+    expect(result.kind).toBe('ok')
+    expect(sessionStorage.getItem('s1_cache_key')).toBeNull()
+  })
+
   it('streamCallback receives chunks during stage 2', async () => {
     mockRequest.mockResolvedValueOnce({ success: true, content: '{}' })
     mockStream.mockImplementation(async (_p, callbacks) => {

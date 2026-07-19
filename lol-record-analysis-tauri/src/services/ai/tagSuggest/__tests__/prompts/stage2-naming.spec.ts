@@ -102,7 +102,7 @@ describe('buildStage2SystemPrompt', () => {
     const p = buildStage2SystemPrompt(sampleProfile, [], [])
     expect(p).not.toContain('MatchFilter')
     expect(p).not.toContain('MatchRefresh')
-    expect(p).not.toContain('"type": "and"')
+    expect(p).not.toContain('"type":"and"')
   })
 
   it('contains good and bad tone guidance', () => {
@@ -117,8 +117,8 @@ describe('buildStage2UserPrompt', () => {
     const p = buildStage2UserPrompt(sampleProfile)
     expect(p).toContain('goodCandidates')
     expect(p).toContain('badCandidates')
-    expect(p).toContain('"id": "g1"')
-    expect(p).toContain('"id": "b1"')
+    expect(p).toContain('"id":"g1"')
+    expect(p).toContain('"id":"b1"')
   })
 
   it('does NOT re-embed the styleSummary (already in system)', () => {

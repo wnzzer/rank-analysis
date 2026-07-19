@@ -92,6 +92,30 @@ const FIRST_TOKEN_TIMEOUT_SECS: u64 = 20;
 /// 首块到达前的最大尝试次数（含首次）。仅在"流尚未开始"时重试，避免重复输出。
 const MAX_ATTEMPTS: u32 = 2;
 
+/// 构建 DashScope chat 请求体。纯函数，便于单测。
+///
+/// `response_format` 为 `Some` 时附加 OpenAI 兼容的 `response_format: {"type": ...}`
+/// 字段（如 `json_object` 强制 JSON 输出）；`None` 时不带该字段，保持普通文本输出。
+fn build_request_body(
+    model: &str,
+    system_prompt: &str,
+    user_prompt: &str,
+    response_format: Option<&str>,
+) -> serde_json::Value {
+    let mut body = json!({
+        "model": model,
+        "messages": [
+            { "role": "system", "content": system_prompt },
+            { "role": "user", "content": user_prompt }
+        ],
+        "stream": true
+    });
+    if let Some(fmt) = response_format {
+        body["response_format"] = json!({ "type": fmt });
+    }
+    body
+}
+
 /// HTTP 状态码是否值得重试：仅 429（限流）与 5xx（服务端错误）。纯函数，便于单测。
 fn is_retryable_status(status: u16) -> bool {
     status == 429 || (500..=599).contains(&status)
@@ -118,6 +142,9 @@ pub struct AiStreamRequest {
     pub model: Option<String>,
     /// 用户在设置中填的覆盖密钥；空 / 缺省时用 env / 编译期注入
     pub api_key: Option<String>,
+    /// OpenAI 兼容 `response_format.type`（如 `json_object`，强制模型输出合法 JSON）。
+    /// 缺省不传该字段（普通文本/markdown 输出）。
+    pub response_format: Option<String>,
 }
 
 /// AI 流式响应事件
@@ -179,14 +206,12 @@ pub async fn stream_ai_analysis(
         .system_prompt
         .unwrap_or_else(|| "你是一个LOL游戏分析师，擅长分析玩家战绩和给出游戏建议。请用简洁、专业、直接的中文回复。".to_string());
 
-    let body = json!({
-        "model": model,
-        "messages": [
-            { "role": "system", "content": system_prompt },
-            { "role": "user", "content": request.prompt }
-        ],
-        "stream": true
-    });
+    let body = build_request_body(
+        &model,
+        &system_prompt,
+        &request.prompt,
+        request.response_format.as_deref(),
+    );
 
     // 创建 HTTP 客户端（总超时收紧到 REQUEST_TIMEOUT_SECS）
     let client = reqwest::Client::builder()
@@ -364,6 +389,22 @@ mod tests {
             extract_delta_content(r#"data: {"choices":[{"delta":{"role":"assistant"}}]}"#),
             None
         );
+    }
+
+    #[test]
+    fn body_omits_response_format_by_default() {
+        let body = build_request_body("qwen-flash", "sys", "user", None);
+        assert!(body.get("response_format").is_none());
+        assert_eq!(body["model"], "qwen-flash");
+        assert_eq!(body["stream"], true);
+        assert_eq!(body["messages"][0]["content"], "sys");
+        assert_eq!(body["messages"][1]["content"], "user");
+    }
+
+    #[test]
+    fn body_includes_response_format_when_requested() {
+        let body = build_request_body("qwen-flash", "sys", "user", Some("json_object"));
+        assert_eq!(body["response_format"]["type"], "json_object");
     }
 
     #[test]

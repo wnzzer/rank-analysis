@@ -60,16 +60,16 @@ KDA：${recent?.kda?.toFixed(2) || 0}
 伤害占比：${recent?.damageDealtToChampionsRate || 0}%
 
 【英雄熟练度】
-${JSON.stringify(topChampions, null, 2)}
+${JSON.stringify(topChampions)}
 
 【位置分布】
-${JSON.stringify(positionStats, null, 2)}
+${JSON.stringify(positionStats)}
 
 【标签列表】
 ${tags.length > 0 ? tags.map((t: any) => `• ${t.tagName}(${t.tagDesc}) - ${t.good ? '正面' : '负面'}`).join('\n') : '无标签'}
 ${noteSection}
 【最近15场详细战绩】
-${JSON.stringify(detailedGames, null, 2)}
+${JSON.stringify(detailedGames)}
 
 ===== 分析纪律（硬规则，必须遵守）=====
 - 禁止编造英雄的技能、被动机制、连招或数值——材料里没给出的机制信息一律不许提。唯一例外："本局英雄本版本改动"里明确给出的技能名与数值可以原样引用，禁止改写或外推。

@@ -38,11 +38,18 @@ export function mapStreamEvent(evt: AiStreamEvent, callbacks: StreamCallbacks): 
   }
 }
 
+/** AI 请求可选项 */
+export interface AiRequestOptions {
+  /** true 时启用 DashScope JSON mode（response_format=json_object），强制模型输出合法 JSON */
+  jsonMode?: boolean
+}
+
 export async function requestAIContentStream(
   prompt: string,
   callbacks: StreamCallbacks,
   systemPrompt: string = DEFAULT_SYSTEM_PROMPT,
-  model: string = DEFAULT_MODEL
+  model: string = DEFAULT_MODEL,
+  opts: AiRequestOptions = {}
 ): Promise<void> {
   let settled = false
   const settle = (fn: () => void) => {
@@ -65,7 +72,13 @@ export async function requestAIContentStream(
       })
 
     await invoke('stream_ai_analysis', {
-      request: { prompt, systemPrompt, model, apiKey: override },
+      request: {
+        prompt,
+        systemPrompt,
+        model,
+        apiKey: override,
+        responseFormat: opts.jsonMode ? 'json_object' : undefined
+      },
       onEvent: channel
     })
   } catch (error: any) {
@@ -80,7 +93,8 @@ export async function requestAIContent(
   prompt: string,
   cacheKey: string,
   systemPrompt: string = DEFAULT_SYSTEM_PROMPT,
-  model: string = DEFAULT_MODEL
+  model: string = DEFAULT_MODEL,
+  opts: AiRequestOptions = {}
 ): Promise<AIAnalysisResult> {
   const cached = sessionStorage.getItem(cacheKey)
   if (cached) {
@@ -102,7 +116,8 @@ export async function requestAIContent(
         onError: error => resolve({ success: false, error })
       },
       systemPrompt,
-      model
+      model,
+      opts
     )
   })
 }

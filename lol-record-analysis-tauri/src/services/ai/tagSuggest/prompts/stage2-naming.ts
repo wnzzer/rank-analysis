@@ -72,12 +72,8 @@ ${vocabLine}
  * 构造 Stage 2 user prompt，承载 candidate 列表（不重复 styleSummary）。
  */
 export function buildStage2UserPrompt(profile: ProfileSummary): string {
-  return JSON.stringify(
-    {
-      goodCandidates: profile.goodCandidates,
-      badCandidates: profile.badCandidates
-    },
-    null,
-    2
-  )
+  return JSON.stringify({
+    goodCandidates: profile.goodCandidates,
+    badCandidates: profile.badCandidates
+  })
 }

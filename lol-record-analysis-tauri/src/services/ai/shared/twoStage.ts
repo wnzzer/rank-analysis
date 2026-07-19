@@ -25,8 +25,10 @@ export interface Stage1Config<Out> {
   parse: (raw: string) => ParseOutcome<Out>
   cacheKey?: string
   retry?: number
-  /** AI model name; falls back to stream.ts DEFAULT_MODEL (qwen-plus) when omitted. */
+  /** AI model name; falls back to stream.ts DEFAULT_MODEL when omitted. */
   model?: string
+  /** true 时启用 DashScope JSON mode（response_format=json_object），适用于严格 JSON 输出的 stage */
+  jsonMode?: boolean
 }
 
 export interface Stage2Config<In, Out> {
@@ -36,8 +38,10 @@ export interface Stage2Config<In, Out> {
   cacheKey?: string
   retry?: number
   streamCallback?: (chunk: string) => void
-  /** AI model name; falls back to stream.ts DEFAULT_MODEL (qwen-plus) when omitted. */
+  /** AI model name; falls back to stream.ts DEFAULT_MODEL when omitted. */
   model?: string
+  /** true 时启用 DashScope JSON mode（response_format=json_object），适用于严格 JSON 输出的 stage */
+  jsonMode?: boolean
 }
 
 export type TwoStageResult<S1, S2> =
@@ -52,25 +56,32 @@ export type TwoStageResult<S1, S2> =
  *
  * Stage 1 失败（网络错误）：不重试，直接返回 stage1Error。
  * Stage 1 解析失败：重试 `stage1.retry`（默认 1）次后仍失败则返回 stage1ParseError。
+ *   带 cacheKey 时重试前会先失效缓存——requestAIContent 会把解析不过的坏产物也缓存，
+ *   不失效的话重试只会拿回同一份坏内容，重试等于空转。
  * Stage 2 失败（网络错误）：返回 stage2Error，附带 stage1 数据。
  * Stage 2 解析失败：返回 stage2ParseError，附带 stage1 数据，调用方可降级渲染。
+ *
+ * `precomputedStage1`：调用方已有 Stage 1 产物（如外层缓存命中）时传入，跳过 Stage 1 调用。
  */
 export async function runTwoStage<Stage1Out, Stage2Out>(opts: {
   stage1: Stage1Config<Stage1Out>
   stage2: Stage2Config<Stage1Out, Stage2Out>
+  precomputedStage1?: Stage1Out
 }): Promise<TwoStageResult<Stage1Out, Stage2Out>> {
   const s1Retry = opts.stage1.retry ?? 1
 
   // ─── Stage 1 ───
-  let stage1Out: Stage1Out | null = null
+  let stage1Out: Stage1Out | null = opts.precomputedStage1 ?? null
   let stage1Raw = ''
   let lastErr = 'unknown'
-  for (let attempt = 0; attempt <= s1Retry; attempt++) {
+  for (let attempt = 0; stage1Out === null && attempt <= s1Retry; attempt++) {
+    const cacheKey = opts.stage1.cacheKey ?? `twoStage_s1_${Date.now()}_${attempt}`
     const resp = await requestAIContent(
       opts.stage1.userPrompt,
-      opts.stage1.cacheKey ?? `twoStage_s1_${Date.now()}_${attempt}`,
+      cacheKey,
       opts.stage1.systemPrompt,
-      opts.stage1.model
+      opts.stage1.model,
+      { jsonMode: opts.stage1.jsonMode }
     )
     if (!resp) {
       // Defensive: treat missing response as transient — fall through to parse retry
@@ -89,6 +100,12 @@ export async function runTwoStage<Stage1Out, Stage2Out>(opts: {
       break
     }
     lastErr = parsed.error
+    // 解析失败：坏产物已被 requestAIContent 写进缓存，失效后下一轮才是真重试
+    try {
+      sessionStorage.removeItem(cacheKey)
+    } catch {
+      // ignore (SSR / no storage)
+    }
     // continue to next attempt
   }
   if (stage1Out === null) {
@@ -115,7 +132,8 @@ export async function runTwoStage<Stage1Out, Stage2Out>(opts: {
         }
       },
       opts.stage2.buildSystemPrompt(stage1Final),
-      opts.stage2.model
+      opts.stage2.model,
+      { jsonMode: opts.stage2.jsonMode }
     )
   })
 

@@ -236,13 +236,16 @@ export async function requestTagSuggestions(forceRefresh = false): Promise<TagSu
       systemPrompt: STAGE1_SYSTEM_PROMPT,
       userPrompt: buildStage1UserPrompt(wins, losses),
       parse: parseStage1,
-      model: TAG_MODEL
+      model: TAG_MODEL,
+      // 两阶段都要求严格 JSON 输出，JSON mode 从协议层封死"外裹 markdown 代码块"类解析失败
+      jsonMode: true
     },
     stage2: {
       buildSystemPrompt: s1 => buildStage2SystemPrompt(s1, vocabSample, recentlyUsed),
       buildUserPrompt: s1 => buildStage2UserPrompt(s1),
       parse: parseStage2,
-      model: TAG_MODEL
+      model: TAG_MODEL,
+      jsonMode: true
     }
   })
 

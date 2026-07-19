@@ -75,9 +75,9 @@ multiKillsMax / streak
 export function buildStage1UserPrompt(wins: GameFeature[], losses: GameFeature[]): string {
   return [
     `赢局 (N=${wins.length}):`,
-    JSON.stringify(wins, null, 2),
+    JSON.stringify(wins),
     '',
     `输局 (N=${losses.length}):`,
-    JSON.stringify(losses, null, 2)
+    JSON.stringify(losses)
   ].join('\n')
 }

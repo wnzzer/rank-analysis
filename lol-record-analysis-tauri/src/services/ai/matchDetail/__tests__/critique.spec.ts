@@ -1,22 +1,9 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 
-vi.mock('../../stream', () => ({
-  requestAIContent: vi.fn(),
-  requestAIContentStream: vi.fn(),
-  DEFAULT_SYSTEM_PROMPT: 'sys'
-}))
-
-import { requestAIContentStream } from '../../stream'
-import { runCritiqueStage } from '../critique'
+import { buildCritiqueUserPrompt } from '../critique'
 import { classifyMode } from '../../shared/modeContext'
 import type { MatchSnapshot } from '../../shared/snapshot'
 import type { AttributionResult } from '../types'
-
-const mockStream = requestAIContentStream as ReturnType<typeof vi.fn>
-
-beforeEach(() => {
-  mockStream.mockReset()
-})
 
 function snapshotForTest(): MatchSnapshot {
   return {
@@ -27,7 +14,9 @@ function snapshotForTest(): MatchSnapshot {
     durationSeconds: 1800,
     modeContext: classifyMode(420, 'CLASSIC'),
     teams: [],
-    players: []
+    players: [
+      { participantId: 1, teamId: 100, name: 'A', teamPosition: 'JUNGLE', recentProfile: null }
+    ]
   } as unknown as MatchSnapshot
 }
 
@@ -51,70 +40,34 @@ function fakeAttribution(): AttributionResult {
   }
 }
 
-describe('runCritiqueStage', () => {
-  it('streams chunks and returns ok markdown on success', async () => {
-    mockStream.mockImplementation(async (_p, callbacks) => {
-      callbacks.onChunk('## 一句话定论\n')
-      callbacks.onChunk('蓝方碾压。\n')
-      callbacks.onDone()
-    })
-    const chunks: string[] = []
-    const out = await runCritiqueStage(snapshotForTest(), fakeAttribution(), {
-      onChunk: c => chunks.push(c),
-      onDone: () => {},
-      onError: () => {}
-    })
-    expect(out.ok).toBe(true)
-    if (out.ok) {
-      expect(out.markdown).toContain('一句话定论')
-      expect(out.markdown).toContain('蓝方碾压')
-    }
-    expect(chunks).toEqual(['## 一句话定论\n', '蓝方碾压。\n'])
+describe('buildCritiqueUserPrompt', () => {
+  it('defaults to 整局锐评 prompt (5 段模板)', () => {
+    const prompt = buildCritiqueUserPrompt(fakeAttribution(), snapshotForTest())
+    expect(prompt).toContain('## 一句话定论')
+    expect(prompt).toContain('蓝方运营碾压')
   })
 
-  it('falls back to template on stream error', async () => {
-    mockStream.mockImplementation(async (_p, callbacks) => {
-      callbacks.onError('stream broke')
+  it('selects 单人复盘 prompt when mode=player with participantId', () => {
+    const prompt = buildCritiqueUserPrompt(fakeAttribution(), snapshotForTest(), {
+      mode: 'player',
+      participantId: 1
     })
-    const out = await runCritiqueStage(snapshotForTest(), fakeAttribution(), {
-      onChunk: () => {},
-      onDone: () => {},
-      onError: () => {}
-    })
-    expect(out.ok).toBe(false)
-    if (!out.ok) {
-      expect(out.fallbackMarkdown).toContain('## 一句话定论')
-      expect(out.fallbackMarkdown).toContain('蓝方运营碾压')
-    }
+    expect(prompt).toContain('【目标玩家】')
+    expect(prompt).toContain('## 一句话定档')
   })
 
-  it('forwards onChunk during streaming', async () => {
-    mockStream.mockImplementation(async (_p, callbacks) => {
-      callbacks.onChunk('hello')
-      callbacks.onDone()
+  it('falls back to 整局锐评 when mode=player but participantId missing', () => {
+    const prompt = buildCritiqueUserPrompt(fakeAttribution(), snapshotForTest(), {
+      mode: 'player'
     })
-    const chunks: string[] = []
-    await runCritiqueStage(snapshotForTest(), fakeAttribution(), {
-      onChunk: c => chunks.push(c),
-      onDone: () => {},
-      onError: () => {}
-    })
-    expect(chunks).toEqual(['hello'])
+    expect(prompt).toContain('## 一句话定论')
   })
 
-  it('injects vocab samples into the prompt when provided', async () => {
-    mockStream.mockImplementation(async (_p, callbacks) => {
-      callbacks.onChunk('ok')
-      callbacks.onDone()
+  it('injects vocab samples into the prompt when provided', () => {
+    const prompt = buildCritiqueUserPrompt(fakeAttribution(), snapshotForTest(), {
+      vocabSamples: ['抽象', '0换4']
     })
-    await runCritiqueStage(
-      snapshotForTest(),
-      fakeAttribution(),
-      { onChunk: () => {}, onDone: () => {}, onError: () => {} },
-      { vocabSamples: ['抽象', '0换4'] }
-    )
-    const userPrompt = mockStream.mock.calls[0][0] as string
-    expect(userPrompt).toContain('抽象')
-    expect(userPrompt).toContain('0换4')
+    expect(prompt).toContain('抽象')
+    expect(prompt).toContain('0换4')
   })
 })
