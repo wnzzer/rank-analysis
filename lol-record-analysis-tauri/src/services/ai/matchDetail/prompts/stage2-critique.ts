@@ -48,7 +48,7 @@ ${vocabSamples.join('、')}`
   return `你是 LOL 锐评写手。基于已经给出的归因 JSON，转写为锐评 markdown 给玩家看。
 
 【输入：归因结果】
-${JSON.stringify(attribution, null, 2)}
+${JSON.stringify(attribution)}
 
 【玩家名册】（快照事实：名字｜英雄｜分路｜胜负方｜label，禁止偏离）
 ${attribution.verdicts.map(rosterLine).join('\n')}

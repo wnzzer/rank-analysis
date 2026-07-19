@@ -95,7 +95,7 @@ describe('buildStage2PlayerPrompt', () => {
     expect(prompt).toContain('【目标玩家】')
     expect(prompt).toContain('幽默的二次元#12510')
     expect(prompt).toContain('赏金猎人')
-    expect(prompt).toContain('"triple": 1')
+    expect(prompt).toContain('"triple":1')
   })
 
   it('includes 对位玩家区块 when 敌方存在同分路玩家', () => {

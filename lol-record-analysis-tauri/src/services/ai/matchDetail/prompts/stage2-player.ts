@@ -14,30 +14,26 @@ const LANE_POSITIONS = new Set(['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'])
 
 /** 单个玩家 → 喂给模型的紧凑 JSON（剔除 isMe 等无关字段，保留全量数值证据） */
 function playerBrief(p: any): string {
-  return JSON.stringify(
-    {
-      name: p.name,
-      champion: p.champion,
-      teamPosition: p.teamPosition,
-      result: p.win ? '胜方' : '败方',
-      kda: p.kda,
-      kills: p.kills,
-      deaths: p.deaths,
-      assists: p.assists,
-      damageShare: p.damageShare,
-      damageTakenShare: p.damageTakenShare,
-      goldShare: p.goldShare,
-      killParticipation: p.killParticipation,
-      dpm: p.dpm,
-      gpm: p.gpm,
-      csm: p.csm,
-      wardScore: p.wardScore,
-      multiKills: p.multiKills,
-      recentProfile: p.recentProfile
-    },
-    null,
-    2
-  )
+  return JSON.stringify({
+    name: p.name,
+    champion: p.champion,
+    teamPosition: p.teamPosition,
+    result: p.win ? '胜方' : '败方',
+    kda: p.kda,
+    kills: p.kills,
+    deaths: p.deaths,
+    assists: p.assists,
+    damageShare: p.damageShare,
+    damageTakenShare: p.damageTakenShare,
+    goldShare: p.goldShare,
+    killParticipation: p.killParticipation,
+    dpm: p.dpm,
+    gpm: p.gpm,
+    csm: p.csm,
+    wardScore: p.wardScore,
+    multiKills: p.multiKills,
+    recentProfile: p.recentProfile
+  })
 }
 
 /**
@@ -69,7 +65,7 @@ export function buildStage2PlayerPrompt(
 
   const targetVerdict = attribution.verdicts.find(v => v.participantId === participantId)
   const verdictBlock = targetVerdict
-    ? JSON.stringify(targetVerdict, null, 2)
+    ? JSON.stringify(targetVerdict)
     : '该玩家未被列入整局归因（表现不在整局关键点名单里，属正常情况）。'
 
   const vocabHint =

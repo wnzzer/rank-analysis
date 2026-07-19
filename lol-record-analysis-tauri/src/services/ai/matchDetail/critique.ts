@@ -1,19 +1,15 @@
 /**
- * Stage 2 orchestrator —— 锐评流式调用。
+ * Stage 2（锐评/单人复盘）的 prompt 选择与配置。
  *
- * 流程：
- *   (snapshot, attribution)
- *     → buildStage2Prompt
- *     → requestAIContentStream（流式）
- *     → 累积 markdown，调用方通过 callbacks 实时拿到 chunk
- *     → 失败时用 critiqueTemplate.renderFallbackCritique 兜底
+ * 编排（流式调用、缓存、降级兜底）统一由 index.ts + shared/twoStage.ts 承担，
+ * 本文件只提供构建块：
+ * - buildCritiqueUserPrompt: 按 mode 选整局锐评 / 单人复盘 prompt
+ * - STAGE2_SYSTEM_PROMPT / STAGE2_MODEL
  */
 
 import type { MatchSnapshot } from '../shared/snapshot'
-import { requestAIContentStream } from '../stream'
 import { buildStage2Prompt } from './prompts/stage2-critique'
 import { buildStage2PlayerPrompt } from './prompts/stage2-player'
-import { renderFallbackCritique } from './critiqueTemplate'
 import type { AttributionResult } from './types'
 
 export interface CritiqueCallbacks {
@@ -29,10 +25,7 @@ export interface CritiqueOptions {
   participantId?: number
 }
 
-export type CritiqueOutcome =
-  { ok: true; markdown: string } | { ok: false; error: string; fallbackMarkdown: string }
-
-const STAGE2_SYSTEM_PROMPT =
+export const STAGE2_SYSTEM_PROMPT =
   '你是 LOL 锐评写手，按用户给定的 markdown 模板输出，不要返回 JSON / 解释 / 前后缀。'
 
 /**
@@ -41,59 +34,20 @@ const STAGE2_SYSTEM_PROMPT =
  * 锐评感追平 qwen-plus（"拆迁现场""演《孤勇者》"），且只引用归因 JSON 里的数字，
  * 不像 qwen-plus 会编造新数字（违反 grounding）。速度 2.8× 且更稳，故切换。
  */
-const STAGE2_MODEL = 'qwen-flash'
+export const STAGE2_MODEL = 'qwen-flash'
 
-export async function runCritiqueStage(
-  snapshot: MatchSnapshot,
+/** Stage 2 user prompt：'player' + participantId → 单人复盘，其余 → 整局锐评 */
+export function buildCritiqueUserPrompt(
   attribution: AttributionResult,
-  callbacks: CritiqueCallbacks,
+  snapshot: MatchSnapshot,
   options: CritiqueOptions = {}
-): Promise<CritiqueOutcome> {
-  const userPrompt =
-    options.mode === 'player' && options.participantId != null
-      ? buildStage2PlayerPrompt(
-          attribution,
-          snapshot,
-          options.participantId,
-          options.vocabSamples ?? []
-        )
-      : buildStage2Prompt(attribution, snapshot, options.vocabSamples ?? [])
-
-  let accumulated = ''
-  let errored = false
-  let errorMessage = ''
-
-  await new Promise<void>(resolve => {
-    requestAIContentStream(
-      userPrompt,
-      {
-        onChunk: chunk => {
-          accumulated += chunk
-          callbacks.onChunk(chunk)
-        },
-        onDone: () => {
-          callbacks.onDone()
-          resolve()
-        },
-        onError: err => {
-          errored = true
-          errorMessage = err
-          callbacks.onError(err)
-          resolve()
-        }
-      },
-      STAGE2_SYSTEM_PROMPT,
-      STAGE2_MODEL
-    )
-  })
-
-  if (errored) {
-    return {
-      ok: false,
-      error: errorMessage,
-      fallbackMarkdown: renderFallbackCritique(attribution)
-    }
-  }
-
-  return { ok: true, markdown: accumulated }
+): string {
+  return options.mode === 'player' && options.participantId != null
+    ? buildStage2PlayerPrompt(
+        attribution,
+        snapshot,
+        options.participantId,
+        options.vocabSamples ?? []
+      )
+    : buildStage2Prompt(attribution, snapshot, options.vocabSamples ?? [])
 }

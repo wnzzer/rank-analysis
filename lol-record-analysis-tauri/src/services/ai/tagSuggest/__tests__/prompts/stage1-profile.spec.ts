@@ -84,8 +84,8 @@ describe('buildStage1UserPrompt', () => {
 
   it('embeds JSON of features', () => {
     const p = buildStage1UserPrompt([gf()], [])
-    expect(p).toContain('"championId": 64')
-    expect(p).toContain('"queueName": "单双排位"')
+    expect(p).toContain('"championId":64')
+    expect(p).toContain('"queueName":"单双排位"')
   })
 
   it('handles empty arrays', () => {

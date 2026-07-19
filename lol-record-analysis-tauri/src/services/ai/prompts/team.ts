@@ -9,6 +9,14 @@
 import { extractPlayerInsight } from '../player-insight'
 import { buildNoteBrief } from '../shared/noteBrief'
 import { buildPatchNotesBlock, PATCH_NOTES_SECTION_HEADER } from './shared/patchNotes'
+import {
+  LANE_RULE_IN_GAME,
+  metricNameRule,
+  RULE_NO_FABRICATED_MECHANICS,
+  RULE_NO_ROLE_TAGS,
+  RULE_SIDE_PREFIX,
+  RULE_TOP_CHAMPS_NOT_CURRENT
+} from './shared/discipline'
 import { assignedPositionCn, counterHintText, positionSegment, tierLabel } from './shared/opggIntel'
 import { getChampionMeta, getLaneCounters, findCounterHints } from '@renderer/services/opgg'
 import { getChampionName } from '../champion-names'
@@ -146,7 +154,8 @@ export async function buildTeamAnalysisPrompt(
       : st.subteamId === mySubteamId
         ? '我方队伍'
         : '敌方队伍'
-    return `【${label}数据】\n${JSON.stringify(playersInfo, null, 2)}`
+    // 紧凑序列化：整队画像是 prompt 里最大的数据块，去缩进可省 ~1/3 输入 token
+    return `【${label}数据】\n${JSON.stringify(playersInfo)}`
   })
 
   const myPlayers = subteams.find(st => st.subteamId === mySubteamId)?.players ?? []
@@ -192,12 +201,12 @@ ${enemyIntelBlock}${PATCH_NOTES_SECTION_HEADER}
 ${patchNotesBlock}
 
 ===== 分析纪律（硬规则，必须遵守）=====
-- 全文提到任何英雄或玩家都必须带"我方/敌方"前缀，禁止省略——严禁把敌方写成我方、把我方写成敌方。
-- 分路只认材料：玩家数据里的 currentLane 是本局权威分路（空表示该模式无分路概念）；敌方英雄版本情报里的"主分路（推测）"只是 OP.GG 统计。拼对线关系以 currentLane 为准，禁止同一英雄/玩家在不同章节出现不同分路；currentLane 为空时不提分路。
-- 禁止编造英雄的技能、被动机制、连招或数值——材料里没给出的机制信息一律不许提。唯一例外：【本版本英雄改动】里明确给出的技能名与数值可以原样引用，禁止改写或外推；改动只能用来说明强弱趋势，禁止把"→"左边的旧数值当成现状。
-- 禁止给英雄贴"坦克/刺客/法师/射手"等职能标签或基于职能给玩法建议——材料未提供英雄职能信息，主分路≠职能。
-- 材料中的每个数字都有明确的指标名：敌方英雄的"胜率"是 OP.GG 版本胜率；玩家画像里的胜率/KDA/场次是该玩家个人近期数据。禁止使用材料中不存在的指标名（如"出场率""ban率"），禁止把玩家个人数据说成英雄版本数据。
-- "近期常用英雄"战绩 ≠ 本局英雄：本局英雄不在常用列表时只能说"本局英雄非其常用，风格未知"，不能当成不熟练的证据。
+- ${RULE_SIDE_PREFIX}
+- ${LANE_RULE_IN_GAME}
+- ${RULE_NO_FABRICATED_MECHANICS}
+- ${RULE_NO_ROLE_TAGS}
+- ${metricNameRule('玩家画像里的胜率/KDA/场次')}
+- ${RULE_TOP_CHAMPS_NOT_CURRENT}
 - 玩家数据里的 userNote 是使用者主观历史备注（[色档] 文本），仅供参考，不作为事实依据。
 
 ===== 输出要求 =====
