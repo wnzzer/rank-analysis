@@ -1,5 +1,8 @@
 fn main() {
     emit_app_version();
+    // `SENTRY_DSN` 经 observability.rs 的 option_env! 在编译期烤进二进制；
+    // env 变化时需触发 crate 重编，否则 cargo 会复用旧值。
+    println!("cargo:rerun-if-env-changed=SENTRY_DSN");
     tauri_build::build()
 }
 

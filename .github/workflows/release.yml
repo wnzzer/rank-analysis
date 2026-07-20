@@ -108,6 +108,9 @@ jobs:
           # 编译期注入 DashScope 密钥：Rust 侧 option_env!("DASHSCOPE_API_KEY") 在
           # cargo build 时读取并烤进二进制（线上 key）。需在仓库 Secrets 配置。
           DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
+          # 同款套路注入 Sentry DSN：observability.rs 的 option_env!("SENTRY_DSN") 烤进二进制。
+          # 不再硬编码进源码，fork 不带此 secret 即不上报。需在仓库 Secrets 配置。
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
 
       # --- 文件重命名、压缩与路径整理 ---
       - name: 📝 Rename, Compress, and Set Paths
