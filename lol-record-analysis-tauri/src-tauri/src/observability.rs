@@ -28,17 +28,13 @@
 //! - **debug 构建**：默认开启，方便开发期验证。
 //! - **release 构建**：默认关闭，用户需在「设置 → 常规」中开启 `errorReportingEnabled`
 //!   （opt-in），重启后生效。
+//! - 无论开关如何，未配置 `SENTRY_DSN`（[`dsn`]）时上报静默关闭——fork 自建须自带
+//!   DSN，否则不会误报到上游项目。
 
 use regex::Regex;
 use sentry::protocol::{Event, Log, User, Value};
 use std::path::Path;
 use std::sync::{Arc, LazyLock};
-
-/// Sentry 项目的 DSN（公开 client key，设计上即随客户端分发）。
-///
-/// 可在编译期通过 `SENTRY_DSN` 环境变量覆盖（例如 fork 自建项目）。
-pub const DEFAULT_DSN: &str =
-    "https://4730d54dc96cffafff9dbd30d0699911@o4511465480060928.ingest.us.sentry.io/4511471007825920";
 
 /// 配置中控制是否开启错误上报的键名（以 `Enabled` 结尾 → 默认 `false`）。
 pub const REPORTING_KEY: &str = "errorReportingEnabled";
@@ -46,9 +42,17 @@ pub const REPORTING_KEY: &str = "errorReportingEnabled";
 /// 持久化匿名设备 ID 的文件名（与 `config.yaml` 同目录，相对 CWD）。
 pub const DEVICE_ID_FILE: &str = "device_id";
 
-/// 解析最终使用的 DSN（环境变量优先）。
-fn dsn() -> String {
-    option_env!("SENTRY_DSN").unwrap_or(DEFAULT_DSN).to_string()
+/// 解析最终使用的 Sentry DSN：运行时环境变量（开发/测试）→ `option_env!` 编译期注入（线上 CI）。
+///
+/// **DSN 不再硬编码进源码**：官方构建由 CI 在 `tauri build` 时设 `SENTRY_DSN`
+/// （与 `DASHSCOPE_API_KEY` 同款套路，见 `.github/workflows/release.yml`），明文不进 git。
+/// fork 未配置 `SENTRY_DSN` 时解析为 `None` → 上报直接关闭，崩溃不会误灌到上游项目。
+fn dsn() -> Option<String> {
+    std::env::var("SENTRY_DSN")
+        .ok()
+        .or_else(|| option_env!("SENTRY_DSN").map(str::to_string))
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
 }
 
 /// 判断当前是否应当开启错误上报。
@@ -77,9 +81,17 @@ pub fn init() -> Option<sentry::ClientInitGuard> {
         return None;
     }
 
+    let Some(dsn) = dsn() else {
+        log::info!(
+            "Sentry error reporting disabled: no SENTRY_DSN configured \
+             (set the SENTRY_DSN env var at build time to enable)"
+        );
+        return None;
+    };
+
     let device_id = device_id(Path::new(DEVICE_ID_FILE));
     let guard = sentry::init((
-        dsn(),
+        dsn,
         sentry::ClientOptions {
             release: Some(format!("lol-record-analysis-app@{}", env!("APP_VERSION")).into()),
             send_default_pii: false,
