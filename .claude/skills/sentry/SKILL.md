@@ -58,13 +58,20 @@ curl -sS -H "Authorization: Bearer $SENTRY_TOKEN" \
   "https://sentry.io/api/0/organizations/rank-analysis/events/?field=count_unique(user)&field=count()&statsPeriod=24h&dataset=errors"
 ```
 
-注意：这个口径只覆盖**触发过 error 上报的用户**，不是真 DAU。
+注意：这个口径只覆盖**触发过 error 上报的用户**，不是真 DAU，会严重低估（数据量通常个位数）。
 
-真 DAU 用 sessions 端点（前提是客户端开了 session tracking）：
+sessions 端点（客户端已开 session tracking，见 `observability.rs` 的 `auto_session_tracking`）能拿到真实 session 次数，但 `count_unique(user)` 恒为 0——sentry-rust 的 Release Health 信封不带 scope 里的 user，是 SDK 层限制，不是配置问题（详见下方"常见坑"）。只能当次数指标用，不能当去重人数用：
 
 ```bash
 curl -sS -H "Authorization: Bearer $SENTRY_TOKEN" \
   "https://sentry.io/api/0/organizations/rank-analysis/sessions/?field=sum(session)&field=count_unique(user)&statsPeriod=24h&interval=1d"
+```
+
+**目前最接近真 DAU 的口径：`ourlogs` 数据集 + `count_unique(user.id)`**（注意字段名必须是 `user.id`，不是 `user`——见下方"常见坑"）。日志几乎覆盖所有活跃场景（`track_feature` 打点、各类 info 日志），不像 errors 那样只在报错时才有信号：
+
+```bash
+curl -sS -H "Authorization: Bearer $SENTRY_TOKEN" \
+  "https://sentry.io/api/0/organizations/rank-analysis/events/?field=count_unique(user.id)&field=count()&statsPeriod=24h&dataset=ourlogs"
 ```
 
 ### 2. 日志量
@@ -142,7 +149,8 @@ curl -sS -H "Authorization: Bearer $SENTRY_TOKEN" \
 | 坑 | 解法 |
 |---|---|
 | `dataset=logs` 报错 / 返回空 | Sentry Logs 的 dataset 名是 `ourlogs`，不是 `logs` |
-| `count_unique(user)` 永远是 0 | 上报里没设 `user.{id,email,ip_address}`；当前项目客户端**没设 user.id**，所以 errors 数据集查 DAU 不准 |
+| `ourlogs` 数据集里 `count_unique(user)` 恒为 0，但数据明明有 user | **静默陷阱**：`ourlogs` 必须用 `count_unique(user.id)`，泛化的 `user` 字段别名在这个 dataset 里不生效（不报错，直接算出 0，很容易误判成"没上报 user"）。`errors` 数据集两种写法都行，`ourlogs` 只认 `user.id` |
+| `sessions` 端点 `count_unique(user)` 永远是 0，`errors` 端点却不是 | 客户端**已经设了 user.id**（匿名 device_id，见 `observability.rs:126-131`，跨启动持久化在本地 `device_id` 文件），errors/logs 事件正常带着走。但 Release Health 的 session 信封走独立管道，sentry-rust SDK 不会把 scope 里的 user 带上去，所以 sessions 数据集去重人数算不出来，只能拿 `sum(session)` 当次数用；真「按人头去重」的活跃数只能退而求其次，用 errors 数据集的 `count_unique(user)` 近似（即"至少报过一次错误的独立用户数"，会偏低估） |
 | `release` 全是 `0.0.0` | 用了 `ef71a30` 之前的版本；升级到最新版后才会有真实值 |
 | 429 / rate limit | 单 token 每分钟有限速，连查时 `sleep 1` 即可；或加 `&per_page=50` 少分页 |
 | 国服网络下偶尔超时 | 走代理 / 等几秒重试，Sentry SDK 本身在国服 `flush` 也会超时（见 `observability.rs:80`） |
