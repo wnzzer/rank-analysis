@@ -183,7 +183,7 @@ const goGaming = () => {
 }
 
 .nav-item:hover {
-  background: var(--glass-bg-mid);
+  background: var(--hover-bg);
   color: var(--text-secondary);
   transform: scale(1.04);
 }
@@ -194,10 +194,10 @@ const goGaming = () => {
 }
 
 .nav-item--active {
-  background: color-mix(in srgb, var(--semantic-win) 14%, transparent);
+  background: var(--nav-active-bg);
   color: var(--semantic-win);
-  border-color: color-mix(in srgb, var(--semantic-win) 20%, transparent);
-  box-shadow: 0 0 12px color-mix(in srgb, var(--semantic-win) 15%, transparent);
+  border-color: var(--nav-active-border);
+  box-shadow: var(--decor-glow-win);
 }
 
 /* 键盘聚焦时让位给全局 focus ring，激活态描边/辉光暂时退场，避免双环 */
@@ -217,7 +217,7 @@ const goGaming = () => {
   height: 18px;
   background: var(--win-bar-gradient);
   border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
-  box-shadow: 0 0 8px color-mix(in srgb, var(--semantic-win) 40%, transparent);
+  box-shadow: var(--nav-indicator-glow);
 }
 
 .nav-item-label {
@@ -254,7 +254,7 @@ const goGaming = () => {
 }
 
 .status-icon-btn:hover:not(:disabled) {
-  background: var(--glass-bg-mid);
+  background: var(--hover-bg);
   color: var(--text-secondary);
 }
 
@@ -264,7 +264,7 @@ const goGaming = () => {
 }
 
 .status-icon-btn--on {
-  background: color-mix(in srgb, var(--semantic-win) 12%, transparent);
+  background: var(--status-on-bg);
   color: var(--semantic-win);
 }
 
@@ -284,55 +284,19 @@ const goGaming = () => {
 }
 
 .status-dot--green {
-  background: var(--semantic-win-bright);
-  box-shadow: 0 0 5px color-mix(in srgb, var(--semantic-win-bright) 60%, transparent);
+  background: var(--status-dot-win-bg);
+  box-shadow: var(--status-dot-glow-win);
   animation: dot-pulse 2s ease-in-out infinite;
 }
 
 .status-dot--blue {
   background: var(--accent-sky);
-  box-shadow: 0 0 5px color-mix(in srgb, var(--accent-sky) 50%, transparent);
+  box-shadow: var(--status-dot-glow-sky);
   animation: dot-pulse 2s ease-in-out infinite;
 }
 
 .status-dot--off {
   background: var(--text-tertiary);
   opacity: 0.5;
-}
-
-/* LIGHT THEME */
-.theme-light .nav-item:hover {
-  background: var(--glass-bg-high);
-}
-
-.theme-light .status-icon-btn:hover:not(:disabled) {
-  background: var(--glass-bg-high);
-}
-
-.theme-light .nav-item--active {
-  background: color-mix(in srgb, var(--semantic-win) 12%, transparent);
-  border-color: color-mix(in srgb, var(--semantic-win) 18%, transparent);
-}
-
-.theme-light .nav-item--active:focus-visible {
-  border-color: transparent;
-  box-shadow: none;
-}
-
-.theme-light .nav-item--active::before {
-  box-shadow: 0 0 6px color-mix(in srgb, var(--semantic-win) 30%, transparent);
-}
-
-.theme-light .status-icon-btn--on {
-  background: color-mix(in srgb, var(--semantic-win) 10%, transparent);
-}
-
-.theme-light .status-dot--green {
-  background: var(--semantic-win);
-  box-shadow: 0 0 4px color-mix(in srgb, var(--semantic-win-bright) 40%, transparent);
-}
-
-.theme-light .status-dot--blue {
-  box-shadow: 0 0 4px color-mix(in srgb, var(--accent-sky) 35%, transparent);
 }
 </style>
