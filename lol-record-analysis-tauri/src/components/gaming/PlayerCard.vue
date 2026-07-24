@@ -174,6 +174,7 @@
                 :puuid="sessionSummoner.summoner.puuid"
                 :game-name="sessionSummoner.summoner.gameName"
                 :tag-line="sessionSummoner.summoner.tagLine"
+                :max-visible="2"
               />
             </div>
           </n-flex>
@@ -559,7 +560,8 @@ watch(
   flex: 1;
   min-width: 0;
   display: flex;
-  flex-wrap: wrap;
+  /* 单行强制：标签经 maxVisible 收纳后不再换行，杜绝撑高与段位行重叠 */
+  flex-wrap: nowrap;
   gap: var(--space-4);
   justify-content: flex-end;
   align-items: center;
