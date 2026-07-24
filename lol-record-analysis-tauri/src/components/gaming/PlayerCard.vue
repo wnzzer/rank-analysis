@@ -174,7 +174,7 @@
                 :puuid="sessionSummoner.summoner.puuid"
                 :game-name="sessionSummoner.summoner.gameName"
                 :tag-line="sessionSummoner.summoner.tagLine"
-                :max-visible="2"
+                :max-visible="tagMaxVisible"
               />
             </div>
           </n-flex>
@@ -308,6 +308,14 @@ const isHiddenRecord = computed(
     !!props.sessionSummoner.championId &&
     (!props.sessionSummoner.summoner?.gameName || !props.sessionSummoner.summoner?.puuid)
 )
+
+/** 标签区可见系统标签上限：预组队/遇见过各占一个槽位后动态收缩，保证单行(spec 验收：全部单行) */
+const tagMaxVisible = computed(() => {
+  let cap = 2
+  if (props.sessionSummoner.preGroupMarkers?.name) cap--
+  if (props.sessionSummoner.meetGames?.length > 0) cap--
+  return Math.max(cap, 0)
+})
 
 const { isAramMode, balanceTags, overallBalanceStatus } = useAramBalance(
   toRef(() => props.sessionSummoner.championId),
