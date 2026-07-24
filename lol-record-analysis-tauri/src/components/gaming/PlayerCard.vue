@@ -417,6 +417,12 @@ watch(
 
 .name-row {
   gap: var(--space-4);
+  /* n-flex（NFlex）默认按 wrap 属性写内联 style="flex-wrap: wrap"，
+   * 优先级高于外部样式表的类选择器，必须 !important 才压得下去——
+   * info-wrapper 让位收缩后，若不锁 nowrap，复制按钮/备注徽标会被挤到第二行
+   * （比 meta-row 换行更抢眼的"名字行跳动"）。名字文本本身已有
+   * name-ellipsis 的 max-width 兜底截断，这里只需保证整行不换。 */
+  flex-wrap: nowrap !important;
 }
 
 /* :deep 因为 .name-ellipsis 在 n-ellipsis 子组件根，scoped 属性不自动透传 */
@@ -559,13 +565,17 @@ watch(
   line-height: 14px;
 }
 
+/* flex:1（非 0 1 auto）+ min-width:0：长名字/长版本号等不可控内容让位收缩，
+ * 由 name-ellipsis 的 max-width 截断兜底，而不是把 .profile-tags 榨干 */
 .info-wrapper {
-  flex: 0 1 auto;
+  flex: 1;
   min-width: 0;
 }
 
 .profile-tags {
-  flex: 1;
+  /* 不再参与增长（原 flex:1 会抢占 .info-wrapper 让出的空间，导致标签区被压到几十像素内换行）；
+   * chip 数量已经过 tagMaxVisible 收纳上限，天然宽度可控，按内容大小占位即可 */
+  flex-shrink: 0;
   min-width: 0;
   display: flex;
   /* 单行强制：标签经 maxVisible 收纳后不再换行，杜绝撑高与段位行重叠 */
