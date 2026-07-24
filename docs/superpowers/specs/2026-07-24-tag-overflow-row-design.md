@@ -17,7 +17,7 @@
 | 决策点 | 结论 |
 |---|---|
 | 优先级排序 | 备注 > 预组队 > 遇见过 > 系统 bad > 系统 good(bad 警示价值高于 good) |
-| 可见上限 | `UnifiedTagRow` 新增 `maxVisible` prop;PlayerCard 传 2;其他调用点不传 = 不限(行为不变) |
+| 可见上限 | `UnifiedTagRow` 新增 `maxVisible` prop;PlayerCard 传动态上限(2 起,预组队/遇见过各占一槽递减,下限 0——实现期为满足"全部单行"验收线修订);其他调用点不传 = 不限 |
 | 溢出交互 | 超出部分收进一个 `+N` 中性 chip,click 弹 popover 列出全部溢出 chip,溢出 chip 保留原有 tooltip(tagDesc)与点击固化交互 |
 | 单行强制 | `.profile-tags` 改 `flex-wrap: nowrap`;预组队/遇见过物理在前(DOM 顺序即优先级),`UnifiedTagRow` 内部 note 最前、bad 在 good 前 |
 | 排序位置 | `UnifiedTagRow` 内新增纯函数 `orderTags(tags)`(bad 前 good 后,同组保持后端原序),单测覆盖 |
@@ -27,5 +27,5 @@
 
 - 对局页 10 张玩家卡标签区全部单行,无重叠、右对齐工整;
 - 标签溢出的玩家出现 `+N`,点开能看到全部并可固化为备注;
-- 战绩页/对局详情的 UnifiedTagRow 行为不变(不传 maxVisible);
+- 战绩页/对局详情的 UnifiedTagRow 溢出行为不变(不传 maxVisible);排序(bad 前 good 后)按设计全局生效,各调用点标签顺序统一;
 - 真机双主题截图确认;`npm run check` + `npm run test` 全绿,orderTags/切片逻辑有单测。
