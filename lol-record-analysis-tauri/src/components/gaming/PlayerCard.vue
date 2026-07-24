@@ -60,7 +60,7 @@
             </div>
 
             <div class="info-wrapper">
-              <n-flex align="center" class="name-row">
+              <n-flex align="center" :wrap="false" class="name-row">
                 <n-button
                   text
                   @click="
@@ -417,12 +417,9 @@ watch(
 
 .name-row {
   gap: var(--space-4);
-  /* n-flex（NFlex）默认按 wrap 属性写内联 style="flex-wrap: wrap"，
-   * 优先级高于外部样式表的类选择器，必须 !important 才压得下去——
-   * info-wrapper 让位收缩后，若不锁 nowrap，复制按钮/备注徽标会被挤到第二行
-   * （比 meta-row 换行更抢眼的"名字行跳动"）。名字文本本身已有
-   * name-ellipsis 的 max-width 兜底截断，这里只需保证整行不换。 */
-  flex-wrap: nowrap !important;
+  min-width: 0;
+  /* nowrap 后兜底:空间不足时裁切而非涂过标签区(compact 密度) */
+  overflow: hidden;
 }
 
 /* :deep 因为 .name-ellipsis 在 n-ellipsis 子组件根，scoped 属性不自动透传 */
