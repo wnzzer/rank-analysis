@@ -15,7 +15,12 @@ describe('orderTags', () => {
   })
 
   it('同组保持原序(稳定排序)', () => {
-    const result = orderTags([t('good1', true), t('bad1', false), t('good2', true), t('bad2', false)])
+    const result = orderTags([
+      t('good1', true),
+      t('bad1', false),
+      t('good2', true),
+      t('bad2', false)
+    ])
     expect(result.map(x => x.tagName)).toEqual(['bad1', 'bad2', 'good1', 'good2'])
   })
 
