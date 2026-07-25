@@ -278,7 +278,7 @@ const closeWindow = (): void => {
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--semantic-win) 18%, transparent);
   border: 1px solid color-mix(in srgb, var(--semantic-win) 28%, transparent);
-  box-shadow: 0 0 10px color-mix(in srgb, var(--semantic-win) 18%, transparent);
+  box-shadow: var(--decor-glow-win);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -440,7 +440,7 @@ const closeWindow = (): void => {
 
 .close-btn:hover {
   background-color: color-mix(in srgb, var(--semantic-loss) 75%, transparent);
-  color: white;
+  color: white; /* theme-fixed: 红底白字,两主题一致 */
 }
 
 .window-control-btn::after {

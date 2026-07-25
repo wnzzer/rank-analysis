@@ -119,6 +119,18 @@
   /* === RecordCard win/loss 渐变（深色） === */
   --win-bar-gradient: linear-gradient(180deg, #5ecfa4, #2d7a5e);
   --loss-bar-gradient: linear-gradient(180deg, #e57878, #8a3232);
+
+  /* === 壳层交互 token(批0:导航/顶栏;--hover-bg 供后续批次复用) === */
+  --hover-bg: var(--glass-bg-mid);
+  /* 装饰性青绿光晕(logo 徽标/导航激活 pill)——浅色置 none:白底光晕读作污渍 */
+  --decor-glow-win: 0 0 12px color-mix(in srgb, var(--semantic-win) 16%, transparent);
+  --nav-active-bg: color-mix(in srgb, var(--semantic-win) 14%, transparent);
+  --nav-active-border: color-mix(in srgb, var(--semantic-win) 20%, transparent);
+  --nav-indicator-glow: 0 0 8px color-mix(in srgb, var(--semantic-win) 40%, transparent);
+  --status-on-bg: color-mix(in srgb, var(--semantic-win) 12%, transparent);
+  --status-dot-win-bg: var(--semantic-win-bright);
+  --status-dot-glow-win: 0 0 5px color-mix(in srgb, var(--semantic-win-bright) 60%, transparent);
+  --status-dot-glow-sky: 0 0 5px color-mix(in srgb, var(--accent-sky) 50%, transparent);
 }
 
 /* 浅色主题 Token —— 冷瓷（porcelain）
@@ -165,6 +177,16 @@
   --accent-sky: #0284c7;
   --semantic-win-bright: #2d9d76;
   --semantic-loss-bright: #cf5f5f;
+
+  --hover-bg: var(--glass-bg-high);
+  --decor-glow-win: none;
+  --nav-active-bg: color-mix(in srgb, var(--semantic-win) 12%, transparent);
+  --nav-active-border: color-mix(in srgb, var(--semantic-win) 18%, transparent);
+  --nav-indicator-glow: 0 0 6px color-mix(in srgb, var(--semantic-win) 30%, transparent);
+  --status-on-bg: color-mix(in srgb, var(--semantic-win) 10%, transparent);
+  --status-dot-win-bg: var(--semantic-win);
+  --status-dot-glow-win: 0 0 4px color-mix(in srgb, var(--semantic-win-bright) 40%, transparent);
+  --status-dot-glow-sky: 0 0 4px color-mix(in srgb, var(--accent-sky) 35%, transparent);
 }
 
 .font-number {
