@@ -60,6 +60,9 @@ const tags: RankTag[] = [
   { tagName: '专精', tagDesc: '', good: true }
 ]
 
+/** 便捷构造：排序/溢出用例的最小标签 */
+const t2 = (tagName: string, good: boolean): RankTag => ({ tagName, tagDesc: '', good })
+
 /** 便捷挂载：默认无备注玩家 */
 function mountRow(props: Partial<InstanceType<typeof UnifiedTagRow>['$props']> = {}) {
   return mount(UnifiedTagRow, {
@@ -173,5 +176,37 @@ describe('UnifiedTagRow', () => {
     expect(saved?.label).toBe('friendly')
     expect(messageMock.warning).toHaveBeenCalledWith('备注已达长度上限，请先在备注面板整理')
     expect(messageMock.success).not.toHaveBeenCalled()
+  })
+
+  it('默认（未传 maxVisible）渲染全部标签且无 overflow chip', () => {
+    const w = mountRow()
+
+    expect(w.findAll('.unified-tag-chip')).toHaveLength(2)
+    expect(w.find('[data-test="overflow-chip"]').exists()).toBe(false)
+  })
+
+  it('bad 标签排在 good 前（与传入顺序无关）', () => {
+    // tags 定义里 good 的「专精」在后？否——固定用明确顺序的入参验证
+    const w = mountRow({ tags: [t2('专精', true), t2('炸鱼嫌疑', false)] })
+
+    const chips = w.findAll('.unified-tag-chip')
+    expect(chips[0].text()).toContain('炸鱼嫌疑')
+    expect(chips[1].text()).toContain('专精')
+  })
+
+  it('maxVisible=2 时超出标签收进 +N，溢出 chip 保留在 popover 内', () => {
+    const many: RankTag[] = [
+      t2('bad1', false),
+      t2('bad2', false),
+      t2('good1', true),
+      t2('good2', true)
+    ]
+    const w = mountRow({ tags: many, maxVisible: 2 })
+
+    // 可见 2 个 + 溢出列表 2 个（stub 使 popover 内容内联渲染，共 4 个 chip 节点）
+    const overflow = w.find('[data-test="overflow-chip"]')
+    expect(overflow.exists()).toBe(true)
+    expect(overflow.text()).toContain('+2')
+    expect(w.findAll('.unified-tag-chip')).toHaveLength(4)
   })
 })

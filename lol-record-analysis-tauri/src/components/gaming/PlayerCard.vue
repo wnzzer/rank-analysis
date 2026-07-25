@@ -60,7 +60,7 @@
             </div>
 
             <div class="info-wrapper">
-              <n-flex align="center" class="name-row">
+              <n-flex align="center" :wrap="false" class="name-row">
                 <n-button
                   text
                   @click="
@@ -174,6 +174,7 @@
                 :puuid="sessionSummoner.summoner.puuid"
                 :game-name="sessionSummoner.summoner.gameName"
                 :tag-line="sessionSummoner.summoner.tagLine"
+                :max-visible="tagMaxVisible"
               />
             </div>
           </n-flex>
@@ -308,6 +309,14 @@ const isHiddenRecord = computed(
     (!props.sessionSummoner.summoner?.gameName || !props.sessionSummoner.summoner?.puuid)
 )
 
+/** 标签区可见系统标签上限：预组队/遇见过各占一个槽位后动态收缩，保证单行(spec 验收：全部单行) */
+const tagMaxVisible = computed(() => {
+  let cap = 2
+  if (props.sessionSummoner.preGroupMarkers?.name) cap--
+  if (props.sessionSummoner.meetGames?.length > 0) cap--
+  return Math.max(cap, 0)
+})
+
 const { isAramMode, balanceTags, overallBalanceStatus } = useAramBalance(
   toRef(() => props.sessionSummoner.championId),
   toRef(() => props.queueId)
@@ -408,6 +417,9 @@ watch(
 
 .name-row {
   gap: var(--space-4);
+  min-width: 0;
+  /* nowrap 后兜底:空间不足时裁切而非涂过标签区(compact 密度) */
+  overflow: hidden;
 }
 
 /* :deep 因为 .name-ellipsis 在 n-ellipsis 子组件根，scoped 属性不自动透传 */
@@ -550,16 +562,21 @@ watch(
   line-height: 14px;
 }
 
+/* flex:1（非 0 1 auto）+ min-width:0：长名字/长版本号等不可控内容让位收缩，
+ * 由 name-ellipsis 的 max-width 截断兜底，而不是把 .profile-tags 榨干 */
 .info-wrapper {
-  flex: 0 1 auto;
+  flex: 1;
   min-width: 0;
 }
 
 .profile-tags {
-  flex: 1;
+  /* 不再参与增长（原 flex:1 会抢占 .info-wrapper 让出的空间，导致标签区被压到几十像素内换行）；
+   * chip 数量已经过 tagMaxVisible 收纳上限，天然宽度可控，按内容大小占位即可 */
+  flex-shrink: 0;
   min-width: 0;
   display: flex;
-  flex-wrap: wrap;
+  /* 单行强制：标签经 maxVisible 收纳后不再换行，杜绝撑高与段位行重叠 */
+  flex-wrap: nowrap;
   gap: var(--space-4);
   justify-content: flex-end;
   align-items: center;

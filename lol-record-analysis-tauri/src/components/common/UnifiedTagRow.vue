@@ -10,27 +10,26 @@
       <span>[{{ noteMeta.text }}] {{ note.note || '（未填写文字）' }}</span>
     </n-popover>
 
-    <!-- 系统标签 chips：hover 看 tagDesc，点击弹「存为备注」确认 -->
-    <n-popover v-for="tag in tags" :key="tag.tagName" trigger="click">
+    <!-- 系统标签 chips：bad 前 good 后，超出 maxVisible 的收进 +N -->
+    <UnifiedTagChip
+      v-for="tag in visibleTags"
+      :key="tag.tagName"
+      :tag="tag"
+      @solidify="solidifyTag"
+    />
+    <n-popover v-if="overflowTags.length > 0" trigger="click">
       <template #trigger>
-        <n-tooltip trigger="hover" :disabled="!tag.tagDesc">
-          <template #trigger>
-            <n-tag
-              size="small"
-              round
-              :type="tag.good ? 'success' : 'error'"
-              :bordered="false"
-              class="unified-tag-chip"
-            >
-              {{ tag.tagName }}
-            </n-tag>
-          </template>
-          <span>{{ tag.tagDesc }}</span>
-        </n-tooltip>
+        <n-tag data-test="overflow-chip" size="small" round :bordered="false" class="overflow-chip">
+          +{{ overflowTags.length }}
+        </n-tag>
       </template>
-      <div class="solidify-pop">
-        <div class="solidify-pop-text">把「{{ tag.tagName }}」存为对该玩家的备注？</div>
-        <n-button size="tiny" type="primary" @click="solidifyTag(tag)">存为备注</n-button>
+      <div class="overflow-list">
+        <UnifiedTagChip
+          v-for="tag in overflowTags"
+          :key="tag.tagName"
+          :tag="tag"
+          @solidify="solidifyTag"
+        />
       </div>
     </n-popover>
   </div>
@@ -51,10 +50,12 @@
  * @see issue #67（手动打备注费劲 → 系统先算标签、用户点一下固化）
  */
 import { computed } from 'vue'
-import { NPopover, NTooltip, NTag, NButton, useMessage } from 'naive-ui'
+import { NPopover, NTag, useMessage } from 'naive-ui'
 import { usePlayerNotesStore } from '@renderer/pinia/playerNotes'
 import { getNoteLabelMeta } from '@renderer/types/domain/playerNote'
 import type { RankTag } from '@renderer/types/domain/analysis'
+import { orderTags, splitVisible } from './unifiedTagRow'
+import UnifiedTagChip from './UnifiedTagChip.vue'
 
 /**
  * 组件属性
@@ -62,12 +63,14 @@ import type { RankTag } from '@renderer/types/domain/analysis'
  * @property puuid - 玩家唯一标识（备注存取的 key）
  * @property gameName - 游戏名（固化备注时冗余写入，供设置列表展示）
  * @property tagLine - 标签行
+ * @property maxVisible - 最多可见系统标签数，超出收进 +N；不传 = 不限（战绩页/详情页行为不变）
  */
 interface Props {
   tags: RankTag[]
   puuid: string
   gameName: string
   tagLine: string
+  maxVisible?: number
 }
 const props = defineProps<Props>()
 
@@ -78,6 +81,13 @@ const message = useMessage()
 const note = computed(() => store.getNote(props.puuid))
 /** 备注色档元信息（无备注时回退 normal，仅在 note 存在时被渲染使用） */
 const noteMeta = computed(() => getNoteLabelMeta(note.value?.label ?? 'normal'))
+
+/** 排序后的系统标签（bad 前 good 后，稳定） */
+const orderedTags = computed(() => orderTags(props.tags))
+/** 直接渲染的部分 */
+const visibleTags = computed(() => splitVisible(orderedTags.value, props.maxVisible).visible)
+/** 收进 +N popover 的部分 */
+const overflowTags = computed(() => splitVisible(orderedTags.value, props.maxVisible).overflow)
 
 /** 备注 chip 文本最多展示的字符数（全文放 hover popover） */
 const NOTE_PREVIEW_LEN = 8
@@ -144,19 +154,15 @@ defineExpose({ solidifyTag })
   gap: var(--space-4);
 }
 
-.unified-tag-chip {
+.overflow-chip {
   cursor: pointer;
-}
-
-.solidify-pop {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-6, 6px);
-}
-
-.solidify-pop-text {
-  font-size: var(--font-size-xs, 12px);
   color: var(--text-secondary);
+}
+
+.overflow-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  max-width: 240px;
 }
 </style>
