@@ -37,7 +37,12 @@ import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import { CONFIG_KEYS } from '@renderer/services/configKeys'
 import { lcuConnected } from '@renderer/composables/useGameState'
 import { useCloudSyncStore } from '@renderer/pinia/cloudSync'
-import { useStartupDialogs, GATE_SETTLE_MS, GATE_FALLBACK_MS } from './useStartupDialogs'
+import {
+  useStartupDialogs,
+  GATE_SETTLE_MS,
+  GATE_FALLBACK_MS,
+  HANDOFF_MS
+} from './useStartupDialogs'
 
 const mockGet = vi.mocked(getConfigByIpc)
 const mockPut = vi.mocked(putConfigByIpc)
@@ -171,10 +176,31 @@ describe('useStartupDialogs', () => {
     const { result, unmount } = await mountWithGateOpen()
 
     await result.resolveCloudSyncNotice(false)
+    vi.advanceTimersByTime(HANDOFF_MS)
     await nextTick()
 
     expect(result.active.value).toBe('errorReportingConsent')
     expect(mockPut).toHaveBeenCalledWith(CONFIG_KEYS.cloudSyncNoticeShown, true)
+    unmount()
+  })
+
+  it('交接留白：下一个弹窗要等上一个离场动画走完才开', async () => {
+    mockFlags(undefined, undefined)
+    const { result, unmount } = await mountWithGateOpen()
+
+    await result.resolveCloudSyncNotice(false)
+    await nextTick()
+    // 留白期内两个都不显示——否则 n-modal 的离场动画会和下一个的入场交叉，
+    // 出现两张尺寸不同的卡片居中重叠约 200ms
+    expect(result.active.value).toBeNull()
+
+    vi.advanceTimersByTime(HANDOFF_MS - 1)
+    await nextTick()
+    expect(result.active.value).toBeNull()
+
+    vi.advanceTimersByTime(1)
+    await nextTick()
+    expect(result.active.value).toBe('errorReportingConsent')
     unmount()
   })
 
@@ -183,6 +209,7 @@ describe('useStartupDialogs', () => {
     const { result, unmount } = await mountWithGateOpen()
 
     await result.resolveCloudSyncNotice(true)
+    vi.advanceTimersByTime(HANDOFF_MS)
     await nextTick()
 
     expect(result.active.value).toBeNull()
@@ -195,6 +222,7 @@ describe('useStartupDialogs', () => {
     const { result, unmount } = await mountWithGateOpen()
 
     await result.resolveErrorReportingConsent(true)
+    vi.advanceTimersByTime(HANDOFF_MS)
     await nextTick()
 
     expect(mockPut).toHaveBeenCalledWith(CONFIG_KEYS.errorReportingEnabled, true)
@@ -209,6 +237,7 @@ describe('useStartupDialogs', () => {
 
     mockPut.mockRejectedValueOnce(new Error('boom'))
     await expect(result.resolveCloudSyncNotice(false)).rejects.toThrow('boom')
+    vi.advanceTimersByTime(HANDOFF_MS)
     await nextTick()
 
     expect(result.active.value).toBe('errorReportingConsent')

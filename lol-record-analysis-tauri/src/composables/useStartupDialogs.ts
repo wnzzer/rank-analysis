@@ -33,6 +33,16 @@ export const GATE_SETTLE_MS = 500
  */
 export const GATE_FALLBACK_MS = 8000
 
+/**
+ * 两个弹窗之间的交接留白。
+ *
+ * n-modal 关闭有约 250ms 的离场动画。若下一个弹窗在同一 tick 就打开，实测会有
+ * ~200ms 两张卡片同时可见（旧卡 opacity 0.84 缩小、新卡 opacity 0.92 放大），
+ * 两张尺寸不同的卡居中重叠，观感上是一次闪烁。压住这段时间，让交接是干净的
+ * 「关完再开」。
+ */
+export const HANDOFF_MS = 300
+
 export function useStartupDialogs(): {
   /** 当前应展示的弹窗；null = 都不展示 */
   active: ComputedRef<StartupDialogKey | null>
@@ -59,11 +69,14 @@ export function useStartupDialogs(): {
   /** 用户在云同步告知里点了「去看看」：本次启动不再拿另一个模态框打断他看设置页 */
   const consentSuppressed = ref(false)
 
+  /** 正处于「上一个弹窗离场」的留白期；期间 active 恒为 null */
+  const handingOff = ref(false)
+
   /** 战绩详情子窗口（label 前缀 match-detail-）不参与任何启动弹窗 */
   const isDetailWindow = getCurrentWindow().label.startsWith('match-detail-')
 
   const active = computed<StartupDialogKey | null>(() => {
-    if (!gateOpen.value) return null
+    if (!gateOpen.value || handingOff.value) return null
     if (!noticeShown.value) return 'cloudSyncNotice'
     if (!consentShown.value && !consentSuppressed.value) return 'errorReportingConsent'
     if (cloudStore.pendingCloudConfig !== null) return 'cloudConfigPull'
@@ -77,6 +90,14 @@ export function useStartupDialogs(): {
     window.setTimeout(() => {
       gateOpen.value = true
     }, GATE_SETTLE_MS)
+  }
+
+  /** 让下一个弹窗等上一个的离场动画走完再开 */
+  function beginHandoff(): void {
+    handingOff.value = true
+    window.setTimeout(() => {
+      handingOff.value = false
+    }, HANDOFF_MS)
   }
 
   /** 读回两个「已展示过」标记；任一读失败按 true 处理 */
@@ -121,6 +142,7 @@ export function useStartupDialogs(): {
   async function resolveCloudSyncNotice(goto: boolean): Promise<void> {
     noticeShown.value = true
     if (goto) consentSuppressed.value = true
+    beginHandoff()
     await putConfigByIpc(CONFIG_KEYS.cloudSyncNoticeShown, true)
   }
 
@@ -135,6 +157,7 @@ export function useStartupDialogs(): {
    */
   async function resolveErrorReportingConsent(enabled: boolean): Promise<void> {
     consentShown.value = true
+    beginHandoff()
     try {
       await putConfigByIpc(CONFIG_KEYS.errorReportingEnabled, enabled)
     } finally {
