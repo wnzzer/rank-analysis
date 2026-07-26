@@ -22,7 +22,7 @@
 | 排队方式 | 同一次启动串行:先云同步告知,关闭后接着错误上报同意 |
 | 优先级 | `cloudSyncNotice` > `errorReportingConsent` > `cloudConfigPull` |
 | 「去看看」分支 | 跳转数据与同步页后,**本次启动**不再弹错误上报同意,推到下次启动(`cloudSyncNoticeShown` 已置 true,下次自然轮到 consent,不会饥饿) |
-| 时机门控 | 统一一道「首屏就绪闸门」:`lcuConnected` 为真(或 8s 兜底)后再等 500ms 打开,只开一次。云同步原来的 1.5s 平坦延时废弃 |
+| 时机门控 | 统一一道「首屏就绪闸门」:`lcuConnected` 为真(或自组件挂载起 8s 兜底)后再等 500ms 打开,只开一次。云同步原来的 1.5s 平坦延时废弃 |
 | 编排收敛 | 「现在该显示哪个」收敛成单个 computed,取代三处布尔与否定条件 |
 | 读配置失败 | 统一按「已展示过」跳过本次启动(保守侧)——**有意的行为变更**,见下 |
 | 不做 | 不下沉到 Rust(弹窗时机依赖 `isConnected` 与首屏动画,是纯前端 UX);不改三个弹窗的视觉与文案 |
@@ -36,6 +36,8 @@
 | 1 | `cloudSyncNotice` | 门已开 && `!cloudSyncNoticeShown` && 本次未答 |
 | 2 | `errorReportingConsent` | 门已开 && `!errorReportingConsentShown` && 本次未答 && 本次未被「去看看」抑制 |
 | 3 | `cloudConfigPull` | 门已开 && `cloudStore.pendingCloudConfig !== null` |
+
+「本次已答」= 内存中的 `answered: Set<StartupDialogKey>`,resolve 调用时立即置入,不落盘(落盘的是下面那三个配置键,只决定**下次**启动还弹不弹)。
 
 第 3 项是响应式的(`pendingCloudConfig` 随云同步随时出现),不是启动期一次性项,因此**只参与排序、不参与「本次已答」记账**——它的收尾仍归 `pinia/cloudSync` store 所有,store 把 `pendingCloudConfig` 置空后 `active` 自然前进。
 
