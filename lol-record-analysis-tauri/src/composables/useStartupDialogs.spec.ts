@@ -33,13 +33,14 @@ vi.mock('@renderer/composables/useGameState', async () => {
   return { lcuConnected: ref(false) }
 })
 
-import { getConfigByIpc } from '@renderer/services/ipc'
+import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import { CONFIG_KEYS } from '@renderer/services/configKeys'
 import { lcuConnected } from '@renderer/composables/useGameState'
 import { useCloudSyncStore } from '@renderer/pinia/cloudSync'
 import { useStartupDialogs, GATE_SETTLE_MS, GATE_FALLBACK_MS } from './useStartupDialogs'
 
 const mockGet = vi.mocked(getConfigByIpc)
+const mockPut = vi.mocked(putConfigByIpc)
 /** mock 后的 lcuConnected 实际是可写 ref，收窄类型便于测试赋值 */
 const mockConnected = lcuConnected as unknown as Ref<boolean>
 
@@ -162,6 +163,55 @@ describe('useStartupDialogs', () => {
     mockFlags(undefined, undefined)
     const { result, unmount } = await mountWithGateOpen()
     expect(result.active.value).toBeNull()
+    unmount()
+  })
+
+  it('答「知道了」后同一次启动继续弹错误上报同意', async () => {
+    mockFlags(undefined, undefined)
+    const { result, unmount } = await mountWithGateOpen()
+
+    await result.resolveCloudSyncNotice(false)
+    await nextTick()
+
+    expect(result.active.value).toBe('errorReportingConsent')
+    expect(mockPut).toHaveBeenCalledWith(CONFIG_KEYS.cloudSyncNoticeShown, true)
+    unmount()
+  })
+
+  it('答「去看看」后本次启动不再弹错误上报同意', async () => {
+    mockFlags(undefined, undefined)
+    const { result, unmount } = await mountWithGateOpen()
+
+    await result.resolveCloudSyncNotice(true)
+    await nextTick()
+
+    expect(result.active.value).toBeNull()
+    expect(mockPut).toHaveBeenCalledWith(CONFIG_KEYS.cloudSyncNoticeShown, true)
+    unmount()
+  })
+
+  it('错误上报裁决同时写入开关与「已问过」标记', async () => {
+    mockFlags(true, undefined)
+    const { result, unmount } = await mountWithGateOpen()
+
+    await result.resolveErrorReportingConsent(true)
+    await nextTick()
+
+    expect(mockPut).toHaveBeenCalledWith(CONFIG_KEYS.errorReportingEnabled, true)
+    expect(mockPut).toHaveBeenCalledWith(CONFIG_KEYS.errorReportingConsentShown, true)
+    expect(result.active.value).toBeNull()
+    unmount()
+  })
+
+  it('写盘失败也要放行队列，不能卡在同一个弹窗上', async () => {
+    mockFlags(undefined, undefined)
+    const { result, unmount } = await mountWithGateOpen()
+
+    mockPut.mockRejectedValueOnce(new Error('boom'))
+    await expect(result.resolveCloudSyncNotice(false)).rejects.toThrow('boom')
+    await nextTick()
+
+    expect(result.active.value).toBe('errorReportingConsent')
     unmount()
   })
 })

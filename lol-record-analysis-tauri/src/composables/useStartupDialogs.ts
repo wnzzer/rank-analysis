@@ -13,7 +13,7 @@
  */
 import { computed, onMounted, ref, watch, type ComputedRef } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { getConfigByIpc } from '@renderer/services/ipc'
+import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import { CONFIG_KEYS } from '@renderer/services/configKeys'
 import { lcuConnected } from '@renderer/composables/useGameState'
 import { useCloudSyncStore } from '@renderer/pinia/cloudSync'
@@ -36,6 +36,8 @@ export const GATE_FALLBACK_MS = 8000
 export function useStartupDialogs(): {
   /** 当前应展示的弹窗；null = 都不展示 */
   active: ComputedRef<StartupDialogKey | null>
+  resolveCloudSyncNotice: (goto: boolean) => Promise<void>
+  resolveErrorReportingConsent: (enabled: boolean) => Promise<void>
 } {
   const cloudStore = useCloudSyncStore()
 
@@ -107,5 +109,39 @@ export function useStartupDialogs(): {
     }, GATE_FALLBACK_MS)
   })
 
-  return { active }
+  /**
+   * 云同步告知的裁决。
+   *
+   * 两种选择都视为「已告知」，之后不再弹。先置内存标记再写盘：写盘失败只影响下次
+   * 启动还弹不弹，不能把队列卡死在同一个弹窗上。
+   *
+   * @param goto - true = 用户点了「去看看」，本次启动不再弹错误上报同意
+   * @throws 写 cloudSyncNoticeShown 失败时 reject
+   */
+  async function resolveCloudSyncNotice(goto: boolean): Promise<void> {
+    noticeShown.value = true
+    if (goto) consentSuppressed.value = true
+    await putConfigByIpc(CONFIG_KEYS.cloudSyncNoticeShown, true)
+  }
+
+  /**
+   * 错误上报同意的裁决。
+   *
+   * 无论「启用」还是「保持关闭」都把明确选择持久化到 errorReportingEnabled——
+   * 否则此前已在设置里开过的用户点「保持关闭」不会真正关掉，与按钮文案不符。
+   *
+   * @param enabled - true 启用上报，false 保持关闭
+   * @throws 写 errorReportingEnabled 失败时 reject，由调用方 toast
+   */
+  async function resolveErrorReportingConsent(enabled: boolean): Promise<void> {
+    consentShown.value = true
+    try {
+      await putConfigByIpc(CONFIG_KEYS.errorReportingEnabled, enabled)
+    } finally {
+      // 开关写失败也要记「已问过」，否则每次启动都重复打扰
+      putConfigByIpc(CONFIG_KEYS.errorReportingConsentShown, true).catch(() => {})
+    }
+  }
+
+  return { active, resolveCloudSyncNotice, resolveErrorReportingConsent }
 }
