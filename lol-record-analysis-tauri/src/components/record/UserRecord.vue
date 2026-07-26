@@ -235,13 +235,13 @@ const loadSummonerData = async (summonerName: string) => {
   summoner.value = await invoke<Summoner>('get_summoner_by_name', { name })
 
   const [rankValue, modeValue, platformValue, solo, flex] = await Promise.all([
-    invoke<Rank>('get_rank_by_name', { name }),
+    invoke<Rank>('get_rank_by_name', { name }).catch(() => defaultRank()),
     // 历史上 reader 用 `selectMode`、writer 用 `settings.user.selectMode`，
     // 导致用户切换的模式从来没被持久化读到。统一为 writer 用的 key。
-    getConfigByIpc<number>('settings.user.selectMode').then(v => v ?? 0),
-    invoke<string>('get_platform_name_by_name', { name }),
-    invoke<RecentWinRate>('get_win_rate_by_name_mode', { name, mode: 420 }),
-    invoke<RecentWinRate>('get_win_rate_by_name_mode', { name, mode: 440 })
+    getConfigByIpc<number>('settings.user.selectMode').then(v => v ?? 0).catch(() => 0),
+    invoke<string>('get_platform_name_by_name', { name }).catch(() => name),
+    invoke<RecentWinRate>('get_win_rate_by_name_mode', { name, mode: 420 }).catch(() => defaultRecentWinRate()),
+    invoke<RecentWinRate>('get_win_rate_by_name_mode', { name, mode: 440 }).catch(() => defaultRecentWinRate())
   ])
 
   rank.value = rankValue
