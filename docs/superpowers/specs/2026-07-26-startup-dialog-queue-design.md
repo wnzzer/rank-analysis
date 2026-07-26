@@ -37,7 +37,7 @@
 | 2 | `errorReportingConsent` | 门已开 && `!errorReportingConsentShown` && 本次未答 && 本次未被「去看看」抑制 |
 | 3 | `cloudConfigPull` | 门已开 && `cloudStore.pendingCloudConfig !== null` |
 
-「本次已答」= 内存中的 `answered: Set<StartupDialogKey>`,resolve 调用时立即置入,不落盘(落盘的是下面那三个配置键,只决定**下次**启动还弹不弹)。
+「本次已答」不单独记账:resolve 调用时**立即**把对应的「已展示过」内存标记置真,`active` 随即前进;落盘(`putConfigByIpc`)是并发的副作用,成败只决定**下次**启动还弹不弹。
 
 第 3 项是响应式的(`pendingCloudConfig` 随云同步随时出现),不是启动期一次性项,因此**只参与排序、不参与「本次已答」记账**——它的收尾仍归 `pinia/cloudSync` store 所有,store 把 `pendingCloudConfig` 置空后 `active` 自然前进。
 
@@ -52,7 +52,7 @@ export type StartupDialogKey = 'cloudSyncNotice' | 'errorReportingConsent' | 'cl
 
 export function useStartupDialogs(): {
   /** 当前应展示的弹窗;null = 都不展示 */
-  active: Readonly<Ref<StartupDialogKey | null>>
+  active: ComputedRef<StartupDialogKey | null>
   /** goto=true 表示用户点了「去看看」,本次启动不再弹错误上报同意 */
   resolveCloudSyncNotice(goto: boolean): Promise<void>
   /** 写失败会 reject,由调用方 toast */
@@ -83,7 +83,7 @@ export function useStartupDialogs(): {
 
 ## 错误处理与边界
 
-- **写盘失败不卡队列**:`active` 的推进靠内存中的 `answered: Set<StartupDialogKey>`,`putConfigByIpc` 成功与否只影响下次启动还弹不弹。现状是先关弹窗再写配置,行为等价,但抽出后这条不变量需显式化并单测。
+- **写盘失败不卡队列**:`active` 的推进只看内存标记,`putConfigByIpc` 成功与否只影响下次启动还弹不弹。现状是先关弹窗再写配置,行为等价,但抽出后这条不变量需显式化并单测。
 - **读配置失败统一按「已展示过」跳过本次启动**。这是有意的行为变更:现状 consent 读失败按"未问过"处理(会弹)、notice 读失败直接 return(不弹),两者不一致。统一到保守侧——读配置失败属异常态,宁可少弹一次也不重复打扰,下次启动自会重试。
 - **详情子窗口**(窗口 label 前缀 `match-detail-`):`active` 恒为 `null`,守卫保留。
 - **Rust 侧零改动**:`src-tauri/src/config.rs:368` 的 `BACKUP_BLACKLIST` 已含 `cloudSyncNoticeShown` 与 `errorReportingConsentShown`,不需要动。
