@@ -2,11 +2,14 @@
   <div class="full-container">
     <MatchDetail v-if="isStandaloneDetailWindow" />
     <n-flex v-else vertical size="large">
-      <ErrorReportingConsentDialog v-model:show="showConsent" @decide="onConsentDecide" />
-      <CloudSyncNoticeDialog :show="showCloudNotice" @decide="onCloudNoticeDecide" />
-      <!-- 让位给错误上报/云同步告知弹窗，关掉后本弹窗自然浮现（pendingCloudConfig 响应式） -->
+      <!-- 启动弹窗队列：同一时刻至多一个可见，顺序见 useStartupDialogs -->
+      <CloudSyncNoticeDialog :show="active === 'cloudSyncNotice'" @decide="onCloudNoticeDecide" />
+      <ErrorReportingConsentDialog
+        :show="active === 'errorReportingConsent'"
+        @decide="onConsentDecide"
+      />
       <CloudConfigPullDialog
-        :show="cloudStore.pendingCloudConfig !== null && !showConsent && !showCloudNotice"
+        :show="active === 'cloudConfigPull'"
         :updated-at="cloudStore.pendingCloudConfig?.updatedAt ?? 0"
         @decide="onCloudConfigDecide"
       />
@@ -39,7 +42,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useMessage } from 'naive-ui'
@@ -52,8 +55,7 @@ import CloudSyncNoticeDialog from '@renderer/components/common/CloudSyncNoticeDi
 import CloudConfigPullDialog from './common/CloudConfigPullDialog.vue'
 import { useGameState } from '@renderer/composables/useGameState'
 import { useZoom } from '@renderer/composables/useZoom'
-import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
-import { CONFIG_KEYS } from '@renderer/services/configKeys'
+import { useStartupDialogs } from '@renderer/composables/useStartupDialogs'
 import { useCloudSyncStore } from '@renderer/pinia/cloudSync'
 
 /**
@@ -93,128 +95,44 @@ const isStandaloneDetailWindow = computed(() => currentWindow.label.startsWith('
  * 初始化游戏状态监听
  * 包含自动跳转逻辑：当检测到游戏开始时自动切换到对局页面
  */
-const { isConnected } = useGameState()
+useGameState()
 
 // 浏览器式缩放（Ctrl+滚轮 / Ctrl±0）：Framework 是所有窗口的根，详情窗一并生效
 useZoom()
 
 const message = useMessage()
 
-/** 是否展示错误上报首次同意弹窗 */
-const showConsent = ref(false)
-
-/** 防止"连接事件"与"兜底超时"重复弹窗 */
-let consentRevealed = false
+const cloudStore = useCloudSyncStore()
 
 /**
- * 首次启动征求错误上报同意。
- *
- * Sentry 上报本身默认关闭（opt-in）；此弹窗只在首次启动出现一次，提高透明度并
- * 默认推荐启用，但保留真实的"保持关闭"选项、不强制。仅主窗口弹，排除 match-detail
- * 子窗口。UI 见 {@link ErrorReportingConsentDialog}。
- *
- * 关键：**不在首屏加载阶段弹**。首屏（Record）依赖客户端连接事件跳转并拉取数据，
- * 若此时弹模态框会打断首屏的关键路径、让人误以为"弹窗导致加载失败"。因此这里等
- * `isConnected`（客户端已连、首屏就绪）后再延时弹出；若长时间未连接则兜底弹出，
- * 避免永远问不到。
- *
- * @see commit 6163f86（Sentry opt-in 接入）
+ * 启动弹窗队列：谁先弹、谁让位、什么时候弹，全部收敛在 useStartupDialogs 里。
+ * 本组件只负责渲染和用户可见反馈（toast / 路由跳转）。
  */
-async function maybeAskErrorReportingConsent(): Promise<void> {
-  if (isStandaloneDetailWindow.value) return
-  try {
-    const shown = await getConfigByIpc<boolean>(CONFIG_KEYS.errorReportingConsentShown)
-    if (shown) return
-  } catch {
-    // 读不到配置时按"未问过"处理
-  }
+const { active, resolveCloudSyncNotice, resolveErrorReportingConsent } = useStartupDialogs()
 
-  if (isConnected.value) {
-    revealConsent()
-    return
-  }
-  // 等首屏就绪后再弹；最多兜底等待 8s
-  const stop = watch(isConnected, connected => {
-    if (connected) {
-      stop()
-      revealConsent()
-    }
-  })
-  window.setTimeout(() => {
-    stop()
-    revealConsent()
-  }, 8000)
-}
-
-/** 首屏稳定后再弹（留 500ms 让首屏渲染/动画落定），仅弹一次 */
-function revealConsent(): void {
-  if (consentRevealed) return
-  consentRevealed = true
-  window.setTimeout(() => {
-    showConsent.value = true
-  }, 500)
+/**
+ * 云同步告知弹窗的用户选择。两种选择都视为"已告知"，之后不再弹；仅当选择"去看看"
+ * 时跳转到设置页的数据与同步页签，不在此处开启任何开关——真正开启云同步必须经过
+ * 设置页里的风险告知弹窗。
+ * @param goto - true 跳转设置页，false 仅关闭
+ */
+function onCloudNoticeDecide(goto: boolean): void {
+  resolveCloudSyncNotice(goto).catch(() => {})
+  if (goto) router.push({ name: 'DataSync' })
 }
 
 /**
- * 处理用户在同意弹窗中的选择。无论选择什么都标记"已问过"，之后不再弹。
+ * 错误上报同意弹窗的用户选择。无论选择什么都标记"已问过"，之后不再弹。
  * @param enabled - true 启用上报，false 保持关闭
  */
 async function onConsentDecide(enabled: boolean): Promise<void> {
-  showConsent.value = false
   try {
-    // 无论"启用"还是"保持关闭"，都把用户的明确选择持久化到 errorReportingEnabled。
-    // 否则当用户此前已在设置里开过（配置为 true）时，点"保持关闭"不会真正关掉，
-    // 与按钮文案不符。
-    await putConfigByIpc(CONFIG_KEYS.errorReportingEnabled, enabled)
+    await resolveErrorReportingConsent(enabled)
     if (enabled) message.success('已开启，重启后生效')
   } catch {
     message.error('保存失败')
   }
-  putConfigByIpc(CONFIG_KEYS.errorReportingConsentShown, true).catch(() => {})
 }
-
-/** 是否展示云同步功能告知弹窗 */
-const showCloudNotice = ref(false)
-
-/**
- * 首次启动（或升级后首次）一次性介绍云同步功能。
- *
- * 时机：排在错误上报同意弹窗之后，避免两个模态框叠放——仅当
- * `errorReportingConsentShown` 已为 true（老用户，本次启动不会再弹错误上报同意
- * 弹窗）时，本次启动才弹本弹窗；刚回答完错误上报弹窗的新用户，下次启动再弹。
- * 仅主窗口弹，排除 match-detail 子窗口。UI 见 {@link CloudSyncNoticeDialog}。
- *
- * 与姊妹函数不同，这里刻意不做 `isConnected` 门控、只用平坦的 1.5s 延时：本弹窗
- * 是被动告知（看完即关，不要求用户当场做阻塞性决策），即使恰逢首屏加载出现，
- * 也不至于让人误以为"弹窗导致加载失败"，不值得为它复制一套连接等待逻辑。
- */
-async function maybeShowCloudSyncNotice(): Promise<void> {
-  if (isStandaloneDetailWindow.value) return
-  try {
-    const noticeShown = await getConfigByIpc<boolean>(CONFIG_KEYS.cloudSyncNoticeShown)
-    if (noticeShown) return
-    const consentShown = await getConfigByIpc<boolean>(CONFIG_KEYS.errorReportingConsentShown)
-    if (!consentShown) return // 本次启动让位给错误上报弹窗
-  } catch {
-    return
-  }
-  window.setTimeout(() => {
-    showCloudNotice.value = true
-  }, 1500)
-}
-
-/**
- * 处理云同步告知弹窗的用户选择。两种选择都标记"已告知"，之后不再弹；
- * 仅当选择"去看看"时跳转到设置页的数据与同步页签，不在此处开启任何开关。
- * @param goto - true 跳转设置页，false 仅关闭
- */
-function onCloudNoticeDecide(goto: boolean): void {
-  showCloudNotice.value = false
-  putConfigByIpc(CONFIG_KEYS.cloudSyncNoticeShown, true).catch(() => {})
-  if (goto) router.push({ name: 'DataSync' })
-}
-
-const cloudStore = useCloudSyncStore()
 
 /** 首次配置同步弹窗裁决:成功/失败都给 toast 反馈,失败细节在 store.lastError */
 async function onCloudConfigDecide(useCloud: boolean): Promise<void> {
@@ -225,11 +143,6 @@ async function onCloudConfigDecide(useCloud: boolean): Promise<void> {
     message.error(cloudStore.lastError ?? '配置同步失败')
   }
 }
-
-onMounted(() => {
-  maybeAskErrorReportingConsent()
-  maybeShowCloudSyncNotice()
-})
 
 /**
  * 内容区域样式配置
