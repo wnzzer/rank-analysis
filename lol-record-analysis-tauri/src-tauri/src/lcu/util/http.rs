@@ -122,6 +122,55 @@ async fn lcu_get_raw(uri: &str) -> Result<String, String> {
     Err("请求失败或认证失效".to_string())
 }
 
+/// 发起 LCU GET 请求，**保留 HTTP 状态码**，不做重试也不刷新认证。
+///
+/// [`lcu_get`] 会把一切非 200 归一成同一句「请求失败或认证失效」，调用方无法区分
+/// 「客户端没开」与「这个资源本来就没有（404）」——对回放这类**用 404 表达业务含义**
+/// 的接口来说，这个区别恰恰是要展示给用户的原因文案。
+///
+/// # 返回值
+/// - `Ok((status, body))`: 请求送达，无论状态码是多少
+/// - `Err(String)`: 认证拿不到或连接失败（通常即客户端未运行）
+pub async fn lcu_get_with_status(uri: &str) -> Result<(u16, String), String> {
+    let (token, port) = get_auth_pair().map_err(|e| format!("LCU认证失败: {}", e))?;
+    let url = build_url(&token, uri, &port);
+    let resp = get_client()
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("连接LCU失败: {}", e))?;
+    let status = resp.status().as_u16();
+    let body = resp
+        .text()
+        .await
+        .map_err(|e| format!("读取响应失败: {}", e))?;
+    Ok((status, body))
+}
+
+/// 发起 LCU POST 请求，**保留 HTTP 状态码**，不做重试也不刷新认证。
+///
+/// 与 [`lcu_get_with_status`] 同理：回放的动作类端点会用 4xx + 结构化 body 表达
+/// 「这局不能下载/不能观看」，把它们压成一句通用错误就丢掉了要展示的原因。
+pub async fn lcu_post_with_status<D: Serialize>(
+    uri: &str,
+    data: &D,
+) -> Result<(u16, String), String> {
+    let (token, port) = get_auth_pair().map_err(|e| format!("LCU认证失败: {}", e))?;
+    let url = build_url(&token, uri, &port);
+    let resp = get_client()
+        .post(&url)
+        .json(data)
+        .send()
+        .await
+        .map_err(|e| format!("连接LCU失败: {}", e))?;
+    let status = resp.status().as_u16();
+    let body = resp
+        .text()
+        .await
+        .map_err(|e| format!("读取响应失败: {}", e))?;
+    Ok((status, body))
+}
+
 /// 将 LCU 响应体反序列化为 `T`，**把空 body 当作 JSON `null`**。
 ///
 /// LCU 的动作类接口（接受对局 `ready-check/accept`、选英雄 `patch_session_action`

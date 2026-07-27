@@ -277,6 +277,13 @@ pub fn map_sgp_to_match_history(raw: &Value, platform_id: &str, my_puuid: &str) 
                 map_id,
                 queue_id,
                 platform_id: plat.clone(),
+                // SGP 未必提供 gameVersion；缺失时留空，回放可用性判定会据此放行
+                // 而不是武断禁用（见 command::replay::judge_availability）。
+                game_version: json
+                    .get("gameVersion")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string(),
             };
 
             games.push(Game {

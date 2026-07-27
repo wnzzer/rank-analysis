@@ -5,7 +5,6 @@
     :close-on-esc="false"
     :auto-focus="false"
     transform-origin="center"
-    @update:show="$emit('update:show', $event)"
   >
     <div class="consent-card" role="dialog" aria-labelledby="consent-title">
       <!-- 顶部柔光 -->
@@ -90,8 +89,6 @@ defineProps<{
 }>()
 
 defineEmits<{
-  /** 受控显隐 */
-  (e: 'update:show', value: boolean): void
   /** 用户选择：true = 启用上报，false = 保持关闭 */
   (e: 'decide', enabled: boolean): void
 }>()

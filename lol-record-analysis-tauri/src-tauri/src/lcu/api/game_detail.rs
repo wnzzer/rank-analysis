@@ -32,6 +32,12 @@ pub struct GameDetail {
     pub queue_id: i32,
     #[serde(rename = "platformId", default)]
     pub platform_id: String,
+    /// 对局所在的客户端版本，形如 `16.14.794.9266`。
+    ///
+    /// 与 `lol-replays/v1/configuration` 的 `gameVersion` 同格式，用于判断本局
+    /// 回放是否与当前客户端补丁兼容（跨补丁的回放无法观看）。
+    #[serde(rename = "gameVersion", default)]
+    pub game_version: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
