@@ -138,6 +138,27 @@ describe('useMatchReplay', () => {
     expect(mockInvoke.mock.calls.map(c => c[0])).toContain('watch_replay')
   })
 
+  it('窗口重获焦点时刷新可用性，避免看完回放切回来按钮仍是禁用态', async () => {
+    // 用 mockResolvedValue 而非 ...Once：composable 在组件外调用时 onUnmounted
+    // 不会执行，前几个用例注册的 focus 监听器仍挂在 window 上，dispatch 时会
+    // 一并触发并抢走 ...Once 的返回值。
+    mockInvoke.mockResolvedValue({
+      playable: false,
+      reason: '正在播放其他回放，请先退出'
+    })
+
+    const { canPlay } = useMatchReplay(ref(makeGame()))
+    await settle()
+    expect(canPlay.value).toBe(false)
+
+    // 用户在软件之外退出了回放客户端，再切回本窗口
+    mockInvoke.mockResolvedValue({ playable: true, reason: null })
+    window.dispatchEvent(new Event('focus'))
+    await settle()
+
+    expect(canPlay.value).toBe(true)
+  })
+
   it('预判查询失败时退化为可点，而不是让按钮永久禁用', async () => {
     mockInvoke.mockRejectedValueOnce(new Error('boom'))
 

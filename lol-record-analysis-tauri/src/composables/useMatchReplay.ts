@@ -150,9 +150,23 @@ export function useMatchReplay(game: MaybeRefOrGetter<Game | null>) {
     { immediate: true }
   )
 
+  /**
+   * 窗口重新获得焦点时刷新可用性。
+   *
+   * 可用性依赖客户端的实时状态（是否正在播放其他回放、客户端是否还开着），
+   * 这些都可能在详情窗口开着的时候被用户在**软件之外**改变。典型场景：
+   * 看完回放退出客户端后切回来——没有这次刷新，按钮会一直停在
+   * 「正在播放其他回放」直到重开窗口。
+   */
+  const handleFocus = () => {
+    void refreshAvailability()
+  }
+  window.addEventListener('focus', handleFocus)
+
   onUnmounted(() => {
     cancelled = true
     clearPoll()
+    window.removeEventListener('focus', handleFocus)
   })
 
   return {
