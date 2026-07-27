@@ -28,17 +28,22 @@
       <!-- AI 分析按钮 -->
       <n-tooltip v-model:show="showAITooltip" placement="left" :duration="5000">
         <template #trigger>
+          <!--
+            刻意不用 :loading —— naive-ui Button 在 loading 时根本不 emit click
+            （node_modules/naive-ui/es/button/src/Button.mjs:146），会把用户锁在
+            面板外面。进行中改用 spin 图标表达，按钮始终可点、随时能开回面板。
+          -->
           <n-button
             circle
             secondary
             type="info"
             class="gaming-ai-btn"
-            :loading="aiLoading"
             :disabled="!sessionData.phase"
-            @click="handleAIAnalysis"
+            @click="ai.openPanel"
           >
             <template #icon>
-              <n-icon><sparkles-outline /></n-icon>
+              <n-spin v-if="ai.loading.value" :size="14" />
+              <n-icon v-else><sparkles-outline /></n-icon>
             </template>
           </n-button>
         </template>
@@ -59,12 +64,34 @@
 
       <!-- AI 分析结果弹窗 -->
       <n-modal
-        v-model:show="showAIResult"
+        v-model:show="ai.showPanel.value"
         preset="card"
-        :title="aiResultTitle"
+        :title="ai.panelTitle.value"
         style="width: 600px"
       >
-        <div class="ai-result-content ai-report" v-html="renderedAIResult"></div>
+        <template #header-extra>
+          <n-button
+            size="small"
+            tertiary
+            type="primary"
+            :disabled="ai.loading.value"
+            @click="ai.rerun"
+          >
+            重新分析
+          </n-button>
+        </template>
+        <div
+          v-if="ai.renderedResult.value"
+          class="ai-result-content ai-report"
+          v-html="ai.renderedResult.value"
+        ></div>
+        <!-- 首块文本到达前给骨架屏：这里曾经是纯空白弹窗，看着像坏了 -->
+        <div v-else-if="ai.loading.value" class="ai-result-skeleton">
+          <div class="ai-result-skeleton-label">AI 正在分析本局...</div>
+          <n-skeleton text :repeat="4" />
+          <n-skeleton text style="width: 60%" />
+        </div>
+        <div v-else class="ai-result-empty">暂无分析结果，点「重新分析」生成。</div>
       </n-modal>
 
       <div v-if="sessionData.phase === 'ChampSelect'" class="gaming-intel-banner">
@@ -159,12 +186,7 @@ import { useMessage } from 'naive-ui'
 
 import LoadingComponent from '@renderer/components/LoadingComponent.vue'
 import SubteamCard from '@renderer/components/gaming/SubteamCard.vue'
-import {
-  analyzeChampSelectWithAIStream,
-  analyzeGameWithAIStream,
-  type StreamCallbacks
-} from '@renderer/services/ai'
-import { renderAnalysisReport } from '@renderer/services/ai/matchDetail/renderReport'
+import { useGamingAIAnalysis } from '@renderer/composables/useGamingAIAnalysis'
 import { useSessionSync } from '@renderer/composables/useSessionSync'
 import { useSessionTiers } from '@renderer/composables/useSessionTiers'
 import { useGameState } from '@renderer/composables/useGameState'
@@ -239,19 +261,17 @@ const showConfig = ref(false)
 const matchCount = ref(4)
 const message = useMessage()
 
-const aiLoading = ref(false)
-const aiResult = ref('')
-const showAIResult = ref(false)
 const showAITooltip = ref(false)
 
 /** AI 功能提示状态（内存中存储，每次打开软件只提示一次） */
 let hasShownAITip = false
 
-const renderedAIResult = computed(() => renderAnalysisReport(aiResult.value))
-/** 弹窗标题：选人期是「阵容分析」，对局中/赛后沿用旧的「AI 分析」 */
-const aiResultTitle = computed(() =>
-  sessionData.phase === 'ChampSelect' ? '选人期阵容分析' : 'AI 分析'
-)
+/**
+ * AI 分析状态。面板显隐与请求生命周期是分开的两件事——按钮只管「打开面板」，
+ * 关掉面板后随时能点回来看进度或已有结果，不会白烧一次调用。见
+ * {@link useGamingAIAnalysis}。
+ */
+const ai = useGamingAIAnalysis(sessionData, opggMode)
 
 const handleUpdateConfig = async (value: number | null) => {
   if (!value) return
@@ -262,37 +282,6 @@ const handleUpdateConfig = async (value: number | null) => {
     message.success('设置已保存，已刷新当前对局数据')
   } catch (e) {
     message.error('保存失败')
-  }
-}
-
-const handleAIAnalysis = async () => {
-  if (aiLoading.value) return
-
-  aiLoading.value = true
-  aiResult.value = ''
-  showAIResult.value = true
-
-  try {
-    const callbacks: StreamCallbacks = {
-      onChunk: chunk => {
-        aiResult.value += chunk
-      },
-      onDone: () => {
-        aiLoading.value = false
-      },
-      onError: error => {
-        message.error('AI 分析出错: ' + error)
-        aiLoading.value = false
-      }
-    }
-    if (sessionData.phase === 'ChampSelect') {
-      await analyzeChampSelectWithAIStream(sessionData, opggMode.value, callbacks)
-    } else {
-      await analyzeGameWithAIStream(sessionData, 'team', callbacks, { opggMode: opggMode.value })
-    }
-  } catch (e: any) {
-    message.error('AI 分析出错: ' + (e.message || '未知错误'))
-    aiLoading.value = false
   }
 }
 
@@ -506,6 +495,26 @@ onMounted(async () => {
   font-size: var(--font-size-md);
   max-height: 600px;
   overflow-y: auto;
+}
+
+/* 首块文本到达前的占位：与 MatchAIPanel 的骨架屏同一形态 */
+.ai-result-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding: var(--space-16);
+}
+
+.ai-result-skeleton-label {
+  font-size: var(--font-size-md);
+  color: var(--text-secondary);
+  padding-bottom: var(--space-6);
+}
+
+.ai-result-empty {
+  padding: var(--space-24) var(--space-16);
+  text-align: center;
+  color: var(--text-secondary);
 }
 
 /* 报告内容样式（章节着色 / hero / 数字名字高亮）由共享 styles/ai-report.css 提供，

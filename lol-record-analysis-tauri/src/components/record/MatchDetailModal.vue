@@ -112,16 +112,21 @@
 
             <n-tooltip trigger="hover" placement="bottom-end">
               <template #trigger>
+                <!--
+                  刻意不用 :loading —— naive-ui Button 在 loading 时根本不 emit click
+                  （node_modules/naive-ui/es/button/src/Button.mjs:146），关掉面板后
+                  就再也点不回来。进行中改用 spin 图标表达，按钮始终可点。
+                -->
                 <n-button
                   size="small"
                   secondary
                   type="info"
                   class="match-detail-ai-button"
-                  :loading="ai.aiLoading.value"
                   @click="onOverview"
                 >
                   <template #icon>
-                    <n-icon><SparklesOutline /></n-icon>
+                    <n-spin v-if="ai.aiLoading.value" :size="14" />
+                    <n-icon v-else><SparklesOutline /></n-icon>
                   </template>
                   AI 整局复盘
                 </n-button>
@@ -237,15 +242,18 @@
                                     ai.aiMode.value === 'player' &&
                                     ai.aiTargetParticipantId.value === player.participantId
                                 }"
-                                :loading="
-                                  ai.aiLoading.value &&
-                                  ai.aiMode.value === 'player' &&
-                                  ai.aiTargetParticipantId.value === player.participantId
-                                "
                                 @click.stop="ai.openPlayerAnalysis(player.participantId)"
                               >
                                 <template #icon>
-                                  <n-icon><SparklesOutline /></n-icon>
+                                  <n-spin
+                                    v-if="
+                                      ai.aiLoading.value &&
+                                      ai.aiMode.value === 'player' &&
+                                      ai.aiTargetParticipantId.value === player.participantId
+                                    "
+                                    :size="12"
+                                  />
+                                  <n-icon v-else><SparklesOutline /></n-icon>
                                 </template>
                               </n-button>
                             </template>
