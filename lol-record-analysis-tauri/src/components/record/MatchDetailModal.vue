@@ -87,6 +87,31 @@
 
             <n-tooltip trigger="hover" placement="bottom-end">
               <template #trigger>
+                <!--
+                  进行中刻意不使用 :loading —— naive-ui Button 在 loading 态
+                  根本不 emit click（Button.mjs:146），会让"进行中"意外等价于
+                  "永久不可点"。这里只用 disabled 表达真正的不可用（客户端没开、
+                  版本不符等），进行中靠 spin 图标与文案表达，语义不混。
+                -->
+                <n-button
+                  size="small"
+                  secondary
+                  class="match-detail-replay-button"
+                  :disabled="!replay.canPlay.value"
+                  @click="replay.play"
+                >
+                  <template #icon>
+                    <n-spin v-if="replay.busy.value" :size="14" />
+                    <n-icon v-else><PlayCircleOutline /></n-icon>
+                  </template>
+                  {{ replay.buttonLabel.value }}
+                </n-button>
+              </template>
+              {{ replay.disabledReason.value || '在游戏客户端中观看本局回放' }}
+            </n-tooltip>
+
+            <n-tooltip trigger="hover" placement="bottom-end">
+              <template #trigger>
                 <n-button
                   size="small"
                   secondary
@@ -462,7 +487,7 @@
 
 <script lang="ts" setup>
 import { computed, ref, watch, onMounted, toRef } from 'vue'
-import { CopyOutline, SparklesOutline } from '@vicons/ionicons5'
+import { CopyOutline, PlayCircleOutline, SparklesOutline } from '@vicons/ionicons5'
 import { NButton, NIcon, NTag, NTooltip } from 'naive-ui'
 import { invoke } from '@tauri-apps/api/core'
 import { useCopy } from '@renderer/composables/useCopy'
@@ -484,6 +509,7 @@ import {
   type DetailPlayer
 } from '@renderer/composables/useMatchDetailPlayers'
 import { useMatchAIAnalysis } from '@renderer/composables/useMatchAIAnalysis'
+import { useMatchReplay } from '@renderer/composables/useMatchReplay'
 import type { OneGamePlayer } from '@renderer/types/domain/analysis'
 
 const props = defineProps<{ game: Game | null }>()
@@ -505,6 +531,7 @@ const currentPlayerKey = computed(() => {
 const gameRef = toRef(() => props.game)
 const { detailPlayers, mySummary, teamSections } = useMatchDetailPlayers(gameRef, currentPlayerKey)
 const ai = useMatchAIAnalysis(gameRef)
+const replay = useMatchReplay(gameRef)
 const assets = useRecordAssets()
 const { copy } = useCopy()
 
@@ -960,7 +987,8 @@ watch(
   background: var(--border-subtle);
 }
 
-.match-detail-ai-button {
+.match-detail-ai-button,
+.match-detail-replay-button {
   -webkit-app-region: no-drag;
 }
 

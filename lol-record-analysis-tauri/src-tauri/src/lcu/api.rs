@@ -12,6 +12,7 @@ pub mod match_history;
 pub mod model;
 pub mod phase;
 pub mod rank;
+pub mod replay;
 pub mod session;
 pub mod sgp;
 pub mod summoner;

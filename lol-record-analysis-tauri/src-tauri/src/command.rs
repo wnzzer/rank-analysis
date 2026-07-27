@@ -47,6 +47,7 @@ pub mod launcher;
 pub mod match_history;
 pub mod opgg;
 pub mod rank;
+pub mod replay;
 pub mod rule_config;
 pub mod session;
 pub mod sgp;
