@@ -28,6 +28,20 @@ export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
   const aiMode = ref<MatchDetailAnalysisMode>('overview')
   const aiTargetParticipantId = ref<number | null>(null)
 
+  /**
+   * 当前 aiResult 对应的「模式 + 目标」。用于判断面板里已有的东西还算不算数——
+   * 同一目标就直接看旧结果，换了目标才重新分析。
+   */
+  const resultKey = ref<string | null>(null)
+  const currentKey = (): string =>
+    `${aiMode.value}:${aiMode.value === 'player' ? aiTargetParticipantId.value : ''}`
+
+  /**
+   * 运行代次。换对局 / 发起新分析时自增，旧请求的回调靠它自我作废——
+   * 否则被放弃的那次请求流回来的 chunk 会追加进新对局的面板里。
+   */
+  let runToken = 0
+
   const renderedAiResult = computed(() => renderAnalysisReport(aiResult.value))
   const aiStateLabel = computed(() => {
     switch (aiState.value) {
@@ -81,8 +95,10 @@ export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
       return
     }
 
+    const token = ++runToken
     aiLoading.value = true
     aiResult.value = ''
+    resultKey.value = currentKey()
     aiState.value = 'profiles'
 
     let profileMap: Map<string, RecentPlayerProfile | null> | null = null
@@ -101,15 +117,20 @@ export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
       await analyzeMatchDetailWithAIStream(
         g,
         {
+          // 三个回调都先验代次：这次请求若已被放弃（换对局 / 已发起新分析），
+          // 迟到的 chunk 不能污染当前面板
           onChunk: chunk => {
+            if (token !== runToken) return
             if (aiState.value === 'attribution') aiState.value = 'critique'
             aiResult.value += chunk
           },
           onDone: () => {
+            if (token !== runToken) return
             aiState.value = 'done'
             aiLoading.value = false
           },
           onError: error => {
+            if (token !== runToken) return
             aiState.value = 'error'
             message.error('AI 分析出错: ' + error)
             aiLoading.value = false
@@ -123,16 +144,26 @@ export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
         { profileMap }
       )
     } catch (error: any) {
+      if (token !== runToken) return
       aiState.value = 'error'
       message.error('AI 分析出错: ' + (error.message || '未知错误'))
       aiLoading.value = false
     }
   }
 
+  /**
+   * 面板里已经有东西可看吗？正在跑（回去看进度）或已有同目标的结果（回去看结果）
+   * 都不该再烧一次 API 调用。
+   */
+  function hasSomethingToShow(): boolean {
+    return aiLoading.value || (aiResult.value !== '' && resultKey.value === currentKey())
+  }
+
   async function openOverviewAnalysis(defaultParticipantId: number | null) {
     aiMode.value = 'overview'
     aiTargetParticipantId.value = defaultParticipantId
     showAiModal.value = true
+    if (hasSomethingToShow()) return
     await runCurrentAiAnalysis()
   }
 
@@ -140,6 +171,7 @@ export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
     aiMode.value = 'player'
     aiTargetParticipantId.value = participantId
     showAiModal.value = true
+    if (hasSomethingToShow()) return
     await runCurrentAiAnalysis()
   }
 
@@ -150,7 +182,12 @@ export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
   })
 
   function resetOnGameChange(defaultParticipantId: number | null) {
+    // 作废在飞的旧请求：既复位 loading（否则换对局后触发按钮永远转圈），
+    // 也让它迟到的 chunk 不会流进新对局的面板
+    runToken++
+    aiLoading.value = false
     aiResult.value = ''
+    resultKey.value = null
     aiState.value = 'idle'
     aiMode.value = 'overview'
     aiTargetParticipantId.value = defaultParticipantId
