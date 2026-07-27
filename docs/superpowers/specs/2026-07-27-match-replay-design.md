@@ -52,13 +52,16 @@
    （实测轮询 16s 无变化）→ **轮询必须有超时兜底**，"卡在 checking" 就是失败信号。
 4. `POST download` 对任意 gameId（哪怕 `1`）都返回 204 → **204 不代表这局有回放**。
 
-### 使可用性预判成立的两个事实
+### 使可用性预判成立的事实
 
-- 回放文件名规律为 `{platformId}-{gameId}.rofl`，而 `Game.platformId` 前端已有 →
-  **查文件是否存在 = 零副作用地判断"是否已下载"**。
-- `lol-match-history/v1/games/{gameId}` 返回 `gameVersion:"16.14.794.9266"`，
-  与 `configuration.gameVersion` **同格式** → 比对 `major.minor` 即可零副作用地
-  判断"补丁是否匹配"。当前 Rust `GameDetail` 与前端 `Game` 都**未**取该字段，需补上。
+`lol-match-history/v1/games/{gameId}` 返回 `gameVersion:"16.14.794.9266"`，
+与 `configuration.gameVersion` **同格式** → 比对 `major.minor` 即可零副作用地
+判断"补丁是否匹配"。当前 Rust `GameDetail` **未**取该字段，需补上。
+
+> 回放文件名虽有 `{platformId}-{gameId}.rofl` 的规律，但**刻意不做文件存在性检查**：
+> 实测对已下载的回放再次 `POST download`，`metadata` 会立刻返回 `state:"watch"`，
+> 所以"是否已下载"无需前置判断。省掉它可以完全不碰文件系统，也不必依赖
+> platformId 的取值来源与文件名约定。
 
 ## 设计
 
