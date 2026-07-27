@@ -88,9 +88,10 @@
             <n-tooltip trigger="hover" placement="bottom-end">
               <template #trigger>
                 <!--
-                  与 AI 按钮同理，进行中不使用 :loading —— naive-ui Button 在
-                  loading 态不 emit click。这里用 disabled 表达"不可点"，
-                  进行中则靠文案变化表达，语义不混。
+                  进行中刻意不使用 :loading —— naive-ui Button 在 loading 态
+                  根本不 emit click（Button.mjs:146），会让"进行中"意外等价于
+                  "永久不可点"。这里只用 disabled 表达真正的不可用（客户端没开、
+                  版本不符等），进行中靠 spin 图标与文案表达，语义不混。
                 -->
                 <n-button
                   size="small"
