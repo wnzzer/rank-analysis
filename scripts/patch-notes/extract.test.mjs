@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { htmlToText, parseModelJson, callModel, MODELS_URL } from './extract.mjs'
+import { htmlToText, parseModelJson, callModel, MODELS_URL, MODEL_ID } from './extract.mjs'
 
 // 按真实公告页结构裁剪（与 Rust cn_patch_notes.rs 原 fixture 同源）
 const HTML = `
@@ -46,6 +46,7 @@ test('callModel 发 POST 到 GitHub Models 并解析回包', async () => {
   }
   const out = await callModel('正文', 'tok', fetchFn)
   assert.equal(captured.url, MODELS_URL)
+  assert.equal(JSON.parse(captured.init.body).model, MODEL_ID)
   assert.equal(JSON.parse(captured.init.body).temperature, 0)
   assert.equal(captured.init.headers.Authorization, 'Bearer tok')
   assert.deepEqual(out, { isPatchNotes: true, champions: [] })
