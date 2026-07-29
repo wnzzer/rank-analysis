@@ -7,18 +7,47 @@
 export const MODELS_URL = 'https://models.github.ai/inference/chat/completions'
 export const MODEL_ID = 'openai/gpt-4o-mini'
 
-/** 公告页实际出现的 HTML 实体子集 */
+/**
+ * 公告页实际出现的 HTML 实体。
+ * 键名大小写敏感：同一批公告里 &rarr; 与 &rArr; 都出现过（编辑手写 HTML，不统一），
+ * 漏一个就会让实体原样漏进正文，最终显示成「330 &rArr; 335」。
+ * 双箭头统一归一到 →，避免同一份数据里两种箭头混排。
+ */
+const ENTITIES = {
+  rarr: '→',
+  rArr: '→',
+  larr: '←',
+  lArr: '←',
+  harr: '↔',
+  emsp: ' ',
+  ensp: ' ',
+  nbsp: ' ',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  ldquo: '“',
+  rdquo: '”',
+  lsquo: '‘',
+  rsquo: '’',
+  hellip: '…',
+  mdash: '—',
+  ndash: '–',
+  middot: '·',
+  times: '×',
+  deg: '°',
+  copy: '©',
+  reg: '®',
+  trade: '™',
+  amp: '&'
+}
+
+/** 具名实体查表，数字实体（&#39; / &#x27;）走码点还原；未收录的实体原样保留，便于发现新漏网 */
 function decodeEntities(s) {
   return s
-    .replaceAll('&rarr;', '→')
-    .replaceAll('&emsp;', ' ')
-    .replaceAll('&nbsp;', ' ')
-    .replaceAll('&amp;', '&')
-    .replaceAll('&lt;', '<')
-    .replaceAll('&gt;', '>')
-    .replaceAll('&quot;', '"')
-    .replaceAll('&#39;', "'")
-    .replaceAll('&mdash;', '—')
+    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
+    .replace(/&#[xX]([0-9a-fA-F]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&([a-zA-Z]+);/g, (m, name) => ENTITIES[name] ?? m)
 }
 
 /** 去标签取纯文本：块级闭合转换行，行内标签直接剥掉，空行压缩 */
