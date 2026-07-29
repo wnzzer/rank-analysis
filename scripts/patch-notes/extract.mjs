@@ -5,7 +5,15 @@
  */
 
 export const MODELS_URL = 'https://models.github.ai/inference/chat/completions'
-export const MODEL_ID = 'openai/gpt-4o-mini'
+/**
+ * 2026-07-29 横评（同一篇 7月30日公告，原文 11 个英雄 / 卑尔维斯 49 条改动）：
+ * - gpt-4o-mini：只抽到 8 个英雄、卑尔维斯 36 条，且把加强削弱并存的改动一律判成 nerf
+ * - gpt-4.1：11 个英雄，卑尔维斯 43 条，仍有遗漏
+ * - gpt-4.1-mini：抽出 23 个英雄，把非英雄段落也算了进来
+ * - gpt-4o：11 个英雄、卑尔维斯 49 条与原文精确对齐，direction 判定也最准，且最快
+ * 属 high 档 rate limit，但只在 docid 变化时才真调模型（约每月 2 次），配额充裕。
+ */
+export const MODEL_ID = 'openai/gpt-4o'
 
 /**
  * 公告页实际出现的 HTML 实体。
