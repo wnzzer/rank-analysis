@@ -19,6 +19,15 @@ test('htmlToText 去标签、转实体、保留行结构', () => {
   assert.ok(!text.includes('&rarr;'))
 })
 
+test('htmlToText 解码大小写混合的箭头实体与中文标点实体', () => {
+  const text = htmlToText(
+    '<p>移动速度：330 &rArr; 335</p><p>&ldquo;引号&rdquo;&hellip;&copy;&#8212;</p>'
+  )
+  assert.match(text, /移动速度：330 → 335/)
+  assert.equal(text.includes('&'), false)
+  assert.match(text, /“引号”…©—/)
+})
+
 test('parseModelJson 容忍代码栅栏包装', () => {
   assert.deepEqual(parseModelJson('```json\n{"a":1}\n```'), { a: 1 })
   assert.deepEqual(parseModelJson('{"a":1}'), { a: 1 })
