@@ -186,6 +186,7 @@
 
 <script lang="ts" setup>
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import { SettingsOutline, SparklesOutline } from '@vicons/ionicons5'
 import { useMessage } from 'naive-ui'
@@ -199,12 +200,16 @@ import { useSessionSync } from '@renderer/composables/useSessionSync'
 import { useSessionTiers } from '@renderer/composables/useSessionTiers'
 import { useGameState } from '@renderer/composables/useGameState'
 import { useAssetUrl } from '@renderer/composables/useAssetUrl'
+import { usePickRules, useBanRules } from '@renderer/composables/useRules'
 import {
   ensureOpggData,
   getOpggStatus,
   queueIdToOpggMode,
   type OpggStatus
 } from '@renderer/services/opgg'
+import { buildRuleDraft } from '@renderer/services/bpRuleDraft'
+import { getChampionName } from '@renderer/services/ai/champion-names'
+import type { Position, PickRule, BanRule } from '@renderer/types/rules'
 
 /** 选人阶段 stepper 的四步定义，顺序与展示文案固定 */
 const STAGE_STEPS: Array<{ key: string; label: string }> = [
@@ -271,6 +276,29 @@ watch(opggMode, m => getOpggStatus(m).then(s => (opggStatus.value = s)), { immed
  */
 const bp = useBpDecision(() => sessionData.phase)
 
+const router = useRouter()
+
+/** 我的分路，取自会话里标着「我」的那名玩家；ARAM 等无分路模式为 null */
+const myPosition = computed<Position | null>(() => {
+  const me = orderedSubteams.value
+    .flatMap(s => s.players)
+    .find(p => p.summoner.puuid === mySummonerPuuid.value)
+  const p = me?.assignedPosition?.toLowerCase()
+  return p === 'top' || p === 'jungle' || p === 'middle' || p === 'bottom' || p === 'utility'
+    ? p
+    : null
+})
+
+/** 同分路对位的敌方英雄；无分路信息或对面该位未亮英雄时为 null */
+const laneOpponentId = computed<number | null>(() => {
+  if (!myPosition.value) return null
+  const opponent = orderedSubteams.value
+    .filter(s => s.subteamId !== sessionData.mySubteamId)
+    .flatMap(s => s.players)
+    .find(p => p.assignedPosition?.toLowerCase() === myPosition.value && p.championId > 0)
+  return opponent?.championId ?? null
+})
+
 const showConfig = ref(false)
 const matchCount = ref(4)
 const message = useMessage()
@@ -287,9 +315,39 @@ let hasShownAITip = false
  */
 const ai = useGamingAIAnalysis(sessionData, opggMode)
 
-/** 「存为规则」入口，Task 7 接线到规则草稿生成与跳转 */
-function handleSaveRule(): void {
-  message.info('存为规则：即将上线')
+/**
+ * 把当前决策固化成一条规则并跳转到配置页。
+ *
+ * 选人期只读、不提供就地编辑——30 秒窗口内改配置不现实。
+ */
+async function handleSaveRule(): Promise<void> {
+  const d = bp.decision.value
+  if (!d) return
+  const draft = buildRuleDraft({
+    decision: d,
+    myPosition: myPosition.value,
+    laneOpponentId: laneOpponentId.value,
+    championName: getChampionName
+  })
+  if (!draft) {
+    message.warning('当前没有可保存的目标')
+    return
+  }
+
+  // 必须先 reload——usePickRules/useBanRules 每次调用都返回全新的空 ref，
+  // 直接 save 会把已有规则整个清掉。
+  if (d.action_type === 'Ban') {
+    const { rules, reload, save } = useBanRules()
+    await reload()
+    await save([...rules.value, draft as BanRule])
+  } else {
+    const { rules, reload, save } = usePickRules()
+    await reload()
+    await save([...rules.value, draft as PickRule])
+  }
+
+  message.success(`已存为规则「${draft.name}」`)
+  await router.push('/Settings/Automation')
 }
 
 const handleUpdateConfig = async (value: number | null) => {
