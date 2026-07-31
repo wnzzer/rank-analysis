@@ -8,7 +8,12 @@ const championName = (id: number) => ({ 64: '盲僧', 157: '亚索', 60: '豹女
 function decision(overrides: Partial<BpDecision> = {}): BpDecision {
   return {
     action_type: 'Pick',
-    target: { champion_id: 64, lock: true, origin: { type: 'Fallback', pool_size: 3 }, evidence: null },
+    target: {
+      champion_id: 64,
+      lock: true,
+      origin: { type: 'Fallback', pool_size: 3 },
+      evidence: null
+    },
     rejected: [],
     mode: 'Advisory',
     time_left_secs: 20,
@@ -87,7 +92,12 @@ describe('buildRuleDraft', () => {
     const r = buildRuleDraft({
       decision: decision({
         action_type: 'Ban',
-        target: { champion_id: 157, lock: true, origin: { type: 'Fallback', pool_size: 2 }, evidence: null }
+        target: {
+          champion_id: 157,
+          lock: true,
+          origin: { type: 'Fallback', pool_size: 2 },
+          evidence: null
+        }
       }),
       myPosition: 'middle',
       laneOpponentId: 60,
