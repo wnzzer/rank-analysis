@@ -12,7 +12,12 @@ vi.mock('@tauri-apps/api/core', () => ({
 function decision(overrides: Partial<BpDecision> = {}): BpDecision {
   return {
     action_type: 'Pick',
-    target: { champion_id: 64, lock: true, origin: { type: 'Fallback', pool_size: 3 }, evidence: null },
+    target: {
+      champion_id: 64,
+      lock: true,
+      origin: { type: 'Fallback', pool_size: 3 },
+      evidence: null
+    },
     rejected: [],
     mode: 'Advisory',
     time_left_secs: 20,

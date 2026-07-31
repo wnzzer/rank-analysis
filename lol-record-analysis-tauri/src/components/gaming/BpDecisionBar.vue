@@ -74,7 +74,7 @@ function rejectedText(r: BpRejected): string {
       <span class="bp-origin" :class="isFallback ? 'bp-origin-fallback' : 'bp-origin-rule'">
         ← {{ originLabel }}
       </span>
-      <button class="bp-save-rule" @click="$emit('save-rule')">存为规则</button>
+      <button type="button" class="bp-save-rule" @click="$emit('save-rule')">存为规则</button>
     </div>
     <div v-else class="bp-main bp-empty">无可执行目标</div>
 

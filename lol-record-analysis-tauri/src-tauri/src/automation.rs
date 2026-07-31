@@ -37,6 +37,7 @@ use crate::constant::game::{CHAMPSELECT, LOBBY, MATCHMAKING, READYCHECK};
 use crate::lcu::api::champion_select::{get_champion_select_session, post_accept_match};
 use crate::lcu::api::lobby::Lobby;
 use crate::lcu::api::phase::get_phase;
+use crate::opgg::data::OpggSnapshot;
 
 /// 全局自动化管理器实例
 ///
@@ -374,7 +375,10 @@ async fn is_leader(members: &[crate::lcu::api::lobby::Member]) -> Result<bool, S
 ///
 /// # 逻辑流程
 ///
-/// 1. 每 2 秒检测一次游戏阶段
+/// 1. 每 1 秒检测一次游戏阶段——执行窗口 `[MIN_EXECUTE_SECS, execute_at_secs_left]`
+///    宽 2s，采样周期必须 ≤ 窗口宽度的一半才能保证命中：若仍按 2s 采样，叠加 LCU
+///    抖动，连续两次采样可能刚好跨过窗口两侧，导致整局静默不锁（常驻求值任务不
+///    受此约束，采样周期保持 2s 不变）
 /// 2. 当进入 `CHAMPSELECT` 阶段时执行选人逻辑
 /// 3. 调用 `start_select_champion()` 执行具体选人操作
 ///
@@ -383,7 +387,7 @@ async fn is_leader(members: &[crate::lcu::api::lobby::Member]) -> Result<bool, S
 /// 选人逻辑包括：排除已被禁用的英雄、排除队友已选的英雄、按优先级选择
 async fn start_champion_select_automation() {
     log::info!("Starting champion select automation");
-    let mut ticker = interval(Duration::from_secs(2));
+    let mut ticker = interval(Duration::from_secs(1));
 
     loop {
         ticker.tick().await;
@@ -505,7 +509,10 @@ async fn start_select_champion() -> Result<(), String> {
 ///
 /// # 逻辑流程
 ///
-/// 1. 每 2 秒检测一次游戏阶段
+/// 1. 每 1 秒检测一次游戏阶段——执行窗口 `[MIN_EXECUTE_SECS, execute_at_secs_left]`
+///    宽 2s，采样周期必须 ≤ 窗口宽度的一半才能保证命中：若仍按 2s 采样，叠加 LCU
+///    抖动，连续两次采样可能刚好跨过窗口两侧，导致整局静默不锁（常驻求值任务不
+///    受此约束，采样周期保持 2s 不变）
 /// 2. 当进入 `CHAMPSELECT` 阶段时执行禁用逻辑
 /// 3. 调用 `start_ban_champion()` 执行具体禁用操作
 ///
@@ -514,7 +521,7 @@ async fn start_select_champion() -> Result<(), String> {
 /// 禁用逻辑包括：检查是否已禁用、排除已被禁用的英雄、排除队友预选的英雄
 async fn start_champion_ban_automation() {
     log::info!("Starting champion ban automation");
-    let mut ticker = interval(Duration::from_secs(2));
+    let mut ticker = interval(Duration::from_secs(1));
 
     loop {
         ticker.tick().await;
@@ -599,6 +606,11 @@ async fn start_bp_decision_automation(app: tauri::AppHandle) {
     log::info!("Starting BP decision evaluation (always-on)");
     let mut ticker = interval(Duration::from_secs(2));
 
+    // OP.GG 快照跨 tick 复用：选人期内只取一次（按模式），失败也只试一次——
+    // 失败重试交给下一局（离开选人期时清空），避免 2s 热循环里对不可达的
+    // op.gg 反复发起 HTTP 与刷屏 warn
+    let mut opgg_cache: Option<(String, Option<Arc<OpggSnapshot>>)> = None;
+
     loop {
         ticker.tick().await;
 
@@ -609,12 +621,15 @@ async fn start_bp_decision_automation(app: tauri::AppHandle) {
         if cur_phase != CHAMPSELECT {
             // 离开选人期：清空快照与跨 tick 状态
             store::reset();
+            opgg_cache = None;
             continue;
         }
 
         let session = match get_champion_select_session().await {
             Ok(s) => s,
             Err(e) => {
+                // 有意保留上一帧快照，不清空：避免 2s 轮询撞上 LCU 瞬时错误时
+                // 决策带闪烁。真实上限由离开选人期的 reset 兜底。
                 log::debug!("BP decision: no champ select session: {}", e);
                 continue;
             }
@@ -622,19 +637,30 @@ async fn start_bp_decision_automation(app: tauri::AppHandle) {
         let my_summoner = match crate::lcu::api::summoner::Summoner::get_my_summoner().await {
             Ok(s) => s,
             Err(e) => {
+                // 同上：保留上一帧快照，不因一次瞬时错误清空展示
                 log::debug!("BP decision: cannot resolve my summoner: {}", e);
                 continue;
             }
         };
 
         let my_position = crate::rule_engine::detect_my_position(&session, &my_summoner.puuid);
-        let snapshot = crate::command::opgg::ensure_opgg_snapshot(
-            &app.state::<crate::state::AppState>(),
-            opgg_mode_for(my_position),
-        )
-        .await
-        .ok()
-        .map(|(snap, _stale)| snap);
+        let opgg_mode = opgg_mode_for(my_position);
+        let snapshot = match &opgg_cache {
+            Some((cached_mode, cached_snapshot)) if cached_mode == opgg_mode => {
+                cached_snapshot.clone()
+            }
+            _ => {
+                let snap = crate::command::opgg::ensure_opgg_snapshot(
+                    &app.state::<crate::state::AppState>(),
+                    opgg_mode,
+                )
+                .await
+                .ok()
+                .map(|(snap, _stale)| snap);
+                opgg_cache = Some((opgg_mode.to_string(), snap.clone()));
+                snap
+            }
+        };
 
         let pick_rules = load_pick_rules().await;
         let ban_rules = load_ban_rules().await;
@@ -644,7 +670,8 @@ async fn start_bp_decision_automation(app: tauri::AppHandle) {
         let pick_on = switch_enabled("settings.auto.pickChampionSwitch").await;
         let ban_on = switch_enabled("settings.auto.banChampionSwitch").await;
 
-        let pending_is_ban = evaluate::find_my_pending_action(&session)
+        let pending = evaluate::find_my_pending_action(&session);
+        let pending_is_ban = pending
             .map(|p| p.action_type == crate::bp_decision::types::BpActionType::Ban)
             .unwrap_or(false);
         let mode = if (pending_is_ban && ban_on) || (!pending_is_ban && pick_on) {
@@ -665,13 +692,22 @@ async fn start_bp_decision_automation(app: tauri::AppHandle) {
             execute_at_secs_left: DEFAULT_EXECUTE_AT_SECS_LEFT,
             last_hovered: store::last_hovered(),
         };
-        store::write(evaluate::evaluate_bp_decision(&ctx));
+        let mut decision = evaluate::evaluate_bp_decision(&ctx);
+        // 接管标记以执行侧的粘性记录为准：一旦判定接管，即使用户随后撤回 hover
+        // (detect_override 重算为 false)，本阶段也不会再自动执行——快照必须如实
+        // 反映，否则决策带会承诺一次永远不会发生的自动锁定
+        if let (Some(d), Some(p)) = (decision.as_mut(), pending) {
+            d.user_overridden = d.user_overridden || store::is_overridden(p.action_id);
+        }
+        store::write(decision);
     }
 }
 
 /// ban 阶段能否 hover 尚未在真机验证——`BanAction` 类型里从来没有 `lock` 字段，
 /// 说明这条语义在本项目里从未被表达过。先关闭 ban 的 hover 同步，
-/// 只保留阈值执行；真机验证通过后（见 Task 6 Step 6）改为 true。
+/// 只保留阈值执行；真机验证方法：把本常量临时置 true，进 ban 阶段观察
+/// `patch_session_action(completed=false)` 是否成功，且客户端上确实能看到
+/// ban 意向被 hover 出来——成功则保留 true。
 const BAN_HOVER_ENABLED: bool = false;
 
 /// 是否应当对该决策采取任何 LCU 写操作。
@@ -763,31 +799,43 @@ async fn apply_bp_decision(
     }
 
     // ---- 到点执行 ----
-    // 时间判断必须用实时 timer:快照的 time_left_secs 是 2s 前的,叠加 session
-    // 缓存后 MIN_EXECUTE_SECS 的「不足 3s 不动手」保护会被架空。
+    // 时间判断用实时 timer,而非快照的 time_left_secs:session 有 1s 进程内缓存,
+    // 此处的 time_left 最多滞后 ~1s,仍远优于快照的 2s+ 滞后,MIN_EXECUTE_SECS
+    // 的「不足 3s 不动手」保护才站得住。
     let timer = &session.timer;
-    let lock_now = if timer.is_infinite {
+    // real_time_left: 本 tick 实际参与到点判断的剩余秒数,None = 无计时器模式。
+    // 只为下面的执行日志保留——那行日志是真机核对毫秒假设的唯一证据源,必须打真值。
+    let (lock_now, real_time_left): (bool, Option<f64>) = if timer.is_infinite {
         // 无计时器模式(自定义房间等):退回「轮到我就执行」,与旧实现行为一致
-        pending.is_in_progress && target.lock
+        (pending.is_in_progress && target.lock, None)
     } else {
         let time_left = crate::bp_decision::evaluate::phase_secs_left(timer);
         if time_left <= 0.0 {
-            // timer 字段缺失(serde default 全 0)或已归零:宁可不动手,但要留下现场
-            log::warn!(
-                "BP timer unusable (time_left={:.1}), skip auto lock",
-                time_left
-            );
-            false
+            // timer 字段缺失(serde default 全 0)或已归零:宁可不动手,但要留下现场;
+            // 只在真轮到我(is_in_progress)时才打 warn——否则一个坏 timer 的会话
+            // 会在预选期每 2s 刷屏,而那时压根还没到需要提醒的时候
+            if pending.is_in_progress {
+                log::warn!(
+                    "BP timer unusable (time_left={:.1}), skip auto lock",
+                    time_left
+                );
+            }
+            (false, Some(time_left))
         } else {
-            should_lock(decision, time_left, pending.is_in_progress)
+            (
+                should_lock(decision, time_left, pending.is_in_progress),
+                Some(time_left),
+            )
         }
     };
     if lock_now {
         log::info!(
-            "BP execute: {} {} at {:.1}s left",
+            "BP execute: {} {} at {}",
             action_type,
             target.champion_id,
-            decision.time_left_secs
+            real_time_left
+                .map(|t| format!("{:.1}s left", t))
+                .unwrap_or_else(|| "infinite timer".to_string())
         );
         crate::lcu::api::champion_select::patch_session_action(
             pending.action_id,
@@ -1151,6 +1199,27 @@ mod bp_execution_tests {
             &decision(BpMode::Auto, 4.0, false),
             4.0,
             false
+        ));
+    }
+
+    // 钉死 should_lock 的实时语义:传参才是决策依据,快照里的 time_left_secs
+    // 只是求值 tick 那一刻的展示值——防止未来回退成读快照字段而测试不红。
+    // 拆成两个独立测试函数（而非一个函数里塞两个断言），保证任一路径回归时
+    // 都能各自独立地在测试报告里标红定位。
+
+    #[test]
+    fn should_lock_when_real_time_param_is_within_window_even_if_snapshot_is_stale_and_early() {
+        // 快照写 20s(早),但实时传参 4.0s(到点)→ 应锁
+        assert!(should_lock(&decision(BpMode::Auto, 20.0, false), 4.0, true));
+    }
+
+    #[test]
+    fn should_not_lock_when_real_time_param_is_early_even_if_snapshot_is_stale_and_at_threshold() {
+        // 快照写 4s(到点),但实时传参 20.0s(还早)→ 不应锁
+        assert!(!should_lock(
+            &decision(BpMode::Auto, 4.0, false),
+            20.0,
+            true
         ));
     }
 

@@ -13,7 +13,12 @@ vi.mock('@renderer/services/ai/champion-names', () => ({
 function decision(overrides: Partial<BpDecision> = {}): BpDecision {
   return {
     action_type: 'Ban',
-    target: { champion_id: 64, lock: true, origin: { type: 'Rule', rule_id: 'r1', rule_name: '打野保底' }, evidence: null },
+    target: {
+      champion_id: 64,
+      lock: true,
+      origin: { type: 'Rule', rule_id: 'r1', rule_name: '打野保底' },
+      evidence: null
+    },
     rejected: [],
     mode: 'Auto',
     time_left_secs: 8,
@@ -52,7 +57,12 @@ describe('BpDecisionBar', () => {
   it('Fallback 来源灰色弱化并显示池子规模', () => {
     const w = mountBar(
       decision({
-        target: { champion_id: 64, lock: true, origin: { type: 'Fallback', pool_size: 8 }, evidence: null }
+        target: {
+          champion_id: 64,
+          lock: true,
+          origin: { type: 'Fallback', pool_size: 8 },
+          evidence: null
+        }
       })
     )
     expect(w.text()).toContain('兜底池 8 选 1')

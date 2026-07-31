@@ -11,7 +11,10 @@ use crate::rule_engine::{detect_my_position, match_condition};
 
 /// LCU 的 `adjustedTimeLeftInPhase` 以**毫秒**返回，转成秒。
 ///
-/// 真机核对见 Task 3 Step 8——若实测为秒，改这里一处即可。
+/// 真机核对方法：观察 `automation.rs` 里 `BP execute:` 日志打出的 time_left——
+/// 应落在 0~35s 区间且随时间递减；若实测打出的是 0.0xx 量级（例如
+/// "0.027s left"），说明 LCU 返回的其实已经是秒，去掉本函数里的 `/ 1000.0`
+/// 这一处换算即可。
 pub fn phase_secs_left(timer: &Timer) -> f64 {
     timer.adjusted_time_left_in_phase / 1000.0
 }

@@ -208,7 +208,7 @@ import {
   type OpggStatus
 } from '@renderer/services/opgg'
 import { buildRuleDraft } from '@renderer/services/bpRuleDraft'
-import { getChampionName } from '@renderer/services/ai/champion-names'
+import { getChampionName, loadChampionNames } from '@renderer/services/ai/champion-names'
 import type { Position, PickRule, BanRule } from '@renderer/types/rules'
 
 /** 选人阶段 stepper 的四步定义，顺序与展示文案固定 */
@@ -329,6 +329,11 @@ async function handleSaveRule(): Promise<void> {
 
   savingRule.value = true
   try {
+    // ban 阶段没人 hover 过任何英雄时，英雄名缓存可能从未被触发加载
+    // （ChampionIntelCard 只在有人 hover 后才加载）——存规则前先兜底加载一次，
+    // 避免把「对位英雄60」这种占位文案写进持久化规则名。loadChampionNames
+    // 本身幂等（缓存非空时立即返回），重复调用无副作用。
+    await loadChampionNames()
     // 必须先 reload——usePickRules/useBanRules 每次调用都返回全新的空 ref，
     // 直接 save 会把已有规则整个清掉。
     if (d.action_type === 'Ban') {
@@ -371,6 +376,11 @@ onMounted(async () => {
   } catch (e) {
     console.error(e)
   }
+
+  // 英雄名缓存懒加载：此前只有 ChampionIntelCard 在有人 hover 后才触发，
+  // 导致 ban 阶段（尚无人 hover）整段时间决策带只能显示「英雄157」占位符。
+  // 提前在页面挂载时触发一次，幂等（已加载时立即返回）。
+  void loadChampionNames()
 
   // 每次打开软件只展示一次 AI 功能提示
   if (!hasShownAITip) {
