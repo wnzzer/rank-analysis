@@ -53,8 +53,8 @@ pub fn find_my_pending_action(session: &SelectSession) -> Option<MyPendingAction
 
 /// 收集当前会话中不可选 / 不可 ban 的英雄，并保留原因。
 ///
-/// 与 `rule_engine::unavailable_champion_ids` 同语义，但**不合并原因**——
-/// 决策带要区分「已被 ban」和「已被他人选走」，且后者要分清我方还是对面。
+/// **不合并原因**——决策带要区分「已被 ban」和「已被他人选走」，
+/// 且后者要分清我方还是对面。
 /// 当前用户自己的 hover/pick 不计入（允许重新选择同一英雄）。
 pub fn unavailable_map(session: &SelectSession) -> HashMap<i32, Unavailable> {
     let my_cell = session.local_player_cell_id;
@@ -682,6 +682,83 @@ mod tests {
     }
 
     #[test]
+    fn rule_requires_all_conditions_to_match() {
+        // 规则要求：分路是打野 AND 敌方阵容包含 99 号英雄；只满足其一时整条规则不算命中
+        let rule = pick_rule(
+            "r1",
+            "双条件",
+            64,
+            true,
+            vec![
+                RuleCondition::Position {
+                    value: Position::Jungle,
+                },
+                RuleCondition::EnemyChampionsContains { ids: vec![99] },
+            ],
+        );
+
+        // 只满足 Position（敌方没有 99）→ RuleNotMatched，走兜底
+        let s_partial = pick_session(vec![player(1, "middle", "e1")]);
+        let d = evaluate_bp_decision(&ctx(&s_partial, std::slice::from_ref(&rule), &[77], None))
+            .unwrap();
+        assert_eq!(d.target.unwrap().champion_id, 77, "规则未命中应走兜底");
+        assert_eq!(
+            d.rejected,
+            vec![BpRejected::RuleNotMatched {
+                rule_id: "r1".into(),
+                rule_name: "双条件".into(),
+            }]
+        );
+
+        // 两个条件都满足 → 命中该规则
+        let s_full = pick_session(vec![player(99, "middle", "e1")]);
+        let d2 = evaluate_bp_decision(&ctx(&s_full, &[rule], &[77], None)).unwrap();
+        let t2 = d2.target.unwrap();
+        assert_eq!(t2.champion_id, 64);
+        assert_eq!(
+            t2.origin,
+            BpOrigin::Rule {
+                rule_id: "r1".into(),
+                rule_name: "双条件".into(),
+            }
+        );
+    }
+
+    #[test]
+    fn later_rule_wins_when_earlier_not_matched() {
+        let rules = vec![
+            pick_rule(
+                "r1",
+                "中路专用",
+                1,
+                true,
+                vec![RuleCondition::Position {
+                    value: Position::Middle,
+                }],
+            ),
+            pick_rule("r2", "打野保底", 64, true, vec![]),
+        ];
+        let s = pick_session(vec![player(99, "middle", "e1")]);
+        let d = evaluate_bp_decision(&ctx(&s, &rules, &[], None)).unwrap();
+        let t = d.target.unwrap();
+        assert_eq!(t.champion_id, 64);
+        assert_eq!(
+            t.origin,
+            BpOrigin::Rule {
+                rule_id: "r2".into(),
+                rule_name: "打野保底".into(),
+            }
+        );
+        assert_eq!(
+            d.rejected,
+            vec![BpRejected::RuleNotMatched {
+                rule_id: "r1".into(),
+                rule_name: "中路专用".into(),
+            }]
+        );
+    }
+
+    #[test]
     fn returns_none_when_no_pending_action() {
         let s = SelectSession {
             my_team: vec![player(0, "jungle", "me")],
@@ -718,6 +795,62 @@ mod tests {
         let t = d.target.unwrap();
         assert_eq!(t.champion_id, 157);
         assert!(t.lock, "ban 恒为 lock=true");
+    }
+
+    #[test]
+    fn ban_disabled_rule_skipped_entirely() {
+        let mut s = pick_session(vec![]);
+        s.actions = vec![vec![action(0, 11, 0, false, true, "ban", true)]];
+        let ban_rules = vec![BanRule {
+            id: "b1".into(),
+            name: "已停用禁用".into(),
+            enabled: false,
+            conditions: vec![],
+            action: BanAction { champion_id: 157 },
+        }];
+        let ban_pool = vec![89];
+        let mut c = ctx(&s, &[], &[], None);
+        c.ban_rules = &ban_rules;
+        c.ban_pool = &ban_pool;
+        let d = evaluate_bp_decision(&c).unwrap();
+        assert_eq!(d.action_type, BpActionType::Ban);
+        assert_eq!(d.target.unwrap().champion_id, 89);
+        assert!(d.rejected.is_empty(), "停用的规则不该出现在落选理由里");
+    }
+
+    #[test]
+    fn ban_rule_target_unavailable_falls_through() {
+        let mut s = pick_session(vec![]);
+        s.actions = vec![vec![action(0, 11, 0, false, true, "ban", true)]];
+        s.actions
+            .push(vec![action(5, 20, 157, true, false, "ban", false)]); // 对面已经 ban 了亚索
+        let ban_rules = vec![BanRule {
+            id: "b1".into(),
+            name: "禁亚索".into(),
+            enabled: true,
+            conditions: vec![],
+            action: BanAction { champion_id: 157 },
+        }];
+        let ban_pool = vec![89];
+        let mut c = ctx(&s, &[], &[], None);
+        c.ban_rules = &ban_rules;
+        c.ban_pool = &ban_pool;
+        let d = evaluate_bp_decision(&c).unwrap();
+        assert_eq!(
+            d.target.unwrap().champion_id,
+            89,
+            "规则目标已被 ban，应落到兜底池"
+        );
+        assert_eq!(d.rejected, vec![BpRejected::Banned { champion_id: 157 }]);
+    }
+
+    #[test]
+    fn ban_none_when_no_rules_and_empty_pool() {
+        let mut s = pick_session(vec![]);
+        s.actions = vec![vec![action(0, 11, 0, false, true, "ban", true)]];
+        let d = evaluate_bp_decision(&ctx(&s, &[], &[], None)).unwrap();
+        assert_eq!(d.action_type, BpActionType::Ban);
+        assert!(d.target.is_none());
     }
 
     #[test]

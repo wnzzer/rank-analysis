@@ -683,14 +683,22 @@ fn should_act(d: &crate::bp_decision::types::BpDecision) -> bool {
 ///
 /// 触发条件是 `adjusted_time_left_in_phase <= execute_at_secs_left`，
 /// **不是**「预告后倒数 N 秒」——固定秒数在不同队列时长下会一会儿太早一会儿来不及。
-fn should_lock(d: &crate::bp_decision::types::BpDecision, is_in_progress: bool) -> bool {
+///
+/// `time_left_secs` 必须由调用方用**实时** timer 算出（见 [`apply_bp_decision`]）——
+/// 快照里的 `d.time_left_secs` 是求值 tick 那一刻的值，叠加 session 缓存后
+/// 可能落后到让 `MIN_EXECUTE_SECS` 的保护形同虚设。
+fn should_lock(
+    d: &crate::bp_decision::types::BpDecision,
+    time_left_secs: f64,
+    is_in_progress: bool,
+) -> bool {
     let Some(t) = d.target.as_ref() else {
         return false;
     };
     is_in_progress
         && t.lock
-        && d.time_left_secs <= d.execute_at_secs_left
-        && d.time_left_secs >= MIN_EXECUTE_SECS
+        && time_left_secs <= d.execute_at_secs_left
+        && time_left_secs >= MIN_EXECUTE_SECS
 }
 
 /// 按决策快照同步 hover 并在到点时锁定。
@@ -708,8 +716,16 @@ async fn apply_bp_decision(
         return Ok(());
     };
 
-    // 接管检测优先于一切：一旦判定，本阶段彻底退让
-    if decision.user_overridden {
+    // 快照最旧可比实时 session 落后一个 tick,相位切换(ban→pick)恰落在窗口里:
+    // 类型不一致时本 tick 什么都不做,等下一 tick 的新快照
+    if decision.action_type != pending.action_type {
+        return Ok(());
+    }
+
+    // 接管检测用实时数据:用户在快照生成后的 2s 窗口内抢过方向盘也要立即退让。
+    // 快照里的 user_overridden 是 2s 前算的,只用于展示与本 tick 的保守短路,
+    // 不用它做持久化标记(它可能因读取时序出现一帧误报,持久化会造成永久退让)。
+    if evaluate::detect_override(pending.champion_id, store::last_hovered()) {
         store::mark_overridden(pending.action_id);
     }
     if store::is_overridden(pending.action_id) || !should_act(decision) {
@@ -732,18 +748,41 @@ async fn apply_bp_decision(
             pending.champion_id,
             target.champion_id
         );
-        crate::lcu::api::champion_select::patch_session_action(
+        match crate::lcu::api::champion_select::patch_session_action(
             pending.action_id,
             target.champion_id,
             action_type.to_string(),
             false,
         )
-        .await?;
-        store::set_last_hovered(Some(target.champion_id));
+        .await
+        {
+            Ok(()) => store::set_last_hovered(Some(target.champion_id)),
+            // hover 是「同步展示」,失败不该否决「到点执行」——执行窗口只有一次机会
+            Err(e) => log::warn!("BP hover sync failed (continuing to lock check): {}", e),
+        }
     }
 
     // ---- 到点执行 ----
-    if should_lock(decision, pending.is_in_progress) {
+    // 时间判断必须用实时 timer:快照的 time_left_secs 是 2s 前的,叠加 session
+    // 缓存后 MIN_EXECUTE_SECS 的「不足 3s 不动手」保护会被架空。
+    let timer = &session.timer;
+    let lock_now = if timer.is_infinite {
+        // 无计时器模式(自定义房间等):退回「轮到我就执行」,与旧实现行为一致
+        pending.is_in_progress && target.lock
+    } else {
+        let time_left = crate::bp_decision::evaluate::phase_secs_left(timer);
+        if time_left <= 0.0 {
+            // timer 字段缺失(serde default 全 0)或已归零:宁可不动手,但要留下现场
+            log::warn!(
+                "BP timer unusable (time_left={:.1}), skip auto lock",
+                time_left
+            );
+            false
+        } else {
+            should_lock(decision, time_left, pending.is_in_progress)
+        }
+    };
+    if lock_now {
         log::info!(
             "BP execute: {} {} at {:.1}s left",
             action_type,
@@ -1097,14 +1136,22 @@ mod bp_execution_tests {
     #[test]
     fn should_lock_only_within_threshold_window() {
         // 还早 → 不锁
-        assert!(!should_lock(&decision(BpMode::Auto, 20.0, false), true));
+        assert!(!should_lock(
+            &decision(BpMode::Auto, 20.0, false),
+            20.0,
+            true
+        ));
         // 到点 → 锁
-        assert!(should_lock(&decision(BpMode::Auto, 5.0, false), true));
-        assert!(should_lock(&decision(BpMode::Auto, 3.5, false), true));
+        assert!(should_lock(&decision(BpMode::Auto, 5.0, false), 5.0, true));
+        assert!(should_lock(&decision(BpMode::Auto, 3.5, false), 3.5, true));
         // 不足 3s → 放弃，避免半吊子状态
-        assert!(!should_lock(&decision(BpMode::Auto, 2.9, false), true));
+        assert!(!should_lock(&decision(BpMode::Auto, 2.9, false), 2.9, true));
         // 没轮到我 → 不锁
-        assert!(!should_lock(&decision(BpMode::Auto, 4.0, false), false));
+        assert!(!should_lock(
+            &decision(BpMode::Auto, 4.0, false),
+            4.0,
+            false
+        ));
     }
 
     #[test]
@@ -1119,7 +1166,7 @@ mod bp_execution_tests {
         let mut d = decision(BpMode::Auto, 4.0, false);
         d.target.as_mut().unwrap().lock = false;
         assert!(
-            !should_lock(&d, true),
+            !should_lock(&d, 4.0, true),
             "lock=false 的规则只 hover，不自动确定"
         );
     }

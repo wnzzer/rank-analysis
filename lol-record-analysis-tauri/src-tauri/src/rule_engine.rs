@@ -1,7 +1,8 @@
-//! 规则引擎：纯函数式条件求值与规则遍历。
+//! 规则引擎：选人会话的条件求值原语。
 //!
-//! 输入：当前选人会话 + 当前用户位置 + 用户配置的规则列表。
-//! 输出：第一条命中且目标可执行的 action（或 None）。
+//! 提供 `detect_my_position`（从会话中解析当前用户的分路）与
+//! `match_condition`（求值单个规则条件）。规则遍历与目标选择
+//! 已由 [`crate::bp_decision::evaluate`] 承担，本模块不再负责。
 
 use crate::command::rule_config::{Position, RuleCondition};
 use crate::lcu::api::champion_select::{OnePlayer, SelectSession};
