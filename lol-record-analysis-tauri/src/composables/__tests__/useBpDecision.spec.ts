@@ -65,11 +65,13 @@ describe('useBpDecision', () => {
     const [result, app] = withSetup(() => useBpDecision(phase))
 
     await vi.advanceTimersByTimeAsync(1000)
-    expect(result.displaySecs.value).toBeLessThanOrEqual(1)
+    expect(result.decision.value).not.toBeNull()
 
-    // 再走 5 秒但服务端没有新数据 → 插值到 0 后夹住
-    invokeMock.mockResolvedValue(null)
+    // 后续轮询全部失败 → catch 保留旧帧（decision 仍非 null），
+    // 本地时钟继续走，elapsed 远超 baseSecs，displaySecs 靠 Math.max 钳在 0
+    invokeMock.mockImplementation(() => Promise.reject(new Error('lcu down')))
     await vi.advanceTimersByTimeAsync(5000)
+    expect(result.decision.value).not.toBeNull()
     expect(result.displaySecs.value).toBe(0)
 
     app.unmount()

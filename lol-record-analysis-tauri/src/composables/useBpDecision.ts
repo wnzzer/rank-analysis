@@ -41,6 +41,8 @@ export function useBpDecision(phase: MaybeRefOrGetter<string>): {
 
   let pollTimer: ReturnType<typeof setInterval> | null = null
   let tickTimer: ReturnType<typeof setInterval> | null = null
+  /** 轮询代际：stop() 递增使在途请求的迟到结果作废，防止归零后被写回 */
+  let pollGeneration = 0
 
   const displaySecs = computed(() => {
     if (!decision.value) return 0
@@ -49,8 +51,10 @@ export function useBpDecision(phase: MaybeRefOrGetter<string>): {
   })
 
   async function poll(): Promise<void> {
+    const gen = pollGeneration
     try {
       const next = await invoke<BpDecision | null>('get_bp_decision')
+      if (gen !== pollGeneration) return // stop() 已发生，丢弃迟到结果
       decision.value = next
       if (next) {
         baseSecs.value = next.time_left_secs
@@ -62,6 +66,7 @@ export function useBpDecision(phase: MaybeRefOrGetter<string>): {
   }
 
   function stop(): void {
+    pollGeneration++
     if (pollTimer) clearInterval(pollTimer)
     if (tickTimer) clearInterval(tickTimer)
     pollTimer = null
