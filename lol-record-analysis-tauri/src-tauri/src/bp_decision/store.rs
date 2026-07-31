@@ -3,9 +3,13 @@
 //! 会话级单例：常驻求值任务每 tick 覆盖写入，命令层只读。
 //! 同时保管两项跨 tick 的状态：我们最后一次主动 hover 的英雄、
 //! 以及已判定「用户接管」的 action id（按 action 作用域，阶段切换自动失效）。
+//!
+//! 锁毒化处理：锁内只存三个独立的 Option 字段，无跨字段不变量。
+//! 任何写入 panic 导致毒化时，取回数据继续用——快照是纯展示数据，
+//! 一帧旧值不值得让功能永久失能。
 
 use crate::bp_decision::types::BpDecision;
-use std::sync::{OnceLock, RwLock};
+use std::sync::{OnceLock, PoisonError, RwLock};
 
 #[derive(Default)]
 struct StoreState {
@@ -23,48 +27,57 @@ fn store() -> &'static RwLock<StoreState> {
     STORE.get_or_init(|| RwLock::new(StoreState::default()))
 }
 
-/// 读取当前快照。锁被毒化时返回 None——展示型数据，不值得 panic。
+/// 读取当前快照。锁被毒化时取回数据继续用——快照是纯展示数据，
+/// 三个字段都是独立的 Option，panic 中断最坏留下一帧旧值，不值得让功能永久失能。
 pub fn read() -> Option<BpDecision> {
-    store().read().ok()?.decision.clone()
+    store()
+        .read()
+        .unwrap_or_else(PoisonError::into_inner)
+        .decision
+        .clone()
 }
 
 /// 覆盖写入快照。
 pub fn write(decision: Option<BpDecision>) {
-    if let Ok(mut s) = store().write() {
-        s.decision = decision;
-    }
+    store()
+        .write()
+        .unwrap_or_else(PoisonError::into_inner)
+        .decision = decision;
 }
 
 pub fn last_hovered() -> Option<i32> {
-    store().read().ok()?.last_hovered
+    store()
+        .read()
+        .unwrap_or_else(PoisonError::into_inner)
+        .last_hovered
 }
 
 pub fn set_last_hovered(id: Option<i32>) {
-    if let Ok(mut s) = store().write() {
-        s.last_hovered = id;
-    }
+    store()
+        .write()
+        .unwrap_or_else(PoisonError::into_inner)
+        .last_hovered = id;
 }
 
 /// 该 action 是否已判定用户接管。
 pub fn is_overridden(action_id: i32) -> bool {
     store()
         .read()
-        .ok()
-        .and_then(|s| s.overridden_action_id)
+        .unwrap_or_else(PoisonError::into_inner)
+        .overridden_action_id
         .is_some_and(|id| id == action_id)
 }
 
 pub fn mark_overridden(action_id: i32) {
-    if let Ok(mut s) = store().write() {
-        s.overridden_action_id = Some(action_id);
-    }
+    store()
+        .write()
+        .unwrap_or_else(PoisonError::into_inner)
+        .overridden_action_id = Some(action_id);
 }
 
 /// 离开选人期时清空全部状态。
 pub fn reset() {
-    if let Ok(mut s) = store().write() {
-        *s = StoreState::default();
-    }
+    *store().write().unwrap_or_else(PoisonError::into_inner) = StoreState::default();
 }
 
 #[cfg(test)]
