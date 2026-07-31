@@ -124,6 +124,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         .invoke_handler(tauri::generate_handler![
             command::ai::stream_ai_analysis,
             command::asset::get_asset_details,
+            command::bp::get_bp_decision,
             command::config::put_config,
             command::config::get_config,
             // command::config::get_http_server_port,
@@ -203,10 +204,11 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
 
         // 启动自动化系统
         let warm_handle = app.handle().clone();
+        let automation_handle = app.handle().clone();
         tauri::async_runtime::spawn(async move {
             log::info!("Starting automation system...");
-            tokio::spawn(async {
-                automation::start_automation().await;
+            tokio::spawn(async move {
+                automation::start_automation(automation_handle).await;
             });
 
             // Initialize asset caches

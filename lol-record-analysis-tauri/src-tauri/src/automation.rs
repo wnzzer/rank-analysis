@@ -602,31 +602,7 @@ async fn start_select_champion_slice_fallback(
     select_session: &crate::lcu::api::champion_select::SelectSession,
     my_cell_id: i32,
 ) -> Result<(), String> {
-    let my_pick_champion_slice = match get_config("settings.auto.pickChampionSlice").await {
-        Ok(Value::Map(m)) => {
-            // Handle nested structure: { "value": [list] }
-            if let Some(Value::List(list)) = m.get("value") {
-                list.iter()
-                    .filter_map(|v| match v {
-                        Value::Integer(i) => Some(*i as i32),
-                        _ => None,
-                    })
-                    .collect::<Vec<i32>>()
-            } else {
-                vec![]
-            }
-        }
-        Ok(Value::List(list)) => {
-            // Handle direct list structure (for backwards compatibility)
-            list.iter()
-                .filter_map(|v| match v {
-                    Value::Integer(i) => Some(*i as i32),
-                    _ => None,
-                })
-                .collect::<Vec<i32>>()
-        }
-        _ => vec![],
-    };
+    let my_pick_champion_slice = load_pick_pool().await;
 
     log::info!(
         "Configured champion selection list: {:?}",
@@ -774,6 +750,149 @@ async fn start_champion_ban_automation() {
     }
 }
 
+/// 默认执行阈值：剩余降到该秒数时执行锁定。
+const DEFAULT_EXECUTE_AT_SECS_LEFT: f64 = 5.0;
+
+/// 剩余不足该秒数时放弃本次自动执行，避免半吊子状态。
+///
+/// 本任务（Task 3）只求值写快照，尚不触发执行；留给后续任务
+/// （执行逻辑落地时）使用，故此处暂时 `#[allow(dead_code)]`。
+#[allow(dead_code)]
+pub(crate) const MIN_EXECUTE_SECS: f64 = 3.0;
+
+/// 根据分路信息推断该用哪份 OP.GG 数据。
+///
+/// 有分路 = 排位/征召 → ranked；无分路（ARAM、部分匹配）→ aram。
+/// aram 快照的 `counters` 恒为空，因此避雷择选会自动退化为「第一个可用」，
+/// 这正是这些模式下应有的行为。比额外发一次 LCU 请求取 queueId 更省。
+fn opgg_mode_for(my_position: Option<crate::command::rule_config::Position>) -> &'static str {
+    if my_position.is_some() {
+        "ranked"
+    } else {
+        "aram"
+    }
+}
+
+/// 从配置读取一个英雄 ID 列表，兼容 `{ "value": [...] }` 与裸数组两种历史形态。
+async fn load_champion_pool(key: &str) -> Vec<i32> {
+    let to_ids = |list: &Vec<Value>| -> Vec<i32> {
+        list.iter()
+            .filter_map(|v| match v {
+                Value::Integer(i) => Some(*i as i32),
+                _ => None,
+            })
+            .collect()
+    };
+    match get_config(key).await {
+        Ok(Value::Map(m)) => match m.get("value") {
+            Some(Value::List(list)) => to_ids(list),
+            _ => vec![],
+        },
+        Ok(Value::List(list)) => to_ids(&list),
+        _ => vec![],
+    }
+}
+
+async fn load_pick_pool() -> Vec<i32> {
+    load_champion_pool("settings.auto.pickChampionSlice").await
+}
+
+async fn load_ban_pool() -> Vec<i32> {
+    load_champion_pool("settings.auto.banChampionSlice").await
+}
+
+/// BP 决策快照的常驻求值任务。
+///
+/// **无条件启动**，不受 `pickChampionSwitch` / `banChampionSwitch` 控制——
+/// 大部分用户未开自动 BP，若决策带只对开启者可见，功能覆盖面会很窄。
+/// 开关状态只决定快照里的 `mode`（Auto = 到点会执行，Advisory = 只供展示）。
+///
+/// 本任务**只求值、只写快照，不执行任何 LCU 写操作**。
+async fn start_bp_decision_automation(app: tauri::AppHandle) {
+    use crate::bp_decision::{evaluate, store, types::BpMode};
+    use tauri::Manager;
+
+    log::info!("Starting BP decision evaluation (always-on)");
+    let mut ticker = interval(Duration::from_secs(2));
+
+    loop {
+        ticker.tick().await;
+
+        let cur_phase = match get_phase().await {
+            Ok(p) => p,
+            Err(_) => continue,
+        };
+        if cur_phase != CHAMPSELECT {
+            // 离开选人期：清空快照与跨 tick 状态
+            store::reset();
+            continue;
+        }
+
+        let session = match get_champion_select_session().await {
+            Ok(s) => s,
+            Err(e) => {
+                log::debug!("BP decision: no champ select session: {}", e);
+                continue;
+            }
+        };
+        let my_summoner = match crate::lcu::api::summoner::Summoner::get_my_summoner().await {
+            Ok(s) => s,
+            Err(e) => {
+                log::debug!("BP decision: cannot resolve my summoner: {}", e);
+                continue;
+            }
+        };
+
+        let my_position = crate::rule_engine::detect_my_position(&session, &my_summoner.puuid);
+        let snapshot = crate::command::opgg::ensure_opgg_snapshot(
+            &app.state::<crate::state::AppState>(),
+            opgg_mode_for(my_position),
+        )
+        .await
+        .ok()
+        .map(|(snap, _stale)| snap);
+
+        let pick_rules = load_pick_rules().await;
+        let ban_rules = load_ban_rules().await;
+        let pick_pool = load_pick_pool().await;
+        let ban_pool = load_ban_pool().await;
+
+        let pick_on = switch_enabled("settings.auto.pickChampionSwitch").await;
+        let ban_on = switch_enabled("settings.auto.banChampionSwitch").await;
+
+        let pending_is_ban = evaluate::find_my_pending_action(&session)
+            .map(|p| p.action_type == crate::bp_decision::types::BpActionType::Ban)
+            .unwrap_or(false);
+        let mode = if (pending_is_ban && ban_on) || (!pending_is_ban && pick_on) {
+            BpMode::Auto
+        } else {
+            BpMode::Advisory
+        };
+
+        let ctx = evaluate::BpContext {
+            session: &session,
+            my_puuid: &my_summoner.puuid,
+            pick_rules: &pick_rules,
+            ban_rules: &ban_rules,
+            pick_pool: &pick_pool,
+            ban_pool: &ban_pool,
+            snapshot: snapshot.as_deref(),
+            mode,
+            execute_at_secs_left: DEFAULT_EXECUTE_AT_SECS_LEFT,
+            last_hovered: store::last_hovered(),
+        };
+        store::write(evaluate::evaluate_bp_decision(&ctx));
+    }
+}
+
+/// 读取一个布尔开关配置，缺失/异常一律当作关闭。
+async fn switch_enabled(key: &str) -> bool {
+    matches!(
+        get_config(key).await.map(|v| extract_bool(&v)),
+        Ok(Some(true))
+    )
+}
+
 /// 执行英雄禁用操作。
 ///
 /// 优先走规则引擎：若配置了 banRules 且有规则命中，直接执行对应 ban action。
@@ -871,31 +990,7 @@ async fn start_ban_champion_slice_fallback(
     select_session: &crate::lcu::api::champion_select::SelectSession,
     my_cell_id: i32,
 ) -> Result<(), String> {
-    let my_ban_champion_slice = match get_config("settings.auto.banChampionSlice").await {
-        Ok(Value::Map(m)) => {
-            // Handle nested structure: { "value": [list] }
-            if let Some(Value::List(list)) = m.get("value") {
-                list.iter()
-                    .filter_map(|v| match v {
-                        Value::Integer(i) => Some(*i as i32),
-                        _ => None,
-                    })
-                    .collect::<Vec<i32>>()
-            } else {
-                vec![]
-            }
-        }
-        Ok(Value::List(list)) => {
-            // Handle direct list structure (for backwards compatibility)
-            list.iter()
-                .filter_map(|v| match v {
-                    Value::Integer(i) => Some(*i as i32),
-                    _ => None,
-                })
-                .collect::<Vec<i32>>()
-        }
-        _ => vec![],
-    };
+    let my_ban_champion_slice = load_ban_pool().await;
 
     log::info!("Configured champion ban list: {:?}", my_ban_champion_slice);
 
@@ -1016,9 +1111,12 @@ async fn start_ban_champion_slice_fallback(
 ///
 /// 配置值为布尔类型或包含 `value` 字段的映射：
 /// - `Value::Boolean(true)` 或 `Map({"value": Boolean(true)})` 表示启用
-async fn init_run_automation() {
+async fn init_run_automation(app: tauri::AppHandle) {
     let manager = AUTOMATION_MANAGER.get_or_init(AutomationManager::new);
     log::info!("Initializing automation tasks");
+
+    // 决策快照求值：无条件常驻，未开自动化的用户也能看到建议带
+    manager.start_task("bp_decision", start_bp_decision_automation(app.clone()));
 
     // 检查配置并启动对应的自动化任务
     match get_config("settings.auto.startMatchSwitch").await {
@@ -1100,16 +1198,16 @@ async fn init_run_automation() {
 ///     tauri::Builder::default()
 ///         .setup(|app| {
 ///             tauri::async_runtime::spawn(async move {
-///                 start_automation().await;
+///                 start_automation(app.handle().clone()).await;
 ///             });
 ///             Ok(())
 ///         })
 ///         ...
 /// }
 /// ```
-pub async fn start_automation() {
+pub async fn start_automation(app: tauri::AppHandle) {
     log::info!("========== Starting Automation System ==========");
-    init_run_automation().await;
+    init_run_automation(app).await;
     log::info!("Registering configuration change callbacks");
 
     register_on_change_callback(|key: &str, new_value: &Value| {

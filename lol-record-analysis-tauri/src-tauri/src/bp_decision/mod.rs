@@ -6,4 +6,5 @@
 //! - 快照是会话级单例、一次算完、纯展示
 
 pub mod evaluate;
+pub mod store;
 pub mod types;
