@@ -154,6 +154,12 @@
             <span v-else class="ban-group-empty">-</span>
           </div>
         </div>
+
+        <BpDecisionBar
+          :decision="bp.decision.value"
+          :display-secs="bp.displaySecs.value"
+          @save-rule="handleSaveRule"
+        />
       </div>
 
       <div class="gaming-grid" :class="{ 'gaming-grid-multi': sessionData.isMultiTeam }">
@@ -186,7 +192,9 @@ import { useMessage } from 'naive-ui'
 
 import LoadingComponent from '@renderer/components/LoadingComponent.vue'
 import SubteamCard from '@renderer/components/gaming/SubteamCard.vue'
+import BpDecisionBar from '@renderer/components/gaming/BpDecisionBar.vue'
 import { useGamingAIAnalysis } from '@renderer/composables/useGamingAIAnalysis'
+import { useBpDecision } from '@renderer/composables/useBpDecision'
 import { useSessionSync } from '@renderer/composables/useSessionSync'
 import { useSessionTiers } from '@renderer/composables/useSessionTiers'
 import { useGameState } from '@renderer/composables/useGameState'
@@ -257,6 +265,12 @@ const hasBans = computed(() => myBans.value.length > 0 || theirBans.value.length
 const opggStatus = ref<OpggStatus | null>(null)
 watch(opggMode, m => getOpggStatus(m).then(s => (opggStatus.value = s)), { immediate: true })
 
+/**
+ * 选人期 BP 决策预告。与 useSessionSync 平行——决策快照是会话级单例、
+ * 一次算完、纯展示，不进 per-player 的同步链。
+ */
+const bp = useBpDecision(() => sessionData.phase)
+
 const showConfig = ref(false)
 const matchCount = ref(4)
 const message = useMessage()
@@ -272,6 +286,11 @@ let hasShownAITip = false
  * {@link useGamingAIAnalysis}。
  */
 const ai = useGamingAIAnalysis(sessionData, opggMode)
+
+/** 「存为规则」入口，Task 7 接线到规则草稿生成与跳转 */
+function handleSaveRule(): void {
+  message.info('存为规则：即将上线')
+}
 
 const handleUpdateConfig = async (value: number | null) => {
   if (!value) return
