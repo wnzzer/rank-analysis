@@ -3,7 +3,10 @@
  *
  * 选人期手上数据齐备，映射是机械的，无需 AI。唯一的设计难点是条件粒度：
  * 只取位置太宽（等于无条件）；取对面全部 5 个是死规则（要求五英雄完全一致，
- * 永不再命中）。因此只取**一个**关键敌方英雄，三级兜底见下。
+ * 永不再命中）。因此只取**一个**关键敌方英雄，两级兜底见下。
+ *
+ * 曾有第二级「同分路对位英雄」兜底：从敌方 assignedPosition 找同分路英雄。
+ * 已删除——LCU 选人期敌方该字段恒为空（平台限制），这一级永不触发，是死代码。
  */
 import type { BpDecision } from '@renderer/types/bpDecision'
 import type { BanRule, PickRule, Position, RuleCondition } from '@renderer/types/rules'
@@ -19,20 +22,18 @@ export function buildRuleDraft(args: {
   decision: BpDecision
   /** 我的分路，ARAM 等无分路模式为 null */
   myPosition: Position | null
-  /** 同分路对位的敌方英雄 ID，无则 null */
-  laneOpponentId: number | null
   championName: (id: number) => string
 }): PickRule | BanRule | null {
-  const { decision, myPosition, laneOpponentId, championName } = args
+  const { decision, myPosition, championName } = args
   const target = decision.target
   if (!target) return null
 
   const conditions: RuleCondition[] = []
   if (myPosition) conditions.push({ type: 'Position', value: myPosition })
 
-  // 关键敌方英雄：优先取克制关系最强的那个——那大概率就是做出该选择的原因；
-  // OP.GG 只给 top3 苦手，多数对局取不到，此时退回同分路对位英雄。
-  const keyEnemy = target.evidence?.against_champion_id ?? laneOpponentId
+  // 关键敌方英雄：取克制关系最强的那个——那大概率就是做出该选择的原因；
+  // OP.GG 只给 top3 苦手，多数对局取不到，此时无条件退回仅位置。
+  const keyEnemy = target.evidence?.against_champion_id ?? null
   if (keyEnemy != null) {
     conditions.push({ type: 'EnemyChampionsContains', ids: [keyEnemy] })
   }

@@ -289,16 +289,6 @@ const myPosition = computed<Position | null>(() => {
     : null
 })
 
-/** 同分路对位的敌方英雄；无分路信息或对面该位未亮英雄时为 null */
-const laneOpponentId = computed<number | null>(() => {
-  if (!myPosition.value) return null
-  const opponent = orderedSubteams.value
-    .filter(s => s.subteamId !== sessionData.mySubteamId)
-    .flatMap(s => s.players)
-    .find(p => p.assignedPosition?.toLowerCase() === myPosition.value && p.championId > 0)
-  return opponent?.championId ?? null
-})
-
 const showConfig = ref(false)
 const matchCount = ref(4)
 const message = useMessage()
@@ -315,18 +305,21 @@ let hasShownAITip = false
  */
 const ai = useGamingAIAnalysis(sessionData, opggMode)
 
+/** 存规则进行中标志：防连点导致两次 reload 同一基线、后写覆盖先写丢规则 */
+const savingRule = ref(false)
+
 /**
  * 把当前决策固化成一条规则并跳转到配置页。
  *
  * 选人期只读、不提供就地编辑——30 秒窗口内改配置不现实。
  */
 async function handleSaveRule(): Promise<void> {
+  if (savingRule.value) return
   const d = bp.decision.value
   if (!d) return
   const draft = buildRuleDraft({
     decision: d,
     myPosition: myPosition.value,
-    laneOpponentId: laneOpponentId.value,
     championName: getChampionName
   })
   if (!draft) {
@@ -334,20 +327,27 @@ async function handleSaveRule(): Promise<void> {
     return
   }
 
-  // 必须先 reload——usePickRules/useBanRules 每次调用都返回全新的空 ref，
-  // 直接 save 会把已有规则整个清掉。
-  if (d.action_type === 'Ban') {
-    const { rules, reload, save } = useBanRules()
-    await reload()
-    await save([...rules.value, draft as BanRule])
-  } else {
-    const { rules, reload, save } = usePickRules()
-    await reload()
-    await save([...rules.value, draft as PickRule])
-  }
+  savingRule.value = true
+  try {
+    // 必须先 reload——usePickRules/useBanRules 每次调用都返回全新的空 ref，
+    // 直接 save 会把已有规则整个清掉。
+    if (d.action_type === 'Ban') {
+      const { rules, reload, save } = useBanRules()
+      await reload()
+      await save([...rules.value, draft as BanRule])
+    } else {
+      const { rules, reload, save } = usePickRules()
+      await reload()
+      await save([...rules.value, draft as PickRule])
+    }
 
-  message.success(`已存为规则「${draft.name}」`)
-  await router.push('/Settings/Automation')
+    message.success(`已存为规则「${draft.name}」`)
+    await router.push('/Settings/Automation')
+  } catch (e) {
+    message.error('保存规则失败: ' + (e instanceof Error ? e.message : String(e)))
+  } finally {
+    savingRule.value = false
+  }
 }
 
 const handleUpdateConfig = async (value: number | null) => {

@@ -35,7 +35,6 @@ describe('buildRuleDraft', () => {
         }
       }),
       myPosition: 'jungle',
-      laneOpponentId: 157,
       championName
     }) as PickRule
 
@@ -49,26 +48,10 @@ describe('buildRuleDraft', () => {
     expect(r.id).toBeTruthy()
   })
 
-  it('无 evidence 时退回同分路对位英雄', () => {
+  it('无 evidence 时只留位置条件并在名字里标注', () => {
     const r = buildRuleDraft({
       decision: decision(),
       myPosition: 'jungle',
-      laneOpponentId: 157,
-      championName
-    }) as PickRule
-
-    expect(r.conditions).toEqual([
-      { type: 'Position', value: 'jungle' },
-      { type: 'EnemyChampionsContains', ids: [157] }
-    ])
-    expect(r.name).toBe('打野 · 对位亚索')
-  })
-
-  it('两者都无时只留位置条件并在名字里标注', () => {
-    const r = buildRuleDraft({
-      decision: decision(),
-      myPosition: 'jungle',
-      laneOpponentId: null,
       championName
     }) as PickRule
 
@@ -80,7 +63,6 @@ describe('buildRuleDraft', () => {
     const r = buildRuleDraft({
       decision: decision(),
       myPosition: null,
-      laneOpponentId: null,
       championName
     }) as PickRule
 
@@ -100,7 +82,6 @@ describe('buildRuleDraft', () => {
         }
       }),
       myPosition: 'middle',
-      laneOpponentId: 60,
       championName
     }) as BanRule
 
@@ -119,7 +100,6 @@ describe('buildRuleDraft', () => {
         }
       }),
       myPosition: 'jungle',
-      laneOpponentId: null,
       championName
     }) as PickRule
 
@@ -131,7 +111,6 @@ describe('buildRuleDraft', () => {
       buildRuleDraft({
         decision: decision({ target: null }),
         myPosition: 'jungle',
-        laneOpponentId: null,
         championName
       })
     ).toBeNull()
