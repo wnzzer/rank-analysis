@@ -34,9 +34,7 @@ use tokio::time::interval;
 
 use crate::config::{extract_bool, get_config, register_on_change_callback, Value};
 use crate::constant::game::{CHAMPSELECT, LOBBY, MATCHMAKING, READYCHECK};
-use crate::lcu::api::champion_select::{
-    get_champion_select_session, patch_session_action, post_accept_match,
-};
+use crate::lcu::api::champion_select::{get_champion_select_session, post_accept_match};
 use crate::lcu::api::lobby::Lobby;
 use crate::lcu::api::phase::get_phase;
 
@@ -477,80 +475,6 @@ async fn load_ban_rules() -> Vec<crate::command::rule_config::BanRule> {
     }
 }
 
-/// 执行规则引擎命中后的 pick 动作。
-///
-/// 三种处理分支：
-/// 1. `is_in_progress && !completed`：按 `action.lock` 锁定或继续 hover。
-///    **例外**：`lock=false` 且当前已经 hover 了目标英雄时跳过，避免每 2s 重复 PATCH。
-/// 2. `my_picked_champion_id == 0 && !completed && !is_in_progress`：预选阶段始终 hover
-///    （`completed=false`），忽略 `lock` 标志。
-/// 3. 其他状态：no-op（已锁定 / 不轮到我等）。
-async fn execute_pick_action(
-    select_session: &crate::lcu::api::champion_select::SelectSession,
-    my_cell_id: i32,
-    action: &crate::command::rule_config::PickAction,
-) -> Result<(), String> {
-    let mut action_id = -1;
-    let mut is_in_progress = false;
-    let mut my_picked_champion_id = -1;
-    let mut completed = false;
-
-    for action_group in &select_session.actions {
-        if !action_group.is_empty() && action_group[0].action_type == "pick" {
-            for pick in action_group {
-                if pick.actor_cell_id == my_cell_id {
-                    completed = pick.completed;
-                    my_picked_champion_id = pick.champion_id;
-                    action_id = pick.id;
-                    if pick.is_in_progress {
-                        is_in_progress = true;
-                    }
-                    break;
-                }
-            }
-        }
-    }
-
-    if action_id == -1 {
-        log::debug!("No pick action found for current player");
-        return Ok(());
-    }
-
-    if is_in_progress && !completed {
-        // 跳过冗余 PATCH：lock=false 且当前 hover 已是目标英雄，无需再次发送
-        if !action.lock && my_picked_champion_id == action.champion_id {
-            log::debug!(
-                "Rule action: champion {} already hovered, skipping redundant PATCH",
-                action.champion_id
-            );
-            return Ok(());
-        }
-        log::info!(
-            "Rule action: {} champion {} (in_progress)",
-            if action.lock { "locking" } else { "hovering" },
-            action.champion_id
-        );
-        patch_session_action(
-            action_id,
-            action.champion_id,
-            "pick".to_string(),
-            action.lock,
-        )
-        .await?;
-    } else if my_picked_champion_id == 0 && !completed && !is_in_progress {
-        // 预选阶段 — 始终 hover，忽略 lock 标志
-        log::info!(
-            "Rule action: hovering champion {} (pre-select)",
-            action.champion_id
-        );
-        patch_session_action(action_id, action.champion_id, "pick".to_string(), false).await?;
-    } else {
-        log::debug!("No pick action needed under current state");
-    }
-
-    Ok(())
-}
-
 /// 执行英雄选择操作。
 ///
 /// # 返回值
@@ -560,155 +484,19 @@ async fn execute_pick_action(
 ///
 /// # 逻辑流程
 ///
-/// 1. 获取选人阶段会话信息
-/// 2. **规则引擎（优先）**：若配置了 pickRules，按规则求值并执行；命中则返回
-/// 3. **兜底（pickChampionSlice）**：规则未配置或未命中时，走原有列表逻辑
+/// 1. 读取由常驻任务算好的决策快照（规则求值 + 兜底避雷都在那边完成）
+/// 2. 快照的动作类型与本任务不符则跳过
+/// 3. 交给 `apply_bp_decision`：hover 同步 → 到点锁定
 async fn start_select_champion() -> Result<(), String> {
     let select_session = get_champion_select_session().await?;
-    let my_cell_id = select_session.local_player_cell_id;
-    log::info!("Current player cell ID: {}", my_cell_id);
-
-    // ===== Rule engine (new) — try first; fall back to slice on miss =====
-    let rules = load_pick_rules().await;
-    if !rules.is_empty() {
-        let my_summoner = match crate::lcu::api::summoner::Summoner::get_my_summoner().await {
-            Ok(s) => s,
-            Err(e) => {
-                log::warn!("Failed to get my summoner for rule engine: {}", e);
-                return start_select_champion_slice_fallback(&select_session, my_cell_id).await;
-            }
-        };
-        let my_pos = crate::rule_engine::detect_my_position(&select_session, &my_summoner.puuid);
-        if let Some(action) = crate::rule_engine::evaluate_pick(&select_session, my_pos, &rules) {
-            log::info!(
-                "Pick rule matched: champion={} lock={}",
-                action.champion_id,
-                action.lock
-            );
-            return execute_pick_action(&select_session, my_cell_id, action).await;
-        }
-        log::debug!("No pick rule matched, falling back to pickChampionSlice");
-    }
-    // ===== End rule engine =====
-
-    start_select_champion_slice_fallback(&select_session, my_cell_id).await
-}
-
-/// 兜底选人逻辑（原 `start_select_champion` 函数体）。
-///
-/// 从 `pickChampionSlice` 配置读取英雄列表，排除已 ban/已选英雄后，
-/// 选取第一个可用英雄执行 hover 或锁定。
-async fn start_select_champion_slice_fallback(
-    select_session: &crate::lcu::api::champion_select::SelectSession,
-    my_cell_id: i32,
-) -> Result<(), String> {
-    let my_pick_champion_slice = load_pick_pool().await;
-
-    log::info!(
-        "Configured champion selection list: {:?}",
-        my_pick_champion_slice
-    );
-
-    let mut not_select_champion_ids = HashMap::new();
-
-    // 获取ban的英雄
-    for action_group in &select_session.actions {
-        if !action_group.is_empty() && action_group[0].action_type == "ban" {
-            for ban in action_group {
-                if ban.actor_cell_id != my_cell_id && ban.completed {
-                    not_select_champion_ids.insert(ban.champion_id, true);
-                    log::debug!("Champion banned by others: {}", ban.champion_id);
-                }
-            }
-        }
-    }
-
-    // 获取队友选择的英雄
-    for action_group in &select_session.actions {
-        if !action_group.is_empty() && action_group[0].action_type == "pick" {
-            for pick in action_group {
-                if pick.actor_cell_id != my_cell_id && pick.champion_id != 0 {
-                    not_select_champion_ids.insert(pick.champion_id, true);
-                    log::debug!("Champion picked by teammates: {}", pick.champion_id);
-                }
-            }
-        }
-    }
-
-    let will_select_champion_id = if my_pick_champion_slice.is_empty() {
-        log::warn!("No champions configured in pickChampionSlice, using default ID: 1");
-        1
-    } else {
-        let selected = my_pick_champion_slice
-            .iter()
-            .find(|&&champion_id| !not_select_champion_ids.contains_key(&champion_id))
-            .copied()
-            .unwrap_or(1);
-        if selected != 1 {
-            log::info!("Will select champion ID: {}", selected);
-        } else {
-            log::warn!("No available champion to select, using default ID: 1");
-        }
-        selected
+    let Some(decision) = crate::bp_decision::store::read() else {
+        log::debug!("No BP decision snapshot yet, skipping this tick");
+        return Ok(());
     };
-
-    // 查找我的选择动作
-    let mut action_id = -1;
-    let mut is_in_progress = false;
-    let mut my_picked_champion_id = -1;
-    let mut completed = false;
-
-    for action_group in &select_session.actions {
-        if !action_group.is_empty() && action_group[0].action_type == "pick" {
-            for pick in action_group {
-                if pick.actor_cell_id == my_cell_id {
-                    completed = pick.completed;
-                    my_picked_champion_id = pick.champion_id;
-                    action_id = pick.id;
-                    if pick.is_in_progress {
-                        is_in_progress = true;
-                    }
-                    break;
-                }
-            }
-        }
+    if decision.action_type != crate::bp_decision::types::BpActionType::Pick {
+        return Ok(());
     }
-
-    log::info!(
-        "Action ID: {}, Is In Progress: {}, Completed: {}, My Picked Champion ID: {}",
-        action_id,
-        is_in_progress,
-        completed,
-        my_picked_champion_id
-    );
-
-    if action_id != -1 {
-        if is_in_progress && !completed {
-            log::info!(
-                "Completing champion selection with ID: {}",
-                will_select_champion_id
-            );
-            patch_session_action(action_id, will_select_champion_id, "pick".to_string(), true)
-                .await?;
-            log::info!("Champion selection completed successfully");
-        } else if my_picked_champion_id == 0 && !completed && !is_in_progress {
-            log::info!("Hovering champion with ID: {}", will_select_champion_id);
-            patch_session_action(
-                action_id,
-                will_select_champion_id,
-                "pick".to_string(),
-                false,
-            )
-            .await?;
-            log::info!("Champion hover successful");
-        } else {
-            log::info!("No action needed for champion selection");
-        }
-    } else {
-        log::warn!("No pick action found for current player");
-    }
-
-    Ok(())
+    apply_bp_decision(&select_session, &decision).await
 }
 
 /// 自动禁用英雄任务。
@@ -754,10 +542,6 @@ async fn start_champion_ban_automation() {
 const DEFAULT_EXECUTE_AT_SECS_LEFT: f64 = 5.0;
 
 /// 剩余不足该秒数时放弃本次自动执行，避免半吊子状态。
-///
-/// 本任务（Task 3）只求值写快照，尚不触发执行；留给后续任务
-/// （执行逻辑落地时）使用，故此处暂时 `#[allow(dead_code)]`。
-#[allow(dead_code)]
 pub(crate) const MIN_EXECUTE_SECS: f64 = 3.0;
 
 /// 根据分路信息推断该用哪份 OP.GG 数据。
@@ -885,6 +669,98 @@ async fn start_bp_decision_automation(app: tauri::AppHandle) {
     }
 }
 
+/// ban 阶段能否 hover 尚未在真机验证——`BanAction` 类型里从来没有 `lock` 字段，
+/// 说明这条语义在本项目里从未被表达过。先关闭 ban 的 hover 同步，
+/// 只保留阈值执行；真机验证通过后（见 Task 6 Step 6）改为 true。
+const BAN_HOVER_ENABLED: bool = false;
+
+/// 是否应当对该决策采取任何 LCU 写操作。
+fn should_act(d: &crate::bp_decision::types::BpDecision) -> bool {
+    d.mode == crate::bp_decision::types::BpMode::Auto && !d.user_overridden
+}
+
+/// 是否到了锁定的时刻。
+///
+/// 触发条件是 `adjusted_time_left_in_phase <= execute_at_secs_left`，
+/// **不是**「预告后倒数 N 秒」——固定秒数在不同队列时长下会一会儿太早一会儿来不及。
+fn should_lock(d: &crate::bp_decision::types::BpDecision, is_in_progress: bool) -> bool {
+    let Some(t) = d.target.as_ref() else {
+        return false;
+    };
+    is_in_progress
+        && t.lock
+        && d.time_left_secs <= d.execute_at_secs_left
+        && d.time_left_secs >= MIN_EXECUTE_SECS
+}
+
+/// 按决策快照同步 hover 并在到点时锁定。
+///
+/// 每 tick 重算并立即同步 hover，使「当前 hover」恒等于「当前决策」——
+/// 执行时锁的就是用户正看着的那个。局面变化（建议英雄被抢/被 ban）表现为
+/// hover 撤回并重新 hover，**可见地换人，绝不静默换人**。
+async fn apply_bp_decision(
+    session: &crate::lcu::api::champion_select::SelectSession,
+    decision: &crate::bp_decision::types::BpDecision,
+) -> Result<(), String> {
+    use crate::bp_decision::{evaluate, store, types::BpActionType};
+
+    let Some(pending) = evaluate::find_my_pending_action(session) else {
+        return Ok(());
+    };
+
+    // 接管检测优先于一切：一旦判定，本阶段彻底退让
+    if decision.user_overridden {
+        store::mark_overridden(pending.action_id);
+    }
+    if store::is_overridden(pending.action_id) || !should_act(decision) {
+        return Ok(());
+    }
+
+    let Some(target) = decision.target.as_ref() else {
+        return Ok(());
+    };
+    let action_type = match pending.action_type {
+        BpActionType::Ban => "ban",
+        BpActionType::Pick => "pick",
+    };
+
+    // ---- hover 同步 ----
+    let hover_allowed = pending.action_type == BpActionType::Pick || BAN_HOVER_ENABLED;
+    if hover_allowed && pending.champion_id != target.champion_id {
+        log::info!(
+            "BP hover sync: {} -> {}",
+            pending.champion_id,
+            target.champion_id
+        );
+        crate::lcu::api::champion_select::patch_session_action(
+            pending.action_id,
+            target.champion_id,
+            action_type.to_string(),
+            false,
+        )
+        .await?;
+        store::set_last_hovered(Some(target.champion_id));
+    }
+
+    // ---- 到点执行 ----
+    if should_lock(decision, pending.is_in_progress) {
+        log::info!(
+            "BP execute: {} {} at {:.1}s left",
+            action_type,
+            target.champion_id,
+            decision.time_left_secs
+        );
+        crate::lcu::api::champion_select::patch_session_action(
+            pending.action_id,
+            target.champion_id,
+            action_type.to_string(),
+            true,
+        )
+        .await?;
+    }
+    Ok(())
+}
+
 /// 读取一个布尔开关配置，缺失/异常一律当作关闭。
 async fn switch_enabled(key: &str) -> bool {
     matches!(
@@ -895,205 +771,26 @@ async fn switch_enabled(key: &str) -> bool {
 
 /// 执行英雄禁用操作。
 ///
-/// 优先走规则引擎：若配置了 banRules 且有规则命中，直接执行对应 ban action。
-/// 否则回退到传统的 banChampionSlice 兜底逻辑。
-///
 /// # 返回值
 ///
 /// - `Ok(())`: 禁用操作完成（或无需操作）
 /// - `Err(String)`: 操作失败
-async fn start_ban_champion() -> Result<(), String> {
-    let select_session = get_champion_select_session().await?;
-    let my_cell_id = select_session.local_player_cell_id;
-    log::info!("Current player cell ID: {}", my_cell_id);
-
-    let rules = load_ban_rules().await;
-    if !rules.is_empty() {
-        let my_summoner = match crate::lcu::api::summoner::Summoner::get_my_summoner().await {
-            Ok(s) => s,
-            Err(e) => {
-                log::warn!("Failed to get my summoner for rule engine: {}", e);
-                return start_ban_champion_slice_fallback(&select_session, my_cell_id).await;
-            }
-        };
-        let my_pos = crate::rule_engine::detect_my_position(&select_session, &my_summoner.puuid);
-        if let Some(action) = crate::rule_engine::evaluate_ban(&select_session, my_pos, &rules) {
-            log::info!("Ban rule matched: champion={}", action.champion_id);
-            return execute_ban_action(&select_session, my_cell_id, action).await;
-        }
-        log::debug!("No ban rule matched, falling back to banChampionSlice");
-    }
-
-    start_ban_champion_slice_fallback(&select_session, my_cell_id).await
-}
-
-/// 执行 ban 规则的 action。
-///
-/// 仅当我自己的 ban 槽 `is_in_progress=true` 且未完成时才发请求；
-/// 否则视为时机不对（已完成 / 还没轮到）静默 no-op。
-async fn execute_ban_action(
-    select_session: &crate::lcu::api::champion_select::SelectSession,
-    my_cell_id: i32,
-    action: &crate::command::rule_config::BanAction,
-) -> Result<(), String> {
-    let mut action_id = -1;
-    let mut is_in_progress = false;
-    let mut already_completed = false;
-
-    for action_group in &select_session.actions {
-        if !action_group.is_empty() && action_group[0].action_type == "ban" {
-            for ban in action_group {
-                if ban.actor_cell_id == my_cell_id {
-                    if ban.completed {
-                        already_completed = true;
-                    }
-                    if ban.is_in_progress {
-                        action_id = ban.id;
-                        is_in_progress = true;
-                    }
-                }
-            }
-        }
-    }
-
-    if already_completed {
-        log::debug!("Ban already completed");
-        return Ok(());
-    }
-    if action_id == -1 || !is_in_progress {
-        log::debug!("No ban action in progress for current player");
-        return Ok(());
-    }
-
-    log::info!("Rule action: banning champion {}", action.champion_id);
-    crate::lcu::api::champion_select::patch_session_action(
-        action_id,
-        action.champion_id,
-        "ban".to_string(),
-        true,
-    )
-    .await?;
-    Ok(())
-}
-
-/// 兜底禁用逻辑：使用配置的 banChampionSlice 列表依序选择可用英雄执行禁用。
 ///
 /// # 逻辑流程
 ///
-/// 1. 从配置读取预设禁用英雄列表
-/// 2. 检查是否已经禁用（避免重复禁用）
-/// 3. 排除已被禁用的英雄（敌方或队友禁用）
-/// 4. 排除队友预选的英雄
-/// 5. 从预设列表中选择第一个可用英雄
-/// 6. 如果轮到我的禁用回合，执行禁用
-async fn start_ban_champion_slice_fallback(
-    select_session: &crate::lcu::api::champion_select::SelectSession,
-    my_cell_id: i32,
-) -> Result<(), String> {
-    let my_ban_champion_slice = load_ban_pool().await;
-
-    log::info!("Configured champion ban list: {:?}", my_ban_champion_slice);
-
-    let mut not_ban_champion_ids = HashMap::new();
-    let mut have_ban_id = false;
-
-    // 检查是否已经ban了，ban了则不需要再ban
-    for action_group in &select_session.actions {
-        if !action_group.is_empty() && action_group[0].action_type == "ban" {
-            for ban in action_group {
-                if ban.actor_cell_id == my_cell_id {
-                    if ban.completed {
-                        log::info!("Ban already completed");
-                        return Ok(());
-                    }
-                    have_ban_id = true;
-                }
-            }
-        }
-    }
-
-    if !have_ban_id {
-        log::info!("Ban action not found for current player");
+/// 1. 读取由常驻任务算好的决策快照（规则求值 + 兜底避雷都在那边完成）
+/// 2. 快照的动作类型与本任务不符则跳过
+/// 3. 交给 `apply_bp_decision`：hover 同步 → 到点锁定
+async fn start_ban_champion() -> Result<(), String> {
+    let select_session = get_champion_select_session().await?;
+    let Some(decision) = crate::bp_decision::store::read() else {
+        log::debug!("No BP decision snapshot yet, skipping this tick");
+        return Ok(());
+    };
+    if decision.action_type != crate::bp_decision::types::BpActionType::Ban {
         return Ok(());
     }
-
-    // 获取ban的英雄
-    for action_group in &select_session.actions {
-        if !action_group.is_empty() && action_group[0].action_type == "ban" {
-            for ban in action_group {
-                if ban.actor_cell_id != my_cell_id && ban.completed {
-                    not_ban_champion_ids.insert(ban.champion_id, true);
-                    log::debug!("Champion banned by others: {}", ban.champion_id);
-                }
-            }
-        }
-    }
-
-    // 队友已经预选的英雄
-    for action_group in &select_session.actions {
-        if !action_group.is_empty() && action_group[0].action_type == "pick" {
-            for pick in action_group {
-                if pick.actor_cell_id != my_cell_id {
-                    not_ban_champion_ids.insert(pick.champion_id, true);
-                    log::debug!("Champion pre-picked by teammates: {}", pick.champion_id);
-                }
-            }
-        }
-    }
-
-    log::info!(
-        "Champions unavailable for ban: {:?}",
-        not_ban_champion_ids.keys().collect::<Vec<_>>()
-    );
-
-    let will_ban_champion_id = if my_ban_champion_slice.is_empty() {
-        log::warn!("No champions configured in banChampionSlice, using default ID: 1");
-        1
-    } else {
-        let selected = my_ban_champion_slice
-            .iter()
-            .find(|&&champion_id| !not_ban_champion_ids.contains_key(&champion_id))
-            .copied()
-            .unwrap_or(1);
-        if selected != 1 {
-            log::info!("Will ban champion ID: {}", selected);
-        } else {
-            log::warn!("No available champion to ban, using default ID: 1");
-        }
-        selected
-    };
-
-    // 查找我的ban动作
-    let mut action_id = -1;
-    let mut is_in_progress = false;
-
-    for action_group in &select_session.actions {
-        if !action_group.is_empty() && action_group[0].action_type == "ban" {
-            for ban in action_group {
-                if ban.actor_cell_id == my_cell_id && ban.is_in_progress {
-                    action_id = ban.id;
-                    is_in_progress = true;
-                    break;
-                }
-            }
-        }
-    }
-
-    log::info!(
-        "Action ID: {}, Is In Progress: {}",
-        action_id,
-        is_in_progress
-    );
-
-    if action_id != -1 && is_in_progress {
-        log::info!("Banning champion with ID: {}", will_ban_champion_id);
-        patch_session_action(action_id, will_ban_champion_id, "ban".to_string(), true).await?;
-        log::info!("Champion ban completed successfully");
-    } else {
-        log::info!("No action needed for champion ban");
-    }
-
-    Ok(())
+    apply_bp_decision(&select_session, &decision).await
 }
 
 /// 初始化并启动自动化任务。
@@ -1372,5 +1069,58 @@ mod tests {
         assert_eq!(rules.len(), 1);
         assert_eq!(rules[0].id, "b1");
         assert_eq!(rules[0].action.champion_id, 55);
+    }
+}
+
+#[cfg(test)]
+mod bp_execution_tests {
+    use super::*;
+    use crate::bp_decision::types::{BpActionType, BpDecision, BpMode, BpOrigin, BpTarget};
+
+    fn decision(mode: BpMode, time_left: f64, overridden: bool) -> BpDecision {
+        BpDecision {
+            action_type: BpActionType::Pick,
+            target: Some(BpTarget {
+                champion_id: 64,
+                lock: true,
+                origin: BpOrigin::Fallback { pool_size: 1 },
+                evidence: None,
+            }),
+            rejected: vec![],
+            mode,
+            time_left_secs: time_left,
+            execute_at_secs_left: 5.0,
+            user_overridden: overridden,
+        }
+    }
+
+    #[test]
+    fn should_lock_only_within_threshold_window() {
+        // 还早 → 不锁
+        assert!(!should_lock(&decision(BpMode::Auto, 20.0, false), true));
+        // 到点 → 锁
+        assert!(should_lock(&decision(BpMode::Auto, 5.0, false), true));
+        assert!(should_lock(&decision(BpMode::Auto, 3.5, false), true));
+        // 不足 3s → 放弃，避免半吊子状态
+        assert!(!should_lock(&decision(BpMode::Auto, 2.9, false), true));
+        // 没轮到我 → 不锁
+        assert!(!should_lock(&decision(BpMode::Auto, 4.0, false), false));
+    }
+
+    #[test]
+    fn should_not_act_in_advisory_or_after_override() {
+        assert!(!should_act(&decision(BpMode::Advisory, 4.0, false)));
+        assert!(!should_act(&decision(BpMode::Auto, 4.0, true)));
+        assert!(should_act(&decision(BpMode::Auto, 4.0, false)));
+    }
+
+    #[test]
+    fn should_not_lock_when_rule_says_hover_only() {
+        let mut d = decision(BpMode::Auto, 4.0, false);
+        d.target.as_mut().unwrap().lock = false;
+        assert!(
+            !should_lock(&d, true),
+            "lock=false 的规则只 hover，不自动确定"
+        );
     }
 }
