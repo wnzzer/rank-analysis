@@ -90,6 +90,31 @@ function findSubteam(subteams: Subteam[], subteamId: number): Subteam | undefine
  * @param preserveLocalFields - 保留旧对象的 meetGames/preGroupMarkers
  *（session-player-update 单玩家事件不带这两个字段的有效值，由独立事件维护）
  */
+/**
+ * 未计算的 userTag(后端渐进推送的中间包形态)。
+ *
+ * 后端每轮 session 重建都会先对每个玩家推一个 `user_tag: default` 的中间包
+ * (`is_loading: false`,让战绩先渲染、标签后补)。其指纹是
+ * `recentData.selectModeCn` 为空串——任何真正计算过的 userTag(包括零标签
+ * 玩家)都会填入模式名。选人期 LCU 事件每 1-2s 触发一轮重建,中间包若照常
+ * 合并,标签与近期数据面板会以同周期「抹掉→恢复」地频闪。
+ */
+function isUncomputedUserTag(t: SessionSummoner['userTag'] | undefined): boolean {
+  return !t || (t.recentData?.selectModeCn ?? '') === ''
+}
+
+/**
+ * 中间包不得回退已计算的标签/近期数据:原地把旧 userTag 带到新包上。
+ * 带过之后若再无其他字段变化,签名比较会把整个包判为无变化直接跳过,
+ * 选人期的高频重建轮次就整体退化成 no-op,连重渲染都不发生。
+ * 首次加载(旧值同为未计算形态)不受影响,渐进渲染保持原状。
+ */
+function carryUserTagIfUncomputed(oldPlayer: SessionSummoner, newPlayer: SessionSummoner) {
+  if (!isUncomputedUserTag(oldPlayer.userTag) && isUncomputedUserTag(newPlayer.userTag)) {
+    newPlayer.userTag = oldPlayer.userTag
+  }
+}
+
 function mergePlayerInPlace(
   oldPlayer: SessionSummoner,
   newPlayer: SessionSummoner,
@@ -115,6 +140,7 @@ function updatePlayerInSubteam(
   if (oldPlayer && oldPlayer.summoner.puuid === newPlayer.summoner.puuid) {
     newPlayer.meetGames = oldPlayer.meetGames
     newPlayer.preGroupMarkers = oldPlayer.preGroupMarkers
+    carryUserTagIfUncomputed(oldPlayer, newPlayer)
     // 防闪烁守卫：加载占位不回退已加载内容、签名一致视为无变化直接跳过
     if (newPlayer.isLoading && !oldPlayer.isLoading) return
     if (playerSignature(newPlayer) === playerSignature(oldPlayer)) return
@@ -168,6 +194,7 @@ export function syncPlayers(
         if (oldPlayer && oldPlayer.summoner.puuid === newPlayer.summoner.puuid) {
           // 同一玩家：加载占位不回退、签名一致跳过，有变化则原位合并（保持对象身份，
           // full 事件带权威的 meetGames/preGroupMarkers，不保留旧值）
+          carryUserTagIfUncomputed(oldPlayer, newPlayer)
           if (newPlayer.isLoading && !oldPlayer.isLoading) continue
           if (playerSignature(newPlayer) === playerSignature(oldPlayer)) continue
           mergePlayerInPlace(oldPlayer, newPlayer, false)

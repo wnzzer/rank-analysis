@@ -49,6 +49,47 @@ describe('选人期 pickState 合并', () => {
 })
 
 describe('full 合并防闪烁与数据完整性', () => {
+  it('未计算的 userTag 中间包不得回退已计算的标签与近期数据（回归：选人期标签频闪）', () => {
+    // 后端每轮 session 重建都会先推一个 userTag 为 default 的中间包
+    // （is_loading=false、selectModeCn 为空串），选人期 LCU 每 1-2s 一轮,
+    // 若照常合并,标签/近期数据面板会以同周期抹掉→恢复地频闪。
+    const old = player('p1', 3.5)
+    ;(old.userTag as { recentData: { selectModeCn: string } }).recentData.selectModeCn = '单双排'
+    old.userTag.tag = [{ tagName: '三连败' }] as unknown as SessionSummoner['userTag']['tag']
+    const current = [old]
+
+    const incoming = player('p1')
+    incoming.userTag = {
+      tag: [],
+      recentData: { kda: 0, selectMode: 0, selectModeCn: '' }
+    } as unknown as SessionSummoner['userTag']
+
+    syncPlayers(current, [incoming], 'full')
+
+    expect(current[0]).toBe(old)
+    expect((current[0].userTag.recentData as { kda: number }).kda).toBe(3.5)
+    expect((current[0].userTag.recentData as { selectModeCn: string }).selectModeCn).toBe('单双排')
+    expect(current[0].userTag.tag).toHaveLength(1)
+  })
+
+  it('首次加载时未计算 userTag 的包仍正常合并（渐进渲染不受守卫影响）', () => {
+    // 旧值本身也是未计算形态（占位/首包）→ 守卫不拦,战绩等字段照常进
+    const old = player('p1')
+    old.userTag = {
+      tag: [],
+      recentData: { kda: 0, selectModeCn: '' }
+    } as unknown as SessionSummoner['userTag']
+    const current = [old]
+
+    const incoming = player('p1', 2.2)
+    ;(incoming.userTag as { recentData: { selectModeCn: string } }).recentData.selectModeCn =
+      '单双排'
+
+    syncPlayers(current, [incoming], 'full')
+
+    expect((current[0].userTag.recentData as { kda: number }).kda).toBe(2.2)
+  })
+
   it('仅 recentData 补算完成的包不能被签名跳过（回归：近期数据面板停在 0）', () => {
     const before = player('p1')
     const after = player('p1', 3.2)
