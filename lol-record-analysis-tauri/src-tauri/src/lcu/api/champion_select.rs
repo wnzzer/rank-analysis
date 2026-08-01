@@ -53,6 +53,9 @@ pub struct Timer {
 pub struct OnePlayer {
     pub champion_id: i32,
     pub puuid: String,
+    /// LCU 选人期下发的混淆 PUUID（部分对局/接口可能不返回，缺失时默认为空串）。
+    #[serde(default)]
+    pub obfuscated_puuid: String,
     #[serde(default)]
     pub assigned_position: String,
     /// 选人格子 ID（0~4 我方、5~9 敌方；旧接口无此字段时默认 0）
@@ -335,6 +338,7 @@ mod tests {
                 .map(|(cell_id, champion_id)| OnePlayer {
                     champion_id,
                     puuid: String::new(),
+                    obfuscated_puuid: String::new(),
                     assigned_position: String::new(),
                     cell_id,
                     champion_pick_intent: 0,
@@ -417,6 +421,7 @@ mod tests {
         OnePlayer {
             champion_id,
             puuid: String::new(),
+            obfuscated_puuid: String::new(),
             assigned_position: String::new(),
             cell_id: 0,
             champion_pick_intent,

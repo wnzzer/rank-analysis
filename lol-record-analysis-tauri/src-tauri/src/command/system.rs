@@ -16,6 +16,29 @@ pub fn get_device_id() -> String {
     crate::observability::current_device_id()
 }
 
+/// 返回前端加载游戏资源图片（英雄/装备/符文/技能等）所需的 asset URL 前缀。
+///
+/// Tauri 自定义协议 `asset` 在不同平台的访问格式不同，硬编码单一份会在某平台
+/// 图裂（本地资源加载失败）：
+/// - Windows（WebView2）：`http://asset.localhost`
+/// - macOS / Linux（WKWebView / WebKitGTK）：自定义 scheme 需用 `asset://localhost`
+#[tauri::command]
+pub fn get_asset_prefix() -> String {
+    asset_prefix().to_string()
+}
+
+/// 平台相关的 asset 协议 URL 前缀（不含尾斜杠）。
+pub fn asset_prefix() -> &'static str {
+    #[cfg(target_os = "windows")]
+    {
+        "http://asset.localhost"
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        "asset://localhost"
+    }
+}
+
 /// 以管理员身份重新启动本程序。
 ///
 /// 通过 `ShellExecuteW` 的 `runas` 动词拉起一个提权实例（触发 UAC），成功后退出
@@ -25,6 +48,7 @@ pub fn get_device_id() -> String {
 ///
 /// - `Ok(())`: 已拉起提权实例（随后当前进程退出）
 /// - `Err(String)`: 拉起失败（如用户取消 UAC）
+#[cfg(target_os = "windows")]
 #[tauri::command]
 pub fn relaunch_as_admin(app: tauri::AppHandle) -> Result<(), String> {
     use std::ffi::OsStr;
@@ -74,4 +98,14 @@ pub fn relaunch_as_admin(app: tauri::AppHandle) -> Result<(), String> {
     log::info!("已拉起提权实例，退出当前普通权限实例");
     app.exit(0);
     Ok(())
+}
+
+/// 以管理员身份重新启动本程序（非 Windows 平台占位）。
+///
+/// macOS 没有 UAC 提权概念，此命令返回明确错误，前端不会对非 Windows 平台展示
+/// 「以管理员身份重启」引导。
+#[cfg(not(target_os = "windows"))]
+#[tauri::command]
+pub fn relaunch_as_admin(_app: tauri::AppHandle) -> Result<(), String> {
+    Err("当前平台不支持以管理员身份重新启动。".to_string())
 }

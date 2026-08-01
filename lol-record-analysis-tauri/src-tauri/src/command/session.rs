@@ -243,9 +243,17 @@ fn champ_select_to_one_player(
     p: &crate::lcu::api::champion_select::OnePlayer,
     pick_states: &std::collections::HashMap<i32, String>,
 ) -> crate::lcu::api::session::OnePlayer {
+    // 选人期 LCU 对排位可能下发混淆 puuid（真实 puuid 匿名为空）而非真实 puuid。
+    // 在此源头一次性还原成真实 puuid，下游所有模型不再携带 obfuscated_puuid。
+    let puuid = if p.puuid.is_empty() && !p.obfuscated_puuid.is_empty() {
+        crate::lcu::util::uuid::deobfuscate_puuid(&p.obfuscated_puuid)
+            .unwrap_or_else(|_| p.puuid.clone())
+    } else {
+        p.puuid.clone()
+    };
     crate::lcu::api::session::OnePlayer {
         champion_id: crate::lcu::api::champion_select::display_champion_id(p),
-        puuid: p.puuid.clone(),
+        puuid,
         selected_position: String::new(),
         team_participant_id: 0,
         pick_state: pick_states
@@ -1372,6 +1380,7 @@ mod tests {
         let p = crate::lcu::api::champion_select::OnePlayer {
             champion_id: 10,
             puuid: "p1".into(),
+            obfuscated_puuid: String::new(),
             assigned_position: "middle".into(),
             cell_id: 0,
             champion_pick_intent: 0,

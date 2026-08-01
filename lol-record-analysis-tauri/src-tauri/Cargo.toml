@@ -29,22 +29,9 @@ reqwest = { version = "0.12", features = [
     "json",
     "stream",
 ] } # http client 用于访问 lcu 接口的客户端
-winapi = { version = "0.3.9", features = [
-    "processthreadsapi",
-    "handleapi",
-    "tlhelp32",
-    "psapi",
-    "winbase",
-    "minwindef",
-    "ntdef",
-    "libloaderapi",
-    "memoryapi",
-    "winnt",
-    "shellapi",
-    "winuser",
-] } # 用于 Windows api，用于获取lol进程信息
+# macOS 进程枚举与命令行读取：proc_listallpids / proc_pidpath / sysctl（lcu/util/token.rs）
+libc = "0.2"
 log = "0.4.0"
-winreg = "0.55" # 清理腾讯登录客户端注册的 LOL 开机自启项（command/launcher.rs）
 env_logger = "0.11"
 base64 = "0.21"
 tauri-plugin-http = "2"
@@ -74,3 +61,23 @@ sentry = { version = "0.42", features = ["log", "logs"] }
 tauri-plugin-sentry = "0.5"
 # 匿名设备 ID（observability.rs 持久化生成，仅用于 Sentry DAU 去重）
 uuid = { version = "1", features = ["v4"] }
+
+# ---- Windows 专属依赖 ----
+# 这些 crate 只在 Windows 编译，避免 macOS/Linux 上因目标平台不支持而编译失败。
+[target.'cfg(windows)'.dependencies]
+ntapi = "0.4" # NtQueryInformationProcess 读取进程命令行（lcu/util/token.rs）
+winapi = { version = "0.3.9", features = [
+    "processthreadsapi",
+    "handleapi",
+    "tlhelp32",
+    "psapi",
+    "winbase",
+    "minwindef",
+    "ntdef",
+    "libloaderapi",
+    "memoryapi",
+    "winnt",
+    "shellapi",
+    "winuser",
+] } # Windows api，用于获取 lol 进程信息 / 提权重启 / 拉起登录客户端
+winreg = "0.55" # 清理腾讯登录客户端注册的 LOL 开机自启项（command/launcher.rs）
