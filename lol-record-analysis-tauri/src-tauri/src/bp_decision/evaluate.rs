@@ -394,6 +394,8 @@ mod tests {
         OnePlayer {
             champion_id: champ,
             puuid: puuid.to_string(),
+            // 选人期混淆 puuid（#131 新增字段）；此处构造的是已知 puuid 的测试玩家，留空即可
+            obfuscated_puuid: String::new(),
             assigned_position: position.to_string(),
             cell_id: 0,
             champion_pick_intent: 0,
