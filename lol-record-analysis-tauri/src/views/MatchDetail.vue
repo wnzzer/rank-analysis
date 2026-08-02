@@ -1,6 +1,6 @@
 <template>
   <div class="match-detail-window-page">
-    <div class="match-detail-window-bar">
+    <div class="match-detail-window-bar" data-tauri-drag-region>
       <div class="match-detail-window-title">对局详情</div>
       <button class="match-detail-window-close" type="button" @click="closeWindow">关闭</button>
     </div>

@@ -731,12 +731,6 @@ mod platform {
                 //
                 // 调试用：打印原始缓冲区（转义成可读形式，避免二进制/控制字符刷屏），
                 // 便于核对 macOS 真实命令行布局是否与解析假设一致。
-                log::info!(
-                    "macOS 原始命令行缓冲区 (pid {}, {} 字节): {:?}",
-                    pid,
-                    bytes.len(),
-                    escape_debug(bytes)
-                );
                 let raw = String::from_utf8_lossy(bytes);
                 let cmd_line = parse_procargs2(raw.as_ref());
                 log::info!("成功获取命令行: {}", cmd_line);
@@ -763,24 +757,6 @@ mod platform {
                 }
             }
             params.join(" ")
-        }
-
-        /// 把原始字节转义成可读字符串（`\0` / `\xNN`），供调试日志打印二进制缓冲区。
-        fn escape_debug(bytes: &[u8]) -> String {
-            use std::fmt::Write;
-            let mut out = String::with_capacity(bytes.len());
-            for &b in bytes {
-                match b {
-                    0 => out.push_str("\\0"),
-                    0x0a => out.push_str("\\n"),
-                    0x0d => out.push_str("\\r"),
-                    0x20..=0x7e => out.push(b as char),
-                    _ => {
-                        let _ = write!(out, "\\x{:02x}", b);
-                    }
-                }
-            }
-            out
         }
 
         /// 按进程名强制结束所有匹配进程（macOS 用 `kill`）。
