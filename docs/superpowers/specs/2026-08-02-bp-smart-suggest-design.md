@@ -47,7 +47,7 @@
 
 ### 新命令 `get_bp_suggest`（`src-tauri/src/command/bp_suggest.rs`）
 
-输入：`position: Option<String>`（None 时用统计出的主玩分路）。
+输入：`position: Option<String>`。`None` = 自动模式，用统计出的主玩分路并据此过滤 pick 向；显式传空字符串 `""` = 用户选「全部分路」，不过滤 pick 向（即使统计出的主玩分路非空也不生效）。
 数据源：当前登录用户近 30 场 match history（排位 420/440 优先，不足 10 场放宽全模式；遵守冷缓存约束首请求 0-49）+ `ensure_opgg_snapshot("ranked")`。
 
 返回（snake_case，前端同构 `src/types/bpSuggest.ts`）：
@@ -74,7 +74,7 @@ pub struct BpSuggestItem {
 
 - **frequent**：自己（participants[0]）按 champion_id 聚合；`games >= 3` 才入选；按场次降序 top 8；`suggested_pool = Pick`。
 - **nemesis**：仅败局；敌方（`!is_my_team`）champion_id 聚合出现次数；`>= 2` 次才入选；按次数降序 top 8；`suggested_pool = Ban`；排除已在 frequent 的英雄（自己主玩的不建议 ban）。
-- **hot_t0**：snapshot 中 `tier <= 1` 的英雄。「会玩」判据基于**原始按英雄聚合统计**（不受 frequent top8 截断影响）：该英雄我打过 ≥ 3 场且胜率 ≥ 50%。pick 向：`is_main_position` 且 position == 所选分路，且「会玩」→ Pick；其余（「不会玩」的，全分路、按 ban_rate 降序）→ Ban。合计 top 8。与 frequent/nemesis 重复的 champion_id 去重（保留 T0 徽章信息合并进 evidence 亦可，首版直接去重跳过）。
+- **hot_t0**：snapshot 中 `tier == 1` 的英雄（OP.GG tier 1 即最强档；tier 0 表示该英雄无该分路数据，不能用 `<=` 把它误判为强势）。「会玩」判据基于**原始按英雄聚合统计**（不受 frequent top8 截断影响）：该英雄我打过 ≥ 3 场且胜率 ≥ 50%。pick 向：`is_main_position` 且（所选分路为空字符串「全部分路」，或 position == 所选分路），且「会玩」→ Pick；其余（「不会玩」的，全分路、按 ban_rate 降序）→ Ban。合计 top 8。与 frequent/nemesis 重复的 champion_id 去重（保留 T0 徽章信息合并进 evidence 亦可，首版直接去重跳过）。
 - **主玩分路统计**：Rust 侧战绩结构（`model.rs::Participant/Stats`）没有声明任何 lane/position 字段，且国服 lane 数据本就不可信——改用 **常用英雄的 OPGG 主分路加权众数**：对我打过 ≥2 场的每个英雄，取其 OPGG `is_main_position` 分路，按我的场次加权投票，得票最高的分路即 `main_position`。OPGG 不可用或无票时 `main_position = ""`，前端下拉默认「全部」（不过滤）。
 - `already_in_pool`：Pick 向对照 `pickChampionSlice`，Ban 向对照 `banChampionSlice`。
 
