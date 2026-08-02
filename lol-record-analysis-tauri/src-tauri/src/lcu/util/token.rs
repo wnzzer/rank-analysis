@@ -335,10 +335,12 @@ mod platform {
     #[cfg(target_os = "windows")]
     pub mod windows {
         use super::CmdError;
-        use ntapi::ntpsapi::{NtQueryInformationProcess, PROCESS_COMMAND_LINE_INFORMATION};
+        // `ProcessCommandLineInformation` 是 ntapi 的 `ENUM!{enum PROCESSINFOCLASS}` 生成的
+        // **常量**（值 60），不是类型；直接作为 NtQueryInformationProcess 的第二个参数传入。
+        use ntapi::ntpsapi::{NtQueryInformationProcess, ProcessCommandLineInformation};
         use std::mem;
         use std::path::PathBuf;
-        use winapi::shared::minwindef::{DWORD, FALSE};
+        use winapi::shared::minwindef::FALSE;
         use winapi::shared::ntdef::UNICODE_STRING;
         use winapi::um::handleapi::{CloseHandle, INVALID_HANDLE_VALUE};
         use winapi::um::processthreadsapi::{OpenProcess, TerminateProcess};
@@ -467,7 +469,7 @@ mod platform {
 
                 let status = NtQueryInformationProcess(
                     handle,
-                    PROCESS_COMMAND_LINE_INFORMATION,
+                    ProcessCommandLineInformation,
                     buffer.as_mut_ptr() as *mut _,
                     initial_size,
                     &mut return_size,
@@ -478,7 +480,7 @@ mod platform {
                         buffer.resize(return_size as usize, 0);
                         let status = NtQueryInformationProcess(
                             handle,
-                            PROCESS_COMMAND_LINE_INFORMATION,
+                            ProcessCommandLineInformation,
                             buffer.as_mut_ptr() as *mut _,
                             return_size,
                             &mut return_size,
