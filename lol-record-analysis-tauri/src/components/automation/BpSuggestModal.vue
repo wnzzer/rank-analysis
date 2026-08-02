@@ -36,8 +36,14 @@ const emit = defineEmits<{
 const loading = ref(false)
 const error = ref<string | null>(null)
 const result = ref<BpSuggestResult | null>(null)
-/** 分路下拉当前值（'' = 全部/后端推断） */
+/** 分路下拉当前值（'' = 全部分路，即不过滤；自动模式首载后会回填为推断的主分路） */
 const selectedPosition = ref<string>('')
+/**
+ * 用户是否手动动过分路下拉（含显式选中「全部分路」）。
+ * false（自动模式）时「重新生成」仍传 null 让后端重新推断并回填下拉；
+ * true（用户已显式选择，哪怕选的是空串）后不再让响应覆写下拉。
+ */
+const positionTouched = ref(false)
 /** 本次会话内已采用的 (pool:championId) 集合，驱动灰态 */
 const adopted = ref<Set<string>>(new Set())
 /** 正在提交中的 (pool:championId) 集合，防连点 + 驱动按钮 loading */
@@ -54,16 +60,17 @@ const POSITION_OPTIONS = [
 
 /**
  * 拉取一次推荐结果
- * @param position - 大写分路名，不传/空串时由后端推断主打分路
+ * @param position - 大写分路名；null=自动模式，由后端推断主打分路并回填下拉；
+ *   显式空串 `''` = 用户选了「全部分路」，原样传给后端表示不过滤，不再被响应回填覆写
  */
-async function load(position?: string) {
+async function load(position: string | null) {
   loading.value = true
   error.value = null
   try {
-    result.value = await invoke<BpSuggestResult>('get_bp_suggest', {
-      position: position || null
-    })
-    if (!position) selectedPosition.value = result.value.main_position
+    result.value = await invoke<BpSuggestResult>('get_bp_suggest', { position })
+    // 只有自动模式（未显式指定分路）才用响应回填下拉；用户显式选择后
+    // （含选「全部分路」的空串）不再被覆写，否则用户的选择会被弹回。
+    if (position === null) selectedPosition.value = result.value.main_position
   } catch (e) {
     error.value = (e as Error).message ?? String(e)
   } finally {
@@ -71,10 +78,15 @@ async function load(position?: string) {
   }
 }
 
+/** 「重新生成」：用户没动过下拉则维持自动语义，动过则用当前显式值（含空串） */
+function regenerate() {
+  void load(positionTouched.value ? selectedPosition.value : null)
+}
+
 watch(
   () => props.show,
   isShown => {
-    if (isShown && result.value === null) void load()
+    if (isShown && result.value === null) void load(null)
   },
   { immediate: true }
 )
@@ -172,7 +184,8 @@ async function adopt(item: BpSuggestItem, pool: SuggestedPool) {
 
 async function onPositionChange(pos: string) {
   selectedPosition.value = pos
-  await load(pos || undefined)
+  positionTouched.value = true
+  await load(pos)
 }
 
 /** 头像加载失败时回退到占位英雄图（id -1） */
@@ -200,9 +213,7 @@ function close() {
             style="width: 120px"
             @update:value="onPositionChange"
           />
-          <n-button size="small" :loading="loading" @click="load(selectedPosition || undefined)">
-            🔄 重新生成
-          </n-button>
+          <n-button size="small" :loading="loading" @click="regenerate">🔄 重新生成</n-button>
         </n-space>
       </template>
 
@@ -216,7 +227,7 @@ function close() {
       <div v-else-if="error">
         <n-empty description="推荐生成失败">
           <template #extra>
-            <n-button @click="load(selectedPosition || undefined)">重试</n-button>
+            <n-button @click="regenerate">重试</n-button>
             <n-text
               depth="3"
               style="display: block; margin-top: var(--space-8); font-size: var(--font-size-sm)"

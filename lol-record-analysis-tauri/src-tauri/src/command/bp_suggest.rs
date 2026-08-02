@@ -279,7 +279,8 @@ fn build_suggestions(
                 continue;
             };
             let agg = my_champs.get(champ_id);
-            if main.position == effective_pos && is_proficient(agg) {
+            // effective_pos 为空串 = 显式「全部分路」或主分路无法推断，均不过滤 pick 向。
+            if (effective_pos.is_empty() || main.position == effective_pos) && is_proficient(agg) {
                 pick_candidates.push((*champ_id, main));
             } else if !is_proficient(agg)
                 && !nemesis_set.contains(champ_id)
@@ -588,6 +589,33 @@ mod tests {
         assert_eq!(picks, vec![1]);
         // ban 向按 ban_rate 降序：5(0.3) 在 6(0.1) 前
         assert_eq!(bans, vec![5, 6]);
+    }
+
+    #[test]
+    fn hot_t0_pick_should_not_filter_by_position_when_explicitly_empty() {
+        // 主分路投票会是 TOP（英雄 1 打了 4 场 TOP，多于英雄 5 的 3 场 MIDDLE），
+        // 但显式传 Some("")（=「全部分路」，不过滤）时，MIDDLE 的会玩英雄（5）
+        // 也应出现在 pick 向，不应被按 TOP 过滤掉。
+        let mut games = vec![];
+        for _ in 0..4 {
+            games.push(game(1, true, &[50], 420));
+        }
+        for _ in 0..3 {
+            games.push(game(5, true, &[50], 420));
+        }
+        let snap = snapshot(vec![meta(1, "TOP", 1, 0.2), meta(5, "MIDDLE", 1, 0.3)]);
+        let result = build_suggestions(&games, "me", Some(&snap), Some(""), &[], &[]);
+        let picks: Vec<i32> = result
+            .hot_t0
+            .iter()
+            .filter(|i| i.suggested_pool == "pick")
+            .map(|i| i.champion_id)
+            .collect();
+        assert!(picks.contains(&1), "TOP 会玩英雄应出现在 pick 向");
+        assert!(
+            picks.contains(&5),
+            "显式空字符串=不过滤分路，MIDDLE 会玩英雄也应出现在 pick 向"
+        );
     }
 
     #[test]

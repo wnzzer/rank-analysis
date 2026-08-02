@@ -34,7 +34,16 @@ const stubs = {
   Spin: { template: '<div>spinning</div>' },
   Empty: { template: '<div>{{ $attrs.description }}<slot /><slot name="extra" /></div>' },
   Text: { template: '<span><slot /></span>' },
-  Select: { template: '<select />' },
+  // 真实 <select>：value 受控回显 + change 时 emit update:value，
+  // 以便测试用 DOM 层面的 setValue 驱动 onPositionChange，不依赖组件内部暴露。
+  Select: {
+    props: ['value', 'options'],
+    emits: ['update:value'],
+    template:
+      '<select :value="value" @change="$emit(\'update:value\', $event.target.value)">' +
+      '<option v-for="o in options" :key="o.value" :value="o.value">{{ o.label }}</option>' +
+      '</select>'
+  },
   Avatar: { template: '<img />' }
 }
 
@@ -158,5 +167,53 @@ describe('BpSuggestModal', () => {
     expect(w.emitted('adopted')).toBeFalsy()
     // 失败后按钮不该停留在「已加入」灰态
     expect(btn.text()).not.toContain('已加入')
+  })
+
+  it('position select re-invokes with explicit value (including empty) and is not overwritten by main_position', async () => {
+    vi.mocked(invoke).mockResolvedValue(okResult())
+    const w = mount(BpSuggestModal, {
+      props: { show: true, championOptions },
+      global: { stubs }
+    })
+    await new Promise(r => setTimeout(r, 0))
+    await w.vm.$nextTick()
+
+    // 首载自动模式：position 传 null，让后端推断
+    expect(vi.mocked(invoke).mock.calls[0][1]).toEqual({ position: null })
+    // 自动模式下，下拉回填成后端推断出的 main_position
+    expect((w.find('select').element as HTMLSelectElement).value).toBe('TOP')
+
+    // 用户显式切到「全部分路」（空串）
+    await w.find('select').setValue('')
+    await new Promise(r => setTimeout(r, 0))
+    await w.vm.$nextTick()
+
+    expect(vi.mocked(invoke).mock.calls.at(-1)?.[1]).toEqual({ position: '' })
+    // main_position 仍是 'TOP'，但用户已显式选择「全部分路」，下拉不该被响应覆写回去
+    expect((w.find('select').element as HTMLSelectElement).value).toBe('')
+  })
+
+  it('重新生成 keeps auto semantics until user touches the position select', async () => {
+    vi.mocked(invoke).mockResolvedValue(okResult())
+    const w = mount(BpSuggestModal, {
+      props: { show: true, championOptions },
+      global: { stubs }
+    })
+    await new Promise(r => setTimeout(r, 0))
+    await w.vm.$nextTick()
+
+    const regenBtn = w.findAll('button').find(b => b.text().includes('重新生成'))!
+
+    // 用户没动过下拉：重新生成应维持自动语义（position: null）
+    await regenBtn.trigger('click')
+    await new Promise(r => setTimeout(r, 0))
+    expect(vi.mocked(invoke).mock.calls.at(-1)?.[1]).toEqual({ position: null })
+
+    // 用户显式选了分路后，重新生成应传该显式值
+    await w.find('select').setValue('MIDDLE')
+    await new Promise(r => setTimeout(r, 0))
+    await regenBtn.trigger('click')
+    await new Promise(r => setTimeout(r, 0))
+    expect(vi.mocked(invoke).mock.calls.at(-1)?.[1]).toEqual({ position: 'MIDDLE' })
   })
 })
