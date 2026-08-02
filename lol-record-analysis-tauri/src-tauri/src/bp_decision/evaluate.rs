@@ -425,6 +425,7 @@ mod tests {
         );
         OpggSnapshot {
             mode: "ranked".into(),
+            tier: "emerald_plus".into(),
             patch: "16.13".into(),
             fetched_at: 0,
             champions: HashMap::new(),

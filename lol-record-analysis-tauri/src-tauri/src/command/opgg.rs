@@ -182,7 +182,8 @@ pub async fn ensure_opgg_snapshot(
         &state.opgg_cache,
         mode,
         now_secs(),
-        |m| async move { api::fetch_mode(&m).await },
+        // TODO(task-2): tier 应读用户配置，此处暂用默认段位以保证编译通过
+        |m| async move { api::fetch_mode(&m, api::DEFAULT_TIER).await },
         cache::load,
         cache::save,
     )
@@ -288,6 +289,7 @@ mod tests {
         );
         OpggSnapshot {
             mode: "ranked".into(),
+            tier: "emerald_plus".into(),
             patch: "16.13".into(),
             fetched_at: 1_752_000_000,
             champions,

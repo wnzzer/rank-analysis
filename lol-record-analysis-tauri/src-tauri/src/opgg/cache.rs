@@ -57,6 +57,7 @@ mod tests {
     fn snap(fetched_at: i64) -> OpggSnapshot {
         OpggSnapshot {
             mode: "ranked".into(),
+            tier: "emerald_plus".into(),
             patch: "16.13".into(),
             fetched_at,
             champions: HashMap::new(),

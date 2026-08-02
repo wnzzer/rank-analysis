@@ -7,10 +7,33 @@ use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const BASE_URL: &str = "https://lol-api-champion.op.gg/api/global/champions";
-/// ranked 数据取 emerald+ 分段（样本大且贴近排位主流生态）。
-const RANKED_TIER_PARAM: &str = "tier=emerald_plus";
 /// 同 fandom::api 风格的浏览器 UA——OP.GG 对无 UA 请求可能拒绝。
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
+
+/// 段位白名单：OP.GG 支持的 tier 参数取值（实测均返回有效数据）。
+pub const VALID_TIERS: [&str; 6] = [
+    "gold_plus",
+    "platinum_plus",
+    "emerald_plus",
+    "diamond_plus",
+    "master_plus",
+    "all",
+];
+
+/// 默认段位分段（样本大且贴近排位主流生态）。
+pub const DEFAULT_TIER: &str = "emerald_plus";
+
+/// 校验段位取值：在白名单内原样返回，非法/缺省回退 [`DEFAULT_TIER`]。
+pub fn sanitize_tier(raw: Option<&str>) -> &'static str {
+    match raw {
+        Some(t) => VALID_TIERS
+            .iter()
+            .find(|v| **v == t)
+            .copied()
+            .unwrap_or(DEFAULT_TIER),
+        None => DEFAULT_TIER,
+    }
+}
 
 /// OP.GG 原始响应（只解出需要的字段，其余忽略；可空字段全部 Option 容错）。
 #[derive(Deserialize)]
@@ -65,9 +88,9 @@ struct RawCounter {
 }
 
 /// 拼接某模式的请求 URL（仅 ranked 需要 tier 参数）。
-pub fn mode_url(mode: &str) -> String {
+pub fn mode_url(mode: &str, tier: &str) -> String {
     if mode == "ranked" {
-        format!("{}/{}?{}", BASE_URL, mode, RANKED_TIER_PARAM)
+        format!("{}/{}?tier={}", BASE_URL, mode, tier)
     } else {
         format!("{}/{}", BASE_URL, mode)
     }
@@ -77,11 +100,12 @@ pub fn mode_url(mode: &str) -> String {
 ///
 /// # 参数
 /// - `mode`: "ranked" | "aram"
+/// - `tier`: ranked 段位分段（如 "emerald_plus"）；aram 忽略此参数
 ///
 /// # 错误
 /// 网络失败、非 2xx、响应解析失败时返回 Err；调用方负责降级到缓存。
-pub async fn fetch_mode(mode: &str) -> Result<OpggSnapshot, String> {
-    let url = mode_url(mode);
+pub async fn fetch_mode(mode: &str, tier: &str) -> Result<OpggSnapshot, String> {
+    let url = mode_url(mode, tier);
     log::info!("Fetching OP.GG data: {}", url);
 
     let client = Client::builder()
@@ -101,7 +125,7 @@ pub async fn fetch_mode(mode: &str) -> Result<OpggSnapshot, String> {
         .map_err(|e| e.to_string())?
         .as_secs() as i64;
 
-    let snap = parse_snapshot(mode, &body, now)?;
+    let snap = parse_snapshot(mode, tier, &body, now)?;
     log::info!(
         "OP.GG {} snapshot: patch {}, {} champions",
         mode,
@@ -115,6 +139,7 @@ pub async fn fetch_mode(mode: &str) -> Result<OpggSnapshot, String> {
 ///
 /// # 参数
 /// - `mode`: "ranked" | "aram"（写入快照，不参与解析分支——分路有无由数据自身决定）
+/// - `tier`: 请求时使用的段位分段，写入快照的 `tier` 字段（非 ranked 恒记 ""）
 /// - `body`: 响应体 JSON 字符串
 /// - `fetched_at`: 拉取时间（unix 秒），由调用方注入以便测试
 ///
@@ -122,7 +147,12 @@ pub async fn fetch_mode(mode: &str) -> Result<OpggSnapshot, String> {
 /// - `positions` 为 null（aram）→ 用 `average_stats` 生成单条 position="" 的记录
 /// - `ban_rate`/`tier` 等为 null → 取 0
 /// - 单个英雄缺 `average_stats` 且无 positions → 跳过该英雄
-pub fn parse_snapshot(mode: &str, body: &str, fetched_at: i64) -> Result<OpggSnapshot, String> {
+pub fn parse_snapshot(
+    mode: &str,
+    tier: &str,
+    body: &str,
+    fetched_at: i64,
+) -> Result<OpggSnapshot, String> {
     let raw: RawResponse =
         serde_json::from_str(body).map_err(|e| format!("OP.GG response parse error: {}", e))?;
 
@@ -209,6 +239,11 @@ pub fn parse_snapshot(mode: &str, body: &str, fetched_at: i64) -> Result<OpggSna
 
     Ok(OpggSnapshot {
         mode: mode.to_string(),
+        tier: if mode == "ranked" {
+            tier.to_string()
+        } else {
+            String::new()
+        },
         patch: raw.meta.version,
         fetched_at,
         champions,
@@ -225,8 +260,9 @@ mod tests {
 
     #[test]
     fn should_parse_ranked_snapshot_with_positions_and_counters() {
-        let snap = parse_snapshot("ranked", RANKED_FIXTURE, 1_752_000_000).unwrap();
+        let snap = parse_snapshot("ranked", "emerald_plus", RANKED_FIXTURE, 1_752_000_000).unwrap();
         assert_eq!(snap.mode, "ranked");
+        assert_eq!(snap.tier, "emerald_plus");
         assert_eq!(snap.patch, "16.13");
         assert_eq!(snap.fetched_at, 1_752_000_000);
 
@@ -250,7 +286,7 @@ mod tests {
 
     #[test]
     fn should_normalize_positions_and_mark_main_by_role_rate() {
-        let snap = parse_snapshot("ranked", RANKED_FIXTURE, 0).unwrap();
+        let snap = parse_snapshot("ranked", "emerald_plus", RANKED_FIXTURE, 0).unwrap();
         let c = &snap.champions[&999];
         assert_eq!(c.len(), 2);
         // OP.GG 命名 → LCU 命名
@@ -264,7 +300,7 @@ mod tests {
 
     #[test]
     fn should_parse_aram_with_null_positions_and_null_ban_rate() {
-        let snap = parse_snapshot("aram", ARAM_FIXTURE, 0).unwrap();
+        let snap = parse_snapshot("aram", "emerald_plus", ARAM_FIXTURE, 0).unwrap();
         let c = &snap.champions[&1];
         assert_eq!(c.len(), 1);
         assert_eq!(c[0].position, ""); // 无分路模式
@@ -272,12 +308,13 @@ mod tests {
         assert_eq!(c[0].ban_rate, 0.0); // null → 0.0
         assert!(c[0].is_main_position);
         assert!(snap.counters.is_empty()); // aram 无 counter
+        assert_eq!(snap.tier, ""); // aram 无段位概念
     }
 
     #[test]
     fn should_reject_malformed_body() {
-        assert!(parse_snapshot("ranked", "not json", 0).is_err());
-        assert!(parse_snapshot("ranked", r#"{"foo": 1}"#, 0).is_err());
+        assert!(parse_snapshot("ranked", "emerald_plus", "not json", 0).is_err());
+        assert!(parse_snapshot("ranked", "emerald_plus", r#"{"foo": 1}"#, 0).is_err());
     }
 
     #[test]
@@ -290,22 +327,36 @@ mod tests {
     }
 
     #[test]
-    fn mode_url_should_add_tier_param_only_for_ranked() {
+    fn mode_url_should_append_tier_only_for_ranked() {
         assert_eq!(
-            mode_url("ranked"),
-            "https://lol-api-champion.op.gg/api/global/champions/ranked?tier=emerald_plus"
+            mode_url("ranked", "gold_plus"),
+            "https://lol-api-champion.op.gg/api/global/champions/ranked?tier=gold_plus"
         );
+        // aram 无 tier 参数
         assert_eq!(
-            mode_url("aram"),
+            mode_url("aram", "gold_plus"),
             "https://lol-api-champion.op.gg/api/global/champions/aram"
         );
+    }
+
+    #[test]
+    fn sanitize_tier_should_whitelist_and_fall_back() {
+        assert_eq!(sanitize_tier(Some("gold_plus")), "gold_plus");
+        assert_eq!(sanitize_tier(Some("master_plus")), "master_plus");
+        assert_eq!(sanitize_tier(Some("all")), "all");
+        // 非法值与缺省回退默认段位
+        assert_eq!(sanitize_tier(Some("bogus")), "emerald_plus");
+        assert_eq!(sanitize_tier(None), "emerald_plus");
+        assert_eq!(sanitize_tier(Some("")), "emerald_plus");
     }
 
     /// 真实网络冒烟测试：默认忽略，本机联调时 `cargo test opgg -- --ignored` 手动跑。
     #[tokio::test]
     #[ignore]
     async fn live_fetch_ranked_should_return_snapshot() {
-        let snap = fetch_mode("ranked").await.expect("live fetch");
+        let snap = fetch_mode("ranked", DEFAULT_TIER)
+            .await
+            .expect("live fetch");
         assert!(!snap.patch.is_empty());
         assert!(snap.champions.len() > 100);
         assert!(!snap.counters.is_empty());
