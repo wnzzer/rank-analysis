@@ -50,7 +50,7 @@
 //! ```
 
 use crate::command::user_tag::{OneGamePlayer, UserTag};
-use crate::constant::game::{QUEUE_ID_TO_CN, QUEUE_TYPE_TO_CN};
+use crate::constant::game::QUEUE_TYPE_TO_CN;
 use crate::lcu::api::champion_select::get_champion_select_session;
 use crate::lcu::api::match_history::MatchHistory;
 use crate::lcu::api::phase::get_phase;
@@ -847,10 +847,7 @@ async fn process_subteam_parallel(
                             deaths: 0.0,
                             assists: 0.0,
                             select_mode: mode,
-                            select_mode_cn: QUEUE_ID_TO_CN
-                                .get(&(mode as u32))
-                                .unwrap_or(&"未知模式")
-                                .to_string(),
+                            select_mode_cn: crate::lcu::api::game_queue::mode_display_name(mode),
                             select_wins: 0,
                             select_losses: 0,
                             group_rate: 0,

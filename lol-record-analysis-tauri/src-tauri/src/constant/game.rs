@@ -78,6 +78,10 @@ pub static QUEUE_TYPE_TO_CN: phf::Map<&'static str, &'static str> = phf_map! {
 
 // 队列 ID 到中文映射
 pub static QUEUE_ID_TO_CN: phf::Map<u32, &'static str> = phf_map! {
+    // 匹配（普通召唤师峡谷）：400 为现行队列（征召），430 盲选版已在客户端下线
+    // （LCU `/lol-game-queues/v1/queues` 对二者同名「匹配模式」，430 的 isVisible=false）。
+    // 400 此前缺失，导致打匹配时对局页「模式」一栏显示「未知模式」。
+    400u32 => "匹配",
     420u32 => "单双排",
     430u32 => "匹配",
     440u32 => "灵活排",
@@ -96,11 +100,15 @@ pub static QUEUE_ID_TO_CN: phf::Map<u32, &'static str> = phf_map! {
     890u32 => "人机(一般)",
     900u32 => "无限乱斗",
     1700u32 => "斗魂竞技场",
+    // 1750 是 3x6 变体；LCU 原名「斗魂竞技场 3x6」在战绩列表的模式列会被省略号截断
+    1750u32 => "斗魂(3x6)",
     1900u32 => "无限火力",
     2400u32 => "海克斯乱斗",
     // LCU /lol-game-queues 里 2410 的官方描述为「海克斯大乱斗 锦标赛」，
     // 是 2400 的锦标赛变体队列，缺映射会导致整页模式显示「未知」
     2410u32 => "海克斯乱斗(锦标赛)",
+    // LCU 原名「海克斯大乱斗 经典模式版」过长，按 2410 的括号后缀写法统一
+    2450u32 => "海克斯乱斗(经典)",
     3140u32 => "训练模式",
     0u32 => "其他",
 };
@@ -405,8 +413,10 @@ pub fn get_queue_id_to_cn(key: u32) -> Option<&'static str> {
 /// 只收录别名队列，未收录的 ID 自成一组。代表 ID 取每组最小值，
 /// 与模式下拉选项去重后保留的 ID 一致（见 `get_game_modes`）。
 pub static QUEUE_ID_CANONICAL: phf::Map<u32, u32> = phf_map! {
-    // 匹配：430 旧版 / 490 现行（快速对局）
-    490u32 => 430u32,
+    // 匹配：400 现行（征召）/ 430 旧版盲选（客户端已下线）/ 490 快速对局。
+    // 代表 ID 取最小值 400，与 `get_game_modes` 去重后保留的 ID 一致。
+    430u32 => 400u32,
+    490u32 => 400u32,
     // 人机（合作对抗 AI）：830/840/850 为 7.19 弃用的旧队列（仅存在于老战绩），
     // 870/880/890 为现行 ID，难度一一对应（入门/新手/一般）
     870u32 => 830u32,
@@ -430,6 +440,24 @@ pub fn queue_ids_same_group(a: u32, b: u32) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 打普通匹配（queueId 400）时对局页「模式」曾显示「未知模式」——表里漏了 400。
+    #[test]
+    fn normal_draft_400_has_a_name() {
+        assert_eq!(get_queue_id_to_cn(400), Some("匹配"));
+    }
+
+    /// 400（现行征召）/430（已下线盲选）/490（快速对局）同属「匹配」，
+    /// 筛选「匹配」必须同时命中三者，否则老战绩会被漏掉
+    #[test]
+    fn normal_queues_are_one_group_represented_by_400() {
+        assert!(queue_ids_same_group(400, 430));
+        assert!(queue_ids_same_group(400, 490));
+        assert!(queue_ids_same_group(430, 490));
+        assert_eq!(canonical_queue_id(430), 400);
+        assert_eq!(canonical_queue_id(490), 400);
+        assert_eq!(canonical_queue_id(400), 400);
+    }
 
     #[test]
     fn same_id_should_match() {
@@ -460,7 +488,9 @@ mod tests {
 
     #[test]
     fn canonical_maps_alias_to_representative() {
-        assert_eq!(canonical_queue_id(490), 430);
+        // 匹配组代表 ID 为 400（现行征召队列）；430/490 均为其别名
+        assert_eq!(canonical_queue_id(430), 400);
+        assert_eq!(canonical_queue_id(490), 400);
         assert_eq!(canonical_queue_id(870), 830);
         assert_eq!(canonical_queue_id(880), 840);
         assert_eq!(canonical_queue_id(890), 850);

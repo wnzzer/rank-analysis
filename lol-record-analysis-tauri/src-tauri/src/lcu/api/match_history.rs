@@ -5,22 +5,23 @@
 use std::collections::HashMap;
 use std::{sync::LazyLock, time::Duration};
 
-use crate::{
-    constant,
-    lcu::api::model::{Participant, ParticipantIdentity, Stats},
-};
+use crate::lcu::api::model::{Participant, ParticipantIdentity, Stats};
 use moka::future::Cache;
 use serde::{Deserialize, Serialize};
 
 use crate::lcu::{api::game_detail::GameDetail, util::http::lcu_get};
 
-/// 解析队列中文名：先查 `QUEUE_ID_TO_CN`，未命中时按 `gameMode` 兜底。
+/// 解析队列中文名：LCU 队列表 → 硬编码表 → 按 `gameMode` 兜底。
+///
+/// 前两级由 [`game_queue::queue_name`] 统一处理（运行时表优先、硬编码兜底）。
 ///
 /// 斗魂竞技场（CHERRY）历经多个 queueId 变种（1700/1710/1810/1820 ...），
 /// 与其逐个枚举追新，不如以 LCU 给的 `gameMode == "CHERRY"` 作为权威兜底。
 pub(crate) fn resolve_queue_name_cn(queue_id: i32, game_mode: &str) -> String {
-    if let Some(s) = constant::game::get_queue_id_to_cn(queue_id as u32) {
-        return s.to_string();
+    if let Ok(id) = u32::try_from(queue_id) {
+        if let Some(s) = crate::lcu::api::game_queue::queue_name(id) {
+            return s;
+        }
     }
     // queueId 未收录时按 gameMode 兜底——新变种层出不穷，宁可给个模式级名字
     // 也不要在卡片上顶着刺眼的"未知"。

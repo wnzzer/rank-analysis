@@ -39,7 +39,6 @@
 //! ```
 
 use crate::command::user_tag_config;
-use crate::constant::game::QUEUE_ID_TO_CN;
 use crate::lcu::api::match_history::MatchHistory;
 use crate::lcu::api::summoner::Summoner;
 use serde::{Deserialize, Serialize};
@@ -334,10 +333,7 @@ pub async fn get_user_tag_by_puuid(
         damage_dealt_to_champions_rate,
     ) = count_gold_and_group_and_damage_dealt_to_champions(&match_history, mode);
 
-    let select_mode_cn = QUEUE_ID_TO_CN
-        .get(&(mode as u32))
-        .unwrap_or(&"未知模式")
-        .to_string();
+    let select_mode_cn = crate::lcu::api::game_queue::mode_display_name(mode);
 
     let mut user_tag = UserTag {
         recent_data: RecentData {
@@ -393,9 +389,9 @@ fn get_one_game_players(match_history: &MatchHistory) -> HashMap<String, Vec<One
             let puuid = participant_identity.player.puuid.clone();
 
             if let Some(participant) = game.game_detail.participants.get(i) {
-                let queue_id_cn = QUEUE_ID_TO_CN
-                    .get(&(game.queue_id as u32))
-                    .map(|s| s.to_string())
+                let queue_id_cn = u32::try_from(game.queue_id)
+                    .ok()
+                    .and_then(crate::lcu::api::game_queue::queue_name)
                     .unwrap_or_else(|| {
                         if game.game_mode == "CHERRY" {
                             "斗魂竞技场".to_string()
