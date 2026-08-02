@@ -15,18 +15,25 @@
 //!
 //! 三者皆失败时返回明确错误，引导用户先手动打开一次游戏（之后即被记忆）。
 
+// 安装目录发现 / 记忆整条链路都基于 Windows 国服的目录布局（`<root>\Launcher\Client.exe`），
+// 非 Windows 平台不编译，避免把 Windows 假设套到别的平台上（见 `remember_install_root`）。
+#[cfg(target_os = "windows")]
 use std::collections::HashMap;
+#[cfg(target_os = "windows")]
 use std::path::{Path, PathBuf};
 
+#[cfg(target_os = "windows")]
 use crate::config::{self, Value};
 
 /// 游戏安装根目录的 config 键；与前端 `CONFIG_KEYS.gameInstallPath` 对应。
+#[cfg(target_os = "windows")]
 const GAME_INSTALL_PATH_KEY: &str = "gameInstallPath";
 
-/// 安装根目录下的登录客户端候选路径，按优先级排列。
+/// 安装根目录下的登录客户端候选路径，按优先级排列（Windows 国服）。
 ///
 /// 优先 `Launcher\Client.exe`（LeagueAkari 实测同款、最稳），回退 `TCLS\Client.exe`
 /// （部分版本/机器只装了这个）。仅拼路径、不查存在性，便于纯逻辑单测。
+#[cfg(target_os = "windows")]
 fn launch_target_candidates(root: &Path) -> [PathBuf; 2] {
     [
         root.join("Launcher").join("Client.exe"),
@@ -34,7 +41,8 @@ fn launch_target_candidates(root: &Path) -> [PathBuf; 2] {
     ]
 }
 
-/// 在安装根目录下定位首个真实存在的登录客户端 exe。
+/// 在安装根目录下定位首个真实存在的登录客户端 exe（Windows 国服）。
+#[cfg(target_os = "windows")]
 fn resolve_launch_target(root: &Path) -> Option<PathBuf> {
     launch_target_candidates(root)
         .into_iter()
@@ -42,13 +50,15 @@ fn resolve_launch_target(root: &Path) -> Option<PathBuf> {
 }
 
 /// 读取 config 中记忆的安装根目录（存在且仍是有效目录时才返回）。
+#[cfg(target_os = "windows")]
 async fn read_remembered_root() -> Option<PathBuf> {
     let value = config::get_config(GAME_INSTALL_PATH_KEY).await.ok()?;
     let root = PathBuf::from(config::extract_string(&value)?);
     root.is_dir().then_some(root)
 }
 
-/// 发现游戏安装根目录：config 记忆 → 运行进程反推 → 扫盘默认位置。
+/// 发现游戏安装根目录：config 记忆 → 运行进程反推 → 扫盘默认位置（Windows 国服）。
+#[cfg(target_os = "windows")]
 async fn discover_game_root() -> Option<PathBuf> {
     // 1) config 记忆（主来源）
     if let Some(root) = read_remembered_root().await {
@@ -72,6 +82,7 @@ async fn discover_game_root() -> Option<PathBuf> {
 }
 
 /// 将安装根目录写入 config（前端包装格式 `{value: String}`）；与已存值一致则跳过写盘。
+#[cfg(target_os = "windows")]
 async fn persist_install_root(root: &Path) {
     if read_remembered_root().await.as_deref() == Some(root) {
         return; // 已记忆且一致，免去重复落盘
@@ -88,17 +99,33 @@ async fn persist_install_root(root: &Path) {
     }
 }
 
-/// 在客户端「已连接」时记忆其安装目录。
+/// 在客户端「已连接」时记忆其安装目录（仅 Windows）。
 ///
 /// 由 `game_state_monitor` 在「未连接 → 已连接」转变时调用。此刻
 /// `LeagueClientUx.exe` 在运行，可反推出根目录；持久化后即便游戏关闭也能一键启动。
+#[cfg(target_os = "windows")]
 pub async fn remember_install_root() {
     if let Some(root) = crate::lcu::util::token::get_client_install_root() {
         persist_install_root(&root).await;
     }
 }
 
+/// 记忆安装目录（非 Windows 平台空操作）。
+///
+/// [`get_client_install_root`] 按 Windows 布局 `<root>\LeagueClient\LeagueClientUx.exe`
+/// 向上两级取根目录。macOS 的实际布局是
+/// `/Applications/League of Legends.app/Contents/LoL/<App>.app/Contents/MacOS/<bin>`，
+/// 同样退两级只会得到某个 `.app/Contents`——实测曾把 `LeagueClientUx Helper.app/Contents`
+/// 写进 config，并打出「已记忆游戏安装目录，之后可免 WeGame 一键启动」的假日志。
+/// 而 [`launch_league`] 在非 Windows 本就直接返回「暂不支持」，这份记忆无人使用，
+/// 故整条链路在非 Windows 不编译。
+///
+/// [`get_client_install_root`]: crate::lcu::util::token::get_client_install_root
+#[cfg(not(target_os = "windows"))]
+pub async fn remember_install_root() {}
+
 /// 开机自启 Run 键的注册表子路径（HKLM 与 HKCU 共用）。
+#[cfg(target_os = "windows")]
 const RUN_KEY_PATH: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
 
 /// 判断 Run 键中某条值的数据是否指向腾讯登录客户端的开机自启程序。
@@ -107,6 +134,7 @@ const RUN_KEY_PATH: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
 /// `<安装根>\Launcher\startup_runner.exe` 注册为开机自启（值名形如 `Client_26`，
 /// 随版本变化），导致每次开机自动弹出 LOL 登录窗。这里按「文件名 + 父目录名」
 /// 双重匹配定位，与值名、安装盘符无关，也不会误删其他软件的自启项。
+#[cfg(target_os = "windows")]
 fn is_login_client_autostart(data: &str) -> bool {
     let path = Path::new(data.trim().trim_matches('"'));
     let name_is = |name: Option<&std::ffi::OsStr>, expect: &str| {
@@ -126,6 +154,7 @@ fn is_login_client_autostart(data: &str) -> bool {
 /// 删除 HKLM 值需要管理员权限。国服客户端本身以管理员运行，本工具要连上它时
 /// 已经提权，故在「已连接/刚断开」时机调用基本必然成功；无权限时记日志静默
 /// 跳过，待下次提权运行时再清。
+#[cfg(target_os = "windows")]
 pub fn purge_login_client_autostart() {
     use winreg::enums::{
         HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_QUERY_VALUE, KEY_SET_VALUE, KEY_WOW64_32KEY,
@@ -177,18 +206,44 @@ pub fn purge_login_client_autostart() {
     }
 }
 
-/// 免 WeGame 一键启动国服英雄联盟。
+/// 清理 LOL 开机自启项（非 Windows 平台占位）。
 ///
-/// 发现安装根目录后，直接 spawn `Launcher\Client.exe`（回退 `TCLS\Client.exe`）。
-/// 成功仅表示登录客户端进程已拉起——随后会弹腾讯登录窗，用户登录后客户端链式
-/// 启动，本工具经 `game_state_monitor` 自动感知连接，无需在此等待。
+/// macOS 无注册表开机自启机制，此为空操作。
+#[cfg(not(target_os = "windows"))]
+pub fn purge_login_client_autostart() {}
+
+/// 免 WeGame 一键启动英雄联盟。
+///
+/// - **Windows（国服）**：发现安装根目录后，直接 spawn `Launcher\Client.exe`
+///   （回退 `TCLS\Client.exe`）。成功仅表示登录客户端进程已拉起——随后会弹腾讯
+///   登录窗，用户登录后客户端链式启动。
+/// - **macOS / 其他平台**：暂不支持一键启动，直接返回明确错误，引导用户手动打开。
+///
+/// 拉起后本工具经 `game_state_monitor` 自动感知连接，无需在此等待。
 ///
 /// # 返回值
 ///
 /// - `Ok(())`: 登录客户端已拉起
-/// - `Err(String)`: 未找到安装目录 / 未找到登录客户端 exe / spawn 失败（如被杀软拦截）
+/// - `Err(String)`: 未找到安装目录 / 未找到登录客户端 / spawn 失败 / 平台暂不支持
 #[tauri::command]
 pub async fn launch_league() -> Result<(), String> {
+    // 两个块都不带 `return`：cfg 会移除其中一个，剩下的那个即函数尾表达式。
+    // 写 `return` 会在对应平台触发 clippy::needless_return（-D warnings 下即编译失败）。
+    #[cfg(target_os = "windows")]
+    {
+        launch_league_windows().await?;
+        crate::observability::track_feature("launch_league");
+        Ok(())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Err("当前平台暂不支持一键启动游戏，请手动打开英雄联盟。".to_string())
+    }
+}
+
+/// Windows（国服）一键启动：spawn 腾讯登录客户端。
+#[cfg(target_os = "windows")]
+async fn launch_league_windows() -> Result<(), String> {
     let root = discover_game_root()
         .await
         .ok_or("未找到英雄联盟安装目录。请先手动打开一次游戏，之后即可一键启动。")?;
@@ -202,7 +257,6 @@ pub async fn launch_league() -> Result<(), String> {
     persist_install_root(&root).await;
     spawn_detached(&target)?;
     log::info!("已拉起国服登录客户端（免 WeGame）");
-    crate::observability::track_feature("launch_league");
     Ok(())
 }
 
@@ -254,7 +308,7 @@ pub async fn close_league() -> Result<(), String> {
     }
 }
 
-/// 启动目标 exe（工作目录设为其所在目录），需要提权时自动弹 UAC。
+/// 启动目标可执行文件（工作目录设为其所在目录），需要提权时自动弹 UAC（仅 Windows）。
 ///
 /// **必须用 `ShellExecuteW` 而非 `std::process::Command`**：国服 `Launcher\Client.exe`
 /// 的清单要求管理员权限（含 ACE/TP 反作弊驱动），`CreateProcess`（即 `Command::spawn`）
@@ -262,6 +316,7 @@ pub async fn close_league() -> Result<(), String> {
 /// （`lpVerb = NULL`）会遵循 exe 清单——需要提权时自动弹 UAC（与 WeGame 启动游戏时
 /// 弹 UAC 一致），普通 exe 则正常启动。路径作为独立宽字符串参数传入，**不加引号**。
 /// 工作目录设为 exe 所在目录，避免其相对依赖的 dll 加载失败。
+#[cfg(target_os = "windows")]
 fn spawn_detached(exe: &Path) -> Result<(), String> {
     use std::ffi::OsStr;
     use std::os::windows::ffi::OsStrExt;
@@ -298,6 +353,7 @@ fn spawn_detached(exe: &Path) -> Result<(), String> {
 }
 
 #[cfg(test)]
+#[cfg(target_os = "windows")]
 mod tests {
     use super::*;
 
@@ -319,6 +375,7 @@ mod tests {
         assert!(candidates[0].starts_with(root));
     }
 
+    #[cfg(target_os = "windows")]
     #[test]
     fn login_client_autostart_matches_launcher_startup_runner() {
         // 实测被注册的形态（HKLM\...\Run\Client_26）
@@ -331,6 +388,7 @@ mod tests {
         ));
     }
 
+    #[cfg(target_os = "windows")]
     #[test]
     fn login_client_autostart_ignores_unrelated_entries() {
         // 其他软件的自启项不能误删

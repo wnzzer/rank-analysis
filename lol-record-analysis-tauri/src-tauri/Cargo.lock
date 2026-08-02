@@ -2704,10 +2704,12 @@ dependencies = [
  "env_logger",
  "futures",
  "futures-util",
+ "libc",
  "log",
  "mlua",
  "moka",
  "native-tls",
+ "ntapi",
  "phf 0.12.1",
  "regex",
  "reqwest 0.12.28",
@@ -3053,6 +3055,15 @@ dependencies = [
  "cfg-if",
  "cfg_aliases 0.2.1",
  "libc",
+]
+
+[[package]]
+name = "ntapi"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c3b335231dfd352ffb0f8017f3b6027a4917f7df785ea2143d8af2adc66980ae"
+dependencies = [
+ "winapi",
 ]
 
 [[package]]

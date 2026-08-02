@@ -5,6 +5,7 @@ import router from '../router'
 import LoadingComponent from '../components/LoadingComponent.vue'
 import { useGameState } from '../composables/useGameState'
 import { launchLeagueByIpc } from '../services/ipc'
+import { isWindows } from '../services/platform'
 
 const { reasonCode, reasonMessage, isConnected, summoner } = useGameState()
 
@@ -34,14 +35,31 @@ watch(
 /** 检测到客户端但无权读取（典型：游戏以管理员身份运行，本工具没有）。 */
 const isAccessDenied = computed(() => reasonCode.value === 'ACCESS_DENIED')
 
-const mainText = computed(() => (isAccessDenied.value ? '需要管理员权限' : '等待连接客户端...'))
+/**
+ * Windows 专属能力门控。
+ *
+ * 「一键启动游戏」（`launch_league`，依赖腾讯登录客户端目录布局）与「以管理员身份
+ * 重启」（`relaunch_as_admin`，依赖 UAC）在非 Windows 平台后端直接返回错误。若不门控，
+ * macOS 用户会看到点了必失败的死按钮，且「请以管理员身份运行」在 macOS 上并无对应操作。
+ */
+const canLaunchGame = computed(() => isWindows())
+const canRelaunchAsAdmin = computed(() => isWindows())
+
+const mainText = computed(() => {
+  if (!isAccessDenied.value) return '等待连接客户端...'
+  return canRelaunchAsAdmin.value ? '需要管理员权限' : '无法读取客户端信息'
+})
 
 const launching = ref(false)
 const launchError = ref<string | null>(null)
 
 /** 副提示：权限不足给权限说明；启动失败给失败原因；否则用默认文案。 */
 const hint = computed(() => {
-  if (isAccessDenied.value) return reasonMessage.value ?? '请以管理员身份运行本工具'
+  if (isAccessDenied.value) {
+    // 非 Windows 没有「以管理员身份运行」这一说，给平台适用的引导
+    if (!canRelaunchAsAdmin.value) return '请确认本工具与游戏客户端以同一用户身份运行。'
+    return reasonMessage.value ?? '请以管理员身份运行本工具'
+  }
   if (launchError.value) return launchError.value
   return undefined
 })
@@ -87,14 +105,19 @@ async function launchLeague() {
     {{ mainText }}
     <template #action>
       <button
-        v-if="isAccessDenied"
+        v-if="isAccessDenied && canRelaunchAsAdmin"
         class="admin-btn"
         :disabled="relaunching"
         @click="relaunchAsAdmin"
       >
         {{ relaunching ? '正在重启...' : '以管理员身份重启' }}
       </button>
-      <button v-else class="admin-btn" :disabled="launching" @click="launchLeague">
+      <button
+        v-else-if="!isAccessDenied && canLaunchGame"
+        class="admin-btn"
+        :disabled="launching"
+        @click="launchLeague"
+      >
         {{ launching ? '正在启动游戏...' : '一键启动游戏' }}
       </button>
     </template>

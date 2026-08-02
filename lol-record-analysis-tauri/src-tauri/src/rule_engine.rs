@@ -143,6 +143,7 @@ mod tests {
         OnePlayer {
             champion_id: 0,
             puuid: puuid.to_string(),
+            obfuscated_puuid: String::new(),
             assigned_position: position.to_string(),
             cell_id: 0,
             champion_pick_intent: 0,
@@ -204,6 +205,7 @@ mod tests {
         OnePlayer {
             champion_id,
             puuid: "x".to_string(),
+            obfuscated_puuid: String::new(),
             assigned_position: "".to_string(),
             cell_id: 0,
             champion_pick_intent: 0,
@@ -258,6 +260,7 @@ mod tests {
         OnePlayer {
             champion_id,
             puuid: "y".to_string(),
+            obfuscated_puuid: String::new(),
             assigned_position: "".to_string(),
             cell_id: 0,
             champion_pick_intent: 0,

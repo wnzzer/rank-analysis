@@ -154,6 +154,8 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             command::opgg::get_opgg_status,
             command::system::relaunch_as_admin,
             command::system::get_device_id,
+            command::system::get_asset_prefix,
+            command::system::get_platform,
             command::launcher::launch_league,
             command::launcher::close_league,
             command::replay::get_replay_availability,
