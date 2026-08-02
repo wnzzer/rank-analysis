@@ -212,7 +212,7 @@ pub async fn launch_league() -> Result<(), String> {
     }
     #[cfg(not(target_os = "windows"))]
     {
-        return Err("当前平台暂不支持一键启动游戏，请手动打开英雄联盟。".to_string());
+        Err("当前平台暂不支持一键启动游戏，请手动打开英雄联盟。".to_string())
     }
 }
 
