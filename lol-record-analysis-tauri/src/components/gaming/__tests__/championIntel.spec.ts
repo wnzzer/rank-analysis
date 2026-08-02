@@ -4,7 +4,8 @@ import {
   playerCardPickStateClass,
   tierBadge,
   formatWinRate,
-  isChampionSwap
+  isChampionSwap,
+  tagVisibleCap
 } from '../championIntel'
 
 describe('championIntel helpers', () => {
@@ -39,6 +40,14 @@ describe('championIntel helpers', () => {
     expect(formatWinRate(0.5183)).toBe('51.8%')
     expect(formatWinRate(0)).toBe('--')
     expect(formatWinRate(undefined)).toBe('--')
+  })
+  it('tagVisibleCap 无宽幅特殊 chip 时保留 2 个系统标签位', () => {
+    expect(tagVisibleCap(false, false)).toBe(2)
+  })
+  it('tagVisibleCap 预组队/遇见过任一出现即收纳全部系统标签（各占 2 名额，防胜率 chip 被挤换行）', () => {
+    expect(tagVisibleCap(true, false)).toBe(0)
+    expect(tagVisibleCap(false, true)).toBe(0)
+    expect(tagVisibleCap(true, true)).toBe(0)
   })
   it('isChampionSwap 仅在新旧 championId 均为正数且不相等时判定为真换人', () => {
     expect(isChampionSwap(1, 2)).toBe(true)
