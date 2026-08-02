@@ -58,6 +58,7 @@ function okResult(overrides: Partial<BpSuggestResult> = {}): BpSuggestResult {
     main_position: 'TOP',
     sample_games: 25,
     opgg_ok: true,
+    opgg_stale: false,
     frequent: [
       {
         champion_id: 86,
@@ -247,5 +248,16 @@ describe('BpSuggestModal', () => {
     expect(poolState).toEqual(expect.arrayContaining([86, 157]))
     const lastCall = vi.mocked(putConfigByIpc).mock.calls.at(-1)
     expect(lastCall?.[1]).toEqual(expect.arrayContaining([86, 157]))
+  })
+
+  it('shows a warning tag next to hot_t0 title when opgg_stale is true', async () => {
+    vi.mocked(invoke).mockResolvedValue(okResult({ opgg_stale: true }))
+    const w = mount(BpSuggestModal, {
+      props: { show: true, championOptions },
+      global: { stubs }
+    })
+    await new Promise(r => setTimeout(r, 0))
+    await w.vm.$nextTick()
+    expect(w.text()).toContain('OP.GG 数据为过期缓存')
   })
 })

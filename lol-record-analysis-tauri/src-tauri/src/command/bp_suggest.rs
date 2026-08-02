@@ -44,6 +44,8 @@ pub struct BpSuggestResult {
     pub sample_games: i32,
     /// OP.GG 快照是否可用；false 时 `hot_t0` 恒空。
     pub opgg_ok: bool,
+    /// OP.GG 快照是否为过期缓存（刷新失败降级使用旧数据）；快照缺失时恒为 false。
+    pub opgg_stale: bool,
     /// 常用英雄 → pick 池候选。
     pub frequent: Vec<BpSuggestItem>,
     /// 常输给的敌方英雄 → ban 池候选。
@@ -345,6 +347,9 @@ fn build_suggestions(
         main_position,
         sample_games: games.len() as i32,
         opgg_ok,
+        // 纯函数不知道快照是否 stale（命令层拿到 `(snap, stale)` 后才知道）；
+        // 命令层用 struct update 覆盖此字段，这里先给非 stale 的默认值。
+        opgg_stale: false,
         frequent,
         nemesis,
         hot_t0,
@@ -407,29 +412,33 @@ pub async fn get_bp_suggest(
             main_position: String::new(),
             sample_games: games.len() as i32,
             opgg_ok: false,
+            opgg_stale: false,
             frequent: vec![],
             nemesis: vec![],
             hot_t0: vec![],
         });
     }
 
-    // OP.GG 数据缺失不阻塞：hot_t0 降级为空
-    let snapshot = crate::command::opgg::ensure_opgg_snapshot(&state, "ranked")
-        .await
-        .ok()
-        .map(|(snap, _stale)| snap);
+    // OP.GG 数据缺失不阻塞：hot_t0 降级为空；stale 透传给前端提示，快照缺失时恒 false
+    let (snapshot, opgg_stale) =
+        match crate::command::opgg::ensure_opgg_snapshot(&state, "ranked").await {
+            Ok((snap, stale)) => (Some(snap), stale),
+            Err(_) => (None, false),
+        };
 
     let pick_pool = load_pool("settings.auto.pickChampionSlice").await;
     let ban_pool = load_pool("settings.auto.banChampionSlice").await;
 
-    Ok(build_suggestions(
+    let mut result = build_suggestions(
         games,
         &me.puuid,
         snapshot.as_deref(),
         position.as_deref(),
         &pick_pool,
         &ban_pool,
-    ))
+    );
+    result.opgg_stale = opgg_stale;
+    Ok(result)
 }
 
 #[cfg(test)]

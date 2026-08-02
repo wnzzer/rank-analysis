@@ -263,6 +263,13 @@ function close() {
         <template v-for="section in sections" :key="section.key">
           <div class="section-title" :style="{ marginTop: 'var(--space-16)' }">
             {{ section.title }}
+            <n-tag
+              v-if="section.key === 'hot_t0' && result!.opgg_stale"
+              size="small"
+              type="warning"
+            >
+              OP.GG 数据为过期缓存
+            </n-tag>
           </div>
           <n-space v-if="section.items.length > 0">
             <n-card

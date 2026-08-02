@@ -30,6 +30,8 @@ export interface BpSuggestResult {
   main_position: string
   sample_games: number
   opgg_ok: boolean
+  /** OP.GG 快照是否为过期缓存（刷新失败降级使用旧数据）；快照缺失时恒为 false */
+  opgg_stale: boolean
   frequent: BpSuggestItem[]
   nemesis: BpSuggestItem[]
   hot_t0: BpSuggestItem[]
