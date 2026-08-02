@@ -323,10 +323,10 @@ mod platform {
         Failed(String),
     }
 
-    #[cfg(target_os = "windows")]
-    pub use windows::*;
     #[cfg(target_os = "macos")]
     pub use macos::*;
+    #[cfg(target_os = "windows")]
+    pub use windows::*;
 
     /// Windows 平台实现。
     ///
@@ -343,211 +343,214 @@ mod platform {
         use winapi::um::handleapi::{CloseHandle, INVALID_HANDLE_VALUE};
         use winapi::um::processthreadsapi::{OpenProcess, TerminateProcess};
         use winapi::um::tlhelp32::{
-            CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
+            CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
+            TH32CS_SNAPPROCESS,
         };
         use winapi::um::winbase::QueryFullProcessImageNameW;
         use winapi::um::winnt::{HANDLE, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_TERMINATE};
 
-    /// `Windows` `ERROR_ACCESS_DENIED`：`OpenProcess` 对更高完整性级别（如以管理员
-    /// 身份运行的客户端）的进程会返回此错误。
-    const ERROR_ACCESS_DENIED: i32 = 5;
+        /// `Windows` `ERROR_ACCESS_DENIED`：`OpenProcess` 对更高完整性级别（如以管理员
+        /// 身份运行的客户端）的进程会返回此错误。
+        const ERROR_ACCESS_DENIED: i32 = 5;
 
-    struct ProcessHandle(HANDLE);
+        struct ProcessHandle(HANDLE);
 
-    impl Drop for ProcessHandle {
-        fn drop(&mut self) {
-            if !self.0.is_null() && self.0 != INVALID_HANDLE_VALUE {
-                unsafe { CloseHandle(self.0) };
-            }
-        }
-    }
-
-    /// 按进程名枚举 PID（不区分大小写的包含匹配）。
-    pub fn find_pids_by_name(name: &str) -> Result<Vec<u32>, String> {
-        let name_lower = name.to_lowercase();
-        let mut pids = Vec::new();
-
-        unsafe {
-            let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-            if snapshot == INVALID_HANDLE_VALUE {
-                return Err(format!(
-                    "无法创建进程快照: {}",
-                    std::io::Error::last_os_error()
-                ));
-            }
-            let _snapshot_handle = ProcessHandle(snapshot);
-
-            let mut entry: PROCESSENTRY32W = mem::zeroed();
-            entry.dwSize = mem::size_of::<PROCESSENTRY32W>() as u32;
-
-            if Process32FirstW(snapshot, &mut entry) == FALSE {
-                return Err(format!(
-                    "无法获取第一个进程: {}",
-                    std::io::Error::last_os_error()
-                ));
-            }
-
-            loop {
-                let exe_file = &entry.szExeFile;
-                let exe_name = String::from_utf16_lossy(
-                    &exe_file[..exe_file
-                        .iter()
-                        .position(|&x| x == 0)
-                        .unwrap_or(exe_file.len())],
-                )
-                .to_lowercase();
-
-                if exe_name.contains(&name_lower) {
-                    pids.push(entry.th32ProcessID);
-                }
-
-                if Process32NextW(snapshot, &mut entry) == FALSE {
-                    break;
+        impl Drop for ProcessHandle {
+            fn drop(&mut self) {
+                if !self.0.is_null() && self.0 != INVALID_HANDLE_VALUE {
+                    unsafe { CloseHandle(self.0) };
                 }
             }
         }
 
-        Ok(pids)
-    }
+        /// 按进程名枚举 PID（不区分大小写的包含匹配）。
+        pub fn find_pids_by_name(name: &str) -> Result<Vec<u32>, String> {
+            let name_lower = name.to_lowercase();
+            let mut pids = Vec::new();
 
-    /// 按进程名强制结束所有匹配进程。
-    ///
-    /// 单个进程失败只记日志、不影响其余进程。返回成功结束的进程数。
-    pub fn kill_by_name(name: &str) -> Result<u32, String> {
-        let pids = find_pids_by_name(name)?;
-        let mut killed = 0u32;
-        for pid in pids {
             unsafe {
-                let handle = OpenProcess(PROCESS_TERMINATE, FALSE, pid);
-                if handle.is_null() {
-                    log::warn!(
-                        "无法打开进程 {}（{}）以结束: {}",
-                        pid,
-                        name,
+                let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+                if snapshot == INVALID_HANDLE_VALUE {
+                    return Err(format!(
+                        "无法创建进程快照: {}",
                         std::io::Error::last_os_error()
-                    );
-                    continue;
+                    ));
                 }
-                let _handle_guard = ProcessHandle(handle);
-                if TerminateProcess(handle, 1) == FALSE {
-                    log::warn!(
-                        "结束进程 {}（{}）失败: {}",
-                        pid,
-                        name,
+                let _snapshot_handle = ProcessHandle(snapshot);
+
+                let mut entry: PROCESSENTRY32W = mem::zeroed();
+                entry.dwSize = mem::size_of::<PROCESSENTRY32W>() as u32;
+
+                if Process32FirstW(snapshot, &mut entry) == FALSE {
+                    return Err(format!(
+                        "无法获取第一个进程: {}",
                         std::io::Error::last_os_error()
-                    );
-                } else {
-                    killed += 1;
+                    ));
+                }
+
+                loop {
+                    let exe_file = &entry.szExeFile;
+                    let exe_name = String::from_utf16_lossy(
+                        &exe_file[..exe_file
+                            .iter()
+                            .position(|&x| x == 0)
+                            .unwrap_or(exe_file.len())],
+                    )
+                    .to_lowercase();
+
+                    if exe_name.contains(&name_lower) {
+                        pids.push(entry.th32ProcessID);
+                    }
+
+                    if Process32NextW(snapshot, &mut entry) == FALSE {
+                        break;
+                    }
                 }
             }
+
+            Ok(pids)
         }
-        Ok(killed)
-    }
 
-    /// 读取单个进程命令行。
-    pub fn read_command_line(pid: u32) -> Result<String, CmdError> {
-        log::info!("尝试获取进程 {} 的命令行", pid);
-        unsafe {
-            let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
-            if handle.is_null() {
-                let err = std::io::Error::last_os_error();
-                if err.raw_os_error() == Some(ERROR_ACCESS_DENIED) {
-                    log::warn!("无权打开进程 {}（ACCESS_DENIED）: {}", pid, err);
-                    return Err(CmdError::AccessDenied);
+        /// 按进程名强制结束所有匹配进程。
+        ///
+        /// 单个进程失败只记日志、不影响其余进程。返回成功结束的进程数。
+        pub fn kill_by_name(name: &str) -> Result<u32, String> {
+            let pids = find_pids_by_name(name)?;
+            let mut killed = 0u32;
+            for pid in pids {
+                unsafe {
+                    let handle = OpenProcess(PROCESS_TERMINATE, FALSE, pid);
+                    if handle.is_null() {
+                        log::warn!(
+                            "无法打开进程 {}（{}）以结束: {}",
+                            pid,
+                            name,
+                            std::io::Error::last_os_error()
+                        );
+                        continue;
+                    }
+                    let _handle_guard = ProcessHandle(handle);
+                    if TerminateProcess(handle, 1) == FALSE {
+                        log::warn!(
+                            "结束进程 {}（{}）失败: {}",
+                            pid,
+                            name,
+                            std::io::Error::last_os_error()
+                        );
+                    } else {
+                        killed += 1;
+                    }
                 }
-                return Err(CmdError::Failed(format!("无法打开进程 {}: {}", pid, err)));
             }
-            log::info!("成功打开进程句柄");
-            let _process_handle = ProcessHandle(handle);
+            Ok(killed)
+        }
 
-            let initial_size = 8192u32;
-            let mut buffer: Vec<u8> = vec![0; initial_size as usize];
-            let mut return_size: u32 = 0;
+        /// 读取单个进程命令行。
+        pub fn read_command_line(pid: u32) -> Result<String, CmdError> {
+            log::info!("尝试获取进程 {} 的命令行", pid);
+            unsafe {
+                let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+                if handle.is_null() {
+                    let err = std::io::Error::last_os_error();
+                    if err.raw_os_error() == Some(ERROR_ACCESS_DENIED) {
+                        log::warn!("无权打开进程 {}（ACCESS_DENIED）: {}", pid, err);
+                        return Err(CmdError::AccessDenied);
+                    }
+                    return Err(CmdError::Failed(format!("无法打开进程 {}: {}", pid, err)));
+                }
+                log::info!("成功打开进程句柄");
+                let _process_handle = ProcessHandle(handle);
 
-            let status = NtQueryInformationProcess(
-                handle,
-                PROCESS_COMMAND_LINE_INFORMATION,
-                buffer.as_mut_ptr() as *mut _,
-                initial_size,
-                &mut return_size,
-            );
+                let initial_size = 8192u32;
+                let mut buffer: Vec<u8> = vec![0; initial_size as usize];
+                let mut return_size: u32 = 0;
 
-            if status != 0 {
-                if return_size > initial_size {
-                    buffer.resize(return_size as usize, 0);
-                    let status = NtQueryInformationProcess(
-                        handle,
-                        PROCESS_COMMAND_LINE_INFORMATION,
-                        buffer.as_mut_ptr() as *mut _,
-                        return_size,
-                        &mut return_size,
-                    );
-                    if status != 0 {
+                let status = NtQueryInformationProcess(
+                    handle,
+                    PROCESS_COMMAND_LINE_INFORMATION,
+                    buffer.as_mut_ptr() as *mut _,
+                    initial_size,
+                    &mut return_size,
+                );
+
+                if status != 0 {
+                    if return_size > initial_size {
+                        buffer.resize(return_size as usize, 0);
+                        let status = NtQueryInformationProcess(
+                            handle,
+                            PROCESS_COMMAND_LINE_INFORMATION,
+                            buffer.as_mut_ptr() as *mut _,
+                            return_size,
+                            &mut return_size,
+                        );
+                        if status != 0 {
+                            return Err(CmdError::Failed(format!(
+                                "NtQueryInformationProcess 失败，状态码: {:#x}",
+                                status
+                            )));
+                        }
+                    } else {
                         return Err(CmdError::Failed(format!(
                             "NtQueryInformationProcess 失败，状态码: {:#x}",
                             status
                         )));
                     }
-                } else {
+                }
+
+                if return_size == 0 {
+                    return Err(CmdError::Failed("返回的缓冲区大小为0".to_string()));
+                }
+
+                buffer.truncate(return_size as usize);
+
+                let ucs = &*(buffer.as_ptr() as *const UNICODE_STRING);
+                if ucs.Buffer.is_null() || ucs.Length == 0 {
                     return Err(CmdError::Failed(format!(
-                        "NtQueryInformationProcess 失败，状态码: {:#x}",
-                        status
+                        "无效的命令行数据，Buffer: {:?}, Length: {}",
+                        ucs.Buffer, ucs.Length
                     )));
                 }
+
+                let slice = std::slice::from_raw_parts(ucs.Buffer, (ucs.Length / 2) as usize);
+                let cmd_line = String::from_utf16_lossy(slice);
+
+                log::info!("成功获取命令行: {}", cmd_line);
+                Ok(cmd_line)
             }
-
-            if return_size == 0 {
-                return Err(CmdError::Failed("返回的缓冲区大小为0".to_string()));
-            }
-
-            buffer.truncate(return_size as usize);
-
-            let ucs = &*(buffer.as_ptr() as *const UNICODE_STRING);
-            if ucs.Buffer.is_null() || ucs.Length == 0 {
-                return Err(CmdError::Failed(format!(
-                    "无效的命令行数据，Buffer: {:?}, Length: {}",
-                    ucs.Buffer, ucs.Length
-                )));
-            }
-
-            let slice = std::slice::from_raw_parts(ucs.Buffer, (ucs.Length / 2) as usize);
-            let cmd_line = String::from_utf16_lossy(slice);
-
-            log::info!("成功获取命令行: {}", cmd_line);
-            Ok(cmd_line)
         }
-    }
 
-    /// 读取进程可执行文件完整路径（用于定位同目录下的 lockfile）。
-    pub fn read_image_path(pid: u32) -> Result<PathBuf, String> {
-        let handle = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid) };
-        if handle.is_null() {
-            return Err(format!(
-                "为读取可执行路径打开进程 {} 失败: {}",
-                pid,
-                std::io::Error::last_os_error()
-            ));
-        }
-        let _guard = ProcessHandle(handle);
-        unsafe {
-            // 客户端安装路径可能很长（含中文/嵌套目录），给足缓冲避免截断。
-            let mut buf: Vec<u16> = vec![0; 1024];
-            let mut size = buf.len() as u32;
-            let ok = QueryFullProcessImageNameW(handle, 0, buf.as_mut_ptr(), &mut size);
-            if ok == FALSE {
+        /// 读取进程可执行文件完整路径（用于定位同目录下的 lockfile）。
+        pub fn read_image_path(pid: u32) -> Result<PathBuf, String> {
+            let handle = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid) };
+            if handle.is_null() {
                 return Err(format!(
-                    "QueryFullProcessImageNameW 失败: {}",
+                    "为读取可执行路径打开进程 {} 失败: {}",
+                    pid,
                     std::io::Error::last_os_error()
                 ));
             }
-            Ok(PathBuf::from(String::from_utf16_lossy(&buf[..size as usize])))
+            let _guard = ProcessHandle(handle);
+            unsafe {
+                // 客户端安装路径可能很长（含中文/嵌套目录），给足缓冲避免截断。
+                let mut buf: Vec<u16> = vec![0; 1024];
+                let mut size = buf.len() as u32;
+                let ok = QueryFullProcessImageNameW(handle, 0, buf.as_mut_ptr(), &mut size);
+                if ok == FALSE {
+                    return Err(format!(
+                        "QueryFullProcessImageNameW 失败: {}",
+                        std::io::Error::last_os_error()
+                    ));
+                }
+                Ok(PathBuf::from(String::from_utf16_lossy(
+                    &buf[..size as usize],
+                )))
+            }
         }
-    }
 
-    /// Windows 无固定 lockfile 路径，返回 `None`，认证仍走进程查找逻辑。
-    pub fn read_lockfile_auth() -> Option<(String, String)> {
-        None
-    }
+        /// Windows 无固定 lockfile 路径，返回 `None`，认证仍走进程查找逻辑。
+        pub fn read_lockfile_auth() -> Option<(String, String)> {
+            None
+        }
     }
 
     /// macOS 平台实现。
@@ -560,247 +563,244 @@ mod platform {
         use std::mem;
         use std::path::PathBuf;
 
-    /// macOS 上英雄联盟相关进程的可执行文件名（小写，无扩展名）。
-    ///
-    /// 覆盖客户端本体（`LeagueClientUx`）、LCU 父进程（`LeagueClient`）与对局进程
-    /// （`League of Legends`）等形态。进程枚举时按此集合做包含匹配，判定是否属于
-    /// LOL 客户端链路，比 Windows 单进程名更全面。
-    const MACOS_LCU_NAMES: &[&str] = &["leagueclientux", "leagueclient", "league of legends"];
+        /// macOS 上英雄联盟相关进程的可执行文件名（小写，无扩展名）。
+        ///
+        /// 覆盖客户端本体（`LeagueClientUx`）、LCU 父进程（`LeagueClient`）与对局进程
+        /// （`League of Legends`）等形态。进程枚举时按此集合做包含匹配，判定是否属于
+        /// LOL 客户端链路，比 Windows 单进程名更全面。
+        const MACOS_LCU_NAMES: &[&str] = &["leagueclientux", "leagueclient", "league of legends"];
 
-    /// 按进程名枚举 PID（不区分大小写的包含匹配）。
-    ///
-    /// macOS 上没有 `CreateToolhelp32Snapshot`，改用 `proc_listallpids` 枚举全部进程，
-    /// 再经 `proc_pidpath` 取可执行路径匹配进程名（进程名可能被截断，取完整路径更可靠）。
-    /// 匹配集合用 [`MACOS_LCU_NAMES`]，传入的 `name` 仅作兼容保留、不参与匹配——各
-    /// 调用方（认证/安装根目录/Riot 认证）统一命中这组 LOL 相关进程即可。
-    pub fn find_pids_by_name(_name: &str) -> Result<Vec<u32>, String> {
-        let mut pids = Vec::new();
-        unsafe {
-            // `proc_listallpids` 返回写入的 PID 个数；其空查返回值不可靠，故直接用
-            // 足够大的固定缓冲一次性枚举全部进程，避免缓冲过小被截断（LOL 进程
-            // PID 通常较大，靠后才会被写入）。
-            const MAX_PIDS: usize = 4096;
-            let mut buf: Vec<u32> = vec![0; MAX_PIDS];
-            let written = libc::proc_listallpids(
-                buf.as_mut_ptr() as *mut libc::c_void,
-                (MAX_PIDS * mem::size_of::<u32>()) as libc::c_int,
-            );
-            if written <= 0 {
-                return Err(format!(
-                    "proc_listallpids 失败: {}",
-                    std::io::Error::last_os_error()
-                ));
-            }
-            // `written` 是写入的 PID 个数（非字节数），直接作为有效元素数遍历。
-            let count = (written as usize).min(buf.len());
-            for &pid in &buf[..count] {
-                if pid == 0 {
-                    continue;
+        /// 按进程名枚举 PID（不区分大小写的包含匹配）。
+        ///
+        /// macOS 上没有 `CreateToolhelp32Snapshot`，改用 `proc_listallpids` 枚举全部进程，
+        /// 再经 `proc_pidpath` 取可执行路径匹配进程名（进程名可能被截断，取完整路径更可靠）。
+        /// 匹配集合用 [`MACOS_LCU_NAMES`]，传入的 `name` 仅作兼容保留、不参与匹配——各
+        /// 调用方（认证/安装根目录/Riot 认证）统一命中这组 LOL 相关进程即可。
+        pub fn find_pids_by_name(_name: &str) -> Result<Vec<u32>, String> {
+            let mut pids = Vec::new();
+            unsafe {
+                // `proc_listallpids` 返回写入的 PID 个数；其空查返回值不可靠，故直接用
+                // 足够大的固定缓冲一次性枚举全部进程，避免缓冲过小被截断（LOL 进程
+                // PID 通常较大，靠后才会被写入）。
+                const MAX_PIDS: usize = 4096;
+                let mut buf: Vec<u32> = vec![0; MAX_PIDS];
+                let written = libc::proc_listallpids(
+                    buf.as_mut_ptr() as *mut libc::c_void,
+                    (MAX_PIDS * mem::size_of::<u32>()) as libc::c_int,
+                );
+                if written <= 0 {
+                    return Err(format!(
+                        "proc_listallpids 失败: {}",
+                        std::io::Error::last_os_error()
+                    ));
                 }
-                if let Ok(path) = image_path_of(pid) {
-                    let file_name = path
-                        .file_name()
-                        .map(|n| n.to_string_lossy().to_lowercase())
-                        .unwrap_or_default();
-                    if MACOS_LCU_NAMES.iter().any(|n| file_name.contains(n)) {
-                        pids.push(pid);
+                // `written` 是写入的 PID 个数（非字节数），直接作为有效元素数遍历。
+                let count = (written as usize).min(buf.len());
+                for &pid in &buf[..count] {
+                    if pid == 0 {
+                        continue;
+                    }
+                    if let Ok(path) = image_path_of(pid) {
+                        let file_name = path
+                            .file_name()
+                            .map(|n| n.to_string_lossy().to_lowercase())
+                            .unwrap_or_default();
+                        if MACOS_LCU_NAMES.iter().any(|n| file_name.contains(n)) {
+                            pids.push(pid);
+                        }
                     }
                 }
             }
+            Ok(pids)
         }
-        Ok(pids)
-    }
 
-    /// 读取进程可执行文件完整路径（`proc_pidpath`）。
-    fn image_path_of(pid: u32) -> Result<PathBuf, String> {
-        unsafe {
-            let mut buf: Vec<libc::c_char> = vec![0; libc::PROC_PIDPATHINFO_MAXSIZE as usize];
-            let len = libc::proc_pidpath(
-                pid as libc::c_int,
-                buf.as_mut_ptr() as *mut libc::c_void,
-                buf.len() as u32,
-            );
-            if len <= 0 {
-                return Err(format!(
-                    "proc_pidpath 失败 (pid {}): {}",
-                    pid,
-                    std::io::Error::last_os_error()
-                ));
-            }
-            let bytes: &[u8] = std::slice::from_raw_parts(buf.as_ptr() as *const u8, len as usize);
-            let path = String::from_utf8_lossy(bytes).into_owned();
-            Ok(PathBuf::from(path))
-        }
-    }
-
-    /// 读取进程可执行文件完整路径（公开给上层用于定位 lockfile）。
-    pub fn read_image_path(pid: u32) -> Result<PathBuf, String> {
-        image_path_of(pid)
-    }
-
-    /// 从固定的 lockfile 路径直接读取认证（macOS 客户端固定安装于此）。
-    ///
-    /// macOS 上国服/海外客户端都安装到 `/Applications/League of Legends.app`，
-    /// lockfile 位于 `Contents/LoL/lockfile`，可直接读取，无需进程命令行解析。
-    /// 客户端未运行或文件不存在时返回 `None`（交由上层走进程查找逻辑）。
-    pub fn read_lockfile_auth() -> Option<(String, String)> {
-        let lockfile = PathBuf::from("/Applications/League of Legends.app/Contents/LoL/lockfile");
-        read_lockfile_at(&lockfile)
-    }
-
-    /// 读取并解析指定路径的 lockfile。
-    pub fn read_lockfile_at(lockfile: &PathBuf) -> Option<(String, String)> {
-        let content = std::fs::read_to_string(lockfile).ok()?;
-        let parts: Vec<&str> = content.trim().split(':').collect();
-        if parts.len() < 5 {
-            return None;
-        }
-        let port = parts[2].to_string();
-        let token = parts[3].to_string();
-        if port.is_empty() || token.is_empty() {
-            return None;
-        }
-        Some((token, port))
-    }
-
-    /// 读取单个进程命令行（`sysctl KERN_PROCARGS2`）。
-    ///
-    /// 与 Windows 类似，macOS 上读取他人进程的命令行也需要同用户权限；被
-    /// `ptrace`/SIP 保护或权限不足时归类为 [`CmdError::AccessDenied`]。
-    pub fn read_command_line(pid: u32) -> Result<String, CmdError> {
-        log::info!("尝试获取进程 {} 的命令行", pid);
-        unsafe {
-            // KERN_ARGMAX 查询：`[CTL_KERN, KERN_ARGMAX]`，取系统单进程命令行长上限。
-            let mut argmax: libc::c_int = 0;
-            let mut argmax_len = mem::size_of::<libc::c_int>() as libc::size_t;
-            let mut argmax_mib: [libc::c_int; 2] = [libc::CTL_KERN, libc::KERN_ARGMAX];
-            if libc::sysctl(
-                argmax_mib.as_mut_ptr(),
-                2,
-                &mut argmax as *mut _ as *mut libc::c_void,
-                &mut argmax_len,
-                std::ptr::null_mut(),
-                0,
-            ) != 0
-            {
-                return Err(CmdError::Failed(format!(
-                    "sysctl(KERN_ARGMAX) 失败: {}",
-                    std::io::Error::last_os_error()
-                )));
-            }
-
-            // KERN_PROCARGS2 查询：`[CTL_KERN, KERN_PROCARGS2, pid]`，取该进程命令行。
-            let mut buf: Vec<libc::c_char> = vec![0; argmax as usize];
-            let mut buf_len = buf.len() as libc::size_t;
-            let mut mib: [libc::c_int; 3] = [
-                libc::CTL_KERN,
-                libc::KERN_PROCARGS2,
-                pid as libc::c_int,
-            ];
-            if libc::sysctl(
-                mib.as_mut_ptr(),
-                3,
-                buf.as_mut_ptr() as *mut libc::c_void,
-                &mut buf_len,
-                std::ptr::null_mut(),
-                0,
-            ) != 0
-            {
-                let err = std::io::Error::last_os_error();
-                // EPERM/EACCES/ESRCH（SIP/权限不足/进程已退出）归类为无权访问，
-                // 其余按普通失败。
-                let code = err.raw_os_error().unwrap_or(0);
-                if code == libc::EPERM || code == libc::EACCES || code == libc::ESRCH {
-                    log::warn!("无权读取进程 {} 命令行（{}）: {}", pid, code, err);
-                    return Err(CmdError::AccessDenied);
-                }
-                return Err(CmdError::Failed(format!(
-                    "sysctl(KERN_PROCARGS2) 失败: {}",
-                    err
-                )));
-            }
-
-            let bytes: &[u8] = std::slice::from_raw_parts(
-                buf.as_ptr() as *const u8,
-                buf_len.min(buf.len()),
-            );
-            // KERN_PROCARGS2 布局：`argc`（int）+ 0x0 填充 + exec 路径（NUL 结尾）+ 空字节
-            // + 参数数组（NUL 分隔）。解析参数时跳过开头的 exec 路径前缀。
-            //
-            // 调试用：打印原始缓冲区（转义成可读形式，避免二进制/控制字符刷屏），
-            // 便于核对 macOS 真实命令行布局是否与解析假设一致。
-            log::info!(
-                "macOS 原始命令行缓冲区 (pid {}, {} 字节): {:?}",
-                pid,
-                bytes.len(),
-                escape_debug(bytes)
-            );
-            let raw = String::from_utf8_lossy(bytes);
-            let cmd_line = parse_procargs2(raw.as_ref());
-            log::info!("成功获取命令行: {}", cmd_line);
-            Ok(cmd_line)
-        }
-    }
-
-    /// 从 `KERN_PROCARGS2` 原始缓冲区中提取完整命令行（空格拼接）。
-    ///
-    /// 首部 4 字节为 argc，随后是 exec 路径字符串与若干 NUL 分隔的参数，末尾空串。
-    /// 简单起见：去掉首部 argc 与 exec 路径（第一个 NUL 结束），把剩余 NUL 分隔的
-    /// 参数以空格连接，供上层正则解析 `--key=value`。
-    pub fn parse_procargs2(raw: &str) -> String {
-        // 前两段可能被 argc 二进制干扰，通常表现为空/短二进制串；跳过它们。
-        let segments: Vec<&str> = raw.split('\0').collect();
-        let mut params: Vec<&str> = Vec::new();
-        for seg in segments.into_iter().skip(2) {
-            let trimmed = seg.trim();
-            if trimmed.is_empty() {
-                continue;
-            }
-            if trimmed.contains('=') || trimmed.starts_with("--") {
-                params.push(trimmed);
-            }
-        }
-        params.join(" ")
-    }
-
-    /// 把原始字节转义成可读字符串（`\0` / `\xNN`），供调试日志打印二进制缓冲区。
-    fn escape_debug(bytes: &[u8]) -> String {
-        use std::fmt::Write;
-        let mut out = String::with_capacity(bytes.len());
-        for &b in bytes {
-            match b {
-                0 => out.push_str("\\0"),
-                0x0a => out.push_str("\\n"),
-                0x0d => out.push_str("\\r"),
-                0x20..=0x7e => out.push(b as char),
-                _ => {
-                    let _ = write!(out, "\\x{:02x}", b);
-                }
-            }
-        }
-        out
-    }
-
-    /// 按进程名强制结束所有匹配进程（macOS 用 `kill`）。
-    pub fn kill_by_name(name: &str) -> Result<u32, String> {
-        let pids = find_pids_by_name(name)?;
-        let mut killed = 0u32;
-        for pid in pids {
+        /// 读取进程可执行文件完整路径（`proc_pidpath`）。
+        fn image_path_of(pid: u32) -> Result<PathBuf, String> {
             unsafe {
-                if libc::kill(pid as libc::pid_t, libc::SIGTERM) == 0 {
-                    killed += 1;
-                } else {
-                    log::warn!(
-                        "结束进程 {}（{}）失败: {}",
+                let mut buf: Vec<libc::c_char> = vec![0; libc::PROC_PIDPATHINFO_MAXSIZE as usize];
+                let len = libc::proc_pidpath(
+                    pid as libc::c_int,
+                    buf.as_mut_ptr() as *mut libc::c_void,
+                    buf.len() as u32,
+                );
+                if len <= 0 {
+                    return Err(format!(
+                        "proc_pidpath 失败 (pid {}): {}",
                         pid,
-                        name,
                         std::io::Error::last_os_error()
-                    );
+                    ));
                 }
+                let bytes: &[u8] =
+                    std::slice::from_raw_parts(buf.as_ptr() as *const u8, len as usize);
+                let path = String::from_utf8_lossy(bytes).into_owned();
+                Ok(PathBuf::from(path))
             }
         }
-        Ok(killed)
-    }
+
+        /// 读取进程可执行文件完整路径（公开给上层用于定位 lockfile）。
+        pub fn read_image_path(pid: u32) -> Result<PathBuf, String> {
+            image_path_of(pid)
+        }
+
+        /// 从固定的 lockfile 路径直接读取认证（macOS 客户端固定安装于此）。
+        ///
+        /// macOS 上国服/海外客户端都安装到 `/Applications/League of Legends.app`，
+        /// lockfile 位于 `Contents/LoL/lockfile`，可直接读取，无需进程命令行解析。
+        /// 客户端未运行或文件不存在时返回 `None`（交由上层走进程查找逻辑）。
+        pub fn read_lockfile_auth() -> Option<(String, String)> {
+            let lockfile =
+                PathBuf::from("/Applications/League of Legends.app/Contents/LoL/lockfile");
+            read_lockfile_at(&lockfile)
+        }
+
+        /// 读取并解析指定路径的 lockfile。
+        pub fn read_lockfile_at(lockfile: &PathBuf) -> Option<(String, String)> {
+            let content = std::fs::read_to_string(lockfile).ok()?;
+            let parts: Vec<&str> = content.trim().split(':').collect();
+            if parts.len() < 5 {
+                return None;
+            }
+            let port = parts[2].to_string();
+            let token = parts[3].to_string();
+            if port.is_empty() || token.is_empty() {
+                return None;
+            }
+            Some((token, port))
+        }
+
+        /// 读取单个进程命令行（`sysctl KERN_PROCARGS2`）。
+        ///
+        /// 与 Windows 类似，macOS 上读取他人进程的命令行也需要同用户权限；被
+        /// `ptrace`/SIP 保护或权限不足时归类为 [`CmdError::AccessDenied`]。
+        pub fn read_command_line(pid: u32) -> Result<String, CmdError> {
+            log::info!("尝试获取进程 {} 的命令行", pid);
+            unsafe {
+                // KERN_ARGMAX 查询：`[CTL_KERN, KERN_ARGMAX]`，取系统单进程命令行长上限。
+                let mut argmax: libc::c_int = 0;
+                let mut argmax_len = mem::size_of::<libc::c_int>() as libc::size_t;
+                let mut argmax_mib: [libc::c_int; 2] = [libc::CTL_KERN, libc::KERN_ARGMAX];
+                if libc::sysctl(
+                    argmax_mib.as_mut_ptr(),
+                    2,
+                    &mut argmax as *mut _ as *mut libc::c_void,
+                    &mut argmax_len,
+                    std::ptr::null_mut(),
+                    0,
+                ) != 0
+                {
+                    return Err(CmdError::Failed(format!(
+                        "sysctl(KERN_ARGMAX) 失败: {}",
+                        std::io::Error::last_os_error()
+                    )));
+                }
+
+                // KERN_PROCARGS2 查询：`[CTL_KERN, KERN_PROCARGS2, pid]`，取该进程命令行。
+                let mut buf: Vec<libc::c_char> = vec![0; argmax as usize];
+                let mut buf_len = buf.len() as libc::size_t;
+                let mut mib: [libc::c_int; 3] =
+                    [libc::CTL_KERN, libc::KERN_PROCARGS2, pid as libc::c_int];
+                if libc::sysctl(
+                    mib.as_mut_ptr(),
+                    3,
+                    buf.as_mut_ptr() as *mut libc::c_void,
+                    &mut buf_len,
+                    std::ptr::null_mut(),
+                    0,
+                ) != 0
+                {
+                    let err = std::io::Error::last_os_error();
+                    // EPERM/EACCES/ESRCH（SIP/权限不足/进程已退出）归类为无权访问，
+                    // 其余按普通失败。
+                    let code = err.raw_os_error().unwrap_or(0);
+                    if code == libc::EPERM || code == libc::EACCES || code == libc::ESRCH {
+                        log::warn!("无权读取进程 {} 命令行（{}）: {}", pid, code, err);
+                        return Err(CmdError::AccessDenied);
+                    }
+                    return Err(CmdError::Failed(format!(
+                        "sysctl(KERN_PROCARGS2) 失败: {}",
+                        err
+                    )));
+                }
+
+                let bytes: &[u8] =
+                    std::slice::from_raw_parts(buf.as_ptr() as *const u8, buf_len.min(buf.len()));
+                // KERN_PROCARGS2 布局：`argc`（int）+ 0x0 填充 + exec 路径（NUL 结尾）+ 空字节
+                // + 参数数组（NUL 分隔）。解析参数时跳过开头的 exec 路径前缀。
+                //
+                // 调试用：打印原始缓冲区（转义成可读形式，避免二进制/控制字符刷屏），
+                // 便于核对 macOS 真实命令行布局是否与解析假设一致。
+                log::info!(
+                    "macOS 原始命令行缓冲区 (pid {}, {} 字节): {:?}",
+                    pid,
+                    bytes.len(),
+                    escape_debug(bytes)
+                );
+                let raw = String::from_utf8_lossy(bytes);
+                let cmd_line = parse_procargs2(raw.as_ref());
+                log::info!("成功获取命令行: {}", cmd_line);
+                Ok(cmd_line)
+            }
+        }
+
+        /// 从 `KERN_PROCARGS2` 原始缓冲区中提取完整命令行（空格拼接）。
+        ///
+        /// 首部 4 字节为 argc，随后是 exec 路径字符串与若干 NUL 分隔的参数，末尾空串。
+        /// 简单起见：去掉首部 argc 与 exec 路径（第一个 NUL 结束），把剩余 NUL 分隔的
+        /// 参数以空格连接，供上层正则解析 `--key=value`。
+        pub fn parse_procargs2(raw: &str) -> String {
+            // 前两段可能被 argc 二进制干扰，通常表现为空/短二进制串；跳过它们。
+            let segments: Vec<&str> = raw.split('\0').collect();
+            let mut params: Vec<&str> = Vec::new();
+            for seg in segments.into_iter().skip(2) {
+                let trimmed = seg.trim();
+                if trimmed.is_empty() {
+                    continue;
+                }
+                if trimmed.contains('=') || trimmed.starts_with("--") {
+                    params.push(trimmed);
+                }
+            }
+            params.join(" ")
+        }
+
+        /// 把原始字节转义成可读字符串（`\0` / `\xNN`），供调试日志打印二进制缓冲区。
+        fn escape_debug(bytes: &[u8]) -> String {
+            use std::fmt::Write;
+            let mut out = String::with_capacity(bytes.len());
+            for &b in bytes {
+                match b {
+                    0 => out.push_str("\\0"),
+                    0x0a => out.push_str("\\n"),
+                    0x0d => out.push_str("\\r"),
+                    0x20..=0x7e => out.push(b as char),
+                    _ => {
+                        let _ = write!(out, "\\x{:02x}", b);
+                    }
+                }
+            }
+            out
+        }
+
+        /// 按进程名强制结束所有匹配进程（macOS 用 `kill`）。
+        pub fn kill_by_name(name: &str) -> Result<u32, String> {
+            let pids = find_pids_by_name(name)?;
+            let mut killed = 0u32;
+            for pid in pids {
+                unsafe {
+                    if libc::kill(pid as libc::pid_t, libc::SIGTERM) == 0 {
+                        killed += 1;
+                    } else {
+                        log::warn!(
+                            "结束进程 {}（{}）失败: {}",
+                            pid,
+                            name,
+                            std::io::Error::last_os_error()
+                        );
+                    }
+                }
+            }
+            Ok(killed)
+        }
     }
 }
 
