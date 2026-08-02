@@ -158,11 +158,19 @@ pub struct GameModeOption {
 ///
 /// 游戏模式选项列表，第一项为「全部」（ID 为 0），其余按 ID 排序
 ///
+/// # 数据来源
+///
+/// 优先用 LCU 队列表（`game_queue::visible_queues`）——只列客户端当前**可选**的队列，
+/// 名称也随版本/语言本地化；已下线的老队列（如盲选 430）不再出现在筛选器里。
+/// LCU 未连接时回落到硬编码的 [`QUEUE_ID_TO_CN`]，保证离线仍有可用选项。
+///
 /// # 去重规则
 ///
-/// 多个队列 ID 属于同一玩法分组（如新旧人机队列同难度、430/490 均为「匹配」），
+/// 多个队列 ID 属于同一玩法分组（如新旧人机队列同难度、400/430/490 均为「匹配」），
 /// 选项按 `canonical_queue_id` 分组去重，保留最小 ID（即代表 ID）；
 /// 过滤对局时经 `queue_ids_same_group` 按分组匹配
+///
+/// [`QUEUE_ID_TO_CN`]: crate::constant::game::QUEUE_ID_TO_CN
 #[tauri::command]
 pub fn get_game_modes() -> Vec<GameModeOption> {
     let mut options = vec![GameModeOption {
@@ -170,14 +178,25 @@ pub fn get_game_modes() -> Vec<GameModeOption> {
         value: 0,
     }];
 
-    let mut modes: Vec<GameModeOption> = constant::game::QUEUE_ID_TO_CN
-        .entries()
-        .filter(|&(k, _)| *k != 0)
-        .map(|(k, v)| GameModeOption {
-            label: v.to_string(),
-            value: *k as i32,
-        })
-        .collect();
+    let live = crate::lcu::api::game_queue::visible_queues();
+    let mut modes: Vec<GameModeOption> = if live.is_empty() {
+        constant::game::QUEUE_ID_TO_CN
+            .entries()
+            .filter(|&(k, _)| *k != 0)
+            .map(|(k, v)| GameModeOption {
+                label: v.to_string(),
+                value: *k as i32,
+            })
+            .collect()
+    } else {
+        live.into_iter()
+            .filter(|(id, _)| *id != 0)
+            .map(|(id, label)| GameModeOption {
+                label,
+                value: id as i32,
+            })
+            .collect()
+    };
 
     modes.sort_by_key(|k| k.value);
     let mut seen = std::collections::HashSet::new();
