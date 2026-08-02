@@ -216,4 +216,36 @@ describe('BpSuggestModal', () => {
     await new Promise(r => setTimeout(r, 0))
     expect(vi.mocked(invoke).mock.calls.at(-1)?.[1]).toEqual({ position: 'MIDDLE' })
   })
+
+  it('serializes concurrent adopts to the same pool so both writes land', async () => {
+    // frequent 卡（86，pick）与 hot_t0 卡（157，suggested_pool=ban，反向按钮转入英雄池）
+    // 都写 pickChampionSlice：不串行化会互相用旧读值覆盖对方的写入。
+    vi.mocked(invoke).mockResolvedValue(okResult())
+    let poolState: number[] = []
+    vi.mocked(getConfigByIpc).mockImplementation(async () => [...poolState] as never)
+    vi.mocked(putConfigByIpc).mockImplementation(async (_key, value) => {
+      await new Promise(r => setTimeout(r, 5))
+      poolState = value as number[]
+    })
+    const w = mount(BpSuggestModal, {
+      props: { show: true, championOptions },
+      global: { stubs }
+    })
+    await new Promise(r => setTimeout(r, 0))
+    await w.vm.$nextTick()
+
+    const addBtn = w.findAll('button').find(b => b.text().includes('加入英雄池'))!
+    const convertBtn = w.findAll('button').find(b => b.text().includes('转入英雄池'))!
+
+    // 不等待第一次点击完成就触发第二次，制造跨卡竞态
+    const p1 = addBtn.trigger('click')
+    const p2 = convertBtn.trigger('click')
+    await Promise.all([p1, p2])
+    await new Promise(r => setTimeout(r, 30))
+
+    expect(poolState).toHaveLength(2)
+    expect(poolState).toEqual(expect.arrayContaining([86, 157]))
+    const lastCall = vi.mocked(putConfigByIpc).mock.calls.at(-1)
+    expect(lastCall?.[1]).toEqual(expect.arrayContaining([86, 157]))
+  })
 })

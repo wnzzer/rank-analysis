@@ -48,6 +48,11 @@ const positionTouched = ref(false)
 const adopted = ref<Set<string>>(new Set())
 /** 正在提交中的 (pool:championId) 集合，防连点 + 驱动按钮 loading */
 const adoptingKeys = ref<Set<string>>(new Set())
+/**
+ * 采用写操作串行化队列：连点两张不同英雄卡对同一兜底池的
+ * 读-改-写会互相用旧读值覆盖对方的写入，故排成一条链依次执行。
+ */
+let adoptChain: Promise<void> = Promise.resolve()
 
 const POSITION_OPTIONS = [
   { label: '全部分路', value: '' },
@@ -156,16 +161,10 @@ function isAdopting(item: BpSuggestItem, pool: SuggestedPool): boolean {
 }
 
 /**
- * 采用：读现有池 → 去重 append → 写回 → 灰态 + 通知父组件
- *
- * 用 `adoptingKeys` 在 (pool, championId) 粒度防重入：同一张卡片的按钮在
- * 请求完成前再次点击会被直接忽略；IPC 失败时吞掉异常仅打日志，不置灰、不
- * emit，避免用户零反馈或双击竞态下两次都读到旧池子。
+ * 采用的实际读写体：读现有池 → 去重 append → 写回 → 灰态 + 通知父组件。
+ * IPC 失败时吞掉异常仅打日志，不置灰、不 emit。
  */
-async function adopt(item: BpSuggestItem, pool: SuggestedPool) {
-  const aKey = adoptKey(pool, item.champion_id)
-  if (adoptingKeys.value.has(aKey)) return
-  adoptingKeys.value.add(aKey)
+async function doAdopt(item: BpSuggestItem, pool: SuggestedPool, aKey: string) {
   try {
     const key =
       pool === 'pick' ? 'settings.auto.pickChampionSlice' : 'settings.auto.banChampionSlice'
@@ -180,6 +179,24 @@ async function adopt(item: BpSuggestItem, pool: SuggestedPool) {
   } finally {
     adoptingKeys.value.delete(aKey)
   }
+}
+
+/**
+ * 采用：把读写体挂到 `adoptChain` 尾部串行执行，避免跨卡竞态。
+ *
+ * 用 `adoptingKeys` 在 (pool, championId) 粒度防重入：同一张卡片的按钮在
+ * 请求完成前再次点击会被直接忽略。但不同 (pool, championId) 的两张卡若
+ * 几乎同时点击，各自的读-改-写会并发发生，后写入者用旧读值覆盖先写入者
+ * 的结果——串行化到一条 promise 链上，保证同一池子的读写按点击顺序依次
+ * 落地，两次采用都能生效。
+ */
+async function adopt(item: BpSuggestItem, pool: SuggestedPool) {
+  const aKey = adoptKey(pool, item.champion_id)
+  if (adoptingKeys.value.has(aKey)) return
+  adoptingKeys.value.add(aKey)
+  const myTurn = adoptChain.then(() => doAdopt(item, pool, aKey))
+  adoptChain = myTurn
+  await myTurn
 }
 
 async function onPositionChange(pos: string) {
