@@ -1,6 +1,6 @@
 <template>
   <n-flex justify="space-between" class="header-inner">
-    <div class="header-left">
+    <div class="header-left" data-tauri-drag-region>
       <div class="logo-badge">R</div>
       <span class="header-title">Rank Analysis</span>
     </div>
@@ -35,7 +35,7 @@
         </template>
       </n-input>
     </div>
-    <div class="header-right">
+    <div class="header-right" data-tauri-drag-region>
       <n-popconfirm positive-text="关闭游戏" negative-text="取消" @positive-click="closeLeague">
         <template #trigger>
           <n-tooltip trigger="hover">
