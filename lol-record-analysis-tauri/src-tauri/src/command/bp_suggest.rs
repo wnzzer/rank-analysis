@@ -193,12 +193,16 @@ fn build_suggestions(
     let main_position = derive_main_position(&my_champs, snapshot);
     let effective_pos = position.unwrap_or(&main_position);
 
-    // frequent：常用英雄，按 (games, wins) 降序 → pick 池候选
-    let mut frequent_ids: Vec<i32> = my_champs
+    // 常用英雄资格集合（games >= FREQUENT_MIN_GAMES）：frequent 排序基底、
+    // nemesis 排除、hot_t0 ban 排除三处共用同一判据，算一次到处复用。
+    let my_frequent_ids: std::collections::HashSet<i32> = my_champs
         .iter()
         .filter(|(_, (games, _))| *games >= FREQUENT_MIN_GAMES)
         .map(|(id, _)| *id)
         .collect();
+
+    // frequent：常用英雄，按 (games, wins) 降序 → pick 池候选
+    let mut frequent_ids: Vec<i32> = my_frequent_ids.iter().copied().collect();
     frequent_ids.sort_by(|a, b| {
         let (ga, wa) = my_champs[a];
         let (gb, wb) = my_champs[b];
@@ -226,12 +230,7 @@ fn build_suggestions(
     let (nemesis_map, loss_games) = aggregate_nemesis(games);
     let mut nemesis_ids: Vec<i32> = nemesis_map
         .iter()
-        .filter(|(id, count)| {
-            **count >= NEMESIS_MIN_ENCOUNTERS
-                && !my_champs
-                    .get(id)
-                    .is_some_and(|(g, _)| *g >= FREQUENT_MIN_GAMES)
-        })
+        .filter(|(id, count)| **count >= NEMESIS_MIN_ENCOUNTERS && !my_frequent_ids.contains(id))
         .map(|(id, _)| *id)
         .collect();
     nemesis_ids.sort_by(|a, b| nemesis_map[b].cmp(&nemesis_map[a]));
@@ -268,8 +267,11 @@ fn build_suggestions(
         // 这也是 Step 1 测试 `hot_t0_should_split_by_proficiency_and_filter_pick_by_position`
         // 显式要求的行为（英雄 1 打了 4 场、同时满足 frequent 与 proficient，仍应出现在 pick）。
         let mut pick_candidates: Vec<(i32, &crate::opgg::data::ChampionMeta)> = vec![];
-        // ban 向：T0 + 主分路 + 我不会玩，且不与 nemesis 重复（两个判据相互独立，
-        // 不存在 pick 侧那种子集必空的矛盾，可以正常按 ID 排除）。
+        // ban 向：T0 + 主分路 + 我不会玩，且不与 nemesis 重复，且不与 frequent 重复。
+        // 与 pick 向相反，这里必须排除 frequent：is_proficient 只是 frequent 的子集
+        // 判据（多了胜率 ≥50% 一道门槛），打过 ≥3 场但胜率 <50% 的英雄会同时落入
+        // "常用"(frequent, pick 池候选) 与 "不会玩"(!is_proficient, ban 池候选)——
+        // 不排除就会对同一英雄同时给出「建议加入英雄池」和「建议 ban」的矛盾推荐。
         let mut ban_candidates: Vec<(i32, &crate::opgg::data::ChampionMeta)> = vec![];
 
         for (champ_id, metas) in &snap.champions {
@@ -279,7 +281,10 @@ fn build_suggestions(
             let agg = my_champs.get(champ_id);
             if main.position == effective_pos && is_proficient(agg) {
                 pick_candidates.push((*champ_id, main));
-            } else if !is_proficient(agg) && !nemesis_set.contains(champ_id) {
+            } else if !is_proficient(agg)
+                && !nemesis_set.contains(champ_id)
+                && !my_frequent_ids.contains(champ_id)
+            {
                 ban_candidates.push((*champ_id, main));
             }
         }
@@ -583,6 +588,26 @@ mod tests {
         assert_eq!(picks, vec![1]);
         // ban 向按 ban_rate 降序：5(0.3) 在 6(0.1) 前
         assert_eq!(bans, vec![5, 6]);
+    }
+
+    #[test]
+    fn hot_t0_ban_should_exclude_my_frequent_champions() {
+        // 英雄 9：T0 主分路 TOP,我打过 3 场但全败(胜率 0% → 不「会玩」)
+        // 它已在 frequent(3 场达标)——不该再被建议 ban,矛盾推荐
+        let mut games = vec![];
+        for _ in 0..3 {
+            games.push(game(9, false, &[50], 420));
+        }
+        let snap = snapshot(vec![meta(9, "TOP", 1, 0.2)]);
+        let result = build_suggestions(&games, "me", Some(&snap), Some("TOP"), &[], &[]);
+        assert!(
+            result.frequent.iter().any(|i| i.champion_id == 9),
+            "9 是常用英雄"
+        );
+        assert!(
+            !result.hot_t0.iter().any(|i| i.champion_id == 9),
+            "常用英雄不该出现在 hot_t0 ban 向"
+        );
     }
 
     #[test]
