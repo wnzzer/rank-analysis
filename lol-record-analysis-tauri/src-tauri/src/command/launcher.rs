@@ -15,12 +15,18 @@
 //!
 //! 三者皆失败时返回明确错误，引导用户先手动打开一次游戏（之后即被记忆）。
 
+// 安装目录发现 / 记忆整条链路都基于 Windows 国服的目录布局（`<root>\Launcher\Client.exe`），
+// 非 Windows 平台不编译，避免把 Windows 假设套到别的平台上（见 `remember_install_root`）。
+#[cfg(target_os = "windows")]
 use std::collections::HashMap;
+#[cfg(target_os = "windows")]
 use std::path::{Path, PathBuf};
 
+#[cfg(target_os = "windows")]
 use crate::config::{self, Value};
 
 /// 游戏安装根目录的 config 键；与前端 `CONFIG_KEYS.gameInstallPath` 对应。
+#[cfg(target_os = "windows")]
 const GAME_INSTALL_PATH_KEY: &str = "gameInstallPath";
 
 /// 安装根目录下的登录客户端候选路径，按优先级排列（Windows 国服）。
@@ -44,6 +50,7 @@ fn resolve_launch_target(root: &Path) -> Option<PathBuf> {
 }
 
 /// 读取 config 中记忆的安装根目录（存在且仍是有效目录时才返回）。
+#[cfg(target_os = "windows")]
 async fn read_remembered_root() -> Option<PathBuf> {
     let value = config::get_config(GAME_INSTALL_PATH_KEY).await.ok()?;
     let root = PathBuf::from(config::extract_string(&value)?);
@@ -75,6 +82,7 @@ async fn discover_game_root() -> Option<PathBuf> {
 }
 
 /// 将安装根目录写入 config（前端包装格式 `{value: String}`）；与已存值一致则跳过写盘。
+#[cfg(target_os = "windows")]
 async fn persist_install_root(root: &Path) {
     if read_remembered_root().await.as_deref() == Some(root) {
         return; // 已记忆且一致，免去重复落盘
@@ -91,15 +99,30 @@ async fn persist_install_root(root: &Path) {
     }
 }
 
-/// 在客户端「已连接」时记忆其安装目录。
+/// 在客户端「已连接」时记忆其安装目录（仅 Windows）。
 ///
 /// 由 `game_state_monitor` 在「未连接 → 已连接」转变时调用。此刻
 /// `LeagueClientUx.exe` 在运行，可反推出根目录；持久化后即便游戏关闭也能一键启动。
+#[cfg(target_os = "windows")]
 pub async fn remember_install_root() {
     if let Some(root) = crate::lcu::util::token::get_client_install_root() {
         persist_install_root(&root).await;
     }
 }
+
+/// 记忆安装目录（非 Windows 平台空操作）。
+///
+/// [`get_client_install_root`] 按 Windows 布局 `<root>\LeagueClient\LeagueClientUx.exe`
+/// 向上两级取根目录。macOS 的实际布局是
+/// `/Applications/League of Legends.app/Contents/LoL/<App>.app/Contents/MacOS/<bin>`，
+/// 同样退两级只会得到某个 `.app/Contents`——实测曾把 `LeagueClientUx Helper.app/Contents`
+/// 写进 config，并打出「已记忆游戏安装目录，之后可免 WeGame 一键启动」的假日志。
+/// 而 [`launch_league`] 在非 Windows 本就直接返回「暂不支持」，这份记忆无人使用，
+/// 故整条链路在非 Windows 不编译。
+///
+/// [`get_client_install_root`]: crate::lcu::util::token::get_client_install_root
+#[cfg(not(target_os = "windows"))]
+pub async fn remember_install_root() {}
 
 /// 开机自启 Run 键的注册表子路径（HKLM 与 HKCU 共用）。
 #[cfg(target_os = "windows")]

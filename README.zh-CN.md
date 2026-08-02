@@ -138,9 +138,15 @@
    - **GitHub Releases**（主下载源）：前往 [Release 页面](https://github.com/wnzzer/rank-analysis/releases) 下载最新的构建版本压缩包。
    - **GitCode 镜像**（国内访问更快）：前往 [GitCode Releases](https://gitcode.com/wnzzer/rank-analysis/releases) 下载。
 
-   > **系统要求**: Windows 10 1803 及以上版本（需支持 WebView2）。
+   > **系统要求**
+   > - **Windows**：Windows 10 1803 及以上版本（需支持 WebView2）
+   > - **macOS**：macOS 10.15 及以上，**仅支持 Apple Silicon**（`*-macos-aarch64.dmg`，无 Intel 版）
 
 2. **运行**：解压后直接运行可执行文件，无需管理员权限。
+
+   > **macOS 首次打开**：安装包做了 ad-hoc 签名但**未做 Apple 公证**（公证需要付费开发者账号），
+   > 首次打开会被系统拦下。请打开**系统设置 → 隐私与安全性**，拉到底部，在被拦截的应用旁点
+   > **仍要打开**，然后重新启动即可。此操作只需做一次。
 
 3. **连接**：软件运行时会自动检测游戏客户端。
    > **注意**:

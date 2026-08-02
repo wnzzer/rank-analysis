@@ -20,15 +20,132 @@ permissions:
   contents: write
 
 jobs:
+  # --- 任务零：macOS 构建（Apple Silicon）---
+  # 只出 aarch64：Intel Mac 用户占比持续下降，且每多一个 target 就多一份构建与验证成本
+  # （同类项目 LeagueAkari 亦只发 mac-arm64）。
+  #
+  # 签名策略：ad-hoc（`bundle.macOS.signingIdentity: "-"`，见 tauri.conf.json），
+  # **不做公证（notarization）**——那需要 Apple Developer 账号（$99/年）。ad-hoc 的作用是
+  # 让 Apple Silicon 上的 app 具备合法签名结构，避免报「已损坏，应移到废纸篓」这种看起来
+  # 像中毒的错误；用户首次打开仍需在「隐私与安全性」里点一次放行，README 需写明。
+  #
+  # continue-on-error：macOS 侧任何失败都不得阻断 Windows 发版（Windows 才是主力平台）。
+  # 失败时 latest.json 自动省略 darwin 条目，Windows 更新链路不受影响。
+  build-macos:
+    name: Build macOS (aarch64)
+    runs-on: macos-latest
+    continue-on-error: true
+
+    defaults:
+      run:
+        working-directory: ./lol-record-analysis-tauri
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🛠️ Setup Node.js (v20)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: lol-record-analysis-tauri/package-lock.json
+
+      - name: 🦀 Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      # 版本解析与 Windows 任务保持同一套规则（tag 名为唯一真相源）
+      - name: 🔍 Get App Version
+        id: get_version
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            VERSION="${{ github.ref_name }}"
+          else
+            VERSION="${{ github.event.inputs.version }}"
+          fi
+          if [ -z "$VERSION" ]; then
+            echo "::error::No version resolved. Push a tag like v1.8.8, or provide the 'version' input."
+            exit 1
+          fi
+          case "$VERSION" in v*) ;; *) VERSION="v$VERSION" ;; esac
+          echo "tauri_version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "clean_version=${VERSION#v}" >> "$GITHUB_OUTPUT"
+          echo "Release Version: $VERSION (clean: ${VERSION#v})"
+
+      - name: 🔧 Sync version into tauri.conf.json
+        shell: bash
+        env:
+          CLEAN: ${{ steps.get_version.outputs.clean_version }}
+        run: |
+          node -e '
+            const fs = require("fs");
+            const f = "src-tauri/tauri.conf.json";
+            const j = JSON.parse(fs.readFileSync(f, "utf8"));
+            j.version = process.env.CLEAN;
+            fs.writeFileSync(f, JSON.stringify(j, null, 2) + "\n");
+            console.log("tauri.conf.json version set to " + j.version);
+          '
+
+      # macos-latest runner 本身即 Apple Silicon，原生构建就是 aarch64，无需 --target
+      # （指定 --target 会把产物路径改成 target/<triple>/release/，反而要多改一处路径）。
+      - name: 🔨 Build Tauri App (dmg, ad-hoc signed)
+        run: npm run tauri build -- --bundles dmg
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_KEY_PASSWORD }}
+          DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          # 选人期混淆 puuid 还原 key；未配置时该功能自动关闭（见 lcu/util/uuid.rs）
+          PUUID_KEY: ${{ secrets.PUUID_KEY }}
+
+      - name: 📝 Rename dmg & generate updater signature
+        id: prepare_assets
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_KEY_PASSWORD }}
+          CLEAN: ${{ steps.get_version.outputs.clean_version }}
+        run: |
+          set -euo pipefail
+          DMG_DIR="src-tauri/target/release/bundle/dmg"
+          SRC=$(find "$DMG_DIR" -maxdepth 1 -name '*.dmg' | head -1)
+          if [ -z "$SRC" ]; then
+            echo "::error::No .dmg produced under $DMG_DIR"
+            exit 1
+          fi
+          DEST="$DMG_DIR/lol-record-analysis-app-${CLEAN}-macos-aarch64.dmg"
+          mv "$SRC" "$DEST"
+          # dmg 目录不会自动产出 updater 用的 minisign .sig，显式签一次
+          npx tauri signer sign "$DEST"
+          ls -la "$DMG_DIR"
+
+      - name: ⬆️ Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg
+          path: |
+            lol-record-analysis-tauri/src-tauri/target/release/bundle/dmg/*.dmg
+            lol-record-analysis-tauri/src-tauri/target/release/bundle/dmg/*.sig
+          if-no-files-found: error
+          retention-days: 7
+
   build-and-release:
     name: Build & Upload Assets (Windows)
     runs-on: windows-latest
-    
+    # 等 macOS 产物就绪后再发版，好让 latest.json 一次写全两个平台。
+    # build-macos 是 continue-on-error，失败也不会卡住这里。
+    needs: build-macos
+
     # 定义全局工作目录，适用于所有 run 步骤
     defaults:
       run:
         working-directory: ./lol-record-analysis-tauri
-    
+
     # 导出版本号给下一个 Job 使用
     outputs:
       tauri_version: ${{ steps.get_version.outputs.tauri_version }}
@@ -111,6 +228,8 @@ jobs:
           # 同款套路注入 Sentry DSN：observability.rs 的 option_env!("SENTRY_DSN") 烤进二进制。
           # 不再硬编码进源码，fork 不带此 secret 即不上报。需在仓库 Secrets 配置。
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          # 同上注入选人期混淆 puuid 还原 key；未配置时该功能自动关闭（见 lcu/util/uuid.rs）
+          PUUID_KEY: ${{ secrets.PUUID_KEY }}
 
       # --- 文件重命名、压缩与路径整理 ---
       - name: 📝 Rename, Compress, and Set Paths
@@ -265,6 +384,16 @@ jobs:
               Set-Content -Path RELEASE_BODY.md -Value $changelog
           }
 
+      # --- 取回 macOS 产物（build-macos 任务的 dmg + .sig）---
+      # build-macos 是 continue-on-error：它失败时这里也拿不到产物，故本步骤同样容错。
+      # 后续 latest.json 会据 macos-dist 目录是否有内容决定要不要写 darwin 条目。
+      - name: 📥 Download macOS artifacts
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: macos-dmg
+          path: lol-record-analysis-tauri/macos-dist
+
       # --- 生成 latest.json（必须在创建 Release 前完成，便于一次上传所有资源）---
       - name: 📝 Generate latest.json
         run: |
@@ -299,6 +428,36 @@ jobs:
                 console.warn("WARNING: Signature file missing or empty.");
             }
             
+            // macOS 条目：仅当 build-macos 成功且产物齐全（dmg + 同名 .sig）时才写入。
+            // 缺任一则整个 darwin 条目省略——宁可 mac 端暂不推送更新，也不能写出
+            // 签名为空的条目（updater 会因验签失败而彻底卡住，比没有条目更糟）。
+            const macDir = "macos-dist";
+            let macPlatform = {};
+            try {
+                if (fs.existsSync(macDir)) {
+                    const files = fs.readdirSync(macDir);
+                    const dmg = files.find(f => f.endsWith(".dmg"));
+                    const sig = dmg && files.find(f => f === `${dmg}.sig`);
+                    if (dmg && sig) {
+                        const macSignature = fs.readFileSync(path.join(macDir, sig), "utf8").trim();
+                        if (macSignature) {
+                            macPlatform = {
+                                "darwin-aarch64": {
+                                    signature: macSignature,
+                                    url: `https://github.com/wnzzer/rank-analysis/releases/download/${version}/${dmg}`
+                                }
+                            };
+                            console.log(`macOS entry added: ${dmg}`);
+                        }
+                    }
+                }
+                if (!Object.keys(macPlatform).length) {
+                    console.warn("WARNING: no usable macOS artifact; latest.json will be Windows-only.");
+                }
+            } catch (e) {
+                console.warn("Failed to assemble macOS entry, skipping:", e);
+            }
+
             const data = {
                 version: version,
                 notes: notes,
@@ -307,10 +466,11 @@ jobs:
                     "windows-x86_64": {
                         signature: signature,
                         url: `https://github.com/wnzzer/rank-analysis/releases/download/${version}/${exeFile}`
-                    }
+                    },
+                    ...macPlatform
                 }
             };
-            
+
             fs.writeFileSync("latest.json", JSON.stringify(data, null, 2));
             console.log("latest.json generated.");
           '
@@ -330,6 +490,7 @@ jobs:
           files: |
             ${{ steps.prepare_assets.outputs.setup_path }}
             ${{ steps.prepare_assets.outputs.portable_path }}
+            lol-record-analysis-tauri/macos-dist/*.dmg
             lol-record-analysis-tauri/latest.json
           draft: false
           prerelease: false
@@ -340,6 +501,10 @@ jobs:
   # GitCode 走华为云 OBS 预签名上传：GET upload_url -> PUT 文件（OBS 自动回调注册附件）。
   # 注意：API 返回的 browser_download_url 用 api.gitcode.com（会 404），真正能匿名下载的是
   # gitcode.com host，所以 latest.json 里的下载链接改写成 gitcode.com。
+  #
+  # **刻意只镜像 Windows 产物，不含 macOS dmg**：国服（腾讯）没有 Mac 客户端，GitCode 面向的
+  # 国内用户里几乎不存在 mac 使用者，镜像过去也无人下载。latest.json 中的 darwin-aarch64
+  # 条目保持指向 GitHub，功能正确——这不是遗漏。
   gitcode-release:
     name: Sync Release to GitCode
     needs: build-and-release

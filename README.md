@@ -138,9 +138,16 @@ Built with **Tauri 2.0**, it pairs Rust's performance with a web frontend in a *
    - **GitHub Releases** (primary): grab the latest build from the [Release Page](https://github.com/wnzzer/rank-analysis/releases)
    - **GitCode mirror** (faster in mainland China): download from [GitCode Releases](https://gitcode.com/wnzzer/rank-analysis/releases)
 
-   > **System Requirements**: Windows 10 1803 or higher (WebView2 support required)
+   > **System Requirements**
+   > - **Windows**: Windows 10 1803 or higher (WebView2 support required)
+   > - **macOS**: macOS 10.15 or higher, **Apple Silicon only** (`*-macos-aarch64.dmg`; no Intel build)
 
 2. **Run**: Extract and run the executable directly - no admin privileges required
+
+   > **macOS first launch**: the app is ad-hoc signed but **not notarized** (Apple notarization
+   > requires a paid Developer account). macOS will refuse the first launch. Open
+   > **System Settings → Privacy & Security**, scroll to the bottom and click **Open Anyway**
+   > next to the blocked app, then launch it again. This is only needed once.
 
 3. **Connect**: The software automatically detects the game client when running
    > **Notes**:

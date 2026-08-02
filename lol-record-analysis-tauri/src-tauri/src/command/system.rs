@@ -27,6 +27,15 @@ pub fn get_asset_prefix() -> String {
     asset_prefix().to_string()
 }
 
+/// 返回当前操作系统标识（`std::env::consts::OS`，如 `windows` / `macos` / `linux`）。
+///
+/// 供前端做**平台门控**：部分能力只在 Windows 存在（免 WeGame 一键启动、以管理员
+/// 身份重启），在其他平台必然失败。没有这个信息，前端会渲染出点了必报错的死按钮。
+#[tauri::command]
+pub fn get_platform() -> &'static str {
+    std::env::consts::OS
+}
+
 /// 平台相关的 asset 协议 URL 前缀（不含尾斜杠）。
 pub fn asset_prefix() -> &'static str {
     #[cfg(target_os = "windows")]

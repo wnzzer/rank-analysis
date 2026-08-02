@@ -45,8 +45,15 @@ jobs:
         run: npm run test:coverage
 
   rust-quality:
-    name: Rust Code Quality
-    runs-on: windows-latest
+    # 必须按平台矩阵跑：token.rs / launcher.rs / system.rs 用 #[cfg(target_os)] 分叉出
+    # Windows 与 macOS 两套实现，单跑 windows-latest 时 cfg(not(windows)) 分支根本不编译，
+    # 其中的 clippy 告警与编译错误一律漏检（曾漏过 launcher.rs 的 needless_return）。
+    name: Rust Code Quality (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
     permissions:
       contents: read
     defaults:
