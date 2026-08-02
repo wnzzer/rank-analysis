@@ -155,9 +155,12 @@ fn derive_main_position(
             }
         }
     }
+    // 平票时 HashMap 遍历序不确定；次级 tie-break 用 position 字典序（取较小者），
+    // 保证同输入恒定输出。Reverse(*p) 让字典序更小的 p 在 (votes, Reverse(p))
+    // 元组比较中显得"更大"，从而被 max_by_key 选中。
     votes
         .into_iter()
-        .max_by_key(|(_, v)| *v)
+        .max_by_key(|(p, v)| (*v, std::cmp::Reverse(*p)))
         .map(|(p, _)| p.to_string())
         .unwrap_or_default()
 }
@@ -659,6 +662,26 @@ mod tests {
         let result = build_suggestions(&games, "me", Some(&snap), None, &[], &[]);
         assert_eq!(result.main_position, "TOP");
         // 未显式传分路时,hot_t0 pick 向应按推断出的 TOP 过滤
+    }
+
+    #[test]
+    fn main_position_tie_should_be_deterministic_by_position_lexical_order() {
+        // 英雄 A(JUNGLE) 与英雄 B(TOP) 各打 3 场 → 得票数相等（平票）。
+        // HashMap 遍历序不确定，必须靠次级 tie-break（字典序最小）保证结果稳定：
+        // JUNGLE < TOP，故恒返回 JUNGLE。
+        let mut games = vec![];
+        for _ in 0..3 {
+            games.push(game(10, true, &[50], 420)); // 英雄 10 → JUNGLE
+        }
+        for _ in 0..3 {
+            games.push(game(20, true, &[50], 420)); // 英雄 20 → TOP
+        }
+        let snap = snapshot(vec![meta(10, "JUNGLE", 2, 0.1), meta(20, "TOP", 2, 0.1)]);
+        let my_champs = aggregate_my_champions(&games);
+        for _ in 0..20 {
+            // 反复跑几次，覆盖 HashMap 遍历序的随机性
+            assert_eq!(derive_main_position(&my_champs, Some(&snap)), "JUNGLE");
+        }
     }
 
     #[test]
