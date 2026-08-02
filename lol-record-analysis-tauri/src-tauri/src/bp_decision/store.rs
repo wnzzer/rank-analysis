@@ -83,9 +83,16 @@ pub fn reset() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    /// STORE 是进程级单例，而 cargo test 默认多线程并行：
+    /// 两个测试各自 reset() 会互相擦掉对方刚写入的状态（CI 上偶现失败）。
+    /// 用测试内互斥锁把触碰全局状态的测试串行化。
+    static TEST_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
     fn last_hovered_round_trips_and_resets() {
+        let _guard = TEST_LOCK.lock().unwrap_or_else(PoisonError::into_inner);
         reset();
         assert_eq!(last_hovered(), None);
         set_last_hovered(Some(64));
@@ -96,6 +103,7 @@ mod tests {
 
     #[test]
     fn override_is_scoped_to_action_id() {
+        let _guard = TEST_LOCK.lock().unwrap_or_else(PoisonError::into_inner);
         reset();
         assert!(!is_overridden(10));
         mark_overridden(10);
