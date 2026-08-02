@@ -107,12 +107,15 @@ fn collect_counters(snap: &OpggSnapshot, champion_ids: &[i32]) -> HashMap<i32, V
 ///
 /// # 参数
 /// - `mem_cache`: 内存缓存（无 TTL，保留最后已知快照供降级）
+/// - `mode`: 数据模式（"ranked"/"aram"）
+/// - `tier`: 当前配置的段位（仅 ranked 参与新鲜度判定，见 `tier_ok`）
 /// - `now`: 当前 unix 秒（新鲜度判定基准）
 /// - `fetch`: HTTP 拉取（生产为 `api::fetch_mode`）
 /// - `disk_load` / `disk_save`: 磁盘缓存读写（生产为 `cache::load` / `cache::save`）
 async fn ensure_snapshot_impl<F, Fut>(
     mem_cache: &moka::future::Cache<String, Arc<OpggSnapshot>>,
     mode: &str,
+    tier: &str,
     now: i64,
     fetch: F,
     disk_load: impl Fn(&str) -> Option<OpggSnapshot>,
@@ -124,16 +127,19 @@ where
 {
     validate_mode(mode)?;
 
+    // ranked 快照还需 tier 与当前配置一致才算命中；aram 无段位概念跳过。
+    let tier_ok = |snap: &OpggSnapshot| mode != "ranked" || snap.tier == tier;
+
     // 1. 内存 fresh
     if let Some(snap) = mem_cache.get(mode).await {
-        if cache::is_fresh(&snap, now) {
+        if cache::is_fresh(&snap, now) && tier_ok(&snap) {
             return Ok((snap, false));
         }
     }
 
     // 2. 磁盘 fresh（跨重启复用）
     if let Some(disk) = disk_load(mode) {
-        if cache::is_fresh(&disk, now) {
+        if cache::is_fresh(&disk, now) && tier_ok(&disk) {
             let arc = Arc::new(disk);
             mem_cache.insert(mode.to_string(), arc.clone()).await;
             return Ok((arc, false));
@@ -178,11 +184,20 @@ pub async fn ensure_opgg_snapshot(
     state: &AppState,
     mode: &str,
 ) -> Result<(Arc<OpggSnapshot>, bool), String> {
+    // 段位配置：前端写入 Map{value:String}，extract_string 两种格式都容忍；
+    // 非法/缺省回退默认段位，读失败不阻塞主流程。
+    let tier_cfg = crate::config::get_config("settings.opgg.tier")
+        .await
+        .ok()
+        .and_then(|v| crate::config::extract_string(&v));
+    let tier = api::sanitize_tier(tier_cfg.as_deref());
+
     ensure_snapshot_impl(
         &state.opgg_cache,
         mode,
+        tier,
         now_secs(),
-        |m| async move { api::fetch_mode(&m).await },
+        |m| async move { api::fetch_mode(&m, tier).await },
         cache::load,
         cache::save,
     )
@@ -288,6 +303,7 @@ mod tests {
         );
         OpggSnapshot {
             mode: "ranked".into(),
+            tier: "emerald_plus".into(),
             patch: "16.13".into(),
             fetched_at: 1_752_000_000,
             champions,
@@ -354,6 +370,14 @@ mod tests {
         }
     }
 
+    /// 指定 tier 的快照。
+    fn snapshot_at_tier(fetched_at: i64, tier: &str) -> OpggSnapshot {
+        OpggSnapshot {
+            tier: tier.into(),
+            ..snapshot_at(fetched_at)
+        }
+    }
+
     /// 空内存缓存（与 `AppState::opgg_cache` 同构：无 TTL）。
     fn mem_cache() -> moka::future::Cache<String, Arc<OpggSnapshot>> {
         moka::future::Cache::builder().build()
@@ -380,6 +404,7 @@ mod tests {
         let (snap, stale) = ensure_snapshot_impl(
             &cache_map,
             "ranked",
+            "emerald_plus",
             NOW,
             |_m| {
                 fetch_called.store(true, Ordering::SeqCst);
@@ -407,6 +432,7 @@ mod tests {
         let (snap, stale) = ensure_snapshot_impl(
             &cache_map,
             "ranked",
+            "emerald_plus",
             NOW,
             |_m| {
                 fetch_called.store(true, Ordering::SeqCst);
@@ -440,6 +466,7 @@ mod tests {
         let (snap, stale) = ensure_snapshot_impl(
             &cache_map,
             "ranked",
+            "emerald_plus",
             NOW,
             |_m| async { Ok(snapshot_at(NOW)) },
             disk_none,
@@ -469,6 +496,7 @@ mod tests {
         let (snap, stale) = ensure_snapshot_impl(
             &cache_map,
             "ranked",
+            "emerald_plus",
             NOW,
             |_m| async { Err::<OpggSnapshot, String>("network down".into()) },
             disk_none,
@@ -488,6 +516,7 @@ mod tests {
         let (snap, stale) = ensure_snapshot_impl(
             &cache_map,
             "ranked",
+            "emerald_plus",
             NOW,
             |_m| async { Err::<OpggSnapshot, String>("network down".into()) },
             |_mode| Some(snapshot_at(NOW - TTL_SECS - 100)),
@@ -509,6 +538,7 @@ mod tests {
         let err = ensure_snapshot_impl(
             &cache_map,
             "ranked",
+            "emerald_plus",
             NOW,
             |_m| async { Err::<OpggSnapshot, String>("network down".into()) },
             disk_none,
@@ -528,6 +558,7 @@ mod tests {
         let err = ensure_snapshot_impl(
             &cache_map,
             "urf",
+            "emerald_plus",
             NOW,
             |_m| {
                 fetch_called.store(true, Ordering::SeqCst);
@@ -541,5 +572,112 @@ mod tests {
 
         assert!(err.contains("invalid opgg mode"));
         assert!(!fetch_called.load(Ordering::SeqCst));
+    }
+
+    #[tokio::test]
+    async fn ensure_should_refetch_when_memory_tier_mismatches() {
+        let cache_map = mem_cache();
+        // 内存里是 fresh 的 emerald_plus 快照，但当前配置要 gold_plus
+        cache_map
+            .insert(
+                "ranked".into(),
+                Arc::new(snapshot_at_tier(NOW - 100, "emerald_plus")),
+            )
+            .await;
+
+        let (snap, stale) = ensure_snapshot_impl(
+            &cache_map,
+            "ranked",
+            "gold_plus",
+            NOW,
+            |_m| async { Ok(snapshot_at_tier(NOW, "gold_plus")) },
+            disk_none,
+            disk_save_ok,
+        )
+        .await
+        .unwrap();
+
+        assert!(!stale);
+        assert_eq!(snap.tier, "gold_plus", "tier 不匹配应重拉");
+    }
+
+    #[tokio::test]
+    async fn ensure_should_skip_disk_with_mismatched_or_legacy_tier() {
+        let cache_map = mem_cache();
+        // 磁盘是旧缓存（无 tier 字段 → serde default 空串），应视为 miss 走拉取
+        let (snap, _stale) = ensure_snapshot_impl(
+            &cache_map,
+            "ranked",
+            "emerald_plus",
+            NOW,
+            |_m| async { Ok(snapshot_at_tier(NOW, "emerald_plus")) },
+            |_mode| Some(snapshot_at_tier(NOW - 100, "")),
+            disk_save_ok,
+        )
+        .await
+        .unwrap();
+        assert_eq!(snap.tier, "emerald_plus", "旧缓存空 tier 应重拉");
+    }
+
+    #[tokio::test]
+    async fn ensure_should_still_fall_back_to_stale_mismatched_tier_on_fetch_failure() {
+        let cache_map = mem_cache();
+        // 拉取失败时，宁可给错段位的旧数据也不给空——降级链兜底不校验 tier
+        cache_map
+            .insert(
+                "ranked".into(),
+                Arc::new(snapshot_at_tier(NOW - 100, "emerald_plus")),
+            )
+            .await;
+
+        let (snap, stale) = ensure_snapshot_impl(
+            &cache_map,
+            "ranked",
+            "gold_plus",
+            NOW,
+            |_m| async { Err::<OpggSnapshot, String>("network down".into()) },
+            disk_none,
+            disk_save_ok,
+        )
+        .await
+        .unwrap();
+
+        assert!(stale, "错段位数据按 stale 降级返回");
+        assert_eq!(snap.tier, "emerald_plus");
+    }
+
+    #[tokio::test]
+    async fn ensure_should_ignore_tier_for_aram() {
+        let cache_map = mem_cache();
+        // aram 快照 tier 恒空串，不应因配置了段位而 miss
+        cache_map
+            .insert(
+                "aram".into(),
+                Arc::new(OpggSnapshot {
+                    mode: "aram".into(),
+                    tier: String::new(),
+                    ..snapshot_at(NOW - 100)
+                }),
+            )
+            .await;
+
+        let fetch_called = AtomicBool::new(false);
+        let (_snap, stale) = ensure_snapshot_impl(
+            &cache_map,
+            "aram",
+            "gold_plus",
+            NOW,
+            |_m| {
+                fetch_called.store(true, Ordering::SeqCst);
+                async { Err::<OpggSnapshot, String>("should not fetch".into()) }
+            },
+            disk_none,
+            disk_save_ok,
+        )
+        .await
+        .unwrap();
+
+        assert!(!fetch_called.load(Ordering::SeqCst), "aram 不校验 tier");
+        assert!(!stale);
     }
 }

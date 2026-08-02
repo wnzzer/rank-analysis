@@ -23,6 +23,27 @@
           </span>
           <n-switch v-model:value="autoStart" @update:value="updateStartSwitch" />
         </div>
+
+        <div class="setting-item">
+          <span class="setting-label">
+            <n-icon size="20" class="setting-item-icon setting-item-icon-start">
+              <BulbOutline />
+            </n-icon>
+            智能推荐（英雄池 / Ban 池）
+          </span>
+          <n-space align="center">
+            <n-select
+              v-model:value="opggTier"
+              :options="TIER_OPTIONS"
+              size="small"
+              style="width: 130px"
+              @update:value="updateOpggTier"
+            />
+            <n-button size="small" type="primary" ghost @click="suggestModalShow = true">
+              智能推荐
+            </n-button>
+          </n-space>
+        </div>
       </n-space>
     </n-card>
 
@@ -214,19 +235,32 @@
         @save="onBanSave"
       />
     </n-card>
+
+    <BpSuggestModal
+      v-model:show="suggestModalShow"
+      :champion-options="options"
+      @adopted="onSuggestAdopted"
+    />
   </n-space>
 </template>
 <script setup lang="ts">
 import { VueDraggable } from 'vue-draggable-plus'
 import { onMounted, ref } from 'vue'
 import { renderSingleSelectTag, renderLabel, filterChampionFunc } from '@renderer/utils/champion'
-import { CheckmarkCircleOutline, FlashOutline, Close, PlayCircleOutline } from '@vicons/ionicons5'
+import {
+  CheckmarkCircleOutline,
+  FlashOutline,
+  Close,
+  PlayCircleOutline,
+  BulbOutline
+} from '@vicons/ionicons5'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import { assetPrefix } from '@renderer/services/http'
 import type { championOption } from '@renderer/types/domain/champion'
 import { invoke } from '@tauri-apps/api/core'
 import { usePickRules, useBanRules } from '@renderer/composables/useRules'
 import RuleEditModal from '@renderer/components/automation/RuleEditModal.vue'
+import BpSuggestModal from '@renderer/components/automation/BpSuggestModal.vue'
 import type { PickRule, BanRule, PickAction } from '@renderer/types/rules'
 
 const { rules: pickRules, reload: reloadPickRules, save: savePickRules } = usePickRules()
@@ -237,6 +271,33 @@ const pickEditing = ref<PickRule | undefined>(undefined)
 const banModalShow = ref(false)
 const banEditing = ref<BanRule | undefined>(undefined)
 
+const suggestModalShow = ref(false)
+/** OP.GG 段位分段（与 Rust opgg::api::VALID_TIERS 同白名单） */
+const opggTier = ref('emerald_plus')
+const TIER_OPTIONS = [
+  { label: '黄金以上', value: 'gold_plus' },
+  { label: '铂金以上', value: 'platinum_plus' },
+  { label: '翡翠以上', value: 'emerald_plus' },
+  { label: '钻石以上', value: 'diamond_plus' },
+  { label: '大师以上', value: 'master_plus' },
+  { label: '全部段位', value: 'all' }
+]
+
+/** 段位变更：写配置并强制刷新 ranked 快照（失败静默，降级链自会兜底） */
+const updateOpggTier = async () => {
+  await putConfigByIpc('settings.opgg.tier', opggTier.value)
+  invoke('update_opgg_data', { mode: 'ranked' }).catch(() => {})
+}
+
+/** 采纳后重读对应池，保持页面上的兜底池列表同步 */
+const onSuggestAdopted = async (pool: 'pick' | 'ban') => {
+  if (pool === 'pick') {
+    myPickData.value = (await getConfigByIpc<number[]>('settings.auto.pickChampionSlice')) ?? []
+  } else {
+    myBanData.value = (await getConfigByIpc<number[]>('settings.auto.banChampionSlice')) ?? []
+  }
+}
+
 onMounted(async () => {
   const opts = await invoke<championOption[]>('get_champion_options')
   options.value = opts.filter(opt => opt.value > 0)
@@ -246,6 +307,7 @@ onMounted(async () => {
   myPickData.value = (await getConfigByIpc<number[]>('settings.auto.pickChampionSlice')) ?? []
   myBanData.value = (await getConfigByIpc<number[]>('settings.auto.banChampionSlice')) ?? []
   autoStart.value = (await getConfigByIpc<boolean>('settings.auto.startMatchSwitch')) ?? false
+  opggTier.value = (await getConfigByIpc<string>('settings.opgg.tier')) ?? 'emerald_plus'
   await reloadPickRules()
   await reloadBanRules()
 })

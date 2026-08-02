@@ -125,6 +125,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             command::ai::stream_ai_analysis,
             command::asset::get_asset_details,
             command::bp::get_bp_decision,
+            command::bp_suggest::get_bp_suggest,
             command::config::put_config,
             command::config::get_config,
             // command::config::get_http_server_port,

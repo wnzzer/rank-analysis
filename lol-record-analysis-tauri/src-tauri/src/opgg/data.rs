@@ -55,6 +55,10 @@ pub struct LaneCounter {
 pub struct OpggSnapshot {
     /// 模式："ranked" | "aram"
     pub mode: String,
+    /// ranked 数据的段位分段（如 "emerald_plus"）；aram 无段位概念恒为 ""。
+    /// `serde(default)`：旧磁盘缓存无此字段 → 空串 → 与当前配置不匹配自然视为 miss。
+    #[serde(default)]
+    pub tier: String,
     /// patch 版本号（OP.GG meta.version，如 "16.13"）
     pub patch: String,
     /// 拉取时间（unix 秒）
