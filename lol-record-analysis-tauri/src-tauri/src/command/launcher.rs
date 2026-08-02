@@ -227,11 +227,13 @@ pub fn purge_login_client_autostart() {}
 /// - `Err(String)`: 未找到安装目录 / 未找到登录客户端 / spawn 失败 / 平台暂不支持
 #[tauri::command]
 pub async fn launch_league() -> Result<(), String> {
+    // 两个块都不带 `return`：cfg 会移除其中一个，剩下的那个即函数尾表达式。
+    // 写 `return` 会在对应平台触发 clippy::needless_return（-D warnings 下即编译失败）。
     #[cfg(target_os = "windows")]
     {
         launch_league_windows().await?;
         crate::observability::track_feature("launch_league");
-        return Ok(());
+        Ok(())
     }
     #[cfg(not(target_os = "windows"))]
     {
