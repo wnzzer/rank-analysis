@@ -797,6 +797,12 @@ watch(
   --hdr-color: var(--semantic-win);
   position: relative;
   overflow: hidden;
+  /* 头部是固定内容区，绝不参与压缩：它是 .match-detail-shell（flex column, height:100%）
+     的子项，默认 flex-shrink:1 会在窗口高度不足时被挤扁。一旦挤扁，比左栏更高的右侧
+     按钮列（统计条 + 观看回放 + AI 整局复盘）就会超出头部，被上面的 overflow:hidden
+     裁掉底部——表现为「AI 整局复盘」按钮缺一截。窗口越矮越明显。
+     该滚动的是下面的正文区，不是头部。 */
+  flex-shrink: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
