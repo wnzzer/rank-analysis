@@ -205,6 +205,13 @@ impl GameStateMonitor {
                     crate::lcu::api::asset::init().await;
                 });
             }
+            // 队列表同为「连上客户端才拿得到」的静态数据，与资源缓存同一时机拉取。
+            // 失败不影响功能——所有解析点都会回落到硬编码表。
+            if crate::lcu::api::game_queue::cache_is_empty() {
+                tokio::spawn(async move {
+                    crate::lcu::api::game_queue::init().await;
+                });
+            }
             log::info!("LCU 已连接，正在启动 WebSocket 监听...");
             let app_handle = self.app_handle.clone();
             tokio::spawn(async move {
