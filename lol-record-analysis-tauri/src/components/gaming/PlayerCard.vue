@@ -95,7 +95,7 @@
                 />
               </n-flex>
 
-              <n-flex align="center" class="meta-row">
+              <n-flex align="center" :size="[6, 2]" class="meta-row">
                 <span class="tag-line">#{{ sessionSummoner?.summoner.tagLine }}</span>
                 <n-flex align="center" class="tier-row">
                   <span v-if="imgUrl.includes('unranked')" class="tier-icon-placeholder">
@@ -223,7 +223,13 @@ import PlayerNoteBadge from '@renderer/components/common/PlayerNoteBadge.vue'
 import PatchNoteBadge from './PatchNoteBadge.vue'
 import UnifiedTagRow from '@renderer/components/common/UnifiedTagRow.vue'
 import { getChampionMeta, type ChampionMeta, type OpggMode } from '@renderer/services/opgg'
-import { tierBadge, formatWinRate, playerCardPickStateClass, isChampionSwap } from './championIntel'
+import {
+  tierBadge,
+  formatWinRate,
+  playerCardPickStateClass,
+  isChampionSwap,
+  tagVisibleCap
+} from './championIntel'
 
 interface Props {
   sessionSummoner: SessionSummoner
@@ -309,13 +315,13 @@ const isHiddenRecord = computed(
     (!props.sessionSummoner.summoner?.gameName || !props.sessionSummoner.summoner?.puuid)
 )
 
-/** 标签区可见系统标签上限：预组队/遇见过各占一个槽位后动态收缩，保证单行(spec 验收：全部单行) */
-const tagMaxVisible = computed(() => {
-  let cap = 2
-  if (props.sessionSummoner.preGroupMarkers?.name) cap--
-  if (props.sessionSummoner.meetGames?.length > 0) cap--
-  return Math.max(cap, 0)
-})
+/** 标签区可见系统标签上限：预组队/遇见过各按 2 名额折算（宽幅 chip 会把 OP.GG 胜率 chip 挤换行），规则见 tagVisibleCap */
+const tagMaxVisible = computed(() =>
+  tagVisibleCap(
+    !!props.sessionSummoner.preGroupMarkers?.name,
+    props.sessionSummoner.meetGames?.length > 0
+  )
+)
 
 const { isAramMode, balanceTags, overallBalanceStatus } = useAramBalance(
   toRef(() => props.sessionSummoner.championId),
@@ -431,8 +437,9 @@ watch(
   font-weight: 700;
 }
 
+/* 间距走模板里 n-flex 的 :size="[6, 2]"（n-flex 输出内联 gap，scoped 的 gap 声明会被覆盖、
+ * 属于死代码）：横向 6px 同旧视觉；纵向 2px 收紧极窄窗口下胜率 chip 换行后的行距 */
 .meta-row {
-  gap: var(--space-6);
   flex-wrap: wrap;
 }
 

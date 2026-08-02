@@ -127,6 +127,30 @@ export function isChampionSwap(oldId: number | undefined, newId: number | undefi
 }
 
 /**
+ * PlayerCard 标签区可见系统标签上限
+ *
+ * 标签区（.profile-tags）是 flex-shrink:0 的硬占位，越宽越挤压中间信息列，
+ * 信息列一窄 OP.GG 胜率 chip 就会从段位行被挤换行，卡片凭空高出一行。
+ * 预组队/遇见过属于宽幅特殊 chip，各按 2 个系统标签名额折算：任一出现时
+ * 系统标签（连败/连胜等）全部收进 +N popover，保住"信息列两行"结构。
+ *
+ * @param hasPreGroup - 是否有预组队标记 chip
+ * @param hasMeet - 是否有「遇见过 ×N」chip
+ * @returns 直接可见的系统标签数上限（0 表示全部收进 +N）
+ * @example
+ * ```ts
+ * tagVisibleCap(false, false) // 2
+ * tagVisibleCap(false, true) // 0（遇见过在场，连败等收进 +N）
+ * ```
+ */
+export function tagVisibleCap(hasPreGroup: boolean, hasMeet: boolean): number {
+  let cap = 2
+  if (hasPreGroup) cap -= 2
+  if (hasMeet) cap -= 2
+  return Math.max(cap, 0)
+}
+
+/**
  * 胜率显示：将 0~1 的小数格式化为百分比字符串
  * @param rate - 胜率（0~1），缺省或 <=0 视为无数据
  * @returns 形如 '51.8%' 的字符串；无数据时返回 '--'
