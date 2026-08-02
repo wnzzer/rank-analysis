@@ -40,6 +40,8 @@ const result = ref<BpSuggestResult | null>(null)
 const selectedPosition = ref<string>('')
 /** 本次会话内已采用的 (pool:championId) 集合，驱动灰态 */
 const adopted = ref<Set<string>>(new Set())
+/** 正在提交中的 (pool:championId) 集合，防连点 + 驱动按钮 loading */
+const adoptingKeys = ref<Set<string>>(new Set())
 
 const POSITION_OPTIONS = [
   { label: '全部分路', value: '' },
@@ -136,15 +138,36 @@ function isAdopted(item: BpSuggestItem, pool: SuggestedPool): boolean {
   )
 }
 
-/** 采用：读现有池 → 去重 append → 写回 → 灰态 + 通知父组件 */
+/** 是否正在提交该 (pool, championId)——驱动按钮 loading/disabled，防连点 */
+function isAdopting(item: BpSuggestItem, pool: SuggestedPool): boolean {
+  return adoptingKeys.value.has(adoptKey(pool, item.champion_id))
+}
+
+/**
+ * 采用：读现有池 → 去重 append → 写回 → 灰态 + 通知父组件
+ *
+ * 用 `adoptingKeys` 在 (pool, championId) 粒度防重入：同一张卡片的按钮在
+ * 请求完成前再次点击会被直接忽略；IPC 失败时吞掉异常仅打日志，不置灰、不
+ * emit，避免用户零反馈或双击竞态下两次都读到旧池子。
+ */
 async function adopt(item: BpSuggestItem, pool: SuggestedPool) {
-  const key = pool === 'pick' ? 'settings.auto.pickChampionSlice' : 'settings.auto.banChampionSlice'
-  const existing = (await getConfigByIpc<number[]>(key)) ?? []
-  if (!existing.includes(item.champion_id)) {
-    await putConfigByIpc(key, [...existing, item.champion_id])
+  const aKey = adoptKey(pool, item.champion_id)
+  if (adoptingKeys.value.has(aKey)) return
+  adoptingKeys.value.add(aKey)
+  try {
+    const key =
+      pool === 'pick' ? 'settings.auto.pickChampionSlice' : 'settings.auto.banChampionSlice'
+    const existing = (await getConfigByIpc<number[]>(key)) ?? []
+    if (!existing.includes(item.champion_id)) {
+      await putConfigByIpc(key, [...existing, item.champion_id])
+    }
+    adopted.value = new Set(adopted.value).add(aKey)
+    emit('adopted', pool)
+  } catch (e) {
+    console.error('采用推荐失败', e)
+  } finally {
+    adoptingKeys.value.delete(aKey)
   }
-  adopted.value = new Set(adopted.value).add(adoptKey(pool, item.champion_id))
-  emit('adopted', pool)
 }
 
 async function onPositionChange(pos: string) {
@@ -248,7 +271,10 @@ function close() {
                 size="small"
                 type="primary"
                 style="margin-top: var(--space-8); width: 100%"
-                :disabled="isAdopted(item, item.suggested_pool)"
+                :disabled="
+                  isAdopted(item, item.suggested_pool) || isAdopting(item, item.suggested_pool)
+                "
+                :loading="isAdopting(item, item.suggested_pool)"
                 @click="adopt(item, item.suggested_pool)"
               >
                 {{
@@ -264,7 +290,11 @@ function close() {
                 quaternary
                 size="small"
                 style="margin-top: var(--space-4); width: 100%"
-                :disabled="isAdopted(item, item.suggested_pool === 'pick' ? 'ban' : 'pick')"
+                :disabled="
+                  isAdopted(item, item.suggested_pool === 'pick' ? 'ban' : 'pick') ||
+                  isAdopting(item, item.suggested_pool === 'pick' ? 'ban' : 'pick')
+                "
+                :loading="isAdopting(item, item.suggested_pool === 'pick' ? 'ban' : 'pick')"
                 @click="adopt(item, item.suggested_pool === 'pick' ? 'ban' : 'pick')"
               >
                 {{ item.suggested_pool === 'pick' ? '转入 Ban 池' : '转入英雄池' }}

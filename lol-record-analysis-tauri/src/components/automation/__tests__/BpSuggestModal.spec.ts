@@ -141,4 +141,22 @@ describe('BpSuggestModal', () => {
     await w.vm.$nextTick()
     expect(w.text()).toContain('OP.GG 数据暂不可用')
   })
+
+  it('adopt failure does not grey the card or emit adopted', async () => {
+    vi.mocked(invoke).mockResolvedValue(okResult())
+    vi.mocked(getConfigByIpc).mockResolvedValue([])
+    vi.mocked(putConfigByIpc).mockRejectedValue(new Error('ipc down'))
+    const w = mount(BpSuggestModal, { props: { show: true, championOptions }, global: { stubs } })
+    await new Promise(r => setTimeout(r, 0))
+    await w.vm.$nextTick()
+
+    const btn = w.findAll('button').find(b => b.text().includes('加入英雄池'))!
+    await btn.trigger('click')
+    await new Promise(r => setTimeout(r, 0))
+    await w.vm.$nextTick()
+
+    expect(w.emitted('adopted')).toBeFalsy()
+    // 失败后按钮不该停留在「已加入」灰态
+    expect(btn.text()).not.toContain('已加入')
+  })
 })
