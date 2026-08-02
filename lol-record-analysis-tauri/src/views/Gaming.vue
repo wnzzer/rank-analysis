@@ -154,6 +154,12 @@
             <span v-else class="ban-group-empty">-</span>
           </div>
         </div>
+
+        <BpDecisionBar
+          :decision="bp.decision.value"
+          :display-secs="bp.displaySecs.value"
+          @save-rule="handleSaveRule"
+        />
       </div>
 
       <div class="gaming-grid" :class="{ 'gaming-grid-multi': sessionData.isMultiTeam }">
@@ -180,23 +186,30 @@
 
 <script lang="ts" setup>
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import { SettingsOutline, SparklesOutline } from '@vicons/ionicons5'
 import { useMessage } from 'naive-ui'
 
 import LoadingComponent from '@renderer/components/LoadingComponent.vue'
 import SubteamCard from '@renderer/components/gaming/SubteamCard.vue'
+import BpDecisionBar from '@renderer/components/gaming/BpDecisionBar.vue'
 import { useGamingAIAnalysis } from '@renderer/composables/useGamingAIAnalysis'
+import { useBpDecision } from '@renderer/composables/useBpDecision'
 import { useSessionSync } from '@renderer/composables/useSessionSync'
 import { useSessionTiers } from '@renderer/composables/useSessionTiers'
 import { useGameState } from '@renderer/composables/useGameState'
 import { useAssetUrl } from '@renderer/composables/useAssetUrl'
+import { usePickRules, useBanRules } from '@renderer/composables/useRules'
 import {
   ensureOpggData,
   getOpggStatus,
   queueIdToOpggMode,
   type OpggStatus
 } from '@renderer/services/opgg'
+import { buildRuleDraft } from '@renderer/services/bpRuleDraft'
+import { getChampionName, loadChampionNames } from '@renderer/services/ai/champion-names'
+import type { Position, PickRule, BanRule } from '@renderer/types/rules'
 
 /** 选人阶段 stepper 的四步定义，顺序与展示文案固定 */
 const STAGE_STEPS: Array<{ key: string; label: string }> = [
@@ -257,6 +270,25 @@ const hasBans = computed(() => myBans.value.length > 0 || theirBans.value.length
 const opggStatus = ref<OpggStatus | null>(null)
 watch(opggMode, m => getOpggStatus(m).then(s => (opggStatus.value = s)), { immediate: true })
 
+/**
+ * 选人期 BP 决策预告。与 useSessionSync 平行——决策快照是会话级单例、
+ * 一次算完、纯展示，不进 per-player 的同步链。
+ */
+const bp = useBpDecision(() => sessionData.phase)
+
+const router = useRouter()
+
+/** 我的分路，取自会话里标着「我」的那名玩家；ARAM 等无分路模式为 null */
+const myPosition = computed<Position | null>(() => {
+  const me = orderedSubteams.value
+    .flatMap(s => s.players)
+    .find(p => p.summoner.puuid === mySummonerPuuid.value)
+  const p = me?.assignedPosition?.toLowerCase()
+  return p === 'top' || p === 'jungle' || p === 'middle' || p === 'bottom' || p === 'utility'
+    ? p
+    : null
+})
+
 const showConfig = ref(false)
 const matchCount = ref(4)
 const message = useMessage()
@@ -272,6 +304,56 @@ let hasShownAITip = false
  * {@link useGamingAIAnalysis}。
  */
 const ai = useGamingAIAnalysis(sessionData, opggMode)
+
+/** 存规则进行中标志：防连点导致两次 reload 同一基线、后写覆盖先写丢规则 */
+const savingRule = ref(false)
+
+/**
+ * 把当前决策固化成一条规则并跳转到配置页。
+ *
+ * 选人期只读、不提供就地编辑——30 秒窗口内改配置不现实。
+ */
+async function handleSaveRule(): Promise<void> {
+  if (savingRule.value) return
+  const d = bp.decision.value
+  if (!d) return
+  const draft = buildRuleDraft({
+    decision: d,
+    myPosition: myPosition.value,
+    championName: getChampionName
+  })
+  if (!draft) {
+    message.warning('当前没有可保存的目标')
+    return
+  }
+
+  savingRule.value = true
+  try {
+    // ban 阶段没人 hover 过任何英雄时，英雄名缓存可能从未被触发加载
+    // （ChampionIntelCard 只在有人 hover 后才加载）——存规则前先兜底加载一次，
+    // 避免把「对位英雄60」这种占位文案写进持久化规则名。loadChampionNames
+    // 本身幂等（缓存非空时立即返回），重复调用无副作用。
+    await loadChampionNames()
+    // 必须先 reload——usePickRules/useBanRules 每次调用都返回全新的空 ref，
+    // 直接 save 会把已有规则整个清掉。
+    if (d.action_type === 'Ban') {
+      const { rules, reload, save } = useBanRules()
+      await reload()
+      await save([...rules.value, draft as BanRule])
+    } else {
+      const { rules, reload, save } = usePickRules()
+      await reload()
+      await save([...rules.value, draft as PickRule])
+    }
+
+    message.success(`已存为规则「${draft.name}」`)
+    await router.push('/Settings/Automation')
+  } catch (e) {
+    message.error('保存规则失败: ' + (e instanceof Error ? e.message : String(e)))
+  } finally {
+    savingRule.value = false
+  }
+}
 
 const handleUpdateConfig = async (value: number | null) => {
   if (!value) return
@@ -294,6 +376,11 @@ onMounted(async () => {
   } catch (e) {
     console.error(e)
   }
+
+  // 英雄名缓存懒加载：此前只有 ChampionIntelCard 在有人 hover 后才触发，
+  // 导致 ban 阶段（尚无人 hover）整段时间决策带只能显示「英雄157」占位符。
+  // 提前在页面挂载时触发一次，幂等（已加载时立即返回）。
+  void loadChampionNames()
 
   // 每次打开软件只展示一次 AI 功能提示
   if (!hasShownAITip) {
