@@ -18,6 +18,7 @@
       <img src="https://img.shields.io/badge/TypeScript-5.x-3178C6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript" />
     </a>
     <img src="https://img.shields.io/badge/Platform-Windows-0078D6?style=flat-square&logo=windows&logoColor=white" alt="Windows" />
+    <img src="https://img.shields.io/badge/Platform-macOS%20(Apple%20Silicon)-000000?style=flat-square&logo=apple&logoColor=white" alt="macOS" />
     <a href="./LICENSE">
       <img src="https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square" alt="License" />
     </a>
@@ -46,7 +47,7 @@
 
 ---
 
-> **TL;DR for developers** — A native LoL client tool built with **Tauri 2 + Rust + Vue 3 + TypeScript**. **~5 MB installer**, single Windows binary, zero Electron overhead. Its core is a **data-driven AI match-review pipeline**: every game is quantified (KDA, damage/tank share, kill participation, gold, team comp) and streamed to an LLM that tells you who carried, who fed, and who got dragged down. Talks to the LCU WebSocket for live in-game state, async Rust HTTP for match history. No DLL injection, no game memory access — uses only Riot's official local client API.
+> **TL;DR for developers** — A native LoL client tool built with **Tauri 2 + Rust + Vue 3 + TypeScript**. **~5 MB installer**, a single native binary on Windows and Apple Silicon macOS, zero Electron overhead. Its core is a **data-driven AI match-review pipeline**: every game is quantified (KDA, damage/tank share, kill participation, gold, team comp) and streamed to an LLM that tells you who carried, who fed, and who got dragged down. Talks to the LCU WebSocket for live in-game state, async Rust HTTP for match history. No DLL injection, no game memory access — uses only Riot's official local client API.
 
 ## 📖 Introduction
 
@@ -141,6 +142,12 @@ Built with **Tauri 2.0**, it pairs Rust's performance with a web frontend in a *
    > **System Requirements**
    > - **Windows**: Windows 10 1803 or higher (WebView2 support required)
    > - **macOS**: macOS 10.15 or higher, **Apple Silicon only** (`*-macos-aarch64.dmg`; no Intel build)
+   >
+   > **Feature parity**: everything that runs off the LCU API — match history, AI review, premade
+   > detection, auto accept/pick/ban, cloud sync — works the same on both platforms. Two helpers are
+   > Windows-only because they have no macOS equivalent: **launch LoL without WeGame** (relies on the
+   > Tencent launcher's Windows install layout) and **relaunch as administrator** (macOS has no UAC).
+   > The app hides both on macOS rather than showing buttons that would always fail.
 
 2. **Run**: Extract and run the executable directly - no admin privileges required
 
@@ -162,7 +169,16 @@ If you want to compile this project yourself, follow these steps:
 ### Prerequisites
 - [Node.js](https://nodejs.org/) (LTS version recommended)
 - [Rust](https://www.rust-lang.org/)
-- C++ Build Environment (Visual Studio C++ Build Tools)
+- A native toolchain:
+  - **Windows**: Visual Studio C++ Build Tools
+  - **macOS**: Xcode Command Line Tools (`xcode-select --install`)
+
+Both platforms build from the same source tree. `npm run tauri build` produces an NSIS installer on
+Windows; on macOS pass the bundle target explicitly, since `tauri.conf.json` defaults to `nsis`:
+
+```bash
+npm run tauri build -- --bundles dmg
+```
 
 ### Build Steps
 

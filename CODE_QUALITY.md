@@ -122,7 +122,7 @@ npm run lint          # ESLint 检查
 npm run format        # Prettier 格式化
 npm run typecheck     # TypeScript 类型检查
 
-# 后端检查 (需要 Windows 环境)
+# 后端检查 (Windows / macOS 均可编译；CI 按两平台矩阵跑，本地单平台会漏检另一半 cfg 分支)
 cd src-tauri
 cargo fmt             # 格式化
 cargo clippy          # Lint 检查

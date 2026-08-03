@@ -8,9 +8,12 @@
 
 - **Node.js**: v20 或更高版本（推荐使用 LTS 版本）
 - **Rust**: 1.70+ 
-- **操作系统**: Windows 10 1803+ (开发和测试)
+- **操作系统**: Windows 10 1803+ 或 macOS 10.15+（Apple Silicon）均可开发和编译
+  - Rust 侧质量检查在 CI 按 `windows-latest` + `macos-latest` 矩阵跑，两边都必须绿
+  - 本地只在单平台跑 `cargo clippy` 时，`#[cfg(target_os)]` 的另一半分支根本不编译，告警会漏检
+  - 仅 Windows 独有的功能（免 WeGame 一键启动、以管理员身份重启）只能在 Windows 上实机验证
 - **其他工具**: 
-  - Visual Studio C++ Build Tools (Windows)
+  - Visual Studio C++ Build Tools (Windows) / Xcode Command Line Tools (macOS)
   - Git
 
 ### 克隆项目
