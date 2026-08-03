@@ -102,9 +102,9 @@ pub fn parse_data(json: &str) -> Option<CnPatchData> {
     Some(data)
 }
 
-/// 磁盘缓存路径（工作目录相对，与 opgg/wiki 缓存同约定）
+/// 磁盘缓存路径（系统临时目录，与 opgg/wiki 缓存同约定）
 pub fn default_path() -> PathBuf {
-    PathBuf::from("cn_patch_notes_cache.json")
+    crate::paths::cache_file("cn_patch_notes_cache.json")
 }
 
 fn load_from_path(path: &Path) -> Option<CnPatchSnapshot> {

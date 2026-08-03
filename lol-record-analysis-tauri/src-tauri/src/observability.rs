@@ -39,8 +39,16 @@ use std::sync::{Arc, LazyLock};
 /// 配置中控制是否开启错误上报的键名（以 `Enabled` 结尾 → 默认 `false`）。
 pub const REPORTING_KEY: &str = "errorReportingEnabled";
 
-/// 持久化匿名设备 ID 的文件名（与 `config.yaml` 同目录，相对 CWD）。
+/// 持久化匿名设备 ID 的文件名（与 `config.yaml` 同目录，路径由 [`crate::paths`] 解析）。
 pub const DEVICE_ID_FILE: &str = "device_id";
+
+/// 匿名设备 ID 文件的绝对路径。
+///
+/// 曾经这里是相对 CWD 的裸文件名，macOS 上 CWD 为只读的 `/` → 每次启动都写盘失败、
+/// 重新生成 UUID，导致上报侧把同一台机器算成无数台新设备（DAU / 设备数虚高）。
+fn device_id_path() -> std::path::PathBuf {
+    crate::paths::data_file(DEVICE_ID_FILE)
+}
 
 /// 解析最终使用的 Sentry DSN：运行时环境变量（开发/测试）→ `option_env!` 编译期注入（线上 CI）。
 ///
@@ -89,7 +97,7 @@ pub fn init() -> Option<sentry::ClientInitGuard> {
         return None;
     };
 
-    let device_id = device_id(Path::new(DEVICE_ID_FILE));
+    let device_id = device_id(&device_id_path());
     let guard = sentry::init((
         dsn,
         sentry::ClientOptions {
@@ -137,7 +145,7 @@ pub fn init() -> Option<sentry::ClientInitGuard> {
 ///
 /// 文件不存在时会生成并落盘——即使上报未开启也返回稳定 ID，便于将来开启后对上。
 pub fn current_device_id() -> String {
-    device_id(Path::new(DEVICE_ID_FILE))
+    device_id(&device_id_path())
 }
 
 /// 把当前登录大区（如 `HN1` / `TJ100`）设为全局 tag，供 Sentry 侧按大区切片。
@@ -161,7 +169,7 @@ pub fn track_feature(feature: &'static str) {
 /// 读取或首次生成匿名设备 ID。
 ///
 /// 失败时返回随机 UUID 但**不写盘**——意味着这次会话被当作新设备，
-/// 不会让无法持久化的环境（例如只读 CWD）让上报整体崩。
+/// 不会让无法持久化的环境让上报整体崩。
 fn device_id(path: &Path) -> String {
     if let Ok(existing) = std::fs::read_to_string(path) {
         let trimmed = existing.trim();
@@ -170,6 +178,11 @@ fn device_id(path: &Path) -> String {
         }
     }
     let new_id = uuid::Uuid::new_v4().to_string();
+    // 首次运行时配置目录可能还不存在（macOS 的 Application Support 子目录），
+    // 不先建目录 write 必失败 —— 那正是设备 ID 反复重生成的直接原因。
+    if let Err(e) = crate::paths::ensure_parent_dir(path) {
+        log::warn!("failed to create device_id directory: {}", e);
+    }
     if let Err(e) = std::fs::write(path, &new_id) {
         log::warn!(
             "failed to persist device_id to {}: {} (will regenerate next launch)",

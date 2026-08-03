@@ -472,8 +472,10 @@ async fn init_lcu_assets() {
 }
 
 /// cdragon 描述表磁盘缓存路径（temp 目录：可写、跨重启保留、无需额外依赖）。
+///
+/// 走 [`crate::paths::cache_file`] 与其余缓存统一；解析结果与改造前逐字节一致。
 fn cdragon_cache_path() -> std::path::PathBuf {
-    std::env::temp_dir().join("lol-record-analysis-cdragon-augments.json")
+    crate::paths::cache_file("cdragon-augments.json")
 }
 
 /// 描述表磁盘缓存有效期：7 天。过期则后台重拉刷新（augment 偶尔随版本新增）。
