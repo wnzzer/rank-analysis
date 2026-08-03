@@ -5,28 +5,8 @@
 //!
 //! ## 还原 key 的来源
 //!
-//! **key 不硬编码进源码**（与 `observability.rs` 的 `SENTRY_DSN` 同一套约定）：
-//! 运行时环境变量 `PUUID_KEY`（本地调试）→ `option_env!` 编译期注入（官方 CI 构建）。
-//! 两者都没有时 [`KEY_PUUID`] 为 `None`，还原功能静默关闭——fork / 第三方构建
-//! 默认即为此状态。
-//!
-//! 本地调试：
-//! ```bash
-//! PUUID_KEY=<32 位十六进制> npm run tauri dev
-//! ```
-
-use std::sync::LazyLock;
-
-/// 混淆还原 key（16 字节）。来源见模块文档；未配置时为 `None`。
-///
-/// `build.rs` 中已声明 `cargo:rerun-if-env-changed=PUUID_KEY`，env 变化会触发重编，
-/// 不会复用上一次烤进二进制的旧值。
-static KEY_PUUID: LazyLock<Option<[u8; 16]>> = LazyLock::new(|| {
-    let raw = std::env::var("PUUID_KEY")
-        .ok()
-        .or_else(|| option_env!("PUUID_KEY").map(str::to_string))?;
-    parse_uuid(&raw)
-});
+//! key 写死在客户端中，不是每人独立的 key，故直接硬编码进源码。
+const KEY_PUUID: [u8; 16] = *b"\x81\x70\x76\xa9\xf4\x51\x50\x9b\x95\x98\x68\x13\xce\x91\x17\xe7";
 
 /// 将混淆后的 puuid（36 字符 UUID 形式）还原为真实 puuid。
 ///
@@ -34,14 +14,10 @@ static KEY_PUUID: LazyLock<Option<[u8; 16]>> = LazyLock::new(|| {
 ///
 /// # 错误
 ///
-/// - 未配置 `PUUID_KEY`（功能未启用）
 /// - 入参不是合法 UUID
 /// - 还原结果不是 RFC4122 v5 UUID —— 说明 key 已失效，见 [`deobfuscate_with_key`]
 pub fn deobfuscate_puuid(obfuscated: &str) -> Result<String, String> {
-    let key = KEY_PUUID
-        .as_ref()
-        .ok_or("未配置 PUUID_KEY，选人期混淆 puuid 还原未启用")?;
-    deobfuscate_with_key(obfuscated, key)
+    deobfuscate_with_key(obfuscated, &KEY_PUUID)
 }
 
 /// 用指定 key 还原，并校验结果的 UUID 结构。
