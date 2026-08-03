@@ -18,6 +18,7 @@
       <img src="https://img.shields.io/badge/TypeScript-5.x-3178C6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript" />
     </a>
     <img src="https://img.shields.io/badge/Platform-Windows-0078D6?style=flat-square&logo=windows&logoColor=white" alt="Windows" />
+    <img src="https://img.shields.io/badge/Platform-macOS%20(Apple%20Silicon)-000000?style=flat-square&logo=apple&logoColor=white" alt="macOS" />
     <a href="./LICENSE">
       <img src="https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square" alt="License" />
     </a>
@@ -46,7 +47,7 @@
 
 ---
 
-> **给开发者的 TL;DR** —— 原生对接 LOL 客户端，**Tauri 2 + Rust + Vue 3 + TypeScript** 全栈。**安装包仅 ~5 MB**，单 Windows 二进制，零 Electron 开销。核心是一条**数据驱动的 AI 复盘流水线**：把每局对战量化（KDA、伤害/承伤占比、参团率、经济、阵容）后流式喂给大模型，直接告诉你谁 carry、谁犯罪、谁被队友拖累。通过 LCU WebSocket 监听实时对局状态，Rust 异步 HTTP 拉战绩。**不注入 DLL、不读游戏内存**，全程只调用 Riot 官方本地客户端 API。
+> **给开发者的 TL;DR** —— 原生对接 LOL 客户端，**Tauri 2 + Rust + Vue 3 + TypeScript** 全栈。**安装包仅 ~5 MB**，Windows 与 Apple Silicon macOS 均为单个原生二进制，零 Electron 开销。核心是一条**数据驱动的 AI 复盘流水线**：把每局对战量化（KDA、伤害/承伤占比、参团率、经济、阵容）后流式喂给大模型，直接告诉你谁 carry、谁犯罪、谁被队友拖累。通过 LCU WebSocket 监听实时对局状态，Rust 异步 HTTP 拉战绩。**不注入 DLL、不读游戏内存**，全程只调用 Riot 官方本地客户端 API。
 
 ## 📖 简介
 
@@ -141,6 +142,11 @@
    > **系统要求**
    > - **Windows**：Windows 10 1803 及以上版本（需支持 WebView2）
    > - **macOS**：macOS 10.15 及以上，**仅支持 Apple Silicon**（`*-macos-aarch64.dmg`，无 Intel 版）
+   >
+   > **功能差异**：一切走 LCU API 的能力——战绩查询、AI 复盘、开黑识别、自动接受/秒选/禁用、云同步
+   > ——两个平台完全一致。只有两个辅助功能是 Windows 独有的，因为 macOS 上不存在对应机制：
+   > **免 WeGame 一键启动**（依赖腾讯登录客户端的 Windows 安装目录布局）和**以管理员身份重启**
+   > （macOS 没有 UAC）。这两项在 macOS 上直接隐藏，不会渲染出点了必报错的死按钮。
 
 2. **运行**：解压后直接运行可执行文件，无需管理员权限。
 
@@ -161,7 +167,16 @@
 ### 环境准备
 - [Node.js](https://nodejs.org/) (推荐 LTS 版本)
 - [Rust](https://www.rust-lang.org/)
-- C++ 构建环境 (Visual Studio C++ Build Tools)
+- 原生构建工具链：
+  - **Windows**：Visual Studio C++ Build Tools
+  - **macOS**：Xcode Command Line Tools（`xcode-select --install`）
+
+两个平台共用同一份源码。`npm run tauri build` 在 Windows 上产出 NSIS 安装包；macOS 上需显式指定
+打包目标（`tauri.conf.json` 里的默认 target 是 `nsis`）：
+
+```bash
+npm run tauri build -- --bundles dmg
+```
 
 ### 构建步骤
 
