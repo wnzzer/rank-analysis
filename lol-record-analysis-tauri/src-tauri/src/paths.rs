@@ -47,15 +47,16 @@ const CONFIG_FILE_NAME: &str = "config.yaml";
 /// 缓存文件名前缀，避免在多应用共用的临时目录里与别人撞名。
 const CACHE_PREFIX: &str = "lol-record-analysis-";
 
-// 三个 `config_dir_*` 按目标平台分别编译：不 cfg 门控的话，未被本平台选中的那些在
-// 普通 lib 构建里就是 dead code，而 CI 的 clippy 是 `-Dwarnings`。CI 跑
-// windows-latest + macos-latest 双矩阵，两个真实发布平台的分支都会被编译和测试。
+// 下面三个 `config_dir_*` 是**纯路径运算**，不碰任何平台专有 API，因此一律无条件编译，
+// 由 `config_dir()` 用运行时的 `cfg!()` 选择。刻意不用 `#[cfg]` 门控：那样未被选中的
+// 分支在本平台就是 dead code（撞 `clippy -Dwarnings`），且它们的测试也只能跟着门控，
+// 于是「Windows 的路径逻辑」只有 Windows runner 能验——本地怎么跑都发现不了问题。
+// 无条件编译后，任一平台的 `cargo test` 都会把三套逻辑全跑一遍。
 
 /// Windows 配置目录：exe 所在目录（便携版约定）。
 ///
 /// 传入 `current_exe()` 的结果。返回 `None` 表示无法确定（父目录缺失或为空——空父目录
 /// 意味着又要退回 CWD，正是本模块要杜绝的），调用方应回退到别处。
-#[cfg(target_os = "windows")]
 fn config_dir_windows(exe: &Path) -> Option<PathBuf> {
     exe.parent()
         .filter(|p| !p.as_os_str().is_empty())
@@ -63,7 +64,6 @@ fn config_dir_windows(exe: &Path) -> Option<PathBuf> {
 }
 
 /// macOS 配置目录：`<home>/Library/Application Support/<bundle id>`。
-#[cfg(target_os = "macos")]
 fn config_dir_macos(home: &Path) -> PathBuf {
     home.join("Library")
         .join("Application Support")
@@ -72,8 +72,7 @@ fn config_dir_macos(home: &Path) -> PathBuf {
 
 /// 其他 Unix 配置目录：`<home>/.config/<bundle id>`。
 ///
-/// 本项目只发布 Windows / macOS，此分支不在 CI 矩阵内，仅为在 Linux 上也能编译。
-#[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+/// 本项目只发布 Windows / macOS，此分支不会在真实运行时被选中，仅为在 Linux 上也能跑。
 fn config_dir_unix(home: &Path) -> PathBuf {
     home.join(".config").join(BUNDLE_ID)
 }
@@ -97,17 +96,16 @@ pub fn config_file() -> PathBuf {
 /// CWD，是因为它至少保证「绝对且可写」；配置存在那里会随系统清理丢失，所以额外打一条
 /// 告警，便于线上发现。
 fn config_dir() -> PathBuf {
-    #[cfg(target_os = "windows")]
-    let resolved = std::env::current_exe()
-        .ok()
-        .as_deref()
-        .and_then(config_dir_windows);
-
-    #[cfg(target_os = "macos")]
-    let resolved = home_dir().map(|h| config_dir_macos(&h));
-
-    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
-    let resolved = home_dir().map(|h| config_dir_unix(&h));
+    let resolved = if cfg!(target_os = "windows") {
+        std::env::current_exe()
+            .ok()
+            .as_deref()
+            .and_then(config_dir_windows)
+    } else if cfg!(target_os = "macos") {
+        home_dir().map(|h| config_dir_macos(&h))
+    } else {
+        home_dir().map(|h| config_dir_unix(&h))
+    };
 
     resolved.unwrap_or_else(|| {
         let fallback = std::env::temp_dir();
@@ -120,7 +118,9 @@ fn config_dir() -> PathBuf {
 }
 
 /// 用户主目录（`$HOME`），空值视为不可用。
-#[cfg(not(target_os = "windows"))]
+///
+/// Windows 上不会被 [`config_dir`] 走到（那条分支用 exe 目录），无条件编译只是为了让
+/// `cfg!()` 的三个分支在所有平台都通过类型检查。
 fn home_dir() -> Option<PathBuf> {
     std::env::var_os("HOME")
         .map(PathBuf::from)
@@ -162,7 +162,6 @@ mod tests {
     // 路径字面量统一用 `/` 分隔：Windows 的 Path 同样接受 `/`，这样断言在 CI 的
     // windows-latest 与 macos-latest 上语义一致（`\` 在 Unix 上不是分隔符，会被当成
     // 普通字符，令 parent() 结果随平台漂移）。
-    #[cfg(target_os = "windows")]
     #[test]
     fn windows_config_dir_should_be_the_exe_directory() {
         let dir = config_dir_windows(Path::new("/AppData/Local/app/app.exe"));
@@ -170,14 +169,12 @@ mod tests {
         assert_eq!(dir, Some(PathBuf::from("/AppData/Local/app")));
     }
 
-    #[cfg(target_os = "windows")]
     #[test]
     fn windows_config_dir_should_be_none_when_exe_has_no_real_parent() {
         // 父目录为空字符串等价于「相对 CWD」，正是本模块要杜绝的，必须当作失败。
         assert_eq!(config_dir_windows(Path::new("app.exe")), None);
     }
 
-    #[cfg(target_os = "macos")]
     #[test]
     fn macos_config_dir_should_live_under_application_support() {
         let dir = config_dir_macos(Path::new("/Users/me"));
@@ -190,7 +187,6 @@ mod tests {
         );
     }
 
-    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
     #[test]
     fn unix_config_dir_should_live_under_dot_config() {
         let dir = config_dir_unix(Path::new("/home/me"));
