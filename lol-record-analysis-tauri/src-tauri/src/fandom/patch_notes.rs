@@ -231,9 +231,9 @@ pub fn parse_patch_champions(wikitext: &str) -> HashMap<String, ChampionPatchNot
     result
 }
 
-/// 磁盘缓存路径（工作目录相对，与 opgg 缓存同约定；单文件存最近一个 patch）。
+/// 磁盘缓存路径（系统临时目录，与 opgg 缓存同约定；单文件存最近一个 patch）。
 pub fn default_path() -> PathBuf {
-    PathBuf::from("patch_notes_cache.json")
+    crate::paths::cache_file("patch_notes_cache.json")
 }
 
 /// 快照是否命中给定 patch 且未过期。

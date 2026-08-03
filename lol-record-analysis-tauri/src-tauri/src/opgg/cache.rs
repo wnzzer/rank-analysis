@@ -1,7 +1,7 @@
 //! OP.GG 快照磁盘缓存。
 //!
-//! 按模式一个 JSON 文件（`opgg_cache_ranked.json` / `opgg_cache_aram.json`），
-//! 工作目录相对路径——与 `config.yaml` 相同的存储约定。
+//! 按模式一个 JSON 文件，落在系统临时目录（见 [`crate::paths`]）。
+//! 纯缓存，丢了自动重建，不必占用配置目录，也不必操心写权限。
 //! 一个 patch 内数据基本不变，TTL 取 12 小时。
 
 use crate::opgg::data::OpggSnapshot;
@@ -15,9 +15,9 @@ pub fn is_fresh(snapshot: &OpggSnapshot, now: i64) -> bool {
     now - snapshot.fetched_at < TTL_SECS
 }
 
-/// 某模式的默认缓存文件路径（工作目录相对）。
+/// 某模式的默认缓存文件路径（系统临时目录下的绝对路径）。
 pub fn default_path(mode: &str) -> PathBuf {
-    PathBuf::from(format!("opgg_cache_{}.json", mode))
+    crate::paths::cache_file(&format!("opgg_cache_{}.json", mode))
 }
 
 /// 序列化快照写入指定路径。
@@ -97,14 +97,16 @@ mod tests {
     }
 
     #[test]
-    fn default_path_should_be_mode_scoped_relative_file() {
-        assert_eq!(
-            default_path("ranked").to_str().unwrap(),
-            "opgg_cache_ranked.json"
-        );
-        assert_eq!(
-            default_path("aram").to_str().unwrap(),
-            "opgg_cache_aram.json"
-        );
+    fn default_path_should_be_mode_scoped_and_absolute() {
+        let ranked = default_path("ranked");
+        let aram = default_path("aram");
+
+        // 绝对路径：缓存落点不能随启动方式（CWD）漂移，详见 crate::paths。
+        assert!(ranked.is_absolute(), "{:?}", ranked);
+        assert!(aram.is_absolute(), "{:?}", aram);
+        // 两个模式必须各自独立，不能互相覆盖。
+        assert_ne!(ranked, aram);
+        assert!(ranked.to_str().unwrap().contains("ranked"));
+        assert!(aram.to_str().unwrap().contains("aram"));
     }
 }

@@ -9,5 +9,6 @@ pub mod game_state_monitor;
 pub mod lcu;
 pub mod observability;
 pub mod opgg;
+pub mod paths;
 pub mod rule_engine;
 pub mod state;

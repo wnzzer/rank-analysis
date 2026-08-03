@@ -55,8 +55,13 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
 
     info!("========================================");
     info!("Starting Tauri application with Asset Protocol");
+    // CWD 仅作参考：数据落点已不依赖它（见 `paths` 模块），但排障时知道进程被谁以什么
+    // 姿势拉起仍然有用。
     info!("Current working directory: {:?}", std::env::current_dir());
-    info!("Config file path: config.yaml");
+    info!(
+        "Config file path: {}",
+        lol_record_analysis_app_lib::paths::config_file().display()
+    );
     info!("========================================");
 
     // 初始化错误上报（创建 Sentry client + guard）。

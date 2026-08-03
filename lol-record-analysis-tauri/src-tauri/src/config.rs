@@ -87,8 +87,13 @@ type ConfigCallback = Box<dyn Fn(&str, &Value) + Send + Sync>;
 /// 回调函数列表类型，使用 Mutex 保证线程安全。
 type CallbackList = Mutex<Vec<ConfigCallback>>;
 
-/// 配置文件路径常量。
-static CONFIG_PATH: &str = "config.yaml";
+/// 配置文件的绝对路径（由 [`crate::paths`] 按平台解析）。
+///
+/// 这里刻意**不是**常量字符串：曾经是 `"config.yaml"` 这种 CWD 相对路径，落点随启动
+/// 方式漂移——macOS 上由 Finder 拉起时 CWD 为只读的 `/`，配置读不到也写不进。
+fn config_path() -> std::path::PathBuf {
+    crate::paths::config_file()
+}
 
 /// 全局配置变更回调列表。
 ///
@@ -126,12 +131,13 @@ pub async fn get_cache() -> &'static Cache<String, Value> {
             log::info!("Initializing config cache...");
             let cache = Cache::builder().build();
 
-            match read_config(CONFIG_PATH) {
+            let path = config_path();
+            match read_config(&path) {
                 Ok(config) => {
                     log::info!(
                         "Loaded {} config entries from {}",
                         config.len(),
-                        CONFIG_PATH
+                        path.display()
                     );
                     for (k, v) in config {
                         // 在 async 块中可以自由 .await
@@ -139,8 +145,13 @@ pub async fn get_cache() -> &'static Cache<String, Value> {
                         log::debug!("Config loaded: {} = {:?}", k, v);
                     }
                 }
+                // 文件不存在是首次运行的正常情况（全新安装 / 换了新机器），不该报 error：
+                // error 级日志会被转发成 Sentry 事件，每个新用户都刷一条纯噪音。
+                Err(e) if is_not_found(e.as_ref()) => {
+                    log::info!("配置文件尚不存在，按默认值启动: {}", path.display());
+                }
                 Err(e) => {
-                    log::error!("Failed to load config from {}: {}", CONFIG_PATH, e);
+                    log::error!("Failed to load config from {}: {}", path.display(), e);
                 }
             }
             log::info!("Config cache initialized");
@@ -187,7 +198,7 @@ where
 ///
 /// 此方法通常在应用程序启动时调用一次。后续配置访问应使用 `get_cache()` 或 `get_config()`。
 pub async fn init_config() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    match read_config(CONFIG_PATH) {
+    match read_config(&config_path()) {
         Ok(config) => {
             for (key, value) in config {
                 get_cache().await.insert(key, value).await;
@@ -211,12 +222,21 @@ pub async fn init_config() -> Result<(), Box<dyn std::error::Error + Send + Sync
 /// - `Ok(HashMap)`: 成功解析的配置映射
 /// - `Err(...)`: 文件读取或解析错误
 fn read_config(
-    path: &str,
+    path: &std::path::Path,
 ) -> Result<HashMap<String, Value>, Box<dyn std::error::Error + Send + Sync>> {
     let file = File::open(path)?;
     let reader = BufReader::new(file);
     let config: HashMap<String, Value> = serde_yaml::from_reader(reader)?;
     Ok(config)
+}
+
+/// 判断读配置的错误是否为「文件不存在」。
+///
+/// 首次运行没有配置文件是正常的，需要与「文件损坏 / 无权限」区分开，避免把正常情况
+/// 记成 error（进而变成 Sentry 噪音）。
+fn is_not_found(err: &(dyn std::error::Error + Send + Sync + 'static)) -> bool {
+    err.downcast_ref::<std::io::Error>()
+        .is_some_and(|e| e.kind() == std::io::ErrorKind::NotFound)
 }
 
 /// 将配置写入文件。
@@ -233,9 +253,24 @@ async fn write_config() -> Result<(), Box<dyn std::error::Error + Send + Sync>> 
         .iter()
         .map(|(k, v)| (k.as_ref().clone(), v.clone()))
         .collect();
-    let file = File::create(CONFIG_PATH)?;
+    write_config_to(&config_path(), &config)
+}
+
+/// 把一份配置写到指定路径，父目录不存在则先创建。
+///
+/// 与 [`write_config`] 拆开是为了可测：写入才是 macOS 上真正失败的那条路径
+/// （目录不存在 + CWD 只读），必须有回归测试盯着，而 [`write_config`] 依赖全局缓存
+/// 单例、不适合在并行测试里碰。
+fn write_config_to(
+    path: &std::path::Path,
+    config: &HashMap<String, Value>,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    // macOS 首次写入时 `~/Library/Application Support/<bundle id>` 还不存在，
+    // 不先建目录 File::create 会直接失败。
+    crate::paths::ensure_parent_dir(path)?;
+    let file = File::create(path)?;
     let writer = BufWriter::new(file);
-    serde_yaml::to_writer(writer, &config)?;
+    serde_yaml::to_writer(writer, config)?;
     Ok(())
 }
 
@@ -353,7 +388,7 @@ pub fn extract_string(value: &Value) -> Option<String> {
 ///
 /// 配置中该键解析出的布尔值；文件不存在、键缺失或类型不符时返回 `false`。
 pub fn read_bool_sync(key: &str) -> bool {
-    read_config(CONFIG_PATH)
+    read_config(&config_path())
         .ok()
         .and_then(|m| m.get(key).and_then(extract_bool))
         .unwrap_or(false)
@@ -754,5 +789,27 @@ mod tests {
         // 备份文件允许恢复 API key(黑名单只挡设备级键)
         assert!(keys.contains(&"dashscopeApiKey"));
         assert!(!keys.contains(&"cloudSyncSession"));
+    }
+
+    /// 回归测试：macOS 上「配置存不下来」的直接成因就是写入时父目录不存在
+    /// （`~/Library/Application Support/<bundle id>/` 首次运行时尚未创建），
+    /// 叠加 CWD 为只读的 `/`。这里锁住「目录不存在也能写成功并读回」。
+    #[test]
+    fn write_config_to_should_create_missing_parent_dirs_and_round_trip() {
+        let root = std::env::temp_dir().join(format!("ra-cfg-test-{}", std::process::id()));
+        let path = root.join("nested").join("config.yaml");
+        let _ = std::fs::remove_dir_all(&root);
+        let mut config = HashMap::new();
+        config.insert("theme".to_string(), Value::String("dark".to_string()));
+
+        write_config_to(&path, &config).expect("父目录不存在时也应写入成功");
+
+        assert!(path.is_file(), "配置文件应已落盘: {:?}", path);
+        let read_back = read_config(&path).expect("应能读回刚写入的配置");
+        assert_eq!(
+            read_back.get("theme"),
+            Some(&Value::String("dark".to_string()))
+        );
+        let _ = std::fs::remove_dir_all(&root);
     }
 }
