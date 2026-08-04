@@ -2,12 +2,18 @@
   <article class="champion-card" :class="direction ? `champion-card--${direction}` : ''">
     <LazyImg class="champion-portrait" :src="portraitUrl" :alt="champion.name" />
     <button
+      type="button"
+      class="card-hitbox"
+      :aria-label="`查看${champion.name}英雄档案`"
+      @click="$emit('select')"
+    />
+    <button
       v-if="change"
       type="button"
       class="change-corner"
       :class="`change-corner--${change.direction}`"
       :aria-label="`查看${champion.name}的${directionLabel}内容`"
-      @click="$emit('show-change', change)"
+      @click.stop="$emit('show-change', change)"
     >
       <span>{{ directionIcon }}</span>
     </button>
@@ -34,6 +40,7 @@ const props = defineProps<{
 
 defineEmits<{
   'show-change': [change: PatchChangeItem]
+  select: []
 }>()
 
 const portraitUrl = computed(
@@ -65,6 +72,21 @@ const directionIcon = computed(() => {
     transform var(--dur-fast) var(--ease-spring),
     border-color var(--dur-fast) var(--ease-expo),
     box-shadow var(--dur-fast) var(--ease-expo);
+  cursor: pointer;
+}
+
+.card-hitbox {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.card-hitbox:focus-visible {
+  outline: 2px solid var(--semantic-win-bright);
+  outline-offset: -3px;
 }
 
 .champion-card:hover {
@@ -90,6 +112,7 @@ const directionIcon = computed(() => {
   gap: 2px;
   padding: 9px 10px 10px;
   min-width: 0;
+  pointer-events: none;
 }
 
 .champion-copy strong,
@@ -125,6 +148,7 @@ const directionIcon = computed(() => {
   font-weight: 800;
   line-height: 1;
   transition: filter var(--dur-fast) var(--ease-expo);
+  z-index: 2;
 }
 
 .change-corner:hover {

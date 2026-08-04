@@ -1,19 +1,16 @@
-//! 英雄藏品与炫彩只读查询。
+//! 公共英雄资料与账号炫彩只读查询。
 //!
-//! 英雄元数据优先来自本地 LCU；客户端未启动时降级到 CommunityDragon，确保页面仍可浏览。
+//! 英雄目录、详情和对位数据来自构建期内置快照，完全不依赖 LCU。
 //! 炫彩所有权只读取当前登录账号的 LCU inventory，不执行任何写操作。
 
 use crate::cn_patch_notes;
-use crate::lcu::api::asset::{self, Champion};
+use crate::game_data;
+use crate::lcu::api::asset;
 use crate::lcu::api::summoner::Summoner;
-use crate::lcu::util::http::{external_get_json, lcu_get};
+use crate::lcu::util::http::lcu_get;
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
-
-const CDRAGON_CHAMPION_SUMMARY: &str = "https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/zh_cn/v1/champion-summary.json";
-const CDRAGON_IMAGE_ROOT: &str = "https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-icons";
-static REMOTE_CHAMPIONS: tokio::sync::OnceCell<Vec<Champion>> = tokio::sync::OnceCell::const_new();
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -23,6 +20,7 @@ pub struct ChampionCollectionItem {
     pub title: String,
     pub alias: String,
     pub portrait_url: Option<String>,
+    pub lanes: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -47,6 +45,8 @@ pub struct PatchCollection {
 #[serde(rename_all = "camelCase")]
 pub struct ChampionCollection {
     pub source: &'static str,
+    pub data_patch: String,
+    pub generated_at: String,
     pub champions: Vec<ChampionCollectionItem>,
     pub patch: Option<PatchCollection>,
 }
@@ -83,64 +83,25 @@ struct ParsedChromas {
     chroma_container_count: usize,
 }
 
-fn to_collection_item(champion: Champion, remote_portrait: bool) -> ChampionCollectionItem {
-    let name = if champion.description.trim().is_empty() {
-        champion.name.clone()
-    } else {
-        champion.description
-    };
-    ChampionCollectionItem {
-        id: champion.id,
-        name,
-        title: champion.name,
-        alias: champion.alias,
-        portrait_url: remote_portrait.then(|| format!("{CDRAGON_IMAGE_ROOT}/{}.png", champion.id)),
-    }
-}
-
 async fn load_champions() -> Result<(&'static str, Vec<ChampionCollectionItem>), String> {
-    let mut local = asset::CHAMPION_CACHE
-        .read()
-        .map_err(|error| error.to_string())?
-        .values()
-        .cloned()
-        .collect::<Vec<_>>();
-    if local.is_empty() && REMOTE_CHAMPIONS.get().is_none() {
-        asset::init().await;
-        local = asset::CHAMPION_CACHE
-            .read()
-            .map_err(|error| error.to_string())?
-            .values()
-            .cloned()
-            .collect();
-    }
-    let (source, champions, remote_portrait) = if local.is_empty() {
-        (
-            "communityDragon",
-            REMOTE_CHAMPIONS
-                .get_or_try_init(|| async {
-                    external_get_json::<Vec<Champion>>(CDRAGON_CHAMPION_SUMMARY).await
-                })
-                .await?
-                .clone(),
-            true,
-        )
-    } else {
-        ("lcu", local, false)
-    };
-    let mut items = champions
-        .into_iter()
-        // CommunityDragon 还包含特殊玩法的 Jade_* 单位，不属于客户端英雄藏品。
-        .filter(|champion| champion.id > 0 && champion.id < 10_000)
-        .map(|champion| to_collection_item(champion, remote_portrait))
+    // 公共英雄资料始终来自构建期校验过的内置快照。这里绝不探测 LCU，也不等待网络。
+    let mut items = game_data::champions()
+        .iter()
+        .map(|champion| ChampionCollectionItem {
+            id: champion.id,
+            name: champion.name.clone(),
+            title: champion.title.clone(),
+            alias: champion.alias.clone(),
+            portrait_url: Some(champion.portrait_url.clone()),
+            lanes: champion.lanes.clone(),
+        })
         .collect::<Vec<_>>();
     items.sort_by(|left, right| left.name.cmp(&right.name));
-    Ok((source, items))
+    Ok(("bundledSnapshot", items))
 }
 
-async fn load_patch() -> Option<PatchCollection> {
-    let snapshot = cn_patch_notes::get_or_fetch().await;
-    let data = snapshot.data.as_ref()?;
+fn load_patch() -> Option<PatchCollection> {
+    let data = cn_patch_notes::bundled_data()?;
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|duration| duration.as_secs() as i64)
@@ -149,7 +110,7 @@ async fn load_patch() -> Option<PatchCollection> {
         label: data.patch_label.clone(),
         published_at: data.published_at.clone(),
         source_url: data.source_url.clone(),
-        is_fresh: cn_patch_notes::is_fresh(data, now),
+        is_fresh: cn_patch_notes::is_fresh(&data, now),
         changes: data
             .champions
             .iter()
@@ -168,9 +129,28 @@ pub async fn get_champion_collection() -> Result<ChampionCollection, String> {
     let (source, champions) = load_champions().await?;
     Ok(ChampionCollection {
         source,
+        data_patch: game_data::patch().to_string(),
+        generated_at: game_data::generated_at().to_string(),
         champions,
-        patch: load_patch().await,
+        patch: load_patch(),
     })
+}
+
+/// 返回单英雄的公共版本档案。数据随安装包内置，不需要启动或登录 LCU。
+#[tauri::command]
+pub async fn get_champion_detail(champion_id: i64) -> Result<game_data::ChampionDetail, String> {
+    game_data::champion_detail(champion_id)
+        .ok_or_else(|| format!("champion {champion_id} not found in bundled snapshot"))
+}
+
+/// 返回构建期生成的全球服关键对位快照；不会在用户电脑上直连 OP.GG。
+#[tauri::command]
+pub async fn get_champion_matchups(
+    champion_id: i64,
+    tier: String,
+    lane: String,
+) -> Result<game_data::MatchupSnapshot, String> {
+    game_data::champion_matchups(champion_id, &tier, &lane)
 }
 
 fn field_i64(value: &Value, key: &str) -> Option<i64> {

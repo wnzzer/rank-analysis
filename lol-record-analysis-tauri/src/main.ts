@@ -34,7 +34,7 @@ async function bootstrap() {
 
 async function bootstrapBrowserDemo() {
   const { default: ChampionsDemoApp } = await import('./dev/ChampionsDemoApp.vue')
-  createApp(ChampionsDemoApp).use(naive).mount('#app')
+  createApp(ChampionsDemoApp).use(router).use(naive).mount('#app')
 }
 
 const isBrowserDemo =

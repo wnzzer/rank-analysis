@@ -149,6 +149,14 @@ async fn fetch_remote(client: &reqwest::Client) -> Option<CnPatchData> {
 static SNAPSHOT: tokio::sync::Mutex<Option<Arc<CnPatchSnapshot>>> =
     tokio::sync::Mutex::const_new(None);
 
+/// 立即读取随安装包发布的国服公告快照，不访问磁盘或网络。
+///
+/// 英雄资料库首屏使用它来保证无客户端、弱网环境也能毫秒级返回；常规公告服务仍可
+/// 通过 [`get_or_fetch`] 在后台刷新更新版本。
+pub fn bundled_data() -> Option<CnPatchData> {
+    parse_data(BUILT_IN_SNAPSHOT)
+}
+
 /// 取国服改动快照：内存 →（TTL 内）磁盘 → 网络；网络失败旧数据续命（仅内存，
 /// 不刷新 checked_at 落盘，避免把故障钉死 6h）。
 pub async fn get_or_fetch() -> Arc<CnPatchSnapshot> {

@@ -1,4 +1,9 @@
-import { createRouter, createWebHashHistory, RouteRecordRaw } from 'vue-router'
+import {
+  createRouter,
+  createWebHashHistory,
+  type RouteLocationNormalized,
+  type RouteRecordRaw
+} from 'vue-router'
 
 const routes: Array<RouteRecordRaw> = [
   {
@@ -27,7 +32,19 @@ const routes: Array<RouteRecordRaw> = [
     path: '/Champions',
     name: 'Champions',
     component: () => import('@renderer/views/Champions.vue'),
-    meta: { title: '英雄藏品' }
+    meta: { title: '英雄战术档案' }
+  },
+  {
+    path: '/Champions/Chromas',
+    name: 'OwnedChromas',
+    component: () => import('@renderer/views/OwnedChromas.vue'),
+    meta: { title: '我的炫彩' }
+  },
+  {
+    path: '/Champions/:championId(\\d+)',
+    name: 'ChampionDetail',
+    component: () => import('@renderer/views/ChampionDetail.vue'),
+    meta: { title: '英雄档案' }
   },
   ...(import.meta.env.DEV
     ? [
@@ -36,7 +53,24 @@ const routes: Array<RouteRecordRaw> = [
           name: 'ChampionsDemo',
           component: () => import('@renderer/views/Champions.vue'),
           props: { demo: true },
-          meta: { title: '英雄藏品演示' }
+          meta: { title: '英雄资料库演示' }
+        },
+        {
+          path: '/Champions/Demo/Chromas',
+          name: 'OwnedChromasDemo',
+          component: () => import('@renderer/views/OwnedChromas.vue'),
+          props: { demo: true },
+          meta: { title: '炫彩库存演示' }
+        },
+        {
+          path: '/Champions/Demo/:championId(\\d+)',
+          name: 'ChampionDetailDemo',
+          component: () => import('@renderer/views/ChampionDetail.vue'),
+          props: (route: RouteLocationNormalized) => ({
+            demo: true,
+            championId: Number(route.params.championId)
+          }),
+          meta: { title: '英雄档案演示' }
         }
       ]
     : []),

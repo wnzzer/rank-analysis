@@ -1,4 +1,5 @@
 import type {
+  ChampionLane,
   ChampionCollectionItem,
   ChangeDirection,
   PatchChangeItem
@@ -21,19 +22,21 @@ export function filterAndSortChampions(
   champions: ChampionCollectionItem[],
   changes: Map<number, PatchChangeItem>,
   query: string,
-  direction: DirectionFilter
+  direction: DirectionFilter,
+  lane: ChampionLane | 'all' = 'all'
 ): ChampionCollectionItem[] {
   const keyword = query.trim().toLocaleLowerCase()
   return [...champions]
     .filter(champion => {
       const changeDirection = changes.get(champion.id)?.direction ?? 'unchanged'
       const directionMatches = direction === 'all' || changeDirection === direction
+      const laneMatches = lane === 'all' || champion.lanes.includes(lane)
       const keywordMatches =
         !keyword ||
         champion.name.toLocaleLowerCase().includes(keyword) ||
         champion.title.toLocaleLowerCase().includes(keyword) ||
         champion.alias.toLocaleLowerCase().includes(keyword)
-      return directionMatches && keywordMatches
+      return directionMatches && laneMatches && keywordMatches
     })
     .sort((left, right) => {
       const leftDirection = changes.get(left.id)?.direction ?? 'unchanged'

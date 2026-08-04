@@ -21,7 +21,7 @@
         <n-icon :size="18"><GameControllerOutline /></n-icon>
         <span class="nav-item-label">对局</span>
       </button>
-      <!-- 设置不依赖 LCU 连接，未连接（Loading 页）时也保持可见可进 -->
+      <!-- 公共游戏资料库不依赖 LCU，未连接客户端时也保持可见可进。 -->
       <button
         type="button"
         class="nav-item"
@@ -31,7 +31,7 @@
         @click="handleMenuClick('Champions')"
       >
         <n-icon :size="18"><LibraryOutline /></n-icon>
-        <span class="nav-item-label">英雄</span>
+        <span class="nav-item-label">资料</span>
       </button>
       <button
         type="button"

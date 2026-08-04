@@ -6,10 +6,31 @@ import type {
 } from '@renderer/types/domain/championCollection'
 
 const champions: ChampionCollectionItem[] = [
-  { id: 1, name: '安妮', title: '黑暗之女', alias: 'Annie', portraitUrl: null },
-  { id: 2, name: '奥拉夫', title: '狂战士', alias: 'Olaf', portraitUrl: null },
-  { id: 3, name: '加里奥', title: '正义巨像', alias: 'Galio', portraitUrl: null },
-  { id: 4, name: '崔斯特', title: '卡牌大师', alias: 'TwistedFate', portraitUrl: null }
+  { id: 1, name: '安妮', title: '黑暗之女', alias: 'Annie', portraitUrl: null, lanes: ['middle'] },
+  {
+    id: 2,
+    name: '奥拉夫',
+    title: '狂战士',
+    alias: 'Olaf',
+    portraitUrl: null,
+    lanes: ['top', 'jungle']
+  },
+  {
+    id: 3,
+    name: '加里奥',
+    title: '正义巨像',
+    alias: 'Galio',
+    portraitUrl: null,
+    lanes: ['middle', 'support']
+  },
+  {
+    id: 4,
+    name: '崔斯特',
+    title: '卡牌大师',
+    alias: 'TwistedFate',
+    portraitUrl: null,
+    lanes: ['middle']
+  }
 ]
 const changes: PatchChangeItem[] = [
   { championId: 1, direction: 'nerf', lines: [] },
@@ -38,5 +59,13 @@ describe('filterAndSortChampions', () => {
         item => item.id
       )
     ).toEqual([4])
+  })
+
+  it('filters by current-version lane without treating class tags as lanes', () => {
+    expect(
+      filterAndSortChampions(champions, createChangeMap(changes), '', 'all', 'jungle').map(
+        item => item.id
+      )
+    ).toEqual([2])
   })
 })
