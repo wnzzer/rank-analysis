@@ -24,6 +24,23 @@ const routes: Array<RouteRecordRaw> = [
     meta: { title: '对局分析' }
   },
   {
+    path: '/Champions',
+    name: 'Champions',
+    component: () => import('@renderer/views/Champions.vue'),
+    meta: { title: '英雄藏品' }
+  },
+  ...(import.meta.env.DEV
+    ? [
+        {
+          path: '/Champions/Demo',
+          name: 'ChampionsDemo',
+          component: () => import('@renderer/views/Champions.vue'),
+          props: { demo: true },
+          meta: { title: '英雄藏品演示' }
+        }
+      ]
+    : []),
+  {
     path: '/Loading',
     name: 'Loading',
     component: () => import('@renderer/views/Loading.vue'),

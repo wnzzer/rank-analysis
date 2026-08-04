@@ -136,6 +136,8 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             // command::config::get_http_server_port,
             command::config::get_champion_options,
             command::config::get_game_modes,
+            command::champion_collection::get_champion_collection,
+            command::champion_collection::get_owned_chromas,
             command::get_summoner_by_puuid,
             command::get_summoner_by_name,
             command::get_my_summoner,

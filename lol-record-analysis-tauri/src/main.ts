@@ -32,4 +32,18 @@ async function bootstrap() {
   app.mount('#app')
 }
 
-bootstrap()
+async function bootstrapBrowserDemo() {
+  const { default: ChampionsDemoApp } = await import('./dev/ChampionsDemoApp.vue')
+  createApp(ChampionsDemoApp).use(naive).mount('#app')
+}
+
+const isBrowserDemo =
+  import.meta.env.DEV &&
+  window.location.hash.startsWith('#/Champions/Demo') &&
+  !('__TAURI_INTERNALS__' in window)
+
+if (isBrowserDemo) {
+  void bootstrapBrowserDemo()
+} else {
+  void bootstrap()
+}

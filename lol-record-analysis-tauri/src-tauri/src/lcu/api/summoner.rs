@@ -12,6 +12,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Summoner {
+    #[serde(default)]
+    pub summoner_id: u64,
     pub game_name: String,
     pub tag_line: String,
     pub summoner_level: i32,

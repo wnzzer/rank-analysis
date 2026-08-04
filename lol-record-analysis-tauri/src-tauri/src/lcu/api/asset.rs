@@ -291,6 +291,26 @@ static BINARY_CACHE: LazyLock<Cache<String, (Vec<u8>, String)>> = LazyLock::new(
         .weigher(|_k: &String, v: &(Vec<u8>, String)| v.0.len() as u32)
         .build()
 });
+static SKIN_PATH_CACHE: LazyLock<RwLock<HashMap<i64, String>>> =
+    LazyLock::new(|| RwLock::new(HashMap::new()));
+static CHROMA_PATH_CACHE: LazyLock<RwLock<HashMap<i64, String>>> =
+    LazyLock::new(|| RwLock::new(HashMap::new()));
+
+/// 注册藏品接口返回的皮肤与炫彩资源路径，供只读 asset 协议按需加载图片。
+pub fn register_collection_asset_paths(
+    skin_paths: impl IntoIterator<Item = (i64, String)>,
+    chroma_paths: impl IntoIterator<Item = (i64, String)>,
+) -> Result<(), String> {
+    SKIN_PATH_CACHE
+        .write()
+        .map_err(|error| error.to_string())?
+        .extend(skin_paths);
+    CHROMA_PATH_CACHE
+        .write()
+        .map_err(|error| error.to_string())?
+        .extend(chroma_paths);
+    Ok(())
+}
 
 /// 英雄缓存是否为空（用于判断启动时是否因未开客户端而未能拉取 LCU 静态资源）。
 pub fn champion_cache_is_empty() -> bool {
@@ -632,6 +652,8 @@ pub async fn get_asset_binary(type_string: String, id: i64) -> Result<(Vec<u8>, 
         "perk" => get_perk_binary(id).await,
         "spell" => get_spell_binary(id).await,
         "profile" => get_profile_binary(id).await,
+        "skin" => get_collection_binary(&SKIN_PATH_CACHE, "skin", id).await,
+        "chroma" => get_collection_binary(&CHROMA_PATH_CACHE, "chroma", id).await,
         _ => Err("Invalid type string".to_string()),
     }?;
 
@@ -657,6 +679,20 @@ async fn get_champion_binary(id: i64) -> Result<(Vec<u8>, String), String> {
         }
         None => Err(format!("Champion with id {} not found in cache", id)),
     }
+}
+
+async fn get_collection_binary(
+    cache: &RwLock<HashMap<i64, String>>,
+    kind: &str,
+    id: i64,
+) -> Result<(Vec<u8>, String), String> {
+    let path = cache
+        .read()
+        .map_err(|error| error.to_string())?
+        .get(&id)
+        .cloned()
+        .ok_or_else(|| format!("{} with id {} not found in cache", kind, id))?;
+    fetch_binary(&path).await
 }
 
 async fn get_item_binary(id: i64) -> Result<(Vec<u8>, String), String> {

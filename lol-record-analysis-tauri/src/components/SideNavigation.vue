@@ -25,6 +25,17 @@
       <button
         type="button"
         class="nav-item"
+        :class="{
+          'nav-item--active': getFirstPath(router.currentRoute.value.path) === 'Champions'
+        }"
+        @click="handleMenuClick('Champions')"
+      >
+        <n-icon :size="18"><LibraryOutline /></n-icon>
+        <span class="nav-item-label">英雄</span>
+      </button>
+      <button
+        type="button"
+        class="nav-item"
         :class="{ 'nav-item--active': getFirstPath(router.currentRoute.value.path) === 'Settings' }"
         @click="handleMenuClick('Settings')"
       >
@@ -76,6 +87,7 @@ import {
   BarChartOutline,
   GameControllerOutline,
   SettingsOutline,
+  LibraryOutline,
   LinkOutline
 } from '@vicons/ionicons5'
 import { computed, ref, watch } from 'vue'
@@ -104,9 +116,10 @@ function handleMenuClick(key: string) {
   // 参数，避免生成 "undefined#undefined" 的脏 query
   router.push({
     name: key,
-    query: mySummoner.value?.gameName
-      ? { name: mySummoner.value.gameName + '#' + mySummoner.value.tagLine }
-      : undefined
+    query:
+      key !== 'Champions' && mySummoner.value?.gameName
+        ? { name: mySummoner.value.gameName + '#' + mySummoner.value.tagLine }
+        : undefined
   })
 }
 

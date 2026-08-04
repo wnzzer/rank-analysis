@@ -30,6 +30,7 @@ const SOURCES: [&str; 2] = [
 ];
 
 const UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+const BUILT_IN_SNAPSHOT: &str = include_str!("../../../data/patch-notes/cn-latest.json");
 
 /// 单个英雄的改动（CI 已按白名单富化 id/alias）
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -195,7 +196,9 @@ pub async fn get_or_fetch() -> Arc<CnPatchSnapshot> {
         // 拉取失败：旧数据续命（含 disk 里可能的 None），负缓存仅内存持有
         None => CnPatchSnapshot {
             checked_at: now,
-            data: disk.and_then(|d| d.data),
+            data: disk
+                .and_then(|d| d.data)
+                .or_else(|| parse_data(BUILT_IN_SNAPSHOT)),
         },
     };
     let arc = Arc::new(snapshot);
