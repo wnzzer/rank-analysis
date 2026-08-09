@@ -44,10 +44,12 @@ import {
   BookmarksOutline,
   CloudOutline
 } from '@vicons/ionicons5'
+import { useCloudSyncStore } from '@renderer/pinia/cloudSync'
 
 const collapsed = ref(false)
 const router = useRouter()
 const route = useRoute()
+const cloudStore = useCloudSyncStore()
 
 const contentStyle = computed(() => ({
   padding: 'var(--space-24)',
@@ -58,11 +60,25 @@ function renderIcon(icon: any) {
   return () => h(NIcon, null, { default: () => h(icon) })
 }
 
+/**
+ * 「数据与同步」菜单项标签：有云端配置待裁决时挂一枚呼吸角标，一路把用户从
+ * 左侧导航「设置」引到这里能实际处理的地方（角标本体见 global.css
+ * .pending-badge-dot，裁决入口在 DataSync.vue）。
+ */
+function renderDataSyncLabel() {
+  return h('span', { style: 'display:inline-flex;align-items:center;gap:6px' }, [
+    '数据与同步',
+    cloudStore.pendingCloudConfig !== null
+      ? h('span', { class: 'pending-badge-dot', 'aria-hidden': 'true' })
+      : null
+  ])
+}
+
 function handleMenuSelect(key: string) {
   router.push({ name: key })
 }
 
-const menuOptions = [
+const menuOptions = computed(() => [
   {
     label: '常规设置',
     key: 'General',
@@ -84,7 +100,7 @@ const menuOptions = [
     icon: renderIcon(BookmarksOutline)
   },
   {
-    label: '数据与同步',
+    label: renderDataSyncLabel,
     key: 'DataSync',
     icon: renderIcon(CloudOutline)
   },
@@ -98,7 +114,7 @@ const menuOptions = [
     key: 'About',
     icon: renderIcon(AlertCircleOutline)
   }
-]
+])
 </script>
 
 <style scoped>
