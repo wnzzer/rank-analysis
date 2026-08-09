@@ -189,6 +189,25 @@
                         :src="assetPrefix + '/champion/' + player.championId"
                         alt="champion"
                       />
+                      <!-- 段位：固定宽度占位——即便无数据/未定级/请求失败也不渲染内容，
+                           但槽位一直在，避免十行名字因为有的有段位、有的没有而参差不齐 -->
+                      <div class="match-detail-player-rank">
+                        <n-tooltip v-if="playerTier(player)" trigger="hover" placement="top">
+                          <template #trigger>
+                            <span class="match-detail-rank-badge">
+                              <img
+                                :src="playerTier(player)?.imgUrl"
+                                class="match-detail-rank-icon"
+                                alt="段位"
+                              />
+                              <span class="match-detail-rank-text">{{
+                                playerTier(player)?.shortText
+                              }}</span>
+                            </span>
+                          </template>
+                          {{ playerTier(player)?.tooltipText }}
+                        </n-tooltip>
+                      </div>
                       <div class="match-detail-player-text">
                         <div class="match-detail-player-text-row">
                           <n-tooltip v-if="player.mvpTag" trigger="hover" placement="top">
@@ -518,6 +537,7 @@ import {
 } from '@renderer/composables/useMatchDetailPlayers'
 import { useMatchAIAnalysis } from '@renderer/composables/useMatchAIAnalysis'
 import { useMatchReplay } from '@renderer/composables/useMatchReplay'
+import { useMatchPlayerRanks } from '@renderer/composables/useMatchPlayerRanks'
 import type { OneGamePlayer } from '@renderer/types/domain/analysis'
 
 const props = defineProps<{ game: Game | null }>()
@@ -542,6 +562,13 @@ const ai = useMatchAIAnalysis(gameRef)
 const replay = useMatchReplay(gameRef)
 const assets = useRecordAssets()
 const { copy } = useCopy()
+// 段位跟随本局队列（440 灵活组排 / 其余单双排），语义与 useSessionTiers 的 pickQueueInfo 一致
+const { tiersByPuuid } = useMatchPlayerRanks(detailPlayers, () => props.game?.queueId)
+
+/** 某玩家的段位展示数据；无数据/未定级/请求失败/加载中统一返回 null（模板据此不渲染，只占位） */
+function playerTier(player: DetailPlayer) {
+  return tiersByPuuid.value[player.puuid] ?? null
+}
 
 function totalCs(stats: ParticipantStats) {
   return stats.totalMinionsKilled + stats.neutralMinionsKilled
@@ -1182,6 +1209,39 @@ watch(
   border: 1px solid var(--border-subtle);
   flex-shrink: 0;
   display: block;
+}
+
+/* 段位：固定宽度占位列，插在头像和名字之间——「段位 → 名字」的阅读顺序，
+   且即便没有数据（未定级/请求失败/加载中）也保留槽位，避免十行名字参差不齐 */
+.match-detail-player-rank {
+  width: 38px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.match-detail-rank-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  cursor: help;
+}
+
+.match-detail-rank-icon {
+  width: clamp(20px, calc(20px + (100vw - 1100px) * 4 / 1100), 24px);
+  height: clamp(20px, calc(20px + (100vw - 1100px) * 4 / 1100), 24px);
+  object-fit: contain;
+  display: block;
+}
+
+/* 短文案如「钻石 IV」；灰度弱化，不与主名字抢视觉重量 */
+.match-detail-rank-text {
+  font-size: var(--font-size-2xs);
+  color: var(--text-tertiary);
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .match-detail-player-text {
