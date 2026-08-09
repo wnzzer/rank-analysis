@@ -122,6 +122,18 @@
               · OP.GG {{ opggStatus.patch
               }}<span v-if="opggStatus.stale" class="banner-stale">（数据滞后）</span>
             </template>
+            <!-- 段位仅对 ranked 快照有意义：aram 快照没有段位概念，
+                 在那里给下拉等于承诺一个不存在的能力 -->
+            <n-select
+              v-if="opggMode === 'ranked'"
+              :value="opggTier"
+              :options="TIER_OPTIONS"
+              :loading="opggTierLoading"
+              :disabled="opggTierLoading"
+              size="tiny"
+              class="banner-tier-select"
+              @update:value="onTierChange"
+            />
           </div>
         </div>
 
@@ -205,8 +217,11 @@ import {
   ensureOpggData,
   getOpggStatus,
   queueIdToOpggMode,
-  type OpggStatus
+  TIER_OPTIONS,
+  type OpggStatus,
+  type OpggTier
 } from '@renderer/services/opgg'
+import { useOpggTier } from '@renderer/composables/useOpggTier'
 import { buildRuleDraft } from '@renderer/services/bpRuleDraft'
 import { getChampionName, loadChampionNames } from '@renderer/services/ai/champion-names'
 import type { Position, PickRule, BanRule } from '@renderer/types/rules'
@@ -292,6 +307,22 @@ const myPosition = computed<Position | null>(() => {
 const showConfig = ref(false)
 const matchCount = ref(4)
 const message = useMessage()
+
+const { tier: opggTier, loading: opggTierLoading, loadTier, switchTier } = useOpggTier()
+onMounted(loadTier)
+
+/**
+ * 段位切换。成功后补刷 opggStatus——换段位可能连补丁号一起变，
+ * 横幅上的版本号不跟着更新就会和卡片数据对不上。
+ */
+const onTierChange = async (next: OpggTier) => {
+  const ok = await switchTier(next)
+  if (ok) {
+    opggStatus.value = await getOpggStatus(opggMode.value)
+  } else {
+    message.error('段位数据拉取失败，已保持原段位显示')
+  }
+}
 
 const showAITooltip = ref(false)
 
@@ -456,6 +487,14 @@ onMounted(async () => {
 
 .banner-meta {
   white-space: nowrap;
+}
+
+/* 横幅是辅助信息密度，下拉必须收窄，否则压垮整行版式 */
+.banner-tier-select {
+  display: inline-block;
+  width: 96px;
+  margin-left: var(--space-8);
+  vertical-align: middle;
 }
 
 .banner-stale {
