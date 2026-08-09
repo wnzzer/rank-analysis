@@ -1,9 +1,9 @@
 //! 临时探针：复用现有 LCU 鉴权，把斗魂相关的原始 JSON 落盘，方便看真实 schema。
 //! 输出目录：<repo>/.claude/plans/arena-probe/
 //!
-//! 运行：cargo run -p lol-record-analysis-app --example probe_arena
+//! 运行：cargo run -p rank-analysis --example probe_arena
 
-use lol_record_analysis_app_lib::lcu::util::http::lcu_get;
+use rank_analysis_lib::lcu::util::http::lcu_get;
 use serde_json::Value;
 use std::path::PathBuf;
 

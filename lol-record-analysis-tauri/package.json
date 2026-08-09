@@ -1,7 +1,7 @@
 {
-  "name": "lol-record-analysis-app",
+  "name": "rank-analysis",
   "private": true,
-  "description": "lol record analysis app",
+  "description": "rank analysis app",
   "type": "module",
   "author": "wnzzer",
   "scripts": {

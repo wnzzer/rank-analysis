@@ -2,9 +2,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use log::info;
-use lol_record_analysis_app_lib::lcu::api::asset as asset_api;
-use lol_record_analysis_app_lib::state::AppState;
-use lol_record_analysis_app_lib::{automation, command};
+use rank_analysis_lib::lcu::api::asset as asset_api;
+use rank_analysis_lib::state::AppState;
+use rank_analysis_lib::{automation, command};
 use tauri::Manager;
 
 // NOTE: main is no longer async
@@ -13,7 +13,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     // observability::init() 会在 device_id 缺失时生成并写盘。
     // 迁移晚于任一处，老用户的配置或匿名设备 ID 就会被新生成的空数据挤掉。
     // logger 此刻尚未安装，结论先带回来，等 set_boxed_logger 之后再补打。
-    let migration = lol_record_analysis_app_lib::migrate::migrate_legacy_data();
+    let migration = rank_analysis_lib::migrate::migrate_legacy_data();
 
     // 初始化日志，默认 info 级别，可通过 RUST_LOG 环境变量覆盖
     if std::env::var("RUST_LOG").is_err() {
@@ -45,7 +45,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     log::set_max_level(max_level);
 
     // 是否开启错误上报（debug 默认开 / release 需用户在设置中 opt-in）。
-    let reporting_on = lol_record_analysis_app_lib::observability::reporting_enabled();
+    let reporting_on = rank_analysis_lib::observability::reporting_enabled();
 
     // 安装全局 logger：上报开启时用 SentryLogger 包住控制台 logger，把所有 `log`
     // 记录在打印到控制台的同时转发为 Sentry Structured Logs（全级别 → Log）。
@@ -66,7 +66,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     info!("Current working directory: {:?}", std::env::current_dir());
     info!(
         "Config file path: {}",
-        lol_record_analysis_app_lib::paths::config_file().display()
+        rank_analysis_lib::paths::config_file().display()
     );
     info!("========================================");
 
@@ -81,7 +81,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
 
     // 初始化错误上报（创建 Sentry client + guard）。
     // guard 必须存活到 .run() 返回，否则事件 / 日志无法 flush。
-    let _sentry_guard = lol_record_analysis_app_lib::observability::init();
+    let _sentry_guard = rank_analysis_lib::observability::init();
 
     let mut app_builder = tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -219,8 +219,8 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         // 每次同步落盘标记又触发下一轮同步,永不收敛。
         // 覆盖两条写路径:前端 putConfigByIpc 与 Rust 直写(如 save_tag_configs)。
         let config_event_handle = app.handle().clone();
-        lol_record_analysis_app_lib::config::register_on_change_callback(move |key, _| {
-            if lol_record_analysis_app_lib::config::allowed_in_cloud(key) {
+        rank_analysis_lib::config::register_on_change_callback(move |key, _| {
+            if rank_analysis_lib::config::allowed_in_cloud(key) {
                 use tauri::Emitter;
                 let _ = config_event_handle.emit("config-changed", key);
             }
@@ -241,11 +241,8 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             // OP.GG 数据预热：失败仅告警，不阻塞启动（对局页/AI 会按需再触发）。
             let opgg_state = warm_handle.state::<AppState>();
             for mode in ["ranked", "aram"] {
-                match lol_record_analysis_app_lib::command::opgg::ensure_opgg_snapshot(
-                    &opgg_state,
-                    mode,
-                )
-                .await
+                match rank_analysis_lib::command::opgg::ensure_opgg_snapshot(&opgg_state, mode)
+                    .await
                 {
                     Ok((snap, stale)) => log::info!(
                         "OP.GG warmup {}: patch {}, stale={}",
@@ -261,15 +258,14 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         // 启动游戏状态监听器
         let app_handle = app.handle().clone();
         tauri::async_runtime::spawn(async move {
-            lol_record_analysis_app_lib::game_state_monitor::start_game_state_monitor(app_handle)
-                .await;
+            rank_analysis_lib::game_state_monitor::start_game_state_monitor(app_handle).await;
         });
 
         // Start Fandom data update schedule (every 2 hours)
         let fandom_handle = app.handle().clone();
         tauri::async_runtime::spawn(async move {
             loop {
-                match lol_record_analysis_app_lib::fandom::api::fetch_aram_balance_data().await {
+                match rank_analysis_lib::fandom::api::fetch_aram_balance_data().await {
                     Ok(data) => {
                         let state = fandom_handle.state::<AppState>();
                         let count = data.len();
