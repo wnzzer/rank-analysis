@@ -45,7 +45,7 @@ const BUNDLE_ID: &str = "com.lol-record-analysis-tauri.app";
 const CONFIG_FILE_NAME: &str = "config.yaml";
 
 /// 缓存文件名前缀，避免在多应用共用的临时目录里与别人撞名。
-const CACHE_PREFIX: &str = "lol-record-analysis-";
+const CACHE_PREFIX: &str = "rank-analysis-";
 
 // 下面三个 `config_dir_*` 是**纯路径运算**，不碰任何平台专有 API，因此一律无条件编译，
 // 由 `config_dir()` 用运行时的 `cfg!()` 选择。刻意不用 `#[cfg]` 门控：那样未被选中的
@@ -201,10 +201,7 @@ mod tests {
     fn cache_file_should_be_namespaced_inside_temp_dir() {
         let path = cache_file_in(Path::new("/tmp"), "opgg_ranked.json");
 
-        assert_eq!(
-            path,
-            PathBuf::from("/tmp/lol-record-analysis-opgg_ranked.json")
-        );
+        assert_eq!(path, PathBuf::from("/tmp/rank-analysis-opgg_ranked.json"));
     }
 
     // 本模块存在的全部理由：路径不能依赖 CWD。相对路径一旦回归，下面两条立刻变红。
