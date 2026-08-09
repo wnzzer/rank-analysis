@@ -3,6 +3,16 @@
  *
  * 设置页与对局页两个入口共用同一份配置 `settings.opgg.tier`，
  * 因此「写配置 → 强制重拉 → 通知消费方 → 失败回滚」这套编排也只该有一份实现。
+ *
+ * 隐含依赖（易碎，无测试守护）：两个入口各自调用 `useOpggTier()`，各持一份独立的
+ * `tier` ref——不是同一个响应式对象。当前两边显示不会不同步，靠的是两件事同时成立：
+ * 1. `Framework.vue`（对局页所在壳）与 `Settings.vue` 的 `<router-view>` 均未加
+ *    `<keep-alive>`，路由切走会整个卸载组件树；
+ * 2. 每次 mount 都会调一次 `loadTier()` 重新读配置，把两边拉回配置里的最新值。
+ * 日后若给这些页面加 `keep-alive`（常见的性能优化）， mount 只发生一次，
+ * `loadTier()` 不会在路由切回时重跑，两边的 `tier` ref 就可能静默漂移不同步——
+ * 且这条路径目前没有任何测试覆盖。若要加 keep-alive，需要先把 tier 提升为
+ * 模块级共享状态（同 `opggRevision` 的做法），而不是两份独立 ref。
  */
 import { ref, type Ref } from 'vue'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
