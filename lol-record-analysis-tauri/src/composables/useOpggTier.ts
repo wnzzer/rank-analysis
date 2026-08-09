@@ -49,9 +49,7 @@ export function useOpggTier(): {
    */
   const loadTier = async (): Promise<void> => {
     const saved = await getConfigByIpc<string>(CONFIG_KEY)
-    tier.value = TIER_OPTIONS.some(o => o.value === saved)
-      ? (saved as OpggTier)
-      : DEFAULT_OPGG_TIER
+    tier.value = TIER_OPTIONS.some(o => o.value === saved) ? (saved as OpggTier) : DEFAULT_OPGG_TIER
   }
 
   /**

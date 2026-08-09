@@ -416,7 +416,8 @@ const configLoaded = ref(false)
 
 /** 自动选择开着但规则与兜底池皆空——本局不会有任何动作 */
 const pickHasNoTarget = computed(
-  () => configLoaded.value && hasNoExecutableTarget(autoPick.value, pickRules.value, myPickData.value)
+  () =>
+    configLoaded.value && hasNoExecutableTarget(autoPick.value, pickRules.value, myPickData.value)
 )
 /** 自动禁用开着但规则与兜底池皆空——本局不会有任何动作 */
 const banHasNoTarget = computed(
