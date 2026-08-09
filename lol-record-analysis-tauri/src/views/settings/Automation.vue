@@ -35,6 +35,8 @@
             <n-select
               v-model:value="opggTier"
               :options="TIER_OPTIONS"
+              :loading="opggTierLoading"
+              :disabled="opggTierLoading"
               size="small"
               style="width: 130px"
               @update:value="updateOpggTier"
@@ -246,6 +248,7 @@
 <script setup lang="ts">
 import { VueDraggable } from 'vue-draggable-plus'
 import { onMounted, ref } from 'vue'
+import { useMessage } from 'naive-ui'
 import { renderSingleSelectTag, renderLabel, filterChampionFunc } from '@renderer/utils/champion'
 import {
   CheckmarkCircleOutline,
@@ -259,10 +262,13 @@ import { assetPrefix } from '@renderer/services/http'
 import type { championOption } from '@renderer/types/domain/champion'
 import { invoke } from '@tauri-apps/api/core'
 import { usePickRules, useBanRules } from '@renderer/composables/useRules'
+import { useOpggTier } from '@renderer/composables/useOpggTier'
+import type { OpggTier } from '@renderer/services/opgg'
 import RuleEditModal from '@renderer/components/automation/RuleEditModal.vue'
 import BpSuggestModal from '@renderer/components/automation/BpSuggestModal.vue'
 import type { PickRule, BanRule, PickAction } from '@renderer/types/rules'
 
+const message = useMessage()
 const { rules: pickRules, reload: reloadPickRules, save: savePickRules } = usePickRules()
 const { rules: banRules, reload: reloadBanRules, save: saveBanRules } = useBanRules()
 
@@ -272,21 +278,19 @@ const banModalShow = ref(false)
 const banEditing = ref<BanRule | undefined>(undefined)
 
 const suggestModalShow = ref(false)
-/** OP.GG 段位分段（与 Rust opgg::api::VALID_TIERS 同白名单） */
-const opggTier = ref('emerald_plus')
-const TIER_OPTIONS = [
-  { label: '黄金以上', value: 'gold_plus' },
-  { label: '铂金以上', value: 'platinum_plus' },
-  { label: '翡翠以上', value: 'emerald_plus' },
-  { label: '钻石以上', value: 'diamond_plus' },
-  { label: '大师以上', value: 'master_plus' },
-  { label: '全部段位', value: 'all' }
-]
 
-/** 段位变更：写配置并强制刷新 ranked 快照（失败静默，降级链自会兜底） */
-const updateOpggTier = async () => {
-  await putConfigByIpc('settings.opgg.tier', opggTier.value)
-  invoke('update_opgg_data', { mode: 'ranked' }).catch(() => {})
+const {
+  tier: opggTier,
+  loading: opggTierLoading,
+  options: TIER_OPTIONS,
+  loadTier: loadOpggTier,
+  switchTier
+} = useOpggTier()
+
+/** 段位变更。失败时 composable 会回滚显示值，这里补一条用户可见的反馈。 */
+const updateOpggTier = async (next: OpggTier) => {
+  const ok = await switchTier(next)
+  if (!ok) message.error('段位数据拉取失败，已保持原段位显示')
 }
 
 /** 采纳后重读对应池，保持页面上的兜底池列表同步 */
@@ -307,7 +311,7 @@ onMounted(async () => {
   myPickData.value = (await getConfigByIpc<number[]>('settings.auto.pickChampionSlice')) ?? []
   myBanData.value = (await getConfigByIpc<number[]>('settings.auto.banChampionSlice')) ?? []
   autoStart.value = (await getConfigByIpc<boolean>('settings.auto.startMatchSwitch')) ?? false
-  opggTier.value = (await getConfigByIpc<string>('settings.opgg.tier')) ?? 'emerald_plus'
+  await loadOpggTier()
   await reloadPickRules()
   await reloadBanRules()
 })
