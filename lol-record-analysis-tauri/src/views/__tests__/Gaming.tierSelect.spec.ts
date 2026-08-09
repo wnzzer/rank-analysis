@@ -1,5 +1,6 @@
 /**
- * Gaming.vue 选人期横幅段位下拉「v-model + @update:value 双写同一 ref」缺陷回归测试。
+ * Gaming.vue 情报横幅段位下拉「v-model + @update:value 双写同一 ref」缺陷回归测试，
+ * 以及横幅「仅选人期展示」门禁的回归测试。
  *
  * 背景（Critical 缺陷，Task 4 设置页栽过一次）：
  * 段位下拉若同时写 `v-model:value="opggTier"` 与 `@update:value="onTierChange"`，
@@ -43,7 +44,14 @@
  * - useGameState 用到的 `@tauri-apps/api/window`（getCurrentWindow）与 useSessionSync /
  *   useBpDecision 用到的 `@tauri-apps/api/event`（listen）都需要 mock；listen 的 mock
  *   按事件名收集回调（同一事件名 useSessionSync/useGameState 各注册一份），供测试手动
- *   派发 session-basic-info 事件把 phase 推进到 ChampSelect。
+ *   派发 session-basic-info 事件把 phase 推进到指定阶段（`emitPhase`）。
+ *
+ * 横幅 phase 门禁回归（本文件第二个用例）：
+ * 横幅曾经整块挂 `v-if="sessionData.phase === 'ChampSelect'"`，段位下拉因此只在选人期
+ * 那几十秒内可见。真机反馈：用户想静下心比较段位数据的时刻往往在对局中/结算后，
+ * 选人期反而没空理会下拉。现改为横幅常驻、门禁下放到内部两块子内容（stepper/ban 条）
+ * 各自的既有条件。`emitPhase('EndOfGame')` 用例验证非选人期下拉仍渲染、仍可用，
+ * 作为「不能把这层门禁加回横幅」的回归锚点。
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -123,10 +131,10 @@ const stubs = {
   }
 }
 
-/** 派发一次 session-basic-info，把 sessionData 推进到选人期（ChampSelect）。 */
-function emitChampSelect() {
+/** 派发一次 session-basic-info，把 sessionData 推进到指定 phase（默认 ChampSelect）。 */
+function emitPhase(phase: SessionData['phase'] = 'ChampSelect') {
   const payload: SessionData = {
-    phase: 'ChampSelect',
+    phase,
     type: 'RANKED_SOLO_5x5',
     typeCn: '排位赛',
     queueId: 420, // != 450，映射为 opggMode 'ranked'
@@ -187,7 +195,7 @@ describe('Gaming.vue 选人期横幅段位下拉接线（挂载真实组件）',
     })
 
     await flush(w)
-    emitChampSelect()
+    emitPhase('ChampSelect')
     await flush(w)
 
     const select = w.find('select')
@@ -198,6 +206,41 @@ describe('Gaming.vue 选人期横幅段位下拉接线（挂载真实组件）',
     // mount 阶段的兜底刷新已经各调用过一次 update_opgg_data(ranked/aram) 和若干
     // getConfigByIpc；清空后只认这次切换新增的调用，避免 v-model 双写导致 switchTier
     // 空转时，mount 阶段的旧调用把断言假阳性地撑住。
+    mockPut.mockClear()
+    mockInvoke.mockClear()
+
+    await select.setValue('master_plus')
+    await flush(w)
+
+    expect(mockPut).toHaveBeenCalledWith('settings.opgg.tier', 'master_plus')
+    expect(mockInvoke).toHaveBeenCalledWith('update_opgg_data', { mode: 'ranked' })
+    expect((select.element as HTMLSelectElement).value).toBe('master_plus')
+
+    w.unmount()
+  })
+
+  /**
+   * 回归锚点：横幅曾经整块挂 `v-if="sessionData.phase === 'ChampSelect'"`，段位下拉
+   * 只能在选人期那几十秒内出现——但真机反馈里用户切换段位的意图恰恰发生在
+   * 对局中/结算后（有空细看数据的时候），选人期反而没空理会下拉。横幅门禁已放开，
+   * 这里验证非选人期（用 EndOfGame 代表结算态）下拉依然渲染、依然是唯一写入路径
+   * （单向 :value + @update:value，未退化回 v-model 双写空转）。
+   * 若有人把那层 phase 门禁加回横幅，本用例会因 select 找不到而转红。
+   */
+  it('phase 为 EndOfGame（非选人期）时：段位下拉仍渲染且仍可切换', async () => {
+    const w = mount(Gaming, {
+      global: { plugins: [naive, testRouter], stubs }
+    })
+
+    await flush(w)
+    emitPhase('EndOfGame')
+    await flush(w)
+
+    const select = w.find('select')
+    expect(select.exists()).toBe(true)
+    expect((select.element as HTMLSelectElement).value).toBe('emerald_plus')
+
+    // 同上：先清空 mount 阶段兜底刷新留下的调用记录，只认切换后新增的调用。
     mockPut.mockClear()
     mockInvoke.mockClear()
 

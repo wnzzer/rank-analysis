@@ -94,7 +94,7 @@
         <div v-else class="ai-result-empty">暂无分析结果，点「重新分析」生成。</div>
       </n-modal>
 
-      <div v-if="sessionData.phase === 'ChampSelect'" class="gaming-intel-banner">
+      <div class="gaming-intel-banner">
         <div class="banner-main" :class="{ 'banner-main-split': champSelectStage }">
           <!-- 阶段 stepper：预选/禁用/选人/确认，仅 stage 非空时展示；'' 时保留原有单行文案 -->
           <div v-if="champSelectStage" class="stage-stepper">
@@ -117,7 +117,8 @@
             </template>
           </div>
           <div class="banner-meta">
-            选人中 · {{ sessionData.typeCn }}
+            <template v-if="bannerPhaseLabel">{{ bannerPhaseLabel }} · </template
+            >{{ sessionData.typeCn }}
             <template v-if="opggStatus">
               · OP.GG {{ opggStatus.patch
               }}<span v-if="opggStatus.stale" class="banner-stale">（数据滞后）</span>
@@ -280,6 +281,33 @@ const myBans = computed(() => sessionData.champSelect?.myBans ?? [])
 const theirBans = computed(() => sessionData.champSelect?.theirBans ?? [])
 /** 任一方存在 ban 记录才展示 ban 条整块 */
 const hasBans = computed(() => myBans.value.length > 0 || theirBans.value.length > 0)
+
+/**
+ * 横幅首段状态文案，随 sessionData.phase 变化（横幅不再限定选人期展示，见 Gaming.vue 模板）。
+ * - `ChampSelect` → 选人中
+ * - `GameStart` / `InProgress` → 对局中（`GameStart` 是选人结束到正式进圈前的过渡态，
+ *   目前后端 `process_session_data` 的 `valid_phases` 未下发它，但 `useSessionSync`
+ *   的重试/轮询逻辑仍多处按这个取值判断，这里一并纳入保持口径一致）
+ * - `PreEndOfGame` / `EndOfGame` → 对局结束
+ * - 其余取值（如 `Lobby`/`Matchmaking`/`ReadyCheck`）目前不会真正到达这里——
+ *   `.gaming-page` 只在 `sessionData.phase` 非空时渲染，而后端只在上述四个阶段才会
+ *   下发非空 phase，这里仅作防御性兜底：不编造一个无法验证含义的状态词，
+ *   直接不给前缀，只显示 `typeCn`
+ */
+const bannerPhaseLabel = computed(() => {
+  switch (sessionData.phase) {
+    case 'ChampSelect':
+      return '选人中'
+    case 'GameStart':
+    case 'InProgress':
+      return '对局中'
+    case 'PreEndOfGame':
+    case 'EndOfGame':
+      return '对局结束'
+    default:
+      return ''
+  }
+})
 
 /** OP.GG 数据状态（版本号/是否滞后），驱动选人期数据横幅 */
 const opggStatus = ref<OpggStatus | null>(null)
