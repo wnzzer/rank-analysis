@@ -1,9 +1,18 @@
 import { describe, it, expect } from 'vitest'
-import { winRate, formatTierText, hasRealTier } from '../rank'
-import { defaultQueueInfo, type QueueInfo } from '@renderer/types/domain/player'
+import { winRate, formatTierText, hasRealTier, pickQueueInfoByQueueId } from '../rank'
+import { defaultQueueInfo, type QueueInfo, type Rank } from '@renderer/types/domain/player'
 
 function queueInfo(partial: Partial<QueueInfo>): QueueInfo {
   return { ...defaultQueueInfo(), ...partial }
+}
+
+function rank(solo: Partial<QueueInfo>, flex: Partial<QueueInfo>): Rank {
+  return {
+    queueMap: {
+      RANKED_SOLO_5x5: queueInfo(solo),
+      RANKED_FLEX_SR: queueInfo(flex)
+    }
+  }
 }
 
 describe('winRate', () => {
@@ -56,5 +65,28 @@ describe('formatTierText', () => {
     expect(
       formatTierText(queueInfo({ tier: 'MASTER', tierCn: '超凡大师', leaguePoints: 233 }))
     ).toBe('超凡大师 233')
+  })
+})
+
+describe('pickQueueInfoByQueueId', () => {
+  const r = rank({ tier: 'DIAMOND', division: 'IV' }, { tier: 'GOLD', division: 'II' })
+
+  it('should use solo queue for 420 (solo/duo ranked)', () => {
+    expect(pickQueueInfoByQueueId(r, 420).tier).toBe('DIAMOND')
+  })
+
+  it('should use flex queue for 440 (flex ranked) when flex has a real tier', () => {
+    expect(pickQueueInfoByQueueId(r, 440).tier).toBe('GOLD')
+  })
+
+  it('should fall back to solo queue for 440 when flex has no tier data (matches pickQueueInfo in useSessionTiers)', () => {
+    const noFlexTier = rank({ tier: 'DIAMOND', division: 'IV' }, { tier: '' })
+    expect(pickQueueInfoByQueueId(noFlexTier, 440).tier).toBe('DIAMOND')
+  })
+
+  it('should use solo queue for non-ranked queues (e.g. 400 normal draft, 450 ARAM, 2400 hexakill)', () => {
+    expect(pickQueueInfoByQueueId(r, 400).tier).toBe('DIAMOND')
+    expect(pickQueueInfoByQueueId(r, 450).tier).toBe('DIAMOND')
+    expect(pickQueueInfoByQueueId(r, 2400).tier).toBe('DIAMOND')
   })
 })
