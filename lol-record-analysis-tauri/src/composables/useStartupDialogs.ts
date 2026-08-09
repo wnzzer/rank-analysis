@@ -1,16 +1,17 @@
 /**
  * 启动弹窗队列
  *
- * 把「此刻该显示哪个启动弹窗」收敛成单一 computed：弹窗按固定优先级排队，
- * 同一时刻至多一个可见。取代原先散在 Framework.vue 里的布尔标志与「否定掉其它
- * 所有弹窗」式互斥条件——那种写法每加一个弹窗都要回头改所有既有弹窗的条件。
+ * 把「此刻该显示哪个启动弹窗」收敛成单一 computed：目前队列里只剩错误上报
+ * 同意这一个一次性告知弹窗。取代原先散在 Framework.vue 里的布尔标志与「否定掉
+ * 其它所有弹窗」式互斥条件——那种写法每加一个弹窗都要回头改所有既有弹窗的条件。
  *
- * 顺序：错误上报同意 > 云端配置拉取。前者是启动期一次性告知，由本 composable
- * 读写「已展示过」标记；后者是响应式的（云同步随时可能拉出待确认配置），只参与
- * 排序，收尾仍归 cloudSync store 所有。
- *
- * （原「云同步功能一次性告知」弹窗已砍掉——纯告知无决策，用户反馈打扰；
- * 见 CloudSyncNoticeDialog 删除记录。）
+ * 曾经还排过另外两个弹窗，均已移出本队列：
+ * - 「云同步功能一次性告知」——纯告知无决策，用户反馈打扰，直接砍掉
+ *   （见 CloudSyncNoticeDialog 删除记录）。
+ * - 「云端配置拉取裁决」——真正的裁决框，但改成被动角标引导：待裁决时左侧
+ *   「设置」导航项 + 设置页「数据与同步」菜单项挂呼吸角标，用户主动点进
+ *   数据与同步页里的入口才弹出（组件仍是 CloudConfigPullDialog，只是不再
+ *   占启动弹窗队列的位置，见 views/settings/DataSync.vue）。
  *
  * @module composables/useStartupDialogs
  */
@@ -19,10 +20,9 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import { CONFIG_KEYS } from '@renderer/services/configKeys'
 import { lcuConnected } from '@renderer/composables/useGameState'
-import { useCloudSyncStore } from '@renderer/pinia/cloudSync'
 
 /** 队列里的弹窗标识 */
-export type StartupDialogKey = 'errorReportingConsent' | 'cloudConfigPull'
+export type StartupDialogKey = 'errorReportingConsent'
 
 /** 首屏就绪信号到达后再等这么久开闸，留给首屏渲染/动画落定 */
 export const GATE_SETTLE_MS = 500
@@ -37,12 +37,10 @@ export const GATE_SETTLE_MS = 500
 export const GATE_FALLBACK_MS = 8000
 
 /**
- * 两个弹窗之间的交接留白。
+ * 弹窗关闭后的交接留白（目前队列只剩一个弹窗，此常量仅供弹窗自身开合动画节流）。
  *
- * n-modal 关闭有约 250ms 的离场动画。若下一个弹窗在同一 tick 就打开，实测会有
- * ~200ms 两张卡片同时可见（旧卡 opacity 0.84 缩小、新卡 opacity 0.92 放大），
- * 两张尺寸不同的卡居中重叠，观感上是一次闪烁。压住这段时间，让交接是干净的
- * 「关完再开」。
+ * n-modal 关闭有约 250ms 的离场动画，弹窗裁决后立即复位内部状态会让离场动画
+ * 期间出现视觉跳变。压住这段时间，让收尾是干净的「关完再复位」。
  */
 export const HANDOFF_MS = 300
 
@@ -51,8 +49,6 @@ export function useStartupDialogs(): {
   active: ComputedRef<StartupDialogKey | null>
   resolveErrorReportingConsent: (enabled: boolean) => Promise<void>
 } {
-  const cloudStore = useCloudSyncStore()
-
   /** 首屏就绪闸门；未开时 active 恒为 null */
   const gateOpen = ref(false)
   /** 开闸只调度一次（gateOpen 要等 500ms 才翻，不能拿它当去重条件） */
@@ -67,7 +63,7 @@ export function useStartupDialogs(): {
    */
   const consentShown = ref(true)
 
-  /** 正处于「上一个弹窗离场」的留白期；期间 active 恒为 null */
+  /** 正处于「弹窗离场」的留白期；期间 active 恒为 null */
   const handingOff = ref(false)
 
   /** 战绩详情子窗口（label 前缀 match-detail-）不参与任何启动弹窗 */
@@ -76,7 +72,6 @@ export function useStartupDialogs(): {
   const active = computed<StartupDialogKey | null>(() => {
     if (!gateOpen.value || handingOff.value) return null
     if (!consentShown.value) return 'errorReportingConsent'
-    if (cloudStore.pendingCloudConfig !== null) return 'cloudConfigPull'
     return null
   })
 
@@ -89,7 +84,7 @@ export function useStartupDialogs(): {
     }, GATE_SETTLE_MS)
   }
 
-  /** 让下一个弹窗等上一个的离场动画走完再开 */
+  /** 让弹窗关闭后的离场动画走完再复位 */
   function beginHandoff(): void {
     handingOff.value = true
     window.setTimeout(() => {

@@ -2,9 +2,10 @@
  * useStartupDialogs 单元测试
  *
  * 覆盖启动弹窗队列的优先级、首屏就绪闸门、以及裁决后的推进与持久化。
- * 队列目前只剩错误上报同意（一次性告知）与云端配置拉取（响应式,由
- * cloudSync store 的 pendingCloudConfig 驱动）两项——原「云同步功能一次性
- * 告知」弹窗已被砍掉。
+ * 队列目前只剩错误上报同意这一个一次性告知弹窗——原「云同步功能一次性告知」
+ * 弹窗已被砍掉；「云端配置拉取裁决」也已移出本队列，改成设置页「数据与同步」
+ * 里的被动角标引导入口（见 views/settings/DataSync.vue），composable 本身
+ * 不再依赖 cloudSync store。
  * mock 骨架沿用 pinia/__tests__/cloudSync.spec.ts：jsdom 无 Tauri runtime，
  * IPC / 事件 / 窗口 / LCU 连接状态全部顶替。
  *
@@ -13,7 +14,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { defineComponent, nextTick, type Ref } from 'vue'
 import { mount } from '@vue/test-utils'
-import { createPinia, setActivePinia } from 'pinia'
 
 /** 窗口 label 需要在单个用例里改写，用 vi.hoisted 越过 vi.mock 的提升 */
 const hoisted = vi.hoisted(() => ({ windowLabel: 'main' }))
@@ -21,11 +21,6 @@ const hoisted = vi.hoisted(() => ({ windowLabel: 'main' }))
 vi.mock('@renderer/services/ipc', () => ({
   getConfigByIpc: vi.fn(),
   putConfigByIpc: vi.fn(() => Promise.resolve())
-}))
-vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
-vi.mock('@tauri-apps/api/event', () => ({
-  emit: vi.fn(() => Promise.resolve()),
-  listen: vi.fn(() => Promise.resolve(() => {}))
 }))
 vi.mock('@tauri-apps/api/window', () => ({
   getCurrentWindow: vi.fn(() => ({ label: hoisted.windowLabel }))
@@ -39,7 +34,6 @@ vi.mock('@renderer/composables/useGameState', async () => {
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import { CONFIG_KEYS } from '@renderer/services/configKeys'
 import { lcuConnected } from '@renderer/composables/useGameState'
-import { useCloudSyncStore } from '@renderer/pinia/cloudSync'
 import {
   useStartupDialogs,
   GATE_SETTLE_MS,
@@ -93,7 +87,6 @@ async function mountWithGateOpen(): Promise<{
 
 describe('useStartupDialogs', () => {
   beforeEach(() => {
-    setActivePinia(createPinia())
     vi.clearAllMocks()
     vi.useFakeTimers()
     mockConnected.value = false
@@ -111,16 +104,7 @@ describe('useStartupDialogs', () => {
     unmount()
   })
 
-  it('错误上报已问过、且有待裁决的云端配置：轮到云端配置拉取', async () => {
-    mockFlags(true)
-    const store = useCloudSyncStore()
-    store.pendingCloudConfig = { updatedAt: 1, config: {} }
-    const { result, unmount } = await mountWithGateOpen()
-    expect(result.active.value).toBe('cloudConfigPull')
-    unmount()
-  })
-
-  it('错误上报已问过、且无待裁决配置：不展示任何启动弹窗', async () => {
+  it('错误上报已问过：不再展示任何启动弹窗', async () => {
     mockFlags(true)
     const { result, unmount } = await mountWithGateOpen()
     expect(result.active.value).toBeNull()
@@ -173,17 +157,14 @@ describe('useStartupDialogs', () => {
     unmount()
   })
 
-  it('交接留白：裁决后要等离场动画走完，云端配置拉取才接上', async () => {
+  it('交接留白：裁决后要等离场动画走完才复位', async () => {
     mockFlags(undefined)
-    const store = useCloudSyncStore()
-    store.pendingCloudConfig = { updatedAt: 1, config: {} }
     const { result, unmount } = await mountWithGateOpen()
     expect(result.active.value).toBe('errorReportingConsent')
 
     await result.resolveErrorReportingConsent(false)
     await nextTick()
-    // 留白期内不展示——否则 n-modal 的离场动画会和下一个的入场交叉，
-    // 出现两张尺寸不同的卡片居中重叠约 200ms
+    // 留白期内不展示——避免 n-modal 离场动画期间内部状态跳变造成视觉跳跃
     expect(result.active.value).toBeNull()
 
     vi.advanceTimersByTime(HANDOFF_MS - 1)
@@ -192,7 +173,7 @@ describe('useStartupDialogs', () => {
 
     vi.advanceTimersByTime(1)
     await nextTick()
-    expect(result.active.value).toBe('cloudConfigPull')
+    expect(result.active.value).toBeNull()
     unmount()
   })
 

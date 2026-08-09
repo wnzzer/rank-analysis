@@ -2,15 +2,12 @@
   <div class="full-container">
     <MatchDetail v-if="isStandaloneDetailWindow" />
     <n-flex v-else vertical size="large">
-      <!-- 启动弹窗队列：同一时刻至多一个可见，顺序见 useStartupDialogs -->
+      <!-- 启动弹窗队列：同一时刻至多一个可见，顺序见 useStartupDialogs。
+           云端配置拉取裁决（CloudConfigPullDialog）不再走这里自动弹出，改成
+           设置页「数据与同步」里的被动角标引导入口，见 views/settings/DataSync.vue -->
       <ErrorReportingConsentDialog
         :show="active === 'errorReportingConsent'"
         @decide="onConsentDecide"
-      />
-      <CloudConfigPullDialog
-        :show="active === 'cloudConfigPull'"
-        :updated-at="cloudStore.pendingCloudConfig?.updatedAt ?? 0"
-        @decide="onCloudConfigDecide"
       />
       <!-- 整体布局 -->
       <n-layout>
@@ -50,11 +47,9 @@ import Header from './Header.vue'
 import SideNavigation from './SideNavigation.vue'
 import MatchDetail from '@renderer/views/MatchDetail.vue'
 import ErrorReportingConsentDialog from '@renderer/components/common/ErrorReportingConsentDialog.vue'
-import CloudConfigPullDialog from './common/CloudConfigPullDialog.vue'
 import { useGameState } from '@renderer/composables/useGameState'
 import { useZoom } from '@renderer/composables/useZoom'
 import { useStartupDialogs } from '@renderer/composables/useStartupDialogs'
-import { useCloudSyncStore } from '@renderer/pinia/cloudSync'
 
 /**
  * 应用主布局框架组件
@@ -99,8 +94,6 @@ useZoom()
 
 const message = useMessage()
 
-const cloudStore = useCloudSyncStore()
-
 /**
  * 启动弹窗队列：谁先弹、谁让位、什么时候弹，全部收敛在 useStartupDialogs 里。
  * 本组件只负责渲染和用户可见反馈（toast / 路由跳转）。
@@ -117,16 +110,6 @@ async function onConsentDecide(enabled: boolean): Promise<void> {
     if (enabled) message.success('已开启，重启后生效')
   } catch {
     message.error('保存失败')
-  }
-}
-
-/** 首次配置同步弹窗裁决:成功/失败都给 toast 反馈,失败细节在 store.lastError */
-async function onCloudConfigDecide(useCloud: boolean): Promise<void> {
-  try {
-    await cloudStore.resolveCloudConfig(useCloud)
-    message.success(useCloud ? '已应用云端配置' : '已保留本机配置并推送云端')
-  } catch {
-    message.error(cloudStore.lastError ?? '配置同步失败')
   }
 }
 
