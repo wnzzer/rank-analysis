@@ -226,6 +226,7 @@ import { useOpggTier } from '@renderer/composables/useOpggTier'
 import { buildRuleDraft } from '@renderer/services/bpRuleDraft'
 import { getChampionName, loadChampionNames } from '@renderer/services/ai/champion-names'
 import type { Position, PickRule, BanRule } from '@renderer/types/rules'
+import type { ChampSelect } from '@renderer/types/domain/gaming'
 
 /** 选人阶段 stepper 的四步定义，顺序与展示文案固定 */
 const STAGE_STEPS: Array<{ key: string; label: string }> = [
@@ -270,15 +271,45 @@ const myChampionIds = computed(
       .filter(id => id > 0) ?? []
 )
 
+/**
+ * 最后一次选人期快照。
+ *
+ * 离开选人期后后端不再下发 champSelect，sessionData.champSelect 会被 undefined 覆盖，
+ * 但 ban 条与阶段条要留着供对局中/赛后回看，故前端自留一份。
+ */
+const lastChampSelect = ref<ChampSelect | undefined>(undefined)
+
+// 新一局进入选人期时，新的 champSelect 数据还没到达——这个窗口里若不清掉快照，
+// 横幅会误显示上一局的 ban（比什么都不显示更糟：用户会以为那是本局的）。
+// phase 一变成 ChampSelect 立即清空，等新数据到达后由下面的 watch 重新填入。
+watch(
+  () => sessionData.phase,
+  (newVal, oldVal) => {
+    if (newVal === 'ChampSelect' && oldVal !== 'ChampSelect') {
+      lastChampSelect.value = undefined
+    }
+  }
+)
+
+watch(
+  () => sessionData.champSelect,
+  cs => {
+    if (cs !== undefined) lastChampSelect.value = cs
+  }
+)
+
+/** 展示用 champSelect：实时数据优先，选人期结束后回退到最后一次快照，供离开选人期后继续展示阶段/ban 条 */
+const displayChampSelect = computed(() => sessionData.champSelect ?? lastChampSelect.value)
+
 /** 选人阶段结构化视图的 stage 字段（''=未知，驱动 stepper 是否展示） */
-const champSelectStage = computed(() => sessionData.champSelect?.stage ?? '')
+const champSelectStage = computed(() => displayChampSelect.value?.stage ?? '')
 /** 当前 stage 在 STAGE_STEPS 中的下标，未匹配（如 '' 或非法值）时为 -1，stepper 各步均不高亮 */
 const currentStageIndex = computed(() =>
   STAGE_STEPS.findIndex(s => s.key === champSelectStage.value)
 )
 /** 我方 / 敌方已 ban 英雄 id 列表，非选人期或无 ban 数据时为空数组 */
-const myBans = computed(() => sessionData.champSelect?.myBans ?? [])
-const theirBans = computed(() => sessionData.champSelect?.theirBans ?? [])
+const myBans = computed(() => displayChampSelect.value?.myBans ?? [])
+const theirBans = computed(() => displayChampSelect.value?.theirBans ?? [])
 /** 任一方存在 ban 记录才展示 ban 条整块 */
 const hasBans = computed(() => myBans.value.length > 0 || theirBans.value.length > 0)
 
