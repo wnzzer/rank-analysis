@@ -7,9 +7,9 @@
 - **核心功能**: LCU API 通信、战绩查询、AI 分析、自动化辅助
 
 ## 项目结构
-- 前端源码: `lol-record-analysis-tauri/src/`
+- 前端源码: `rank-analysis-app/src/`
   - `components/` 组件 / `views/` 页面 / `pinia/` 状态 / `services/` API / `composables/` 组合式函数 / `types/` 类型
-- 后端源码: `lol-record-analysis-tauri/src-tauri/src/`
+- 后端源码: `rank-analysis-app/src-tauri/src/`
   - `command/` Tauri Commands / `lcu/` LCU API 客户端 / `automation.rs` 自动化 / `fandom/` Fandom 数据
 
 ## 工作流约定
@@ -167,7 +167,7 @@ mod tests {
 ### 测试目录结构
 
 ```
-lol-record-analysis-tauri/
+rank-analysis-app/
 ├── src/
 │   ├── composables/
 │   │   ├── useTheme.ts
@@ -267,7 +267,7 @@ const summoner = await invoke('get_summoner_by_name', {
 ### 代码质量
 本仓库的 canonical 门禁是 `npm run check`（= prettier + eslint + vue-tsc + cargo fmt --check + cargo clippy -Dwarnings，与 CI 一致）。
 ```bash
-cd lol-record-analysis-tauri
+cd rank-analysis-app
 npm run check          # 一把跑完前后端 lint/format/typecheck/clippy
 npm run test           # vitest（前端单元测试）
 cd src-tauri && cargo test   # Rust 单元测试

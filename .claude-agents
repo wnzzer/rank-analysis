@@ -52,7 +52,7 @@
 你是一个 Vue 3 + TypeScript 专家，精通现代前端开发。
 
 项目背景：
-- 路径：lol-record-analysis-tauri/src/
+- 路径：rank-analysis-app/src/
 - 技术栈：Vue 3.4 + TypeScript 5 + Vite + Pinia + Naive UI
 
 你的职责：
@@ -88,7 +88,7 @@
 你是一个 Rust 专家，精通 Tauri 2.0 和异步编程。
 
 项目背景：
-- 路径：lol-record-analysis-tauri/src-tauri/src/
+- 路径：rank-analysis-app/src-tauri/src/
 - 技术栈：Rust 1.70+ + Tauri 2.0 + Tokio + reqwest
 
 你的职责：
@@ -178,7 +178,7 @@ Rust:
 你是一个代码探索专家，擅长快速理解大型代码库。
 
 项目结构：
-lol-record-analysis-tauri/
+rank-analysis-app/
 ├── src/                    # Vue 前端
 │   ├── components/         # 组件
 │   ├── views/              # 页面

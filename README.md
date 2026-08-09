@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="./lol-record-analysis-tauri/src-tauri/icons/256x256.png" width="128" height="128" alt="Logo" />
+  <img src="./rank-analysis-app/src-tauri/icons/256x256.png" width="128" height="128" alt="Logo" />
   <h1>Rank Analysis</h1>
   <p>🎮 AI-powered match review for League of Legends — built on the official LCU API</p>
 
@@ -184,7 +184,7 @@ npm run tauri build -- --bundles dmg
 
 1. Clone and enter the Tauri directory:
    ```bash
-   cd lol-record-analysis-tauri
+   cd rank-analysis-app
    ```
 
 2. Install dependencies:
@@ -218,7 +218,7 @@ This project uses modern development toolchain to ensure code quality and consis
 ### Quality Check Commands
 
 ```bash
-cd lol-record-analysis-tauri
+cd rank-analysis-app
 
 # One-shot gate — runs before every commit (mirrors CI exactly)
 npm run check         # format + lint + typecheck + cargo fmt --check + clippy --all-targets --all-features -Dwarnings

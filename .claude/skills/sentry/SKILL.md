@@ -25,7 +25,7 @@ echo $SENTRY_TOKEN | head -c 10   # 应该输出 sntryu_xxxx
 固定参数：
 - `organizationSlug` = `rank-analysis`
 - `projectSlug` = `lol-record-analysis-tauri`
-- Sentry release 命名约定 = `lol-record-analysis-app@<version>`（来自 `tauri.conf.json` 的 `version`）
+- Sentry release 命名约定 = `rank-analysis@<version>`（来自 `tauri.conf.json` 的 `version`）
 
 ## 核心 API
 
@@ -43,7 +43,7 @@ echo $SENTRY_TOKEN | head -c 10   # 应该输出 sntryu_xxxx
 - `dataset` ∈ `errors` / `ourlogs`（注意是 **ourlogs** 不是 logs）/ `spans` / `metrics` / `profiles`
 - `field` 重复传多个，例：`field=release&field=count()&field=count_unique(user)`
 - `statsPeriod` = `24h` / `7d` / `30d` 等；或 `start` + `end` ISO8601
-- `query` Sentry 查询语法，例：`level:error environment:production release:lol-record-analysis-app@1.8.3`
+- `query` Sentry 查询语法，例：`level:error environment:production release:rank-analysis@1.8.3`
 - `sort` = `-count()` 等
 - `interval` 仅 events-stats 用，`1h` / `1d`
 

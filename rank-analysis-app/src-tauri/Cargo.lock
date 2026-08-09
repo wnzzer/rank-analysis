@@ -2697,46 +2697,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0ceec5bc11778974d1bcb055b18002eba7f4b3518b6a0081b3af5f21666da9ad"
 
 [[package]]
-name = "lol-record-analysis-app"
-version = "0.0.0"
-dependencies = [
- "base64 0.21.7",
- "env_logger",
- "futures",
- "futures-util",
- "libc",
- "log",
- "mlua",
- "moka",
- "native-tls",
- "ntapi",
- "phf 0.12.1",
- "regex",
- "reqwest 0.12.28",
- "sentry",
- "serde",
- "serde_json",
- "serde_yaml",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-http",
- "tauri-plugin-mcp-bridge",
- "tauri-plugin-opener",
- "tauri-plugin-process",
- "tauri-plugin-sentry",
- "tauri-plugin-updater",
- "tokio",
- "tokio-native-tls",
- "tokio-tungstenite",
- "url",
- "urlencoding",
- "uuid",
- "winapi",
- "winreg",
-]
-
-[[package]]
 name = "lru-slab"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4186,6 +4146,46 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "12a5a2d6c7039059af621472a4389be1215a816df61aa4d531cfe85264aee95f"
 dependencies = [
  "num-traits",
+]
+
+[[package]]
+name = "rank-analysis"
+version = "0.0.0"
+dependencies = [
+ "base64 0.21.7",
+ "env_logger",
+ "futures",
+ "futures-util",
+ "libc",
+ "log",
+ "mlua",
+ "moka",
+ "native-tls",
+ "ntapi",
+ "phf 0.12.1",
+ "regex",
+ "reqwest 0.12.28",
+ "sentry",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-http",
+ "tauri-plugin-mcp-bridge",
+ "tauri-plugin-opener",
+ "tauri-plugin-process",
+ "tauri-plugin-sentry",
+ "tauri-plugin-updater",
+ "tokio",
+ "tokio-native-tls",
+ "tokio-tungstenite",
+ "url",
+ "urlencoding",
+ "uuid",
+ "winapi",
+ "winreg",
 ]
 
 [[package]]

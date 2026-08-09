@@ -20,7 +20,7 @@
 
 ```bash
 git clone https://github.com/wnzzer/rank-analysis.git
-cd rank-analysis/lol-record-analysis-tauri
+cd rank-analysis/rank-analysis-app
 ```
 
 ### 安装依赖

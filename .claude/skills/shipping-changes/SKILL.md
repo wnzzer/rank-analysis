@@ -1,6 +1,6 @@
 ---
 name: shipping-changes
-description: Use when src files in the rank-analysis repo (lol-record-analysis-tauri/**/*.ts, .vue, .rs) have just been edited via Edit/Write/MultiEdit, OR before any `git commit`, `git push`, or `gh pr create` in this repo. Symptoms include "I'm done with that change", "实现完了", a finished logical chunk of work, or about to invoke any commit/push/PR command.
+description: Use when src files in the rank-analysis repo (rank-analysis-app/**/*.ts, .vue, .rs) have just been edited via Edit/Write/MultiEdit, OR before any `git commit`, `git push`, or `gh pr create` in this repo. Symptoms include "I'm done with that change", "实现完了", a finished logical chunk of work, or about to invoke any commit/push/PR command.
 ---
 
 # Shipping Changes (rank-analysis)
@@ -17,7 +17,7 @@ Single source of truth for "the code changed — now what?" in this repo. Two tr
 ## When to Use
 
 **Trigger A — code just edited (lightweight gate):**
-- Edit / Write / MultiEdit just finished on files under `lol-record-analysis-tauri/src/` or `lol-record-analysis-tauri/src-tauri/src/`
+- Edit / Write / MultiEdit just finished on files under `rank-analysis-app/src/` or `rank-analysis-app/src-tauri/src/`
 - A logical chunk of work is done ("我改完这块了" / "feature 实现完了")
 - → Run §A. Stop there if not ready to commit yet.
 
@@ -28,7 +28,7 @@ Single source of truth for "the code changed — now what?" in this repo. Two tr
 
 **Skip when:**
 - WIP / experiment you don't intend to merge.
-- Doc-only edits outside `lol-record-analysis-tauri/` (still commit, but quality steps are no-ops).
+- Doc-only edits outside `rank-analysis-app/` (still commit, but quality steps are no-ops).
 
 **Direct push to `main` is acceptable for** (skip §1 branch step, still run §2 gate):
 - Trivial typo / link fix in root docs (`README*.md`, `CLAUDE.md`) — no PR review value
@@ -39,7 +39,7 @@ For everything else — branch + PR + squash merge.
 
 ## §A. Quick gate after edits
 
-Run from `lol-record-analysis-tauri/`:
+Run from `rank-analysis-app/`:
 
 ```bash
 npm run check        # canonical gate: prettier + eslint + vue-tsc + cargo fmt --check + cargo clippy -Dwarnings
@@ -73,7 +73,7 @@ Branch name examples: `feat/match-export`, `fix/lcu-reconnect`, `refactor/automa
 
 ### 2. Quality gate — CODE_QUALITY.md
 
-Run from `lol-record-analysis-tauri/`:
+Run from `rank-analysis-app/`:
 
 ```bash
 npm run check        # = format + lint + typecheck + cargo fmt --check + cargo clippy -Dwarnings
@@ -110,8 +110,8 @@ Format: `<type>: <short imperative summary>` (Chinese summary OK; matches existi
 Stage files **explicitly by name** (never `git add -A` — it sweeps in `.env`, screenshots, untracked agent dirs):
 
 ```bash
-git add lol-record-analysis-tauri/src/components/Foo.vue \
-        lol-record-analysis-tauri/src-tauri/src/command/foo.rs
+git add rank-analysis-app/src/components/Foo.vue \
+        rank-analysis-app/src-tauri/src/command/foo.rs
 git commit -m "$(cat <<'EOF'
 feat: 一句话说明做了什么以及为什么
 
@@ -168,7 +168,7 @@ Print the returned PR URL back to the user. After merge, no need to clean up —
 
 | Step | Command |
 |------|---------|
-| Quality gate | `cd lol-record-analysis-tauri && npm run check` |
+| Quality gate | `cd rank-analysis-app && npm run check` |
 | Frontend tests | `npm run test` |
 | Rust tests | `cd src-tauri && cargo test` |
 | Branch | `git switch -c <type>/<slug>` |

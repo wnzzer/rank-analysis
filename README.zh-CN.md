@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="./lol-record-analysis-tauri/src-tauri/icons/256x256.png" width="128" height="128" alt="Logo" />
+  <img src="./rank-analysis-app/src-tauri/icons/256x256.png" width="128" height="128" alt="Logo" />
   <h1>Rank Analysis</h1>
   <p>AI 驱动的英雄联盟对局复盘 · 基于官方 LCU API</p>
 
@@ -182,7 +182,7 @@ npm run tauri build -- --bundles dmg
 
 1. 克隆项目并进入 Tauri 目录：
    ```bash
-   cd lol-record-analysis-tauri
+   cd rank-analysis-app
    ```
 
 2. 安装依赖：
@@ -216,7 +216,7 @@ npm run tauri build -- --bundles dmg
 ### 质量检查命令
 
 ```bash
-cd lol-record-analysis-tauri
+cd rank-analysis-app
 
 # 一键 gate —— 提交前跑这个就够了（和 CI 完全对齐）
 npm run check         # format + lint + typecheck + cargo fmt --check + clippy --all-targets --all-features -Dwarnings

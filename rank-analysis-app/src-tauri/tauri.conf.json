@@ -1,5 +1,5 @@
 {
-  "productName": "lol-record-analysis-app",
+  "productName": "Rank Analysis",
   "version": "0.0.0",
   "identifier": "com.lol-record-analysis-tauri.app",
   "build": {
@@ -12,7 +12,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "lol-record-analysis-app",
+        "title": "Rank Analysis",
         "width": 1200,
         "height": 800,
         "resizable": true,
@@ -52,7 +52,8 @@
       "nsis": {
         "installerIcon": "icons/ico.ico",
         "installMode": "currentUser",
-        "languages": ["SimpChinese"]
+        "languages": ["SimpChinese"],
+        "installerHooks": "nsis/legacy-migration-hook.nsh"
       }
     }
   },

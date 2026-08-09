@@ -117,7 +117,7 @@
 
 ```bash
 # 前端检查
-cd lol-record-analysis-tauri
+cd rank-analysis-app
 npm run lint          # ESLint 检查
 npm run format        # Prettier 格式化
 npm run typecheck     # TypeScript 类型检查

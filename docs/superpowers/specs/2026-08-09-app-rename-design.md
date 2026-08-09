@@ -20,9 +20,23 @@
 
 受版本控制的文件里引用旧名的共 19 个。
 
-## 核心约束：配置文件是相对路径
+## 核心约束：数据目录跟随 exe 位置（Windows）
 
-`config.rs:91` 的 `CONFIG_PATH = "config.yaml"` 是**相对路径**，落在进程工作目录，也就是安装目录。同样落在那里的还有 `observability.rs:43` 的 `device_id`。
+> **勘误（2026-08-09）**：本节初稿写的是「`config.rs:91` 的 `CONFIG_PATH = "config.yaml"` 是相对路径」。那是基于一条祖先不含 #143 的分支写的，早已过期——`72fb59a`（#143，2026-08-03）引入了 `src-tauri/src/paths.rs`，把配置与缓存改成了绝对路径。结论（改名会让老用户数据成为孤儿、需要迁移）不变，但**目标目录的算法变了**，见下。
+
+`config.rs` 的 `config_path()` 现在调 `crate::paths::config_file()`，由 `paths.rs` 按平台解析绝对路径：
+
+| 平台 | 配置目录 | 改 productName 后是否搬家 |
+|---|---|---|
+| Windows | `current_exe().parent()`（= 安装目录） | **会**——安装目录随 productName 变 |
+| macOS | `~/Library/Application Support/<bundle id>` | **不会**——本次不改 identifier |
+| 缓存（全平台） | 系统临时目录 | 无所谓，都能自动重建 |
+
+所以：
+
+- **迁移仍然必要，但实际只对 Windows 生效。** macOS 上没有 `LOCALAPPDATA`，迁移函数自然 no-op
+- **迁移的目标目录必须取 `paths::config_file().parent()`，不能取 `std::env::current_dir()`。** `paths.rs` 的存在就是为了消灭 CWD 依赖（它有一条回归测试 `config_file_must_be_absolute_never_cwd_relative`），在唯一一个「跑在 paths 逻辑生效之前」的模块里把 CWD 依赖重新引进来，正是它要杜绝的
+- **缓存不迁移这条更站得住**：它们现在本来就不在安装目录里
 
 实测（本机 `%LOCALAPPDATA%\lol-record-analysis-app\`）：
 
@@ -37,6 +51,8 @@ uninstall.exe                    Aug  2 18:29
 ```
 
 `device_id` 是 7-11 的，exe 是 8-02 的——中间经历了多次版本升级，这两个非安装产物都活了下来。说明 NSIS 的升级流程不会清空安装目录里它没装过的文件。
+
+注意这份 exe（8-02）**早于 #143**，跑的还是 CWD 相对路径那套；而快捷方式启动时 CWD 恰等于 exe 目录，所以落点与 #143 之后的 `current_exe().parent()` 一致。无论老用户装的是哪一版，要读的旧目录都是这一个。
 
 `config.yaml` 里装着用户的全部本地状态：`playerNotes`（标记过的人）、`theme`、`gameInstallPath`、`cloudSyncSession`、各项自动化开关与英雄池。
 
@@ -146,7 +162,9 @@ fn migrate_from(legacy: &Path, target: &Path) -> MigrationReport;
 pub fn migrate_legacy_data() -> MigrationReport;
 ```
 
-`migrate_legacy_data` 是薄包装：解析 `%LOCALAPPDATA%\lol-record-analysis-app\` 与 `std::env::current_dir()`，转交 `migrate_from`。路径解析和搬运逻辑分开，后者才能用 tempdir 测。
+`migrate_legacy_data` 是薄包装：旧目录取 `%LOCALAPPDATA%\lol-record-analysis-app\`，新目录取 `crate::paths::config_file().parent()`（**不是** `std::env::current_dir()`，见上文勘误），转交 `migrate_from`。路径解析和搬运逻辑分开，后者才能用临时目录测。
+
+macOS 上没有 `LOCALAPPDATA`，这个包装会直接返回空报告——正确行为，因为 macOS 的数据目录由 identifier 决定，而本次不改 identifier。
 
 `legacy == target` 的短路是必要的：万一日后 productName 改回或有人手工把新版装进旧目录，没有这层保护会出现自己搬自己。
 
