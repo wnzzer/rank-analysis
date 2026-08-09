@@ -140,6 +140,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             command::get_summoner_by_name,
             command::get_my_summoner,
             command::rank::get_rank_by_name,
+            command::rank::get_rank_by_puuid,
             command::rank::get_win_rate_by_name_mode,
             command::rank::get_win_rate_by_puuid_mode,
             command::match_history::get_match_history_by_puuid,
