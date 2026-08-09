@@ -6,8 +6,40 @@
  */
 
 import { invoke } from '@tauri-apps/api/core'
+import { ref, type Ref } from 'vue'
 
 export type OpggMode = 'ranked' | 'aram'
+
+/** OP.GG 段位分段。必须与 Rust 侧 `opgg::api::VALID_TIERS` 同白名单。 */
+export type OpggTier =
+  'gold_plus' | 'platinum_plus' | 'emerald_plus' | 'diamond_plus' | 'master_plus' | 'all'
+
+/** 未配置过段位时的取值，与 Rust 侧 `sanitize_tier` 的兜底一致。 */
+export const DEFAULT_OPGG_TIER: OpggTier = 'emerald_plus'
+
+/** 段位下拉选项。设置页与对局页共用，避免两处各写一份日后漂移。 */
+export const TIER_OPTIONS: ReadonlyArray<{ label: string; value: OpggTier }> = [
+  { label: '黄金以上', value: 'gold_plus' },
+  { label: '铂金以上', value: 'platinum_plus' },
+  { label: '翡翠以上', value: 'emerald_plus' },
+  { label: '钻石以上', value: 'diamond_plus' },
+  { label: '大师以上', value: 'master_plus' },
+  { label: '全部段位', value: 'all' }
+]
+
+/**
+ * OP.GG 数据源版本号。
+ *
+ * 段位切换会让所有已取到的 meta / counters 失效，但英雄 id 和模式都没变，
+ * 消费方光靠自身入参无法察觉。把本 ref 加进取数 watch 的依赖即可跟随刷新——
+ * 数据源变更是本模块的事，不该变成组件之间层层传递的 prop。
+ */
+export const opggRevision: Ref<number> = ref(0)
+
+/** 标记 OP.GG 数据源已变更，触发所有消费方重取。 */
+export function bumpOpggRevision(): void {
+  opggRevision.value += 1
+}
 
 export interface ChampionMeta {
   championId: number
