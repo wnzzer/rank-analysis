@@ -222,7 +222,12 @@ import LazyImg from '@renderer/components/common/LazyImg.vue'
 import PlayerNoteBadge from '@renderer/components/common/PlayerNoteBadge.vue'
 import PatchNoteBadge from './PatchNoteBadge.vue'
 import UnifiedTagRow from '@renderer/components/common/UnifiedTagRow.vue'
-import { getChampionMeta, type ChampionMeta, type OpggMode } from '@renderer/services/opgg'
+import {
+  getChampionMeta,
+  opggRevision,
+  type ChampionMeta,
+  type OpggMode
+} from '@renderer/services/opgg'
 import {
   tierBadge,
   formatWinRate,
@@ -341,15 +346,18 @@ const opggWinRateClass = computed(() => {
 })
 
 /**
- * 上一次实际发起处理的请求标识（championId + opggMode 拼接）。
+ * 上一次实际发起处理的请求标识（championId + opggMode + opggRevision 拼接）。
  * 与 ChampionIntelCard 同款内容级请求守卫：key 未变则跳过，避免同局内每次会话事件重拉。
+ * rev 必须进 key：段位切换时 championId 与 mode 都没变，不带上它就会被内容级去重
+ * 当成引用抖动而跳过，我方卡片（PlayerCard 覆盖全程有 puuid 的己方五人）就会永远停在
+ * 旧段位数据——只有敌方匿名位（走 ChampionIntelCard）会变，这正是本次要修的缺陷。
  */
 let lastOpggRequestKey = ''
 
 watch(
-  () => [props.sessionSummoner.championId, props.opggMode] as const,
-  async ([championId, mode]) => {
-    const requestKey = `${championId}|${mode ?? ''}`
+  () => [props.sessionSummoner.championId, props.opggMode, opggRevision.value] as const,
+  async ([championId, mode, rev]) => {
+    const requestKey = `${championId}|${mode ?? ''}|${rev}`
     if (requestKey === lastOpggRequestKey) return
     lastOpggRequestKey = requestKey
 
