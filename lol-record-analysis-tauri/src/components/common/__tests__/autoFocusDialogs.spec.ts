@@ -11,13 +11,11 @@
 import { describe, it, expect } from 'vitest'
 import { shallowMount } from '@vue/test-utils'
 import { NModal } from 'naive-ui'
-import CloudSyncNoticeDialog from '../CloudSyncNoticeDialog.vue'
 import CloudConfigPullDialog from '../CloudConfigPullDialog.vue'
 import ErrorReportingConsentDialog from '../ErrorReportingConsentDialog.vue'
 
 describe('auto-popup dialogs disable modal auto-focus', () => {
   it.each([
-    ['CloudSyncNoticeDialog', CloudSyncNoticeDialog, { show: true }],
     ['CloudConfigPullDialog', CloudConfigPullDialog, { show: true, updatedAt: 0 }],
     ['ErrorReportingConsentDialog', ErrorReportingConsentDialog, { show: true }]
   ] as const)('%s passes auto-focus=false to n-modal', (_name, component, props) => {

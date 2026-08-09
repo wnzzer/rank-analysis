@@ -400,6 +400,11 @@ pub fn read_bool_sync(key: &str) -> bool {
 /// (cloudSyncEnabled / 弹窗记录 / 同步标记)跨设备无意义甚至有害;playerNotes
 /// 在备份文件里是独立顶层字段、在云端走独立合并通道,不进 appConfig 快照。
 /// 新增敏感/设备级键时必须同步登记此表(黑名单制:漏登记 = 被同步出去)。
+///
+/// `cloudSyncNoticeShown` 对应的「云同步功能一次性告知」弹窗已在前端砍掉,
+/// 新安装不会再写这个键;但已升级用户本地 config.yaml 里可能仍留有旧值,
+/// 该键本质仍是设备级弹窗记录,继续留在黑名单里防止这个无意义的历史遗留
+/// 布尔值被同步出去,不因为写入端消失就摘除。
 pub const BACKUP_BLACKLIST: &[&str] = &[
     "cloudSyncSession",
     "gameInstallPath",

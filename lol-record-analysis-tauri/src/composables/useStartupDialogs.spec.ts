@@ -2,6 +2,9 @@
  * useStartupDialogs 单元测试
  *
  * 覆盖启动弹窗队列的优先级、首屏就绪闸门、以及裁决后的推进与持久化。
+ * 队列目前只剩错误上报同意（一次性告知）与云端配置拉取（响应式,由
+ * cloudSync store 的 pendingCloudConfig 驱动）两项——原「云同步功能一次性
+ * 告知」弹窗已被砍掉。
  * mock 骨架沿用 pinia/__tests__/cloudSync.spec.ts：jsdom 无 Tauri runtime，
  * IPC / 事件 / 窗口 / LCU 连接状态全部顶替。
  *
@@ -54,10 +57,9 @@ async function flushAsync(): Promise<void> {
   for (let i = 0; i < 20; i++) await Promise.resolve()
 }
 
-/** 让 getConfigByIpc 按键返回指定的「已展示过」标记 */
-function mockFlags(notice: boolean | undefined, consent: boolean | undefined): void {
+/** 让 getConfigByIpc 按键返回「错误上报已问过」标记 */
+function mockFlags(consent: boolean | undefined): void {
   mockGet.mockImplementation(async (key: string) => {
-    if (key === CONFIG_KEYS.cloudSyncNoticeShown) return notice
     if (key === CONFIG_KEYS.errorReportingConsentShown) return consent
     return undefined
   })
@@ -102,22 +104,15 @@ describe('useStartupDialogs', () => {
     vi.useRealTimers()
   })
 
-  it('新用户：闸门打开后先弹云同步告知', async () => {
-    mockFlags(undefined, undefined)
-    const { result, unmount } = await mountWithGateOpen()
-    expect(result.active.value).toBe('cloudSyncNotice')
-    unmount()
-  })
-
-  it('云同步已告知过的老用户：直接轮到错误上报同意', async () => {
-    mockFlags(true, undefined)
+  it('新用户：闸门打开后弹错误上报同意', async () => {
+    mockFlags(undefined)
     const { result, unmount } = await mountWithGateOpen()
     expect(result.active.value).toBe('errorReportingConsent')
     unmount()
   })
 
-  it('两个告知都答过时，轮到云端配置拉取', async () => {
-    mockFlags(true, true)
+  it('错误上报已问过、且有待裁决的云端配置：轮到云端配置拉取', async () => {
+    mockFlags(true)
     const store = useCloudSyncStore()
     store.pendingCloudConfig = { updatedAt: 1, config: {} }
     const { result, unmount } = await mountWithGateOpen()
@@ -125,8 +120,15 @@ describe('useStartupDialogs', () => {
     unmount()
   })
 
+  it('错误上报已问过、且无待裁决配置：不展示任何启动弹窗', async () => {
+    mockFlags(true)
+    const { result, unmount } = await mountWithGateOpen()
+    expect(result.active.value).toBeNull()
+    unmount()
+  })
+
   it('闸门：连接建立后要满 500ms 沉淀才开', async () => {
-    mockFlags(undefined, undefined)
+    mockFlags(undefined)
     const { result, unmount } = withSetup(() => useStartupDialogs())
     await flushAsync()
     expect(result.active.value).toBeNull()
@@ -137,12 +139,12 @@ describe('useStartupDialogs', () => {
 
     vi.advanceTimersByTime(GATE_SETTLE_MS)
     await nextTick()
-    expect(result.active.value).toBe('cloudSyncNotice')
+    expect(result.active.value).toBe('errorReportingConsent')
     unmount()
   })
 
   it('闸门：一直未连接时靠 8s 兜底开闸', async () => {
-    mockFlags(undefined, undefined)
+    mockFlags(undefined)
     const { result, unmount } = withSetup(() => useStartupDialogs())
     await flushAsync()
 
@@ -152,7 +154,7 @@ describe('useStartupDialogs', () => {
 
     vi.advanceTimersByTime(1 + GATE_SETTLE_MS)
     await nextTick()
-    expect(result.active.value).toBe('cloudSyncNotice')
+    expect(result.active.value).toBe('errorReportingConsent')
     unmount()
   })
 
@@ -165,32 +167,22 @@ describe('useStartupDialogs', () => {
 
   it('战绩详情子窗口不弹任何启动弹窗', async () => {
     hoisted.windowLabel = 'match-detail-42'
-    mockFlags(undefined, undefined)
+    mockFlags(undefined)
     const { result, unmount } = await mountWithGateOpen()
     expect(result.active.value).toBeNull()
     unmount()
   })
 
-  it('答「知道了」后同一次启动继续弹错误上报同意', async () => {
-    mockFlags(undefined, undefined)
+  it('交接留白：裁决后要等离场动画走完，云端配置拉取才接上', async () => {
+    mockFlags(undefined)
+    const store = useCloudSyncStore()
+    store.pendingCloudConfig = { updatedAt: 1, config: {} }
     const { result, unmount } = await mountWithGateOpen()
-
-    await result.resolveCloudSyncNotice(false)
-    vi.advanceTimersByTime(HANDOFF_MS)
-    await nextTick()
-
     expect(result.active.value).toBe('errorReportingConsent')
-    expect(mockPut).toHaveBeenCalledWith(CONFIG_KEYS.cloudSyncNoticeShown, true)
-    unmount()
-  })
 
-  it('交接留白：下一个弹窗要等上一个离场动画走完才开', async () => {
-    mockFlags(undefined, undefined)
-    const { result, unmount } = await mountWithGateOpen()
-
-    await result.resolveCloudSyncNotice(false)
+    await result.resolveErrorReportingConsent(false)
     await nextTick()
-    // 留白期内两个都不显示——否则 n-modal 的离场动画会和下一个的入场交叉，
+    // 留白期内不展示——否则 n-modal 的离场动画会和下一个的入场交叉，
     // 出现两张尺寸不同的卡片居中重叠约 200ms
     expect(result.active.value).toBeNull()
 
@@ -200,25 +192,12 @@ describe('useStartupDialogs', () => {
 
     vi.advanceTimersByTime(1)
     await nextTick()
-    expect(result.active.value).toBe('errorReportingConsent')
-    unmount()
-  })
-
-  it('答「去看看」后本次启动不再弹错误上报同意', async () => {
-    mockFlags(undefined, undefined)
-    const { result, unmount } = await mountWithGateOpen()
-
-    await result.resolveCloudSyncNotice(true)
-    vi.advanceTimersByTime(HANDOFF_MS)
-    await nextTick()
-
-    expect(result.active.value).toBeNull()
-    expect(mockPut).toHaveBeenCalledWith(CONFIG_KEYS.cloudSyncNoticeShown, true)
+    expect(result.active.value).toBe('cloudConfigPull')
     unmount()
   })
 
   it('错误上报裁决同时写入开关与「已问过」标记', async () => {
-    mockFlags(true, undefined)
+    mockFlags(undefined)
     const { result, unmount } = await mountWithGateOpen()
 
     await result.resolveErrorReportingConsent(true)
@@ -232,15 +211,16 @@ describe('useStartupDialogs', () => {
   })
 
   it('写盘失败也要放行队列，不能卡在同一个弹窗上', async () => {
-    mockFlags(undefined, undefined)
+    mockFlags(undefined)
     const { result, unmount } = await mountWithGateOpen()
+    expect(result.active.value).toBe('errorReportingConsent')
 
     mockPut.mockRejectedValueOnce(new Error('boom'))
-    await expect(result.resolveCloudSyncNotice(false)).rejects.toThrow('boom')
+    await expect(result.resolveErrorReportingConsent(true)).rejects.toThrow('boom')
     vi.advanceTimersByTime(HANDOFF_MS)
     await nextTick()
 
-    expect(result.active.value).toBe('errorReportingConsent')
+    expect(result.active.value).toBeNull()
     unmount()
   })
 })

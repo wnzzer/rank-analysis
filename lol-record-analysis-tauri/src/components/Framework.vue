@@ -3,7 +3,6 @@
     <MatchDetail v-if="isStandaloneDetailWindow" />
     <n-flex v-else vertical size="large">
       <!-- 启动弹窗队列：同一时刻至多一个可见，顺序见 useStartupDialogs -->
-      <CloudSyncNoticeDialog :show="active === 'cloudSyncNotice'" @decide="onCloudNoticeDecide" />
       <ErrorReportingConsentDialog
         :show="active === 'errorReportingConsent'"
         @decide="onConsentDecide"
@@ -43,7 +42,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useMessage } from 'naive-ui'
 
@@ -51,7 +50,6 @@ import Header from './Header.vue'
 import SideNavigation from './SideNavigation.vue'
 import MatchDetail from '@renderer/views/MatchDetail.vue'
 import ErrorReportingConsentDialog from '@renderer/components/common/ErrorReportingConsentDialog.vue'
-import CloudSyncNoticeDialog from '@renderer/components/common/CloudSyncNoticeDialog.vue'
 import CloudConfigPullDialog from './common/CloudConfigPullDialog.vue'
 import { useGameState } from '@renderer/composables/useGameState'
 import { useZoom } from '@renderer/composables/useZoom'
@@ -76,7 +74,6 @@ import { useCloudSyncStore } from '@renderer/pinia/cloudSync'
  */
 
 const route = useRoute()
-const router = useRouter()
 const currentWindow = getCurrentWindow()
 
 /**
@@ -108,18 +105,7 @@ const cloudStore = useCloudSyncStore()
  * 启动弹窗队列：谁先弹、谁让位、什么时候弹，全部收敛在 useStartupDialogs 里。
  * 本组件只负责渲染和用户可见反馈（toast / 路由跳转）。
  */
-const { active, resolveCloudSyncNotice, resolveErrorReportingConsent } = useStartupDialogs()
-
-/**
- * 云同步告知弹窗的用户选择。两种选择都视为"已告知"，之后不再弹；仅当选择"去看看"
- * 时跳转到设置页的数据与同步页签，不在此处开启任何开关——真正开启云同步必须经过
- * 设置页里的风险告知弹窗。
- * @param goto - true 跳转设置页，false 仅关闭
- */
-function onCloudNoticeDecide(goto: boolean): void {
-  resolveCloudSyncNotice(goto).catch(() => {})
-  if (goto) router.push({ name: 'DataSync' })
-}
+const { active, resolveErrorReportingConsent } = useStartupDialogs()
 
 /**
  * 错误上报同意弹窗的用户选择。无论选择什么都标记"已问过"，之后不再弹。

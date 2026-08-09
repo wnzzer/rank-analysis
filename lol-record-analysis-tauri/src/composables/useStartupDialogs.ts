@@ -1,13 +1,16 @@
 /**
  * 启动弹窗队列
  *
- * 把「此刻该显示哪个启动弹窗」收敛成单一 computed：三个弹窗按固定优先级排队，
+ * 把「此刻该显示哪个启动弹窗」收敛成单一 computed：弹窗按固定优先级排队，
  * 同一时刻至多一个可见。取代原先散在 Framework.vue 里的布尔标志与「否定掉其它
  * 所有弹窗」式互斥条件——那种写法每加一个弹窗都要回头改所有既有弹窗的条件。
  *
- * 顺序：云同步告知 > 错误上报同意 > 云端配置拉取。前两个是启动期一次性告知，
- * 由本 composable 读写「已展示过」标记；第三个是响应式的（云同步随时可能拉出待
- * 确认配置），只参与排序，收尾仍归 cloudSync store 所有。
+ * 顺序：错误上报同意 > 云端配置拉取。前者是启动期一次性告知，由本 composable
+ * 读写「已展示过」标记；后者是响应式的（云同步随时可能拉出待确认配置），只参与
+ * 排序，收尾仍归 cloudSync store 所有。
+ *
+ * （原「云同步功能一次性告知」弹窗已砍掉——纯告知无决策，用户反馈打扰；
+ * 见 CloudSyncNoticeDialog 删除记录。）
  *
  * @module composables/useStartupDialogs
  */
@@ -19,7 +22,7 @@ import { lcuConnected } from '@renderer/composables/useGameState'
 import { useCloudSyncStore } from '@renderer/pinia/cloudSync'
 
 /** 队列里的弹窗标识 */
-export type StartupDialogKey = 'cloudSyncNotice' | 'errorReportingConsent' | 'cloudConfigPull'
+export type StartupDialogKey = 'errorReportingConsent' | 'cloudConfigPull'
 
 /** 首屏就绪信号到达后再等这么久开闸，留给首屏渲染/动画落定 */
 export const GATE_SETTLE_MS = 500
@@ -46,7 +49,6 @@ export const HANDOFF_MS = 300
 export function useStartupDialogs(): {
   /** 当前应展示的弹窗；null = 都不展示 */
   active: ComputedRef<StartupDialogKey | null>
-  resolveCloudSyncNotice: (goto: boolean) => Promise<void>
   resolveErrorReportingConsent: (enabled: boolean) => Promise<void>
 } {
   const cloudStore = useCloudSyncStore()
@@ -57,17 +59,13 @@ export function useStartupDialogs(): {
   let gateScheduled = false
 
   /**
-   * 两个一次性告知的「已展示过」内存标记。
+   * 错误上报同意的「已展示过」内存标记。
    *
    * 初值 true（= 不弹）：配置尚未读回、或读取失败时一律跳过本次启动——读配置失败
    * 属异常态，宁可少弹一次也不重复打扰，下次启动自会重试。裁决时立即置真让 active
-   * 前进，不等写盘（见 resolve* 的说明）。
+   * 前进，不等写盘（见 resolveErrorReportingConsent 的说明）。
    */
-  const noticeShown = ref(true)
   const consentShown = ref(true)
-
-  /** 用户在云同步告知里点了「去看看」：本次启动不再拿另一个模态框打断他看设置页 */
-  const consentSuppressed = ref(false)
 
   /** 正处于「上一个弹窗离场」的留白期；期间 active 恒为 null */
   const handingOff = ref(false)
@@ -77,8 +75,7 @@ export function useStartupDialogs(): {
 
   const active = computed<StartupDialogKey | null>(() => {
     if (!gateOpen.value || handingOff.value) return null
-    if (!noticeShown.value) return 'cloudSyncNotice'
-    if (!consentShown.value && !consentSuppressed.value) return 'errorReportingConsent'
+    if (!consentShown.value) return 'errorReportingConsent'
     if (cloudStore.pendingCloudConfig !== null) return 'cloudConfigPull'
     return null
   })
@@ -100,13 +97,11 @@ export function useStartupDialogs(): {
     }, HANDOFF_MS)
   }
 
-  /** 读回两个「已展示过」标记；任一读失败按 true 处理 */
+  /** 读回「已展示过」标记；读失败按 true 处理 */
   async function loadShownFlags(): Promise<void> {
-    const [notice, consent] = await Promise.all([
-      getConfigByIpc<boolean>(CONFIG_KEYS.cloudSyncNoticeShown).catch(() => true),
-      getConfigByIpc<boolean>(CONFIG_KEYS.errorReportingConsentShown).catch(() => true)
-    ])
-    noticeShown.value = notice ?? false
+    const consent = await getConfigByIpc<boolean>(CONFIG_KEYS.errorReportingConsentShown).catch(
+      () => true
+    )
     consentShown.value = consent ?? false
   }
 
@@ -131,22 +126,6 @@ export function useStartupDialogs(): {
   })
 
   /**
-   * 云同步告知的裁决。
-   *
-   * 两种选择都视为「已告知」，之后不再弹。先置内存标记再写盘：写盘失败只影响下次
-   * 启动还弹不弹，不能把队列卡死在同一个弹窗上。
-   *
-   * @param goto - true = 用户点了「去看看」，本次启动不再弹错误上报同意
-   * @throws 写 cloudSyncNoticeShown 失败时 reject
-   */
-  async function resolveCloudSyncNotice(goto: boolean): Promise<void> {
-    noticeShown.value = true
-    if (goto) consentSuppressed.value = true
-    beginHandoff()
-    await putConfigByIpc(CONFIG_KEYS.cloudSyncNoticeShown, true)
-  }
-
-  /**
    * 错误上报同意的裁决。
    *
    * 无论「启用」还是「保持关闭」都把明确选择持久化到 errorReportingEnabled——
@@ -166,5 +145,5 @@ export function useStartupDialogs(): {
     }
   }
 
-  return { active, resolveCloudSyncNotice, resolveErrorReportingConsent }
+  return { active, resolveErrorReportingConsent }
 }
