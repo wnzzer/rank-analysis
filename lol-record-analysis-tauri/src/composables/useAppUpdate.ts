@@ -16,7 +16,7 @@
  *
  * @module composables/useAppUpdate
  */
-import { ref, h, computed, type Ref } from 'vue'
+import { ref, shallowRef, h, computed, type Ref } from 'vue'
 import { useDialog, useNotification, NProgress } from 'naive-ui'
 import { check, type Update } from '@tauri-apps/plugin-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
@@ -50,6 +50,27 @@ export interface UseAppUpdateReturn {
   showUpdateDialog: (update: Update) => void
 }
 
+// ─── module-level singleton state ─────────────────────────────────────────
+// About.vue（关于页手动检查）与 Header.vue（启动静默检查 + 顶栏药丸）都会调用
+// useAppUpdate()。若 checking/availableUpdate 声明在函数体内，每次调用都是
+// 独立的 ref：关于页手动查到新版本、用户点「稍后」后，顶栏药丸感知不到这次
+// 探测结果（没有共享状态可看），必须再等下一次静默检查才会出现，体验上等于
+// 白查了一次。参照 useGameState.ts 的写法把「是否有可用更新」这份状态提到
+// 模块级共享；dialog/notification 仍按调用方各自 resolve——它们基于 Vue
+// inject，必须在调用方组件的 setup() 里取，不能提到模块级。
+//
+// availableUpdate 必须用 shallowRef 而非 ref：Update 继承自 Tauri 的
+// Resource，用私有字段（#rid，编译为 WeakMap 存取）保存资源句柄。deep ref
+// 会把赋进去的 Update 实例整个包一层 reactive Proxy，之后凡是经 `.value`
+// 读出来再调用其方法（如顶栏药丸点击 → showUpdateDialog(availableUpdate.value)
+// → startUpgrade → update.downloadAndInstall()），方法内部的 `this` 绑定的
+// 是 Proxy 而不是原始实例，WeakMap 用 this 做 key 查不到，会直接抛
+// `Cannot read private member #rid from an object whose class did not
+// declare it`（已用一段最小复现脚本验证）。shallowRef 只让 .value 本身可
+// 追踪，不深度代理其内容，`.value` 拿到的还是原始 Update 实例，方法可正常调用。
+const checking = ref(false)
+const availableUpdate = shallowRef<Update | null>(null)
+
 /**
  * 应用更新检查 + 升级编排 composable
  *
@@ -64,9 +85,6 @@ export interface UseAppUpdateReturn {
  * ```
  */
 export function useAppUpdate(): UseAppUpdateReturn {
-  const checking = ref(false)
-  const availableUpdate = ref<Update | null>(null) as Ref<Update | null>
-
   const notification = useNotification()
   const dialog = useDialog()
 
