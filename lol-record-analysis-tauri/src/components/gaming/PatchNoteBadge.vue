@@ -28,7 +28,12 @@ import {
   getCurrentPatch,
   type ChampionPatchNote
 } from '@renderer/services/patchNotes'
-import { getChampionMeta, type ChampionMeta, type OpggMode } from '@renderer/services/opgg'
+import {
+  getChampionMeta,
+  opggRevision,
+  type ChampionMeta,
+  type OpggMode
+} from '@renderer/services/opgg'
 
 const props = withDefaults(
   defineProps<{
@@ -66,7 +71,10 @@ async function load() {
   }
 }
 
-watch(() => props.championId, load)
+// 无内容级去重（不像 PlayerCard/ChampionIntelCard 有 lastRequestKey），
+// 段位切换只需把 opggRevision 加进依赖源即可触发重取；championId 不变时 load() 内部
+// 仍会用当前 championId 重新查 getChampionMeta，拿到新段位下的 tier/rank。
+watch(() => [props.championId, opggRevision.value] as const, load)
 onMounted(load)
 
 /** OP.GG 排名变动：负数 = 排名上升（走强） */

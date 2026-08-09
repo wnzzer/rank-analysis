@@ -2,7 +2,16 @@ import { describe, it, expect, vi } from 'vitest'
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 import { invoke } from '@tauri-apps/api/core'
-import { queueIdToOpggMode, getChampionMeta, findCounterHints, ensureOpggData } from '../opgg'
+import {
+  queueIdToOpggMode,
+  getChampionMeta,
+  findCounterHints,
+  ensureOpggData,
+  opggRevision,
+  bumpOpggRevision,
+  TIER_OPTIONS,
+  DEFAULT_OPGG_TIER
+} from '../opgg'
 import type { LaneCounter } from '../opgg'
 
 describe('opgg service', () => {
@@ -46,5 +55,25 @@ describe('opgg service', () => {
 
   it('findCounterHints 无关联返回空', () => {
     expect(findCounterHints(10, [86], {})).toEqual([])
+  })
+
+  it('bumpOpggRevision 递增版本号，供消费方作为 watch 依赖', () => {
+    const before = opggRevision.value
+    bumpOpggRevision()
+    expect(opggRevision.value).toBe(before + 1)
+    bumpOpggRevision()
+    expect(opggRevision.value).toBe(before + 2)
+  })
+
+  it('TIER_OPTIONS 与 Rust 侧 VALID_TIERS 同白名单，且含默认段位', () => {
+    expect(TIER_OPTIONS.map(o => o.value)).toEqual([
+      'gold_plus',
+      'platinum_plus',
+      'emerald_plus',
+      'diamond_plus',
+      'master_plus',
+      'all'
+    ])
+    expect(TIER_OPTIONS.some(o => o.value === DEFAULT_OPGG_TIER)).toBe(true)
   })
 })

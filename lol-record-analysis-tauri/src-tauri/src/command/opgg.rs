@@ -34,6 +34,13 @@ pub struct OpggStatus {
     pub stale: bool,
     /// 覆盖英雄数
     pub champion_count: usize,
+    /// 快照实际所属的段位（ranked 有意义；aram 恒为空串，无段位概念）。
+    ///
+    /// 前端段位切换后单靠 invoke 是否 resolve 无法判断是否真拿到了新段位数据：
+    /// 降级链在 HTTP 拉取失败但内存/磁盘仍有缓存时会 `Ok` 返回旧段位快照（见模块文档
+    /// 「降级链」）。前端需要显式比较 `tier` 与目标段位是否一致，才能判定这次重拉
+    /// 是否真的换成了新段位，而不是被降级链兜底的旧数据糊弄过去。
+    pub tier: String,
 }
 
 /// 当前 unix 秒；系统时钟异常时返回 0。
@@ -70,6 +77,7 @@ fn snapshot_status(snap: &OpggSnapshot, stale: bool) -> OpggStatus {
         fetched_at: snap.fetched_at,
         stale,
         champion_count: snap.champions.len(),
+        tier: snap.tier.clone(),
     }
 }
 
@@ -342,6 +350,7 @@ mod tests {
         assert_eq!(s.patch, "16.13");
         assert!(s.stale);
         assert_eq!(s.champion_count, 1);
+        assert_eq!(s.tier, "emerald_plus", "status.tier 应透传快照实际所属段位");
     }
 
     #[test]

@@ -33,8 +33,10 @@
           </span>
           <n-space align="center">
             <n-select
-              v-model:value="opggTier"
+              :value="opggTier"
               :options="TIER_OPTIONS"
+              :loading="opggTierLoading"
+              :disabled="opggTierLoading"
               size="small"
               style="width: 130px"
               @update:value="updateOpggTier"
@@ -96,6 +98,9 @@
         </div>
 
         <div class="section-title">兜底（规则都没命中时按顺序选）</div>
+        <div v-if="pickHasNoTarget" class="no-target-hint">
+          已开启，但没有可执行目标：规则和兜底池都是空的，本局不会自动选择英雄
+        </div>
         <n-flex>
           <VueDraggable ref="el" v-model="myPickData">
             <n-tag
@@ -189,6 +194,9 @@
         </div>
 
         <div class="section-title">兜底（规则都没命中时按顺序选）</div>
+        <div v-if="banHasNoTarget" class="no-target-hint">
+          已开启，但没有可执行目标：规则和兜底池都是空的，本局不会自动 Ban
+        </div>
         <n-flex>
           <VueDraggable ref="el" v-model="myBanData">
             <n-tag
@@ -245,7 +253,8 @@
 </template>
 <script setup lang="ts">
 import { VueDraggable } from 'vue-draggable-plus'
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { useMessage } from 'naive-ui'
 import { renderSingleSelectTag, renderLabel, filterChampionFunc } from '@renderer/utils/champion'
 import {
   CheckmarkCircleOutline,
@@ -259,10 +268,14 @@ import { assetPrefix } from '@renderer/services/http'
 import type { championOption } from '@renderer/types/domain/champion'
 import { invoke } from '@tauri-apps/api/core'
 import { usePickRules, useBanRules } from '@renderer/composables/useRules'
+import { useOpggTier } from '@renderer/composables/useOpggTier'
+import type { OpggTier } from '@renderer/services/opgg'
 import RuleEditModal from '@renderer/components/automation/RuleEditModal.vue'
 import BpSuggestModal from '@renderer/components/automation/BpSuggestModal.vue'
+import { hasNoExecutableTarget } from '@renderer/components/automation/autoBpHint'
 import type { PickRule, BanRule, PickAction } from '@renderer/types/rules'
 
+const message = useMessage()
 const { rules: pickRules, reload: reloadPickRules, save: savePickRules } = usePickRules()
 const { rules: banRules, reload: reloadBanRules, save: saveBanRules } = useBanRules()
 
@@ -272,21 +285,19 @@ const banModalShow = ref(false)
 const banEditing = ref<BanRule | undefined>(undefined)
 
 const suggestModalShow = ref(false)
-/** OP.GG 段位分段（与 Rust opgg::api::VALID_TIERS 同白名单） */
-const opggTier = ref('emerald_plus')
-const TIER_OPTIONS = [
-  { label: '黄金以上', value: 'gold_plus' },
-  { label: '铂金以上', value: 'platinum_plus' },
-  { label: '翡翠以上', value: 'emerald_plus' },
-  { label: '钻石以上', value: 'diamond_plus' },
-  { label: '大师以上', value: 'master_plus' },
-  { label: '全部段位', value: 'all' }
-]
 
-/** 段位变更：写配置并强制刷新 ranked 快照（失败静默，降级链自会兜底） */
-const updateOpggTier = async () => {
-  await putConfigByIpc('settings.opgg.tier', opggTier.value)
-  invoke('update_opgg_data', { mode: 'ranked' }).catch(() => {})
+const {
+  tier: opggTier,
+  loading: opggTierLoading,
+  options: TIER_OPTIONS,
+  loadTier: loadOpggTier,
+  switchTier
+} = useOpggTier()
+
+/** 段位变更。失败时 composable 会回滚显示值，这里补一条用户可见的反馈。 */
+const updateOpggTier = async (next: OpggTier) => {
+  const ok = await switchTier(next)
+  if (!ok) message.error('段位数据拉取失败，已保持原段位显示')
 }
 
 /** 采纳后重读对应池，保持页面上的兜底池列表同步 */
@@ -307,9 +318,10 @@ onMounted(async () => {
   myPickData.value = (await getConfigByIpc<number[]>('settings.auto.pickChampionSlice')) ?? []
   myBanData.value = (await getConfigByIpc<number[]>('settings.auto.banChampionSlice')) ?? []
   autoStart.value = (await getConfigByIpc<boolean>('settings.auto.startMatchSwitch')) ?? false
-  opggTier.value = (await getConfigByIpc<string>('settings.opgg.tier')) ?? 'emerald_plus'
+  await loadOpggTier()
   await reloadPickRules()
   await reloadBanRules()
+  configLoaded.value = true
 })
 
 function openPickEdit(rule?: PickRule) {
@@ -392,6 +404,25 @@ const selectBanChampionId = ref(null)
 
 const myPickData = ref<number[]>([])
 const myBanData = ref<number[]>([])
+
+/**
+ * onMounted 里的配置读取是串行 await（开关早、兜底池晚、规则最晚落地）。
+ * 在这串 await 落定前，pickHasNoTarget/banHasNoTarget 会拿着「开关已开、规则/池仍是
+ * 初始空值」的中间态去判定，对「只配了规则、没配兜底池」这种合法配置会误判成
+ * 「没有可执行目标」，在设置页首屏闪一条说错了的橙色警告。用这个门禁把两个 computed
+ * 锁到 onMounted 全部落定之后，未加载完一律不提示。
+ */
+const configLoaded = ref(false)
+
+/** 自动选择开着但规则与兜底池皆空——本局不会有任何动作 */
+const pickHasNoTarget = computed(
+  () =>
+    configLoaded.value && hasNoExecutableTarget(autoPick.value, pickRules.value, myPickData.value)
+)
+/** 自动禁用开着但规则与兜底池皆空——本局不会有任何动作 */
+const banHasNoTarget = computed(
+  () => configLoaded.value && hasNoExecutableTarget(autoBan.value, banRules.value, myBanData.value)
+)
 
 const updateAcceptSwitch = async () => {
   await putConfigByIpc('settings.auto.acceptMatchSwitch', autoAccept.value)
@@ -514,5 +545,15 @@ const addPickData = async (value: any) => {
   flex: 1;
   color: var(--n-text-color-disabled);
   font-size: var(--font-size-sm);
+}
+
+/* 配置未完成的提示：用 warn 而非 error——这不是错误，是还没配完 */
+.no-target-hint {
+  margin-bottom: var(--space-8);
+  padding: var(--space-6) var(--space-8);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  color: var(--semantic-warn);
+  background: color-mix(in srgb, var(--semantic-warn) 12%, transparent);
 }
 </style>

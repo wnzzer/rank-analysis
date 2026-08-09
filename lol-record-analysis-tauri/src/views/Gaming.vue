@@ -94,7 +94,7 @@
         <div v-else class="ai-result-empty">暂无分析结果，点「重新分析」生成。</div>
       </n-modal>
 
-      <div v-if="sessionData.phase === 'ChampSelect'" class="gaming-intel-banner">
+      <div class="gaming-intel-banner">
         <div class="banner-main" :class="{ 'banner-main-split': champSelectStage }">
           <!-- 阶段 stepper：预选/禁用/选人/确认，仅 stage 非空时展示；'' 时保留原有单行文案 -->
           <div v-if="champSelectStage" class="stage-stepper">
@@ -117,11 +117,24 @@
             </template>
           </div>
           <div class="banner-meta">
-            选人中 · {{ sessionData.typeCn }}
+            <template v-if="bannerPhaseLabel">{{ bannerPhaseLabel }} · </template
+            >{{ sessionData.typeCn }}
             <template v-if="opggStatus">
               · OP.GG {{ opggStatus.patch
               }}<span v-if="opggStatus.stale" class="banner-stale">（数据滞后）</span>
             </template>
+            <!-- 段位仅对 ranked 快照有意义：aram 快照没有段位概念，
+                 在那里给下拉等于承诺一个不存在的能力 -->
+            <n-select
+              v-if="opggMode === 'ranked'"
+              :value="opggTier"
+              :options="TIER_OPTIONS"
+              :loading="opggTierLoading"
+              :disabled="opggTierLoading"
+              size="tiny"
+              class="banner-tier-select"
+              @update:value="onTierChange"
+            />
           </div>
         </div>
 
@@ -205,11 +218,15 @@ import {
   ensureOpggData,
   getOpggStatus,
   queueIdToOpggMode,
-  type OpggStatus
+  TIER_OPTIONS,
+  type OpggStatus,
+  type OpggTier
 } from '@renderer/services/opgg'
+import { useOpggTier } from '@renderer/composables/useOpggTier'
 import { buildRuleDraft } from '@renderer/services/bpRuleDraft'
 import { getChampionName, loadChampionNames } from '@renderer/services/ai/champion-names'
 import type { Position, PickRule, BanRule } from '@renderer/types/rules'
+import type { ChampSelect } from '@renderer/types/domain/gaming'
 
 /** 选人阶段 stepper 的四步定义，顺序与展示文案固定 */
 const STAGE_STEPS: Array<{ key: string; label: string }> = [
@@ -254,17 +271,74 @@ const myChampionIds = computed(
       .filter(id => id > 0) ?? []
 )
 
+/**
+ * 最后一次选人期快照。
+ *
+ * 离开选人期后后端不再下发 champSelect，sessionData.champSelect 会被 undefined 覆盖，
+ * 但 ban 条与阶段条要留着供对局中/赛后回看，故前端自留一份。
+ */
+const lastChampSelect = ref<ChampSelect | undefined>(undefined)
+
+// 新一局进入选人期时，新的 champSelect 数据还没到达——这个窗口里若不清掉快照，
+// 横幅会误显示上一局的 ban（比什么都不显示更糟：用户会以为那是本局的）。
+// phase 一变成 ChampSelect 立即清空，等新数据到达后由下面的 watch 重新填入。
+watch(
+  () => sessionData.phase,
+  (newVal, oldVal) => {
+    if (newVal === 'ChampSelect' && oldVal !== 'ChampSelect') {
+      lastChampSelect.value = undefined
+    }
+  }
+)
+
+watch(
+  () => sessionData.champSelect,
+  cs => {
+    if (cs !== undefined) lastChampSelect.value = cs
+  }
+)
+
+/** 展示用 champSelect：实时数据优先，选人期结束后回退到最后一次快照，供离开选人期后继续展示阶段/ban 条 */
+const displayChampSelect = computed(() => sessionData.champSelect ?? lastChampSelect.value)
+
 /** 选人阶段结构化视图的 stage 字段（''=未知，驱动 stepper 是否展示） */
-const champSelectStage = computed(() => sessionData.champSelect?.stage ?? '')
+const champSelectStage = computed(() => displayChampSelect.value?.stage ?? '')
 /** 当前 stage 在 STAGE_STEPS 中的下标，未匹配（如 '' 或非法值）时为 -1，stepper 各步均不高亮 */
 const currentStageIndex = computed(() =>
   STAGE_STEPS.findIndex(s => s.key === champSelectStage.value)
 )
 /** 我方 / 敌方已 ban 英雄 id 列表，非选人期或无 ban 数据时为空数组 */
-const myBans = computed(() => sessionData.champSelect?.myBans ?? [])
-const theirBans = computed(() => sessionData.champSelect?.theirBans ?? [])
+const myBans = computed(() => displayChampSelect.value?.myBans ?? [])
+const theirBans = computed(() => displayChampSelect.value?.theirBans ?? [])
 /** 任一方存在 ban 记录才展示 ban 条整块 */
 const hasBans = computed(() => myBans.value.length > 0 || theirBans.value.length > 0)
+
+/**
+ * 横幅首段状态文案，随 sessionData.phase 变化（横幅不再限定选人期展示，见 Gaming.vue 模板）。
+ * - `ChampSelect` → 选人中
+ * - `GameStart` / `InProgress` → 对局中（`GameStart` 是选人结束到正式进圈前的过渡态，
+ *   目前后端 `process_session_data` 的 `valid_phases` 未下发它，但 `useSessionSync`
+ *   的重试/轮询逻辑仍多处按这个取值判断，这里一并纳入保持口径一致）
+ * - `PreEndOfGame` / `EndOfGame` → 对局结束
+ * - 其余取值（如 `Lobby`/`Matchmaking`/`ReadyCheck`）目前不会真正到达这里——
+ *   `.gaming-page` 只在 `sessionData.phase` 非空时渲染，而后端只在上述四个阶段才会
+ *   下发非空 phase，这里仅作防御性兜底：不编造一个无法验证含义的状态词，
+ *   直接不给前缀，只显示 `typeCn`
+ */
+const bannerPhaseLabel = computed(() => {
+  switch (sessionData.phase) {
+    case 'ChampSelect':
+      return '选人中'
+    case 'GameStart':
+    case 'InProgress':
+      return '对局中'
+    case 'PreEndOfGame':
+    case 'EndOfGame':
+      return '对局结束'
+    default:
+      return ''
+  }
+})
 
 /** OP.GG 数据状态（版本号/是否滞后），驱动选人期数据横幅 */
 const opggStatus = ref<OpggStatus | null>(null)
@@ -292,6 +366,22 @@ const myPosition = computed<Position | null>(() => {
 const showConfig = ref(false)
 const matchCount = ref(4)
 const message = useMessage()
+
+const { tier: opggTier, loading: opggTierLoading, loadTier, switchTier } = useOpggTier()
+onMounted(loadTier)
+
+/**
+ * 段位切换。成功后补刷 opggStatus——换段位可能连补丁号一起变，
+ * 横幅上的版本号不跟着更新就会和卡片数据对不上。
+ */
+const onTierChange = async (next: OpggTier) => {
+  const ok = await switchTier(next)
+  if (ok) {
+    opggStatus.value = await getOpggStatus(opggMode.value)
+  } else {
+    message.error('段位数据拉取失败，已保持原段位显示')
+  }
+}
 
 const showAITooltip = ref(false)
 
@@ -456,6 +546,14 @@ onMounted(async () => {
 
 .banner-meta {
   white-space: nowrap;
+}
+
+/* 横幅是辅助信息密度，下拉必须收窄，否则压垮整行版式 */
+.banner-tier-select {
+  display: inline-block;
+  width: 96px;
+  margin-left: var(--space-8);
+  vertical-align: middle;
 }
 
 .banner-stale {
