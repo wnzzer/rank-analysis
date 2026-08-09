@@ -30,6 +30,12 @@
       >
         <n-icon :size="18"><SettingsOutline /></n-icon>
         <span class="nav-item-label">设置</span>
+        <!-- 有云端配置待裁决时引导用户进设置处理，见 pinia/cloudSync 的 pendingCloudConfig -->
+        <span
+          v-if="hasPendingCloudConfig"
+          class="pending-badge-dot nav-item-badge"
+          aria-hidden="true"
+        />
       </button>
     </div>
     <div class="status-icons">
@@ -81,8 +87,13 @@ import {
 import { computed, ref, watch } from 'vue'
 import { Summoner } from './record/type'
 import { useGameState } from '@renderer/composables/useGameState'
+import { useCloudSyncStore } from '@renderer/pinia/cloudSync'
 
 const { summoner: gameStateSummoner, currentPhase } = useGameState()
+const cloudStore = useCloudSyncStore()
+
+/** 云端配置待裁决时为真：驱动「设置」导航项上的呼吸角标，裁决完立即消失 */
+const hasPendingCloudConfig = computed(() => cloudStore.pendingCloudConfig !== null)
 
 // 将后端数据转换为前端 Summoner 类型
 const mySummoner = ref<Summoner>({} as Summoner)
@@ -222,6 +233,13 @@ const goGaming = () => {
 
 .nav-item-label {
   font-size: var(--font-size-3xs);
+}
+
+/* 角标本体（颜色/呼吸动效）在 global.css 的 .pending-badge-dot 里，这里只定位 */
+.nav-item-badge {
+  position: absolute;
+  top: 6px;
+  right: 12px;
 }
 
 /* Status icons */

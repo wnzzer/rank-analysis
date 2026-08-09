@@ -329,7 +329,69 @@
   }
 }
 
+/**
+ * 待裁决呼吸角标：引导用户去处理云端配置冲突（一台设备一辈子只出现一次的
+ * 裁决弹窗，改成被动角标引导后使用）。目前挂在左侧导航「设置」项与设置页
+ * 「数据与同步」菜单项上，见 SideNavigation.vue / views/Settings.vue。
+ * 全局共用一份定义，避免两处各写一套颜色/动效导致后续走样。
+ */
+.pending-badge-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--status-dot-win-bg);
+  box-shadow: var(--status-dot-glow-win);
+  animation: badge-breathe 1.8s ease-in-out infinite;
+}
+
+@keyframes badge-breathe {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.82);
+  }
+}
+
+/* 呼吸动效对前庭敏感人群不友好：偏好减少动效时退化为静态常亮点 */
+@media (prefers-reduced-motion: reduce) {
+  .pending-badge-dot {
+    animation: none;
+  }
+}
+
 /* Switch 激活态 glow */
 .n-switch.n-switch--active .n-switch__button {
   box-shadow: 0 0 8px rgba(61, 155, 122, 0.3) !important;
+}
+
+/**
+ * 更新日志弹窗内容（Markdown 渲染）。
+ *
+ * 原属 About.vue 的全局样式块，随 useAppUpdate composable 抽出后迁到这里：
+ * showUpdateDialog 现在既可能由关于页触发，也可能由顶栏升级药丸触发，而
+ * About.vue 是懒加载路由 chunk——若用户从未打开过"关于"页就先点了顶栏药丸，
+ * About.vue 的样式还没被加载，弹窗里的更新日志会没有这层样式。放进全局样式
+ * 表（main.ts 启动即加载）确保两个入口一致。
+ */
+.update-log-content {
+  max-height: 300px;
+  overflow-y: auto;
+  background: var(--glass-bg-mid);
+  padding: var(--space-12);
+  border-radius: var(--radius-sm);
+  margin-top: var(--space-8);
+  line-height: 1.6;
+}
+.update-log-content a {
+  color: var(--accent-blue) !important;
+  text-decoration: none;
+  cursor: pointer;
+}
+.update-log-content a:hover {
+  text-decoration: underline;
 }

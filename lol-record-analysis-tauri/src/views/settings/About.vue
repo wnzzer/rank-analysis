@@ -26,7 +26,9 @@
             <p>AI 驱动的英雄联盟对局复盘助手</p>
             <div class="version-info">
               <span class="version-tag">{{ currentVersion }}</span>
-              <n-button size="small" type="primary" @click="checkForUpdates"> 检查更新 </n-button>
+              <n-button size="small" type="primary" @click="checkForUpdates('manual')">
+                检查更新
+              </n-button>
             </div>
           </div>
         </div>
@@ -125,16 +127,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, computed, h } from 'vue'
-import { useNotification, useDialog, useMessage, NProgress } from 'naive-ui'
+import { onMounted, ref } from 'vue'
+import { useMessage } from 'naive-ui'
 import { invoke } from '@tauri-apps/api/core'
 import { getVersion } from '@tauri-apps/api/app'
-import { check } from '@tauri-apps/plugin-updater'
-import { relaunch } from '@tauri-apps/plugin-process'
 import { openUrl } from '@tauri-apps/plugin-opener'
-import MarkdownIt from 'markdown-it'
-
-const md = new MarkdownIt()
+import { useAppUpdate } from '@renderer/composables/useAppUpdate'
 
 // Component state
 const currentVersion = ref('')
@@ -165,140 +163,13 @@ async function fetchAppVersion() {
     currentVersion.value = '未知版本'
   }
 }
-const latestVersion = ref('')
 
-// Notification
-const notification = useNotification()
-const dialog = useDialog()
-
-// 自定义check
-
-// Methods
-const checkForUpdates = async () => {
-  console.log('Checking for updates...')
-  try {
-    const update = await check({
-      timeout: 10000, // 10秒超时
-      headers: {
-        'X-AccessKey': 'lOXOaX9CLhNEop-SsrONLQ'
-      }
-    })
-    if (update) {
-      console.log(`found update ${update.version} from ${update.date} with notes ${update.body}`)
-      latestVersion.value = update.version
-
-      dialog.info({
-        title: '发现新版本',
-        // 使用渲染函数来支持 Markdown
-        content: () =>
-          h('div', [
-            h('p', `检测到新版本 ${update.version}，是否立即更新？`),
-            h('div', { style: 'margin-top: var(--space-12); font-weight: bold;' }, '更新内容：'),
-            h('div', {
-              class: 'update-log-content',
-              innerHTML: md.render(update.body || '暂无更新日志'),
-              onClick: (e: MouseEvent) => {
-                const target = e.target as HTMLElement
-                if (target.tagName === 'A') {
-                  e.preventDefault()
-                  const href = target.getAttribute('href')
-                  if (href) {
-                    openUrl(href)
-                  }
-                }
-              }
-            })
-          ]),
-        positiveText: '立即更新',
-        negativeText: '稍后',
-        onPositiveClick: async () => {
-          // 下载进度状态：放在 onPositiveClick 内部，每次更新独立计数。
-          const downloaded = ref(0)
-          const contentLength = ref(0)
-          const phase = ref<'preparing' | 'downloading' | 'installing'>('preparing')
-          const fmtMB = (b: number) => (b / 1024 / 1024).toFixed(2)
-          const pct = computed(() =>
-            contentLength.value > 0
-              ? Math.min(100, Math.floor((downloaded.value / contentLength.value) * 100))
-              : 0
-          )
-
-          const d = dialog.info({
-            title: '正在更新',
-            closable: false,
-            maskClosable: false,
-            closeOnEsc: false,
-            // 渲染函数 + ref → 下载事件触发的 ref 变更会自动重渲染。
-            content: () => {
-              if (phase.value === 'preparing') {
-                return h('p', '正在连接服务器...')
-              }
-              if (phase.value === 'downloading') {
-                const hasTotal = contentLength.value > 0
-                return h('div', [
-                  // 没拿到 Content-Length 时不画进度条（数字会一直停在 0% 反而让人以为卡了），
-                  // 退化成只显示已下载字节，靠数字自增告诉用户在动。
-                  hasTotal &&
-                    h(NProgress, {
-                      type: 'line',
-                      percentage: pct.value,
-                      indicatorPlacement: 'inside',
-                      processing: true
-                    }),
-                  h(
-                    'p',
-                    {
-                      style: `margin-top: ${hasTotal ? 'var(--space-12)' : '0'}; color: var(--text-secondary); font-size: var(--font-size-sm);`
-                    },
-                    hasTotal
-                      ? `已下载 ${fmtMB(downloaded.value)} MB / ${fmtMB(contentLength.value)} MB`
-                      : `已下载 ${fmtMB(downloaded.value)} MB`
-                  )
-                ])
-              }
-              return h('p', '下载完成，正在安装并准备重启...')
-            }
-          })
-
-          try {
-            await update.downloadAndInstall(event => {
-              switch (event.event) {
-                case 'Started':
-                  contentLength.value = event.data.contentLength || 0
-                  downloaded.value = 0
-                  phase.value = 'downloading'
-                  break
-                case 'Progress':
-                  downloaded.value += event.data.chunkLength
-                  break
-                case 'Finished':
-                  phase.value = 'installing'
-                  break
-              }
-            })
-            await relaunch()
-          } catch (e) {
-            d.destroy()
-            notification.error({ title: '更新失败', content: String(e) })
-          }
-        }
-      })
-    } else {
-      notification.info({
-        title: '没有更新',
-        content: '您使用的是最新版本。',
-        duration: 3000
-      })
-    }
-  } catch (error) {
-    console.error('Error checking for updates:', error)
-    notification.error({
-      title: '更新检查失败',
-      content: '检查更新时出错: ' + error,
-      duration: 5000
-    })
-  }
-}
+/**
+ * 更新检查与升级编排：抽到 useAppUpdate，供顶栏（启动静默检查 + 药丸）共用。
+ * 这里只负责触发——检查更新/无更新提示/发现新版本确认框/下载进度/错误反馈
+ * 全部行为与抽取前一致，见该 composable 的 JSDoc。
+ */
+const { checkForUpdates } = useAppUpdate()
 
 const openUpdateLog = async () => {
   await openUrl('https://github.com/wnzzer/rank-analysis/releases')
@@ -409,25 +280,5 @@ const sendEmail = () => {
   color: var(--text-secondary);
   margin-right: var(--space-10);
   user-select: text;
-}
-</style>
-
-<style>
-.update-log-content {
-  max-height: 300px;
-  overflow-y: auto;
-  background: var(--glass-bg-mid);
-  padding: var(--space-12);
-  border-radius: var(--radius-sm);
-  margin-top: var(--space-8);
-  line-height: 1.6;
-}
-.update-log-content a {
-  color: var(--accent-blue) !important;
-  text-decoration: none;
-  cursor: pointer;
-}
-.update-log-content a:hover {
-  text-decoration: underline;
 }
 </style>

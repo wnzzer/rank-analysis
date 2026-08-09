@@ -23,8 +23,6 @@ export const CONFIG_KEYS = {
   aiUsePlayerNotes: 'aiUsePlayerNotes',
   /** 云同步开关（默认关，开启需经风险告知弹窗） */
   cloudSyncEnabled: 'cloudSyncEnabled',
-  /** 是否已向用户介绍过云同步功能（首次启动一次性弹窗用） */
-  cloudSyncNoticeShown: 'cloudSyncNoticeShown',
   /** 本设备是否已完成过首次配置同步(首次确认弹窗只出现一次;设备级,不入备份) */
   configSyncedOnce: 'configSyncedOnce',
   /** 本设备上次推送/应用配置的时刻 ms(LWW 比较基准;设备级,不入备份) */

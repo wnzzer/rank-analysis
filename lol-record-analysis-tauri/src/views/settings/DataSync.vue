@@ -1,5 +1,30 @@
 <template>
   <n-space vertical :size="12">
+    <!-- 云端配置待裁决入口：CloudConfigPullDialog 不再启动时自动弹出，改成这里
+         被动引导——左侧「设置」导航与本页菜单项已有呼吸角标指路，用户点「去处理」
+         才真正弹出裁决框。
+
+         裁决未决期间配置同步（syncConfig）整段冻结（见 pinia/cloudSync.ts），
+         这个搁置窗口从"强制弹窗的几秒"变成了"被动角标的无限期"，必须把后果
+         说清楚，否则用户会以为可以慢慢来：
+         1) 确认前本机设置改动不会推送云端（configDirty 置位后 syncConfig 直接
+            return，永远没有机会落地）；
+         2) 最终若选"使用云端配置"，套用的是最初侦测到冲突那一刻缓存的
+            pending 快照，会静默覆盖掉搁置期间的所有本机改动。 -->
+    <n-alert v-if="cloudStore.pendingCloudConfig" type="warning" :bordered="false">
+      <n-space vertical :size="8" style="width: 100%">
+        <n-space align="center" justify="space-between" style="width: 100%">
+          <span>检测到云端已有一份配置，与本机当前配置不一致，需要你确认使用哪一份。</span>
+          <n-button size="small" type="warning" @click="showCloudConfigDialog = true">
+            去处理
+          </n-button>
+        </n-space>
+        <n-text :depth="3" style="font-size: var(--font-size-sm)">
+          确认前，本机设置的改动不会同步到云端；若之后选择"使用云端配置"，这期间的本机改动会被覆盖，建议尽快处理。
+        </n-text>
+      </n-space>
+    </n-alert>
+
     <!-- 手动备份 -->
     <n-card title="手动备份" size="small">
       <n-space vertical>
@@ -71,6 +96,14 @@
         </n-space>
       </n-space>
     </n-modal>
+
+    <!-- 云端配置拉取裁决框：组件本身与自动弹出时代完全一样，仅触发方式从「启动时
+         自动弹出」改成「用户点上面的入口按钮」，见 showCloudConfigDialog -->
+    <CloudConfigPullDialog
+      :show="showCloudConfigDialog"
+      :updated-at="cloudStore.pendingCloudConfig?.updatedAt ?? 0"
+      @decide="onCloudConfigDecide"
+    />
   </n-space>
 </template>
 
@@ -78,8 +111,11 @@
 /**
  * 设置页·数据与同步分区
  *
- * 手动导入导出（JSON 文件，经系统对话框）+ 云同步开关（开启必经风险告知）。
- * 同步编排在 pinia/cloudSync，合并语义在 utils/mergePlayerNotes，本组件只做交互。
+ * 手动导入导出（JSON 文件，经系统对话框）+ 云同步开关（开启必经风险告知）+
+ * 云端配置拉取裁决入口（有待裁决配置时页顶提示条 → 点「去处理」才弹裁决框，
+ * 不再随应用启动自动弹出——左侧「设置」导航与本页在设置菜单里的呼吸角标负责
+ * 把用户引到这里）。同步编排在 pinia/cloudSync，合并语义在
+ * utils/mergePlayerNotes，本组件只做交互。
  */
 import { ref, computed } from 'vue'
 import { useMessage } from 'naive-ui'
@@ -89,6 +125,7 @@ import { usePlayerNotesStore } from '@renderer/pinia/playerNotes'
 import { useCloudSyncStore } from '@renderer/pinia/cloudSync'
 import { useSettingsStore } from '@renderer/pinia/setting'
 import { isBackupFileV2 } from '@renderer/utils/backupFile'
+import CloudConfigPullDialog from '@renderer/components/common/CloudConfigPullDialog.vue'
 import type { MergeStats } from '@renderer/utils/mergePlayerNotes'
 
 const message = useMessage()
@@ -98,6 +135,8 @@ const settingsStore = useSettingsStore()
 
 const showRiskModal = ref(false)
 const riskAcknowledged = ref(false)
+/** 云端配置裁决框的展示态：由上面的「去处理」入口按钮点开，裁决完/失败都收回 */
+const showCloudConfigDialog = ref(false)
 
 const syncStatusText = computed(() => {
   if (cloudStore.syncing) return '同步中…'
@@ -208,6 +247,23 @@ async function handleSyncNow(): Promise<void> {
     message.success('同步完成')
   } catch {
     message.error(cloudStore.lastError ?? '同步失败')
+  }
+}
+
+/**
+ * 云端配置拉取裁决框的用户选择：成功/失败都给 toast 反馈，失败细节在
+ * store.lastError；无论结果如何都收起弹窗——裁决只发生一次，resolveCloudConfig
+ * 成功后 pendingCloudConfig 会归 null，角标与本页的入口提示条随之自然消失。
+ * @param useCloud - true 用云端覆盖本机，false 保留本机并推送覆盖云端
+ */
+async function onCloudConfigDecide(useCloud: boolean): Promise<void> {
+  try {
+    await cloudStore.resolveCloudConfig(useCloud)
+    message.success(useCloud ? '已应用云端配置' : '已保留本机配置并推送云端')
+  } catch {
+    message.error(cloudStore.lastError ?? '配置同步失败')
+  } finally {
+    showCloudConfigDialog.value = false
   }
 }
 </script>

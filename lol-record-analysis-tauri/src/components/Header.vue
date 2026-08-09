@@ -36,6 +36,21 @@
       </n-input>
     </div>
     <div class="header-right" data-tauri-drag-region>
+      <!-- 升级药丸：只在探测到新版本时出现，点击直接走升级流程（不跳转关于页）。
+           availableUpdate 来自 useAppUpdate 的模块级单例状态，无论是这里的启动
+           静默检查，还是用户在「关于」页手动检查，两处共用同一份状态。 -->
+      <Transition name="update-pill-fade">
+        <button
+          v-if="availableUpdate"
+          type="button"
+          class="update-pill"
+          :title="`发现新版本 v${availableUpdate.version}，点击立即更新`"
+          @click="onUpdatePillClick"
+        >
+          <n-icon :size="13" :component="ArrowUpCircleOutline" />
+          <span>新版 v{{ availableUpdate.version }}</span>
+        </button>
+      </Transition>
       <n-popconfirm positive-text="关闭游戏" negative-text="取消" @positive-click="closeLeague">
         <template #trigger>
           <n-tooltip trigger="hover">
@@ -96,7 +111,7 @@
   </n-flex>
 </template>
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import {
   Search,
@@ -107,7 +122,8 @@ import {
   SunnyOutline,
   MoonOutline,
   ChevronDownOutline,
-  PowerOutline
+  PowerOutline,
+  ArrowUpCircleOutline
 } from '@vicons/ionicons5'
 import { darkTheme, useMessage } from 'naive-ui'
 import { Window } from '@tauri-apps/api/window'
@@ -115,8 +131,10 @@ import { openUrl } from '@tauri-apps/plugin-opener'
 
 import router from '@renderer/router'
 import { useSettingsStore } from '@renderer/pinia/setting'
-import { useGameState } from '@renderer/composables/useGameState'
+import { useGameState, lcuConnected } from '@renderer/composables/useGameState'
 import { closeLeagueByIpc } from '@renderer/services/ipc'
+import { useAppUpdate } from '@renderer/composables/useAppUpdate'
+import { GATE_SETTLE_MS, GATE_FALLBACK_MS } from '@renderer/composables/useStartupDialogs'
 
 /**
  * 应用顶部导航栏组件
@@ -203,6 +221,57 @@ const closeLeague = async (): Promise<void> => {
  * 根据当前主题是否为暗色主题计算开关状态
  */
 const themeSwitch = computed(() => settingsStore.theme.name !== darkTheme.name)
+
+// ─── 顶栏升级药丸 ───────────────────────────────────────────────────────────
+// availableUpdate 是 useAppUpdate 的模块级单例状态：无论是这里的启动静默检查
+// 查到的，还是用户在「关于」页手动检查查到的，都共享同一份，药丸都能感知到。
+const { availableUpdate, checkForUpdates, showUpdateDialog } = useAppUpdate()
+
+/** 药丸点击：已经是"已发现更新"的信号，直接弹确认框走升级流程，不用再查一遍 */
+const onUpdatePillClick = (): void => {
+  if (availableUpdate.value) showUpdateDialog(availableUpdate.value)
+}
+
+/**
+ * 启动时静默查一次更新。
+ *
+ * 借用 useStartupDialogs 同款"等首屏就绪 + 兜底超时"开闸节奏（GATE_SETTLE_MS /
+ * GATE_FALLBACK_MS，见该文件说明）：优先等 LCU 连接建立后再沉淀一小段时间，
+ * 避免与首屏加载抢资源；一直连不上则靠兜底超时兜底触发，不然先开工具后开
+ * 游戏的用户永远等不到检查。更新检查与启动弹窗队列是两回事，这里只借时间
+ * 常量保持"不抢首屏"的口径一致，不接入 useStartupDialogs 的弹窗队列本身。
+ *
+ * Header 只在主窗口挂载一次（详情子窗口不渲染 Header，见 Framework.vue），
+ * 无需处理重复触发/卸载清理。
+ */
+function scheduleSilentUpdateCheck(): void {
+  let scheduled = false
+  function fire(): void {
+    if (scheduled) return
+    scheduled = true
+    window.setTimeout(() => {
+      checkForUpdates('silent')
+    }, GATE_SETTLE_MS)
+  }
+  if (lcuConnected.value) {
+    fire()
+    return
+  }
+  const stop = watch(lcuConnected, connected => {
+    if (connected) {
+      stop()
+      fire()
+    }
+  })
+  window.setTimeout(() => {
+    stop()
+    fire()
+  }, GATE_FALLBACK_MS)
+}
+
+onMounted(() => {
+  scheduleSilentUpdateCheck()
+})
 
 /**
  * 打开项目 GitHub 主页
@@ -384,6 +453,48 @@ const closeWindow = (): void => {
     background-color var(--dur-fast) var(--ease-expo),
     color var(--dur-fast) var(--ease-expo),
     transform var(--dur-fast) var(--ease-expo);
+}
+
+/* 升级药丸：探测到新版本才出现，金色强调（与 MatchDetailModal 的 MVP/荣誉
+   chip 同一套 --accent-gold token 语言），不占用未检测到更新时的空间 */
+.update-pill {
+  -webkit-app-region: no-drag;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  height: 22px;
+  padding: 0 var(--space-8);
+  border: none;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--accent-gold) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-gold) 40%, transparent);
+  color: var(--accent-gold-deep);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition:
+    background-color var(--dur-fast) var(--ease-expo),
+    transform var(--dur-fast) var(--ease-expo);
+}
+
+.update-pill:hover {
+  background: color-mix(in srgb, var(--accent-gold) 28%, transparent);
+  transform: scale(1.04);
+}
+
+.update-pill-fade-enter-active,
+.update-pill-fade-leave-active {
+  transition:
+    opacity var(--dur-normal) var(--ease-expo),
+    transform var(--dur-normal) var(--ease-expo);
+}
+
+.update-pill-fade-enter-from,
+.update-pill-fade-leave-to {
+  opacity: 0;
+  transform: scale(0.85);
 }
 
 .header-icon-btn:hover {
