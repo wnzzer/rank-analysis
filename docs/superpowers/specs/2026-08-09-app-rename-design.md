@@ -106,7 +106,20 @@ identifier 用户永远看不到，改它只买到命名规范上的整洁，代
 
 ## 二、迁移模块
 
-新增 `src-tauri/src/migrate.rs`，由 `main.rs` 在 `config::init_config()` **之前**调用。顺序是硬要求：`init_config` 一旦跑过就会在新目录建出 `config.yaml`，之后再迁移就会撞上「目标已存在」的幂等分支，静默丢掉老数据。
+新增 `src-tauri/src/migrate.rs`，**由 `main.rs` 作为 `main()` 的第一条语句调用**。
+
+### 为什么必须是第一条语句
+
+`config::init_config()` 在启动路径上根本没被调用——配置缓存是懒加载的（`config.rs:123` 的 `get_cache`）。真正的顺序约束来自 `main()` 里两处更早的直接文件访问：
+
+| 位置 | 行为 | 迁移晚于它的后果 |
+|---|---|---|
+| `main.rs:42` `observability::reporting_enabled()` | 经 `read_bool_sync` 直读 `config.yaml` | 文件还不存在 → 读出 `false`，老用户开着的错误上报在首启这一次被当成关闭 |
+| `main.rs:64` `observability::init()` | 经 `device_id()` 读 `device_id`，**不存在则生成并写盘** | 新 ID 抢先落盘 → 迁移的「不覆盖」规则会跳过老 ID → Sentry 把老用户算成新设备 |
+
+### 日志时机
+
+`main()` 前 55 行都在组装 logger，`log::set_boxed_logger` 要到 `main.rs:48/53` 才执行。迁移跑在它之前，期间的 `log::warn!` 会被丢弃。所以迁移**不靠日志宏输出结论**，而是返回一份报告，等 logger 就绪后由 `main.rs` 补打。
 
 ### 接口
 
@@ -114,19 +127,28 @@ identifier 用户永远看不到，改它只买到命名规范上的整洁，代
 /// 需要从旧安装目录搬运的文件。缓存类不在内：会自动重建。
 const MIGRATED_FILES: [&str; 2] = ["config.yaml", "device_id"];
 
+/// 迁移结果。迁移跑在 logger 安装之前，结论只能带出来由调用方补打日志。
+pub struct MigrationReport {
+    /// 实际搬运成功的文件名
+    pub migrated: Vec<String>,
+    /// 逐文件的失败描述，不阻断启动
+    pub errors: Vec<String>,
+}
+
 /// 从 legacy 目录搬运用户数据到 target。
 ///
-/// 幂等：target 下已有 config.yaml 时直接返回（视为已迁移或全新安装后已产生数据）。
-/// 单个文件搬运失败只记录，不影响其余文件，也不返回 Err——迁移失败绝不阻断启动。
-///
-/// 返回实际搬运成功的文件名，供日志与测试断言。
-fn migrate_from(legacy: &Path, target: &Path) -> Vec<String>;
+/// 幂等：target 下已有 config.yaml、或 legacy 与 target 同路径、或 legacy
+/// 不存在时，返回空报告。
+/// 单个文件失败只计入 errors，不影响其余文件，也不返回 Err。
+fn migrate_from(legacy: &Path, target: &Path) -> MigrationReport;
 
-/// 解析真实路径并执行迁移。无 legacy 目录时 no-op。
-pub fn migrate_legacy_data();
+/// 解析真实路径并执行迁移。无法解析 %LOCALAPPDATA% 或 CWD 时返回空报告。
+pub fn migrate_legacy_data() -> MigrationReport;
 ```
 
-`migrate_legacy_data` 是薄包装：解析 `%LOCALAPPDATA%\lol-record-analysis-app\` 与当前工作目录，转交 `migrate_from`。路径解析和搬运逻辑分开，后者才能用 tempdir 测。
+`migrate_legacy_data` 是薄包装：解析 `%LOCALAPPDATA%\lol-record-analysis-app\` 与 `std::env::current_dir()`，转交 `migrate_from`。路径解析和搬运逻辑分开，后者才能用 tempdir 测。
+
+`legacy == target` 的短路是必要的：万一日后 productName 改回或有人手工把新版装进旧目录，没有这层保护会出现自己搬自己。
 
 ### 行为细则
 
@@ -145,10 +167,12 @@ pub fn migrate_legacy_data();
 
 | 用例 | 断言 |
 |---|---|
-| 正常迁移 | legacy 有两个文件、target 空 → 两个都搬过去，内容一致 |
-| 目标已存在则跳过 | target 已有 `config.yaml` → 返回空，target 内容不被改写 |
-| 源目录不存在 | → 返回空，不 panic |
-| 源目录只有部分文件 | legacy 只有 `config.yaml` → 搬这一个，缺 `device_id` 不报错 |
+| 正常迁移 | legacy 有两个文件、target 空 → `migrated` 含两个文件名，内容逐字节一致 |
+| 目标已存在则跳过 | target 已有 `config.yaml` → `migrated` 为空，target 原内容不被改写 |
+| 源目录不存在 | → `migrated` 与 `errors` 皆空，不 panic |
+| 源目录只有部分文件 | legacy 只有 `config.yaml` → 只搬这一个，缺 `device_id` 不进 `errors` |
+| legacy 与 target 同路径 | → 返回空报告，不自我复制 |
+| 不删源 | 迁移后 legacy 下两个文件仍在 |
 
 ## 四、发版前必须真机验证的两条
 
