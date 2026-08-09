@@ -98,6 +98,9 @@
         </div>
 
         <div class="section-title">兜底（规则都没命中时按顺序选）</div>
+        <div v-if="pickHasNoTarget" class="no-target-hint">
+          已开启，但没有可执行目标：规则和兜底池都是空的，本局不会自动选择英雄
+        </div>
         <n-flex>
           <VueDraggable ref="el" v-model="myPickData">
             <n-tag
@@ -191,6 +194,9 @@
         </div>
 
         <div class="section-title">兜底（规则都没命中时按顺序选）</div>
+        <div v-if="banHasNoTarget" class="no-target-hint">
+          已开启，但没有可执行目标：规则和兜底池都是空的，本局不会自动 Ban
+        </div>
         <n-flex>
           <VueDraggable ref="el" v-model="myBanData">
             <n-tag
@@ -247,7 +253,7 @@
 </template>
 <script setup lang="ts">
 import { VueDraggable } from 'vue-draggable-plus'
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useMessage } from 'naive-ui'
 import { renderSingleSelectTag, renderLabel, filterChampionFunc } from '@renderer/utils/champion'
 import {
@@ -266,6 +272,7 @@ import { useOpggTier } from '@renderer/composables/useOpggTier'
 import type { OpggTier } from '@renderer/services/opgg'
 import RuleEditModal from '@renderer/components/automation/RuleEditModal.vue'
 import BpSuggestModal from '@renderer/components/automation/BpSuggestModal.vue'
+import { hasNoExecutableTarget } from '@renderer/components/automation/autoBpHint'
 import type { PickRule, BanRule, PickAction } from '@renderer/types/rules'
 
 const message = useMessage()
@@ -397,6 +404,15 @@ const selectBanChampionId = ref(null)
 const myPickData = ref<number[]>([])
 const myBanData = ref<number[]>([])
 
+/** 自动选择开着但规则与兜底池皆空——本局不会有任何动作 */
+const pickHasNoTarget = computed(() =>
+  hasNoExecutableTarget(autoPick.value, pickRules.value, myPickData.value)
+)
+/** 自动禁用开着但规则与兜底池皆空——本局不会有任何动作 */
+const banHasNoTarget = computed(() =>
+  hasNoExecutableTarget(autoBan.value, banRules.value, myBanData.value)
+)
+
 const updateAcceptSwitch = async () => {
   await putConfigByIpc('settings.auto.acceptMatchSwitch', autoAccept.value)
 }
@@ -518,5 +534,15 @@ const addPickData = async (value: any) => {
   flex: 1;
   color: var(--n-text-color-disabled);
   font-size: var(--font-size-sm);
+}
+
+/* 配置未完成的提示：用 warn 而非 error——这不是错误，是还没配完 */
+.no-target-hint {
+  margin-bottom: var(--space-8);
+  padding: var(--space-6) var(--space-8);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  color: var(--semantic-warn);
+  background: color-mix(in srgb, var(--semantic-warn) 12%, transparent);
 }
 </style>
