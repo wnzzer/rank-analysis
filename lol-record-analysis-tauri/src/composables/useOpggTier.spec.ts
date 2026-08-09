@@ -40,7 +40,7 @@ describe('useOpggTier', () => {
     await t.loadTier()
 
     mockPut.mockResolvedValueOnce(undefined)
-    mockInvoke.mockResolvedValueOnce({ mode: 'ranked', patch: '16.13' })
+    mockInvoke.mockResolvedValueOnce({ mode: 'ranked', patch: '16.13', tier: 'master_plus' })
 
     const ok = await t.switchTier('master_plus')
 
@@ -52,6 +52,35 @@ describe('useOpggTier', () => {
     expect(mockPut.mock.invocationCallOrder[0]).toBeLessThan(mockInvoke.mock.invocationCallOrder[0])
     expect(t.tier.value).toBe('master_plus')
     expect(opggRevision.value).toBe(1)
+    expect(t.loading.value).toBe(false)
+  })
+
+  it('invoke 正常 resolve 但返回的是旧段位快照（降级链兜底）：tier 回滚、不 bump、返回 false', async () => {
+    // 修复 B 的核心证据：src-tauri/src/command/opgg.rs 的降级链在 HTTP 拉取失败但
+    // 内存/磁盘仍有缓存时，会 `Ok` 返回那份旧段位数据（不是 Err）。国服网络不稳时
+    // 这比「invoke 直接抛错」常见得多——如果只认 invoke 是否 resolve，就会出现下拉
+    // 停在新段位、卡片却还是旧段位数据的「说的是钻石、显示的是翡翠」状态。
+    mockGet.mockResolvedValueOnce('emerald_plus')
+    const t = useOpggTier()
+    await t.loadTier()
+
+    mockPut.mockResolvedValueOnce(undefined)
+    // invoke 正常 resolve（不抛错），但 status.tier 仍是切换前的 emerald_plus——
+    // 后端把过期的旧段位缓存当降级结果返回了。
+    mockInvoke.mockResolvedValueOnce({
+      mode: 'ranked',
+      patch: '16.13',
+      fetchedAt: Date.now(),
+      stale: true,
+      championCount: 120,
+      tier: 'emerald_plus'
+    })
+
+    const ok = await t.switchTier('gold_plus')
+
+    expect(ok).toBe(false)
+    expect(t.tier.value).toBe('emerald_plus')
+    expect(opggRevision.value).toBe(0)
     expect(t.loading.value).toBe(false)
   })
 
@@ -96,7 +125,7 @@ describe('useOpggTier', () => {
     mockPut.mockResolvedValueOnce(undefined)
     mockInvoke.mockImplementationOnce(async () => {
       seenDuringInvoke = t.loading.value
-      return {}
+      return { tier: 'diamond_plus' }
     })
 
     await t.switchTier('diamond_plus')

@@ -68,6 +68,13 @@ export interface OpggStatus {
   fetchedAt: number
   stale: boolean
   championCount: number
+  /**
+   * 快照实际所属的段位（ranked 有意义；aram 恒为空串）。
+   * 与 Rust 侧 `OpggStatus.tier` 对应：段位切换后 invoke resolve 不代表拿到的就是
+   * 新段位数据——后端降级链在拉取失败但仍有内存/磁盘缓存时会正常 `Ok` 返回旧段位
+   * 快照。消费方（useOpggTier.switchTier）需要显式比较该字段与目标段位是否一致。
+   */
+  tier: string
 }
 
 export interface CounterHint {

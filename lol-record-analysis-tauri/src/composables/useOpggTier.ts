@@ -11,6 +11,7 @@ import {
   bumpOpggRevision,
   DEFAULT_OPGG_TIER,
   TIER_OPTIONS,
+  type OpggStatus,
   type OpggTier
 } from '@renderer/services/opgg'
 
@@ -40,6 +41,14 @@ export function useOpggTier(): {
    * 此刻卡片上显示的都还是旧段位数据（降级链保留最后已知快照）。
    * 下拉若停在新段位，而卡片还是旧数据，界面就在撒谎。
    * 若失败发生在重拉阶段，配置本身仍保留新值，不影响下次成功拉取。
+   *
+   * 「重拉」不是「invoke 没抛错」：`update_opgg_data` 内部走降级链
+   * （src-tauri/src/command/opgg.rs 的 `ensure_snapshot_impl`），HTTP 拉取失败但
+   * 内存或磁盘还有旧段位缓存时会 `Ok` 返回那份旧数据，而不是 `Err`。国服网络不稳时
+   * 这种情况远比「invoke 直接抛错」常见——如果只认 invoke 是否 resolve，就会出现
+   * 下拉停在新段位、卡片却还是旧段位数据的「说的是钻石、显示的是翡翠」状态，且
+   * 概率远高于本函数原本要防的那个场景。所以这里显式比较 `status.tier` 与目标
+   * 段位是否一致，不一致按失败处理（回滚 + 不 bump）。
    */
   const switchTier = async (next: OpggTier): Promise<boolean> => {
     if (next === tier.value) return true
@@ -49,7 +58,10 @@ export function useOpggTier(): {
     loading.value = true
     try {
       await putConfigByIpc(CONFIG_KEY, next)
-      await invoke('update_opgg_data', { mode: 'ranked' })
+      const status = (await invoke('update_opgg_data', { mode: 'ranked' })) as OpggStatus
+      if (status.tier !== next) {
+        throw new Error(`opgg tier mismatch: expected ${next}, got ${status.tier}`)
+      }
       bumpOpggRevision()
       return true
     } catch (error) {

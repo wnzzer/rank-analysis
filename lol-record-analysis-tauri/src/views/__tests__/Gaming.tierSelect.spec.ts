@@ -106,8 +106,8 @@ const mockGetConfig = vi.mocked(getConfigByIpc)
 const mockPut = vi.mocked(putConfigByIpc)
 const mockInvoke = vi.mocked(invoke)
 
-function opggStatus(mode: string) {
-  return { mode, patch: '16.12', fetchedAt: Date.now(), stale: false, championCount: 10 }
+function opggStatus(mode: string, tier: string) {
+  return { mode, patch: '16.12', fetchedAt: Date.now(), stale: false, championCount: 10, tier }
 }
 
 // 与 Automation.tierSelect.spec.ts / BpSuggestModal.spec.ts 同一约定：真实 <select>
@@ -144,19 +144,28 @@ async function flush(w: { vm: { $nextTick: () => Promise<void> } }) {
   await w.vm.$nextTick()
 }
 
+// 当前配置的段位：随 putConfigByIpc('settings.opgg.tier', ...) 更新，
+// 让 update_opgg_data 的 mock 响应能反映「切换后真的换成了新段位」——
+// useOpggTier.switchTier 现在会显式比较 status.tier 与目标段位（修复 B），
+// mock 若恒返回旧段位会被误判为「降级链兜底返回旧数据」而触发回滚。
+let currentTier = 'emerald_plus'
+
 beforeEach(() => {
   vi.clearAllMocks()
   for (const key of Object.keys(eventListeners)) delete eventListeners[key]
+  currentTier = 'emerald_plus'
 
   mockGetConfig.mockImplementation(async (key: string) => {
-    if (key === 'settings.opgg.tier') return 'emerald_plus'
+    if (key === 'settings.opgg.tier') return currentTier
     if (key === 'matchHistoryCount') return 4
     return undefined
   })
-  mockPut.mockResolvedValue(undefined)
+  mockPut.mockImplementation(async (key: string, value: unknown) => {
+    if (key === 'settings.opgg.tier') currentTier = value as string
+  })
   mockInvoke.mockImplementation(async (cmd: string) => {
-    if (cmd === 'get_opgg_status') return opggStatus('ranked')
-    if (cmd === 'update_opgg_data') return opggStatus('ranked')
+    if (cmd === 'get_opgg_status') return opggStatus('ranked', currentTier)
+    if (cmd === 'update_opgg_data') return opggStatus('ranked', currentTier)
     if (cmd === 'get_bp_decision') return null
     if (cmd === 'get_champion_options') return []
     return undefined

@@ -112,7 +112,13 @@ describe('Automation.vue 段位下拉接线（挂载真实组件）', () => {
 
     // 这次切换专门校验的 invoke 调用发生在 mount 阶段的 get_champion_options 之后，
     // 用 mockResolvedValueOnce 追加一条，不影响上面 beforeEach 里的默认 mockImplementation。
-    mockInvoke.mockImplementationOnce(async () => ({ mode: 'ranked', patch: '16.13' }))
+    // tier 必须等于本次切换的目标段位——useOpggTier.switchTier 现在会显式比较
+    // status.tier 与目标段位（修复 B），不带上会被判定为「降级链兜底返回旧数据」而回滚。
+    mockInvoke.mockImplementationOnce(async () => ({
+      mode: 'ranked',
+      patch: '16.13',
+      tier: 'master_plus'
+    }))
 
     const tierSelect = findTierSelect(w)
     await tierSelect.setValue('master_plus')
