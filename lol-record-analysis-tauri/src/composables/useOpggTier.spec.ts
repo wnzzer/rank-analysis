@@ -47,6 +47,9 @@ describe('useOpggTier', () => {
     expect(ok).toBe(true)
     expect(mockPut).toHaveBeenCalledWith('settings.opgg.tier', 'master_plus')
     expect(mockInvoke).toHaveBeenCalledWith('update_opgg_data', { mode: 'ranked' })
+    // 动作顺序是规格点名的要求：写配置必须先于强制重拉，
+    // 否则重拉用的还是切换前的段位配置。用 invocationCallOrder 钉住先后。
+    expect(mockPut.mock.invocationCallOrder[0]).toBeLessThan(mockInvoke.mock.invocationCallOrder[0])
     expect(t.tier.value).toBe('master_plus')
     expect(opggRevision.value).toBe(1)
     expect(t.loading.value).toBe(false)
@@ -66,6 +69,22 @@ describe('useOpggTier', () => {
     expect(t.tier.value).toBe('emerald_plus')
     expect(opggRevision.value).toBe(0)
     expect(t.loading.value).toBe(false)
+  })
+
+  it('写配置失败：tier 回滚到切换前，不再往下重拉，不 bump', async () => {
+    mockGet.mockResolvedValueOnce('emerald_plus')
+    const t = useOpggTier()
+    await t.loadTier()
+
+    mockPut.mockRejectedValueOnce(new Error('disk full'))
+
+    const ok = await t.switchTier('gold_plus')
+
+    expect(ok).toBe(false)
+    expect(t.tier.value).toBe('emerald_plus')
+    expect(opggRevision.value).toBe(0)
+    expect(t.loading.value).toBe(false)
+    expect(mockInvoke).not.toHaveBeenCalled()
   })
 
   it('切换期间 loading 为 true，结束后复位', async () => {
