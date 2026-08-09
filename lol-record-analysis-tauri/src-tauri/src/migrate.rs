@@ -96,6 +96,16 @@ fn migrate_from(legacy: &Path, target: &Path) -> MigrationReport {
 ///
 /// `LOCALAPPDATA` 未设置（非 Windows，包括 macOS——见模块文档）、或无法解析
 /// `target` 的父目录时，返回空报告。
+///
+/// # 已知取舍：中断在两文件之间会让 `device_id` 永久跳过迁移
+///
+/// [`migrate_from`] 的短路条件是「`target` 下已有 `config.yaml`」。若进程恰好在
+/// 拷完 `config.yaml`、还没拷 `device_id` 时被杀（断电/强制关闭/杀软锁文件），
+/// 下次启动会因为 `config.yaml` 已存在而整体短路，`device_id` 从此再也不会被
+/// 迁移。后果仅限 Sentry 把老用户误算成新设备（不丢配置、不影响功能），概率
+/// 极低。**这是有意的取舍，不是 bug**：短路的存在理由是「用户主动删掉
+/// `config.yaml` 想重置设置时，不该把老配置搬回来」，若改成逐文件独立判断
+/// 是否迁移过，会让「重置配置」这个用户可预期的操作变得难以实现。
 pub fn migrate_legacy_data() -> MigrationReport {
     let Ok(local_app_data) = std::env::var("LOCALAPPDATA") else {
         return MigrationReport::default();

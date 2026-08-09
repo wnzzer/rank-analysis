@@ -9,6 +9,12 @@ use tauri::Manager;
 
 // NOTE: main is no longer async
 fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    // 必须是第一条语句：下面的 reporting_enabled() 会直读 config.yaml，
+    // observability::init() 会在 device_id 缺失时生成并写盘。
+    // 迁移晚于任一处，老用户的配置或匿名设备 ID 就会被新生成的空数据挤掉。
+    // logger 此刻尚未安装，结论先带回来，等 set_boxed_logger 之后再补打。
+    let migration = lol_record_analysis_app_lib::migrate::migrate_legacy_data();
+
     // 初始化日志，默认 info 级别，可通过 RUST_LOG 环境变量覆盖
     if std::env::var("RUST_LOG").is_err() {
         std::env::set_var("RUST_LOG", "info");
@@ -63,6 +69,15 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         lol_record_analysis_app_lib::paths::config_file().display()
     );
     info!("========================================");
+
+    // 迁移结论补打（迁移本身跑在 logger 之前）。这是线上排查
+    // 「老用户升级后配置丢了吗」的唯一证据源。
+    if !migration.migrated.is_empty() {
+        info!("已从旧安装目录迁移: {}", migration.migrated.join(", "));
+    }
+    for err in &migration.errors {
+        log::warn!("迁移失败(已忽略，不阻断启动): {}", err);
+    }
 
     // 初始化错误上报（创建 Sentry client + guard）。
     // guard 必须存活到 .run() 返回，否则事件 / 日志无法 flush。
