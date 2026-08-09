@@ -12,9 +12,14 @@ export function winRate(wins: number, losses: number) {
   return Math.round((wins / totalFlexGames) * 100)
 }
 
+/** 用胜点（而非"大区分段" I~IV）展示的高段位——这三档没有分段概念，只有一个连续的胜点数值 */
+const HIGH_TIERS = ['MASTER', 'GRANDMASTER', 'CHALLENGER']
+
+/** 是否为按胜点展示的高段位（大师/宗师/王者） */
+export const isHighTier = (tier: string) => HIGH_TIERS.includes(tier)
+
 export const divisionOrPoint = (queueInfo: QueueInfo) => {
-  const highTire = ['MASTER', 'GRANDMASTER', 'CHALLENGER']
-  if (highTire.includes(queueInfo.tier)) {
+  if (isHighTier(queueInfo.tier)) {
     return queueInfo.leaguePoints
   }
   return queueInfo.division
@@ -37,6 +42,23 @@ export const formatTierText = (queueInfo: QueueInfo, opts?: { short?: boolean })
   if (!hasRealTier(queueInfo)) return '无段位'
   const tier = opts?.short ? queueInfo.tierCn.slice(-2) : queueInfo.tierCn
   return `${tier} ${divisionOrPoint(queueInfo)}`
+}
+
+/**
+ * 紧凑段位文案：仅 `段位名 分段`，高段位（大师及以上）省略胜点数字。
+ *
+ * 胜点是最多 4 位的数字（如「王者 1234」），放进固定宽度的紧凑槽位（如战绩详情页
+ * 玩家行头像旁的段位徽章）会溢出撑破布局；段位名 + 分段已经足够"一眼看出这人什么水平"，
+ * 精确胜点留给不受宽度限制的完整文案展示（见 {@link formatTierText} 不带 short 的版本，
+ * 通常用在 tooltip 里）。
+ * @param queueInfo - 单个队列的段位信息
+ * @returns 未定级返回「无段位」；普通段位如「铂金 I」；高段位仅段位名如「王者」
+ */
+export const formatCompactTierText = (queueInfo: QueueInfo): string => {
+  if (!hasRealTier(queueInfo)) return '无段位'
+  const tier = queueInfo.tierCn.slice(-2)
+  if (isHighTier(queueInfo.tier)) return tier
+  return `${tier} ${queueInfo.division}`
 }
 
 /**

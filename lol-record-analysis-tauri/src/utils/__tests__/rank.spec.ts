@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { winRate, formatTierText, hasRealTier, pickQueueInfoByQueueId } from '../rank'
+import {
+  winRate,
+  formatTierText,
+  formatCompactTierText,
+  hasRealTier,
+  pickQueueInfoByQueueId
+} from '../rank'
 import { defaultQueueInfo, type QueueInfo, type Rank } from '@renderer/types/domain/player'
 
 function queueInfo(partial: Partial<QueueInfo>): QueueInfo {
@@ -65,6 +71,41 @@ describe('formatTierText', () => {
     expect(
       formatTierText(queueInfo({ tier: 'MASTER', tierCn: '超凡大师', leaguePoints: 233 }))
     ).toBe('超凡大师 233')
+  })
+})
+
+describe('formatCompactTierText', () => {
+  it('should show 无段位 instead of leaking division NA when unranked', () => {
+    expect(
+      formatCompactTierText(queueInfo({ tier: 'UNRANKED', tierCn: '无', division: 'NA' }))
+    ).toBe('无段位')
+  })
+
+  it('should join short tierCn with division for division-based tiers', () => {
+    expect(
+      formatCompactTierText(queueInfo({ tier: 'PLATINUM', tierCn: '华贵铂金', division: 'I' }))
+    ).toBe('铂金 I')
+  })
+
+  // 回归用例：高段位胜点是最多 4 位的数字（如「王者 1234」），拼进固定宽度的紧凑槽位
+  // （战绩详情页玩家行）会溢出撑破布局挤到名字上——紧凑文案必须只留段位名，不带胜点
+  it('should omit the league points number for master and above (avoids overflow in fixed-width slots)', () => {
+    expect(
+      formatCompactTierText(
+        queueInfo({ tier: 'CHALLENGER', tierCn: '最强王者', leaguePoints: 1234 })
+      )
+    ).toBe('王者')
+  })
+
+  it('should omit league points for grandmaster and master too, not only challenger', () => {
+    expect(
+      formatCompactTierText(
+        queueInfo({ tier: 'GRANDMASTER', tierCn: '傲世宗师', leaguePoints: 987 })
+      )
+    ).toBe('宗师')
+    expect(
+      formatCompactTierText(queueInfo({ tier: 'MASTER', tierCn: '超凡大师', leaguePoints: 456 }))
+    ).toBe('大师')
   })
 })
 

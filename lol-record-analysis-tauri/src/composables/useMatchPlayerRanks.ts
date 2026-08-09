@@ -7,14 +7,19 @@
 
 import { computed, ref, watch, type MaybeRefOrGetter, toValue } from 'vue'
 import { getRankByPuuid } from '@renderer/services/rank'
-import { hasRealTier, formatTierText, pickQueueInfoByQueueId } from '@renderer/utils/rank'
+import {
+  hasRealTier,
+  formatTierText,
+  formatCompactTierText,
+  pickQueueInfoByQueueId
+} from '@renderer/utils/rank'
 import { tierImage } from '@renderer/utils/tier-image'
 import type { Rank } from '@renderer/types/domain/player'
 
 export interface MatchPlayerTier {
   /** 段位图标 URL */
   imgUrl: string
-  /** 短文案，如「钻石 IV」，用于紧凑的玩家行 */
+  /** 短文案，如「钻石 IV」，用于紧凑的玩家行；大师及以上不带胜点数字（见 formatCompactTierText），避免撑破固定宽度槽位 */
   shortText: string
   /** hover 提示文案：注明这是"当前段位"而非本局对局时的段位 */
   tooltipText: string
@@ -44,7 +49,12 @@ export function useMatchPlayerRanks(
     const targets = [...new Set(puuids.filter(Boolean))].filter(p => !(p in ranksByPuuid.value))
     if (targets.length === 0) return
 
-    // Promise.allSettled：一个玩家取段位失败不影响其余玩家展示
+    // Promise.allSettled：一个玩家取段位失败不影响其余玩家展示。
+    // getRankByPuuid 当前实现（services/rank.ts）内部 try/catch 吞掉了所有异常、恒 resolve，
+    // 所以严格来说 rejected 分支现在走不到——但这是"服务层承诺不抛错"这个隐式契约，不是
+    // 这个 composable 该依赖的东西。换成 Promise.all 能省一行，代价是一旦服务层实现变化
+    // （或换成别的抛错实现），一个玩家的失败就会让 loadRanks 整体 reject、10 人全部拿不到
+    // 段位。这里的防御成本几乎为零，保留。
     const results = await Promise.allSettled(targets.map(puuid => getRankByPuuid(puuid)))
     const next = { ...ranksByPuuid.value }
     targets.forEach((puuid, i) => {
@@ -82,7 +92,7 @@ export function useMatchPlayerRanks(
       }
       out[player.puuid] = {
         imgUrl: tierImage(q.tier),
-        shortText: formatTierText(q, { short: true }),
+        shortText: formatCompactTierText(q),
         tooltipText: `${q.queueTypeCn}当前段位：${formatTierText(q)}（非本局当时段位，LCU 仅能查询玩家当前段位）`
       }
     }

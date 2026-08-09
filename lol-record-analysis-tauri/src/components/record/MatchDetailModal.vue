@@ -1212,13 +1212,17 @@ watch(
 }
 
 /* 段位：固定宽度占位列，插在头像和名字之间——「段位 → 名字」的阅读顺序，
-   且即便没有数据（未定级/请求失败/加载中）也保留槽位，避免十行名字参差不齐 */
+   且即便没有数据（未定级/请求失败/加载中）也保留槽位，避免十行名字参差不齐。
+   overflow:hidden 是兜底裁切——真正的溢出防护在文案源头（useMatchPlayerRanks.ts 的
+   formatCompactTierText 对大师+ 段位省略 4 位数胜点），这里只是双保险：万一文案逻辑
+   日后被改动又漏了这茬，也只会裁切/省略号，不会撑破槽位挤压右侧名字列 */
 .match-detail-player-rank {
   width: 38px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
 }
 
 .match-detail-rank-badge {
@@ -1226,6 +1230,7 @@ watch(
   flex-direction: column;
   align-items: center;
   gap: 1px;
+  width: 100%;
   cursor: help;
 }
 
@@ -1236,12 +1241,16 @@ watch(
   display: block;
 }
 
-/* 短文案如「钻石 IV」；灰度弱化，不与主名字抢视觉重量 */
+/* 短文案如「钻石 IV」；灰度弱化，不与主名字抢视觉重量。
+   overflow/ellipsis 是兜底：正常情况下不会触发（见上方 .match-detail-player-rank 注释） */
 .match-detail-rank-text {
   font-size: var(--font-size-2xs);
   color: var(--text-tertiary);
   line-height: 1.2;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .match-detail-player-text {

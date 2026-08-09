@@ -16,7 +16,7 @@ import { useMatchPlayerRanks } from './useMatchPlayerRanks'
 
 const mockGetRank = vi.mocked(getRankByPuuid)
 
-function makeRank(soloTier: string, flexTier = ''): Rank {
+function makeRank(soloTier: string, flexTier = '', soloLeaguePoints = 40): Rank {
   return {
     queueMap: {
       RANKED_SOLO_5x5: {
@@ -28,7 +28,7 @@ function makeRank(soloTier: string, flexTier = ''): Rank {
         highestDivision: 'IV',
         highestTier: soloTier,
         isProvisional: false,
-        leaguePoints: 40,
+        leaguePoints: soloLeaguePoints,
         losses: 5,
         wins: 10
       },
@@ -84,6 +84,24 @@ describe('useMatchPlayerRanks', () => {
     // tierCn 是测试用的原始英文 tier 值，short 只取后两字：'DIAMOND'.slice(-2) === 'ND'
     expect(tier?.shortText).toBe('ND IV')
     expect(tier?.tooltipText).toContain('单双排')
+    expect(tier?.tooltipText).toContain('非本局当时段位')
+  })
+
+  // 回归用例：大师及以上用胜点而非分段展示，胜点常见 4 位数（如「王者 1234」）。
+  // 详情页紧凑徽章是固定宽度槽位，带着胜点拼接会溢出撑破布局、挤到玩家名字上——
+  // shortText 必须省略胜点数字，完整胜点仍要留在 tooltip 里（不能因为紧凑处省略就整体丢失）
+  it('omits the league points number from the compact badge for a high tier, but keeps it in the tooltip', async () => {
+    mockGetRank.mockResolvedValueOnce(makeRank('CHALLENGER', '', 1234))
+    const players = ref([{ puuid: 'p1' }])
+    const { result } = withSetup(() => useMatchPlayerRanks(players, ref(420)))
+
+    await flush()
+
+    const tier = result.tiersByPuuid.value.p1
+    expect(tier).not.toBeNull()
+    expect(tier?.shortText).not.toMatch(/\d/)
+    expect(tier?.shortText).toBe('ER')
+    expect(tier?.tooltipText).toContain('1234')
     expect(tier?.tooltipText).toContain('非本局当时段位')
   })
 
