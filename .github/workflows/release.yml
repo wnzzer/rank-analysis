@@ -38,7 +38,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: ./lol-record-analysis-tauri
+        working-directory: ./rank-analysis-app
 
     steps:
       - name: 📥 Checkout repository
@@ -49,7 +49,7 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: lol-record-analysis-tauri/package-lock.json
+          cache-dependency-path: rank-analysis-app/package-lock.json
 
       - name: 🦀 Install Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -129,8 +129,8 @@ jobs:
         with:
           name: macos-dmg
           path: |
-            lol-record-analysis-tauri/src-tauri/target/release/bundle/dmg/*.dmg
-            lol-record-analysis-tauri/src-tauri/target/release/bundle/dmg/*.sig
+            rank-analysis-app/src-tauri/target/release/bundle/dmg/*.dmg
+            rank-analysis-app/src-tauri/target/release/bundle/dmg/*.sig
           if-no-files-found: error
           retention-days: 7
 
@@ -144,7 +144,7 @@ jobs:
     # 定义全局工作目录，适用于所有 run 步骤
     defaults:
       run:
-        working-directory: ./lol-record-analysis-tauri
+        working-directory: ./rank-analysis-app
 
     # 导出版本号给下一个 Job 使用
     outputs:
@@ -161,7 +161,7 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: lol-record-analysis-tauri/package-lock.json
+          cache-dependency-path: rank-analysis-app/package-lock.json
 
       - name: 🦀 Install Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -295,7 +295,7 @@ jobs:
 
             $sigCandidate = Join-Path $nsisDir $sigName
             if (Test-Path $sigCandidate) {
-              $sigPath = "$($env:GITHUB_WORKSPACE)/lol-record-analysis-tauri/$nsisDir/$sigName"
+              $sigPath = "$($env:GITHUB_WORKSPACE)/rank-analysis-app/$nsisDir/$sigName"
             } else {
                 Write-Error "Signature file missing: $sigCandidate"
                 exit 1
@@ -315,8 +315,8 @@ jobs:
           }
 
           # 3. 输出供 Release 步骤使用的路径
-          $setupPath = "$($env:GITHUB_WORKSPACE)/lol-record-analysis-tauri/$nsisDir/$setupName"
-          $portablePath = "$($env:GITHUB_WORKSPACE)/lol-record-analysis-tauri/$releaseDir/$portable7zName"
+          $setupPath = "$($env:GITHUB_WORKSPACE)/rank-analysis-app/$nsisDir/$setupName"
+          $portablePath = "$($env:GITHUB_WORKSPACE)/rank-analysis-app/$releaseDir/$portable7zName"
           
           echo "setup_path=$setupPath" >> $env:GITHUB_OUTPUT
           echo "portable_path=$portablePath" >> $env:GITHUB_OUTPUT
@@ -359,14 +359,14 @@ jobs:
           $prevTag = "${{ steps.get_prev_tag.outputs.prev_tag }}"
 
           # 删除旧的 CHANGELOG 避免追加
-          if (Test-Path "lol-record-analysis-tauri/CHANGELOG.md") {
-            Remove-Item "lol-record-analysis-tauri/CHANGELOG.md" -Force
+          if (Test-Path "rank-analysis-app/CHANGELOG.md") {
+            Remove-Item "rank-analysis-app/CHANGELOG.md" -Force
           }
 
           if ($prevTag) {
-            git-cliff --config .github/cliff.toml "$prevTag..HEAD" --tag $currentTag --output lol-record-analysis-tauri/CHANGELOG.md
+            git-cliff --config .github/cliff.toml "$prevTag..HEAD" --tag $currentTag --output rank-analysis-app/CHANGELOG.md
           } else {
-            git-cliff --config .github/cliff.toml --tag $currentTag --output lol-record-analysis-tauri/CHANGELOG.md
+            git-cliff --config .github/cliff.toml --tag $currentTag --output rank-analysis-app/CHANGELOG.md
           }
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -375,7 +375,7 @@ jobs:
         shell: pwsh
         run: |
           $notes = "${{ github.event.inputs.notes }}"
-          # 现在的 CHANGELOG.md 就在当前的工作目录中 (lol-record-analysis-tauri)
+          # 现在的 CHANGELOG.md 就在当前的工作目录中 (rank-analysis-app)
           $changelog = Get-Content CHANGELOG.md -Raw
           
           if (-not [string]::IsNullOrWhiteSpace($notes)) {
@@ -392,7 +392,7 @@ jobs:
         continue-on-error: true
         with:
           name: macos-dmg
-          path: lol-record-analysis-tauri/macos-dist
+          path: rank-analysis-app/macos-dist
 
       # --- 生成 latest.json（必须在创建 Release 前完成，便于一次上传所有资源）---
       - name: 📝 Generate latest.json
@@ -486,12 +486,12 @@ jobs:
         with:
           tag_name: ${{ steps.get_version.outputs.tauri_version }}
           name: Release ${{ steps.get_version.outputs.tauri_version }}
-          body_path: lol-record-analysis-tauri/RELEASE_BODY.md
+          body_path: rank-analysis-app/RELEASE_BODY.md
           files: |
             ${{ steps.prepare_assets.outputs.setup_path }}
             ${{ steps.prepare_assets.outputs.portable_path }}
-            lol-record-analysis-tauri/macos-dist/*.dmg
-            lol-record-analysis-tauri/latest.json
+            rank-analysis-app/macos-dist/*.dmg
+            rank-analysis-app/latest.json
           draft: false
           prerelease: false
           fail_on_unmatched_files: false

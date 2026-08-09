@@ -187,7 +187,7 @@ fn write_json(path: &std::path::Path, v: &Value) -> Result<(), String> {
 }
 
 fn repo_root() -> PathBuf {
-    // CARGO_MANIFEST_DIR 指向 src-tauri，向上一级回到 lol-record-analysis-tauri，再上一级到仓库根
+    // CARGO_MANIFEST_DIR 指向 src-tauri，向上一级回到 rank-analysis-app，再上一级到仓库根
     let manifest = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR");
     PathBuf::from(manifest)
         .parent()
