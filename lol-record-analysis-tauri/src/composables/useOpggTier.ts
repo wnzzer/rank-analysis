@@ -27,10 +27,21 @@ export function useOpggTier(): {
   const tier = ref<OpggTier>(DEFAULT_OPGG_TIER)
   const loading = ref(false)
 
-  /** 从配置读当前段位，未配置过时落到默认值。 */
+  /**
+   * 从配置读当前段位，未配置过时落到默认值。
+   *
+   * 校验而非无条件强转：配置文件可能被外部改坏（手改 json、旧版本遗留的非法值等）。
+   * Rust 侧 `sanitize_tier` 遇到非法值会静默回落到 `emerald_plus` 再去请求数据，
+   * 但前端这个下拉是独立读的这份配置——如果不校验直接 `as OpggTier`，下拉会显示
+   * 一个不在 TIER_OPTIONS 里的非法值，naive-ui 找不到匹配选项，直接渲染成空白。
+   * 界面显示的段位和实际请求数据用的段位对不上，是与「重拉后校验 status.tier」
+   * （src-tauri/src/command/opgg.rs 的 OpggStatus.tier）同一类「界面撒谎」。
+   */
   const loadTier = async (): Promise<void> => {
     const saved = await getConfigByIpc<string>(CONFIG_KEY)
-    tier.value = (saved as OpggTier) ?? DEFAULT_OPGG_TIER
+    tier.value = TIER_OPTIONS.some(o => o.value === saved)
+      ? (saved as OpggTier)
+      : DEFAULT_OPGG_TIER
   }
 
   /**

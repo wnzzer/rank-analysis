@@ -34,6 +34,18 @@ describe('useOpggTier', () => {
     expect(b.tier.value).toBe('emerald_plus')
   })
 
+  it('loadTier 读到不在白名单内的非法值（配置被外部改坏）时落到默认段位，而非无校验强转', async () => {
+    // 修复 D：旧版本遗留值 / 手改配置文件都可能写进一个不在 TIER_OPTIONS 里的字符串。
+    // Rust 侧 sanitize_tier 会静默回落默认段位再请求数据；前端若不校验直接
+    // `as OpggTier`，下拉会显示一个 naive-ui 找不到匹配选项的非法值（渲染成空白），
+    // 界面显示的段位与实际请求数据用的段位就对不上——与段位切换失败判定同一类
+    // 「界面撒谎」。
+    mockGet.mockResolvedValueOnce('legendary_plus')
+    const t = useOpggTier()
+    await t.loadTier()
+    expect(t.tier.value).toBe('emerald_plus')
+  })
+
   it('切换成功：写配置、强制重拉 ranked、bump 一次版本号', async () => {
     mockGet.mockResolvedValueOnce('emerald_plus')
     const t = useOpggTier()
