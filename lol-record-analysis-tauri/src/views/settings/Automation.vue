@@ -33,7 +33,7 @@
           </span>
           <n-space align="center">
             <n-select
-              v-model:value="opggTier"
+              :value="opggTier"
               :options="TIER_OPTIONS"
               :loading="opggTierLoading"
               :disabled="opggTierLoading"
