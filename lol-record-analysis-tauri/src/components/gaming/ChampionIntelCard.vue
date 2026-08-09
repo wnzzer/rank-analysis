@@ -59,7 +59,12 @@
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useAssetUrl } from '@renderer/composables/useAssetUrl'
 import { getChampionName, loadChampionNames } from '@renderer/services/ai/champion-names'
-import { getChampionMeta, getLaneCounters, findCounterHints } from '@renderer/services/opgg'
+import {
+  getChampionMeta,
+  getLaneCounters,
+  findCounterHints,
+  opggRevision
+} from '@renderer/services/opgg'
 import type { ChampionMeta, CounterHint, OpggMode } from '@renderer/services/opgg'
 import { pickStateClass, tierBadge, formatWinRate, isChampionSwap } from './championIntel'
 import PatchNoteBadge from './PatchNoteBadge.vue'
@@ -132,14 +137,16 @@ onUnmounted(() => {
 let lastRequestKey = ''
 
 watch(
-  () => [props.championId, props.myChampionIds] as const,
-  async ([id, myIds], oldSource) => {
+  () => [props.championId, props.myChampionIds, opggRevision.value] as const,
+  async ([id, myIds, rev], oldSource) => {
     // 真换人检测：与请求去重 key 无关，仅比较 championId 本身（oldSource 首次触发为 undefined）
     if (isChampionSwap(oldSource?.[0], id)) {
       triggerSwapFlash()
     }
     // 内容级去重：id 与 myIds 拼接后的 key 未变化，说明本次触发只是引用抖动，直接跳过
-    const requestKey = `${id}|${myIds.join(',')}`
+    // rev 必须进 key：段位切换时 id 与 myIds 都没变，
+    // 不带上它就会被内容级去重当成引用抖动而跳过，卡片永远停在旧段位数据
+    const requestKey = `${id}|${myIds.join(',')}|${rev}`
     if (requestKey === lastRequestKey) return
     lastRequestKey = requestKey
 
