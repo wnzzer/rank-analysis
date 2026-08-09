@@ -34,12 +34,7 @@ vi.mock('@renderer/composables/useGameState', async () => {
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import { CONFIG_KEYS } from '@renderer/services/configKeys'
 import { lcuConnected } from '@renderer/composables/useGameState'
-import {
-  useStartupDialogs,
-  GATE_SETTLE_MS,
-  GATE_FALLBACK_MS,
-  HANDOFF_MS
-} from './useStartupDialogs'
+import { useStartupDialogs, GATE_SETTLE_MS, GATE_FALLBACK_MS } from './useStartupDialogs'
 
 const mockGet = vi.mocked(getConfigByIpc)
 const mockPut = vi.mocked(putConfigByIpc)
@@ -157,21 +152,12 @@ describe('useStartupDialogs', () => {
     unmount()
   })
 
-  it('交接留白：裁决后要等离场动画走完才复位', async () => {
+  it('裁决后 active 立即复位为 null（队列只剩一个弹窗，无需等待任何留白）', async () => {
     mockFlags(undefined)
     const { result, unmount } = await mountWithGateOpen()
     expect(result.active.value).toBe('errorReportingConsent')
 
     await result.resolveErrorReportingConsent(false)
-    await nextTick()
-    // 留白期内不展示——避免 n-modal 离场动画期间内部状态跳变造成视觉跳跃
-    expect(result.active.value).toBeNull()
-
-    vi.advanceTimersByTime(HANDOFF_MS - 1)
-    await nextTick()
-    expect(result.active.value).toBeNull()
-
-    vi.advanceTimersByTime(1)
     await nextTick()
     expect(result.active.value).toBeNull()
     unmount()
@@ -182,7 +168,6 @@ describe('useStartupDialogs', () => {
     const { result, unmount } = await mountWithGateOpen()
 
     await result.resolveErrorReportingConsent(true)
-    vi.advanceTimersByTime(HANDOFF_MS)
     await nextTick()
 
     expect(mockPut).toHaveBeenCalledWith(CONFIG_KEYS.errorReportingEnabled, true)
@@ -198,7 +183,6 @@ describe('useStartupDialogs', () => {
 
     mockPut.mockRejectedValueOnce(new Error('boom'))
     await expect(result.resolveErrorReportingConsent(true)).rejects.toThrow('boom')
-    vi.advanceTimersByTime(HANDOFF_MS)
     await nextTick()
 
     expect(result.active.value).toBeNull()
