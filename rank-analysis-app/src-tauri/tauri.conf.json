@@ -52,7 +52,8 @@
       "nsis": {
         "installerIcon": "icons/ico.ico",
         "installMode": "currentUser",
-        "languages": ["SimpChinese"]
+        "languages": ["SimpChinese"],
+        "installerHooks": "nsis/legacy-migration-hook.nsh"
       }
     }
   },
