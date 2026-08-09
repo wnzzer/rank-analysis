@@ -118,7 +118,7 @@ jobs:
             echo "::error::No .dmg produced under $DMG_DIR"
             exit 1
           fi
-          DEST="$DMG_DIR/lol-record-analysis-app-${CLEAN}-macos-aarch64.dmg"
+          DEST="$DMG_DIR/rank-analysis-${CLEAN}-macos-aarch64.dmg"
           mv "$SRC" "$DEST"
           # dmg 目录不会自动产出 updater 用的 minisign .sig，显式签一次
           npx tauri signer sign "$DEST"
@@ -250,7 +250,7 @@ jobs:
           
           $nsisDir = "src-tauri/target/release/bundle/nsis"
           $releaseDir = "src-tauri/target/release"
-          $appName = "lol-record-analysis-app"
+          $appName = "rank-analysis"
 
           # 1. 处理安装包 (.exe) 和 签名文件 (.sig)
           $installerFile = Get-ChildItem -Path $nsisDir -Filter "*.exe" -ErrorAction Stop
