@@ -321,6 +321,7 @@ onMounted(async () => {
   await loadOpggTier()
   await reloadPickRules()
   await reloadBanRules()
+  configLoaded.value = true
 })
 
 function openPickEdit(rule?: PickRule) {
@@ -404,13 +405,22 @@ const selectBanChampionId = ref(null)
 const myPickData = ref<number[]>([])
 const myBanData = ref<number[]>([])
 
+/**
+ * onMounted 里的配置读取是串行 await（开关早、兜底池晚、规则最晚落地）。
+ * 在这串 await 落定前，pickHasNoTarget/banHasNoTarget 会拿着「开关已开、规则/池仍是
+ * 初始空值」的中间态去判定，对「只配了规则、没配兜底池」这种合法配置会误判成
+ * 「没有可执行目标」，在设置页首屏闪一条说错了的橙色警告。用这个门禁把两个 computed
+ * 锁到 onMounted 全部落定之后，未加载完一律不提示。
+ */
+const configLoaded = ref(false)
+
 /** 自动选择开着但规则与兜底池皆空——本局不会有任何动作 */
-const pickHasNoTarget = computed(() =>
-  hasNoExecutableTarget(autoPick.value, pickRules.value, myPickData.value)
+const pickHasNoTarget = computed(
+  () => configLoaded.value && hasNoExecutableTarget(autoPick.value, pickRules.value, myPickData.value)
 )
 /** 自动禁用开着但规则与兜底池皆空——本局不会有任何动作 */
-const banHasNoTarget = computed(() =>
-  hasNoExecutableTarget(autoBan.value, banRules.value, myBanData.value)
+const banHasNoTarget = computed(
+  () => configLoaded.value && hasNoExecutableTarget(autoBan.value, banRules.value, myBanData.value)
 )
 
 const updateAcceptSwitch = async () => {
