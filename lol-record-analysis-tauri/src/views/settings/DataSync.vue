@@ -2,13 +2,26 @@
   <n-space vertical :size="12">
     <!-- 云端配置待裁决入口：CloudConfigPullDialog 不再启动时自动弹出，改成这里
          被动引导——左侧「设置」导航与本页菜单项已有呼吸角标指路，用户点「去处理」
-         才真正弹出裁决框 -->
+         才真正弹出裁决框。
+
+         裁决未决期间配置同步（syncConfig）整段冻结（见 pinia/cloudSync.ts），
+         这个搁置窗口从"强制弹窗的几秒"变成了"被动角标的无限期"，必须把后果
+         说清楚，否则用户会以为可以慢慢来：
+         1) 确认前本机设置改动不会推送云端（configDirty 置位后 syncConfig 直接
+            return，永远没有机会落地）；
+         2) 最终若选"使用云端配置"，套用的是最初侦测到冲突那一刻缓存的
+            pending 快照，会静默覆盖掉搁置期间的所有本机改动。 -->
     <n-alert v-if="cloudStore.pendingCloudConfig" type="warning" :bordered="false">
-      <n-space align="center" justify="space-between" style="width: 100%">
-        <span>检测到云端已有一份配置，与本机当前配置不一致，需要你确认使用哪一份。</span>
-        <n-button size="small" type="warning" @click="showCloudConfigDialog = true">
-          去处理
-        </n-button>
+      <n-space vertical :size="8" style="width: 100%">
+        <n-space align="center" justify="space-between" style="width: 100%">
+          <span>检测到云端已有一份配置，与本机当前配置不一致，需要你确认使用哪一份。</span>
+          <n-button size="small" type="warning" @click="showCloudConfigDialog = true">
+            去处理
+          </n-button>
+        </n-space>
+        <n-text :depth="3" style="font-size: var(--font-size-sm)">
+          确认前，本机设置的改动不会同步到云端；若之后选择"使用云端配置"，这期间的本机改动会被覆盖，建议尽快处理。
+        </n-text>
       </n-space>
     </n-alert>
 
