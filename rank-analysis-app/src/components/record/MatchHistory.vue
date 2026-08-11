@@ -117,8 +117,9 @@ import { useRecordAssets } from '@renderer/composables/useRecordAssets'
 import { recordAssetsKey } from '@renderer/composables/recordAssetsKey'
 
 /**
- * 父级批量加载：一次性收集当前页所有战绩的 item/spell/perk ID 去重后下发 IPC
- * 子 RecordCard 通过 inject 共享，跳过自身 preload
+ * 父级批量加载：一次性收集当前页所有战绩的 item/spell/perk ID 去重后下发 IPC。
+ * 收集全部参与者（10 人）而非只取 participants[0]——详情抽屉就地展开时
+ * 10 人装备/符文/召唤师技能图标要"开箱即显"，不能再让抽屉里逐个补 preload。
  */
 const recordAssets = useRecordAssets()
 provide(recordAssetsKey, recordAssets)
@@ -128,24 +129,26 @@ function collectAssetIds(games: Game[] | undefined) {
   const spells = new Set<number>()
   const perks = new Set<number>()
   for (const g of games ?? []) {
-    const s = g.participants[0]?.stats
-    if (!s) continue
-    ;[s.item0, s.item1, s.item2, s.item3, s.item4, s.item5, s.item6].forEach(id => {
-      if (id > 0) items.add(id)
-    })
-    ;[g.participants[0].spell1Id, g.participants[0].spell2Id].forEach(id => {
-      if (id > 0) spells.add(id)
-    })
-    ;[
-      s.playerAugment1,
-      s.playerAugment2,
-      s.playerAugment3,
-      s.playerAugment4,
-      s.playerAugment5,
-      s.playerAugment6
-    ].forEach(id => {
-      if (id > 0) perks.add(id)
-    })
+    for (const participant of g.participants) {
+      const s = participant?.stats
+      if (!s) continue
+      ;[s.item0, s.item1, s.item2, s.item3, s.item4, s.item5, s.item6].forEach(id => {
+        if (id > 0) items.add(id)
+      })
+      ;[participant.spell1Id, participant.spell2Id].forEach(id => {
+        if (id > 0) spells.add(id)
+      })
+      ;[
+        s.playerAugment1,
+        s.playerAugment2,
+        s.playerAugment3,
+        s.playerAugment4,
+        s.playerAugment5,
+        s.playerAugment6
+      ].forEach(id => {
+        if (id > 0) perks.add(id)
+      })
+    }
   }
   return {
     items: [...items],
