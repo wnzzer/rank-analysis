@@ -246,7 +246,7 @@ D3/方向D AI 增强(独立推进,可与 C 并行)
 | ✅ B3-1 | TrendBar 组件 | 新建 `TrendBar.vue` + 数据装配 | 50 场趋势图可交互定位 |
 | ✅ B4-1 | 紧凑行卡 | `RecordCard.vue` 重构 | 一屏 ≥12 场 |
 | ✅ B5-1 | 联动 | MatchHistory hover → 左栏 | 交互流畅无卡顿 |
-| B-测试 | 单元 + 手工 | — | check/test 全绿;分辨率 1366x768 与 2560x1440 均无溢出 |
+| ✅ B-测试 | 单元 + 手工 | — | 单元部分✅:全量 816 tests 绿;分辨率/性能手工验收等 exe |
 
 ### 5.4 验收标准(M1)
 1. 首屏(1366x768):玩家条+筛选+趋势条+5-6 张战绩卡可见,无需滚动
@@ -440,3 +440,4 @@ D3/方向D AI 增强(独立推进,可与 C 并行)
 | v1.0 | 2026-08-11 | 初版:基于 codegraph 实测调研,含 A(性能)/B(UI)/C(出装)/D(AI) 四方向与里程碑 |
 | v1.1 | 2026-08-11 | **M0 完成**:A1 抽屉化(删 detailWindow.ts/MatchDetail.vue/路由/窗口权限与全部 match-detail- 判断);A2 批量段位 get_ranks_by_puuids(Rust join_all 并发 + moka 30min 缓存,前端共用模块级缓存);A3 列表页全量 10 人资源预载 + 删 visibleTeamCount hack。Rust 门禁因本机无工具链改由 GitHub Actions 兜底 |
 | v1.2 | 2026-08-11 | **M1 布局骨架完成**:B1-1 PlayerBar(60px)+ Record.vue 三段式重构 + 共享数据源 usePlayerRecordData(路由 name/region 加载,跨区降级);B1-2 UserSidePanel 左栏(好友宿敌空态收敛单行 + RankCard + RecentStatsTable + 跨区提示);B2-1 筛选纯函数化 matchFilters.ts(12 用例);B4-1 RecordCard 紧凑 44px 行卡(胜负/时长 mm:ss/英雄名/KDA/伤害承伤治疗 mini 条/参团率/装备 4 槽或海克斯/MVP 角标,删队列日期技能两队头像);B3-1 TrendBar 最近 50 场趋势格(时长归一宽度 + deaths 暗格 + MVP 绿点 + tooltip + 点击定位/展开);B5-1 英雄池联动(aggregateChampionPool 纯函数聚合 50 场 + 左栏 HeroPool 高亮/淡化 + RecordCard hover 事件链)。UserRecord.vue 已删除 |
+| v1.2.1 | 2026-08-11 | **M1 数据流收敛 + B-测试单元部分**:MatchHistory 改为 50 场一次拉取 + 客户端四维筛选(模式/英雄/胜负/时间窗口)与 10 条/页切片,列表/趋势条/英雄池同源;"收集更多"改页内下一页。新增 MatchHistory.data.spec.ts(13 用例:分页/筛选/空态/复位/趋势同源/英雄池上抛/hover 事件链/趋势定位与就地展开/详情抽屉)。B-测试任务卡单元部分 ✅,分辨率与 10 场 ≤1s 手工验收等 exe 打包后执行 |
