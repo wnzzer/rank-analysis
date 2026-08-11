@@ -33,6 +33,13 @@
         </n-tooltip>
       </n-flex>
 
+      <TrendBar
+        :games="trendFiltered"
+        :champion-options="championOptions"
+        class="match-history-trend"
+        @select-game="selectTrendGame"
+      />
+
       <template v-if="isRequestingMatchHostory && !matchHistory">
         <div class="match-history-list">
           <RecordCardSkeleton v-for="i in 10" :key="`skel-${i}`" />
@@ -57,12 +64,14 @@
           v-for="(game, index) in games"
           :key="game.gameId"
           :style="{ '--stagger-i': index }"
+          :data-game-id="game.gameId"
           class="list-item"
         >
           <RecordCard
             :record-type="true"
             :games="game"
             :champion-options="championOptions"
+            :class="{ 'list-item-flash': highlightedGameId === game.gameId }"
             @open-detail="openDetail(game)"
           />
         </div>
@@ -108,6 +117,7 @@
 <script setup lang="ts">
 import RecordCard from './RecordCard.vue'
 import RecordCardSkeleton from './RecordCardSkeleton.vue'
+import TrendBar from './TrendBar.vue'
 import { ArrowBack, ArrowForward, RepeatOutline } from '@vicons/ionicons5'
 import { computed, onMounted, provide, ref, watch } from 'vue'
 import { NEmpty, NButton, useLoadingBar } from 'naive-ui'
@@ -120,6 +130,7 @@ import type { Game, MatchHistory } from './match'
 import MatchDetailModal from './MatchDetailModal.vue'
 import { useRecordAssets } from '@renderer/composables/useRecordAssets'
 import { recordAssetsKey } from '@renderer/composables/recordAssetsKey'
+import { createDefaultFilter, filterMatches } from './matchFilters'
 
 /**
  * 父级批量加载：一次性收集当前页所有战绩的 item/spell/perk ID 去重后下发 IPC。
@@ -199,6 +210,66 @@ const region = computed(() => (route.query.region as string) ?? '')
 
 /** 当前页对局列表（响应式扁平化，便于空态判断） */
 const games = computed<Game[]>(() => matchHistory.value?.games?.games ?? [])
+
+/**
+ * 趋势条数据：一次性拉最近 50 场（对齐后端 MAX_CACHE_END = 49），
+ * 与当前分页列表解耦——格点击可定位任意一局。
+ */
+const trendGames = ref<Game[]>([])
+
+/** 趋势条跟随列表同一份筛选（复用 matchFilters 纯函数），客户端过滤不重拉 */
+const trendFiltered = computed(() =>
+  filterMatches(trendGames.value, {
+    ...createDefaultFilter(),
+    queueId: filterQueueId.value,
+    championId: filterChampionId.value > 0 ? filterChampionId.value : 0
+  })
+)
+
+/** 点击趋势格后的高亮对局 id（列表内定位用，闪烁后清除） */
+const highlightedGameId = ref<number | null>(null)
+
+async function loadTrendGames() {
+  try {
+    if (region.value) {
+      const mh = await invoke<MatchHistory>('get_sgp_match_history_by_name', {
+        region: region.value,
+        name: name.value,
+        begIndex: 0,
+        count: 50
+      })
+      trendGames.value = mh?.games?.games ?? []
+    } else {
+      const mh = await invoke<MatchHistory>('get_match_history_by_name', {
+        name: name.value,
+        begIndex: 0,
+        endIndex: 49
+      })
+      trendGames.value = mh?.games?.games ?? []
+    }
+  } catch (err) {
+    // 趋势条是增强信息，加载失败不打断主列表
+    console.warn('[MatchHistory] loadTrendGames failed', err)
+  }
+}
+
+/**
+ * 趋势格点击：目标局在当前页列表 → 平滑滚动并闪烁高亮；
+ * 不在当前页（更早的对局）→ 直接展开详情抽屉。
+ */
+function selectTrendGame(gameId: number) {
+  const target = document.querySelector<HTMLElement>(`[data-game-id="${gameId}"]`)
+  if (target) {
+    highlightedGameId.value = gameId
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setTimeout(() => {
+      if (highlightedGameId.value === gameId) highlightedGameId.value = null
+    }, 1600)
+    return
+  }
+  const game = trendGames.value.find(g => g.gameId === gameId)
+  if (game) openDetail(game)
+}
 
 /** 是否启用了任何筛选条件（用于区分"无数据"与"筛选无结果"） */
 const hasFilter = computed(() => filterChampionId.value > 0 || filterQueueId.value > 0)
@@ -313,7 +384,19 @@ onMounted(async () => {
   await initModeOptions()
   championOptions.value = await invoke<championOption[]>('get_champion_options')
   await getHistoryMatch(name.value, 0, 9)
+  loadTrendGames()
 })
+
+// 切换玩家（路由 name 变化）时列表与趋势条一起刷新
+watch(
+  () => route.query.name,
+  newName => {
+    if (newName && typeof newName === 'string') {
+      getHistoryMatch(newName, 0, 9)
+      loadTrendGames()
+    }
+  }
+)
 </script>
 
 <style lang="css" scoped>
@@ -347,8 +430,29 @@ onMounted(async () => {
   padding: var(--space-24) 0;
 }
 
+.match-history-trend {
+  flex-shrink: 0;
+}
+
 .list-item {
   /* TransitionGroup child; stagger via --stagger-i */
+}
+
+/* 趋势格点击定位后的闪烁高亮（1.6s 后由 highlightedGameId 清除） */
+.list-item-flash {
+  animation: list-flash 1.6s var(--ease-expo);
+}
+
+@keyframes list-flash {
+  0%,
+  55% {
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, var(--accent-gold-deep) 65%, transparent),
+      var(--shadow-md);
+  }
+  100% {
+    box-shadow: var(--shadow-sm);
+  }
 }
 
 .list-enter-active {
