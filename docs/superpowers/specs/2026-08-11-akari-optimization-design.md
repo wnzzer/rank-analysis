@@ -3,7 +3,7 @@
 > **本文档是后续一切开发的唯一权威参考。** 修改任何功能前先读本文档对应章节;
 > 计划变更时同步更新本文档并 bump `计划版本`。
 >
-> - 计划版本: v1.0(2026-08-11)
+> - 计划版本: v1.2(2026-08-11)
 > - 目标仓库: rank-analysis(Tauri 2 + Rust + Vue 3 + TS)
 > - 对标仓库: LeagueAkari(Electron + Vue + TS,本机 `D:\lolzhushou\LeagueAkari`)
 > - 两个仓库均已建立 codegraph 索引。**查代码一律用 codegraph**,不要 grep:
@@ -240,12 +240,12 @@ D3/方向D AI 增强(独立推进,可与 C 并行)
 
 | # | 任务 | 涉及文件 | 验收 |
 |---|---|---|---|
-| B1-1 | PlayerBar + 页面重构 | `views/Record.vue`、`UserRecord.vue`→`UserSidePanel.vue` | 首屏 0.8 屏内可见战绩列表 |
-| B1-2 | 左栏 sticky + 折叠 | 新组件 `UserSidePanel.vue` | 长列表滚动左栏不丢;折叠为 48px 窄条 |
-| B2-1 | 筛选纯函数化 | 新建 `matchFilters.ts` + spec | `npm run test` 新增用例覆盖 |
-| B3-1 | TrendBar 组件 | 新建 `TrendBar.vue` + 数据装配 | 50 场趋势图可交互定位 |
-| B4-1 | 紧凑行卡 | `RecordCard.vue` 重构 | 一屏 ≥12 场 |
-| B5-1 | 联动 | MatchHistory hover → 左栏 | 交互流畅无卡顿 |
+| ✅ B1-1 | PlayerBar + 页面重构 | `views/Record.vue`、`UserRecord.vue`→`UserSidePanel.vue` | 首屏 0.8 屏内可见战绩列表 |
+| ✅ B1-2 | 左栏 sticky + 折叠 | 新组件 `UserSidePanel.vue` | 长列表滚动左栏不丢;折叠为 48px 窄条 |
+| ✅ B2-1 | 筛选纯函数化 | 新建 `matchFilters.ts` + spec | `npm run test` 新增用例覆盖 |
+| ✅ B3-1 | TrendBar 组件 | 新建 `TrendBar.vue` + 数据装配 | 50 场趋势图可交互定位 |
+| ✅ B4-1 | 紧凑行卡 | `RecordCard.vue` 重构 | 一屏 ≥12 场 |
+| ✅ B5-1 | 联动 | MatchHistory hover → 左栏 | 交互流畅无卡顿 |
 | B-测试 | 单元 + 手工 | — | check/test 全绿;分辨率 1366x768 与 2560x1440 均无溢出 |
 
 ### 5.4 验收标准(M1)
@@ -439,3 +439,4 @@ D3/方向D AI 增强(独立推进,可与 C 并行)
 |---|---|---|
 | v1.0 | 2026-08-11 | 初版:基于 codegraph 实测调研,含 A(性能)/B(UI)/C(出装)/D(AI) 四方向与里程碑 |
 | v1.1 | 2026-08-11 | **M0 完成**:A1 抽屉化(删 detailWindow.ts/MatchDetail.vue/路由/窗口权限与全部 match-detail- 判断);A2 批量段位 get_ranks_by_puuids(Rust join_all 并发 + moka 30min 缓存,前端共用模块级缓存);A3 列表页全量 10 人资源预载 + 删 visibleTeamCount hack。Rust 门禁因本机无工具链改由 GitHub Actions 兜底 |
+| v1.2 | 2026-08-11 | **M1 布局骨架完成**:B1-1 PlayerBar(60px)+ Record.vue 三段式重构 + 共享数据源 usePlayerRecordData(路由 name/region 加载,跨区降级);B1-2 UserSidePanel 左栏(好友宿敌空态收敛单行 + RankCard + RecentStatsTable + 跨区提示);B2-1 筛选纯函数化 matchFilters.ts(12 用例);B4-1 RecordCard 紧凑 44px 行卡(胜负/时长 mm:ss/英雄名/KDA/伤害承伤治疗 mini 条/参团率/装备 4 槽或海克斯/MVP 角标,删队列日期技能两队头像);B3-1 TrendBar 最近 50 场趋势格(时长归一宽度 + deaths 暗格 + MVP 绿点 + tooltip + 点击定位/展开);B5-1 英雄池联动(aggregateChampionPool 纯函数聚合 50 场 + 左栏 HeroPool 高亮/淡化 + RecordCard hover 事件链)。UserRecord.vue 已删除 |
