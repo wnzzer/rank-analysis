@@ -2,14 +2,13 @@
   <div class="ratio-container">
     <MatchDetailModal :game="selectedGame" @close="selectedGame = null" />
     <n-flex vertical class="content-wrapper match-history-wrap">
-      <n-flex class="match-history-toolbar" align="center" :size="8">
+      <n-flex class="match-history-toolbar" align="center" :size="8" :wrap="false">
         <n-select
           v-model:value="filterQueueId"
           placeholder="按模式筛选"
           :options="modeOptions"
           size="small"
           class="filter-select filter-mode"
-          @update:value="handleUpdateValue"
         />
         <n-select
           v-model:value="filterChampionId"
@@ -21,8 +20,20 @@
           :options="championOptions"
           size="small"
           class="filter-select filter-champion"
-          @update:value="handleUpdateValue"
         />
+        <n-select
+          v-model:value="filterResult"
+          :options="RESULT_OPTIONS"
+          size="small"
+          class="filter-select filter-result"
+        />
+        <n-select
+          v-model:value="filterTimeWindowHours"
+          :options="TIME_WINDOW_OPTIONS"
+          size="small"
+          class="filter-select filter-time"
+        />
+        <n-button size="small" class="toolbar-more" @click="nextPage">收集更多</n-button>
         <n-tooltip trigger="hover">
           <template #trigger>
             <n-button quaternary circle size="small" class="toolbar-reset" @click="resetFilter">
@@ -95,13 +106,13 @@
             </n-button>
           </template>
           <template #label>
-            <span>{{ page }}</span>
+            <span>{{ page }}/{{ pageCount }}</span>
           </template>
           <template #next>
             <n-button
               size="tiny"
               @click="nextPage"
-              :disabled="page == 5 || isRequestingMatchHostory || noMoreMatches"
+              :disabled="noMoreMatches || isRequestingMatchHostory"
             >
               <template #icon>
                 <n-icon>
@@ -132,7 +143,13 @@ import type { Game, MatchHistory } from './match'
 import MatchDetailModal from './MatchDetailModal.vue'
 import { useRecordAssets } from '@renderer/composables/useRecordAssets'
 import { recordAssetsKey } from '@renderer/composables/recordAssetsKey'
-import { createDefaultFilter, filterMatches } from './matchFilters'
+import {
+  filterMatches,
+  hasActiveFilter,
+  RESULT_OPTIONS,
+  TIME_WINDOW_OPTIONS,
+  type MatchFilterState
+} from './matchFilters'
 import { aggregateChampionPool, type ChampionPoolEntry } from './championPool'
 
 /** 英雄池联动：hover 行卡时把当前英雄 id 上抛给父级（左栏 HeroPool 高亮/展开） */
@@ -183,157 +200,97 @@ function collectAssetIds(games: Game[] | undefined) {
   }
 }
 
+/**
+ * 筛选状态：模式 / 英雄走 LCU 拉取口径（queueId 0 = 全部；championId 0 = 全部，
+ * 原 -1 语义统一到 0），胜负 / 时间窗口纯前端过滤。四维共用 matchFilters 纯函数，
+ * 趋势条与列表严格同源。
+ */
 const filterQueueId = ref(0)
-const filterChampionId = ref(-1)
+const filterChampionId = ref(0)
+const filterResult = ref<MatchFilterState['result']>('all')
+const filterTimeWindowHours = ref(0)
 const championOptions = ref<championOption[]>([])
 
-const resetFilter = () => {
-  pageHistory.value = []
-  filterQueueId.value = 0
-  filterChampionId.value = -1
-  handleUpdateValue()
-}
-const handleUpdateValue = () => {
-  page.value = 1
-  if (filterChampionId.value > 0 || filterQueueId.value > 0) {
-    getHistoryMatch(name.value, 0, 49)
-  } else {
-    getHistoryMatch(name.value, 0, 9)
-  }
-}
+const activeFilter = computed<MatchFilterState>(() => ({
+  queueId: filterQueueId.value,
+  championId: filterChampionId.value,
+  result: filterResult.value,
+  timeWindowHours: filterTimeWindowHours.value
+}))
 
+const hasFilter = computed(() => hasActiveFilter(activeFilter.value))
+
+/** 最近 50 场全量（时间降序），列表 / 趋势条 / 英雄池同源 */
+const allGames = ref<Game[]>([])
 const matchHistory = ref<MatchHistory>()
 const selectedGame = ref<Game | null>(null)
 const loadingBar = useLoadingBar()
 const isRequestingMatchHostory = ref(false)
 const loadError = ref(false)
+
+/** 客户端分页：过滤后切片，每页 10 条（50 场窗口 = 最多 5 页） */
 const page = ref(1)
-const pageHistory = ref<{ begIndex: number; endIndex: number }[]>([])
+const PAGE_SIZE = 10
 
-let curBegIndex = 0
-let curEndIndex = 0
-
-const route = useRoute()
-const name = computed(() => (route.query.name as string) ?? '')
-/** 跨区查询目标大区 platformId（空 = 当前区，走本地 LCU；非空走 SGP 跨区） */
-const region = computed(() => (route.query.region as string) ?? '')
-
-/** 当前页对局列表（响应式扁平化，便于空态判断） */
-const games = computed<Game[]>(() => matchHistory.value?.games?.games ?? [])
-
-/**
- * 趋势条数据：一次性拉最近 50 场（对齐后端 MAX_CACHE_END = 49），
- * 与当前分页列表解耦——格点击可定位任意一局。
- */
-const trendGames = ref<Game[]>([])
-
-/** 趋势条跟随列表同一份筛选（复用 matchFilters 纯函数），客户端过滤不重拉 */
-const trendFiltered = computed(() =>
-  filterMatches(trendGames.value, {
-    ...createDefaultFilter(),
-    queueId: filterQueueId.value,
-    championId: filterChampionId.value > 0 ? filterChampionId.value : 0
-  })
+const filteredGames = computed(() => filterMatches(allGames.value, activeFilter.value))
+const pageCount = computed(() => Math.max(1, Math.ceil(filteredGames.value.length / PAGE_SIZE)))
+const games = computed(() =>
+  filteredGames.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE)
 )
 
+/** 已到最后一页（按过滤后的命中总数判断） */
+const noMoreMatches = computed(() => page.value >= pageCount.value)
+
+/** 趋势条：与列表共用同一份过滤（客户端过滤不重拉） */
+const trendFiltered = computed(() => filteredGames.value)
+
 /** 英雄池：从最近 50 场聚合（供左栏 HeroPool 联动，不改动 50 场窗口口径） */
-const championPool = computed<ChampionPoolEntry[]>(() => aggregateChampionPool(trendGames.value))
+const championPool = computed<ChampionPoolEntry[]>(() => aggregateChampionPool(allGames.value))
 
 watch(championPool, pool => emit('pool-change', pool), { immediate: true })
 
 /** 点击趋势格后的高亮对局 id（列表内定位用，闪烁后清除） */
 const highlightedGameId = ref<number | null>(null)
 
-async function loadTrendGames() {
-  try {
-    if (region.value) {
-      const mh = await invoke<MatchHistory>('get_sgp_match_history_by_name', {
-        region: region.value,
-        name: name.value,
-        begIndex: 0,
-        count: 50
-      })
-      trendGames.value = mh?.games?.games ?? []
-    } else {
-      const mh = await invoke<MatchHistory>('get_match_history_by_name', {
-        name: name.value,
-        begIndex: 0,
-        endIndex: 49
-      })
-      trendGames.value = mh?.games?.games ?? []
-    }
-  } catch (err) {
-    // 趋势条是增强信息，加载失败不打断主列表
-    console.warn('[MatchHistory] loadTrendGames failed', err)
-  }
+const route = useRoute()
+const name = computed(() => (route.query.name as string) ?? '')
+/** 跨区查询目标大区 platformId（空 = 当前区，走本地 LCU；非空走 SGP 跨区） */
+const region = computed(() => (route.query.region as string) ?? '')
+
+const resetFilter = () => {
+  filterQueueId.value = 0
+  filterChampionId.value = 0
+  filterResult.value = 'all'
+  filterTimeWindowHours.value = 0
+  page.value = 1
 }
-
-/**
- * 趋势格点击：目标局在当前页列表 → 平滑滚动并闪烁高亮；
- * 不在当前页（更早的对局）→ 直接展开详情抽屉。
- */
-function selectTrendGame(gameId: number) {
-  const target = document.querySelector<HTMLElement>(`[data-game-id="${gameId}"]`)
-  if (target) {
-    highlightedGameId.value = gameId
-    target.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    setTimeout(() => {
-      if (highlightedGameId.value === gameId) highlightedGameId.value = null
-    }, 1600)
-    return
-  }
-  const game = trendGames.value.find(g => g.gameId === gameId)
-  if (game) openDetail(game)
-}
-
-/** 是否启用了任何筛选条件（用于区分"无数据"与"筛选无结果"） */
-const hasFilter = computed(() => filterChampionId.value > 0 || filterQueueId.value > 0)
-
-/**
- * 已到最后一页：无筛选时每页固定请求 10 条，不满 10 条即无下页；
- * 筛选分页按命中数续推，只能以"当前页为空"兜底判断。
- */
-const noMoreMatches = computed(() =>
-  hasFilter.value ? games.value.length === 0 : games.value.length < 10
-)
 
 async function openDetail(game: Game) {
   selectedGame.value = game
 }
 
-// 获取历史记录
-const getHistoryMatch = async (name: string, begIndex: number, endIndex: number) => {
+// 获取最近 50 场（一次拉取，列表分页/趋势条/英雄池共用）
+const getHistoryMatch = async (name: string) => {
   loadingBar.start()
   isRequestingMatchHostory.value = true
   loadError.value = false
   try {
     if (region.value) {
-      // 跨区：走 SGP（按名字#TAG）。暂不支持英雄/队列筛选，故忽略筛选条件。
-      matchHistory.value = await invoke('get_sgp_match_history_by_name', {
+      matchHistory.value = await invoke<MatchHistory>('get_sgp_match_history_by_name', {
         region: region.value,
         name,
-        begIndex,
-        count: endIndex - begIndex + 1
-      })
-    } else if (filterChampionId.value > 0 || filterQueueId.value > 0) {
-      matchHistory.value = await invoke('get_filter_match_history_by_name', {
-        name,
-        begIndex,
-        endIndex,
-        filterQueueId: filterQueueId.value,
-        filterChampionId: filterChampionId.value
+        begIndex: 0,
+        count: 50
       })
     } else {
-      matchHistory.value = await invoke('get_match_history_by_name', {
+      matchHistory.value = await invoke<MatchHistory>('get_match_history_by_name', {
         name,
-        begIndex,
-        endIndex
+        begIndex: 0,
+        endIndex: 49
       })
     }
-    if (matchHistory.value) {
-      curBegIndex = matchHistory.value.begIndex
-      curEndIndex = matchHistory.value.endIndex
-    }
+    allGames.value = matchHistory.value?.games?.games ?? []
+    page.value = 1
   } catch (err) {
     loadError.value = true
     loadingBar.error()
@@ -350,8 +307,7 @@ const getHistoryMatch = async (name: string, begIndex: number, endIndex: number)
  * 重试当前页加载（点击"加载失败"空态下的"重试"按钮触发）
  */
 async function retry() {
-  loadError.value = false
-  await getHistoryMatch(name.value, curBegIndex, curEndIndex)
+  await getHistoryMatch(name.value)
 }
 
 watch(
@@ -366,40 +322,37 @@ watch(
   }
 )
 
-// 下一页
-const nextPage = async () => {
-  let begIndex = 0
-  let endIndex = 0
-  pageHistory.value.push({ begIndex: curBegIndex, endIndex: curEndIndex })
-
-  if (filterQueueId.value > 0 || filterChampionId.value > 0) {
-    begIndex = curEndIndex + 1
-    endIndex = 49
-  } else {
-    begIndex = page.value * 10
-    endIndex = begIndex + 9
-  }
-
-  await getHistoryMatch(name.value, begIndex, endIndex)
-  page.value++
+// 下一页 / 上一页（纯客户端切片，50 场窗口内翻页）
+const nextPage = () => {
+  if (!noMoreMatches.value) page.value += 1
 }
 
-// 上一页
-const prevPage = async () => {
-  const lastPage = pageHistory.value.pop()
-
-  if (!lastPage) {
-    throw new Error('无上一页数据')
-  }
-  await getHistoryMatch(name.value, lastPage.begIndex, lastPage.endIndex)
+const prevPage = () => {
   page.value = Math.max(1, page.value - 1)
+}
+
+/**
+ * 趋势格点击：目标局在当前页列表 → 平滑滚动并闪烁高亮；
+ * 不在当前页（更早的对局）→ 直接展开详情抽屉。
+ */
+function selectTrendGame(gameId: number) {
+  const target = document.querySelector<HTMLElement>(`[data-game-id="${gameId}"]`)
+  if (target) {
+    highlightedGameId.value = gameId
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setTimeout(() => {
+      if (highlightedGameId.value === gameId) highlightedGameId.value = null
+    }, 1600)
+    return
+  }
+  const game = allGames.value.find(g => g.gameId === gameId)
+  if (game) openDetail(game)
 }
 
 onMounted(async () => {
   await initModeOptions()
   championOptions.value = await invoke<championOption[]>('get_champion_options')
-  await getHistoryMatch(name.value, 0, 9)
-  loadTrendGames()
+  await getHistoryMatch(name.value)
 })
 
 // 切换玩家（路由 name 变化）时列表与趋势条一起刷新
@@ -407,8 +360,7 @@ watch(
   () => route.query.name,
   newName => {
     if (newName && typeof newName === 'string') {
-      getHistoryMatch(newName, 0, 9)
-      loadTrendGames()
+      getHistoryMatch(newName)
     }
   }
 )
@@ -492,7 +444,28 @@ watch(
 }
 
 .filter-select.filter-champion {
-  width: 170px;
+  width: 150px;
+}
+
+.filter-select.filter-result {
+  width: 76px;
+}
+
+.filter-select.filter-time {
+  width: 100px;
+}
+
+.toolbar-more {
+  margin-left: auto;
+  font-size: var(--font-size-2xs);
+  background: var(--glass-bg-low) !important;
+  border: 1px solid var(--glass-border) !important;
+  color: var(--text-secondary);
+}
+
+.toolbar-more:hover {
+  color: var(--text-primary);
+  background: var(--glass-bg-mid) !important;
 }
 
 .filter-select :deep(.n-input),
