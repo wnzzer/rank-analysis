@@ -161,13 +161,13 @@ D3/方向D AI 增强(独立推进,可与 C 并行)
 
 | # | 任务 | 涉及文件(现状) | 验收 |
 |---|---|---|---|
-| A1-1 | MatchDetailModal 改为抽屉容器 | `MatchDetailModal.vue`、`MatchHistory.vue`、`views/Record.vue` | 点击战绩原地弹出,无新窗口;路由/窗口代码删除后无死引用 |
-| A1-2 | 删除窗口路径 | `detailWindow.ts`、`views/MatchDetail.vue`、`match.ts` 内引用 | `rg` 无 `match-detail` 残留(codegraph 复核) |
-| A2-1 | Rust 侧批量段位 command | `src-tauri/src/command/rank.rs`、`lcu/api/rank.rs` | 单次 IPC 返回 10 人 rank;Rust 侧缓存命中不击穿 LCU |
-| A2-2 | 前端切数据源 | `useMatchPlayerRanks.ts`、`services/rank.ts` | 展开详情 0 新增段位请求 |
-| A3-1 | 列表页全量 10 人资源预载 | `MatchHistory.vue` `collectAssetIds` | 展开时图标无 loading 闪烁 |
+| A1-1 | ✅ MatchDetailModal 改为抽屉容器 | `MatchDetailModal.vue`、`MatchHistory.vue`、`views/Record.vue` | 点击战绩原地弹出,无新窗口;路由/窗口代码删除后无死引用 |
+| A1-2 | ✅ 删除窗口路径 | `detailWindow.ts`、`views/MatchDetail.vue`、`match.ts` 内引用 | `rg` 无 `match-detail` 残留(codegraph 复核) |
+| A2-1 | ✅ Rust 侧批量段位 command | `src-tauri/src/command/rank.rs`、`lcu/api/rank.rs` | 单次 IPC 返回 10 人 rank;Rust 侧缓存命中不击穿 LCU |
+| A2-2 | ✅ 前端切数据源 | `useMatchPlayerRanks.ts`、`services/rank.ts` | 展开详情 0 新增段位请求 |
+| A3-1 | ✅ 列表页全量 10 人资源预载 | `MatchHistory.vue` `collectAssetIds` | 展开时图标无 loading 闪烁 |
 | A4-1 | 详情聚合 command(如采用) | `command/*.rs` | 一次 invoke 全量数据 |
-| A-测试 | 单元测试 | Rust:rank 批量并发/缓存;前端:渲染性能用 `useAppUpdate.spec.ts` 风格 | `npm run check` + `cargo test` 全绿 |
+| A-测试 | ✅ 单元测试 | Rust:rank 批量并发/缓存;前端:渲染性能用 `useAppUpdate.spec.ts` 风格 | `npm run check` + `cargo test` 全绿 |
 
 ### 4.3 验收标准(M0)
 1. 从点击战绩卡到"10 人表格可见" ≤ 300ms(本地 LCU 连接态,清空缓存后首开)
@@ -438,3 +438,4 @@ D3/方向D AI 增强(独立推进,可与 C 并行)
 | 版本 | 日期 | 变更 |
 |---|---|---|
 | v1.0 | 2026-08-11 | 初版:基于 codegraph 实测调研,含 A(性能)/B(UI)/C(出装)/D(AI) 四方向与里程碑 |
+| v1.1 | 2026-08-11 | **M0 完成**:A1 抽屉化(删 detailWindow.ts/MatchDetail.vue/路由/窗口权限与全部 match-detail- 判断);A2 批量段位 get_ranks_by_puuids(Rust join_all 并发 + moka 30min 缓存,前端共用模块级缓存);A3 列表页全量 10 人资源预载 + 删 visibleTeamCount hack。Rust 门禁因本机无工具链改由 GitHub Actions 兜底 |
