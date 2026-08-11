@@ -73,6 +73,8 @@
             :champion-options="championOptions"
             :class="{ 'list-item-flash': highlightedGameId === game.gameId }"
             @open-detail="openDetail(game)"
+            @hover-champion="emit('hover-champion', $event)"
+            @leave-champion="emit('leave-champion')"
           />
         </div>
       </TransitionGroup>
@@ -131,6 +133,14 @@ import MatchDetailModal from './MatchDetailModal.vue'
 import { useRecordAssets } from '@renderer/composables/useRecordAssets'
 import { recordAssetsKey } from '@renderer/composables/recordAssetsKey'
 import { createDefaultFilter, filterMatches } from './matchFilters'
+import { aggregateChampionPool, type ChampionPoolEntry } from './championPool'
+
+/** 英雄池联动：hover 行卡时把当前英雄 id 上抛给父级（左栏 HeroPool 高亮/展开） */
+const emit = defineEmits<{
+  'hover-champion': [championId: number]
+  'leave-champion': []
+  'pool-change': [entries: ChampionPoolEntry[]]
+}>()
 
 /**
  * 父级批量加载：一次性收集当前页所有战绩的 item/spell/perk ID 去重后下发 IPC。
@@ -225,6 +235,11 @@ const trendFiltered = computed(() =>
     championId: filterChampionId.value > 0 ? filterChampionId.value : 0
   })
 )
+
+/** 英雄池：从最近 50 场聚合（供左栏 HeroPool 联动，不改动 50 场窗口口径） */
+const championPool = computed<ChampionPoolEntry[]>(() => aggregateChampionPool(trendGames.value))
+
+watch(championPool, pool => emit('pool-change', pool), { immediate: true })
 
 /** 点击趋势格后的高亮对局 id（列表内定位用，闪烁后清除） */
 const highlightedGameId = ref<number | null>(null)

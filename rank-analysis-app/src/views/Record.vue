@@ -19,21 +19,29 @@
           :recent-data="recentData"
           :mode="mode"
           :is-cross-region="isCrossRegion"
+          :champion-pool="championPool"
+          :hovered-champion="hoveredChampion"
           @mode-change="updateMode"
         />
       </aside>
       <main class="record-content">
         <div class="record-content-inner">
-          <MatchHistory />
+          <MatchHistory
+            @hover-champion="hoveredChampion = $event"
+            @leave-champion="hoveredChampion = null"
+            @pool-change="championPool = $event"
+          />
         </div>
       </main>
     </div>
   </div>
 </template>
 <script lang="ts" setup>
+import { ref } from 'vue'
 import MatchHistory from '../components/record/MatchHistory.vue'
 import PlayerBar from '../components/record/PlayerBar.vue'
 import UserSidePanel from '../components/record/UserSidePanel.vue'
+import type { ChampionPoolEntry } from '../components/record/championPool'
 import { useBreakpoint } from '@renderer/composables/useBreakpoint'
 import { usePlayerRecordData } from '@renderer/composables/usePlayerRecordData'
 
@@ -50,6 +58,10 @@ const {
   isCrossRegion,
   updateMode
 } = usePlayerRecordData()
+
+/** 左栏英雄池数据与当前 hover 高亮（由 MatchHistory 上抛） */
+const championPool = ref<ChampionPoolEntry[]>([])
+const hoveredChampion = ref<number | null>(null)
 </script>
 <style scoped>
 /* 整页 token 覆盖:所有子组件 var(--font-size-*) 自动跟随 viewport 缩放 (1100→2200) */

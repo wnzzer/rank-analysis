@@ -6,6 +6,8 @@
     tabindex="0"
     @click="openDetail"
     @keyup.enter="openDetail"
+    @mouseenter="emit('hover-champion', games.participants[0].championId)"
+    @mouseleave="emit('leave-champion')"
   >
     <!-- 单行固定列网格：所有卡片共用同一套列轨道，行与行严格对齐 -->
     <div class="record-card-grid">
@@ -159,6 +161,8 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   'open-detail': []
+  'hover-champion': [championId: number]
+  'leave-champion': []
 }>()
 
 /** 优先使用父级（MatchHistory）批量预加载的资源；独立使用时退回自己的 preload */

@@ -34,6 +34,38 @@
       <span class="relationship-empty-text">近 20 场没有重复同排的玩家</span>
     </div>
 
+    <!-- Hero Pool：近 50 场英雄池，hover 战绩卡联动高亮 -->
+    <div v-if="!isCrossRegion && championPool.length > 0" class="hero-pool-card panel-glass">
+      <div class="hero-pool-header">英雄池（近{{ championPool.length }}场）</div>
+      <div class="hero-pool-list">
+        <div
+          v-for="entry in championPool"
+          :key="entry.championId"
+          class="hero-pool-row"
+          :class="{
+            'hero-pool-row-hovered': hoveredLocal === entry.championId,
+            'hero-pool-row-dimmed': hoveredLocal !== null && hoveredLocal !== entry.championId
+          }"
+          @mouseenter="hoveredLocal = entry.championId"
+          @mouseleave="hoveredLocal = null"
+        >
+          <img
+            :src="`${assetPrefix}/champion/${entry.championId}`"
+            class="hero-pool-champ-img"
+            alt=""
+          />
+          <span class="hero-pool-name">{{ championName(entry.championId) }}</span>
+          <span
+            class="font-number hero-pool-winrate"
+            :style="{ color: winRateColor(championWinRate(entry), isDark) }"
+          >
+            {{ championWinRate(entry) }}%
+          </span>
+          <span class="font-number hero-pool-count">{{ entry.count }}场</span>
+        </div>
+      </div>
+    </div>
+
     <!-- Rank Cards -->
     <n-flex v-if="!isCrossRegion" vertical :size="12">
       <RankCard label="单双排" :queue-info="rank.queueMap.RANKED_SOLO_5x5" :recent="solo5v5" />
@@ -52,14 +84,19 @@
 </template>
 
 <script lang="ts" setup>
-import { computed } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { NCard, NFlex, NText } from 'naive-ui'
+import { invoke } from '@tauri-apps/api/core'
 import { useSettingsStore } from '@renderer/pinia/setting'
+import { assetPrefix } from '@renderer/services/http'
+import { winRateColor } from '@renderer/utils/colors'
 import type { Rank, RecentWinRate } from '@renderer/types/domain/player'
 import type { RecentData } from '@renderer/types/domain/analysis'
+import type { championOption } from '@renderer/types/domain/champion'
 import RelationshipPanel from './RelationshipPanel.vue'
 import RankCard from './RankCard.vue'
 import RecentStatsTable from './RecentStatsTable.vue'
+import { championWinRate, type ChampionPoolEntry } from './championPool'
 
 const props = defineProps<{
   rank: Rank
@@ -68,6 +105,8 @@ const props = defineProps<{
   recentData: RecentData
   mode: string
   isCrossRegion: boolean
+  championPool: ChampionPoolEntry[]
+  hoveredChampion: number | null
 }>()
 
 const emit = defineEmits<{
@@ -89,6 +128,28 @@ const hasRelations = computed(
 const updateMode = (value: string | number, option: { label?: string }) => {
   emit('mode-change', value, option)
 }
+
+/** 英雄名映射：英雄池独立于战绩列表加载一次 */
+const championOptions = ref<championOption[]>([])
+onMounted(async () => {
+  try {
+    championOptions.value = await invoke<championOption[]>('get_champion_options')
+  } catch {
+    championOptions.value = []
+  }
+})
+
+/** 本地高亮（英雄池自身 hover），并跟随战绩卡 hover 上抛的 prop */
+const hoveredLocal = ref<number | null>(props.hoveredChampion)
+watch(
+  () => props.hoveredChampion,
+  value => {
+    hoveredLocal.value = value
+  }
+)
+
+const championName = (id: number) =>
+  championOptions.value.find(option => option.value === id)?.label ?? `英雄 ${id}`
 </script>
 
 <style lang="css" scoped>
@@ -150,5 +211,85 @@ const updateMode = (value: string | number, option: { label?: string }) => {
 
 .relationship-empty-text {
   color: var(--text-tertiary);
+}
+
+/* === Hero Pool === */
+.hero-pool-card {
+  padding: var(--space-8) var(--space-10);
+  border-radius: var(--radius-md);
+}
+
+.hero-pool-header {
+  font-size: var(--font-size-2xs);
+  font-weight: 600;
+  color: var(--text-tertiary);
+  margin-bottom: var(--space-6);
+}
+
+.hero-pool-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 220px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.hero-pool-list::-webkit-scrollbar {
+  display: none;
+}
+
+.hero-pool-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-4) var(--space-6);
+  border-radius: var(--radius-sm);
+  cursor: default;
+  transition:
+    background var(--dur-fast) var(--ease-expo),
+    opacity var(--dur-fast) var(--ease-expo);
+}
+
+.hero-pool-row:hover {
+  background: var(--glass-bg-low);
+}
+
+.hero-pool-row-hovered {
+  background: var(--glass-bg-low);
+  box-shadow: inset 2px 0 0 var(--accent-gold-deep);
+}
+
+.hero-pool-row-dimmed {
+  opacity: 0.45;
+}
+
+.hero-pool-champ-img {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.hero-pool-name {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hero-pool-winrate {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.hero-pool-count {
+  font-size: var(--font-size-2xs);
+  color: var(--text-tertiary);
+  white-space: nowrap;
 }
 </style>
