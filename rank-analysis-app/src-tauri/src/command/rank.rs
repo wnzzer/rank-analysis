@@ -112,7 +112,7 @@ static RANK_CACHE: LazyLock<Cache<String, Rank>> = LazyLock::new(|| {
 #[tauri::command]
 pub async fn get_ranks_by_puuids(puuids: Vec<String>) -> HashMap<String, Option<Rank>> {
     let results = futures::future::join_all(puuids.into_iter().map(|puuid| async move {
-        let rank = match RANK_CACHE.get(&puuid) {
+        let rank = match RANK_CACHE.get(&puuid).await {
             Some(rank) => Some(rank),
             None => RANK_CACHE
                 .try_get_with(puuid.clone(), async {
