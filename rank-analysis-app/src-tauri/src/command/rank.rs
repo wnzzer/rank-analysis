@@ -305,8 +305,8 @@ mod tests {
     async fn batch_returns_all_cached_ranks_without_touching_lcu() {
         let mut cached = Rank::default();
         cached.enrich_cn_info();
-        RANK_CACHE.insert("p-1".to_string(), cached.clone());
-        RANK_CACHE.insert("p-2".to_string(), cached.clone());
+        RANK_CACHE.insert("p-1".to_string(), cached.clone()).await;
+        RANK_CACHE.insert("p-2".to_string(), cached.clone()).await;
 
         let out = get_ranks_by_puuids(vec!["p-1".to_string(), "p-2".to_string()]).await;
 
