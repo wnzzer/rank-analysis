@@ -59,7 +59,12 @@
           :style="{ '--stagger-i': index }"
           class="list-item"
         >
-          <RecordCard :record-type="true" :games="game" @open-detail="openDetail(game)" />
+          <RecordCard
+            :record-type="true"
+            :games="game"
+            :champion-options="championOptions"
+            @open-detail="openDetail(game)"
+          />
         </div>
       </TransitionGroup>
 
