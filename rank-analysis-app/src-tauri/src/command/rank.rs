@@ -26,6 +26,11 @@
 //! ```
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::LazyLock;
+use std::time::Duration;
+
+use moka::future::Cache;
 
 use crate::lcu::api::{match_history::MatchHistory, rank::Rank, summoner::Summoner};
 
@@ -76,6 +81,56 @@ pub async fn get_rank_by_puuid(puuid: String) -> Result<Rank, String> {
         }
         Err(e) => Err(format!("Failed to get rank by puuid: {}", e)),
     }
+}
+
+/// 段位缓存：puuid → Rank。
+///
+/// 战绩详情页一局 10 人、用户反复翻详情，段位在一次客户端会话内几乎不变：
+/// 命中缓存不再打 LCU。TTL 30 分钟是防「用户注销换号 / 打了一把重置」这类
+/// 罕见变化的上限；失败不缓存（moka `try_get_with` 对 Err 不落缓存），
+/// 下次打开还能重试。
+static RANK_CACHE: LazyLock<Cache<String, Rank>> = LazyLock::new(|| {
+    Cache::builder()
+        .time_to_live(Duration::from_secs(30 * 60))
+        .max_capacity(500)
+        .build()
+});
+
+/// 批量按 PUUID 获取段位：单次 IPC 返回多人的段位（缓存命中不击穿 LCU）。
+///
+/// 详情页 10 人场景替代逐个 `get_rank_by_puuid`（10 次 IPC + 10 次 LCU 往返）。
+/// LCU 的 `ranked-stats` 端点本身带短缓存，但我们自己的缓存更长（30 分钟），
+/// 且 moka 对同 key 的并发加载自动去重——重复 puuid 只发一次上游请求。
+///
+/// # 参数
+///
+/// - `puuids`: 召唤师 PUUID 列表
+///
+/// # 返回值
+///
+/// puuid → 段位信息；查询失败/无数据的玩家为 `None`（不因一人失败拖垮整批）
+#[tauri::command]
+pub async fn get_ranks_by_puuids(puuids: Vec<String>) -> HashMap<String, Option<Rank>> {
+    let results = futures::future::join_all(puuids.into_iter().map(|puuid| async move {
+        let rank = match RANK_CACHE.get(&puuid) {
+            Some(rank) => Some(rank),
+            None => RANK_CACHE
+                .try_get_with(puuid.clone(), async {
+                    Rank::get_rank_by_puuid(&puuid)
+                        .await
+                        .map(|mut rank| {
+                            rank.enrich_cn_info();
+                            rank
+                        })
+                        .map_err(|e| e.to_string())
+                })
+                .await
+                .ok(),
+        };
+        (puuid, rank)
+    }))
+    .await;
+    results.into_iter().collect()
 }
 
 /// 胜率统计数据结构。
@@ -239,5 +294,47 @@ mod tests {
         assert_eq!(win_rate.wins, 7);
         assert_eq!(win_rate.losses, 3);
         assert_eq!(win_rate.win_rate, 70);
+    }
+
+    /// 批量接口的缓存复用路径：全部 puuid 已缓存时只回缓存、不触碰 LCU。
+    ///
+    /// 测试方法：预先向 RANK_CACHE 写入数据，再调批量接口——此时任何「未命中
+    /// 才发起上游请求」的实现都不会真的发起请求（请求目标 LCU 进程在测试环境
+    /// 不存在，会立刻报错），能拿到全部结果说明全部走了缓存。
+    #[tokio::test]
+    async fn batch_returns_all_cached_ranks_without_touching_lcu() {
+        let mut cached = Rank::default();
+        cached.enrich_cn_info();
+        RANK_CACHE.insert("p-1".to_string(), cached.clone());
+        RANK_CACHE.insert("p-2".to_string(), cached.clone());
+
+        let out = get_ranks_by_puuids(vec!["p-1".to_string(), "p-2".to_string()]).await;
+
+        assert!(out["p-1"].is_some());
+        assert!(out["p-2"].is_some());
+    }
+
+    /// 未缓存的 puuid：批量接口发起上游请求失败时返回 None 而非整体失败。
+    ///
+    /// 测试环境没有 LCU 进程，`ranked-stats` 请求必然失败——正好断言「单人不拖
+    /// 垮整批、失败不击穿缓存」的语义。缓存的成功路径由上一个用例覆盖。
+    #[tokio::test]
+    async fn batch_miss_returns_none_instead_of_failing_batch() {
+        let out = get_ranks_by_puuids(vec!["no-such-puuid".to_string()]).await;
+
+        assert!(out["no-such-puuid"].is_none());
+    }
+
+    /// 重复 puuid 去重：moka 对同 key 并发加载只发一次上游，返回 map 收敛为单个条目。
+    #[tokio::test]
+    async fn batch_deduplicates_duplicate_puuids_in_output() {
+        let out = get_ranks_by_puuids(vec![
+            "no-such-puuid".to_string(),
+            "no-such-puuid".to_string(),
+        ])
+        .await;
+
+        assert_eq!(out.len(), 1);
+        assert!(out["no-such-puuid"].is_none());
     }
 }

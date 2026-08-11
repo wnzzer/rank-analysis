@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 import { invoke } from '@tauri-apps/api/core'
-import { getRankByPuuid, clearRankCache } from '../rank'
+import { getRankByPuuid, getRanksByPuuids, clearRankCache } from '../rank'
 import type { Rank } from '@renderer/types/domain/player'
 
 const mockInvoke = vi.mocked(invoke)
@@ -111,5 +111,68 @@ describe('rank service: getRankByPuuid caching', () => {
     expect(a?.queueMap.RANKED_SOLO_5x5.tier).toBe('BRONZE')
     expect(b?.queueMap.RANKED_SOLO_5x5.tier).toBe('PLATINUM')
     expect(mockInvoke).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('rank service: getRanksByPuuids batch', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    clearRankCache()
+  })
+
+  it('fetches missing puuids in a single batch invoke, returning per-player results', async () => {
+    mockInvoke.mockResolvedValue({ p1: makeRank('GOLD'), p2: null })
+
+    const out = await getRanksByPuuids(['p1', 'p2'])
+
+    expect(mockInvoke).toHaveBeenCalledTimes(1)
+    expect(mockInvoke).toHaveBeenCalledWith('get_ranks_by_puuids', { puuids: ['p1', 'p2'] })
+    expect(out.p1?.queueMap.RANKED_SOLO_5x5.tier).toBe('GOLD')
+    expect(out.p2).toBeNull()
+  })
+
+  it('filters empty puuids and dedupes duplicates before invoking', async () => {
+    mockInvoke.mockResolvedValue({ p1: makeRank('GOLD') })
+
+    const out = await getRanksByPuuids(['p1', 'p1', '', 'p1'])
+
+    expect(mockInvoke).toHaveBeenCalledWith('get_ranks_by_puuids', { puuids: ['p1'] })
+    expect(out.p1?.queueMap.RANKED_SOLO_5x5.tier).toBe('GOLD')
+  })
+
+  it('serves already-cached puuids without invoking again and merges with fresh ones', async () => {
+    mockInvoke.mockResolvedValueOnce(makeRank('DIAMOND'))
+    await getRankByPuuid('cached-1')
+
+    mockInvoke.mockResolvedValue({ fresh: makeRank('PLATINUM') })
+    const out = await getRanksByPuuids(['cached-1', 'fresh'])
+
+    expect(mockInvoke).toHaveBeenCalledTimes(2)
+    expect(mockInvoke).toHaveBeenCalledWith('get_ranks_by_puuids', { puuids: ['fresh'] })
+    expect(out['cached-1']?.queueMap.RANKED_SOLO_5x5.tier).toBe('DIAMOND')
+    expect(out.fresh?.queueMap.RANKED_SOLO_5x5.tier).toBe('PLATINUM')
+  })
+
+  it('throws on a whole-batch failure and leaves nothing cached for retry', async () => {
+    mockInvoke.mockRejectedValue(new Error('LCU offline'))
+
+    await expect(getRanksByPuuids(['p1'])).rejects.toThrow('LCU offline')
+
+    // 失败不写缓存：下一次调用会重新发起请求
+    mockInvoke.mockResolvedValue({ p1: makeRank('SILVER') })
+    const out = await getRanksByPuuids(['p1'])
+    expect(out.p1?.queueMap.RANKED_SOLO_5x5.tier).toBe('SILVER')
+    expect(mockInvoke).toHaveBeenCalledTimes(2)
+  })
+
+  it('caches successful batch results, so later single lookups skip IPC', async () => {
+    mockInvoke.mockResolvedValue({ p1: makeRank('GOLD') })
+
+    const batch = await getRanksByPuuids(['p1'])
+    expect(batch.p1?.queueMap.RANKED_SOLO_5x5.tier).toBe('GOLD')
+
+    const single = await getRankByPuuid('p1')
+    expect(single?.queueMap.RANKED_SOLO_5x5.tier).toBe('GOLD')
+    expect(mockInvoke).toHaveBeenCalledTimes(1)
   })
 })

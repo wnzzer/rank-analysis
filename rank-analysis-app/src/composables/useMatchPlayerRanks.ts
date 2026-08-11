@@ -6,7 +6,7 @@
  */
 
 import { computed, ref, watch, type MaybeRefOrGetter, toValue } from 'vue'
-import { getRankByPuuid } from '@renderer/services/rank'
+import { getRanksByPuuids } from '@renderer/services/rank'
 import {
   hasRealTier,
   formatTierText,
@@ -49,19 +49,19 @@ export function useMatchPlayerRanks(
     const targets = [...new Set(puuids.filter(Boolean))].filter(p => !(p in ranksByPuuid.value))
     if (targets.length === 0) return
 
-    // Promise.allSettled：一个玩家取段位失败不影响其余玩家展示。
-    // getRankByPuuid 当前实现（services/rank.ts）内部 try/catch 吞掉了所有异常、恒 resolve，
-    // 所以严格来说 rejected 分支现在走不到——但这是"服务层承诺不抛错"这个隐式契约，不是
-    // 这个 composable 该依赖的东西。换成 Promise.all 能省一行，代价是一旦服务层实现变化
-    // （或换成别的抛错实现），一个玩家的失败就会让 loadRanks 整体 reject、10 人全部拿不到
-    // 段位。这里的防御成本几乎为零，保留。
-    const results = await Promise.allSettled(targets.map(puuid => getRankByPuuid(puuid)))
-    const next = { ...ranksByPuuid.value }
-    targets.forEach((puuid, i) => {
-      const result = results[i]
-      next[puuid] = result.status === 'fulfilled' ? result.value : null
-    })
-    ranksByPuuid.value = next
+    // 一次 IPC 拿整批（Rust 侧并发 + 30min 缓存），单人失败返回 null 不拖垮整批。
+    // 整批失败时不写 ranksByPuuid——下次打开详情还能重试。
+    try {
+      const results = await getRanksByPuuids(targets)
+      const next = { ...ranksByPuuid.value }
+      for (const puuid of targets) {
+        // 整体失败时 results 缺该 key → 跳过，不标记"已请求"，保留下次重试机会
+        if (puuid in results) next[puuid] = results[puuid]
+      }
+      ranksByPuuid.value = next
+    } catch (error) {
+      console.warn('[useMatchPlayerRanks] batch rank lookup failed:', error)
+    }
   }
 
   watch(

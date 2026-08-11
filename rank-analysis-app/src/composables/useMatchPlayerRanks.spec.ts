@@ -2,7 +2,7 @@
  * useMatchPlayerRanks 单元测试
  *
  * 重点：puuid → 展示数据的映射是否遵循 hasRealTier / 队列选择规则，
- * 以及批量请求失败时不影响其余玩家（Promise.allSettled 语义）。
+ * 以及批量请求中单人失败时不影响其余玩家（服务层批量语义）。
  * 缓存/去重本身的行为由 services/rank.spec.ts 覆盖，这里不重复测。
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
@@ -10,11 +10,11 @@ import { defineComponent, ref, nextTick } from 'vue'
 import { mount } from '@vue/test-utils'
 import type { Rank } from '@renderer/types/domain/player'
 
-vi.mock('@renderer/services/rank', () => ({ getRankByPuuid: vi.fn() }))
-import { getRankByPuuid } from '@renderer/services/rank'
+vi.mock('@renderer/services/rank', () => ({ getRanksByPuuids: vi.fn() }))
+import { getRanksByPuuids } from '@renderer/services/rank'
 import { useMatchPlayerRanks } from './useMatchPlayerRanks'
 
-const mockGetRank = vi.mocked(getRankByPuuid)
+const mockGetRanks = vi.mocked(getRanksByPuuids)
 
 function makeRank(soloTier: string, flexTier = '', soloLeaguePoints = 40): Rank {
   return {
@@ -72,13 +72,13 @@ describe('useMatchPlayerRanks', () => {
   })
 
   it('maps puuid to short/tooltip text using the solo queue for a 420 game', async () => {
-    mockGetRank.mockResolvedValueOnce(makeRank('DIAMOND'))
+    mockGetRanks.mockResolvedValue({ p1: makeRank('DIAMOND') })
     const players = ref([{ puuid: 'p1' }])
     const { result } = withSetup(() => useMatchPlayerRanks(players, ref(420)))
 
     await flush()
 
-    expect(mockGetRank).toHaveBeenCalledWith('p1')
+    expect(mockGetRanks).toHaveBeenCalledWith(['p1'])
     const tier = result.tiersByPuuid.value.p1
     expect(tier).not.toBeNull()
     // tierCn 是测试用的原始英文 tier 值，short 只取后两字：'DIAMOND'.slice(-2) === 'ND'
@@ -91,7 +91,7 @@ describe('useMatchPlayerRanks', () => {
   // 详情页紧凑徽章是固定宽度槽位，带着胜点拼接会溢出撑破布局、挤到玩家名字上——
   // shortText 必须省略胜点数字，完整胜点仍要留在 tooltip 里（不能因为紧凑处省略就整体丢失）
   it('omits the league points number from the compact badge for a high tier, but keeps it in the tooltip', async () => {
-    mockGetRank.mockResolvedValueOnce(makeRank('CHALLENGER', '', 1234))
+    mockGetRanks.mockResolvedValue({ p1: makeRank('CHALLENGER', '', 1234) })
     const players = ref([{ puuid: 'p1' }])
     const { result } = withSetup(() => useMatchPlayerRanks(players, ref(420)))
 
@@ -106,7 +106,7 @@ describe('useMatchPlayerRanks', () => {
   })
 
   it('uses the flex queue tier for a 440 game when flex has real data', async () => {
-    mockGetRank.mockResolvedValueOnce(makeRank('SILVER', 'GOLD'))
+    mockGetRanks.mockResolvedValue({ p1: makeRank('SILVER', 'GOLD') })
     const players = ref([{ puuid: 'p1' }])
     const { result } = withSetup(() => useMatchPlayerRanks(players, ref(440)))
 
@@ -117,7 +117,7 @@ describe('useMatchPlayerRanks', () => {
   })
 
   it('falls back to solo queue for a 440 game when flex has no tier data', async () => {
-    mockGetRank.mockResolvedValueOnce(makeRank('SILVER', ''))
+    mockGetRanks.mockResolvedValue({ p1: makeRank('SILVER', '') })
     const players = ref([{ puuid: 'p1' }])
     const { result } = withSetup(() => useMatchPlayerRanks(players, ref(440)))
 
@@ -127,8 +127,8 @@ describe('useMatchPlayerRanks', () => {
   })
 
   it('yields null for a player whose rank request failed, without affecting others', async () => {
-    // getRankByPuuid 的真实实现失败时返回 null 而非抛错（见 services/rank.ts），这里模拟该约定
-    mockGetRank.mockResolvedValueOnce(null).mockResolvedValueOnce(makeRank('GOLD'))
+    // 批量接口的单人失败语义：该 puuid 返回 null 而非抛错（见 services/rank.ts）
+    mockGetRanks.mockResolvedValue({ fail: null, ok: makeRank('GOLD') })
 
     const players = ref([{ puuid: 'fail' }, { puuid: 'ok' }])
     const { result } = withSetup(() => useMatchPlayerRanks(players, ref(420)))
@@ -140,7 +140,7 @@ describe('useMatchPlayerRanks', () => {
   })
 
   it('yields null for unranked players instead of leaking placeholder text', async () => {
-    mockGetRank.mockResolvedValueOnce(makeRank('UNRANKED'))
+    mockGetRanks.mockResolvedValue({ p1: makeRank('UNRANKED') })
     const players = ref([{ puuid: 'p1' }])
     const { result } = withSetup(() => useMatchPlayerRanks(players, ref(420)))
 
@@ -149,13 +149,34 @@ describe('useMatchPlayerRanks', () => {
     expect(result.tiersByPuuid.value.p1).toBeNull()
   })
 
-  it('skips players with an empty puuid without calling getRankByPuuid for them', async () => {
+  it('skips players with an empty puuid without calling getRanksByPuuids for them', async () => {
     const players = ref([{ puuid: '' }])
     const { result } = withSetup(() => useMatchPlayerRanks(players, ref(420)))
 
     await flush()
 
-    expect(mockGetRank).not.toHaveBeenCalled()
+    expect(mockGetRanks).not.toHaveBeenCalled()
     expect(result.tiersByPuuid.value).toEqual({})
+  })
+
+  it('batch failure degrades to null but stays retryable on the next lookup', async () => {
+    mockGetRanks
+      .mockRejectedValueOnce(new Error('LCU offline'))
+      .mockResolvedValueOnce({ p1: makeRank('GOLD'), p2: makeRank('SILVER') })
+    const players = ref([{ puuid: 'p1' }])
+    const { result } = withSetup(() => useMatchPlayerRanks(players, ref(420)))
+
+    await flush()
+
+    // 展示层降级为 null，不抛错
+    expect(result.tiersByPuuid.value.p1).toBeNull()
+
+    // 整体失败不落「已请求过」标记：下次列表变化时同一批 puuid 会重新发起
+    players.value = [{ puuid: 'p1' }, { puuid: 'p2' }]
+    await flush()
+
+    expect(mockGetRanks).toHaveBeenCalledTimes(2)
+    expect(mockGetRanks).toHaveBeenLastCalledWith(['p1', 'p2'])
+    expect(result.tiersByPuuid.value.p1).not.toBeNull()
   })
 })
