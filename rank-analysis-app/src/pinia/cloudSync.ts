@@ -7,7 +7,6 @@ import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import { getCurrentWindow } from '@tauri-apps/api/window'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import { CONFIG_KEYS } from '@renderer/services/configKeys'
 import { lcuConnected } from '@renderer/composables/useGameState'
@@ -25,21 +24,12 @@ const AUTO_PUSH_DEBOUNCE_MS = 30_000
 const AUTO_PUSH_RETRY_MS = 5_000
 
 /**
- * 是否为独立战绩详情窗口（label 形如 `match-detail-*`，见 detailWindow.ts）。
- * 每个 WebviewWindow 都会执行 main.ts，同步职责只由主窗口承担——
- * 否则开 N 个详情窗口就是 N 份 pull+push，一次备注广播会调度 N 个防抖同步。
- */
-function isStandaloneDetailWindow(): boolean {
-  return getCurrentWindow().label.startsWith('match-detail-')
-}
-
-/**
  * 云同步编排 store
  *
  * 职责：开关状态 + 同步流程编排（取 puuid → 拉取 → 并入 notes store → 推送）。
  * 合并语义在 utils/mergePlayerNotes，网络在 Rust command，本 store 不碰两者细节。
  * 触发时机：app 启动（开关开时）、LCU 连接建立后补触发、设置页手动、
- * 开关打开时、备注变更后防抖推送。同步流程只在主窗口跑（详情窗口只读开关）。
+ * 开关打开时、备注变更后防抖推送。同步流程只在 app 启动时注册一次。
  * 配置同步：首次经用户确认，之后整份后写胜（LWW）；变更经 config-changed 事件走同一防抖。
  *
  * 注意：云端拉取必须发生在 importNotes 之外——importNotes 的读-合-写临界区是
@@ -219,7 +209,7 @@ export const useCloudSyncStore = defineStore('cloudSync', () => {
    * 云同步 pull 合并的写入不该再调度下一轮同步，否则形成自触发回环。
    */
   function startAutoPush(): void {
-    if (autoPushStarted || isStandaloneDetailWindow()) return
+    if (autoPushStarted) return
     autoPushStarted = true
     const notesStore = usePlayerNotesStore()
     watch(() => notesStore.userMutationSeq, scheduleAutoPush)
@@ -253,8 +243,6 @@ export const useCloudSyncStore = defineStore('cloudSync', () => {
     } catch {
       enabled.value = false
     }
-    // 详情窗口只镜像开关状态，不承担同步（见 isStandaloneDetailWindow）
-    if (isStandaloneDetailWindow()) return
     startConnectionRetrigger()
     startConfigWatch()
     if (enabled.value) {

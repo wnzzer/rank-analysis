@@ -1,521 +1,543 @@
 <template>
-  <div v-if="game && mySummary" class="match-detail-page">
-    <div class="match-detail-modal">
-      <div class="match-detail-shell">
-        <!-- Header -->
-        <div
-          class="match-detail-header"
-          :class="mySummary.win ? 'match-detail-header--win' : 'match-detail-header--loss'"
-        >
-          <!-- 氛围底图：本局英雄放大重模糊，向右渐隐——赛后战报的环境感 -->
-          <img
-            class="match-detail-header-ambient"
-            :src="assetPrefix + '/champion/' + mySummary.championId"
-            alt=""
-            aria-hidden="true"
-          />
-          <div class="match-detail-header-main">
-            <div class="match-detail-title-row">
-              <span
-                class="match-detail-result-pill"
-                :class="
-                  mySummary.win ? 'match-detail-result-pill--win' : 'match-detail-result-pill--loss'
-                "
-              >
-                {{ mySummary.win ? '胜利' : '失败' }}
-              </span>
-              <span class="match-detail-queue">{{ game.queueName }}</span>
-              <span class="match-detail-meta">{{ formattedDate }} · {{ durationLabel }}</span>
-            </div>
-            <div class="match-detail-player-row">
-              <LazyImg
-                class="match-detail-hero"
-                :class="mySummary.win ? 'match-detail-hero--win' : 'match-detail-hero--loss'"
+  <n-drawer
+    :show="drawerVisible"
+    placement="right"
+    :width="drawerWidth"
+    @update:show="onDrawerShowChange"
+  >
+    <n-drawer-content
+      class="match-detail-drawer-content"
+      :native-scrollbar="false"
+      :body-content-style="{ padding: '0', height: '100%' }"
+      closable
+    >
+      <div v-if="game && mySummary" class="match-detail-page">
+        <div class="match-detail-modal">
+          <div class="match-detail-shell">
+            <!-- Header -->
+            <div
+              class="match-detail-header"
+              :class="mySummary.win ? 'match-detail-header--win' : 'match-detail-header--loss'"
+            >
+              <!-- 氛围底图：本局英雄放大重模糊，向右渐隐——赛后战报的环境感 -->
+              <img
+                class="match-detail-header-ambient"
                 :src="assetPrefix + '/champion/' + mySummary.championId"
-                alt="champion"
+                alt=""
+                aria-hidden="true"
               />
-              <div class="match-detail-player-copy">
-                <div class="match-detail-player-name">{{ mySummary.displayName }}</div>
-                <div class="match-detail-player-kda">
-                  <span class="font-number">{{ mySummary.stats.kills }}</span>
-                  <span>/</span>
+              <div class="match-detail-header-main">
+                <div class="match-detail-title-row">
                   <span
-                    class="font-number"
-                    :style="{ color: deathsColor(mySummary.stats.deaths, isDark) }"
-                    >{{ mySummary.stats.deaths }}</span
+                    class="match-detail-result-pill"
+                    :class="
+                      mySummary.win
+                        ? 'match-detail-result-pill--win'
+                        : 'match-detail-result-pill--loss'
+                    "
                   >
-                  <span>/</span>
-                  <span class="font-number">{{ mySummary.stats.assists }}</span>
-                  <span
-                    class="font-number match-detail-kda-ratio"
-                    :style="{ color: kdaColor(kdaRatio(mySummary.stats), isDark) }"
-                  >
-                    {{ kdaRatioLabel(mySummary.stats) }}
+                    {{ mySummary.win ? '胜利' : '失败' }}
                   </span>
-                  <span class="match-detail-meta"
-                    >{{ formatCompactNumber(mySummary.stats.goldEarned) }} 金币</span
-                  >
-                  <span class="match-detail-meta">{{ totalCs(mySummary.stats) }} 补兵</span>
+                  <span class="match-detail-queue">{{ game.queueName }}</span>
+                  <span class="match-detail-meta">{{ formattedDate }} · {{ durationLabel }}</span>
+                </div>
+                <div class="match-detail-player-row">
+                  <LazyImg
+                    class="match-detail-hero"
+                    :class="mySummary.win ? 'match-detail-hero--win' : 'match-detail-hero--loss'"
+                    :src="assetPrefix + '/champion/' + mySummary.championId"
+                    alt="champion"
+                  />
+                  <div class="match-detail-player-copy">
+                    <div class="match-detail-player-name">{{ mySummary.displayName }}</div>
+                    <div class="match-detail-player-kda">
+                      <span class="font-number">{{ mySummary.stats.kills }}</span>
+                      <span>/</span>
+                      <span
+                        class="font-number"
+                        :style="{ color: deathsColor(mySummary.stats.deaths, isDark) }"
+                        >{{ mySummary.stats.deaths }}</span
+                      >
+                      <span>/</span>
+                      <span class="font-number">{{ mySummary.stats.assists }}</span>
+                      <span
+                        class="font-number match-detail-kda-ratio"
+                        :style="{ color: kdaColor(kdaRatio(mySummary.stats), isDark) }"
+                      >
+                        {{ kdaRatioLabel(mySummary.stats) }}
+                      </span>
+                      <span class="match-detail-meta"
+                        >{{ formatCompactNumber(mySummary.stats.goldEarned) }} 金币</span
+                      >
+                      <span class="match-detail-meta">{{ totalCs(mySummary.stats) }} 补兵</span>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
 
-          <div class="match-detail-summary-side">
-            <div class="match-detail-stats-strip">
-              <div class="match-detail-stat">
-                <span class="match-detail-stat-label">输出</span>
-                <span class="match-detail-stat-value font-number">
-                  {{ formatCompactNumber(mySummary.stats.totalDamageDealtToChampions) }}
-                </span>
-              </div>
-              <span class="match-detail-stat-divider" />
-              <div class="match-detail-stat">
-                <span class="match-detail-stat-label">承伤</span>
-                <span class="match-detail-stat-value font-number">
-                  {{ formatCompactNumber(mySummary.stats.totalDamageTaken) }}
-                </span>
-              </div>
-              <span class="match-detail-stat-divider" />
-              <div class="match-detail-stat">
-                <span class="match-detail-stat-label">推塔</span>
-                <span class="match-detail-stat-value font-number">
-                  {{ formatCompactNumber(mySummary.stats.damageDealtToTurrets) }}
-                </span>
-              </div>
-            </div>
+              <div class="match-detail-summary-side">
+                <div class="match-detail-stats-strip">
+                  <div class="match-detail-stat">
+                    <span class="match-detail-stat-label">输出</span>
+                    <span class="match-detail-stat-value font-number">
+                      {{ formatCompactNumber(mySummary.stats.totalDamageDealtToChampions) }}
+                    </span>
+                  </div>
+                  <span class="match-detail-stat-divider" />
+                  <div class="match-detail-stat">
+                    <span class="match-detail-stat-label">承伤</span>
+                    <span class="match-detail-stat-value font-number">
+                      {{ formatCompactNumber(mySummary.stats.totalDamageTaken) }}
+                    </span>
+                  </div>
+                  <span class="match-detail-stat-divider" />
+                  <div class="match-detail-stat">
+                    <span class="match-detail-stat-label">推塔</span>
+                    <span class="match-detail-stat-value font-number">
+                      {{ formatCompactNumber(mySummary.stats.damageDealtToTurrets) }}
+                    </span>
+                  </div>
+                </div>
 
-            <n-tooltip trigger="hover" placement="bottom-end">
-              <template #trigger>
-                <!--
+                <n-tooltip trigger="hover" placement="bottom-end">
+                  <template #trigger>
+                    <!--
                   进行中刻意不使用 :loading —— naive-ui Button 在 loading 态
                   根本不 emit click（Button.mjs:146），会让"进行中"意外等价于
                   "永久不可点"。这里只用 disabled 表达真正的不可用（客户端没开、
                   版本不符等），进行中靠 spin 图标与文案表达，语义不混。
                 -->
-                <n-button
-                  size="small"
-                  secondary
-                  class="match-detail-replay-button"
-                  :disabled="!replay.canPlay.value"
-                  @click="replay.play"
-                >
-                  <template #icon>
-                    <n-spin v-if="replay.busy.value" :size="14" />
-                    <n-icon v-else><PlayCircleOutline /></n-icon>
+                    <n-button
+                      size="small"
+                      secondary
+                      class="match-detail-replay-button"
+                      :disabled="!replay.canPlay.value"
+                      @click="replay.play"
+                    >
+                      <template #icon>
+                        <n-spin v-if="replay.busy.value" :size="14" />
+                        <n-icon v-else><PlayCircleOutline /></n-icon>
+                      </template>
+                      {{ replay.buttonLabel.value }}
+                    </n-button>
                   </template>
-                  {{ replay.buttonLabel.value }}
-                </n-button>
-              </template>
-              {{ replay.disabledReason.value || '在游戏客户端中观看本局回放' }}
-            </n-tooltip>
+                  {{ replay.disabledReason.value || '在游戏客户端中观看本局回放' }}
+                </n-tooltip>
 
-            <n-tooltip trigger="hover" placement="bottom-end">
-              <template #trigger>
-                <!--
+                <n-tooltip trigger="hover" placement="bottom-end">
+                  <template #trigger>
+                    <!--
                   刻意不用 :loading —— naive-ui Button 在 loading 时根本不 emit click
                   （node_modules/naive-ui/es/button/src/Button.mjs:146），关掉面板后
                   就再也点不回来。进行中改用 spin 图标表达，按钮始终可点。
                 -->
-                <n-button
-                  size="small"
-                  secondary
-                  type="info"
-                  class="match-detail-ai-button"
-                  @click="onOverview"
-                >
-                  <template #icon>
-                    <n-spin v-if="ai.aiLoading.value" :size="14" />
-                    <n-icon v-else><SparklesOutline /></n-icon>
+                    <n-button
+                      size="small"
+                      secondary
+                      type="info"
+                      class="match-detail-ai-button"
+                      @click="onOverview"
+                    >
+                      <template #icon>
+                        <n-spin v-if="ai.aiLoading.value" :size="14" />
+                        <n-icon v-else><SparklesOutline /></n-icon>
+                      </template>
+                      AI 整局复盘
+                    </n-button>
                   </template>
-                  AI 整局复盘
-                </n-button>
-              </template>
-              整局归因 + 单人责任分析
-            </n-tooltip>
-          </div>
-        </div>
+                  整局归因 + 单人责任分析
+                </n-tooltip>
+              </div>
+            </div>
 
-        <!-- Team Sections -->
-        <!--
+            <!-- Team Sections -->
+            <!--
           首屏分批渲染：胜方先入场（~50 张图先 race），败方延迟 80ms。
           浏览器对 asset.localhost 并发限制 ~6/host，一次性 100+ 图同时请求会
           排队拖慢首屏；错峰让胜方先抢满 channel，败方再补位。
         -->
-        <div class="match-detail-body">
-          <section
-            v-for="(team, teamIdx) in teamSections"
-            v-show="teamIdx < visibleTeamCount"
-            :key="team.teamId"
-            class="match-detail-team-section"
-          >
-            <div class="match-detail-team-header" :class="team.headerClass">
-              <div class="match-detail-team-title-wrap">
-                <span class="match-detail-team-accent" />
-                <span class="match-detail-team-title">{{ team.title }}</span>
-                <span class="match-detail-team-subtitle font-number">
-                  {{ team.kills }}/{{ team.deaths }}/{{ team.assists }} ·
-                  {{ formatCompactNumber(team.gold) }} 金币
-                </span>
-              </div>
-              <div class="match-detail-team-subtitle font-number">
-                输出 {{ formatCompactNumber(team.damage) }} · 承伤
-                {{ formatCompactNumber(team.taken) }}
-              </div>
-            </div>
-
-            <div class="match-detail-team-card">
-              <div class="match-detail-column-header">
-                <span>玩家</span>
-                <span>技能 / {{ usesAugments ? '海克斯' : '符文' }} / 装备</span>
-                <span class="match-detail-header-right">KDA</span>
-                <span class="match-detail-header-right">金钱</span>
-                <span class="match-detail-header-right">补兵</span>
-                <span class="match-detail-header-right">推塔</span>
-                <span class="match-detail-bars-header">输出 / 承伤 / 治疗</span>
-              </div>
-
-              <div class="match-detail-team-rows">
-                <div
-                  v-for="player in team.players"
-                  :key="player.participantId"
-                  class="match-detail-row"
-                  :class="{ 'match-detail-row-me': player.isMe }"
-                >
-                  <div class="match-detail-player-cell">
-                    <div class="match-detail-player-main">
-                      <LazyImg
-                        class="match-detail-player-avatar"
-                        :src="assetPrefix + '/champion/' + player.championId"
-                        alt="champion"
-                      />
-                      <!-- 段位：固定宽度占位——即便无数据/未定级/请求失败也不渲染内容，
-                           但槽位一直在，避免十行名字因为有的有段位、有的没有而参差不齐 -->
-                      <div class="match-detail-player-rank">
-                        <n-tooltip v-if="playerTier(player)" trigger="hover" placement="top">
-                          <template #trigger>
-                            <span class="match-detail-rank-badge">
-                              <img
-                                :src="playerTier(player)?.imgUrl"
-                                class="match-detail-rank-icon"
-                                alt="段位"
-                              />
-                              <span class="match-detail-rank-text">{{
-                                playerTier(player)?.shortText
-                              }}</span>
-                            </span>
-                          </template>
-                          {{ playerTier(player)?.tooltipText }}
-                        </n-tooltip>
-                      </div>
-                      <div class="match-detail-player-text">
-                        <div class="match-detail-player-text-row">
-                          <n-tooltip v-if="player.mvpTag" trigger="hover" placement="top">
-                            <template #trigger>
-                              <span
-                                class="match-detail-mvp-chip"
-                                :class="
-                                  player.mvpTag === 'MVP'
-                                    ? 'match-detail-mvp-chip--mvp'
-                                    : 'match-detail-mvp-chip--svp'
-                                "
-                                >{{ player.mvpTag }}</span
-                              >
-                            </template>
-                            综合评分 {{ player.score.toFixed(1) }} ·
-                            KDA/输出/参团/承伤/经济/补刀/推塔 七维加权
-                          </n-tooltip>
-                          <span class="match-detail-player-display">{{ player.displayName }}</span>
-                          <n-button
-                            text
-                            size="tiny"
-                            class="match-detail-player-copy"
-                            @click.stop="copy(player.displayName)"
-                          >
-                            <template #icon>
-                              <n-icon><CopyOutline /></n-icon>
-                            </template>
-                          </n-button>
-                          <span v-if="player.puuid" @click.stop>
-                            <PlayerNoteBadge
-                              :puuid="player.puuid"
-                              :game-name="player.gameName"
-                              :tag-line="player.tagLine"
-                              :encounter="buildEncounter(player)"
-                              size="normal"
-                            />
-                          </span>
-                          <n-tag v-if="player.isMe" size="small" :bordered="false" type="success"
-                            >我</n-tag
-                          >
-                          <n-tooltip trigger="hover" placement="top">
-                            <template #trigger>
-                              <n-button
-                                quaternary
-                                circle
-                                size="tiny"
-                                class="match-detail-player-ai-trigger"
-                                :class="{
-                                  'match-detail-player-ai-trigger--busy':
-                                    ai.aiLoading.value &&
-                                    ai.aiMode.value === 'player' &&
-                                    ai.aiTargetParticipantId.value === player.participantId
-                                }"
-                                @click.stop="ai.openPlayerAnalysis(player.participantId)"
-                              >
-                                <template #icon>
-                                  <n-spin
-                                    v-if="
-                                      ai.aiLoading.value &&
-                                      ai.aiMode.value === 'player' &&
-                                      ai.aiTargetParticipantId.value === player.participantId
-                                    "
-                                    :size="12"
-                                  />
-                                  <n-icon v-else><SparklesOutline /></n-icon>
-                                </template>
-                              </n-button>
-                            </template>
-                            AI 单人分析
-                          </n-tooltip>
-                        </div>
-                        <div class="match-detail-badge-row">
-                          <n-tooltip
-                            v-for="badge in player.badges"
-                            :key="badge.key"
-                            trigger="hover"
-                            placement="top"
-                          >
-                            <template #trigger>
-                              <span class="match-detail-badge-icon" :class="badge.className">
-                                <n-icon :size="10">
-                                  <component :is="badge.icon" />
-                                </n-icon>
-                              </span>
-                            </template>
-                            {{ badge.label }}
-                          </n-tooltip>
-                        </div>
-                      </div>
-                    </div>
+            <div class="match-detail-body">
+              <section
+                v-for="(team, teamIdx) in teamSections"
+                v-show="teamIdx < visibleTeamCount"
+                :key="team.teamId"
+                class="match-detail-team-section"
+              >
+                <div class="match-detail-team-header" :class="team.headerClass">
+                  <div class="match-detail-team-title-wrap">
+                    <span class="match-detail-team-accent" />
+                    <span class="match-detail-team-title">{{ team.title }}</span>
+                    <span class="match-detail-team-subtitle font-number">
+                      {{ team.kills }}/{{ team.deaths }}/{{ team.assists }} ·
+                      {{ formatCompactNumber(team.gold) }} 金币
+                    </span>
                   </div>
-
-                  <div class="match-detail-build-cell">
-                    <div class="match-detail-build-topline">
-                      <div class="match-detail-spells">
-                        <n-tooltip
-                          v-for="(spellId, index) in [player.spell1Id, player.spell2Id]"
-                          :key="`${player.participantId}-spell-${spellId}-${index}`"
-                          trigger="hover"
-                          placement="top"
-                          :disabled="!assets.detailOf('spell', spellId)"
-                        >
-                          <template #trigger>
-                            <img
-                              :src="assets.srcOf('spell', spellId)"
-                              class="match-detail-spell-icon"
-                              alt="spell"
-                              loading="lazy"
-                              decoding="async"
-                            />
-                          </template>
-                          <AssetTooltipContent
-                            v-if="assets.detailOf('spell', spellId)"
-                            :icon-src="assets.srcOf('spell', spellId)"
-                            :name="assets.detailOf('spell', spellId)?.name ?? ''"
-                            :description="assets.detailOf('spell', spellId)?.description ?? ''"
-                          />
-                        </n-tooltip>
-                      </div>
-                      <!-- 符文/海克斯都跟 spells 同行 (密集布局) -->
-                      <div class="match-detail-perks">
-                        <n-tooltip
-                          v-for="(perkId, index) in displayedPerkIds(player.stats)"
-                          :key="`${player.participantId}-perk-${perkId}-${index}`"
-                          trigger="hover"
-                          placement="top"
-                          :disabled="!usesAugments && !assets.detailOf('perk', perkId)"
-                        >
-                          <template #trigger>
-                            <span
-                              v-if="usesAugments"
-                              :class="[
-                                'match-detail-augment-icon-shell',
-                                augmentRarityClass(
-                                  assets.detailOf('perk', perkId)?.rarity,
-                                  'match-detail-augment'
-                                )
-                              ]"
-                            >
-                              <img
-                                :src="assets.srcOf('perk', perkId)"
-                                class="match-detail-augment-icon"
-                                alt="augment"
-                                loading="lazy"
-                                decoding="async"
-                              />
-                            </span>
-                            <img
-                              v-else
-                              :src="assets.srcOf('perk', perkId)"
-                              :class="[
-                                'match-detail-perk-icon',
-                                { 'match-detail-perk-icon-sub': index === 1 }
-                              ]"
-                              alt="perk"
-                              loading="lazy"
-                              decoding="async"
-                            />
-                          </template>
-                          <AssetTooltipContent
-                            :icon-src="assets.srcOf('perk', perkId)"
-                            :name="
-                              assets.detailOf('perk', perkId)?.name ??
-                              (usesAugments ? `海克斯 #${perkId}` : `符文 #${perkId}`)
-                            "
-                            :description="assets.detailOf('perk', perkId)?.description ?? ''"
-                            :rarity="assets.detailOf('perk', perkId)?.rarity"
-                          />
-                        </n-tooltip>
-                      </div>
-                    </div>
-                    <div class="match-detail-items">
-                      <template
-                        v-for="(itemId, index) in itemIds(player.stats)"
-                        :key="`${player.participantId}-${index}`"
-                      >
-                        <n-tooltip
-                          v-if="itemId > 0"
-                          trigger="hover"
-                          placement="top"
-                          :disabled="!assets.detailOf('item', itemId)"
-                        >
-                          <template #trigger>
-                            <img
-                              :src="assets.srcOf('item', itemId)"
-                              class="match-detail-item-icon"
-                              :class="{ 'match-detail-item-trinket': index === 6 }"
-                              alt="item"
-                              loading="lazy"
-                              decoding="async"
-                            />
-                          </template>
-                          <AssetTooltipContent
-                            v-if="assets.detailOf('item', itemId)"
-                            :icon-src="assets.srcOf('item', itemId)"
-                            :name="assets.detailOf('item', itemId)?.name ?? ''"
-                            :description="assets.detailOf('item', itemId)?.description ?? ''"
-                          />
-                        </n-tooltip>
-                        <!-- 空装备格：内凹暗槽占位，而非黑块（黑块像图片加载失败） -->
-                        <span
-                          v-else
-                          class="match-detail-item-empty"
-                          :class="{ 'match-detail-item-trinket': index === 6 }"
-                        />
-                      </template>
-                    </div>
-                  </div>
-
-                  <div class="match-detail-value-cell match-detail-kda-value-cell">
-                    <div class="match-detail-kda-line font-number">
-                      <span>{{ player.stats.kills }}</span>
-                      <span class="match-detail-kda-separator">/</span>
-                      <span :style="{ color: deathsColor(player.stats.deaths, isDark) }">{{
-                        player.stats.deaths
-                      }}</span>
-                      <span class="match-detail-kda-separator">/</span>
-                      <span>{{ player.stats.assists }}</span>
-                    </div>
-                    <div
-                      class="match-detail-cell-sub font-number"
-                      :style="{ color: kdaColor(kdaRatio(player.stats), isDark) }"
-                    >
-                      {{ kdaRatio(player.stats).toFixed(1) }} KDA
-                    </div>
-                  </div>
-                  <div class="match-detail-value-cell">
-                    <div class="font-number">
-                      {{ formatCompactNumber(player.stats.goldEarned) }}
-                    </div>
-                    <div class="match-detail-cell-sub font-number">
-                      {{ goldPerMin(player.stats) }}/分
-                    </div>
-                  </div>
-                  <div class="match-detail-value-cell">
-                    <div class="font-number">{{ totalCs(player.stats) }}</div>
-                    <div class="match-detail-cell-sub font-number">
-                      {{ csPerMin(player.stats) }}/分
-                    </div>
-                  </div>
-                  <div class="match-detail-value-cell">
-                    <div class="font-number">
-                      {{ formatCompactNumber(player.stats.damageDealtToTurrets) }}
-                    </div>
-                    <!-- 占位副行：撑出与相邻双行列一致的高度，主数值基线全表拉直 -->
-                    <div class="match-detail-cell-sub match-detail-cell-sub--ghost font-number">
-                      0
-                    </div>
-                  </div>
-
-                  <!-- 输出/承伤/治疗：按全场最大值刻度的横向对比条（一眼看出谁 carry） -->
-                  <div class="match-detail-bars-cell">
-                    <n-tooltip
-                      v-for="bar in playerBars(player)"
-                      :key="`${player.participantId}-${bar.key}`"
-                      trigger="hover"
-                      placement="left"
-                    >
-                      <template #trigger>
-                        <div class="match-detail-bar-row">
-                          <span class="match-detail-bar-value font-number">{{
-                            bar.valueText
-                          }}</span>
-                          <span class="match-detail-bar-track">
-                            <span
-                              class="match-detail-bar-fill"
-                              :class="bar.fillClass"
-                              :style="{ width: bar.width }"
-                            />
-                          </span>
-                        </div>
-                      </template>
-                      {{ bar.tooltip }}
-                    </n-tooltip>
+                  <div class="match-detail-team-subtitle font-number">
+                    输出 {{ formatCompactNumber(team.damage) }} · 承伤
+                    {{ formatCompactNumber(team.taken) }}
                   </div>
                 </div>
-              </div>
-            </div>
-          </section>
-        </div>
-      </div>
-    </div>
 
-    <MatchAIPanel
-      :show="ai.showAiModal.value"
-      :mode="ai.aiMode.value"
-      :target-participant-id="ai.aiTargetParticipantId.value"
-      :loading="ai.aiLoading.value"
-      :ai-loading="ai.aiLoading.value"
-      :ai-state-label="ai.aiStateLabel.value"
-      :rendered-result="ai.renderedAiResult.value"
-      :player-options="aiPlayerOptions"
-      @update:show="ai.showAiModal.value = $event"
-      @update:mode="ai.aiMode.value = $event"
-      @update:target-participant-id="ai.aiTargetParticipantId.value = $event"
-      @rerun="ai.runCurrentAiAnalysis"
-    />
-  </div>
-  <div v-else class="match-detail-empty-state">
-    <span class="match-detail-empty-title">暂无对局详情</span>
-    <span class="match-detail-empty-copy">回到战绩页重新打开一场对局即可。</span>
-  </div>
+                <div class="match-detail-team-card">
+                  <div class="match-detail-column-header">
+                    <span>玩家</span>
+                    <span>技能 / {{ usesAugments ? '海克斯' : '符文' }} / 装备</span>
+                    <span class="match-detail-header-right">KDA</span>
+                    <span class="match-detail-header-right">金钱</span>
+                    <span class="match-detail-header-right">补兵</span>
+                    <span class="match-detail-header-right">推塔</span>
+                    <span class="match-detail-bars-header">输出 / 承伤 / 治疗</span>
+                  </div>
+
+                  <div class="match-detail-team-rows">
+                    <div
+                      v-for="player in team.players"
+                      :key="player.participantId"
+                      class="match-detail-row"
+                      :class="{ 'match-detail-row-me': player.isMe }"
+                    >
+                      <div class="match-detail-player-cell">
+                        <div class="match-detail-player-main">
+                          <LazyImg
+                            class="match-detail-player-avatar"
+                            :src="assetPrefix + '/champion/' + player.championId"
+                            alt="champion"
+                          />
+                          <!-- 段位：固定宽度占位——即便无数据/未定级/请求失败也不渲染内容，
+                           但槽位一直在，避免十行名字因为有的有段位、有的没有而参差不齐 -->
+                          <div class="match-detail-player-rank">
+                            <n-tooltip v-if="playerTier(player)" trigger="hover" placement="top">
+                              <template #trigger>
+                                <span class="match-detail-rank-badge">
+                                  <img
+                                    :src="playerTier(player)?.imgUrl"
+                                    class="match-detail-rank-icon"
+                                    alt="段位"
+                                  />
+                                  <span class="match-detail-rank-text">{{
+                                    playerTier(player)?.shortText
+                                  }}</span>
+                                </span>
+                              </template>
+                              {{ playerTier(player)?.tooltipText }}
+                            </n-tooltip>
+                          </div>
+                          <div class="match-detail-player-text">
+                            <div class="match-detail-player-text-row">
+                              <n-tooltip v-if="player.mvpTag" trigger="hover" placement="top">
+                                <template #trigger>
+                                  <span
+                                    class="match-detail-mvp-chip"
+                                    :class="
+                                      player.mvpTag === 'MVP'
+                                        ? 'match-detail-mvp-chip--mvp'
+                                        : 'match-detail-mvp-chip--svp'
+                                    "
+                                    >{{ player.mvpTag }}</span
+                                  >
+                                </template>
+                                综合评分 {{ player.score.toFixed(1) }} ·
+                                KDA/输出/参团/承伤/经济/补刀/推塔 七维加权
+                              </n-tooltip>
+                              <span class="match-detail-player-display">{{
+                                player.displayName
+                              }}</span>
+                              <n-button
+                                text
+                                size="tiny"
+                                class="match-detail-player-copy"
+                                @click.stop="copy(player.displayName)"
+                              >
+                                <template #icon>
+                                  <n-icon><CopyOutline /></n-icon>
+                                </template>
+                              </n-button>
+                              <span v-if="player.puuid" @click.stop>
+                                <PlayerNoteBadge
+                                  :puuid="player.puuid"
+                                  :game-name="player.gameName"
+                                  :tag-line="player.tagLine"
+                                  :encounter="buildEncounter(player)"
+                                  size="normal"
+                                />
+                              </span>
+                              <n-tag
+                                v-if="player.isMe"
+                                size="small"
+                                :bordered="false"
+                                type="success"
+                                >我</n-tag
+                              >
+                              <n-tooltip trigger="hover" placement="top">
+                                <template #trigger>
+                                  <n-button
+                                    quaternary
+                                    circle
+                                    size="tiny"
+                                    class="match-detail-player-ai-trigger"
+                                    :class="{
+                                      'match-detail-player-ai-trigger--busy':
+                                        ai.aiLoading.value &&
+                                        ai.aiMode.value === 'player' &&
+                                        ai.aiTargetParticipantId.value === player.participantId
+                                    }"
+                                    @click.stop="ai.openPlayerAnalysis(player.participantId)"
+                                  >
+                                    <template #icon>
+                                      <n-spin
+                                        v-if="
+                                          ai.aiLoading.value &&
+                                          ai.aiMode.value === 'player' &&
+                                          ai.aiTargetParticipantId.value === player.participantId
+                                        "
+                                        :size="12"
+                                      />
+                                      <n-icon v-else><SparklesOutline /></n-icon>
+                                    </template>
+                                  </n-button>
+                                </template>
+                                AI 单人分析
+                              </n-tooltip>
+                            </div>
+                            <div class="match-detail-badge-row">
+                              <n-tooltip
+                                v-for="badge in player.badges"
+                                :key="badge.key"
+                                trigger="hover"
+                                placement="top"
+                              >
+                                <template #trigger>
+                                  <span class="match-detail-badge-icon" :class="badge.className">
+                                    <n-icon :size="10">
+                                      <component :is="badge.icon" />
+                                    </n-icon>
+                                  </span>
+                                </template>
+                                {{ badge.label }}
+                              </n-tooltip>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="match-detail-build-cell">
+                        <div class="match-detail-build-topline">
+                          <div class="match-detail-spells">
+                            <n-tooltip
+                              v-for="(spellId, index) in [player.spell1Id, player.spell2Id]"
+                              :key="`${player.participantId}-spell-${spellId}-${index}`"
+                              trigger="hover"
+                              placement="top"
+                              :disabled="!assets.detailOf('spell', spellId)"
+                            >
+                              <template #trigger>
+                                <img
+                                  :src="assets.srcOf('spell', spellId)"
+                                  class="match-detail-spell-icon"
+                                  alt="spell"
+                                  loading="lazy"
+                                  decoding="async"
+                                />
+                              </template>
+                              <AssetTooltipContent
+                                v-if="assets.detailOf('spell', spellId)"
+                                :icon-src="assets.srcOf('spell', spellId)"
+                                :name="assets.detailOf('spell', spellId)?.name ?? ''"
+                                :description="assets.detailOf('spell', spellId)?.description ?? ''"
+                              />
+                            </n-tooltip>
+                          </div>
+                          <!-- 符文/海克斯都跟 spells 同行 (密集布局) -->
+                          <div class="match-detail-perks">
+                            <n-tooltip
+                              v-for="(perkId, index) in displayedPerkIds(player.stats)"
+                              :key="`${player.participantId}-perk-${perkId}-${index}`"
+                              trigger="hover"
+                              placement="top"
+                              :disabled="!usesAugments && !assets.detailOf('perk', perkId)"
+                            >
+                              <template #trigger>
+                                <span
+                                  v-if="usesAugments"
+                                  :class="[
+                                    'match-detail-augment-icon-shell',
+                                    augmentRarityClass(
+                                      assets.detailOf('perk', perkId)?.rarity,
+                                      'match-detail-augment'
+                                    )
+                                  ]"
+                                >
+                                  <img
+                                    :src="assets.srcOf('perk', perkId)"
+                                    class="match-detail-augment-icon"
+                                    alt="augment"
+                                    loading="lazy"
+                                    decoding="async"
+                                  />
+                                </span>
+                                <img
+                                  v-else
+                                  :src="assets.srcOf('perk', perkId)"
+                                  :class="[
+                                    'match-detail-perk-icon',
+                                    { 'match-detail-perk-icon-sub': index === 1 }
+                                  ]"
+                                  alt="perk"
+                                  loading="lazy"
+                                  decoding="async"
+                                />
+                              </template>
+                              <AssetTooltipContent
+                                :icon-src="assets.srcOf('perk', perkId)"
+                                :name="
+                                  assets.detailOf('perk', perkId)?.name ??
+                                  (usesAugments ? `海克斯 #${perkId}` : `符文 #${perkId}`)
+                                "
+                                :description="assets.detailOf('perk', perkId)?.description ?? ''"
+                                :rarity="assets.detailOf('perk', perkId)?.rarity"
+                              />
+                            </n-tooltip>
+                          </div>
+                        </div>
+                        <div class="match-detail-items">
+                          <template
+                            v-for="(itemId, index) in itemIds(player.stats)"
+                            :key="`${player.participantId}-${index}`"
+                          >
+                            <n-tooltip
+                              v-if="itemId > 0"
+                              trigger="hover"
+                              placement="top"
+                              :disabled="!assets.detailOf('item', itemId)"
+                            >
+                              <template #trigger>
+                                <img
+                                  :src="assets.srcOf('item', itemId)"
+                                  class="match-detail-item-icon"
+                                  :class="{ 'match-detail-item-trinket': index === 6 }"
+                                  alt="item"
+                                  loading="lazy"
+                                  decoding="async"
+                                />
+                              </template>
+                              <AssetTooltipContent
+                                v-if="assets.detailOf('item', itemId)"
+                                :icon-src="assets.srcOf('item', itemId)"
+                                :name="assets.detailOf('item', itemId)?.name ?? ''"
+                                :description="assets.detailOf('item', itemId)?.description ?? ''"
+                              />
+                            </n-tooltip>
+                            <!-- 空装备格：内凹暗槽占位，而非黑块（黑块像图片加载失败） -->
+                            <span
+                              v-else
+                              class="match-detail-item-empty"
+                              :class="{ 'match-detail-item-trinket': index === 6 }"
+                            />
+                          </template>
+                        </div>
+                      </div>
+
+                      <div class="match-detail-value-cell match-detail-kda-value-cell">
+                        <div class="match-detail-kda-line font-number">
+                          <span>{{ player.stats.kills }}</span>
+                          <span class="match-detail-kda-separator">/</span>
+                          <span :style="{ color: deathsColor(player.stats.deaths, isDark) }">{{
+                            player.stats.deaths
+                          }}</span>
+                          <span class="match-detail-kda-separator">/</span>
+                          <span>{{ player.stats.assists }}</span>
+                        </div>
+                        <div
+                          class="match-detail-cell-sub font-number"
+                          :style="{ color: kdaColor(kdaRatio(player.stats), isDark) }"
+                        >
+                          {{ kdaRatio(player.stats).toFixed(1) }} KDA
+                        </div>
+                      </div>
+                      <div class="match-detail-value-cell">
+                        <div class="font-number">
+                          {{ formatCompactNumber(player.stats.goldEarned) }}
+                        </div>
+                        <div class="match-detail-cell-sub font-number">
+                          {{ goldPerMin(player.stats) }}/分
+                        </div>
+                      </div>
+                      <div class="match-detail-value-cell">
+                        <div class="font-number">{{ totalCs(player.stats) }}</div>
+                        <div class="match-detail-cell-sub font-number">
+                          {{ csPerMin(player.stats) }}/分
+                        </div>
+                      </div>
+                      <div class="match-detail-value-cell">
+                        <div class="font-number">
+                          {{ formatCompactNumber(player.stats.damageDealtToTurrets) }}
+                        </div>
+                        <!-- 占位副行：撑出与相邻双行列一致的高度，主数值基线全表拉直 -->
+                        <div class="match-detail-cell-sub match-detail-cell-sub--ghost font-number">
+                          0
+                        </div>
+                      </div>
+
+                      <!-- 输出/承伤/治疗：按全场最大值刻度的横向对比条（一眼看出谁 carry） -->
+                      <div class="match-detail-bars-cell">
+                        <n-tooltip
+                          v-for="bar in playerBars(player)"
+                          :key="`${player.participantId}-${bar.key}`"
+                          trigger="hover"
+                          placement="left"
+                        >
+                          <template #trigger>
+                            <div class="match-detail-bar-row">
+                              <span class="match-detail-bar-value font-number">{{
+                                bar.valueText
+                              }}</span>
+                              <span class="match-detail-bar-track">
+                                <span
+                                  class="match-detail-bar-fill"
+                                  :class="bar.fillClass"
+                                  :style="{ width: bar.width }"
+                                />
+                              </span>
+                            </div>
+                          </template>
+                          {{ bar.tooltip }}
+                        </n-tooltip>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+
+        <MatchAIPanel
+          :show="ai.showAiModal.value"
+          :mode="ai.aiMode.value"
+          :target-participant-id="ai.aiTargetParticipantId.value"
+          :loading="ai.aiLoading.value"
+          :ai-loading="ai.aiLoading.value"
+          :ai-state-label="ai.aiStateLabel.value"
+          :rendered-result="ai.renderedAiResult.value"
+          :player-options="aiPlayerOptions"
+          @update:show="ai.showAiModal.value = $event"
+          @update:mode="ai.aiMode.value = $event"
+          @update:target-participant-id="ai.aiTargetParticipantId.value = $event"
+          @rerun="ai.runCurrentAiAnalysis"
+        />
+      </div>
+      <div v-else class="match-detail-empty-state">
+        <span class="match-detail-empty-title">暂无对局详情</span>
+        <span class="match-detail-empty-copy">点击任意一场对局即可查看详情。</span>
+      </div>
+    </n-drawer-content>
+  </n-drawer>
 </template>
 
 <script lang="ts" setup>
 import { computed, ref, watch, onMounted, toRef } from 'vue'
 import { CopyOutline, PlayCircleOutline, SparklesOutline } from '@vicons/ionicons5'
-import { NButton, NIcon, NTag, NTooltip } from 'naive-ui'
+import { NButton, NDrawer, NDrawerContent, NIcon, NTag, NTooltip } from 'naive-ui'
 import { invoke } from '@tauri-apps/api/core'
 import { useCopy } from '@renderer/composables/useCopy'
 
@@ -541,6 +563,16 @@ import { useMatchPlayerRanks } from '@renderer/composables/useMatchPlayerRanks'
 import type { OneGamePlayer } from '@renderer/types/domain/analysis'
 
 const props = defineProps<{ game: Game | null }>()
+const emit = defineEmits<{ close: [] }>()
+
+/** 抽屉宽度：版心上限 1360，小屏收窄到 90vw（naive-ui width 支持 CSS 表达式） */
+const drawerWidth = 'min(1360px, 90vw)'
+
+/** 有对局即展开；关闭一律收敛到 close 事件，由父组件置空 game */
+const drawerVisible = computed(() => props.game != null)
+function onDrawerShowChange(show: boolean) {
+  if (!show) emit('close')
+}
 
 const { isDark } = useTheme()
 

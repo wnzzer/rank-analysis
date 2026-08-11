@@ -13,11 +13,11 @@ export type NotesMutationOrigin = 'user' | 'sync'
 const STORAGE_KEY = 'playerNotes'
 
 /**
- * 备注变更的跨窗口广播事件。
+ * 备注变更的跨页面广播事件。
  *
- * 战绩详情是独立窗口（match-detail-*），与主窗口各自持有一份 pinia store。
- * 在任一窗口写备注后，emit 此事件广播到所有窗口，各窗口收到后从 config 重载，
- * 保证"详情页标记 → 主窗口/设置页"即时可见，无需重启。
+ * 详情抽屉与主页面同属一个窗口（单 pinia store），本事件作为防御性兜底：
+ * 任一页面写备注后 emit 广播，收到后从 config 重载，保证"详情页标记 →
+ * 战绩页/设置页"即时可见，无需重启。
  */
 const NOTES_CHANGED_EVENT = 'player-notes-changed'
 

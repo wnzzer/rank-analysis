@@ -16,10 +16,6 @@ vi.mock('@tauri-apps/api/event', () => ({
   emit: vi.fn(() => Promise.resolve()),
   listen: vi.fn(() => Promise.resolve(() => {}))
 }))
-// 主窗口判断依赖 window label，jsdom 无 Tauri runtime，默认扮演主窗口
-vi.mock('@tauri-apps/api/window', () => ({
-  getCurrentWindow: vi.fn(() => ({ label: 'main' }))
-}))
 // LCU 连接状态用可写 ref 顶替，便于测试模拟「连接建立」时刻
 vi.mock('@renderer/composables/useGameState', async () => {
   const { ref } = await import('vue')
@@ -28,7 +24,6 @@ vi.mock('@renderer/composables/useGameState', async () => {
 
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import { invoke } from '@tauri-apps/api/core'
-import { getCurrentWindow } from '@tauri-apps/api/window'
 import { lcuConnected } from '@renderer/composables/useGameState'
 import { useCloudSyncStore } from '../cloudSync'
 import { usePlayerNotesStore } from '../playerNotes'
@@ -137,19 +132,6 @@ describe('useCloudSyncStore', () => {
     await expect(store.syncNow()).rejects.toBeTruthy()
     expect(store.lastError).toContain('云端连接失败')
     expect(store.syncing).toBe(false)
-  })
-
-  it('详情窗口 init 只镜像开关,不触发同步(仅主窗口承担)', async () => {
-    vi.mocked(getCurrentWindow).mockReturnValueOnce({
-      label: 'match-detail-42'
-    } as ReturnType<typeof getCurrentWindow>)
-    mockGet.mockResolvedValue(true) // 开关已开启
-    mockHappyInvoke()
-    const store = useCloudSyncStore()
-    await store.init()
-    await flushAsync()
-    expect(store.enabled).toBe(true)
-    expect(mockInvoke).not.toHaveBeenCalled()
   })
 
   it('启动同步失败后,LCU 连接建立时补触发一次', async () => {

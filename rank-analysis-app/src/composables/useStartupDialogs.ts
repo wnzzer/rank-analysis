@@ -26,7 +26,6 @@
  * @module composables/useStartupDialogs
  */
 import { computed, onMounted, ref, watch, type ComputedRef } from 'vue'
-import { getCurrentWindow } from '@tauri-apps/api/window'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import { CONFIG_KEYS } from '@renderer/services/configKeys'
 import { lcuConnected } from '@renderer/composables/useGameState'
@@ -65,9 +64,6 @@ export function useStartupDialogs(): {
    */
   const consentShown = ref(true)
 
-  /** 战绩详情子窗口（label 前缀 match-detail-）不参与任何启动弹窗 */
-  const isDetailWindow = getCurrentWindow().label.startsWith('match-detail-')
-
   const active = computed<StartupDialogKey | null>(() => {
     if (!gateOpen.value) return null
     if (!consentShown.value) return 'errorReportingConsent'
@@ -92,7 +88,6 @@ export function useStartupDialogs(): {
   }
 
   onMounted(() => {
-    if (isDetailWindow) return
     // 刻意不 await：兜底计时从挂载起算，标记读回后 computed 自然重算
     loadShownFlags()
     if (lcuConnected.value) {

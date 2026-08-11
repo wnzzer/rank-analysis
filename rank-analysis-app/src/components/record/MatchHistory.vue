@@ -1,5 +1,6 @@
 <template>
   <div class="ratio-container">
+    <MatchDetailModal :game="selectedGame" @close="selectedGame = null" />
     <n-flex vertical class="content-wrapper match-history-wrap">
       <n-flex class="match-history-toolbar" align="center" :size="8">
         <n-select
@@ -111,7 +112,7 @@ import { modeOptions, initModeOptions } from './composition'
 import { invoke } from '@tauri-apps/api/core'
 import { championOption } from '../type'
 import type { Game, MatchHistory } from './match'
-import { openMatchDetailWindow } from './detailWindow'
+import MatchDetailModal from './MatchDetailModal.vue'
 import { useRecordAssets } from '@renderer/composables/useRecordAssets'
 import { recordAssetsKey } from '@renderer/composables/recordAssetsKey'
 
@@ -173,6 +174,7 @@ const handleUpdateValue = () => {
 }
 
 const matchHistory = ref<MatchHistory>()
+const selectedGame = ref<Game | null>(null)
 const loadingBar = useLoadingBar()
 const isRequestingMatchHostory = ref(false)
 const loadError = ref(false)
@@ -202,7 +204,7 @@ const noMoreMatches = computed(() =>
 )
 
 async function openDetail(game: Game) {
-  await openMatchDetailWindow(game)
+  selectedGame.value = game
 }
 
 // 获取历史记录

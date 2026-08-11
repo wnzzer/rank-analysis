@@ -12,12 +12,6 @@ const routes: Array<RouteRecordRaw> = [
     meta: { title: '战绩查询' }
   },
   {
-    path: '/MatchDetail',
-    name: 'MatchDetail',
-    component: () => import('@renderer/views/MatchDetail.vue'),
-    meta: { title: '对局详情' }
-  },
-  {
     path: '/Gaming',
     name: 'Gaming',
     component: () => import('@renderer/views/Gaming.vue'),

@@ -1,7 +1,6 @@
 <template>
   <div class="full-container">
-    <MatchDetail v-if="isStandaloneDetailWindow" />
-    <n-flex v-else vertical size="large">
+    <n-flex vertical size="large">
       <!-- 启动弹窗队列：同一时刻至多一个可见，顺序见 useStartupDialogs。
            云端配置拉取裁决（CloudConfigPullDialog）不再走这里自动弹出，改成
            设置页「数据与同步」里的被动角标引导入口，见 views/settings/DataSync.vue -->
@@ -40,12 +39,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useMessage } from 'naive-ui'
 
 import Header from './Header.vue'
 import SideNavigation from './SideNavigation.vue'
-import MatchDetail from '@renderer/views/MatchDetail.vue'
 import ErrorReportingConsentDialog from '@renderer/components/common/ErrorReportingConsentDialog.vue'
 import { useGameState } from '@renderer/composables/useGameState'
 import { useZoom } from '@renderer/composables/useZoom'
@@ -59,17 +56,12 @@ import { useStartupDialogs } from '@renderer/composables/useStartupDialogs'
  * - 左侧导航栏（SideNavigation）
  * - 主内容区域（router-view）
  *
- * 支持两种显示模式：
- * 1. 完整布局模式：显示完整的侧边栏 + 头部 + 内容区
- * 2. 独立窗口模式：用于战绩详情弹窗，仅渲染 MatchDetail 组件
- *
  * @example
  * <!-- 在 App.vue 中使用 -->
  * <Framework />
  */
 
 const route = useRoute()
-const currentWindow = getCurrentWindow()
 
 /**
  * 判断当前路由是否为设置页面
@@ -78,18 +70,12 @@ const currentWindow = getCurrentWindow()
 const isSettingsRoute = computed(() => route.path.startsWith('/Settings'))
 
 /**
- * 判断当前窗口是否为独立的战绩详情窗口
- * 独立窗口通过窗口标签前缀 'match-detail-' 识别，用于多开战绩查看
- */
-const isStandaloneDetailWindow = computed(() => currentWindow.label.startsWith('match-detail-'))
-
-/**
  * 初始化游戏状态监听
  * 包含自动跳转逻辑：当检测到游戏开始时自动切换到对局页面
  */
 useGameState()
 
-// 浏览器式缩放（Ctrl+滚轮 / Ctrl±0）：Framework 是所有窗口的根，详情窗一并生效
+// 浏览器式缩放（Ctrl+滚轮 / Ctrl±0）：页面级缩放，全窗口生效
 useZoom()
 
 const message = useMessage()

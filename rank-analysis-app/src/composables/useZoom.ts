@@ -4,9 +4,7 @@
  * 走 WebView2 的布局缩放（webview.setZoom）而非 CSS transform——与 Chrome 缩放
  * 行为一致：CSS 视口宽度随缩放变化，既有的 clamp(100vw) 自适应会自动重算。
  *
- * 比例持久化到 config（settings.ui.zoomFactor），窗口打开时恢复；
- * 各窗口（主窗口 / match-detail-*）独立挂载本 composable，新开窗口
- * 以最近保存的比例启动。已开窗口之间不做实时同步（各自缩各自的）。
+ * 比例持久化到 config（settings.ui.zoomFactor），窗口打开时恢复。
  */
 import { onMounted, onUnmounted } from 'vue'
 import { getCurrentWebview } from '@tauri-apps/api/webview'

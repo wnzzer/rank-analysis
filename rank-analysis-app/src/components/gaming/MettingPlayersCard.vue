@@ -1,5 +1,6 @@
 <template>
   <div class="meeting-players-container">
+    <MatchDetailModal :game="selectedGame" @close="selectedGame = null" />
     <n-grid :x-gap="8" :y-gap="8" cols="2">
       <n-grid-item v-for="meetGame in meetGames" :key="meetGame.gameId">
         <div
@@ -49,8 +50,9 @@
 import { OneGamePlayer } from '../record/type'
 import type { Game } from '../record/match'
 import { assetPrefix } from '../../services/http'
-import { openMatchDetailWindow } from '../record/detailWindow'
+import MatchDetailModal from '../record/MatchDetailModal.vue'
 import { invoke } from '@tauri-apps/api/core'
+import { ref } from 'vue'
 import LazyImg from '@renderer/components/common/LazyImg.vue'
 
 function getFormattedDate(dateString: string) {
@@ -61,15 +63,16 @@ function getFormattedDate(dateString: string) {
 }
 
 /**
- * 打开对局详情窗口
+ * 打开对局详情抽屉
  * @param gameId - 对局 ID
  */
+const selectedGame = ref<Game | null>(null)
 async function openGameDetail(gameId: number): Promise<void> {
   try {
     // 通过 gameId 获取完整对局信息
     const game = await invoke<Game>('get_game_by_id', { gameId })
     if (game) {
-      await openMatchDetailWindow(game)
+      selectedGame.value = game
     }
   } catch (error) {
     console.error('Failed to open game detail:', error)

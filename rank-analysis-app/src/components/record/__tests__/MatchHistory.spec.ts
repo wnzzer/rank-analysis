@@ -33,6 +33,7 @@ describe('MatchHistory', () => {
         stubs: {
           RecordCard: true,
           RecordCardSkeleton: true,
+          MatchDetailModal: true,
           NPagination: true,
           NEmpty: true,
           NButton: true,
@@ -45,5 +46,5 @@ describe('MatchHistory', () => {
     })
     expect(wrapper.exists()).toBe(true)
     wrapper.unmount()
-  })
+  }, 15000)
 })

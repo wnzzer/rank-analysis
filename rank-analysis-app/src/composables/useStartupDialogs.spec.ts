@@ -15,15 +15,9 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { defineComponent, nextTick, type Ref } from 'vue'
 import { mount } from '@vue/test-utils'
 
-/** 窗口 label 需要在单个用例里改写，用 vi.hoisted 越过 vi.mock 的提升 */
-const hoisted = vi.hoisted(() => ({ windowLabel: 'main' }))
-
 vi.mock('@renderer/services/ipc', () => ({
   getConfigByIpc: vi.fn(),
   putConfigByIpc: vi.fn(() => Promise.resolve())
-}))
-vi.mock('@tauri-apps/api/window', () => ({
-  getCurrentWindow: vi.fn(() => ({ label: hoisted.windowLabel }))
 }))
 // LCU 连接状态用可写 ref 顶替，便于模拟「连接建立」时刻
 vi.mock('@renderer/composables/useGameState', async () => {
@@ -85,7 +79,6 @@ describe('useStartupDialogs', () => {
     vi.clearAllMocks()
     vi.useFakeTimers()
     mockConnected.value = false
-    hoisted.windowLabel = 'main'
   })
 
   afterEach(() => {
@@ -139,14 +132,6 @@ describe('useStartupDialogs', () => {
 
   it('读配置失败时按「已展示过」跳过本次启动', async () => {
     mockGet.mockRejectedValue(new Error('io'))
-    const { result, unmount } = await mountWithGateOpen()
-    expect(result.active.value).toBeNull()
-    unmount()
-  })
-
-  it('战绩详情子窗口不弹任何启动弹窗', async () => {
-    hoisted.windowLabel = 'match-detail-42'
-    mockFlags(undefined)
     const { result, unmount } = await mountWithGateOpen()
     expect(result.active.value).toBeNull()
     unmount()

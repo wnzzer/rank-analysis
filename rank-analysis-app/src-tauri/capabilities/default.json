@@ -1,14 +1,12 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main and match detail windows",
-  "windows": ["main", "match-detail-*"],
+  "description": "Capability for the main window",
+  "windows": ["main"],
   "permissions": [
     "core:default",
     "opener:default",
-    "core:webview:allow-create-webview-window",
     "core:webview:allow-set-webview-zoom",
-    "core:window:allow-create",
     "core:window:allow-minimize",
     "core:window:allow-maximize",
     "core:window:allow-unmaximize",
