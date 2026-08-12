@@ -244,7 +244,18 @@
                               综合评分 {{ player.score.toFixed(1) }} ·
                               KDA/输出/参团/承伤/经济/补刀/推塔 七维加权
                             </n-tooltip>
-                            <span class="match-detail-player-display">{{
+                            <span
+                              v-if="player.gameName"
+                              class="match-detail-player-display match-detail-player-link"
+                              role="link"
+                              tabindex="0"
+                              @click="searchSummoner(`${player.gameName}#${player.tagLine}`)"
+                              @keydown.enter="
+                                searchSummoner(`${player.gameName}#${player.tagLine}`)
+                              "
+                              >{{ player.displayName }}</span
+                            >
+                            <span v-else class="match-detail-player-display">{{
                               player.displayName
                             }}</span>
                             <n-button
@@ -536,6 +547,7 @@ import { CopyOutline, CloseOutline, PlayCircleOutline, SparklesOutline } from '@
 import { NButton, NIcon, NTag, NTooltip } from 'naive-ui'
 import { invoke } from '@tauri-apps/api/core'
 import { useCopy } from '@renderer/composables/useCopy'
+import { searchSummoner } from '@renderer/utils/navigation'
 
 import { useTheme } from '@renderer/composables/useTheme'
 import { assetPrefix } from '@renderer/services/http'
@@ -1263,6 +1275,19 @@ watch(
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* 可点击跳转战绩页：hover 高亮 + 手型光标，与游戏页玩家卡跳转语义一致 */
+.match-detail-player-link {
+  cursor: pointer;
+  border-radius: 2px;
+  transition: color var(--dur-fast) var(--ease-expo);
+}
+
+.match-detail-player-link:hover,
+.match-detail-player-link:focus-visible {
+  color: var(--accent-blue);
+  outline: none;
 }
 
 /* 行内 AI 按钮：默认隐身，行 hover 或加载中才浮现——把每行常驻噪音降到最低 */
