@@ -202,7 +202,6 @@
 import { computed, ref, watch, onMounted, toRef, provide, h, markRaw } from 'vue'
 import type { Component } from 'vue'
 import {
-  BarChartOutline,
   CloseOutline,
   CodeSlashOutline,
   FlashOutline,
@@ -231,6 +230,7 @@ import type { DetailPlayer } from '@renderer/composables/useMatchDetailPlayers'
 import type { OneGamePlayer } from '@renderer/types/domain/analysis'
 import { matchDetailContextKey } from './matchDetailContext'
 import MatchDetailSummaryTab from './tabs/MatchDetailSummaryTab.vue'
+import MatchDetailStatsTab from './tabs/MatchDetailStatsTab.vue'
 import MatchDetailTabPlaceholder from './tabs/MatchDetailTabPlaceholder.vue'
 
 const props = defineProps<{ game: Game | null }>()
@@ -400,11 +400,7 @@ const tabs = [
   {
     key: 'stats',
     label: '数据对比',
-    component: placeholderTab(
-      '数据对比透视表',
-      '10 人全统计横向透视（行分组 / 双 sticky / 行过滤 / hover 柱状图），LCU 数据先行。',
-      BarChartOutline
-    )
+    component: MatchDetailStatsTab
   },
   {
     key: 'runes',
