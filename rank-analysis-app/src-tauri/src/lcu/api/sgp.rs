@@ -23,8 +23,25 @@ use crate::lcu::api::match_history::{Game, GamesWrapper, MatchHistory};
 use crate::lcu::api::model::{Participant, ParticipantIdentity, Player, Stats};
 use crate::lcu::api::summoner::Summoner;
 use crate::lcu::util::http::{lcu_get, riot_client_get, sgp_get};
+use moka::future::Cache;
 use serde::Deserialize;
 use serde_json::Value;
+use std::sync::LazyLock;
+use std::time::Duration;
+
+/// SGP 单局详情缓存(无 TTL,局数据不可变;max 500 防爆)。
+/// key = `{platform_id}:{game_id}` —— 天然跨源独立,不与 LCU 的 GAME_DETAIL_CACHE 混用。
+static SGP_DETAIL_CACHE: LazyLock<Cache<String, SgpGameDetailResponse>> =
+    LazyLock::new(|| Cache::builder().max_capacity(500).build());
+
+/// SGP 战绩概要缓存(60s TTL 防串区,key 带 platform_id)。
+/// key = `{platform_id}:{puuid}:{start}:{count}`。
+static SGP_SUMMARY_CACHE: LazyLock<Cache<String, Value>> = LazyLock::new(|| {
+    Cache::builder()
+        .max_capacity(1000)
+        .time_to_live(Duration::from_secs(60))
+        .build()
+});
 
 /// 从本地 LCU 取 SGP 鉴权用的 `accessToken`（`entitlements/v1/token`）。
 ///
@@ -65,12 +82,18 @@ pub async fn get_current_platform_id() -> Result<String, String> {
 /// - `start` / `count`: 分页起点与条数。
 ///
 /// 返回原始 `Value`（`{ games: [{ metadata, json }] }`）。字段结构见模块说明。
+///
+/// 60s TTL 缓存：翻页/重复查询不重打网络；key 带 platform_id 防串区。
 pub async fn fetch_match_history_summary(
     platform_id: &str,
     puuid: &str,
     start: i32,
     count: i32,
 ) -> Result<serde_json::Value, String> {
+    let key = format!("{platform_id}:{puuid}:{start}:{count}");
+    if let Some(cached) = SGP_SUMMARY_CACHE.get(&key).await {
+        return Ok(cached);
+    }
     let host = constant::game::get_sgp_host(platform_id)
         .ok_or_else(|| format!("未知大区 {}，无对应 SGP 主机", platform_id))?;
     let token = get_entitlements_access_token().await?;
@@ -78,7 +101,9 @@ pub async fn fetch_match_history_summary(
         "match-history-query/v1/products/lol/player/{}/SUMMARY?startIndex={}&count={}",
         puuid, start, count
     );
-    sgp_get::<Value>(host, &uri, &token).await
+    let raw = sgp_get::<Value>(host, &uri, &token).await?;
+    SGP_SUMMARY_CACHE.insert(key, raw.clone()).await;
+    Ok(raw)
 }
 
 // ─────────────────────────── 单局详情 DETAILS ───────────────────────────
@@ -234,10 +259,16 @@ pub struct SgpGameDetailResponse {
 /// - `game_id`: 对局 ID(SGP 路径格式为 `{platform_id}_{game_id}`,如 `HN10_8537174104`)。
 ///
 /// 返回类型化结构(serde 全字段 default 容错)。身份/汇总字段在 SUMMARY 里,本端点只出帧。
+///
+/// 无 TTL 缓存(局数据不可变,max 500):详情页重复展开零网络。
 pub async fn fetch_match_detail(
     platform_id: &str,
     game_id: i64,
 ) -> Result<SgpGameDetailResponse, String> {
+    let key = format!("{platform_id}:{game_id}");
+    if let Some(cached) = SGP_DETAIL_CACHE.get(&key).await {
+        return Ok(cached);
+    }
     let host = constant::game::get_sgp_host(platform_id)
         .ok_or_else(|| format!("未知大区 {},无对应 SGP 主机", platform_id))?;
     let token = get_entitlements_access_token().await?;
@@ -245,7 +276,9 @@ pub async fn fetch_match_detail(
         "match-history-query/v1/products/lol/{}_{}/DETAILS",
         platform_id, game_id
     );
-    sgp_get::<SgpGameDetailResponse>(host, &uri, &token).await
+    let raw = sgp_get::<SgpGameDetailResponse>(host, &uri, &token).await?;
+    SGP_DETAIL_CACHE.insert(key, raw.clone()).await;
+    Ok(raw)
 }
 
 // ─────────────────────────── name#TAG → puuid ───────────────────────────
@@ -704,5 +737,38 @@ mod tests {
         assert_eq!(ev.r#type.as_deref(), Some("NEW_FANCY_EVENT"));
         // 未来字段被忽略
         assert_eq!(ev.item_id, None);
+    }
+
+    // ── SGP 缓存(F3-1)──
+
+    #[tokio::test]
+    async fn detail_cache_hits_after_fetch() {
+        // 直接验证缓存层:插入后可取回(网络层 mock 由上层测试覆盖,这里只测缓存行为)
+        let entry = SgpGameDetailResponse {
+            metadata: None,
+            json: Some(SgpGameDetail {
+                end_of_game_result: Some("GameComplete".into()),
+                frame_interval: Some(60000),
+                frames: vec![],
+                participants: vec![],
+            }),
+        };
+        SGP_DETAIL_CACHE.insert("TJ100:42".into(), entry.clone()).await;
+        let got = SGP_DETAIL_CACHE.get(&"TJ100:42".to_string()).await;
+        assert!(got.is_some());
+        assert_eq!(
+            got.unwrap().json.unwrap().end_of_game_result.as_deref(),
+            Some("GameComplete")
+        );
+        // 不同 key(跨区)不串
+        assert!(SGP_DETAIL_CACHE.get(&"HN10:42".to_string()).await.is_none());
+    }
+
+    #[tokio::test]
+    async fn detail_cache_key_includes_platform() {
+        SGP_DETAIL_CACHE.invalidate_all().await;
+        SGP_DETAIL_CACHE.insert("TJ100:7".into(), SgpGameDetailResponse::default()).await;
+        // 同 gameId 不同大区:key 不同 → 未命中(防串区)
+        assert!(SGP_DETAIL_CACHE.get(&"HN10:7".to_string()).await.is_none());
     }
 }
