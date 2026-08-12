@@ -753,7 +753,9 @@ mod tests {
                 participants: vec![],
             }),
         };
-        SGP_DETAIL_CACHE.insert("TJ100:42".into(), entry.clone()).await;
+        SGP_DETAIL_CACHE
+            .insert("TJ100:42".into(), entry.clone())
+            .await;
         let got = SGP_DETAIL_CACHE.get(&"TJ100:42".to_string()).await;
         assert!(got.is_some());
         assert_eq!(
@@ -767,7 +769,9 @@ mod tests {
     #[tokio::test]
     async fn detail_cache_key_includes_platform() {
         SGP_DETAIL_CACHE.invalidate_all().await;
-        SGP_DETAIL_CACHE.insert("TJ100:7".into(), SgpGameDetailResponse::default()).await;
+        SGP_DETAIL_CACHE
+            .insert("TJ100:7".into(), SgpGameDetailResponse::default())
+            .await;
         // 同 gameId 不同大区:key 不同 → 未命中(防串区)
         assert!(SGP_DETAIL_CACHE.get(&"HN10:7".to_string()).await.is_none());
     }
