@@ -227,10 +227,12 @@ import { useMatchReplay } from '@renderer/composables/useMatchReplay'
 import { useMatchPlayerRanks } from '@renderer/composables/useMatchPlayerRanks'
 import type { DetailPlayer } from '@renderer/composables/useMatchDetailPlayers'
 import type { OneGamePlayer } from '@renderer/types/domain/analysis'
-import { matchDetailContextKey } from './matchDetailContext'
+import { matchDetailContextKey, type SgpDetailStatus } from './matchDetailContext'
+import { getSgpMatchDetail, type SgpGameDetail } from '@renderer/services/sgp'
 import MatchDetailSummaryTab from './tabs/MatchDetailSummaryTab.vue'
 import MatchDetailStatsTab from './tabs/MatchDetailStatsTab.vue'
 import MatchDetailRunesTab from './tabs/MatchDetailRunesTab.vue'
+import MatchDetailEventsTab from './tabs/MatchDetailEventsTab.vue'
 import MatchDetailTabPlaceholder from './tabs/MatchDetailTabPlaceholder.vue'
 
 const props = defineProps<{ game: Game | null }>()
@@ -370,6 +372,26 @@ function displayedPerkIds(stats: ParticipantStats) {
   return [stats.perk0, stats.perkSubStyle].filter(id => id > 0)
 }
 
+// ── SGP 单局详情（事件/时间线 tab 共用，懒加载 + 局级缓存）──
+const sgpDetail = ref<SgpGameDetail | null>(null)
+const sgpDetailStatus = ref<SgpDetailStatus>('idle')
+
+async function loadSgpDetail() {
+  if (sgpDetailStatus.value === 'loading' || sgpDetailStatus.value === 'ready') return
+  const g = props.game
+  if (!g) return
+  sgpDetailStatus.value = 'loading'
+  try {
+    const resp = await getSgpMatchDetail(g.platformId, g.gameId)
+    sgpDetail.value = resp?.json ?? null
+    sgpDetailStatus.value = 'ready'
+  } catch (err) {
+    console.error('[record] SGP DETAILS 加载失败', err)
+    sgpDetail.value = null
+    sgpDetailStatus.value = 'error'
+  }
+}
+
 provide(matchDetailContextKey, {
   game: gameRef,
   players,
@@ -382,7 +404,10 @@ provide(matchDetailContextKey, {
   buildEncounter,
   itemIds,
   playerAugmentIds,
-  displayedPerkIds
+  displayedPerkIds,
+  sgpDetail,
+  sgpDetailStatus,
+  loadSgpDetail
 })
 
 /** 占位 tab 的稳定组件：markRaw 防响应式代理，KeepAlive 缓存需要稳定的组件对象 */
@@ -410,11 +435,7 @@ const tabs = [
   {
     key: 'events',
     label: '事件',
-    component: placeholderTab(
-      '事件时间线',
-      '击杀 / 建筑 / 特殊击杀 / 塔皮，按分钟流式排布，SGP 增强后可补地图坐标与伤害明细。',
-      TimeOutline
-    )
+    component: MatchDetailEventsTab
   },
   {
     key: 'builds',
@@ -459,6 +480,8 @@ watch(
       mySummary.value?.participantId ?? detailPlayers.value[0]?.participantId ?? null
     )
     loadAssetsIfNeeded()
+    sgpDetail.value = null
+    sgpDetailStatus.value = 'idle'
   },
   { immediate: true }
 )

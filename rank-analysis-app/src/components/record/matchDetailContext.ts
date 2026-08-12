@@ -7,6 +7,7 @@
 import type { InjectionKey, Ref } from 'vue'
 import type { Game, ParticipantStats } from '@renderer/types/domain/match'
 import type { OneGamePlayer } from '@renderer/types/domain/analysis'
+import type { SgpGameDetail } from '@renderer/services/sgp'
 import type {
   useMatchDetailPlayers,
   DetailPlayer
@@ -19,6 +20,9 @@ export type DetailPlayersApi = ReturnType<typeof useMatchDetailPlayers>
 export type MatchAIApi = ReturnType<typeof useMatchAIAnalysis>
 export type MatchRanksApi = ReturnType<typeof useMatchPlayerRanks>
 export type RecordAssetsApi = ReturnType<typeof useRecordAssets>
+
+/** SGP 单局详情拉取状态（懒加载：事件/时间线 tab 首次进入时才触发） */
+export type SgpDetailStatus = 'idle' | 'loading' | 'ready' | 'error'
 
 export interface MatchDetailContext {
   /** 当前对局（可为 null 的空态由容器统一处理，tab 内无需再判） */
@@ -43,6 +47,12 @@ export interface MatchDetailContext {
   itemIds: (stats: ParticipantStats) => number[]
   playerAugmentIds: (stats: ParticipantStats) => number[]
   displayedPerkIds: (stats: ParticipantStats) => number[]
+  /** SGP 单局详情（事件/时间线 tab 共用；未加载或失败为 null） */
+  sgpDetail: Readonly<Ref<SgpGameDetail | null>>
+  /** SGP 单局详情拉取状态 */
+  sgpDetailStatus: Readonly<Ref<SgpDetailStatus>>
+  /** 懒加载 DETAILS（幂等：加载中/已就绪时重复调用直接返回） */
+  loadSgpDetail: () => Promise<void>
 }
 
 export const matchDetailContextKey: InjectionKey<MatchDetailContext> = Symbol('matchDetailContext')
