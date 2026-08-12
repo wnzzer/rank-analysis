@@ -204,7 +204,6 @@ import type { Component } from 'vue'
 import {
   CloseOutline,
   CodeSlashOutline,
-  FlashOutline,
   PlayCircleOutline,
   SparklesOutline,
   TimeOutline
@@ -231,6 +230,7 @@ import type { OneGamePlayer } from '@renderer/types/domain/analysis'
 import { matchDetailContextKey } from './matchDetailContext'
 import MatchDetailSummaryTab from './tabs/MatchDetailSummaryTab.vue'
 import MatchDetailStatsTab from './tabs/MatchDetailStatsTab.vue'
+import MatchDetailRunesTab from './tabs/MatchDetailRunesTab.vue'
 import MatchDetailTabPlaceholder from './tabs/MatchDetailTabPlaceholder.vue'
 
 const props = defineProps<{ game: Game | null }>()
@@ -405,11 +405,7 @@ const tabs = [
   {
     key: 'runes',
     label: '符文',
-    component: placeholderTab(
-      '符文详情',
-      '每人符文卡片（主系 / 副系 / 属性碎片），SGP 增强后可补 statPerks。',
-      FlashOutline
-    )
+    component: MatchDetailRunesTab
   },
   {
     key: 'events',
