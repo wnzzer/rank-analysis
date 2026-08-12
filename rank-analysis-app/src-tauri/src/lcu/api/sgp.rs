@@ -670,7 +670,10 @@ mod tests {
         assert_eq!(received[0].r#type.as_deref(), Some("OTHER"));
 
         // 帧统计:金/CS/坐标/伤害
-        let ps = frame.participant_frames.get(&1).expect("有 participantId=1");
+        let ps = frame
+            .participant_frames
+            .get(&1)
+            .expect("有 participantId=1");
         assert_eq!(ps.total_gold, 1500);
         assert_eq!(ps.minions_killed, 40);
         assert_eq!(ps.position.as_ref().map(|p| p.y), Some(5100));
@@ -688,10 +691,7 @@ mod tests {
         assert!(json.end_of_game_result.is_none());
         assert_eq!(json.frames.len(), 1);
         assert!(json.frames[0].participant_frames.is_empty());
-        assert_eq!(
-            json.frames[0].events[0].r#type.as_deref(),
-            Some("GAME_END")
-        );
+        assert_eq!(json.frames[0].events[0].r#type.as_deref(), Some("GAME_END"));
         assert!(json.frames[0].events[0].victim_damage_received.is_none());
     }
 
