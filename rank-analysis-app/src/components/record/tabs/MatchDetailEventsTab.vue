@@ -89,6 +89,13 @@ import { NScrollbar, NSpin, NTooltip } from 'naive-ui'
 import type { SgpFrameEvent } from '@renderer/services/sgp'
 import type { DetailPlayer } from '@renderer/composables/useMatchDetailPlayers'
 import { matchDetailContextKey } from '../matchDetailContext'
+import {
+  EVENT_FILTER_OPTIONS,
+  EVENT_KIND_LABEL,
+  countEventKinds,
+  kindOfEvent,
+  type EventKind
+} from './eventsTable'
 
 const injected = inject(matchDetailContextKey)
 if (!injected) throw new Error('MatchDetailEventsTab 必须在 MatchDetailInline 容器内使用')
@@ -115,42 +122,9 @@ const playerLabel = (id?: number | null) =>
 const teamLabel = (teamId?: number | null) =>
   teamId === 100 ? '蓝方' : teamId === 200 ? '红方' : ''
 
-// ── 事件类型筛选 ──
+// ── 事件类型筛选（纯函数层 eventsTable.ts）──
 
-export type EventKind = 'kill' | 'building' | 'monster' | 'plate' | 'special' | 'other'
-
-interface FilterOption {
-  value: EventKind | 'all'
-  label: string
-  match: (row: EventRow) => boolean
-}
-
-const KIND_OF = (ev: SgpFrameEvent): EventKind => {
-  switch (ev.type) {
-    case 'CHAMPION_KILL':
-      return 'kill'
-    case 'BUILDING_KILL':
-      return 'building'
-    case 'ELITE_MONSTER_KILL':
-      return 'monster'
-    case 'TURRET_PLATE_DESTROYED':
-      return 'plate'
-    case 'CHAMPION_SPECIAL_KILL':
-      return 'special'
-    default:
-      return 'other'
-  }
-}
-
-const filterOptions: FilterOption[] = [
-  { value: 'all', label: '全部', match: () => true },
-  { value: 'kill', label: '击杀', match: row => row.kind === 'kill' },
-  { value: 'building', label: '建筑', match: row => row.kind === 'building' },
-  { value: 'monster', label: '中立', match: row => row.kind === 'monster' },
-  { value: 'plate', label: '塔皮', match: row => row.kind === 'plate' },
-  { value: 'special', label: '特殊击杀', match: row => row.kind === 'special' },
-  { value: 'other', label: '其他', match: row => row.kind === 'other' }
-]
+const filterOptions = EVENT_FILTER_OPTIONS
 
 const filter = ref<EventKind | 'all'>('all')
 
@@ -165,20 +139,12 @@ interface EventRow {
   key: string
   minuteLabel: string
   kind: EventKind
+  rawType: string
   kindLabel: string
   teamLabel: string
   text: string
   details: { source: string; bars: DamageBar[] }[] | null
   detailsLabel: string
-}
-
-const KIND_LABEL: Record<EventKind, string> = {
-  kill: '击杀',
-  building: '建筑',
-  monster: '中立',
-  plate: '塔皮',
-  special: '特殊击杀',
-  other: '其他'
 }
 
 const BUILDING_LABEL: Record<string, string> = {
@@ -278,7 +244,7 @@ function buildEventRow(ev: SgpFrameEvent, index: number, frameTs: number): Event
     ev.timestamp != null
       ? `${Math.floor(ev.timestamp / 60000)}:${String(Math.round((ev.timestamp % 60000) / 1000)).padStart(2, '0')}`
       : `${Math.floor(frameTs / 60000)}:00`
-  const kind = KIND_OF(ev)
+  const kind = kindOfEvent(ev)
   const team = teamLabel(ev.teamId)
 
   let text = ''
@@ -351,7 +317,8 @@ function buildEventRow(ev: SgpFrameEvent, index: number, frameTs: number): Event
     key: `${frameTs}-${index}-${ev.type ?? ''}-${ev.timestamp ?? 0}`,
     minuteLabel: minLabel,
     kind,
-    kindLabel: KIND_LABEL[kind],
+    rawType: ev.type ?? '',
+    kindLabel: EVENT_KIND_LABEL[kind],
     teamLabel: team,
     text,
     details,
@@ -379,18 +346,13 @@ const events = computed<EventRow[]>(() => {
   })
 })
 
-const counts = computed<Record<string, number>>(() => {
-  const out: Record<string, number> = { all: events.value.length }
-  for (const opt of filterOptions) {
-    if (opt.value === 'all') continue
-    out[opt.value] = events.value.filter(opt.match).length
-  }
-  return out
+const counts = computed(() => {
+  return countEventKinds(events.value.map(ev => ({ type: ev.rawType })))
 })
 
 const visibleEvents = computed(() => {
   const opt = filterOptions.find(o => o.value === filter.value) ?? filterOptions[0]
-  return events.value.filter(opt.match)
+  return events.value.filter(ev => opt.match({ type: ev.rawType }))
 })
 </script>
 

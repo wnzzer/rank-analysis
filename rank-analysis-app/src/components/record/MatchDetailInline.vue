@@ -199,9 +199,8 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, ref, watch, onMounted, toRef, provide, h, markRaw } from 'vue'
-import type { Component } from 'vue'
-import { CloseOutline, PlayCircleOutline, SparklesOutline, TimeOutline } from '@vicons/ionicons5'
+import { computed, ref, watch, onMounted, toRef, provide } from 'vue'
+import { CloseOutline, PlayCircleOutline, SparklesOutline } from '@vicons/ionicons5'
 import { NButton, NIcon, NTooltip } from 'naive-ui'
 import { invoke } from '@tauri-apps/api/core'
 import { useCopy } from '@renderer/composables/useCopy'
@@ -228,7 +227,7 @@ import MatchDetailStatsTab from './tabs/MatchDetailStatsTab.vue'
 import MatchDetailRunesTab from './tabs/MatchDetailRunesTab.vue'
 import MatchDetailEventsTab from './tabs/MatchDetailEventsTab.vue'
 import MatchDetailBuildsTab from './tabs/MatchDetailBuildsTab.vue'
-import MatchDetailTabPlaceholder from './tabs/MatchDetailTabPlaceholder.vue'
+import MatchDetailTimelineTab from './tabs/MatchDetailTimelineTab.vue'
 
 const props = defineProps<{ game: Game | null }>()
 const emit = defineEmits<{ close: [] }>()
@@ -405,16 +404,7 @@ provide(matchDetailContextKey, {
   loadSgpDetail
 })
 
-/** 占位 tab 的稳定组件：markRaw 防响应式代理，KeepAlive 缓存需要稳定的组件对象 */
-function placeholderTab(title: string, desc: string, icon: Component, lcudata = true) {
-  return markRaw({
-    setup() {
-      return () => h(MatchDetailTabPlaceholder, { title, desc, icon, lcudata })
-    }
-  })
-}
-
-/** tab 定义：概览已实现，其余按方向 E 任务逐个落地（当前为占位） */
+/** tab 定义：6 tab（概览 / 数据对比 / 符文 / 事件 / 出装 / 时间线）全部落地 */
 const tabs = [
   { key: 'summary', label: '概览', component: MatchDetailSummaryTab },
   {
@@ -440,12 +430,7 @@ const tabs = [
   {
     key: 'timeline',
     label: '时间线',
-    component: placeholderTab(
-      '时间线折线',
-      '金 / CS / 经验随分钟变化的曲线对比，伤害曲线需 SGP 数据源。',
-      TimeOutline,
-      false
-    )
+    component: MatchDetailTimelineTab
   }
 ]
 
