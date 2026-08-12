@@ -3,7 +3,7 @@
 > **本文档是后续一切开发的唯一权威参考。** 修改任何功能前先读本文档对应章节;
 > 计划变更时同步更新本文档并 bump `计划版本`。
 >
-> - 计划版本: v1.2.2(2026-08-12)
+> - 计划版本: v1.3(2026-08-12)
 > - 目标仓库: rank-analysis(Tauri 2 + Rust + Vue 3 + TS)
 > - 对标仓库: LeagueAkari(Electron + Vue + TS,本机 `D:\lolzhushou\LeagueAkari`)
 > - 两个仓库均已建立 codegraph 索引。**查代码一律用 codegraph**,不要 grep:
@@ -24,10 +24,12 @@
 5. [方向 B:战绩页三段式 UI 重构(核心交付)](#5-方向-b战绩页三段式-ui-重构)
 6. [方向 C:OP.GG 出装/符文推荐](#6-方向-copgg-出装符文推荐)
 7. [方向 D:AI 功能增强](#7-方向-dai-功能增强)
-8. [实施里程碑与验收标准](#8-实施里程碑与验收标准)
-9. [技术决策记录(ADR)](#9-技术决策记录adr)
-10. [风险清单](#10-风险清单)
-11. [参考:Akari 对标文件索引](#11-参考akari-对标文件索引)
+8. [方向 E:详情页 6 tab 追平(核心交付)](#8-方向-e详情页-6-tab-追平核心交付)
+9. [方向 F:SGP 数据源升级(详情页地基)](#9-方向-fsgp-数据源升级详情页地基)
+10. [实施里程碑与验收标准](#10-实施里程碑与验收标准)
+11. [技术决策记录(ADR)](#11-技术决策记录adr)
+12. [风险清单](#12-风险清单)
+13. [参考:Akari 对标文件索引](#13-参考akari-对标文件索引)
 
 ---
 
@@ -424,7 +426,143 @@ D3/方向D AI 增强(独立推进,可与 C 并行)
 
 ---
 
-## 8. 实施里程碑与验收标准
+## 8. 方向 E:详情页 6 tab 追平(核心交付)
+
+> 目标:详情页信息密度与维度对标 Akari 的 6 tab(Summary/Details/Runes/Events/Builds/Timeline)。
+> **优先级排序与依赖:本方向的「高级数据」全部依赖方向 F(SGP DETAILS);LCU 能给的先做,降级方案同步落地。**
+
+### E0 总体结构
+
+现有 `MatchDetailInline.vue` 的单页长滚动(队伍分节 → 对比表 → AI)改为 **tab 容器 + KeepAlive 保活**(对照 `MatchCardDetails.vue:69-76`):
+
+```
+┌─ 详情展开层 ──────────────────────────────────────────────┐
+│ [概览] [数据对比] [符文] [事件] [出装] [时间线]  [AI按钮] [收起] │
+├──────────────────────────────────────────────────────────┤
+│ 各 tab 独立组件(KeepAlive),数据懒加载(切到才拉)              │
+└──────────────────────────────────────────────────────────┘
+```
+
+- 概览 tab = 现有队伍分节 + 对比条 + 徽章(已实现,直接移入)
+- 其余 tab 按下表分两批:LCU 可做(先交付)、SGP 增强(方向 F 后)
+
+| Tab | LCU 版(先行) | SGP 增强(方向 F) | Akari 参照 |
+|---|---|---|---|
+| 数据对比 | 10 人透视表:行分组 + 双 sticky + 行过滤 + hover 柱状图;数据=现有 `game_detail.participants` | 补 challenges(单杀/视野/15种ping)、超细统计 | `MatchCardDetailsTab.vue` |
+| 符文 | 现有符文已展示;tab 化 + 每人卡片 | statPerks(LCU 无) | `MatchCardRunesTab.vue` |
+| 事件 | LCU timeline events 降级版(击杀/建筑/特殊,无坐标) | 完整 15+ 事件流 + 地图坐标 + 击杀伤害明细 + 镀层统计 | `MatchCardEventsTab.vue` |
+| 出装 | 现有 7 件展示;补技能加点(LCU `SKILL_LEVEL_UP` 事件) | 装备购买时序/撤销 | `MatchCardBuildsTab.vue` |
+| 时间线 | LCU `participantFrames`(金/CS/经验,无伤害) | 伤害曲线 + 队伍均值 + 玩家筛选 | `MatchCardDiffLineChart.vue` |
+| 概览 | 现有实现直接移入 tab | 不变 | `MatchCardSummaryTab.vue` |
+
+### E1 数据对比透视表(最高价值,LCU 先行)
+
+- **行分组**:按 `RENDER_GROUPS` 思路分「基础/击杀/伤害/经济/视野/其他」;未识别字段进 `undocumented` 兜底组(SGP 响应演进不崩 UI)
+- **双 sticky**:首列(统计名)+ 表头(玩家头像,队伍色描边)固定;表头滚轮横向滚动
+- **行过滤**:输入框按 key/中文名过滤,composition 感知 + debounce 250ms(LCU 版可简化:仅名称过滤)
+- **hover 柱状图**:数值型行 Popover 内横向条形图(10 人对比,队伍色)
+- 数据源:`game_detail.participants` 的 `Stats`(已有 kda/伤害/承伤/治疗/金/补刀/视野字段),纯前端装配,零后端改动
+
+### E2 时间线折线(LCU 先行)
+
+- LCU `timeline` 端点:`/lol-match-history/v1/match-details/timeline/{gameId}`?——**开发时用 codegraph 确认**:若 LCU 提供 `participantFrames`(每分钟金/CS/经验),做 3 条折线 + 玩家多选;
+- 无伤害曲线时标注「LCU 数据源,伤害曲线需 SGP」
+- 坐标轴:横轴分钟,纵轴归一化差值(该玩家 - 队伍均值)或绝对值,设置可切
+
+### E3 事件时间线(LCU 先行)
+
+- NTimeline 按分钟流式排布,事件类型筛选(击杀/建筑/特殊击杀/塔皮)
+- LCU events 有 `CHAMPION_KILL/BUILDING_KILL/ELITE_MONSTER_KILL/CHAMPION_SPECIAL_KILL` + position(LCU position 为 0,标记「无坐标」或隐藏地图)
+- SGP 增强(方向 F):坐标画小地图、击杀伤害明细、镀层统计
+
+### E4 任务卡
+
+| # | 任务 | 涉及 | 验收 |
+|---|---|---|---|
+| E1-1 | tab 容器改造(KeepAlive + 懒加载) | `MatchDetailInline.vue` 重构为容器 + 子 tab | 6 tab 结构可切换,状态不丢 |
+| E1-2 | 数据对比透视表 | 新 `tabs/MatchDetailStatsTab.vue` + `detailsTable.ts`(行分组/过滤/渲染器) | 10 人透视表可用,过滤/排序正确 |
+| E2-1 | 符文 tab 化 | 新 `tabs/MatchDetailRunesTab.vue` | 每人符文卡片(LCU 数据) |
+| E3-1 | 事件 tab | 新 `tabs/MatchDetailEventsTab.vue` | LCU 事件时间线可用,类型筛选 |
+| E4-1 | 出装 tab | 新 `tabs/MatchDetailBuildsTab.vue` | 技能加点 + 装备展示 |
+| E5-1 | 时间线 tab | 新 `tabs/MatchDetailTimelineTab.vue` | 金/CS/经验曲线 |
+| E-测试 | 行分组纯函数 + 过滤 + 事件筛选 | 单测 | `npm run test` 全绿 |
+
+### E5 验收标准(M4)
+1. 6 tab 全部可切换,展开详情秒开(≈现状,tab 内容懒加载不阻塞首屏)
+2. 数据对比透视表:50 场样本任意一局 10 人全统计可看,行过滤/排序无卡顿
+3. 无 SGP 时全部 tab 有 LCU 数据降级,无空白/报错
+4. SGP 就绪后(SGP 增强部分)自动升级展示,无手动开关
+
+---
+
+## 9. 方向 F:SGP 数据源升级(详情页地基)
+
+> 目标:打通 SGP `DETAILS` 端点(帧数据/事件流/伤害明细),让方向 E 的「高级数据」成为现实;
+> 同时补深翻页(>50 场)与缓存。**现状盘点**:跨区战绩列表(SUMMARY)已闭环
+> (`lcu/api/sgp.rs` `fetch_match_history_summary` + `map_sgp_to_match_history` + `command/sgp.rs` 3 命令 + 前端 Header 大区下拉)。
+> 缺:DETAILS 端点、深翻页、SGP 缓存、前端 services 封装。
+
+### F1 SGP DETAILS 端点(Rust)
+
+- 新增 `lcu/api/sgp.rs` `fetch_match_detail(platform_id, game_id)`:
+  - URI:`match-history-query/v1/products/lol/{platform_id}_{game_id}/DETAILS`(对照 Akari `match-history-query.ts:58-69`,腾讯 subId = platformId 即 `HN10_8537174104` 格式)
+  - token:复用 `get_entitlements_access_token`(DETAILS 用 entitlements)
+  - 返回:`{ metadata, json: { endOfGameResult, frameInterval, frames[], participants[] } }`
+- **帧结构** `DetailedFrame`:
+  ```rust
+  struct DetailedFrame {
+      timestamp: i64,                        // 毫秒
+      events: Vec<DetailedEvent>,            // 击杀/建筑/精英怪/技能加点/装备购买…
+      participant_frames: HashMap<i32, FrameStats>, // participantId → 每分钟统计
+  }
+  struct FrameStats {
+      current_gold, total_gold, gold_per_second, level, xp,
+      minions_killed, jungle_minions_killed,
+      position: { x, y },                    // 地图坐标(SGP 独有)
+      damage_stats: { total_damage_done_to_champions, damage_taken, … }, // SGP 独有
+  }
+  ```
+- **事件类型**(按 Akari `frames.ts` 的 `DetailedGameEventType` 枚举裁剪):CHAMPION_KILL(含 victimDamageDealt/Received 伤害明细)、CHAMPION_SPECIAL_KILL(一血/多杀/团灭)、BUILDING_KILL(塔/水晶)、ELITE_MONSTER_KILL、TURRET_PLATE_DESTROYED、ITEM_PURCHASED/SOLD/UNDO、SKILL_LEVEL_UP、WARD_PLACED、GAME_END
+- **serde 容错**:字段缺失/default(腾讯响应随版本演进,宁可 null 不可 panic);`position` 缺失时(LCU 源)置 `None`
+- 后端 command:`get_sgp_match_detail(region, game_id)` → 原始 `Value` 或类型化结构(先 Value,方向 E 前端消费时再定型,避免盲猜字段——沿用 `sgp.rs` 模块注释的既有策略)
+
+### F2 深翻页(>50 场)
+
+- SGP SUMMARY 支持 `startIndex/count` 无限翻页(现有 `fetch_match_history_summary` 已透传,只差前端):
+- `MatchHistory.vue` 跨区分支:「收集更多」改为向后端追加拉取(现 `nextPage` 纯切片 50 场);记录 `lastStartIndex`,翻页即 `beg_index = 已加载数`
+- 后端:`get_sgp_match_history_by_name` 已有 `beg_index/count` 参数,无需改;**注意去重**(SGP 翻页可能重叠),前端按 `gameId` 合并
+
+### F3 SGP 缓存
+
+- 列表:参照 `MATCH_HISTORY_CACHE`(`lcu/api/match_history.rs:127`)为 `(platform_id, puuid, start, count)` 建 moka(60s TTL 防串区,key 带 platform_id)
+- 详情:复用 `GAME_DETAIL_CACHE`(`lcu/api/game_detail.rs:64`,key=gameId 天然跨源)或独立 `SGP_DETAIL_CACHE`(无 TTL,max 500)
+- 前端:`services/sgp.ts` 新建,照 `rank.ts` 模块级缓存模式
+
+### F4 段位/胜率跨区(可选,后置)
+
+- 现状:跨区查询段位/胜率/标签均置默认(`usePlayerRecordData.ts`);Akari 用 `leagues-ledge` 端点(注释「无法跨区」)且 SGP rankedStats 跨区行为存疑
+- 先不接;若用户反馈需要,再评估 `leagues-ledge/v2/rankedStats/puuid/{puuid}` 真机验证
+
+### F5 任务卡
+
+| # | 任务 | 涉及 | 验收 |
+|---|---|---|---|
+| F1-1 | DETAILS 端点 + 帧/事件结构 | `lcu/api/sgp.rs`、`lcu/util/http.rs`(如有需要) | 真机/样例 JSON 可解析;serde 容错单测 |
+| F1-2 | command `get_sgp_match_detail` | `command/sgp.rs` | invoke 返回帧数据 |
+| F2-1 | 跨区深翻页 | `MatchHistory.vue` | 「收集更多」跨区追加,gameId 去重 |
+| F3-1 | SGP 缓存(moka) | `lcu/api/sgp.rs` | 重复查询 0 网络请求 |
+| F4-1 | services/sgp.ts 前端封装 | `services/sgp.ts`(新) | 复用现有调用点 |
+| F-测试 | 帧解析容错、翻页去重 | — | `cargo test` 全绿 |
+
+### F6 验收标准(M5)
+1. `get_sgp_match_detail` 真机返回帧数据,事件流/坐标/伤害明细字段齐全
+2. 跨区翻页超过 50 场无重复、无空洞
+3. 重复查询命中缓存,断网后详情页高级数据仍可显示(已缓存局)
+4. 方向 E 各 tab 在 SGP 源下展示高级数据
+
+---
+
+## 10. 实施里程碑与验收标准
 
 ### 总验收清单(全部 M 达成后)
 
@@ -445,12 +583,14 @@ D3/方向D AI 增强(独立推进,可与 C 并行)
 | M1 | 方向 B 全量 | 3(最大,含 UI 打磨) | M0 |
 | M2 | 方向 C 全量 | 1.5 | M0(M1 仅影响展示位) |
 | M3 | 方向 D 全量 | 2.5(分 P1..P4 交付) | M0 |
+| M4 | 方向 E 全量 | 2.5(LCU 先行,SGP 增强后接) | M0;高级数据依赖 M5 |
+| M5 | 方向 F 全量 | 1.5 | M0(M4 的 SGP 增强部分) |
 
 **每里程碑完成即发一次 commit**(遵循仓库 Conventional Commits,见 CONTRIBUTING.md / CLAUDE.md 质量门禁:`npm run check` 全绿才可提交)。
 
 ---
 
-## 9. 技术决策记录(ADR)
+## 11. 技术决策记录(ADR)
 
 | ADR | 决策 | 理由 | 反方(保留) |
 |---|---|---|---|
@@ -461,10 +601,15 @@ D3/方向D AI 增强(独立推进,可与 C 并行)
 | C1 | PUGG 优先于 OP.GG | 国服数据、零外部依赖、样本即玩家自己 | 小样本(<5 场)降级到 OP.GG |
 | D-P1 | 强制 JSON 输出 + schema | 渲染确定性、可校验、防幻觉数字 | 文案自由度下降(可接受) |
 | D-P2 | AI 阶段化走既有流式基建 | 复用 Channel/重试/看门狗 | 对局中触发频率需限流(prompt 节流 + 状态机) |
+| E1 | tab 容器 + KeepAlive + 懒加载 | 展开秒开(内容懒加载)、切换保状态 | 多 tab 内存占用(有限,可接受) |
+| E2 | LCU 先行、SGP 增强 | 无 SGP 也全部可用;SGP 就绪自动升级 | 部分 tab 两套数据路径(前端按 source 分支) |
+| F1 | DETAILS 先返回原始 Value | 腾讯响应未定型,避免盲猜字段 | 前端消费时再定型(方向 E 落地) |
+| F2 | SGP 翻页前端合并去重 | 后端无需改,gameId 天然唯一 | 跨页重叠时网络浪费(可容忍) |
+| F3 | SGP 缓存 key 带 platform_id | 防串区(LCU 缓存 key=puuid 只因 LCU 单区) | 缓存条数翻倍(8 大区,可接受) |
 
 ---
 
-## 10. 风险清单
+## 12. 风险清单
 
 | 风险 | 影响 | 缓解 |
 |---|---|---|
@@ -475,10 +620,13 @@ D3/方向D AI 增强(独立推进,可与 C 并行)
 | 对局中 AI 触发过频烧 token | D-P2 | 状态机节流:同一对局同类型诊断最高 1 次/3min |
 | 重构破坏既有用户习惯(翻页→滚动) | B | 保留"上一页/下一页"双模式入口 |
 | codegraph 索引过期 | 全部 | 每次改动后 `codegraph sync`,开发生效快 |
+| **SGP DETAILS 端点 URL/字段随腾讯版本变动** | E 高级数据失效 | DETAILS 返回原始 Value + serde 容错(default);对照 Akari 客户端定期校验;失效时 LCU 降级仍在 |
+| **SGP token 401 轮换** | F1 请求失败 | 每次请求前重取 token(已实现);401 时重取重试一次 |
+| **LCU timeline 端点可能不存在/字段不足** | E2 时间线 tab 数据不足 | 开发时 codegraph 确认;不足则时间线 tab 标注「SGP 增强」并先行展示金/CS(LCU participantFrames 若有) |
 
 ---
 
-## 11. 参考:Akari 对标文件索引
+## 13. 参考:Akari 对标文件索引
 
 > 仅作思路参照,不照搬代码(双方技术栈不同)。
 
@@ -490,6 +638,16 @@ D3/方向D AI 增强(独立推进,可与 C 并行)
 | 筛选 | `match-history-filters/combinator-*` | 谓词组合思想(我们只做简单版:胜负/时间/英雄/模式) |
 | 出装符文 | `src-opgg-window/opgg/widgets/OpggChampionRunes.vue` / `OpggChampionBoots.vue` / `OpggChampionSkills.vue` | 展示形态(10 格装备格/符文树) |
 | 收集模式 | `match-history-init-param-collect.ts` | SGP 分批收集(我们后置) |
+| 详情 6 tab 容器 | `match-card/MatchCardDetails.vue` | TabSwitch + KeepAlive + 条件 tab + watchEffect 回退 |
+| 数据对比透视表 | `match-card/tabs/MatchCardDetailsTab.vue` + `utils/details-table.ts` | 行分组/双 sticky/行过滤/渲染器/undocumented 兜底组 |
+| 事件时间线 | `match-card/tabs/MatchCardEventsTab.vue` | NTimeline + 类型/英雄筛选 + 地图位置/伤害明细 Popover |
+| 时间线折线 | `match-card/tabs/timeline/MatchCardDiffLineChart.vue` | 指标 radio + 队伍均值 + 玩家多选控制面板 |
+| 出装/技能加点 | `match-card/tabs/MatchCardBuildsTab.vue` | 技能加点序列(Q/W/E/R,EVOLVE 标记)、装备购买时间点 |
+| 符文页 | `match-card/tabs/MatchCardRunesTab.vue` | 每人卡片 + style 配色 ring + statPerks |
+| 击杀伤害明细 | `match-card/widgets/VictimDamageDetails.vue` + `DamageBarWithPopover.vue` | 伤害来源物理/魔法/真实分解条 |
+| SGP DETAILS 客户端 | `shared/http-api-axios-helper/sgp/match-history-query.ts` | DETAILS 端点路径/参数、帧结构 |
+| SGP 帧数据 adapter | `shared/data-adapter/match-history/frames.ts` | 帧类型守卫、SGP 独有字段判定 |
+| SGP 双源决策 | `shared/data-adapter/source-selection.ts` | 跨区强制 SGP、同区可 fallback、token 未就绪 wait |
 
 ---
 
@@ -509,3 +667,4 @@ D3/方向D AI 增强(独立推进,可与 C 并行)
 | v1.2 | 2026-08-11 | **M1 布局骨架完成**:B1-1 PlayerBar(60px)+ Record.vue 三段式重构 + 共享数据源 usePlayerRecordData(路由 name/region 加载,跨区降级);B1-2 UserSidePanel 左栏(好友宿敌空态收敛单行 + RankCard + RecentStatsTable + 跨区提示);B2-1 筛选纯函数化 matchFilters.ts(12 用例);B4-1 RecordCard 紧凑 44px 行卡(胜负/时长 mm:ss/英雄名/KDA/伤害承伤治疗 mini 条/参团率/装备 4 槽或海克斯/MVP 角标,删队列日期技能两队头像);B3-1 TrendBar 最近 50 场趋势格(时长归一宽度 + deaths 暗格 + MVP 绿点 + tooltip + 点击定位/展开);B5-1 英雄池联动(aggregateChampionPool 纯函数聚合 50 场 + 左栏 HeroPool 高亮/淡化 + RecordCard hover 事件链)。UserRecord.vue 已删除 |
 | v1.2.1 | 2026-08-11 | **M1 数据流收敛 + B-测试单元部分**:MatchHistory 改为 50 场一次拉取 + 客户端四维筛选(模式/英雄/胜负/时间窗口)与 10 条/页切片,列表/趋势条/英雄池同源;"收集更多"改页内下一页。新增 MatchHistory.data.spec.ts(13 用例:分页/筛选/空态/复位/趋势同源/英雄池上抛/hover 事件链/趋势定位与就地展开/详情抽屉)。B-测试任务卡单元部分 ✅,分辨率与 10 场 ≤1s 手工验收等 exe 打包后执行 |
 | v1.2.2 | 2026-08-12 | 新增 §5.5 对标结论:当前 UI vs Akari 界面示意图(ASCII)与 UX/UI 差距分析表(8 项,含优先级建议)。纯文档变更,无代码改动 |
+| v1.3 | 2026-08-12 | 新增方向 E(详情页 6 tab 追平:tab 容器/数据对比透视表/符文/事件/出装/时间线,LCU 先行 + SGP 增强)与方向 F(SGP 数据源升级:DETAILS 端点/深翻页/缓存);里程碑新增 M4/M5;ADR/风险/参考索引同步扩充。基于对 Akari 详情页源码拆解(6 tab 能力矩阵:LCU 可做 vs SGP 独有) |

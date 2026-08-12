@@ -7,7 +7,6 @@ use crate::constant;
 use crate::lcu::api::match_history::MatchHistory;
 use crate::lcu::api::sgp;
 use serde::Serialize;
-
 /// 大区选项（前端下拉用）：platformId + 中文名。
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -72,6 +71,18 @@ pub async fn get_sgp_match_history_by_name(
 ) -> Result<MatchHistory, String> {
     crate::observability::track_feature("sgp_cross_region_query");
     sgp::get_match_history_by_name(&region, &name, beg_index, count).await
+}
+
+/// 按大区 + gameId 拉取单局 SGP 详情(帧数据/事件流/伤害明细)。
+///
+/// 供详情页高级 tab(事件/时间线/出装)消费;返回类型化结构,字段缺失已 default 容错。
+#[tauri::command]
+pub async fn get_sgp_match_detail(
+    region: String,
+    game_id: i64,
+) -> Result<sgp::SgpGameDetailResponse, String> {
+    crate::observability::track_feature("sgp_match_detail");
+    sgp::fetch_match_detail(&region, game_id).await
 }
 
 #[cfg(test)]

@@ -81,8 +81,174 @@ pub async fn fetch_match_history_summary(
     sgp_get::<Value>(host, &uri, &token).await
 }
 
-// ─────────────────────────── name#TAG → puuid ───────────────────────────
+// ─────────────────────────── 单局详情 DETAILS ───────────────────────────
 
+/// 单局详情响应中的单个参与者帧统计（每分钟一条，SGP 独有伤害/坐标）。
+///
+/// 字段缺失一律 default：腾讯响应随版本演进，宁可 null 不可 panic。
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SgpFrameParticipantStats {
+    pub current_gold: i32,
+    pub total_gold: i32,
+    pub gold_per_second: i32,
+    pub level: i32,
+    pub xp: i32,
+    pub minions_killed: i32,
+    pub jungle_minions_killed: i32,
+    /// 地图坐标（SGP 独有；LCU 源为 0，调用方据此降级）
+    pub position: Option<SgpFramePosition>,
+    /// 伤害统计（SGP 独有）
+    pub damage_stats: Option<SgpFrameDamageStats>,
+    /// 时间(分钟)内对敌人造成的控制时间
+    pub time_enemy_spent_controlled: Option<f64>,
+    /// 攻击/法强等核心属性(可选)
+    pub champion_stats: Option<SgpFrameChampionStats>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SgpFramePosition {
+    pub x: i32,
+    pub y: i32,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SgpFrameDamageStats {
+    pub magic_damage_done: Option<f64>,
+    pub magic_damage_done_to_champions: Option<f64>,
+    pub physical_damage_done: Option<f64>,
+    pub physical_damage_done_to_champions: Option<f64>,
+    pub true_damage_done: Option<f64>,
+    pub true_damage_done_to_champions: Option<f64>,
+    pub total_damage_done: Option<f64>,
+    pub total_damage_done_to_champions: Option<f64>,
+    pub total_damage_taken: Option<f64>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SgpFrameChampionStats {
+    pub attack_damage: Option<f64>,
+    pub attack_speed: Option<f64>,
+    pub armor: Option<f64>,
+    pub magic_resist: Option<f64>,
+    pub health: Option<f64>,
+    pub health_max: Option<f64>,
+    pub movement_speed: Option<f64>,
+    pub power: Option<f64>,
+}
+
+/// 击杀事件里的伤害明细（谁打了谁、各来源物理/魔法/真实）。
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SgpDamageDetail {
+    pub basic: Option<bool>,
+    pub magic_damage: Option<i32>,
+    pub name: Option<String>,
+    pub participant_id: Option<i32>,
+    pub physical_damage: Option<i32>,
+    pub spell_name: Option<String>,
+    pub spell_slot: Option<i32>,
+    pub true_damage: Option<i32>,
+    /// 来源类型：TOWER / MINION / MONSTER / OTHER
+    pub r#type: Option<String>,
+}
+
+/// 单局详情里的一条帧事件。///
+/// 事件类型参考 Akari `DetailedGameEventType`(DETAILS 端点):击杀/特殊击杀(一血/多杀/团灭)/
+/// 建筑/精英怪/塔皮/装备买/卖/撤销/技能加点/插眼/游戏结束。字段缺失 default 容错。
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SgpFrameEvent {
+    pub r#type: Option<String>,
+    pub timestamp: Option<i64>,
+    pub participant_id: Option<i32>,
+    pub killer_id: Option<i32>,
+    pub victim_id: Option<i32>,
+    pub assisting_participant_ids: Option<Vec<i32>>,
+    pub position: Option<SgpFramePosition>,
+    pub kill_type: Option<String>,
+    pub multi_kill_length: Option<i32>,
+    pub lane_type: Option<String>,
+    pub tower_type: Option<String>,
+    pub building_type: Option<String>,
+    pub team_id: Option<i32>,
+    pub monster_type: Option<String>,
+    pub monster_sub_type: Option<String>,
+    pub level_up_type: Option<String>,
+    pub skill_slot: Option<i32>,
+    pub item_id: Option<i32>,
+    pub after_id: Option<i32>,
+    pub before_id: Option<i32>,
+    pub ward_type: Option<String>,
+    /// CHAMPION_KILL 事件的伤害明细(SGP 独有)
+    pub victim_damage_dealt: Option<Vec<SgpDamageDetail>>,
+    pub victim_damage_received: Option<Vec<SgpDamageDetail>>,
+    pub victim_teamfight_damage_dealt: Option<Vec<SgpDamageDetail>>,
+    pub victim_teamfight_damage_received: Option<Vec<SgpDamageDetail>>,
+    pub game_end_result: Option<String>,
+}
+
+/// 单局详情的一条帧(约每分钟一条)。
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SgpFrame {
+    pub timestamp: Option<i64>,
+    pub events: Vec<SgpFrameEvent>,
+    /// participantId → 该分钟的统计
+    pub participant_frames: std::collections::HashMap<i32, SgpFrameParticipantStats>,
+}
+
+/// DETAILS 响应的 `json` 体。
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SgpGameDetail {
+    pub end_of_game_result: Option<String>,
+    pub frame_interval: Option<i64>,
+    pub frames: Vec<SgpFrame>,
+    /// SGP 的 DETAILS participants 只给 `{ participantId, puuid }`,身份对齐靠 SUMMARY
+    pub participants: Vec<SgpDetailParticipant>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SgpDetailParticipant {
+    pub participant_id: Option<i32>,
+    pub puuid: Option<String>,
+}
+
+/// DETAILS 响应整体: `{ metadata, json }`。
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SgpGameDetailResponse {
+    pub metadata: Option<Value>,
+    pub json: Option<SgpGameDetail>,
+}
+
+/// 拉取指定大区某局对局的详情(帧数据/事件流/伤害明细)。
+///
+/// # 参数
+/// - `platform_id`: 目标大区(如 `HN10`),映射为 SGP 主机。
+/// - `game_id`: 对局 ID(SGP 路径格式为 `{platform_id}_{game_id}`,如 `HN10_8537174104`)。
+///
+/// 返回类型化结构(serde 全字段 default 容错)。身份/汇总字段在 SUMMARY 里,本端点只出帧。
+pub async fn fetch_match_detail(
+    platform_id: &str,
+    game_id: i64,
+) -> Result<SgpGameDetailResponse, String> {
+    let host = constant::game::get_sgp_host(platform_id)
+        .ok_or_else(|| format!("未知大区 {},无对应 SGP 主机", platform_id))?;
+    let token = get_entitlements_access_token().await?;
+    let uri = format!(
+        "match-history-query/v1/products/lol/{}_{}/DETAILS",
+        platform_id, game_id
+    );
+    sgp_get::<SgpGameDetailResponse>(host, &uri, &token).await
+}
+
+// ─────────────────────────── name#TAG → puuid ───────────────────────────
 /// 拆分 `名字#TAG`。全区查询必须带 TAG（SGP alias 查询需要 gameName+tagLine）。
 fn split_riot_id(name: &str) -> Result<(String, String), String> {
     match name.rsplit_once('#') {
@@ -438,5 +604,105 @@ mod tests {
         // 以 "other" 视角查：participants[0] 应是队友（champion 200）
         let mh = map_sgp_to_match_history(&sample_raw(), "TJ100", "other");
         assert_eq!(mh.games.games[0].participants[0].champion_id, 200);
+    }
+
+    // ── DETAILS 解析容错 ──
+
+    #[test]
+    fn parse_sgp_detail_response_full() {
+        let raw = r#"{
+          "metadata": { "dataVersion": "2.4" },
+          "json": {
+            "endOfGameResult": "GameComplete",
+            "frameInterval": 60000,
+            "participants": [
+              { "participantId": 1, "puuid": "me-puuid" },
+              { "participantId": 2, "puuid": "other-puuid" }
+            ],
+            "frames": [
+              {
+                "timestamp": 60000,
+                "events": [
+                  {
+                    "type": "CHAMPION_KILL",
+                    "timestamp": 60000,
+                    "killerId": 1,
+                    "victimId": 2,
+                    "assistingParticipantIds": [3],
+                    "position": { "x": 5000, "y": 5000 },
+                    "victimDamageReceived": [
+                      { "name": "伤害来源", "participantId": 1, "physicalDamage": 100, "magicDamage": 50, "trueDamage": 10, "type": "OTHER" }
+                    ]
+                  },
+                  { "type": "SKILL_LEVEL_UP", "participantId": 1, "skillSlot": 0, "levelUpType": "NORMAL" },
+                  { "type": "ITEM_PURCHASED", "participantId": 1, "itemId": 3153 }
+                ],
+                "participantFrames": {
+                  "1": {
+                    "currentGold": 1000, "totalGold": 1500, "goldPerSecond": 8, "level": 5, "xp": 900,
+                    "minionsKilled": 40, "jungleMinionsKilled": 2,
+                    "position": { "x": 5100, "y": 5100 },
+                    "damageStats": { "totalDamageDoneToChampions": 1200, "totalDamageTaken": 800 },
+                    "timeEnemySpentControlled": 3.5
+                  }
+                }
+              }
+            ]
+          }
+        }"#;
+        let resp: SgpGameDetailResponse = serde_json::from_str(raw).unwrap();
+        let json = resp.json.expect("json 非空");
+        assert_eq!(json.end_of_game_result.as_deref(), Some("GameComplete"));
+        assert_eq!(json.frame_interval, Some(60000));
+        assert_eq!(json.participants.len(), 2);
+        assert_eq!(json.participants[1].puuid.as_deref(), Some("other-puuid"));
+
+        let frame = &json.frames[0];
+        assert_eq!(frame.timestamp, Some(60000));
+        // 事件:击杀(带伤害明细)、技能加点、装备购买
+        assert_eq!(frame.events.len(), 3);
+        let kill = &frame.events[0];
+        assert_eq!(kill.r#type.as_deref(), Some("CHAMPION_KILL"));
+        assert_eq!(kill.killer_id, Some(1));
+        assert_eq!(kill.position.as_ref().map(|p| p.x), Some(5000));
+        let received = kill.victim_damage_received.as_ref().unwrap();
+        assert_eq!(received[0].physical_damage, Some(100));
+        assert_eq!(received[0].r#type.as_deref(), Some("OTHER"));
+
+        // 帧统计:金/CS/坐标/伤害
+        let ps = frame.participant_frames.get(&1).expect("有 participantId=1");
+        assert_eq!(ps.total_gold, 1500);
+        assert_eq!(ps.minions_killed, 40);
+        assert_eq!(ps.position.as_ref().map(|p| p.y), Some(5100));
+        let ds = ps.damage_stats.as_ref().expect("SGP 独有伤害字段");
+        assert_eq!(ds.total_damage_done_to_champions, Some(1200.0));
+        assert_eq!(ps.time_enemy_spent_controlled, Some(3.5));
+    }
+
+    #[test]
+    fn parse_sgp_detail_response_tolerant_of_missing_fields() {
+        // 帧缺 damageStats/position、事件缺字段时不得 panic,全部 default
+        let raw = r#"{ "json": { "frames": [ { "events": [ { "type": "GAME_END" } ] } ] } }"#;
+        let resp: SgpGameDetailResponse = serde_json::from_str(raw).unwrap();
+        let json = resp.json.unwrap();
+        assert!(json.end_of_game_result.is_none());
+        assert_eq!(json.frames.len(), 1);
+        assert!(json.frames[0].participant_frames.is_empty());
+        assert_eq!(
+            json.frames[0].events[0].r#type.as_deref(),
+            Some("GAME_END")
+        );
+        assert!(json.frames[0].events[0].victim_damage_received.is_none());
+    }
+
+    #[test]
+    fn parse_sgp_detail_response_unknown_fields_ignored() {
+        // 腾讯新增未知字段(如新事件类型)不得破坏解析
+        let raw = r#"{ "json": { "frames": [ { "timestamp": 0, "events": [ { "type": "NEW_FANCY_EVENT", "futureField": 42 } ] } ] } }"#;
+        let resp: SgpGameDetailResponse = serde_json::from_str(raw).unwrap();
+        let ev = &resp.json.unwrap().frames[0].events[0];
+        assert_eq!(ev.r#type.as_deref(), Some("NEW_FANCY_EVENT"));
+        // 未来字段被忽略
+        assert_eq!(ev.item_id, None);
     }
 }

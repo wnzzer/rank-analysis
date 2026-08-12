@@ -2,6 +2,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { invoke } from '@tauri-apps/api/core'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
+import { getSgpRegions } from '@renderer/services/sgp'
 import { modeOptions, initModeOptions } from '@renderer/composables/useGameModes'
 import {
   defaultRank,
@@ -66,12 +67,8 @@ export function usePlayerRecordData() {
       flex.value = defaultRecentWinRate()
       recentData.value = defaultRecentData()
       tags.value = []
-      try {
-        const regions = await invoke<{ label: string; value: string }[]>('get_sgp_regions')
-        platformIdCn.value = regions.find(r => r.value === region.value)?.label ?? region.value
-      } catch {
-        platformIdCn.value = region.value
-      }
+      const regions = await getSgpRegions()
+      platformIdCn.value = regions.find(r => r.value === region.value)?.label ?? region.value
       return
     }
 

@@ -112,7 +112,6 @@
 </template>
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
 import {
   Search,
   LogoGithub,
@@ -133,6 +132,7 @@ import router from '@renderer/router'
 import { useSettingsStore } from '@renderer/pinia/setting'
 import { useGameState, lcuConnected } from '@renderer/composables/useGameState'
 import { closeLeagueByIpc } from '@renderer/services/ipc'
+import { getSgpRegions } from '@renderer/services/sgp'
 import { useAppUpdate } from '@renderer/composables/useAppUpdate'
 import { GATE_SETTLE_MS, GATE_FALLBACK_MS } from '@renderer/composables/useStartupDialogs'
 
@@ -165,12 +165,8 @@ const selectedRegion = ref('')
 const regionOptions = ref<{ label: string; value: string }[]>([{ label: '当前区', value: '' }])
 
 onMounted(async () => {
-  try {
-    const regions = await invoke<{ label: string; value: string }[]>('get_sgp_regions')
-    regionOptions.value = [{ label: '当前区', value: '' }, ...regions]
-  } catch (e) {
-    console.error('加载大区列表失败', e)
-  }
+  const regions = await getSgpRegions()
+  regionOptions.value = [{ label: '当前区', value: '' }, ...regions]
 })
 
 /** n-dropdown 选项格式（key=platformId） */

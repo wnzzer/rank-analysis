@@ -145,6 +145,7 @@ import { useRoute } from 'vue-router'
 import { renderSingleSelectTag, renderLabel, filterChampionFunc } from '../composition'
 import { modeOptions, initModeOptions } from './composition'
 import { invoke } from '@tauri-apps/api/core'
+import { getSgpMatchHistoryByName } from '@renderer/services/sgp'
 import { championOption } from '../type'
 import type { Game, MatchHistory } from './match'
 import MatchDetailInline from './MatchDetailInline.vue'
@@ -249,6 +250,9 @@ const games = computed(() =>
 /** 已到最后一页（按过滤后的命中总数判断） */
 const noMoreMatches = computed(() => page.value >= pageCount.value)
 
+/** 跨区(SGP)已拉取的场次窗口起点：每次「收集更多」向后端追加拉取（SGP 无 50 场上限） */
+const sgpStartIndex = ref(0)
+
 /** 趋势条：与列表共用同一份过滤（客户端过滤不重拉） */
 const trendFiltered = computed(() => filteredGames.value)
 
@@ -294,20 +298,19 @@ const getHistoryMatch = async (name: string) => {
   isRequestingMatchHostory.value = true
   loadError.value = false
   try {
+    let result: MatchHistory | null = null
     if (region.value) {
-      matchHistory.value = await invoke<MatchHistory>('get_sgp_match_history_by_name', {
-        region: region.value,
-        name,
-        begIndex: 0,
-        count: 50
-      })
+      result = await getSgpMatchHistoryByName(region.value, name, 0, 50)
+      if (!result) throw new Error('SGP 跨区查询失败')
+      sgpStartIndex.value = 50
     } else {
-      matchHistory.value = await invoke<MatchHistory>('get_match_history_by_name', {
+      result = await invoke<MatchHistory>('get_match_history_by_name', {
         name,
         begIndex: 0,
         endIndex: 49
       })
     }
+    matchHistory.value = result
     allGames.value = matchHistory.value?.games?.games ?? []
     page.value = 1
     expandedGameIds.value = new Set()
@@ -342,9 +345,45 @@ watch(
   }
 )
 
-// 下一页 / 上一页（纯客户端切片，50 场窗口内翻页）
+// 下一页 / 上一页（纯客户端切片，50 场窗口内翻页；跨区模式下「收集更多」先追加拉取）
 const nextPage = () => {
+  if (region.value) {
+    loadMoreCrossRegion()
+    return
+  }
   if (!noMoreMatches.value) page.value += 1
+}
+
+/** 跨区深翻页：SGP 无 50 场上限，「收集更多」按 startIndex 追加拉取，gameId 去重合并 */
+const isRequestingSgpMore = ref(false)
+const loadMoreCrossRegion = async () => {
+  if (isRequestingSgpMore.value) return
+  isRequestingSgpMore.value = true
+  try {
+    const mh = await getSgpMatchHistoryByName(region.value, name.value, sgpStartIndex.value, 50)
+    if (!mh) throw new Error('SGP 跨区追加拉取失败')
+    const incoming = mh.games?.games ?? []
+    if (incoming.length === 0) {
+      sgpStartIndex.value = -1 // 无更多：标记终止，后续点击直接翻页
+      page.value = pageCount.value
+      return
+    }
+    const seen = new Set(allGames.value.map(g => g.gameId))
+    const fresh = incoming.filter(g => !seen.has(g.gameId))
+    if (fresh.length > 0) {
+      allGames.value = [...allGames.value, ...fresh]
+      sgpStartIndex.value += incoming.length
+      // 翻到追加内容所在的最后一页
+      page.value = pageCount.value
+    } else {
+      sgpStartIndex.value += incoming.length
+    }
+  } catch (err) {
+    console.error('[MatchHistory] loadMoreCrossRegion failed', err)
+    loadingBar.error()
+  } finally {
+    isRequestingSgpMore.value = false
+  }
 }
 
 const prevPage = () => {
