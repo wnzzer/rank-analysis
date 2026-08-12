@@ -1,6 +1,15 @@
 <template>
   <div class="meeting-players-container">
-    <MatchDetailModal :game="selectedGame" @close="selectedGame = null" />
+    <n-modal
+      v-model:show="showDetail"
+      preset="card"
+      :style="{ width: 'min(1360px, 90vw)' }"
+      :bordered="false"
+      class="meeting-detail-modal"
+      @close="closeDetail"
+    >
+      <MatchDetailInline :game="selectedGame" @close="closeDetail" />
+    </n-modal>
     <n-grid :x-gap="8" :y-gap="8" cols="2">
       <n-grid-item v-for="meetGame in meetGames" :key="meetGame.gameId">
         <div
@@ -50,7 +59,7 @@
 import { OneGamePlayer } from '../record/type'
 import type { Game } from '../record/match'
 import { assetPrefix } from '../../services/http'
-import MatchDetailModal from '../record/MatchDetailModal.vue'
+import MatchDetailInline from '../record/MatchDetailInline.vue'
 import { invoke } from '@tauri-apps/api/core'
 import { ref } from 'vue'
 import LazyImg from '@renderer/components/common/LazyImg.vue'
@@ -63,20 +72,27 @@ function getFormattedDate(dateString: string) {
 }
 
 /**
- * 打开对局详情抽屉
+ * 打开对局详情（同战绩页的行内详情内容，此处包在模态框里展示）
  * @param gameId - 对局 ID
  */
 const selectedGame = ref<Game | null>(null)
+const showDetail = ref(false)
 async function openGameDetail(gameId: number): Promise<void> {
   try {
     // 通过 gameId 获取完整对局信息
     const game = await invoke<Game>('get_game_by_id', { gameId })
     if (game) {
       selectedGame.value = game
+      showDetail.value = true
     }
   } catch (error) {
     console.error('Failed to open game detail:', error)
   }
+}
+
+function closeDetail() {
+  showDetail.value = false
+  selectedGame.value = null
 }
 
 defineProps<{

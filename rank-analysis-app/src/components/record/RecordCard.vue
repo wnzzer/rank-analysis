@@ -128,8 +128,10 @@
         </template>
       </div>
 
-      <!-- 展开箭头 -->
-      <n-icon class="record-card-chevron"><ChevronDownOutline /></n-icon>
+      <!-- 展开箭头：就地展开时翻转朝上 -->
+      <n-icon class="record-card-chevron" :class="{ 'record-card-chevron--expanded': expanded }">
+        <ChevronDownOutline />
+      </n-icon>
     </div>
   </div>
 </template>
@@ -155,8 +157,9 @@ const props = withDefaults(
     recordType?: boolean
     games: Game
     championOptions?: championOption[]
+    expanded?: boolean
   }>(),
-  { championOptions: () => [] }
+  { championOptions: () => [], expanded: false }
 )
 
 const emit = defineEmits<{
@@ -523,5 +526,11 @@ function openDetail() {
 .record-card:hover .record-card-chevron {
   transform: translateY(1px);
   color: var(--text-secondary);
+}
+
+/* 就地展开：箭头翻转朝上，与展开状态呼应 */
+.record-card-chevron--expanded {
+  transform: rotate(180deg) !important;
+  color: var(--text-primary);
 }
 </style>

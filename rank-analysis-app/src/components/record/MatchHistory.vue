@@ -1,6 +1,5 @@
 <template>
   <div class="ratio-container">
-    <MatchDetailModal :game="selectedGame" @close="selectedGame = null" />
     <n-flex vertical class="content-wrapper match-history-wrap">
       <n-flex class="match-history-toolbar" align="center" :size="8" :wrap="false">
         <n-select
@@ -82,11 +81,19 @@
             :record-type="true"
             :games="game"
             :champion-options="championOptions"
+            :expanded="expandedGameIds.has(game.gameId)"
             :class="{ 'list-item-flash': highlightedGameId === game.gameId }"
-            @open-detail="openDetail(game)"
+            @open-detail="toggleDetail(game)"
             @hover-champion="emit('hover-champion', $event)"
             @leave-champion="emit('leave-champion')"
           />
+          <Transition name="detail-expand">
+            <MatchDetailInline
+              v-if="expandedGameIds.has(game.gameId)"
+              :game="game"
+              @close="collapseDetail(game.gameId)"
+            />
+          </Transition>
         </div>
       </TransitionGroup>
 
@@ -132,7 +139,7 @@ import RecordCard from './RecordCard.vue'
 import RecordCardSkeleton from './RecordCardSkeleton.vue'
 import TrendBar from './TrendBar.vue'
 import { ArrowBack, ArrowForward, RepeatOutline } from '@vicons/ionicons5'
-import { computed, onMounted, provide, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, provide, ref, watch } from 'vue'
 import { NEmpty, NButton, useLoadingBar } from 'naive-ui'
 import { useRoute } from 'vue-router'
 import { renderSingleSelectTag, renderLabel, filterChampionFunc } from '../composition'
@@ -140,7 +147,7 @@ import { modeOptions, initModeOptions } from './composition'
 import { invoke } from '@tauri-apps/api/core'
 import { championOption } from '../type'
 import type { Game, MatchHistory } from './match'
-import MatchDetailModal from './MatchDetailModal.vue'
+import MatchDetailInline from './MatchDetailInline.vue'
 import { useRecordAssets } from '@renderer/composables/useRecordAssets'
 import { recordAssetsKey } from '@renderer/composables/recordAssetsKey'
 import {
@@ -223,7 +230,8 @@ const hasFilter = computed(() => hasActiveFilter(activeFilter.value))
 /** 最近 50 场全量（时间降序），列表 / 趋势条 / 英雄池同源 */
 const allGames = ref<Game[]>([])
 const matchHistory = ref<MatchHistory>()
-const selectedGame = ref<Game | null>(null)
+/** 已就地展开详情（多开）的对局 id 集合；切换玩家/筛选时清空 */
+const expandedGameIds = ref<Set<number>>(new Set())
 const loadingBar = useLoadingBar()
 const isRequestingMatchHostory = ref(false)
 const loadError = ref(false)
@@ -265,8 +273,19 @@ const resetFilter = () => {
   page.value = 1
 }
 
-async function openDetail(game: Game) {
-  selectedGame.value = game
+/** 行卡点击：已展开则收起，未展开则就地展开（允许多开） */
+function toggleDetail(game: Game) {
+  if (expandedGameIds.value.has(game.gameId)) {
+    expandedGameIds.value.delete(game.gameId)
+  } else {
+    expandedGameIds.value.add(game.gameId)
+  }
+  expandedGameIds.value = new Set(expandedGameIds.value)
+}
+
+function collapseDetail(gameId: number) {
+  expandedGameIds.value.delete(gameId)
+  expandedGameIds.value = new Set(expandedGameIds.value)
 }
 
 // 获取最近 50 场（一次拉取，列表分页/趋势条/英雄池共用）
@@ -291,6 +310,7 @@ const getHistoryMatch = async (name: string) => {
     }
     allGames.value = matchHistory.value?.games?.games ?? []
     page.value = 1
+    expandedGameIds.value = new Set()
   } catch (err) {
     loadError.value = true
     loadingBar.error()
@@ -333,7 +353,7 @@ const prevPage = () => {
 
 /**
  * 趋势格点击：目标局在当前页列表 → 平滑滚动并闪烁高亮；
- * 不在当前页（更早的对局）→ 直接展开详情抽屉。
+ * 不在当前页（更早的对局）→ 翻到所在页并就地展开详情，待渲染后回滚定位。
  */
 function selectTrendGame(gameId: number) {
   const target = document.querySelector<HTMLElement>(`[data-game-id="${gameId}"]`)
@@ -346,7 +366,21 @@ function selectTrendGame(gameId: number) {
     return
   }
   const game = allGames.value.find(g => g.gameId === gameId)
-  if (game) openDetail(game)
+  if (!game) return
+  const idx = filteredGames.value.findIndex(g => g.gameId === gameId)
+  if (idx < 0) return
+  page.value = Math.floor(idx / PAGE_SIZE) + 1
+  expandedGameIds.value.add(gameId)
+  expandedGameIds.value = new Set(expandedGameIds.value)
+  nextTick(() => {
+    const el = document.querySelector<HTMLElement>(`[data-game-id="${gameId}"]`)
+    if (!el) return
+    highlightedGameId.value = gameId
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    setTimeout(() => {
+      if (highlightedGameId.value === gameId) highlightedGameId.value = null
+    }, 1600)
+  })
 }
 
 onMounted(async () => {
@@ -436,6 +470,20 @@ watch(
 
 .list-move {
   transition: transform var(--dur-normal) var(--ease-expo);
+}
+
+/* 行内展开/收起过渡：淡入 + 轻微下滑（高度动画交给浏览器 flex/auto 布局） */
+.detail-expand-enter-active,
+.detail-expand-leave-active {
+  transition:
+    opacity var(--dur-normal) var(--ease-expo),
+    transform var(--dur-normal) var(--ease-expo);
+}
+
+.detail-expand-enter-from,
+.detail-expand-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
 }
 
 .filter-select.filter-mode {

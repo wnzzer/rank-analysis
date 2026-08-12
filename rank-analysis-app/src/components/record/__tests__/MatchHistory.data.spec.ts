@@ -10,7 +10,8 @@ import { TIME_WINDOW_HOURS } from '../matchFilters'
  * - 50 场一次拉取,客户端 10 条/页切片(列表 / 趋势条 / 英雄池同源)
  * - 四维筛选(模式/英雄/胜负/时间窗口)与空态
  * - 联动事件链 hover-champion / leave-champion / pool-change
- * - 趋势格点击:当前页定位高亮,不在页内就地展开详情
+ * - 趋势格点击:当前页定位高亮,不在页内翻页并就地展开详情
+ * - 行卡点击就地展开/收起(多开)
  */
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn()
@@ -132,7 +133,7 @@ function make50Games(): Game[] {
 const stubs = {
   RecordCard: true,
   RecordCardSkeleton: true,
-  MatchDetailModal: true,
+  MatchDetailInline: true,
   NPagination: {
     name: 'NPagination',
     template:
@@ -323,22 +324,47 @@ describe('MatchHistory 数据流(M1 B-测试)', () => {
     wrapper.unmount()
   })
 
-  it('趋势格点击:不在当前页的对局直接就地展开详情', async () => {
+  it('趋势格点击:不在当前页的对局翻页并就地展开', async () => {
     const { wrapper } = await mountWithData()
-    const MatchDetailModal = (await import('../MatchDetailModal.vue')).default
+    // 1049 = 第 50 场(索引 49),落在第 5 页,不在首页
+    const MatchDetailInline = (await import('../MatchDetailInline.vue')).default
     const TrendBar = (await import('../TrendBar.vue')).default
     wrapper.findComponent(TrendBar).vm.$emit('select-game', 1049)
     await flushPromises()
-    expect(wrapper.findComponent(MatchDetailModal).props('game')?.gameId).toBe(1049)
+    expect(wrapper.text()).toContain('5/5')
+    const detail = wrapper.findComponent(MatchDetailInline)
+    expect(detail.exists()).toBe(true)
+    expect(detail.props('game')?.gameId).toBe(1049)
     wrapper.unmount()
   })
 
-  it('行卡点击 open-detail 打开详情抽屉', async () => {
+  it('行卡点击就地展开详情,再次点击收起', async () => {
     const { wrapper } = await mountWithData()
-    const MatchDetailModal = (await import('../MatchDetailModal.vue')).default
-    wrapper.findAllComponents({ name: 'RecordCard' })[0].vm.$emit('open-detail')
+    const MatchDetailInline = (await import('../MatchDetailInline.vue')).default
+    const card = wrapper.findAllComponents({ name: 'RecordCard' })[0]
+    card.vm.$emit('open-detail')
     await flushPromises()
-    expect(wrapper.findComponent(MatchDetailModal).props('game')).not.toBeNull()
+    expect(wrapper.findComponent(MatchDetailInline).exists()).toBe(true)
+    card.vm.$emit('open-detail')
+    await flushPromises()
+    expect(wrapper.findComponent(MatchDetailInline).exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('多开:展开两张后再各收起,互不影响', async () => {
+    const { wrapper } = await mountWithData()
+    const MatchDetailInline = (await import('../MatchDetailInline.vue')).default
+    const cards = wrapper.findAllComponents({ name: 'RecordCard' })
+    cards[0].vm.$emit('open-detail')
+    cards[1].vm.$emit('open-detail')
+    await flushPromises()
+    const details = wrapper.findAllComponents(MatchDetailInline)
+    expect(details).toHaveLength(2)
+    cards[0].vm.$emit('open-detail')
+    await flushPromises()
+    const detailsAfter = wrapper.findAllComponents(MatchDetailInline)
+    expect(detailsAfter).toHaveLength(1)
+    expect(detailsAfter[0].props('game')?.gameId).toBe(cards[1].props('games')?.gameId)
     wrapper.unmount()
   })
 })

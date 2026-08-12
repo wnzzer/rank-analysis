@@ -33,7 +33,7 @@ describe('MatchHistory', () => {
         stubs: {
           RecordCard: true,
           RecordCardSkeleton: true,
-          MatchDetailModal: true,
+          MatchDetailInline: true,
           NPagination: true,
           NEmpty: true,
           NButton: true,
