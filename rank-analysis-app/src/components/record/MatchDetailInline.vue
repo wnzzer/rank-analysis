@@ -201,13 +201,7 @@
 <script lang="ts" setup>
 import { computed, ref, watch, onMounted, toRef, provide, h, markRaw } from 'vue'
 import type { Component } from 'vue'
-import {
-  CloseOutline,
-  CodeSlashOutline,
-  PlayCircleOutline,
-  SparklesOutline,
-  TimeOutline
-} from '@vicons/ionicons5'
+import { CloseOutline, PlayCircleOutline, SparklesOutline, TimeOutline } from '@vicons/ionicons5'
 import { NButton, NIcon, NTooltip } from 'naive-ui'
 import { invoke } from '@tauri-apps/api/core'
 import { useCopy } from '@renderer/composables/useCopy'
@@ -233,6 +227,7 @@ import MatchDetailSummaryTab from './tabs/MatchDetailSummaryTab.vue'
 import MatchDetailStatsTab from './tabs/MatchDetailStatsTab.vue'
 import MatchDetailRunesTab from './tabs/MatchDetailRunesTab.vue'
 import MatchDetailEventsTab from './tabs/MatchDetailEventsTab.vue'
+import MatchDetailBuildsTab from './tabs/MatchDetailBuildsTab.vue'
 import MatchDetailTabPlaceholder from './tabs/MatchDetailTabPlaceholder.vue'
 
 const props = defineProps<{ game: Game | null }>()
@@ -440,11 +435,7 @@ const tabs = [
   {
     key: 'builds',
     label: '出装',
-    component: placeholderTab(
-      '出装与技能加点',
-      '装备 + 技能加点序列（Q/W/E/R），SGP 增强后可补购买时序与撤销。',
-      CodeSlashOutline
-    )
+    component: MatchDetailBuildsTab
   },
   {
     key: 'timeline',
