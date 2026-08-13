@@ -20,6 +20,7 @@ import {
 } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import type { BpDecision } from '@renderer/types/bpDecision'
+import { deepEqual } from '@renderer/utils/deepEqual'
 
 /** 轮询间隔。比后端 2s 的产出快一档，让决策带对局面变化的反应更跟手 */
 const POLL_MS = 1000
@@ -33,7 +34,7 @@ export function useBpDecision(phase: MaybeRefOrGetter<string>): {
   displaySecs: ComputedRef<number>
 } {
   const decision = ref<BpDecision | null>(null)
-  /** 最近一次快照到达时的基准秒数与本地时刻 */
+  /** 最近一次新快照到达时，距离自动执行的基准秒数与本地时刻 */
   const baseSecs = ref(0)
   const baseAt = ref(0)
   /** 插值时钟，仅用于驱动 displaySecs 重算 */
@@ -55,9 +56,13 @@ export function useBpDecision(phase: MaybeRefOrGetter<string>): {
     try {
       const next = await invoke<BpDecision | null>('get_bp_decision')
       if (gen !== pollGeneration) return // stop() 已发生，丢弃迟到结果
+      const isNewSnapshot = next !== null && !deepEqual(next, decision.value)
       decision.value = next
-      if (next) {
-        baseSecs.value = next.time_left_secs
+      // 后端决策每 2 秒更新，前端每 1 秒轮询。同一份快照不能反复重置
+      // 插值基准，否则倒计时会每秒回跳。这里显示的是“距离自动执行”，
+      // 而不是客户端的整段 phase 剩余时间。
+      if (next && isNewSnapshot) {
+        baseSecs.value = Math.max(0, next.time_left_secs - next.execute_at_secs_left)
         baseAt.value = Date.now()
       }
     } catch {

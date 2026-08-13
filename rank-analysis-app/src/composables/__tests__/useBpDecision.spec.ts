@@ -82,6 +82,30 @@ describe('useBpDecision', () => {
     app.unmount()
   })
 
+  it('显示距离自动执行的时间，而不是阶段剩余时间', async () => {
+    invokeMock.mockResolvedValue(decision({ time_left_secs: 20, execute_at_secs_left: 5 }))
+    const phase = ref('ChampSelect')
+    const [result, app] = withSetup(() => useBpDecision(phase))
+
+    await vi.advanceTimersByTimeAsync(100)
+    expect(result.displaySecs.value).toBeGreaterThan(14.8)
+    expect(result.displaySecs.value).toBeLessThanOrEqual(15)
+
+    app.unmount()
+  })
+
+  it('重复读取同一后端快照时不重置插值基准', async () => {
+    invokeMock.mockResolvedValue(decision({ time_left_secs: 20, execute_at_secs_left: 5 }))
+    const phase = ref('ChampSelect')
+    const [result, app] = withSetup(() => useBpDecision(phase))
+
+    await vi.advanceTimersByTimeAsync(2100)
+    expect(invokeMock.mock.calls.length).toBeGreaterThanOrEqual(3)
+    expect(result.displaySecs.value).toBeLessThan(13.1)
+
+    app.unmount()
+  })
+
   it('阶段切换时决策归零', async () => {
     invokeMock.mockResolvedValue(decision())
     const phase = ref('ChampSelect')

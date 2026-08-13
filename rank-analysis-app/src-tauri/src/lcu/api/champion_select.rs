@@ -249,6 +249,17 @@ pub fn derive_champ_select_view(
     )
 }
 
+async fn fetch_champion_select_session() -> Result<SelectSession, String> {
+    let uri = "lol-champ-select/v1/session";
+    let select_session = lcu_get::<SelectSession>(uri).await?;
+
+    let mut cache = SELECT_CACHE.lock().unwrap();
+    cache.last_session = Some(select_session.clone());
+    cache.last_fetch_time = Some(Instant::now());
+
+    Ok(select_session)
+}
+
 pub async fn get_champion_select_session() -> Result<SelectSession, String> {
     {
         let cache = SELECT_CACHE.lock().unwrap();
@@ -263,17 +274,15 @@ pub async fn get_champion_select_session() -> Result<SelectSession, String> {
         }
     }
 
-    let uri = "lol-champ-select/v1/session";
-    let select_session = lcu_get::<SelectSession>(uri).await?;
+    fetch_champion_select_session().await
+}
 
-    // 更新缓存
-    {
-        let mut cache = SELECT_CACHE.lock().unwrap();
-        cache.last_session = Some(select_session.clone());
-        cache.last_fetch_time = Some(Instant::now());
-    }
-
-    Ok(select_session)
+/// 获取不经过进程内缓存的选人会话。
+///
+/// 自动 BP 的执行窗口需要最新的 action 和 timer；复用 1 秒缓存会让每秒轮询
+/// 实际观察到约 2 秒一跳的数据，可能直接跨过锁定阈值。
+pub async fn get_fresh_champion_select_session() -> Result<SelectSession, String> {
+    fetch_champion_select_session().await
 }
 
 pub async fn post_accept_match() -> Result<(), String> {
