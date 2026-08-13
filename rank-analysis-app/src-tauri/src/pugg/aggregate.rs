@@ -79,10 +79,7 @@ fn weighted(wins: u32, count: u32) -> u32 {
 ///
 /// # 参数
 /// - `stats`: (id, 使用场次, 胜场数) 三元组数组
-fn finalize_freq<T>(
-    mut stats: Vec<(i32, u32, u32)>,
-    map: impl Fn(i32, u32, u32) -> T,
-) -> Vec<T> {
+fn finalize_freq<T>(mut stats: Vec<(i32, u32, u32)>, map: impl Fn(i32, u32, u32) -> T) -> Vec<T> {
     stats.retain(|(id, count, _)| *id > 0 && *count > 0);
     stats.sort_by_key(|(id, wins, count)| (std::cmp::Reverse(weighted(*wins, *count)), *id));
     stats
@@ -192,11 +189,13 @@ pub fn aggregate_build_stats(
         win_count,
         items: items
             .into_iter()
-            .map(|slot| finalize_freq(slot, |id, count, wins| ItemStat {
-                item_id: id,
-                count,
-                win_count: wins,
-            }))
+            .map(|slot| {
+                finalize_freq(slot, |id, count, wins| ItemStat {
+                    item_id: id,
+                    count,
+                    win_count: wins,
+                })
+            })
             .collect(),
         rune_main: finalize_freq(rune_main, |id, count, wins| RuneStat {
             id,
