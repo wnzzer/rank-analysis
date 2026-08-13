@@ -209,6 +209,7 @@ import SubteamCard from '@renderer/components/gaming/SubteamCard.vue'
 import BpDecisionBar from '@renderer/components/gaming/BpDecisionBar.vue'
 import { useGamingAIAnalysis } from '@renderer/composables/useGamingAIAnalysis'
 import { useBpDecision } from '@renderer/composables/useBpDecision'
+import { useLineupScore } from '@renderer/composables/useLineupScore'
 import { useSessionSync } from '@renderer/composables/useSessionSync'
 import { useSessionTiers } from '@renderer/composables/useSessionTiers'
 import { useGameState } from '@renderer/composables/useGameState'
@@ -392,8 +393,21 @@ let hasShownAITip = false
  * AI 分析状态。面板显隐与请求生命周期是分开的两件事——按钮只管「打开面板」，
  * 关掉面板后随时能点回来看进度或已有结果，不会白烧一次调用。见
  * {@link useGamingAIAnalysis}。
+ *
+ * 选人期跑 prompt 前注入确定性事实：规则引擎决策（useBpDecision 快照）+ 双方
+ * 阵容强度分（useLineupScore 按已锁定英雄聚合 OP.GG meta）。AI 只做解释层——
+ * 引用这些数字，不得改写。
  */
-const ai = useGamingAIAnalysis(sessionData, opggMode)
+const lineupScores = useLineupScore(sessionData, opggMode)
+const ai = useGamingAIAnalysis(sessionData, opggMode, {
+  champSelectExtras: () => ({
+    bpDecision: bp.decision.value,
+    lineup: {
+      mine: lineupScores.scores.value.mine,
+      enemy: lineupScores.scores.value.enemy
+    }
+  })
+})
 
 /** 存规则进行中标志：防连点导致两次 reload 同一基线、后写覆盖先写丢规则 */
 const savingRule = ref(false)

@@ -354,3 +354,115 @@ describe('buildChampSelectPrompt', () => {
     expect(prompt).toContain('禁止改写或外推')
   })
 })
+
+describe('buildChampSelectPrompt extras（D-P2 确定性事实注入）', () => {
+  it('注入规则引擎决策：命中规则 + 对位证据 + 执行模式', async () => {
+    const prompt = await buildChampSelectPrompt(makeSessionData({}), 'ranked', {
+      bpDecision: {
+        action_type: 'Ban',
+        target: {
+          champion_id: 238,
+          lock: true,
+          origin: { type: 'Rule', rule_id: 'r1', rule_name: '克制劫' },
+          evidence: { win_rate: 0.42, against_champion_id: 266 }
+        },
+        rejected: [],
+        mode: 'Auto',
+        time_left_secs: 20,
+        execute_at_secs_left: 5,
+        user_overridden: false
+      }
+    })
+    expect(prompt).toContain('【规则引擎决策】')
+    expect(prompt).toContain('禁用 劫：命中规则「克制劫」')
+    expect(prompt).toContain('对位 剑魔 胜率 42%')
+    expect(prompt).toContain('（自动化执行中）')
+  })
+
+  it('注入规则引擎决策：兜底来源与仅建议模式', async () => {
+    const prompt = await buildChampSelectPrompt(makeSessionData({}), 'ranked', {
+      bpDecision: {
+        action_type: 'Pick',
+        target: {
+          champion_id: 55,
+          lock: false,
+          origin: { type: 'Fallback', pool_size: 12 },
+          evidence: null
+        },
+        rejected: [],
+        mode: 'Advisory',
+        time_left_secs: 15,
+        execute_at_secs_left: 2,
+        user_overridden: false
+      }
+    })
+    expect(prompt).toContain('选用 卡特琳娜：兜底推荐（池内 12 个候选）')
+    expect(prompt).toContain('（仅建议，未自动执行）')
+    expect(prompt).not.toContain('对位 剑魔')
+  })
+
+  it('bpDecision null 或缺失时不写决策小节，也不写"暂无可执行目标"空壳', async () => {
+    const noExtras = await buildChampSelectPrompt(makeSessionData({}), 'ranked')
+    expect(noExtras).not.toContain('【规则引擎决策】')
+    expect(noExtras).not.toContain('暂无可执行的目标')
+
+    const nullDecision = await buildChampSelectPrompt(makeSessionData({}), 'ranked', {
+      bpDecision: null
+    })
+    expect(nullDecision).not.toContain('【规则引擎决策】')
+  })
+
+  it('注入阵容强度：双方分数 + 覆盖度 + 最好 T 级', async () => {
+    const prompt = await buildChampSelectPrompt(makeSessionData({}), 'ranked', {
+      lineup: {
+        mine: { score: 53.3, covered: 3, total: 5, bestTier: 1 },
+        enemy: { score: null, covered: 0, total: 5, bestTier: null }
+      }
+    })
+    expect(prompt).toContain('【阵容强度（确定性计算，只可引用）】')
+    expect(prompt).toContain('我方53.3 分（3/5 英雄有数据，最好 T1）')
+    expect(prompt).toContain('敌方暂无数据')
+  })
+
+  it('双方均无数据的阵容强度不写小节（宁缺毋滥）', async () => {
+    const prompt = await buildChampSelectPrompt(makeSessionData({}), 'ranked', {
+      lineup: {
+        mine: { score: null, covered: 0, total: 5, bestTier: null },
+        enemy: { score: null, covered: 0, total: 5, bestTier: null }
+      }
+    })
+    expect(prompt).not.toContain('【阵容强度')
+  })
+
+  it('纪律段约束：确定性事实不得改写或给出冲突目标', async () => {
+    const prompt = await buildChampSelectPrompt(makeSessionData({}), 'ranked', {
+      bpDecision: {
+        action_type: 'Ban',
+        target: {
+          champion_id: 238,
+          lock: true,
+          origin: { type: 'Rule', rule_id: 'r1', rule_name: '克制劫' },
+          evidence: null
+        },
+        rejected: [],
+        mode: 'Auto',
+        time_left_secs: 20,
+        execute_at_secs_left: 5,
+        user_overridden: false
+      },
+      lineup: {
+        mine: { score: 53.3, covered: 3, total: 5, bestTier: 1 },
+        enemy: { score: 55.0, covered: 2, total: 5, bestTier: 2 }
+      }
+    })
+    expect(prompt).toContain('禁止给出与之冲突的 ban/pick 目标')
+    expect(prompt).toContain('禁止改写分数或自创其他强度数值')
+  })
+
+  it('普通模式（无 extras）不出现任何确定性小节与纪律行', async () => {
+    const prompt = await buildChampSelectPrompt(makeSessionData({}), 'ranked')
+    expect(prompt).not.toContain('确定性事实')
+    expect(prompt).not.toContain('【规则引擎决策】')
+    expect(prompt).not.toContain('【阵容强度')
+  })
+})

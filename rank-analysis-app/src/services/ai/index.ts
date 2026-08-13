@@ -13,7 +13,7 @@ import type { AIAnalysisResult, MatchDetailAnalysisOptions, StreamCallbacks } fr
 import { loadChampionNames } from './champion-names'
 import { DEFAULT_SYSTEM_PROMPT, requestAIContentStream } from './stream'
 import { buildPlayerAnalysisPrompt, buildTeamAnalysisPrompt } from './prompts/team'
-import { buildChampSelectPrompt } from './prompts/champSelect'
+import { buildChampSelectPrompt, type ChampSelectPromptExtras } from './prompts/champSelect'
 import { analyzeMatchDetail } from './matchDetail'
 import type { AIAnalysisReport } from './matchDetail'
 import type { RecentPlayerProfile } from './shared/types'
@@ -74,15 +74,17 @@ export async function analyzeGameWithAI(
  * @param sessionData - 对局会话数据（含 champSelect 结构化视图）
  * @param opggMode - OP.GG 数据模式，决定敌方情报是否含分路克制数据
  * @param callbacks - 流式回调
+ * @param extras - 确定性事实注入（D-P2 选人期 tab：规则引擎决策 + 阵容强度分）
  */
 export async function analyzeChampSelectWithAIStream(
   sessionData: SessionData,
   opggMode: OpggMode,
-  callbacks: StreamCallbacks
+  callbacks: StreamCallbacks,
+  extras?: ChampSelectPromptExtras
 ): Promise<void> {
   try {
     await loadChampionNames()
-    const prompt = await buildChampSelectPrompt(sessionData, opggMode)
+    const prompt = await buildChampSelectPrompt(sessionData, opggMode, extras)
     // 用 stream.ts 的 DEFAULT_SYSTEM_PROMPT（含"所有结论都必须绑定数据证据"的反幻觉指令），
     // 与选人期 prompt 里的分析纪律硬规则配套；不沿用对局中的 IN_GAME_SYSTEM_PROMPT。
     await requestAIContentStream(prompt, callbacks, DEFAULT_SYSTEM_PROMPT)

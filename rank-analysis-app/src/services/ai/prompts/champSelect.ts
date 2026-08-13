@@ -15,6 +15,8 @@ import { extractPlayerInsight } from '../player-insight'
 import { getChampionName } from '../champion-names'
 import { getChampionMeta, getLaneCounters, findCounterHints } from '@renderer/services/opgg'
 import { buildPatchNotesBlock, PATCH_NOTES_SECTION_HEADER } from './shared/patchNotes'
+import type { BpDecision } from '@renderer/types/bpDecision'
+import type { LineupScore } from '@renderer/services/lineupScore'
 import {
   LANE_RULE_CHAMP_SELECT,
   metricNameRule,
@@ -49,6 +51,35 @@ function banListText(ids: number[]): string {
   return ids.length > 0 ? ids.map(id => getChampionName(id)).join('、') : '无'
 }
 
+/** 规则引擎决策 → 事实块文本（确定性，AI 只解释） */
+function bpDecisionText(d: BpDecision | null): string {
+  if (!d) return '暂无可执行的目标。'
+  const actionCn = d.action_type === 'Ban' ? '禁用' : '选用'
+  if (!d.target) {
+    return `无待执行动作（${actionCn}）。`
+  }
+  const champName = getChampionName(d.target.champion_id)
+  const originText =
+    d.target.origin.type === 'Rule'
+      ? `命中规则「${d.target.origin.rule_name}」`
+      : `兜底推荐（池内 ${d.target.origin.pool_size} 个候选）`
+  const evidenceText = d.target.evidence
+    ? `；对位 ${getChampionName(d.target.evidence.against_champion_id)} 胜率 ${(d.target.evidence.win_rate * 100).toFixed(0)}%（该选择有已知被克制风险）`
+    : ''
+  const modeText = d.mode === 'Auto' ? '（自动化执行中）' : '（仅建议，未自动执行）'
+  return `${actionCn} ${champName}：${originText}${evidenceText}${modeText}`
+}
+
+/** 阵容强度分 → 事实块文本（确定性，AI 只引用） */
+function lineupText(mine: LineupScore, enemy: LineupScore): string {
+  const side = (s: LineupScore, label: string): string => {
+    if (s.score === null) return `${label}暂无数据`
+    const tierText = s.bestTier !== null ? `，最好 T${s.bestTier}` : ''
+    return `${label}${s.score} 分（${s.covered}/${s.total} 英雄有数据${tierText}）`
+  }
+  return `${side(mine, '我方')} vs ${side(enemy, '敌方')}`
+}
+
 /** 我方玩家一行的核心画像摘要（选人期精简版，字段取舍见文件头注释） */
 function myPlayerLine(p: SessionSummoner): string {
   const insight = extractPlayerInsight(p, { detailed: false })
@@ -67,15 +98,25 @@ function myPlayerLine(p: SessionSummoner): string {
   return `- ${insight.name}（${insight.tier}）本局：${champLabel}${assignedPositionSegment(p.assignedPosition)}｜近期胜率 ${insight.recentStats.winRate}% KDA ${insight.recentStats.kda}｜主打位置 ${insight.mainPosition}｜常用：${topChampsText}`
 }
 
+/** 选人期 prompt 额外确定性事实（缺省均为 null，此时不写对应小节） */
+export interface ChampSelectPromptExtras {
+  /** 规则引擎决策快照（useBpDecision 输出） */
+  bpDecision?: BpDecision | null
+  /** 双方阵容强度分（确定性计算，lineupScore.ts） */
+  lineup?: { mine: LineupScore; enemy: LineupScore } | null
+}
+
 /**
  * 构建选人期阵容分析 prompt
  * @param sessionData - 对局会话数据（subteams 统一模型，需带 champSelect 结构化视图）
  * @param opggMode - OP.GG 数据模式（ranked/aram），决定是否有分路克制数据
+ * @param extras - 确定性事实注入（规则引擎决策 + 阵容强度分），AI 只解释不推翻
  * @returns 可直接喂给 requestAIContentStream 的 prompt 字符串
  */
 export async function buildChampSelectPrompt(
   sessionData: SessionData,
-  opggMode: OpggMode
+  opggMode: OpggMode,
+  extras: ChampSelectPromptExtras = {}
 ): Promise<string> {
   const mySubteamId = sessionData.mySubteamId ?? 0
   const subteams = sessionData.subteams ?? []
@@ -156,6 +197,23 @@ export async function buildChampSelectPrompt(
     ...revealedEnemies.map(p => ({ side: '敌方', championId: p.championId }))
   ])
 
+  // 确定性事实块：规则引擎决策 + 阵容强度分（D-P2 选人期 tab）。有才写，没有不写——
+  // 宁缺毋滥，避免喂给模型一堆空壳小节诱导编造。纪律衍生行跟着事实块走，
+  // 避免"未被引用的事实规则"常驻 prompt 造成噪音。
+  const factsBlocks: string[] = []
+  if (extras.bpDecision) {
+    factsBlocks.push(`【规则引擎决策】\n${bpDecisionText(extras.bpDecision)}`)
+  }
+  if (extras.lineup && (extras.lineup.mine.score !== null || extras.lineup.enemy.score !== null)) {
+    factsBlocks.push(
+      `【阵容强度（确定性计算，只可引用）】\n${lineupText(extras.lineup.mine, extras.lineup.enemy)}`
+    )
+  }
+  const factsSection =
+    factsBlocks.length > 0
+      ? `${factsBlocks.join('\n\n')}\n\n- 【规则引擎决策】与【阵容强度】是确定性事实：禁止给出与之冲突的 ban/pick 目标，禁止改写分数或自创其他强度数值；只能引用并解释。\n\n`
+      : ''
+
   return `你是LOL资深分析师，现在是选人阶段，请基于以下信息给出速读分析：
 
 【对局】
@@ -170,7 +228,7 @@ ${myBlock}
 【敌方情报】
 ${enemyBlock}
 
-${PATCH_NOTES_SECTION_HEADER}
+${factsSection}${PATCH_NOTES_SECTION_HEADER}
 ${patchNotesBlock}
 
 ===== 分析纪律（硬规则，必须遵守）=====
