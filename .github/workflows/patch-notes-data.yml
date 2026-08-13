@@ -10,7 +10,6 @@ on:
 
 permissions:
   contents: write
-  models: read
 
 concurrency:
   group: patch-notes-data
@@ -33,7 +32,7 @@ jobs:
 
       - name: Generate patch notes data
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
         run: node scripts/patch-notes/run.mjs
 
       # ref 守卫：从非 main 分支 dispatch（如合并前验证）时绝不推送，防止把未审代码快进上 main
@@ -55,7 +54,7 @@ jobs:
           git push origin HEAD:main
           echo "pushed=true" >> "$GITHUB_OUTPUT"
 
-      # GITHUB_TOKEN 的 push 不触发 sync-gitcode（GitHub 防递归），这里自带镜像推送
+      # 用于推送的 GITHUB_TOKEN 不触发 sync-gitcode（GitHub 防递归），这里自带镜像推送
       - name: Mirror to GitCode
         if: steps.commit.outputs.pushed == 'true'
         env:
