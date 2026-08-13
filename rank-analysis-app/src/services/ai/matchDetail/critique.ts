@@ -26,7 +26,7 @@ export interface CritiqueOptions {
 }
 
 export const STAGE2_SYSTEM_PROMPT =
-  '你是 LOL 锐评写手，按用户给定的 markdown 模板输出，不要返回 JSON / 解释 / 前后缀。'
+  '你是 LOL 锐评写手。严格按照用户给定的 JSON schema 输出，不要返回 markdown / 解释 / 前后缀，只返回纯 JSON 对象。'
 
 /**
  * Stage 2 模型：qwen-flash。

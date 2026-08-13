@@ -41,10 +41,11 @@ function fakeAttribution(): AttributionResult {
 }
 
 describe('buildCritiqueUserPrompt', () => {
-  it('defaults to 整局锐评 prompt (5 段模板)', () => {
+  it('defaults to 整局锐评 JSON 草案 prompt', () => {
     const prompt = buildCritiqueUserPrompt(fakeAttribution(), snapshotForTest())
-    expect(prompt).toContain('## 一句话定论')
+    expect(prompt).toContain('"oneLiner"')
     expect(prompt).toContain('蓝方运营碾压')
+    expect(prompt).toContain('输出必须是 JSON 对象')
   })
 
   it('selects 单人复盘 prompt when mode=player with participantId', () => {
@@ -53,14 +54,15 @@ describe('buildCritiqueUserPrompt', () => {
       participantId: 1
     })
     expect(prompt).toContain('【目标玩家】')
-    expect(prompt).toContain('## 一句话定档')
+    expect(prompt).toContain('"rating"')
   })
 
   it('falls back to 整局锐评 when mode=player but participantId missing', () => {
     const prompt = buildCritiqueUserPrompt(fakeAttribution(), snapshotForTest(), {
       mode: 'player'
     })
-    expect(prompt).toContain('## 一句话定论')
+    expect(prompt).toContain('"oneLiner"')
+    expect(prompt).toContain('输出必须是 JSON 对象')
   })
 
   it('injects vocab samples into the prompt when provided', () => {

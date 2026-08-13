@@ -129,7 +129,7 @@ function fakeAttributionJson() {
     verdicts: [1, 2, 3, 4].map(id => ({
       participantId: id,
       name: `P${id}#0000`,
-      label: '正常',
+      label: id === 1 ? '尽力' : '正常',
       evidenceMetrics: [
         { metric: 'kda', value: 2 },
         { metric: 'damageShare', value: 20 },
@@ -141,11 +141,28 @@ function fakeAttributionJson() {
   })
 }
 
+/** Stage 2 合法草案（JSON mode 产物的最小可解析形态） */
+function fakeDraftJson(overrides: Record<string, unknown> = {}): string {
+  return JSON.stringify({
+    verdict: 'win',
+    oneLiner: '蓝方碾压。',
+    comments: {
+      '1': '打野节奏拉满，C 王',
+      '2': '中路数据中位',
+      '3': '补位尽力',
+      '4': '挂件'
+    },
+    evidence: ['蓝方运营优势滚雪球'],
+    ...overrides
+  })
+}
+
 describe('analyzeMatchDetail', () => {
-  it('completes both stages and returns ok with markdown', async () => {
+  it('completes both stages and returns ok with structured report', async () => {
     mockRequest.mockResolvedValueOnce({ success: true, content: fakeAttributionJson() })
     mockStream.mockImplementation(async (_p, callbacks) => {
-      callbacks.onChunk('## 一句话定论\n蓝方碾压。\n')
+      callbacks.onChunk('{"verdict":"win","oneLiner":"蓝方碾压')
+      callbacks.onChunk('。","comments":{"1":"打野节奏拉满，C 王"},"evidence":[]}')
       callbacks.onDone()
     })
 
@@ -159,9 +176,15 @@ describe('analyzeMatchDetail', () => {
     expect(out.ok).toBe(true)
     if (out.ok) {
       expect(out.attribution.verdicts.length).toBe(4)
-      expect(out.markdown).toContain('蓝方碾压')
+      expect(out.report.oneLiner).toContain('蓝方碾压')
+      expect(out.report.verdict).toBe('win')
+      // 名册分组确定性来自 Stage 1 label：participant 1 为「尽力」
+      expect(out.report.mvps).toHaveLength(1)
+      expect(out.report.mvps[0].participantId).toBe(1)
+      expect(out.report.mvps[0].reason).toBe('打野节奏拉满，C 王')
+      expect(out.report.sunkCosts).toHaveLength(0)
     }
-    expect(chunks.length).toBeGreaterThan(0)
+    expect(chunks.join('')).toContain('蓝方碾压')
   })
 
   it('returns stage1Error when AI Stage 1 fails', async () => {
@@ -183,7 +206,7 @@ describe('analyzeMatchDetail', () => {
       .mockResolvedValueOnce({ success: true, content: 'bad json' })
       .mockResolvedValueOnce({ success: true, content: fakeAttributionJson() })
     mockStream.mockImplementation(async (_p, callbacks) => {
-      callbacks.onChunk('ok')
+      callbacks.onChunk(fakeDraftJson())
       callbacks.onDone()
     })
 
@@ -200,6 +223,25 @@ describe('analyzeMatchDetail', () => {
     mockRequest.mockResolvedValueOnce({ success: true, content: fakeAttributionJson() })
     mockStream.mockImplementation(async (_p, callbacks) => {
       callbacks.onError('stream down')
+    })
+
+    const out = await analyzeMatchDetail(makeGame(), null, {
+      onChunk: () => {},
+      onDone: () => {},
+      onError: () => {}
+    })
+    expect(out.ok).toBe(false)
+    if (!out.ok) {
+      expect(out.stage).toBe('critique')
+      expect(out.fallbackMarkdown).toContain('## 一句话定论')
+    }
+  })
+
+  it('falls back when Stage 2 parses non-JSON output', async () => {
+    mockRequest.mockResolvedValueOnce({ success: true, content: fakeAttributionJson() })
+    mockStream.mockImplementation(async (_p, callbacks) => {
+      callbacks.onChunk('## 一句话定论\n模型摆烂输出 markdown。\n')
+      callbacks.onDone()
     })
 
     const out = await analyzeMatchDetail(makeGame(), null, {
@@ -233,7 +275,7 @@ describe('analyzeMatchDetail', () => {
     // Stage 1 缓存键与 requestAIContent 的键统一（含模型后缀）
     sessionStorage.setItem('ai_match_detail_stage1_12345_ranked_qwen-flash', cached)
     mockStream.mockImplementation(async (_p, callbacks) => {
-      callbacks.onChunk('cached run')
+      callbacks.onChunk(fakeDraftJson({ oneLiner: 'cached run' }))
       callbacks.onDone()
     })
 
@@ -246,10 +288,33 @@ describe('analyzeMatchDetail', () => {
     expect(out.ok).toBe(true)
   })
 
+  it('short-circuits when Stage 1 + Stage 2 缓存双命中（不调任何 AI）', async () => {
+    sessionStorage.setItem('ai_match_detail_stage1_12345_ranked_qwen-flash', fakeAttributionJson())
+    sessionStorage.setItem(
+      'ai_match_detail_stage2_12345_ranked',
+      fakeDraftJson({ oneLiner: '缓存锐评' })
+    )
+
+    const out = await analyzeMatchDetail(makeGame(), null, {
+      onChunk: () => {},
+      onDone: () => {},
+      onError: () => {}
+    })
+    expect(mockRequest).toHaveBeenCalledTimes(0)
+    expect(mockStream).toHaveBeenCalledTimes(0)
+    expect(out.ok).toBe(true)
+    if (out.ok) {
+      expect(out.report.oneLiner).toBe('缓存锐评')
+      expect(out.report.mvps[0].reason).toBe('打野节奏拉满，C 王')
+    }
+  })
+
   it('player 模式走单人复盘 prompt 且缓存 key 按 participantId 区分', async () => {
     mockRequest.mockResolvedValue({ success: true, content: fakeAttributionJson() })
     mockStream.mockImplementation(async (_p, callbacks) => {
-      callbacks.onChunk('## 一句话定档\n单人内容。\n')
+      callbacks.onChunk(
+        fakeDraftJson({ oneLiner: '单人内容。', rating: 8, metrics: ['KDA 3.0 全场第一'] })
+      )
       callbacks.onDone()
     })
 
@@ -264,6 +329,11 @@ describe('analyzeMatchDetail', () => {
     const prompt = mockStream.mock.calls[0][0] as string
     expect(prompt).toContain('【目标玩家】')
     expect(prompt).toContain('P1#0000')
+    // 单人扩展字段被装配进报告
+    if (out.ok) {
+      expect(out.report.ownScore?.rating).toBe(8)
+      expect(out.report.ownScore?.metrics).toContain('KDA 3.0 全场第一')
+    }
     // 缓存 key 带 participantId，不与整局互串
     expect(sessionStorage.getItem('ai_match_detail_stage2_12345_ranked_p1')).toContain('单人内容')
     expect(sessionStorage.getItem('ai_match_detail_stage2_12345_ranked')).toBeNull()
@@ -273,7 +343,7 @@ describe('analyzeMatchDetail', () => {
     sessionStorage.setItem('ai_match_detail_stage2_12345_ranked', '整局缓存内容')
     sessionStorage.setItem('ai_match_detail_stage1_12345_ranked_qwen-flash', fakeAttributionJson())
     mockStream.mockImplementation(async (_p, callbacks) => {
-      callbacks.onChunk('单人新内容')
+      callbacks.onChunk(fakeDraftJson({ oneLiner: '单人新内容' }))
       callbacks.onDone()
     })
 

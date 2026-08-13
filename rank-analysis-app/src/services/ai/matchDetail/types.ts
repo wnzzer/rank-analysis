@@ -53,5 +53,30 @@ export interface AttributionResult {
 /** Stage 2 输出（目前就是一段 markdown，留出 type alias 以便未来扩展） */
 export type CritiqueMarkdown = string
 
+/**
+ * Stage 2 结构化复盘报告（D-P1：复盘强制 JSON mode 的 schema）。
+ *
+ * 归因（谁尽力/谁背锅/谁被爆）由 Stage 1 已校验的 verdicts 确定性映射而来，
+ * 模型只负责填充锐评文案（reason）与关键证据——拒绝模型重新发明名册。
+ */
+export interface AIAnalysisReport {
+  /** 整局胜负定论：这场谁决定胜负 */
+  verdict: 'win' | 'loss' | 'neutral'
+  /** 一句话定论（锐评） */
+  oneLiner: string
+  /** 谁尽力了（label=尽力 的玩家，按 Stage 1 verdicts 映射） */
+  mvps: Array<{ participantId: number; reason: string }>
+  /** 谁要背锅（label=犯罪/缚地灵） */
+  sunkCosts: Array<{ participantId: number; reason: string }>
+  /** 谁被打爆 / 被连累（label=被爆/被连累） */
+  crushed: Array<{ participantId: number; reason: string }>
+  /** 关键证据 3-5 条，每条必须带数字 */
+  evidence: string[]
+  /** 单人复盘：目标玩家本局评分 */
+  ownScore?: { rating: number; metrics: string[] }
+  /** 单人复盘：改进建议 */
+  improvements?: Array<{ title: string; evidence: string; suggestion: string }>
+}
+
 /** UI state machine 用 */
 export type MatchAIState = 'idle' | 'profiles' | 'attribution' | 'critique' | 'done' | 'error'

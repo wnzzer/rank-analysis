@@ -15,6 +15,7 @@ import { DEFAULT_SYSTEM_PROMPT, requestAIContentStream } from './stream'
 import { buildPlayerAnalysisPrompt, buildTeamAnalysisPrompt } from './prompts/team'
 import { buildChampSelectPrompt } from './prompts/champSelect'
 import { analyzeMatchDetail } from './matchDetail'
+import type { AIAnalysisReport } from './matchDetail'
 import type { RecentPlayerProfile } from './shared/types'
 
 export type {
@@ -25,6 +26,7 @@ export type {
 } from './types'
 export { requestAIContentStream } from './stream'
 export type { AttributionResult, MatchAIState } from './matchDetail'
+export type { AIAnalysisReport } from './matchDetail'
 
 export async function analyzeGameWithAIStream(
   gameData: any,
@@ -94,7 +96,8 @@ export async function analyzeChampSelectWithAIStream(
  * 单场战绩复盘（新双阶段流水线）。
  *
  * @param game        LCU Game 对象
- * @param callbacks   流式回调
+ * @param callbacks   流式回调：成功时走 onStructured（结构化报告），失败降级时走
+ *                    onChunk（兜底 markdown）+ onDone
  * @param options     mode: 'overview' 整局锐评 / 'player' 单人复盘（需 participantId）。
  *                    Stage 1 归因两模式共享缓存，Stage 2 按模式与目标玩家分别缓存。
  * @param extras      profileMap 与词库样本（可选）
@@ -115,7 +118,10 @@ export async function analyzeMatchDetailWithAIStream(
       mode: options.mode,
       participantId: options.participantId
     })
-    if (!out.ok && out.stage === 'critique' && out.fallbackMarkdown) {
+    if (out.ok) {
+      callbacks.onStructured?.(out.report)
+      callbacks.onDone()
+    } else if (out.stage === 'critique' && out.fallbackMarkdown) {
       // The Stage 2 stream already called onError; emit the fallback so UI shows something
       callbacks.onChunk(out.fallbackMarkdown)
       callbacks.onDone()
@@ -128,6 +134,7 @@ export async function analyzeMatchDetailWithAIStream(
 
 /**
  * 兼容旧 API：聚合流式输出为一次性结果。
+ * D-P1 后 Stage 2 走结构化；兼容层把成功报告序列化为 content 字段返回。
  */
 export async function analyzeMatchDetailWithAI(
   game: Game,
@@ -135,13 +142,22 @@ export async function analyzeMatchDetailWithAI(
 ): Promise<AIAnalysisResult> {
   return new Promise(resolve => {
     let full = ''
+    let report: AIAnalysisReport | null = null
     analyzeMatchDetailWithAIStream(
       game,
       {
         onChunk: c => {
           full += c
         },
-        onDone: () => resolve({ success: true, content: full }),
+        onStructured: r => {
+          report = r
+        },
+        onDone: () =>
+          resolve(
+            report
+              ? { success: true, content: JSON.stringify(report) }
+              : { success: true, content: full }
+          ),
         onError: err => resolve({ success: false, error: err })
       },
       options

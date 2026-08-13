@@ -6,13 +6,14 @@
  *     → buildMatchSnapshot
  *     → runTwoStage（shared/twoStage.ts 统一编排）
  *       - Stage 1 (attribution.ts 提供 prompt/缓存键/解析) — JSON mode, 失败重试 1 次
- *       - Stage 2 (critique.ts 提供 prompt 选择) — 流式 markdown
- *     → 失败时 critiqueTemplate 兜底
+ *       - Stage 2 (critique.ts 提供 prompt 选择) — JSON mode, 输出 CritiqueDraft
+ *     → critiqueReport.ts 合成 AIAnalysisReport（名册分组来自 Stage 1 确定性映射）
+ *     → 失败时 critiqueTemplate 兜底 markdown
  *
  * 缓存策略（sessionStorage）：
  * - Stage 1 原始 JSON 由 requestAIContent 按 stage1CacheKey 缓存；门面另做一次
  *   预检（parseAttribution 校验 + 名册回填），命中即传 precomputedStage1 跳过调用。
- * - Stage 2 markdown 按 gameId + 模式 + （单人时）participantId 缓存——
+ * - Stage 2 原始 JSON 按 gameId + 模式 + （单人时）participantId 缓存——
  *   曾因忽略 mode 导致"单人复盘" tab 输出整局内容且缓存互串。
  */
 
@@ -33,10 +34,16 @@ import {
   STAGE2_SYSTEM_PROMPT,
   type CritiqueCallbacks
 } from './critique'
+import {
+  assembleAnalysisReport,
+  validateCritiqueReport,
+  type CritiqueDraft
+} from './critiqueReport'
 import { renderFallbackCritique } from './critiqueTemplate'
-import type { AttributionResult } from './types'
+import type { AttributionResult, AIAnalysisReport } from './types'
 
 export type { AttributionResult, MatchAIState } from './types'
+export type { AIAnalysisReport } from './types'
 export { renderFallbackCritique } from './critiqueTemplate'
 
 export interface AnalyzeOptions {
@@ -48,7 +55,7 @@ export interface AnalyzeOptions {
 }
 
 export type AnalyzeOutcome =
-  | { ok: true; attribution: AttributionResult; markdown: string }
+  | { ok: true; attribution: AttributionResult; report: AIAnalysisReport }
   | {
       ok: false
       stage: 'attribution' | 'critique'
@@ -98,14 +105,17 @@ export async function analyzeMatchDetail(
   const stage2Key = isPlayerMode
     ? `ai_match_detail_stage2_${snapshot.gameId}_${snapshot.modeContext.kind}_p${options.participantId}`
     : `ai_match_detail_stage2_${snapshot.gameId}_${snapshot.modeContext.kind}`
-  const cachedMarkdown = readSession(stage2Key)
-  if (cachedAttribution && cachedMarkdown) {
-    callbacks.onChunk(cachedMarkdown)
-    callbacks.onDone()
-    return { ok: true, attribution: cachedAttribution, markdown: cachedMarkdown }
+  const cachedDraftRaw = readSession(stage2Key)
+  if (cachedAttribution && cachedDraftRaw) {
+    const draft = validateCritiqueReport(cachedDraftRaw)
+    if (draft.ok) {
+      const report = assembleAnalysisReport(cachedAttribution, draft.value)
+      callbacks.onDone()
+      return { ok: true, attribution: cachedAttribution, report }
+    }
   }
 
-  const result = await runTwoStage<AttributionResult, string>({
+  const result = await runTwoStage<AttributionResult, CritiqueDraft>({
     precomputedStage1: cachedAttribution ?? undefined,
     stage1: {
       systemPrompt: STAGE1_SYSTEM_PROMPT,
@@ -119,10 +129,12 @@ export async function analyzeMatchDetail(
     stage2: {
       buildSystemPrompt: () => STAGE2_SYSTEM_PROMPT,
       buildUserPrompt: attribution => buildCritiqueUserPrompt(attribution, snapshot, options),
-      // Stage 2 是自由 markdown，无解析需求；流式 chunk 直接转发给调用方
-      parse: raw => ({ ok: true, value: raw }),
+      // Stage 2 只解析草案（CritiqueDraft）；名册合成发生在 ok 分支，
+      // 那时 result.stage1 已就绪，这里不能引用外层变量（时序上不可靠）。
+      parse: raw => validateCritiqueReport(raw),
       streamCallback: callbacks.onChunk,
-      model: STAGE2_MODEL
+      model: STAGE2_MODEL,
+      jsonMode: true
     }
   })
 
@@ -144,8 +156,9 @@ export async function analyzeMatchDetail(
       }
     case 'ok': {
       callbacks.onDone()
-      writeSession(stage2Key, result.stage2)
-      return { ok: true, attribution: result.stage1, markdown: result.stage2 }
+      const report = assembleAnalysisReport(result.stage1, result.stage2)
+      writeSession(stage2Key, JSON.stringify(result.stage2))
+      return { ok: true, attribution: result.stage1, report }
     }
   }
 }

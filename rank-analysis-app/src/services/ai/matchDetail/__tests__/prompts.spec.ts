@@ -188,14 +188,13 @@ describe('buildStage2Prompt', () => {
     expect(prompt).toContain('测试玩家')
   })
 
-  it('includes the strict markdown template section headers', () => {
+  it('declares the JSON draft schema（oneLiner/comments/evidence）', () => {
     const snap = makeSnapshot()
     const prompt = buildStage2Prompt(sampleAttribution, snap, [])
-    expect(prompt).toContain('## 一句话定论')
-    expect(prompt).toContain('## 谁尽力了')
-    expect(prompt).toContain('## 谁要背锅')
-    expect(prompt).toContain('## 谁被打爆')
-    expect(prompt).toContain('## 关键证据')
+    expect(prompt).toContain('"oneLiner"')
+    expect(prompt).toContain('"comments"')
+    expect(prompt).toContain('"evidence"')
+    expect(prompt).toContain('"verdict"')
   })
 
   it('forbids 辱骂 / 地域黑 / 人身攻击', () => {
@@ -220,7 +219,7 @@ describe('buildStage2Prompt', () => {
     expect(prompt).toMatch(/自由发挥|无固定词库/)
   })
 
-  it('renders 玩家名册 from backfilled verdict fields（英雄/分路/胜负/label）', () => {
+  it('renders 玩家名册 from backfilled verdict fields（participantId/英雄/分路/胜负/label）', () => {
     const snap = makeSnapshot()
     const attribution: AttributionResult = {
       winReason: '下路碾压',
@@ -246,8 +245,8 @@ describe('buildStage2Prompt', () => {
     }
     const prompt = buildStage2Prompt(attribution, snap, [])
     expect(prompt).toContain('【玩家名册】')
-    expect(prompt).toContain('幽默的二次元｜赏金猎人｜下路｜胜方｜尽力')
-    expect(prompt).toContain('天神下凡来撸｜天神下凡英雄｜打野｜败方｜被连累')
+    expect(prompt).toContain('- 1｜幽默的二次元｜赏金猎人｜下路｜胜方｜尽力')
+    expect(prompt).toContain('- 8｜天神下凡来撸｜天神下凡英雄｜打野｜败方｜被连累')
   })
 
   it('omits 分路 segment in 名册 when teamPosition 为空（无分路模式）', () => {
@@ -266,21 +265,21 @@ describe('buildStage2Prompt', () => {
       ]
     }
     const prompt = buildStage2Prompt(attribution, snap, [])
-    expect(prompt).toContain('大乱斗玩家｜光辉女郎｜胜方｜正常')
+    expect(prompt).toContain('- 1｜大乱斗玩家｜光辉女郎｜胜方｜正常')
   })
 
-  it('states label→章节 固定映射（败方被连累不得进谁尽力了）', () => {
+  it('states 名册分组由系统按 label 固定映射（模型不得输出分组）', () => {
     const snap = makeSnapshot()
     const prompt = buildStage2Prompt(sampleAttribution, snap, [])
-    expect(prompt).toContain('尽力 →「谁尽力了」')
-    expect(prompt).toContain('犯罪/缚地灵 →「谁要背锅」')
-    expect(prompt).toContain('被爆/被连累 →「谁被打爆 / 被连累」')
+    expect(prompt).toContain('章节归属')
+    expect(prompt).toContain('由系统按 label 固定映射')
+    expect(prompt).toContain('不要输出名册分组')
   })
 
-  it('forbids 同一玩家重复上榜多个章节', () => {
+  it('forbids comments 引用名册外的 participantId', () => {
     const snap = makeSnapshot()
     const prompt = buildStage2Prompt(sampleAttribution, snap, [])
-    expect(prompt).toContain('只能出现在自己 label 对应的那一个章节')
+    expect(prompt).toContain('名册外 id 一律丢弃')
   })
 
   it('forbids 名册外分路 and 材料外数据性比较', () => {

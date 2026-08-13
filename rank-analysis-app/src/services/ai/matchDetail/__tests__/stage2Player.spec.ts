@@ -120,13 +120,11 @@ describe('buildStage2PlayerPrompt', () => {
     expect(prompt).toContain('该玩家未被列入整局归因')
   })
 
-  it('includes 单人模板章节与硬规则', () => {
+  it('includes JSON schema 与硬规则', () => {
     const prompt = buildStage2PlayerPrompt(attribution, makeSnapshot([target, laneOpponent]), 4, [])
-    expect(prompt).toContain('## 一句话定档')
-    expect(prompt).toContain('## 数据面板解读')
-    expect(prompt).toContain('## 对位对比')
-    expect(prompt).toContain('## 责任归因')
-    expect(prompt).toContain('## 改进建议')
+    expect(prompt).toContain('"rating"')
+    expect(prompt).toContain('"metrics"')
+    expect(prompt).toContain('"improvements"')
     expect(prompt).toContain('不能编造新数字')
     expect(prompt).toContain('只能照抄材料')
   })

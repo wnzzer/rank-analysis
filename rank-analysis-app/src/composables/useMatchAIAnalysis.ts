@@ -9,7 +9,8 @@ import type { Game } from '@renderer/types/domain/match'
 import {
   analyzeMatchDetailWithAIStream,
   type MatchDetailAnalysisMode,
-  type MatchAIState
+  type MatchAIState,
+  type AIAnalysisReport
 } from '@renderer/services/ai'
 import { renderAnalysisReport } from '@renderer/services/ai/matchDetail/renderReport'
 import {
@@ -24,6 +25,8 @@ export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
   const showAiModal = ref(false)
   const aiLoading = ref(false)
   const aiResult = ref('')
+  /** D-P1 结构化报告：Stage 2 成功时由 onStructured 置入；失败降级时保持 null */
+  const aiReport = ref<AIAnalysisReport | null>(null)
   const aiState = ref<MatchAIState>('idle')
   const aiMode = ref<MatchDetailAnalysisMode>('overview')
   const aiTargetParticipantId = ref<number | null>(null)
@@ -98,6 +101,7 @@ export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
     const token = ++runToken
     aiLoading.value = true
     aiResult.value = ''
+    aiReport.value = null
     resultKey.value = currentKey()
     aiState.value = 'profiles'
 
@@ -123,6 +127,12 @@ export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
             if (token !== runToken) return
             if (aiState.value === 'attribution') aiState.value = 'critique'
             aiResult.value += chunk
+          },
+          onStructured: report => {
+            if (token !== runToken) return
+            // 结构化成功时清掉流式期累积的原始 JSON 碎片（若有），显示以报告为准
+            aiResult.value = ''
+            aiReport.value = report
           },
           onDone: () => {
             if (token !== runToken) return
@@ -156,7 +166,11 @@ export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
    * 都不该再烧一次 API 调用。
    */
   function hasSomethingToShow(): boolean {
-    return aiLoading.value || (aiResult.value !== '' && resultKey.value === currentKey())
+    return (
+      aiLoading.value ||
+      (aiResult.value !== '' && resultKey.value === currentKey()) ||
+      (aiReport.value !== null && resultKey.value === currentKey())
+    )
   }
 
   async function openOverviewAnalysis(defaultParticipantId: number | null) {
@@ -187,6 +201,7 @@ export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
     runToken++
     aiLoading.value = false
     aiResult.value = ''
+    aiReport.value = null
     resultKey.value = null
     aiState.value = 'idle'
     aiMode.value = 'overview'
@@ -197,6 +212,7 @@ export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
     showAiModal,
     aiLoading,
     aiResult,
+    aiReport,
     aiState,
     aiStateLabel,
     aiMode,

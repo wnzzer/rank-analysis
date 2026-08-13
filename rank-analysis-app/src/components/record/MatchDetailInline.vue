@@ -185,6 +185,7 @@
             :loading="ai.aiLoading.value"
             :ai-loading="ai.aiLoading.value"
             :ai-state-label="ai.aiStateLabel.value"
+            :report="ai.aiReport.value"
             :rendered-result="ai.renderedAiResult.value"
             :player-options="aiPlayerOptions"
             @update:show="ai.showAiModal.value = $event"
