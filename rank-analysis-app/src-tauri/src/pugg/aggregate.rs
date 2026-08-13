@@ -81,7 +81,7 @@ fn weighted(wins: u32, count: u32) -> u32 {
 /// - `stats`: (id, 使用场次, 胜场数) 三元组数组
 fn finalize_freq<T>(mut stats: Vec<(i32, u32, u32)>, map: impl Fn(i32, u32, u32) -> T) -> Vec<T> {
     stats.retain(|(id, count, _)| *id > 0 && *count > 0);
-    stats.sort_by_key(|(id, wins, count)| (std::cmp::Reverse(weighted(*wins, *count)), *id));
+    stats.sort_by_key(|(id, count, wins)| (std::cmp::Reverse(weighted(*wins, *count)), *id));
     stats
         .into_iter()
         .map(|(id, count, wins)| map(id, count, wins))
@@ -386,11 +386,14 @@ mod tests {
         let g_me = game_with(1, 86, 420, &full_items(), true, MY_PUUID);
         let g_other_champ = game_with(2, 200, 420, &full_items(), true, MY_PUUID);
         let g_aram = game_with(3, 86, 450, &full_items(), true, MY_PUUID);
-        let games = vec![g_me, g_other_champ, g_aram];
+        // 86 的样本需 ≥ MIN_SAMPLES=5：4 场峡谷 + 1 场大乱斗
+        let mut games = vec![g_me; 4];
+        games.push(g_other_champ);
+        games.push(g_aram);
 
-        // 全部：只统计 86 的两场
+        // 全部：只统计 86 的五场
         let got = aggregate_build_stats(&games, 86, MY_PUUID, 0).unwrap();
-        assert_eq!(got.samples, 2, "英雄过滤：其他英雄的对局不计入");
+        assert_eq!(got.samples, 5, "英雄过滤：其他英雄的对局不计入");
 
         // 模式过滤 450：只留大乱斗一场
         let got = aggregate_build_stats(&games, 86, MY_PUUID, 450).unwrap();
