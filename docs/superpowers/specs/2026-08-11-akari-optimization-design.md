@@ -328,7 +328,7 @@ D3/方向D AI 增强(独立推进,可与 C 并行)
 
 > 目标:对战与战绩场景都能看到"这个英雄怎么出装/带什么符文"。**核心 = 自有战绩聚合(PUGG),外援 = OP.GG 扩展解析;双源合并、前端分层展示。**
 >
-> **实施状态(2026-08-13 更新):C1/C3/C-2-UI 已完成;C2-1 实测后按既定策略降级为纯 PUGG**(详见 6.5)。
+> **实施状态(2026-08-13 更新):C1/C3/C-2-UI/C-3-UI 已完成;C2-1 实测后按既定策略降级为纯 PUGG**(详见 6.5)。
 
 ### 6.1 数据层设计
 
@@ -379,8 +379,8 @@ D3/方向D AI 增强(独立推进,可与 C 并行)
 | C2-1 | OP.GG 解析扩展(尽力而为) | `opgg/api.rs`、`opgg/data.rs` | ✅ 实测详情 API 已下线,按既定策略降级纯 PUGG,现有 winrate 管道零影响(见 6.5) |
 | C3-1 | BuildRecommendation 合并 | PUGG/opgg 之上 | ✅ 双源合并规则单测(`resolveBuildSource`/`toBuildRecommendation`,样本≥10 优先 PUGG;OP.GG 分支预留) |
 | C-2-UI | ChampionIntelCard 页签 | `components/gaming/ChampionIntelCard.vue` | ✅ 对局中可见推荐装/符文(出装 7 槽 + 基石/主系 + 召唤师技能 + 来源样本标注) |
-| C-3-UI | 展开层出装对比(依赖 M1) | `MatchDetailModal.vue` | ⏳ 待做(接入战绩展开层,需 M1 布局) |
-| C-测试 | 全部 | — | ✅ check/test 全绿(855/855) |
+| C-3-UI | 展开层出装对比(依赖 M1) | `MatchDetailStatsTab.vue`、`tabs/detailsTable.ts` | ✅ 数据对比 tab 顶部「出装 vs 推荐」行:10 人各 7 件 vs 该英雄推荐 7 件(PUGG 按英雄懒加载,`diffBuild` 逐槽判定:黄=换装/红=乱出闪烁,悬停显示推荐/实际/符文/技能并排);纯函数单测 8 例 |
+| C-测试 | 全部 | — | ✅ check/test 全绿(863/863) |
 
 ### 6.4 验收标准(M2)
 1. 任意英雄(排位/大乱斗)对局中 ≤2 次点击看到推荐装+符文,数据来源与样本数可辨识

@@ -20,6 +20,133 @@
 
     <!-- 透视表：行 = 统计项，列 = 10 人；首列 + 表头双 sticky -->
     <div class="match-detail-stats-scroll">
+      <!-- C-3-UI 出装对比行：10 人各 7 件 vs 该英雄推荐 7 件（PUGG），
+           差异闪烁标注（黄=换装 / 红=乱出）；符文/技能并排。 -->
+      <div
+        v-if="!augmentMode && buildCells.length"
+        class="match-detail-stats-row match-detail-stats-row--build"
+      >
+        <div class="match-detail-stats-label-cell">
+          <span class="match-detail-stats-label">出装 vs 推荐</span>
+          <span class="match-detail-build-legend">黄=换装 · 红=乱出</span>
+        </div>
+        <div class="match-detail-build-values">
+          <n-tooltip
+            v-for="(cell, i) in buildCells"
+            :key="`build-${i}`"
+            trigger="hover"
+            placement="left"
+          >
+            <template #trigger>
+              <div
+                class="match-detail-build-cell"
+                :class="[
+                  `match-detail-build-cell--${cell.diff.overall}`,
+                  `match-detail-build-cell--team-${cell.player.teamId}`
+                ]"
+              >
+                <!-- 7 槽装备图标（skip 槽显示占位） -->
+                <div class="match-detail-build-slots">
+                  <span
+                    v-for="(slot, slotIdx) in cell.diff.slots"
+                    :key="slotIdx"
+                    class="match-detail-build-slot"
+                    :class="`match-detail-build-slot--${slot}`"
+                  >
+                    <img
+                      v-if="ownedItemIds(cell.player)[slotIdx] > 0"
+                      :src="ctx.assets.srcOf('item', ownedItemIds(cell.player)[slotIdx])"
+                      class="match-detail-build-slot-img"
+                      alt="item"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  </span>
+                </div>
+                <!-- 整体判定徽记 -->
+                <span class="match-detail-build-verdict">{{ buildVerdictLabel(cell) }}</span>
+              </div>
+            </template>
+            <template #default>
+              <!-- 悬停详情：推荐 vs 实际，符文/技能并排 -->
+              <div class="match-detail-build-tip">
+                <div v-if="cell.recommend" class="match-detail-build-tip-sec">
+                  <div class="match-detail-build-tip-title">推荐出装</div>
+                  <div class="match-detail-build-tip-items">
+                    <span
+                      v-for="(rec, slotIdx) in cell.recommend"
+                      :key="slotIdx"
+                      class="match-detail-build-tip-item"
+                    >
+                      <img
+                        v-if="rec"
+                        :src="ctx.assets.srcOf('item', rec.itemId)"
+                        class="match-detail-build-tip-img"
+                        alt="item"
+                      />
+                      <span v-if="rec" class="match-detail-build-tip-name">
+                        {{ itemName(rec.itemId) }}<i>×{{ rec.count > 0 ? rec.count : '' }}</i>
+                      </span>
+                      <span v-else class="match-detail-build-tip-name">—</span>
+                    </span>
+                  </div>
+                </div>
+                <div class="match-detail-build-tip-sec">
+                  <div class="match-detail-build-tip-title">
+                    实际出装（{{ cell.player.displayName }}）
+                  </div>
+                  <div class="match-detail-build-tip-items">
+                    <span
+                      v-for="(id, slotIdx) in ownedItemIds(cell.player)"
+                      :key="slotIdx"
+                      class="match-detail-build-tip-item"
+                    >
+                      <img
+                        v-if="id > 0"
+                        :src="ctx.assets.srcOf('item', id)"
+                        class="match-detail-build-tip-img"
+                        alt="item"
+                      />
+                      <span v-if="id > 0" class="match-detail-build-tip-name">
+                        {{ itemName(id) }}
+                      </span>
+                    </span>
+                  </div>
+                </div>
+                <div class="match-detail-build-tip-sec">
+                  <div class="match-detail-build-tip-title">符文 / 召唤师技能</div>
+                  <div class="match-detail-build-tip-icons">
+                    <img
+                      v-for="perkId in ctx.displayedPerkIds(cell.player.stats)"
+                      :key="`perk-${perkId}`"
+                      :src="ctx.assets.srcOf('perk', perkId)"
+                      class="match-detail-build-tip-img"
+                      :alt="`perk ${perkId}`"
+                    />
+                    <img
+                      v-if="cell.player.spell1Id > 0"
+                      :src="ctx.assets.srcOf('spell', cell.player.spell1Id)"
+                      class="match-detail-build-tip-img"
+                      alt="spell1"
+                    />
+                    <img
+                      v-if="cell.player.spell2Id > 0"
+                      :src="ctx.assets.srcOf('spell', cell.player.spell2Id)"
+                      class="match-detail-build-tip-img"
+                      alt="spell2"
+                    />
+                  </div>
+                </div>
+                <div v-if="buildLoading" class="match-detail-build-tip-na">推荐数据加载中…</div>
+                <div v-else-if="!cell.recommend" class="match-detail-build-tip-na">
+                  该英雄暂无本队推荐样本（样本 ≥5 场才出推荐）
+                </div>
+              </div>
+            </template>
+          </n-tooltip>
+        </div>
+      </div>
+
       <div v-for="group in STAT_GROUPS" :key="group" class="match-detail-stats-group">
         <div v-if="groupedRows[group].length" class="match-detail-stats-group-title">
           {{ group }}
@@ -98,20 +225,25 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, inject, onBeforeUnmount, ref } from 'vue'
+import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { SearchOutline } from '@vicons/ionicons5'
 import { NIcon, NInput, NTooltip } from 'naive-ui'
 import { matchDetailContextKey } from '../matchDetailContext'
 import {
   STAT_GROUPS,
   buildStatsTable,
+  buildCompareRow,
   filterStatsRows,
   type StatsTablePlayer,
-  type StatsTableRow
+  type StatsTableRow,
+  type BuildCompareCell
 } from './detailsTable'
+import { getBuildStats } from '@renderer/services/builds'
+import type { ItemStat } from '@renderer/services/builds'
 
-const ctx = inject(matchDetailContextKey)
-if (!ctx) throw new Error('MatchDetailStatsTab 必须在 MatchDetailInline 容器内使用')
+const injected = inject(matchDetailContextKey)
+if (!injected) throw new Error('MatchDetailStatsTab 必须在 MatchDetailInline 容器内使用')
+const ctx = injected as NonNullable<typeof injected>
 
 /** 列序：蓝队（100）→ 红队（200），与战绩页队伍分节一致 */
 const players = computed<StatsTablePlayer[]>(() =>
@@ -124,6 +256,8 @@ const players = computed<StatsTablePlayer[]>(() =>
       displayName: p.displayName,
       championId: p.championId,
       win: p.win,
+      spell1Id: p.spell1Id,
+      spell2Id: p.spell2Id,
       stats: p.stats
     }))
 )
@@ -168,6 +302,81 @@ function barWidth(value: number, max: number) {
   if (Number.isNaN(value) || max <= 0) return '0%'
   return `${Math.max(2, Math.round((value / max) * 100))}%`
 }
+
+// ── C-3-UI 出装对比行：10 人 7 件 vs 该英雄推荐 7 件（PUGG）──
+
+/** 海克斯/斗魂模式无传统出装（强化槽取代），该行不适用 */
+const augmentMode = computed(() => ctx.usesAugments.value)
+
+/** currentSummary（"我"）的 puuid：PUGG 口径与对局中卡片一致（自有历史聚合） */
+const myPuuid = computed(() => ctx.players.mySummary.value?.puuid ?? '')
+
+/** 英雄 id → 推荐 7 槽（ItemStat[] = PUGG 聚合去重净胜权重后的 top1；null = 无样本/失败） */
+const recommendByChampion = ref(new Map<number, (ItemStat | null)[] | null>())
+const buildLoading = ref(false)
+
+/** 出装对比行单元格（列序与 players 一致） */
+const buildCells = computed<BuildCompareCell[]>(() =>
+  buildCompareRow(players.value, s => ctx.itemIds(s), recommendByChampion.value)
+)
+
+/** 玩家实际 7 槽装备 id（与 diff.slots 索引一一对应） */
+function ownedItemIds(player: StatsTablePlayer): number[] {
+  return ctx.itemIds(player.stats)
+}
+
+function itemName(id: number): string {
+  return ctx.assets.detailOf('item', id)?.name ?? `装备 #${id}`
+}
+
+function buildVerdictLabel(cell: BuildCompareCell): string {
+  switch (cell.diff.overall) {
+    case 'match':
+      return '一致'
+    case 'swap':
+      return '换装'
+    case 'odd':
+      return '乱出'
+    default:
+      return '—'
+  }
+}
+
+/** 每局加载一次：10 人的英雄集合去重后逐英雄拉 PUGG（Rust 侧 moka 缓存命中） */
+async function loadBuildRecommendations() {
+  const puuid = myPuuid.value
+  if (!puuid || augmentMode.value) return
+
+  const champions = [...new Set(players.value.map(p => p.championId).filter(id => id > 0))]
+  if (!champions.length) return
+
+  const mode = ctx.game.value?.queueId ?? 0
+  buildLoading.value = true
+  try {
+    const jobs = champions.map(async championId => {
+      // 已有结果（含 null = 无样本，不再重试）直接跳过
+      if (recommendByChampion.value.has(championId)) return
+      const build = await getBuildStats(puuid, championId, mode)
+      const slots: (ItemStat | null)[] | null = build
+        ? build.items.map(slot => slot[0] ?? null)
+        : null
+      recommendByChampion.value = new Map(recommendByChampion.value).set(championId, slots)
+    })
+    await Promise.all(jobs)
+  } finally {
+    buildLoading.value = false
+  }
+}
+
+/** "我"切换（段位后进/换队）或对局切换时重算推荐 */
+watch([myPuuid, augmentMode], () => {
+  recommendByChampion.value = new Map()
+  void loadBuildRecommendations()
+})
+
+onMounted(() => {
+  void loadBuildRecommendations()
+})
 </script>
 
 <style scoped>
@@ -259,6 +468,178 @@ function barWidth(value: number, max: number) {
   font-weight: 600;
   color: var(--text-primary);
   white-space: nowrap;
+}
+
+/* ── C-3-UI 出装对比行 ── */
+.match-detail-build-legend {
+  display: block;
+  margin-top: var(--space-2);
+  font-size: var(--font-size-2xs);
+  font-weight: 400;
+  color: var(--text-tertiary);
+  white-space: normal;
+}
+
+.match-detail-build-values {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(64px, 1fr));
+  flex: 1;
+}
+
+.match-detail-build-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  padding: var(--space-6) var(--space-8);
+  border-right: 1px solid color-mix(in srgb, var(--border-subtle) 40%, transparent);
+}
+
+.match-detail-build-cell:last-child {
+  border-right: none;
+}
+
+/* 队伍色牌：与数值列同口径 */
+.match-detail-build-cell--team-100 {
+  box-shadow: inset 3px 0 0 0 var(--accent-blue);
+}
+
+.match-detail-build-cell--team-200 {
+  box-shadow: inset 3px 0 0 0 var(--semantic-loss);
+}
+
+/* 整体判定底色（黄=换装 / 红=乱出 闪烁强调；一致/暂无不强调） */
+.match-detail-build-cell--swap,
+.match-detail-build-cell--odd {
+  animation: build-verdict-flash 2.4s ease-in-out infinite;
+}
+
+.match-detail-build-cell--swap {
+  background: color-mix(in srgb, var(--semantic-warn) 10%, transparent);
+}
+
+.match-detail-build-cell--odd {
+  background: color-mix(in srgb, var(--semantic-loss) 12%, transparent);
+}
+
+@keyframes build-verdict-flash {
+  0%,
+  55% {
+    opacity: 1;
+  }
+  60%,
+  100% {
+    opacity: 0.62;
+  }
+}
+
+.match-detail-build-slots {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.match-detail-build-slot {
+  display: inline-flex;
+  aspect-ratio: 1;
+  border-radius: var(--radius-xs);
+  background: var(--glass-bg-mid);
+}
+
+/* 槽位差异色：黄=换装，红=乱出；skip 为占位不发色 */
+.match-detail-build-slot--swap {
+  outline: 1.5px solid var(--semantic-warn);
+  outline-offset: -1px;
+}
+
+.match-detail-build-slot--odd {
+  outline: 1.5px solid var(--semantic-loss);
+  outline-offset: -1px;
+}
+
+.match-detail-build-slot-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
+.match-detail-build-verdict {
+  font-size: var(--font-size-2xs);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.match-detail-build-cell--swap .match-detail-build-verdict {
+  color: var(--semantic-warn);
+}
+
+.match-detail-build-cell--odd .match-detail-build-verdict {
+  color: var(--semantic-loss);
+}
+
+/* 悬停详情：推荐 vs 实际，符文/技能并排 */
+.match-detail-build-tip {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-width: 240px;
+}
+
+.match-detail-build-tip-sec {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.match-detail-build-tip-title {
+  font-size: var(--font-size-2xs);
+  font-weight: 700;
+  color: var(--text-tertiary);
+}
+
+.match-detail-build-tip-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+}
+
+.match-detail-build-tip-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.match-detail-build-tip-img {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-xs);
+  flex-shrink: 0;
+}
+
+.match-detail-build-tip-icons {
+  display: flex;
+  gap: var(--space-4);
+  align-items: center;
+}
+
+.match-detail-build-tip-name {
+  font-size: var(--font-size-2xs);
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.match-detail-build-tip-name i {
+  margin-left: var(--space-2);
+  font-style: normal;
+  color: var(--text-tertiary);
+}
+
+.match-detail-build-tip-na {
+  font-size: var(--font-size-2xs);
+  color: var(--text-tertiary);
 }
 
 .match-detail-stats-values {

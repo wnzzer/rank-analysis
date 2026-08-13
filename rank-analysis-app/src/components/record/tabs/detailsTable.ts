@@ -5,11 +5,19 @@
  * 数据源：`ParticipantStats`（LCU game_detail.participants 已含的字段），
  * 全部前端装配，无后端改动。SGP 增强字段（视野/超细统计）后续在此追加行配置，
  * 未识别/缺失字段走兜底显示「—」，不会崩 UI。
+ *
+ * C-3-UI：额外提供「出装对比行」——每人 7 件 vs 该英雄推荐 7 件，
+ * 逐槽位/整体差异判定（纯函数 {@link diffBuild}，与 PUGG 推荐解耦，仅吃
+ * 玩家装备 id 数组 + 推荐 id 数组），展示层在 MatchDetailStatsTab.vue。
  */
 
 import type { ParticipantStats } from '@renderer/types/domain/match'
+import type { ItemStat } from '@renderer/services/builds'
 
 export type StatGroup = '基础' | '击杀' | '伤害' | '经济' | '参团' | '其他'
+
+/** 饰品装备 id 集合（与后端 pugg/aggregate.rs 的 WARD_ITEMS 同源） */
+export const WARD_ITEM_IDS: ReadonlySet<number> = new Set([3330, 3340, 3341, 3363, 3364, 3513])
 
 export interface StatRowDef {
   /** 唯一标识（用于过滤匹配与测试断言） */
@@ -160,6 +168,9 @@ export interface StatsTablePlayer {
   displayName: string
   championId: number
   win: boolean
+  /** 召唤师技能（出装对比行悬停详情用） */
+  spell1Id: number
+  spell2Id: number
   /** 原始统计（行定义取值来源） */
   stats: ParticipantStats
 }
@@ -193,4 +204,105 @@ export function filterStatsRows(rows: StatsTableRow[], keyword: string): StatsTa
   return rows.filter(
     row => row.def.label.toLowerCase().includes(kw) || row.def.key.toLowerCase().includes(kw)
   )
+}
+
+// ── C-3-UI 出装对比行 ──────────────────────────────────────────────
+
+/** 单槽位对比状态 */
+export type BuildSlotState = 'match' | 'swap' | 'odd' | 'skip'
+
+/** 整行（整体出装风气）对比状态 */
+export type BuildOverallState = 'match' | 'swap' | 'odd' | 'none'
+
+export interface BuildDiff {
+  /** 7 槽逐一状态（与传入 items 一一对应，索引 = 槽位） */
+  slots: BuildSlotState[]
+  /** 整体判定 */
+  overall: BuildOverallState
+  /** 实际出装件数（id>0 且非饰品） */
+  equipped: number
+  /** 与推荐重合件数 */
+  matched: number
+}
+
+/**
+ * 出装对比判定：玩家 7 件 vs 推荐 7 件（按槽位一对一比较）。
+ *
+ * 判定规则（设计文档 §6.2-2「黄色=换装，红色=乱出」）：
+ * - 玩家槽为空或饰品 → `skip`（不参与统计）；
+ * - 同槽位 id 相同 → `match`；
+ * - 同槽位 id 不同且推荐该槽有数据 → `swap`（换装，黄）；
+ * - 同槽位 id 不同且推荐该槽无推荐 → `odd`（乱出，红）——推荐位空置代表
+ *   玩家出了推荐体系外的东西（如买鞋进 1 号槽 VS 推荐核心件）。
+ *
+ * 整体判定：equipped ≥ 4（已形成可评判的构建）时，
+ * - `matched ≥ ceil(equipped * 0.6)` → `match`；
+ * - `matched ≥ ceil(equipped * 0.3)` → `swap`（部分换装）；
+ * - 否则 → `odd`；
+ * - equipped < 4（出装不完整，如 15 分钟内的对局）→ `none`（不评判）。
+ *
+ * @param playerItems - LCU 7 槽装备 id（PlayerStats.item0..6，0 = 空）
+ * @param recommendItems - 推荐 7 槽（每槽可为 null/undefined；null = 整行无推荐）
+ * @returns 差异结构；equipped 为 0 时 overall 恒 `none`
+ */
+export function diffBuild(
+  playerItems: number[],
+  recommendItems: (ItemStat | null)[] | null | undefined
+): BuildDiff {
+  const recIds = (recommendItems ?? []).map(slot => (slot ? slot.itemId : 0))
+  const hasRec = recIds.some(id => id > 0)
+
+  const slots: BuildSlotState[] = playerItems.slice(0, 7).map((itemId, i) => {
+    const recId = recIds[i] ?? 0
+    if (!hasRec) return 'skip'
+    if (itemId <= 0 || WARD_ITEM_IDS.has(itemId)) return 'skip'
+    if (itemId === recId && recId > 0) return 'match'
+    if (recId > 0) return 'swap'
+    return 'odd'
+  })
+
+  const equipped = slots.filter(s => s !== 'skip').length
+  const matched = slots.filter(s => s === 'match').length
+
+  let overall: BuildOverallState = 'none'
+  if (hasRec && equipped >= 4) {
+    if (matched >= Math.ceil(equipped * 0.6)) overall = 'match'
+    else if (matched >= Math.ceil(equipped * 0.3)) overall = 'swap'
+    else overall = 'odd'
+  }
+
+  return { slots, overall, equipped, matched }
+}
+
+/** 出装对比行的单元格内容（由 buildCompareRow 装配，列序与 players 一致） */
+export interface BuildCompareCell {
+  /** 对应玩家（透视表列序成员） */
+  player: StatsTablePlayer
+  /** 差异判定（含逐槽状态） */
+  diff: BuildDiff
+  /** 该玩家英雄的推荐（null = 无推荐，该列显示「暂无」而非乱出） */
+  recommend: (ItemStat | null)[] | null
+}
+
+/**
+ * 装配出装对比行：10 人各自 7 件 vs「该英雄的推荐 7 件」。
+ *
+ * 推荐按玩家自身英雄取（recommendByChampion[championId]），每人英雄不同，
+ * 所以不允许传单份推荐——必须以英雄 → 推荐槽的映射传入。
+ *
+ * @param players - 已排序（蓝→红）的 10 人玩家
+ * @param itemIdsOf - 取玩家 7 槽装备 id（容器统一口径 ctx.itemIds）
+ * @param recommendByChampion - 英雄 id → 推荐 7 槽；无该英雄推荐时为 undefined
+ * @returns 与 players 一一对应的对比单元格
+ */
+export function buildCompareRow(
+  players: StatsTablePlayer[],
+  itemIdsOf: (stats: ParticipantStats) => number[],
+  recommendByChampion: ReadonlyMap<number, (ItemStat | null)[] | null> = new Map()
+): BuildCompareCell[] {
+  return players.map(player => {
+    const recommend = recommendByChampion.get(player.championId) ?? null
+    const diff = diffBuild(itemIdsOf(player.stats), recommend)
+    return { player, diff, recommend }
+  })
 }
