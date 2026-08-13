@@ -173,8 +173,8 @@ pub fn aggregate_build_stats(
         bump(&mut rune_main, me.stats.perk_primary_style, me.stats.win);
         bump(&mut rune_sub, me.stats.perk_sub_style, me.stats.win);
         bump(&mut keystone, me.stats.perk0, me.stats.win);
-        bump(&mut spells, me.stats.spell1_id, me.stats.win);
-        bump(&mut spells, me.stats.spell2_id, me.stats.win);
+        bump(&mut spells, me.spell1_id, me.stats.win);
+        bump(&mut spells, me.spell2_id, me.stats.win);
     }
 
     if samples < MIN_SAMPLES {

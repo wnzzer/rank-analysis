@@ -7,14 +7,14 @@
 //! 60s 由 `match_history` 层控制新鲜度，这里只防同一召唤师重复聚合。
 
 use moka::future::Cache;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 use crate::lcu::api::match_history::MatchHistory;
 use crate::pugg::aggregate::{aggregate_build_stats, BuildStats};
 
 /// 聚合结果缓存：`puuid:champion_id:mode` → BuildStats（无 TTL，容量 500）。
-static BUILD_STATS_CACHE: Cache<String, Arc<BuildStats>> =
-    Cache::builder().max_capacity(500).build();
+static BUILD_STATS_CACHE: LazyLock<Cache<String, Arc<BuildStats>>> =
+    LazyLock::new(|| Cache::builder().max_capacity(500).build());
 
 /// 缓存键。
 fn cache_key(puuid: &str, champion_id: i32, mode: i32) -> String {
