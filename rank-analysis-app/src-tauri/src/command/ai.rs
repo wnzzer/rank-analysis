@@ -134,10 +134,18 @@ fn extract_usage(line: &str) -> Option<serde_json::Value> {
     if usage.get("total_tokens").is_none() && usage.get("totalTokens").is_none() {
         return None;
     }
+    // DashScope 兼容模式用 snake_case，个别端到端用 camelCase，两者都认
+    let get = |snake: &str, camel: &str| {
+        usage
+            .get(snake)
+            .or_else(|| usage.get(camel))
+            .and_then(|v| v.as_i64())
+            .unwrap_or_default()
+    };
     Some(json!({
-        "promptTokens": usage.get("prompt_tokens").or_else(|| usage.get("promptTokens")).and_then(|v| v.as_i64()).unwrap_or_default(),
-        "completionTokens": usage.get("completion_tokens").or_else(|| usage.get("completionTokens")).and_then(|v| v.as_i64()).unwrap_or_default(),
-        "totalTokens": usage.get("total_tokens").or_else(|| usage.get("totalTokens")).and_then(|v| v.as_i64()).unwrap_or_default()
+        "promptTokens": get("prompt_tokens", "promptTokens"),
+        "completionTokens": get("completion_tokens", "completionTokens"),
+        "totalTokens": get("total_tokens", "totalTokens")
     }))
 }
 

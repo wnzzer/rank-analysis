@@ -39,14 +39,56 @@
           </n-text>
         </n-space>
       </n-form-item>
+      <n-form-item label="AI 用量统计">
+        <n-space vertical :size="4" style="width: 100%">
+          <n-space align="center" :size="12">
+            <n-text :depth="2" style="font-size: var(--font-size-sm)">
+              累计 {{ usageTotal.totalTokens.toLocaleString() }} tokens（输入
+              {{ usageTotal.promptTokens.toLocaleString() }} / 输出
+              {{ usageTotal.completionTokens.toLocaleString() }}），约 ¥{{
+                usageTotal.totalCostYuan.toFixed(4)
+              }}
+            </n-text>
+            <n-button
+              size="tiny"
+              quaternary
+              type="error"
+              :disabled="usageLog.length === 0"
+              @click="handleClearUsage"
+            >
+              清空记录
+            </n-button>
+          </n-space>
+          <n-text v-if="usageLog.length === 0" :depth="3" style="font-size: var(--font-size-sm)">
+            暂无用量记录。每次 AI 分析后这里会累计 token 用量并估算成本。
+          </n-text>
+          <div v-else class="usage-log">
+            <div v-for="entry in usageLog" :key="entry.time" class="usage-row">
+              <n-text :depth="2" style="font-size: var(--font-size-sm)">
+                {{ formatTime(entry.time) }} · {{ entry.mode === 'player' ? '单人' : '整局' }} ·
+                {{ entry.totalTokens.toLocaleString() }} tokens · 约 ¥{{
+                  estimateCost(entry).toFixed(4)
+                }}
+              </n-text>
+            </div>
+          </div>
+        </n-space>
+      </n-form-item>
     </n-form>
   </n-card>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import { CONFIG_KEYS } from '@renderer/services/configKeys'
+import {
+  clearAiUsageLog,
+  estimateCost,
+  getAiUsageLog,
+  sumAiUsage,
+  type AiUsageEntry
+} from '@renderer/services/ai/shared/usage'
 import { useMessage } from 'naive-ui'
 
 const matchCount = ref(4)
@@ -54,7 +96,22 @@ const errorReporting = ref(false)
 const dashscopeKey = ref('')
 /** AI 分析是否携带玩家备注（默认开：键不存在时视为 true） */
 const aiUseNotes = ref(true)
+/** D-P1：AI 用量台账（每次完整分析一条，倒序展示） */
+const usageLog = ref<AiUsageEntry[]>([])
+const usageTotal = computed(() => sumAiUsage(usageLog.value))
 const message = useMessage()
+
+const formatTime = (time: number) => new Date(time).toLocaleString()
+
+const loadUsageLog = () => {
+  usageLog.value = [...getAiUsageLog()].reverse()
+}
+
+const handleClearUsage = () => {
+  clearAiUsageLog()
+  loadUsageLog()
+  message.success('用量记录已清空')
+}
 
 onMounted(async () => {
   try {
@@ -89,6 +146,7 @@ onMounted(async () => {
   } catch (e) {
     console.error(e)
   }
+  loadUsageLog()
 })
 
 const handleUpdate = async (value: number | null) => {
@@ -128,3 +186,19 @@ const handleDashscopeKeyUpdate = async () => {
   }
 }
 </script>
+
+<style scoped>
+.usage-log {
+  max-height: 180px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.usage-row {
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--glass-bg-low);
+  border: 1px solid var(--border-subtle);
+}
+</style>

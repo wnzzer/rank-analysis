@@ -164,7 +164,10 @@ mod tests {
         let _ = std::fs::remove_file(&path);
 
         put_inner("k1", "25.6", "v1", &path).unwrap();
-        assert_eq!(get_inner("k1", Some("25.6"), &path).unwrap(), Some("v1".to_string()));
+        assert_eq!(
+            get_inner("k1", Some("25.6"), &path).unwrap(),
+            Some("v1".to_string())
+        );
 
         let _ = std::fs::remove_file(&path);
     }
@@ -175,7 +178,10 @@ mod tests {
         let _ = std::fs::remove_file(&path);
 
         put_inner("k1", "25.6", "v1", &path).unwrap();
-        assert_eq!(get_inner("k1", None, &path).unwrap(), Some("v1".to_string()));
+        assert_eq!(
+            get_inner("k1", None, &path).unwrap(),
+            Some("v1".to_string())
+        );
 
         let _ = std::fs::remove_file(&path);
     }
@@ -200,7 +206,10 @@ mod tests {
 
         put_inner("k1", "25.6", "v1", &path).unwrap();
         put_inner("k1", "25.6", "v2", &path).unwrap();
-        assert_eq!(get_inner("k1", Some("25.6"), &path).unwrap(), Some("v2".to_string()));
+        assert_eq!(
+            get_inner("k1", Some("25.6"), &path).unwrap(),
+            Some("v2".to_string())
+        );
         let entries = load_entries(&path);
         assert_eq!(entries.len(), 1);
 
