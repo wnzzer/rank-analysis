@@ -121,9 +121,16 @@ fn put_inner(key: &str, patch: &str, value: &str, path: &Path) -> Result<(), Str
             value: value.to_string(),
         });
     }
-    entries.sort_by_key(|e| std::cmp::Reverse(e.created_at));
-    if entries.len() > MAX_ENTRIES {
-        entries.truncate(MAX_ENTRIES);
+    // 容量淘汰：逐条移除"最旧"条目。不依赖 sort+truncate 的稳定排序——
+    // 时钟分辨率低时多个条目 created_at 相同，稳定排序只能按插入序，
+    // truncate 会误删最新的；改为 min_by_key {(created_at, index)} 显式
+    // 选"时间最小、插入最早"者，淘汰语义与插入序解耦，测试可确定。
+    while entries.len() > MAX_ENTRIES {
+        if let Some(idx) = (0..entries.len()).min_by_key(|&i| (entries[i].created_at, i)) {
+            entries.remove(idx);
+        } else {
+            break;
+        }
     }
     save_entries(path, &entries)
 }
