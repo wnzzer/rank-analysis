@@ -6,6 +6,13 @@ vi.mock('../../stream', () => ({
   DEFAULT_SYSTEM_PROMPT: 'sys'
 }))
 
+// IPC 不可用时磁盘缓存自动降级 sessionStorage——测试里让 invoke 直接失败，
+// 使所有缓存断言走 sessionStorage 回退路径（与旧行为等价）。
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: vi.fn().mockRejectedValue(new Error('no tauri runtime')),
+  Channel: class {}
+}))
+
 import { requestAIContent, requestAIContentStream } from '../../stream'
 import { analyzeMatchDetail } from '../index'
 import type { Game } from '@renderer/types/domain/match'

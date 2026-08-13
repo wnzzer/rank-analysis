@@ -89,6 +89,8 @@ export interface Game {
   queueId: number
   queueName: string
   platformId: string
+  /** LCU 下发版本号（如 "25.6.1.123"）；老记录可能缺失 */
+  gameVersion?: string
   participantIdentities: MatchPlayerIdentity[]
   participants: Participant[]
 }
