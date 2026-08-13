@@ -88,7 +88,8 @@ fn get_inner(key: &str, patch: Option<&str>, path: &Path) -> Result<Option<Strin
         let expired = t - e.created_at >= TTL_SECS;
         let patch_stale = patch.is_some_and(|p| p != e.patch.as_str());
         if e.key == key && !expired && !patch_stale {
-            hit = Some(e.value);
+            // clone：不部分移走 e.value，命中条目仍要保留在 kept 里
+            hit = Some(e.value.clone());
         }
         if expired || patch_stale {
             changed = true;
