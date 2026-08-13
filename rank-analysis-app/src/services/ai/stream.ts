@@ -6,7 +6,7 @@
 import { invoke, Channel } from '@tauri-apps/api/core'
 import { getConfigByIpc } from '../ipc'
 import { CONFIG_KEYS } from '../configKeys'
-import type { AIAnalysisResult, StreamCallbacks } from './types'
+import type { AIAnalysisResult, AiUsage, StreamCallbacks } from './types'
 
 export const DEFAULT_SYSTEM_PROMPT =
   '你是一个LOL游戏分析师，擅长分析玩家战绩和给出游戏建议。请用简洁、专业、直接的中文回复。所有结论都必须绑定数据证据，避免空泛。'
@@ -19,7 +19,7 @@ export const DEFAULT_MODEL = 'qwen-flash'
 
 /** Rust stream_ai_analysis 命令经 Channel 回传的事件 */
 export interface AiStreamEvent {
-  event: 'chunk' | 'done' | 'error'
+  event: 'chunk' | 'done' | 'error' | 'usage'
   data?: string | null
 }
 
@@ -32,6 +32,15 @@ export function mapStreamEvent(evt: AiStreamEvent, callbacks: StreamCallbacks): 
     case 'done':
       callbacks.onDone()
       break
+    case 'usage':
+      if (evt.data && callbacks.onUsage) {
+        try {
+          callbacks.onUsage(JSON.parse(evt.data) as AiUsage)
+        } catch {
+          // 非法 usage 载荷直接丢弃，不给用户看错账
+        }
+      }
+      break
     case 'error':
       callbacks.onError(evt.data || 'AI 请求失败')
       break
@@ -42,6 +51,8 @@ export function mapStreamEvent(evt: AiStreamEvent, callbacks: StreamCallbacks): 
 export interface AiRequestOptions {
   /** true 时启用 DashScope JSON mode（response_format=json_object），强制模型输出合法 JSON */
   jsonMode?: boolean
+  /** D-P1：流末 token 用量回调（非流式聚合场景也转发给调用方） */
+  onUsage?: (usage: AiUsage) => void
 }
 
 export async function requestAIContentStream(
@@ -68,7 +79,8 @@ export async function requestAIContentStream(
       mapStreamEvent(evt, {
         onChunk: callbacks.onChunk,
         onDone: () => settle(callbacks.onDone),
-        onError: e => settle(() => callbacks.onError(e))
+        onError: e => settle(() => callbacks.onError(e)),
+        onUsage: callbacks.onUsage
       })
 
     await invoke('stream_ai_analysis', {
@@ -113,7 +125,8 @@ export async function requestAIContent(
           sessionStorage.setItem(cacheKey, fullContent)
           resolve({ success: true, content: fullContent })
         },
-        onError: error => resolve({ success: false, error })
+        onError: error => resolve({ success: false, error }),
+        onUsage: opts.onUsage
       },
       systemPrompt,
       model,

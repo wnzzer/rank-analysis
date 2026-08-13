@@ -22,7 +22,9 @@ import type { Game } from '@renderer/types/domain/match'
 import { buildMatchSnapshot } from '../shared/snapshot'
 import { runTwoStage } from '../shared/twoStage'
 import { aiCacheGet, aiCachePut, dataPatch } from '../shared/cache'
+import { recordAiUsage } from '../shared/usage'
 import type { RecentPlayerProfile } from '../shared/types'
+import type { AiUsage } from '../types'
 import {
   buildAttributionUserPrompt,
   parseAttribution,
@@ -92,6 +94,26 @@ export async function analyzeMatchDetail(
   const stage2Key = isPlayerMode
     ? `ai_match_detail_stage2_${snapshot.gameId}_${snapshot.modeContext.kind}_p${options.participantId}`
     : `ai_match_detail_stage2_${snapshot.gameId}_${snapshot.modeContext.kind}`
+
+  // ─── D-P1 token 用量统计：跨 Stage 1/2 累计，终态时落一条台账 ───
+  const usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 }
+  const usageSink: (u: AiUsage) => void = u => {
+    usage.promptTokens += u.promptTokens
+    usage.completionTokens += u.completionTokens
+    usage.totalTokens += u.totalTokens
+  }
+  const flushUsage = () => {
+    // 全缓存命中时 total 为 0，recordAiUsage 内部会跳过，无需特判
+    recordAiUsage({
+      time: Date.now(),
+      gameId: snapshot.gameId,
+      mode: isPlayerMode ? 'player' : 'overview',
+      promptTokens: usage.promptTokens,
+      completionTokens: usage.completionTokens,
+      totalTokens: usage.totalTokens
+    })
+  }
+
   const cachedDraftRaw = await aiCacheGet(stage2Key, patch)
   if (cachedAttribution && cachedDraftRaw) {
     const draft = validateCritiqueReport(cachedDraftRaw)
@@ -111,7 +133,8 @@ export async function analyzeMatchDetail(
       cacheKey: stage1Key,
       retry: 1,
       model: STAGE1_MODEL,
-      jsonMode: true
+      jsonMode: true,
+      onUsage: usageSink
     },
     stage2: {
       buildSystemPrompt: () => STAGE2_SYSTEM_PROMPT,
@@ -121,9 +144,13 @@ export async function analyzeMatchDetail(
       parse: raw => validateCritiqueReport(raw),
       streamCallback: callbacks.onChunk,
       model: STAGE2_MODEL,
-      jsonMode: true
+      jsonMode: true,
+      onUsage: usageSink
     }
   })
+
+  // 终态统一记账（含失败的半程消耗；纯缓存命中 total=0 自动跳过）
+  flushUsage()
 
   switch (result.kind) {
     case 'stage1Error':

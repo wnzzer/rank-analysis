@@ -8,6 +8,7 @@
  */
 
 import { requestAIContent, requestAIContentStream } from '../stream'
+import type { AiUsage } from '../types'
 
 export interface ParseResult<T> {
   ok: true
@@ -29,6 +30,8 @@ export interface Stage1Config<Out> {
   model?: string
   /** true 时启用 DashScope JSON mode（response_format=json_object），适用于严格 JSON 输出的 stage */
   jsonMode?: boolean
+  /** D-P1：token 用量回调（stage1 的非流式请求也会触发） */
+  onUsage?: (usage: AiUsage) => void
 }
 
 export interface Stage2Config<In, Out> {
@@ -42,6 +45,8 @@ export interface Stage2Config<In, Out> {
   model?: string
   /** true 时启用 DashScope JSON mode（response_format=json_object），适用于严格 JSON 输出的 stage */
   jsonMode?: boolean
+  /** D-P1：token 用量回调 */
+  onUsage?: (usage: AiUsage) => void
 }
 
 export type TwoStageResult<S1, S2> =
@@ -81,7 +86,7 @@ export async function runTwoStage<Stage1Out, Stage2Out>(opts: {
       cacheKey,
       opts.stage1.systemPrompt,
       opts.stage1.model,
-      { jsonMode: opts.stage1.jsonMode }
+      { jsonMode: opts.stage1.jsonMode, onUsage: opts.stage1.onUsage }
     )
     if (!resp) {
       // Defensive: treat missing response as transient — fall through to parse retry
@@ -129,7 +134,8 @@ export async function runTwoStage<Stage1Out, Stage2Out>(opts: {
         onError: err => {
           stage2Err = err
           resolve()
-        }
+        },
+        onUsage: opts.stage2.onUsage
       },
       opts.stage2.buildSystemPrompt(stage1Final),
       opts.stage2.model,

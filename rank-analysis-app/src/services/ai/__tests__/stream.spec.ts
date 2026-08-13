@@ -53,6 +53,28 @@ describe('mapStreamEvent', () => {
     mapStreamEvent({ event: 'error' }, cb)
     expect(cb.errors).toEqual(['炸了', 'AI 请求失败'])
   })
+
+  it('usage 事件解析 data JSON 并触发 onUsage', () => {
+    const usages: Array<{ promptTokens: number; completionTokens: number; totalTokens: number }> =
+      []
+    mapStreamEvent(
+      { event: 'usage', data: '{"promptTokens":42,"completionTokens":17,"totalTokens":59}' },
+      {
+        onChunk: () => {},
+        onDone: () => {},
+        onError: () => {},
+        onUsage: u => usages.push(u)
+      }
+    )
+    expect(usages).toEqual([{ promptTokens: 42, completionTokens: 17, totalTokens: 59 }])
+  })
+
+  it('usage 事件缺 onUsage 或载荷非法时静默丢弃', () => {
+    expect(() =>
+      mapStreamEvent({ event: 'usage', data: 'not json' }, makeCallbacks())
+    ).not.toThrow()
+    expect(() => mapStreamEvent({ event: 'usage' }, makeCallbacks())).not.toThrow()
+  })
 })
 
 describe('requestAIContentStream jsonMode', () => {
@@ -94,5 +116,39 @@ describe('requestAIContentStream 终态恰好一次', () => {
 
     expect(cb.errors).toEqual(['炸了'])
     expect(cb.done).toBe(0)
+  })
+
+  it('usage 事件触发 onUsage，不受终态去重影响', async () => {
+    const { invoke } = await import('@tauri-apps/api/core')
+    let channel: { onmessage: ((e: AiStreamEvent) => void) | null } = { onmessage: null }
+    ;(invoke as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+      async (_cmd: string, args: { onEvent: typeof channel }) => {
+        channel = args.onEvent
+      }
+    )
+
+    const usages: Array<{ totalTokens: number }> = []
+    await requestAIContentStream('p', {
+      onChunk: () => {},
+      onDone: () => {},
+      onError: () => {},
+      onUsage: u => usages.push(u)
+    })
+
+    channel.onmessage?.({ event: 'chunk', data: '内容' })
+    channel.onmessage?.({
+      event: 'usage',
+      data: '{"promptTokens":1,"completionTokens":2,"totalTokens":3}'
+    })
+    channel.onmessage?.({ event: 'done' })
+    channel.onmessage?.({
+      event: 'usage',
+      data: '{"promptTokens":9,"completionTokens":9,"totalTokens":18}'
+    })
+
+    expect(usages).toEqual([
+      { promptTokens: 1, completionTokens: 2, totalTokens: 3 },
+      { promptTokens: 9, completionTokens: 9, totalTokens: 18 }
+    ])
   })
 })

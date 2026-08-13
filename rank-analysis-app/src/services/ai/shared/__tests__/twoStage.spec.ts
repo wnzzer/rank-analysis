@@ -257,4 +257,45 @@ describe('runTwoStage', () => {
 
     expect(chunks).toEqual(['hello ', 'world'])
   })
+
+  it('forwards onUsage from both stages to their sinks', async () => {
+    mockRequest.mockResolvedValueOnce({ success: true, content: '{"foo":1}' })
+    mockStream.mockImplementation(async (_p, callbacks) => {
+      callbacks.onUsage?.({ promptTokens: 2, completionTokens: 4, totalTokens: 6 })
+      callbacks.onDone()
+    })
+
+    const s1Usage: number[] = []
+    const s2Usage: number[] = []
+    await runTwoStage<unknown, unknown>({
+      stage1: {
+        systemPrompt: 'S1',
+        userPrompt: 'U1',
+        parse: () => ({ ok: true, value: {} }),
+        onUsage: u => s1Usage.push(u.totalTokens)
+      },
+      stage2: {
+        buildSystemPrompt: () => 'S2',
+        buildUserPrompt: () => 'U2',
+        parse: () => ({ ok: true, value: {} }),
+        onUsage: u => s2Usage.push(u.totalTokens)
+      }
+    })
+
+    // requestAIContent(prompt, cacheKey, systemPrompt, model, opts): opts 带 onUsage
+    expect(mockRequest.mock.calls[0][4].onUsage).toBeTypeOf('function')
+    // requestAIContentStream(prompt, callbacks, ...): callbacks 带 onUsage
+    expect(mockStream.mock.calls[0][1].onUsage).toBeTypeOf('function')
+
+    // 手动驱动 stage1 的 onUsage 走一次（requestAIContent 内部由 mock 决定何时调用）
+    ;(
+      mockRequest.mock.calls[0][4].onUsage as (u: {
+        promptTokens: number
+        completionTokens: number
+        totalTokens: number
+      }) => void
+    )({ promptTokens: 5, completionTokens: 5, totalTokens: 10 })
+    expect(s1Usage).toEqual([10])
+    expect(s2Usage).toEqual([6])
+  })
 })

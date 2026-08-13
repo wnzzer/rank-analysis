@@ -11,11 +11,14 @@ import type { MatchSnapshot } from '../shared/snapshot'
 import { buildStage2Prompt } from './prompts/stage2-critique'
 import { buildStage2PlayerPrompt } from './prompts/stage2-player'
 import type { AttributionResult } from './types'
+import type { AiUsage } from '../types'
 
 export interface CritiqueCallbacks {
   onChunk: (chunk: string) => void
   onDone: () => void
   onError: (error: string) => void
+  /** D-P1：token 用量回调（可选，仅统计场景需要） */
+  onUsage?: (usage: AiUsage) => void
 }
 
 export interface CritiqueOptions {

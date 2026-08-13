@@ -96,6 +96,9 @@ const MAX_ATTEMPTS: u32 = 2;
 ///
 /// `response_format` 为 `Some` 时附加 OpenAI 兼容的 `response_format: {"type": ...}`
 /// 字段（如 `json_object` 强制 JSON 输出）；`None` 时不带该字段，保持普通文本输出。
+///
+/// 恒带 `stream_options.include_usage: true`：DashScope 兼容端点在流末 chunk 返回
+/// `usage` 字段，供 D-P1 前端统计每次分析的 token 用量（成本）。
 fn build_request_body(
     model: &str,
     system_prompt: &str,
@@ -108,12 +111,34 @@ fn build_request_body(
             { "role": "system", "content": system_prompt },
             { "role": "user", "content": user_prompt }
         ],
-        "stream": true
+        "stream": true,
+        "stream_options": { "include_usage": true }
     });
     if let Some(fmt) = response_format {
         body["response_format"] = json!({ "type": fmt });
     }
     body
+}
+
+/// 从一行 SSE 文本提取 usage（流末 chunk 的 `usage` 字段）。
+/// 返回规范化后的 `{ promptTokens, completionTokens, totalTokens }`；无 usage /
+/// `[DONE]` / 坏 JSON 均返回 `None`。
+fn extract_usage(line: &str) -> Option<serde_json::Value> {
+    let data = line.trim();
+    let data = data.strip_prefix("data: ").unwrap_or(data).trim();
+    if data.is_empty() || data == "[DONE]" {
+        return None;
+    }
+    let json: serde_json::Value = serde_json::from_str(data).ok()?;
+    let usage = json.get("usage")?;
+    if usage.get("total_tokens").is_none() && usage.get("totalTokens").is_none() {
+        return None;
+    }
+    Some(json!({
+        "promptTokens": usage.get("prompt_tokens").or_else(|| usage.get("promptTokens")).and_then(|v| v.as_i64()).unwrap_or_default(),
+        "completionTokens": usage.get("completion_tokens").or_else(|| usage.get("completionTokens")).and_then(|v| v.as_i64()).unwrap_or_default(),
+        "totalTokens": usage.get("total_tokens").or_else(|| usage.get("totalTokens")).and_then(|v| v.as_i64()).unwrap_or_default()
+    }))
 }
 
 /// HTTP 状态码是否值得重试：仅 429（限流）与 5xx（服务端错误）。纯函数，便于单测。
@@ -150,9 +175,9 @@ pub struct AiStreamRequest {
 /// AI 流式响应事件
 #[derive(Debug, Clone, Serialize)]
 pub struct AiStreamEvent {
-    /// 事件类型: "chunk" | "done" | "error"
+    /// 事件类型: "chunk" | "done" | "error" | "usage"
     pub event: String,
-    /// 数据内容（chunk 时为文本，error 时为错误信息）
+    /// 数据内容（chunk 时为文本，error 时为错误信息，usage 时为 token 用量 JSON）
     pub data: Option<String>,
 }
 
@@ -325,6 +350,13 @@ pub async fn stream_ai_analysis(
                     data: Some(content),
                 });
             }
+            // 流末 usage：单独发 usage 事件（D-P1 token 用量统计），不进 chunk
+            if let Some(usage) = extract_usage(&line) {
+                let _ = on_event.send(AiStreamEvent {
+                    event: "usage".to_string(),
+                    data: Some(usage.to_string()),
+                });
+            }
         }
     }
 
@@ -405,6 +437,39 @@ mod tests {
     fn body_includes_response_format_when_requested() {
         let body = build_request_body("qwen-flash", "sys", "user", Some("json_object"));
         assert_eq!(body["response_format"]["type"], "json_object");
+    }
+
+    #[test]
+    fn body_always_requests_usage_include() {
+        let body = build_request_body("qwen-flash", "sys", "user", None);
+        assert_eq!(body["stream_options"]["include_usage"], true);
+    }
+
+    #[test]
+    fn extract_usage_pulls_normalized_tokens_from_final_chunk() {
+        let line = r#"data: {"choices":[{"delta":{"content":""}}],"usage":{"prompt_tokens":42,"completion_tokens":17,"total_tokens":59}}"#;
+        let usage = extract_usage(line).expect("应提取 usage");
+        assert_eq!(usage["promptTokens"], 42);
+        assert_eq!(usage["completionTokens"], 17);
+        assert_eq!(usage["totalTokens"], 59);
+    }
+
+    #[test]
+    fn extract_usage_accepts_camel_case_and_plain_lines() {
+        let camel = r#"{"usage":{"promptTokens":1,"completionTokens":2,"totalTokens":3}}"#;
+        let usage = extract_usage(camel).expect("应接受无 data: 前缀的行");
+        assert_eq!(usage["totalTokens"], 3);
+    }
+
+    #[test]
+    fn extract_usage_ignores_non_final_lines() {
+        assert_eq!(extract_usage("data: [DONE]"), None);
+        assert_eq!(
+            extract_usage(r#"data: {"choices":[{"delta":{"content":"你好"}}]}"#),
+            None
+        );
+        assert_eq!(extract_usage("data: {not json"), None);
+        assert_eq!(extract_usage(""), None);
     }
 
     #[test]
