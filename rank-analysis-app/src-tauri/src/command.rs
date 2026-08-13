@@ -38,6 +38,7 @@
 //! - `Err(String)`: 操作失败，返回错误信息字符串
 
 pub mod ai;
+pub mod ai_cache;
 pub mod asset;
 pub mod bp;
 pub mod bp_suggest;
