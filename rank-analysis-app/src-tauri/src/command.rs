@@ -41,6 +41,7 @@ pub mod ai;
 pub mod asset;
 pub mod bp;
 pub mod bp_suggest;
+pub mod build_stats;
 pub mod cloud_sync;
 pub mod config;
 pub mod fandom;

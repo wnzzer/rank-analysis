@@ -11,5 +11,6 @@ pub mod migrate;
 pub mod observability;
 pub mod opgg;
 pub mod paths;
+pub mod pugg;
 pub mod rule_engine;
 pub mod state;
