@@ -17,6 +17,8 @@
           :mode="opggMode"
           :my-champion-ids="isMine ? EMPTY_IDS : myChampionIds"
           :density="density"
+          :my-puuid="myPuuid"
+          :queue-id="queueId"
           :style="{ '--stagger-i': i }"
         />
         <PlayerCard

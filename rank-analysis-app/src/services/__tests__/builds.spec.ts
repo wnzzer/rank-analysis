@@ -2,7 +2,13 @@ import { describe, it, expect, vi } from 'vitest'
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 import { invoke } from '@tauri-apps/api/core'
-import { getBuildStats, topItem } from '../builds'
+import {
+  getBuildStats,
+  topItem,
+  toBuildRecommendation,
+  resolveBuildSource,
+  PUGG_PREFER_SAMPLES
+} from '../builds'
 import type { BuildStats, ItemStat } from '../builds'
 
 function sampleBuild(): BuildStats {
@@ -67,5 +73,51 @@ describe('builds service', () => {
     expect(topItem(items, 0)?.itemId).toBe(3508)
     expect(topItem(items, 1)).toBeNull()
     expect(topItem(items, 6)).toBeNull()
+  })
+
+  describe('C3 合并规则 resolveBuildSource', () => {
+    it('PUGG 样本达到门槛 → 采用 PUGG（无视 OP.GG 有无）', () => {
+      expect(resolveBuildSource(PUGG_PREFER_SAMPLES, false)).toBe('pugg')
+      expect(resolveBuildSource(PUGG_PREFER_SAMPLES + 10, true)).toBe('pugg')
+    })
+
+    it('PUGG 样本不足但有 OP.GG → 采用 OP.GG', () => {
+      expect(resolveBuildSource(PUGG_PREFER_SAMPLES - 1, true)).toBe('opgg')
+      expect(resolveBuildSource(1, true)).toBe('opgg')
+    })
+
+    it('样本不足且无 OP.GG → 回退小样本 PUGG（标注防误导）', () => {
+      expect(resolveBuildSource(1, false)).toBe('pugg')
+      expect(resolveBuildSource(0, false)).toBeNull()
+    })
+  })
+
+  describe('C3 合并输出 toBuildRecommendation', () => {
+    it('null 输入返回 null（优雅降级）', () => {
+      expect(toBuildRecommendation(null)).toBeNull()
+    })
+
+    it('输出 7 槽推荐 + 符文 + 技能 + 来源标注', () => {
+      const b = toBuildRecommendation(sampleBuild(), '盖伦')
+      expect(b?.source).toBe('pugg')
+      expect(b?.samples).toBe(8)
+      expect(b?.items).toHaveLength(2) // 样本 items 只有两槽
+      expect(b?.items[0]?.itemId).toBe(3020)
+      expect(b?.runes.main?.id).toBe(8100)
+      expect(b?.runes.sub?.id).toBe(8400)
+      expect(b?.runes.keystone?.id).toBe(8112)
+      expect(b?.spells[0]?.spellId).toBe(4)
+      // 样本 <10 → 标注"样本偏少"，含英雄名与胜场数
+      expect(b?.note).toContain('盖伦')
+      expect(b?.note).toContain('8 场')
+      expect(b?.note).toContain('样本偏少')
+    })
+
+    it('样本达到门槛时来源为 pugg 且无"样本偏少"标注', () => {
+      const build = { ...sampleBuild(), samples: PUGG_PREFER_SAMPLES + 2 }
+      const b = toBuildRecommendation(build, '盖伦')
+      expect(b?.source).toBe('pugg')
+      expect(b?.note).not.toContain('样本偏少')
+    })
   })
 })

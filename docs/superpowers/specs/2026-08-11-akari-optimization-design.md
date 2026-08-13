@@ -327,6 +327,8 @@ D3/方向D AI 增强(独立推进,可与 C 并行)
 ## 6. 方向 C:OP.GG 出装/符文推荐
 
 > 目标:对战与战绩场景都能看到"这个英雄怎么出装/带什么符文"。**核心 = 自有战绩聚合(PUGG),外援 = OP.GG 扩展解析;双源合并、前端分层展示。**
+>
+> **实施状态(2026-08-13 更新):C1/C3/C-2-UI 已完成;C2-1 实测后按既定策略降级为纯 PUGG**(详见 6.5)。
 
 ### 6.1 数据层设计
 
@@ -336,6 +338,7 @@ D3/方向D AI 增强(独立推进,可与 C 并行)
   - 输出 `BuildStats`:`{ champion_id, position, mode, samples: u32, items: HashMap<slot, Vec<(item_id, count, win_count)>>, rune_main/rune_sub/stat_mods: 频率表, skill_order: Vec<(skill, level)> 频率, spell1/spell2 频率 }`
   - 过滤规则:胜场权重 2x,样本 < 5 场不输出(防小样本噪声)
 - command:`get_build_stats(champion_id, position?, mode?)`;内部走 `moka` 缓存(同 `opgg_cache` 模式)
+  - **落地修正**:LCU 战绩摘要无 lane/stat_mods/skill_order 字段(仅 SGP DETAILS 有,逐局拉取代价高),`BuildStats.position` 恒空串、`stat_mods`/`skill_order` 不输出,按「最短路径」原则留给后续增强;command 输入为 `(puuid, champion_id, mode)`——PUGG 是「自有战绩」,必须先有 puuid 才知道统计谁。
 
 **C2:OP.GG 解析扩展(外服对照数据)**
 - 扩展 `opgg/api.rs` 抓取维度:每英雄每位置 Top3 出装、Top1 符文树、加点顺序(OP.GG 页面结构化,需在 `api.rs` 加解析器;如目标站点改版频繁则仅保留 winrate/tier 维度,C2 降级为纯 PUGG)
@@ -354,17 +357,30 @@ D3/方向D AI 增强(独立推进,可与 C 并行)
 
 **C4(进阶,AI 联动,放方向 D 之后)**:"出装诊断"——AI 解释"你第二件晚 4 分钟,推荐 X 时机 Y",用 PUGG 聚合 + prompt 生成。
 
+### 6.5 C2-1 实测结论:OP.GG 详情 API 已不可用,C2 降级为纯 PUGG(2026-08-13)
+
+设计文档本就在 C2 声明「如目标站点改版频繁则仅保留 winrate/tier 维度」。本次联调实测:
+
+| 探测路径 | 结果 |
+|---|---|
+| `lol-api-champion.op.gg/api/global/champions/{id}` / `/{id}/ranked` / `/{id}/aram` | 404/422(列表 API 存活,详情路径全无) |
+| `lol-api-champion.op.gg/api/global/champions/ranked?name=X` | 200(仅此路径存活) |
+| `lol-web-api.op.gg/api/v1.0/internal/bypass/champions/{id}/ranked`(旧版详情) | 超时(端点已下线) |
+| `www.op.gg/champions/{id}/` | 308 永久重定向(改版迁移) |
+
+**结论**:OP.GG 每英雄 Top3 出装/Top1 符文树/加点顺序的抓取不可行(站点已改版,无稳定 JSON 端点)。按 C2 既定降级策略,方向 C = 纯 PUGG + 双源合并规则(前端 `services/builds.ts` 预留 `'opgg'` 分支与 `resolveBuildSource` 裁决函数,OP.GG 恢复后零改动接回)。出装/符文推荐完全基于自有战绩,国服友好且无外部耦合——这也正是方向 C 的核心定位。
+
 ### 6.3 任务卡
 
 | # | 任务 | 涉及 | 验收 |
 |---|---|---|---|
-| C1-1 | PUGG 聚合模块 + command | `src-tauri/src/pugg/`(新)、`command/` | 50 场内样本≥5 可出 BuildStats;单测覆盖过滤规则 |
-| C1-2 | 前端 service | `services/builds.ts`(新)+ spec | 调用封装、错误降级 null |
-| C2-1 | OP.GG 解析扩展(尽力而为) | `opgg/api.rs`、`opgg/data.rs` | 解析失败不影响现有 winrate 管道 |
-| C3-1 | BuildRecommendation 合并 | PUGG/opgg 之上 | 双源合并规则单测 |
-| C-2-UI | ChampionIntelCard 页签 | `components/gaming/ChampionIntelCard.vue` | 对局中可见推荐装/符文 |
-| C-3-UI | 展开层出装对比(依赖 M1) | `MatchDetailModal.vue` | 差异高亮 |
-| C-测试 | 全部 | — | check/test 全绿 |
+| C1-1 | PUGG 聚合模块 + command | `src-tauri/src/pugg/`(新)、`command/` | ✅ 50 场内样本≥5 可出 BuildStats;单测覆盖过滤规则(`pugg/aggregate.rs` + command `get_build_stats`) |
+| C1-2 | 前端 service | `services/builds.ts`(新)+ spec | ✅ 调用封装、错误降级 null(11 单测) |
+| C2-1 | OP.GG 解析扩展(尽力而为) | `opgg/api.rs`、`opgg/data.rs` | ✅ 实测详情 API 已下线,按既定策略降级纯 PUGG,现有 winrate 管道零影响(见 6.5) |
+| C3-1 | BuildRecommendation 合并 | PUGG/opgg 之上 | ✅ 双源合并规则单测(`resolveBuildSource`/`toBuildRecommendation`,样本≥10 优先 PUGG;OP.GG 分支预留) |
+| C-2-UI | ChampionIntelCard 页签 | `components/gaming/ChampionIntelCard.vue` | ✅ 对局中可见推荐装/符文(出装 7 槽 + 基石/主系 + 召唤师技能 + 来源样本标注) |
+| C-3-UI | 展开层出装对比(依赖 M1) | `MatchDetailModal.vue` | ⏳ 待做(接入战绩展开层,需 M1 布局) |
+| C-测试 | 全部 | — | ✅ check/test 全绿(855/855) |
 
 ### 6.4 验收标准(M2)
 1. 任意英雄(排位/大乱斗)对局中 ≤2 次点击看到推荐装+符文,数据来源与样本数可辨识

@@ -44,6 +44,48 @@
           >
             {{ counterText(h) }}
           </span>
+          <button v-if="canShowBuild" class="intel-build-toggle" @click="buildOpen = !buildOpen">
+            {{ buildOpen ? '收起出装' : '出装/符文' }}
+            <span v-if="buildLoading" class="intel-build-spinner" />
+          </button>
+        </div>
+        <div v-if="buildOpen && canShowBuild" class="intel-build">
+          <template v-if="recommendation">
+            <div class="intel-build-row">
+              <img
+                v-for="(slot, i) in recommendation.items"
+                :key="i"
+                class="intel-build-item"
+                :src="slot ? getItemUrl(slot.itemId) : ''"
+                :alt="slot ? `装备${i + 1}` : '空'"
+                loading="lazy"
+              />
+            </div>
+            <div class="intel-build-row intel-build-runes">
+              <img
+                v-if="recommendation.runes.keystone"
+                class="intel-build-rune"
+                :src="getRuneUrl(recommendation.runes.keystone.id)"
+                :alt="`基石 ${recommendation.runes.keystone.id}`"
+                loading="lazy"
+              />
+              <span class="intel-build-style">
+                {{ primaryStyleName(recommendation) }}
+              </span>
+              <template v-for="s in recommendation.spells" :key="`spell-${s?.spellId ?? 'null'}`">
+                <img
+                  v-if="s"
+                  class="intel-build-spell"
+                  :src="getSpellUrl(s.spellId)"
+                  loading="lazy"
+                />
+              </template>
+            </div>
+            <div class="intel-build-note">{{ recommendation.note }}</div>
+          </template>
+          <div v-else-if="!buildLoading" class="intel-build-empty">
+            暂无推荐（样本不足或无战绩）
+          </div>
         </div>
       </div>
     </template>
@@ -67,6 +109,8 @@ import {
 } from '@renderer/services/opgg'
 import type { ChampionMeta, CounterHint, OpggMode } from '@renderer/services/opgg'
 import { pickStateClass, tierBadge, formatWinRate, isChampionSwap } from './championIntel'
+import { getBuildStats, toBuildRecommendation } from '@renderer/services/builds'
+import type { BuildRecommendation } from '@renderer/services/builds'
 import PatchNoteBadge from './PatchNoteBadge.vue'
 
 const props = withDefaults(
@@ -77,17 +121,23 @@ const props = withDefaults(
     /** 我方已亮出的英雄（用于克制提示），可为空数组 */
     myChampionIds?: number[]
     density?: 'normal' | 'compact'
+    /** 当前登录玩家 puuid（PUGG 出装聚合的统计主体）；空串 = 不展示出装面板 */
+    myPuuid?: string
+    /** 本局 queueId（模式过滤）；0 = 不限模式 */
+    queueId?: number
   }>(),
-  { pickState: 'none', myChampionIds: () => [], density: 'normal' }
+  { pickState: 'none', myChampionIds: () => [], density: 'normal', myPuuid: '', queueId: 0 }
 )
 
-const { getChampionUrl } = useAssetUrl()
+const { getChampionUrl, getItemUrl, getRuneUrl, getSpellUrl } = useAssetUrl()
 const name = ref('')
 const meta = ref<ChampionMeta | null>(null)
 const hints = ref<CounterHint[]>([])
 const badge = computed(() => tierBadge(meta.value?.tier ?? 0))
 /** 未亮出英雄：走占位分支（虚线卡 + 居中 ❓） */
 const isEmpty = computed(() => !props.championId || props.championId <= 0)
+/** 是否有 PUGG 统计主体（需要「我」的 puuid 才能聚合历史战绩） */
+const canShowBuild = computed(() => !isEmpty.value && !!props.myPuuid)
 /** 胜率语义色：>=52% 绿、<=48% 红，其余用默认色（模板里不设 class） */
 const winRateClass = computed(() => {
   const rate = meta.value?.winRate
@@ -96,6 +146,29 @@ const winRateClass = computed(() => {
   if (rate <= 0.48) return 'intel-winrate-bad'
   return ''
 })
+
+// ---- 出装/符文面板（方向 C，C-2-UI）----
+const buildOpen = ref(false)
+const buildLoading = ref(false)
+const recommendation = ref<BuildRecommendation | null>(null)
+
+/** 主系风格名：风格 id → 中文名（8100=精密/8200=主宰/8300=巫术/8400=坚决/8000=启迪）。 */
+function primaryStyleName(rec: BuildRecommendation): string {
+  switch (rec.runes.main?.id) {
+    case 8000:
+      return '启迪'
+    case 8100:
+      return '精密'
+    case 8200:
+      return '主宰'
+    case 8300:
+      return '巫术'
+    case 8400:
+      return '坚决'
+    default:
+      return ''
+  }
+}
 
 /** 名字辅助：克制提示里显示我方英雄名 */
 function counterText(h: CounterHint): string {
@@ -153,6 +226,8 @@ watch(
     if (!id || id <= 0) {
       meta.value = null
       hints.value = []
+      recommendation.value = null
+      buildOpen.value = false
       return
     }
     // 竞态守卫：选人阶段 championId/myChampionIds 快速变化时，旧请求晚到不得覆盖新数据。
@@ -161,6 +236,16 @@ watch(
     await loadChampionNames()
     if (lastRequestKey !== requestKeySnapshot) return
     name.value = getChampionName(id)
+    if (props.myPuuid) {
+      buildLoading.value = true
+      const build = await getBuildStats(props.myPuuid, id, props.queueId ?? 0)
+      if (lastRequestKey !== requestKeySnapshot) {
+        buildLoading.value = false
+        return
+      }
+      recommendation.value = toBuildRecommendation(build, name.value)
+      buildLoading.value = false
+    }
     const fetchedMeta = await getChampionMeta(props.mode, id)
     if (lastRequestKey !== requestKeySnapshot) return
     meta.value = fetchedMeta
@@ -274,6 +359,89 @@ watch(
 }
 .intel-placeholder-icon {
   font-size: 16px;
+}
+
+/* ---- 出装/符文面板（方向 C，C-2-UI）---- */
+.intel-build-toggle {
+  margin-left: auto;
+  padding: 1px 8px;
+  border: 1px solid var(--n-border-color, rgba(128, 128, 128, 0.25));
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font-size: 11px;
+  line-height: 1.6;
+  cursor: pointer;
+  opacity: 0.75;
+  transition: opacity 0.2s;
+}
+.intel-build-toggle:hover {
+  opacity: 1;
+}
+.intel-build-spinner {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-left: 6px;
+  border: 1.5px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: intel-build-spin 0.8s linear infinite;
+}
+@keyframes intel-build-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.intel-build {
+  margin-top: 6px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(128, 128, 128, 0.08);
+}
+.intel-build-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.intel-build-item {
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  background: rgba(128, 128, 128, 0.15);
+  border: 1px solid rgba(128, 128, 128, 0.2);
+}
+.intel-build-runes {
+  margin-top: 5px;
+  gap: 6px;
+}
+.intel-build-rune {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  background: rgba(128, 128, 128, 0.15);
+}
+.intel-build-spell {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  background: rgba(128, 128, 128, 0.15);
+  margin-left: 2px;
+}
+.intel-build-style {
+  font-size: 11px;
+  opacity: 0.75;
+}
+.intel-build-note {
+  margin-top: 4px;
+  font-size: 11px;
+  opacity: 0.65;
+  line-height: 1.5;
+}
+.intel-build-empty {
+  font-size: 11px;
+  opacity: 0.55;
+  padding: 2px 0;
 }
 /* 未锁定占位卡：虚线边框 + 居中内容（picking 态被下方 .intel-picking 的实线+脉冲覆盖） */
 .intel-empty {
