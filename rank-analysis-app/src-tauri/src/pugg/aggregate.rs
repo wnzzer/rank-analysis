@@ -386,18 +386,18 @@ mod tests {
         let g_me = game_with(1, 86, 420, &full_items(), true, MY_PUUID);
         let g_other_champ = game_with(2, 200, 420, &full_items(), true, MY_PUUID);
         let g_aram = game_with(3, 86, 450, &full_items(), true, MY_PUUID);
-        // 86 的样本需 ≥ MIN_SAMPLES=5：4 场峡谷 + 1 场大乱斗
+        // 86 的样本需 ≥ MIN_SAMPLES=5：4 场峡谷 + 5 场大乱斗
         let mut games = vec![g_me; 4];
         games.push(g_other_champ);
-        games.push(g_aram);
+        games.extend(vec![g_aram; 5]);
 
-        // 全部：只统计 86 的五场
+        // 全部：只统计 86 的九场
         let got = aggregate_build_stats(&games, 86, MY_PUUID, 0).unwrap();
-        assert_eq!(got.samples, 5, "英雄过滤：其他英雄的对局不计入");
+        assert_eq!(got.samples, 9, "英雄过滤：其他英雄的对局不计入");
 
-        // 模式过滤 450：只留大乱斗一场
+        // 模式过滤 450：只留大乱斗五场
         let got = aggregate_build_stats(&games, 86, MY_PUUID, 450).unwrap();
-        assert_eq!(got.samples, 1);
+        assert_eq!(got.samples, 5);
         assert_eq!(got.mode, 450);
     }
 

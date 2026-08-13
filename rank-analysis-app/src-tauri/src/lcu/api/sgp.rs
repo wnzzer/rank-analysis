@@ -768,7 +768,6 @@ mod tests {
 
     #[tokio::test]
     async fn detail_cache_key_includes_platform() {
-        SGP_DETAIL_CACHE.invalidate_all();
         SGP_DETAIL_CACHE
             .insert("TJ100:7".into(), SgpGameDetailResponse::default())
             .await;
