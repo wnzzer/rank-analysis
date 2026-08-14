@@ -33,6 +33,15 @@
           class="filter-select filter-time"
         />
         <n-button size="small" class="toolbar-more" @click="nextPage">收集更多</n-button>
+        <n-button
+          v-if="region"
+          size="small"
+          class="toolbar-collect"
+          :disabled="collectDone"
+          @click="toggleCollectAll"
+        >
+          {{ collectLabel }}
+        </n-button>
         <n-tooltip trigger="hover">
           <template #trigger>
             <n-button quaternary circle size="small" class="toolbar-reset" @click="resetFilter">
@@ -139,13 +148,17 @@ import RecordCard from './RecordCard.vue'
 import RecordCardSkeleton from './RecordCardSkeleton.vue'
 import TrendBar from './TrendBar.vue'
 import { ArrowBack, ArrowForward, RepeatOutline } from '@vicons/ionicons5'
-import { computed, nextTick, onMounted, provide, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
 import { NEmpty, NButton, useLoadingBar } from 'naive-ui'
 import { useRoute } from 'vue-router'
 import { renderSingleSelectTag, renderLabel, filterChampionFunc } from '../composition'
 import { modeOptions, initModeOptions } from './composition'
 import { invoke } from '@tauri-apps/api/core'
-import { getSgpMatchHistoryByName } from '@renderer/services/sgp'
+import {
+  getSgpMatchHistoryByName,
+  mergeGamesByGameId,
+  collectSgpHistoryAll
+} from '@renderer/services/sgp'
 import { championOption } from '../type'
 import type { Game, MatchHistory } from './match'
 import MatchDetailInline from './MatchDetailInline.vue'
@@ -294,6 +307,9 @@ function collapseDetail(gameId: number) {
 
 // 获取最近 50 场（一次拉取，列表分页/趋势条/英雄池共用）
 const getHistoryMatch = async (name: string) => {
+  collectGeneration.value++ // 作废进行中的全量收集（结果丢弃）
+  collectDone.value = false
+  collectCancelRequested.value = false
   loadingBar.start()
   isRequestingMatchHostory.value = true
   loadError.value = false
@@ -368,21 +384,65 @@ const loadMoreCrossRegion = async () => {
       page.value = pageCount.value
       return
     }
-    const seen = new Set(allGames.value.map(g => g.gameId))
-    const fresh = incoming.filter(g => !seen.has(g.gameId))
-    if (fresh.length > 0) {
-      allGames.value = [...allGames.value, ...fresh]
-      sgpStartIndex.value += incoming.length
-      // 翻到追加内容所在的最后一页
-      page.value = pageCount.value
-    } else {
-      sgpStartIndex.value += incoming.length
+    const merged = mergeGamesByGameId(allGames.value, incoming)
+    if (merged.length > allGames.value.length) {
+      allGames.value = merged
+      page.value = pageCount.value // 翻到追加内容所在的最后一页
     }
+    sgpStartIndex.value += incoming.length
   } catch (err) {
     console.error('[MatchHistory] loadMoreCrossRegion failed', err)
     loadingBar.error()
   } finally {
     isRequestingSgpMore.value = false
+  }
+}
+
+/** collectMode：跨区一键全量收集（解除 50 场窗口），趋势条/英雄池/分页同源扩展 */
+const isCollectingAll = ref(false)
+/** 自然收尾（拉空批次）后按钮禁用；上限截断可再点续收 */
+const collectDone = ref(false)
+/** 手动取消请求：收集循环每轮检查，下一页前退出 */
+const collectCancelRequested = ref(false)
+/** 世代号：切换玩家/卸载时 +1，使进行中的收集作废（结果丢弃、循环退出） */
+const collectGeneration = ref(0)
+
+const collectLabel = computed(() => {
+  if (isCollectingAll.value) return `收集中 ${allGames.value.length} 场…`
+  if (collectDone.value) return `已全量 ${allGames.value.length} 场`
+  if (sgpStartIndex.value > 50 || sgpStartIndex.value === -1) return '继续收集'
+  return '收集全部'
+})
+
+const toggleCollectAll = async () => {
+  if (isCollectingAll.value) {
+    collectCancelRequested.value = true // 收集中再次点击 = 取消
+    return
+  }
+  collectCancelRequested.value = false
+  isCollectingAll.value = true
+  const gen = collectGeneration.value
+  try {
+    const result = await collectSgpHistoryAll({
+      region: region.value,
+      name: name.value,
+      startIndex: sgpStartIndex.value,
+      initialGames: allGames.value,
+      onPage: merged => {
+        allGames.value = merged
+      },
+      shouldContinue: () => collectGeneration.value === gen && !collectCancelRequested.value
+    })
+    if (collectGeneration.value !== gen) return // 已切换玩家/卸载，丢弃结果
+    allGames.value = result.games
+    sgpStartIndex.value = result.nextStartIndex
+    collectDone.value = result.reachedEnd
+    page.value = pageCount.value
+  } catch (err) {
+    console.error('[MatchHistory] toggleCollectAll failed', err)
+    loadingBar.error()
+  } finally {
+    isCollectingAll.value = false
   }
 }
 
@@ -426,6 +486,10 @@ onMounted(async () => {
   await initModeOptions()
   championOptions.value = await invoke<championOption[]>('get_champion_options')
   await getHistoryMatch(name.value)
+})
+
+onBeforeUnmount(() => {
+  collectGeneration.value++ // 卸载即作废进行中的全量收集
 })
 
 // 切换玩家（路由 name 变化）时列表与趋势条一起刷新

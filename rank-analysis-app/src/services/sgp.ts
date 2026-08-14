@@ -10,7 +10,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core'
-import type { MatchHistory } from '@renderer/types/domain/match'
+import type { Game, MatchHistory } from '@renderer/types/domain/match'
 
 /** SGP DETAILS 响应的 `json` 体（与 Rust `SgpGameDetailResponse` 对应，字段全可选容错） */
 export interface SgpFramePosition {
@@ -199,4 +199,101 @@ export async function getSgpMatchDetail(
 
   detailCache.set(key, pending)
   return pending
+}
+
+/**
+ * 按 gameId 合并两批对局（保持 prev 时间降序，incoming 追加在尾）。
+ * SGP 翻页可能重叠（重试/边界漂移），重复对局只保留先到的。
+ * @returns 合并后的新数组（无 fresh 时原样返回 prev 引用）
+ */
+export function mergeGamesByGameId(prev: Game[], incoming: Game[]): Game[] {
+  if (incoming.length === 0) return prev
+  const seen = new Set(prev.map(g => g.gameId))
+  const fresh = incoming.filter(g => !seen.has(g.gameId))
+  return fresh.length > 0 ? [...prev, ...fresh] : prev
+}
+
+/** 全量收集（collectMode）的翻页实现签名：单测可注入替代真实 invoke */
+export type SgpFetchPage = (
+  region: string,
+  name: string,
+  begIndex: number,
+  count: number
+) => Promise<MatchHistory | null>
+
+export interface SgpCollectOptions {
+  region: string
+  name: string
+  /** 起始游标（续收场景传上次的 nextStartIndex；默认 0） */
+  startIndex?: number
+  /** 已收集的对局（续收/已有列表），合并结果以此为基础追加 */
+  initialGames?: Game[]
+  /** 每页条数，默认 50（对齐现有「收集更多」口径） */
+  pageSize?: number
+  /** 防失控上限，默认 500（10 页请求） */
+  maxGames?: number
+  /** 翻页实现，默认 getSgpMatchHistoryByName；单测注入 */
+  fetchPage?: SgpFetchPage
+  /** 每页合并后回调（组件用它实时刷新列表/趋势条） */
+  onPage?: (merged: Game[]) => void
+  /** 每轮循环前检查；返回 false 立即中断（切换玩家/卸载/手动取消） */
+  shouldContinue?: () => boolean
+}
+
+export interface SgpCollectResult {
+  /** 合并去重后的全部对局（时间降序） */
+  games: Game[]
+  /** 空批次 / 不足一页自然终止 */
+  reachedEnd: boolean
+  /** 因 shouldContinue=false 被取消（区别于上限截断） */
+  cancelled: boolean
+  /** 续收游标：已向后端请求过的场次数（不含去重，重叠页也推进） */
+  nextStartIndex: number
+}
+
+/**
+ * collectMode：SGP 路径全量收集（解除 LCU 50 场窗口）。
+ *
+ * 从 startIndex 逐页循环拉取直到：空批次终止 / 达 maxGames 截断 / shouldContinue 中断。
+ * 翻页失败（fetchPage 返回 null）按已收集交付——跨区数据缺失是常态降级，不整批作废。
+ * @returns 合并结果与终止原因；失败/中断时 games 为已成功收集的部分
+ */
+export async function collectSgpHistoryAll(opts: SgpCollectOptions): Promise<SgpCollectResult> {
+  const {
+    region,
+    name,
+    startIndex = 0,
+    initialGames = [],
+    pageSize = 50,
+    maxGames = 500,
+    fetchPage = getSgpMatchHistoryByName,
+    onPage,
+    shouldContinue
+  } = opts
+
+  let games = initialGames
+  let begIndex = startIndex
+  while (games.length < maxGames) {
+    if (shouldContinue && !shouldContinue()) {
+      return { games, reachedEnd: false, cancelled: true, nextStartIndex: begIndex }
+    }
+    const mh = await fetchPage(region, name, begIndex, pageSize)
+    if (!mh) break
+    const incoming = mh.games?.games ?? []
+    const merged = mergeGamesByGameId(games, incoming)
+    const added = merged.length - games.length
+    games = merged
+    if (incoming.length < pageSize || incoming.length === 0 || added === 0) {
+      // 不足一页 / 空批次 = 已到末尾；全重复页 = 数据源异常，防死循环同样终止
+      return {
+        games,
+        reachedEnd: true,
+        cancelled: false,
+        nextStartIndex: begIndex + incoming.length
+      }
+    }
+    begIndex += incoming.length
+    onPage?.(games)
+  }
+  return { games, reachedEnd: false, cancelled: false, nextStartIndex: begIndex }
 }
