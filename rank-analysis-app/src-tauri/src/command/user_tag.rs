@@ -344,7 +344,8 @@ pub async fn get_user_tag_by_puuid(
     ) = count_gold_and_group_and_damage_dealt_to_champions(&match_history, mode);
 
     // D3-1 用户画像：补刀速率 + 视野得分（LCU 详情无按分钟曲线，用整场换算速率）
-    let (samples, average_cs_per_min, average_vision_score) = count_trend_stats(&match_history, mode);
+    let (samples, average_cs_per_min, average_vision_score) =
+        count_trend_stats(&match_history, mode);
 
     let select_mode_cn = crate::lcu::api::game_queue::mode_display_name(mode);
 
