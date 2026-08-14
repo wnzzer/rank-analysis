@@ -9,7 +9,8 @@
 //! 前端拿到 Err/None 时隐藏相关 UI、AI prompt 跳过版本情报块即可。
 
 use crate::opgg::data::{ChampionMeta, LaneCounter, OpggSnapshot};
-use crate::opgg::{api, cache};
+use crate::opgg::intel::ChampionIntel;
+use crate::opgg::{api, cache, intel};
 use crate::state::AppState;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -273,6 +274,39 @@ pub async fn get_opgg_status(
         }
         None => Ok(None),
     }
+}
+
+/// 查询单英雄单位置的全量对位/协同情报（选人期悬浮弹窗与阵容推荐的数据源）。
+///
+/// # 参数
+/// - `region`: 区域（如 "kr"；非法/缺省回退 "global"）
+/// - `champion_id`: 英雄 ID（≤0 返回 Err）
+/// - `position`: LCU 分路命名（TOP/JUNGLE/MIDDLE/BOTTOM/UTILITY；OP.GG 命名双兼容）
+/// - `tier`: 段位分段（如 "ibsg"/"emerald_plus"；非法/缺省回退 "emerald_plus"）
+///
+/// # 降级
+/// 内存 fresh → 磁盘 fresh → HTTP 拉取 → 过期缓存（标 `stale=true`）→ 全无 Err。
+/// 数据缺失是常态降级路径，与参数错误（position 非法 / champion_id 非法）返回 Err 区分。
+#[tauri::command]
+pub async fn get_champion_intel(
+    region: Option<String>,
+    champion_id: i32,
+    position: String,
+    tier: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<ChampionIntel, String> {
+    if champion_id <= 0 {
+        return Err(format!("invalid champion_id: {}", champion_id));
+    }
+    let region = intel::sanitize_region(region.as_deref());
+    let position = intel::lcu_to_opgg_position(&position)?;
+    let tier = intel::sanitize_tier(tier.as_deref());
+
+    let (intel, stale) =
+        intel::ensure_champion_intel(&state, region, champion_id, position, tier).await?;
+    let mut intel = (*intel).clone();
+    intel.stale = stale;
+    Ok(intel)
 }
 
 #[cfg(test)]

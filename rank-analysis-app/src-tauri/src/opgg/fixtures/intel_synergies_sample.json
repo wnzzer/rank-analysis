@@ -1,0 +1,37 @@
+{
+  "data": [
+    {
+      "champion_id": 34,
+      "position": "ADC",
+      "synergy_champion_id": 555,
+      "synergy_position": "SUPPORT",
+      "score_rank": 9,
+      "score": 0,
+      "play": 16,
+      "win": 7,
+      "win_rate": 0.4375
+    },
+    {
+      "champion_id": 34,
+      "position": "ADC",
+      "synergy_champion_id": 805,
+      "synergy_position": "MID",
+      "score_rank": 7,
+      "score": 0,
+      "play": 16,
+      "win": 8,
+      "win_rate": 0.5
+    },
+    {
+      "champion_id": 34,
+      "position": "ADC",
+      "synergy_champion_id": 999,
+      "synergy_position": "TOP",
+      "score_rank": 0,
+      "score": 0,
+      "play": 0,
+      "win": 0,
+      "win_rate": 0
+    }
+  ]
+}

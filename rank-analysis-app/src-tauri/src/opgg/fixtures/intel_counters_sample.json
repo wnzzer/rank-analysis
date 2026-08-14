@@ -1,0 +1,10 @@
+{
+  "data": {
+    "counters": [
+      { "champion_id": 10, "play": 4710, "win": 2107 },
+      { "champion_id": 31, "play": 100, "win": 52 },
+      { "champion_id": 101, "play": 50, "win": 50 },
+      { "champion_id": 999, "play": 0, "win": 0 }
+    ]
+  }
+}

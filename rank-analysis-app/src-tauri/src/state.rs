@@ -90,6 +90,19 @@ pub struct AppState {
     /// 永远拿不到数据。新鲜度由 `opgg::cache::is_fresh` 单独裁决；键至多
     /// 2 个（"ranked"/"aram"），无内存压力。
     pub opgg_cache: Cache<String, std::sync::Arc<crate::opgg::data::OpggSnapshot>>,
+
+    /// OP.GG 英雄对位情报内存缓存。
+    ///
+    /// 键为 `cache_key`（region/tier/champion_id/position 拼成，见 `opgg::intel`），
+    /// 值为单英雄单位置的全量对位/协同数据，与磁盘缓存互为补充。
+    ///
+    /// # 为什么不设 TTL
+    ///
+    /// 与 `opgg_cache` 同理：内存须保留"最后已知情报"供拉取失败时降级
+    /// （`opgg::intel::ensure_intel_impl` 的过期缓存回退分支）。新鲜度由
+    /// `opgg::intel::is_fresh` 单独裁决；键至多几十个（用户悬浮/推荐过的英雄），
+    /// 无内存压力。
+    pub opgg_intel_cache: Cache<String, std::sync::Arc<crate::opgg::intel::ChampionIntel>>,
 }
 
 impl Default for AppState {
@@ -115,6 +128,7 @@ impl Default for AppState {
                 .time_to_live(Duration::from_secs(2 * 60 * 60))
                 .build(),
             opgg_cache: Cache::builder().build(),
+            opgg_intel_cache: Cache::builder().build(),
         }
     }
 }
