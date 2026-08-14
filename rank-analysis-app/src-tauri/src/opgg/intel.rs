@@ -352,6 +352,7 @@ pub fn load_from_path(path: &Path) -> Option<ChampionIntel> {
 ///
 /// # 返回值
 /// `(情报, stale)`：stale=true 表示拉取失败、返回的是过期缓存。
+#[allow(clippy::too_many_arguments)] // 依赖注入聚合点：缓存/时间/注入回调均为刻意参数化
 pub async fn ensure_intel_impl<F, Fut>(
     mem_cache: &moka::future::Cache<String, Arc<ChampionIntel>>,
     key: &str,
