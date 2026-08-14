@@ -19,6 +19,7 @@
           :density="density"
           :my-puuid="myPuuid"
           :queue-id="queueId"
+          :tier="tier"
           :style="{ '--stagger-i': i }"
         />
         <PlayerCard
@@ -78,6 +79,8 @@ interface Props {
   myChampionIds?: number[]
   /** 自己的 puuid，用于在对应玩家卡上标「我」（空 = 不标） */
   myPuuid?: string
+  /** OP.GG 段位分段，透传给 ChampionIntelCard 的对位弹窗 */
+  tier?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -85,7 +88,8 @@ const props = withDefaults(defineProps<Props>(), {
   phase: '',
   opggMode: 'ranked',
   myChampionIds: () => [],
-  myPuuid: ''
+  myPuuid: '',
+  tier: 'emerald_plus'
 })
 const placeholderCount = computed(() =>
   Math.max(0, props.expectedSize - props.subteam.players.length)

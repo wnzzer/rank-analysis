@@ -18,7 +18,15 @@
       </div>
     </template>
     <template v-else>
-      <img class="intel-avatar" :src="getChampionUrl(championId)" :alt="name" />
+      <CounterHover
+        v-if="props.mode === 'ranked'"
+        :champion-id="championId"
+        :position="meta?.position ?? ''"
+        :tier="tier"
+      >
+        <img class="intel-avatar" :src="getChampionUrl(championId)" :alt="name" />
+      </CounterHover>
+      <img v-else class="intel-avatar" :src="getChampionUrl(championId)" :alt="name" />
       <div class="intel-body">
         <div class="intel-row">
           <span class="intel-name">{{ name }}</span>
@@ -112,6 +120,7 @@ import { pickStateClass, tierBadge, formatWinRate, isChampionSwap } from './cham
 import { getBuildStats, toBuildRecommendation } from '@renderer/services/builds'
 import type { BuildRecommendation } from '@renderer/services/builds'
 import PatchNoteBadge from './PatchNoteBadge.vue'
+import CounterHover from './CounterHover.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -125,8 +134,17 @@ const props = withDefaults(
     myPuuid?: string
     /** 本局 queueId（模式过滤）；0 = 不限模式 */
     queueId?: number
+    /** OP.GG 段位分段（透传给 CounterHover 对位弹窗） */
+    tier?: string
   }>(),
-  { pickState: 'none', myChampionIds: () => [], density: 'normal', myPuuid: '', queueId: 0 }
+  {
+    pickState: 'none',
+    myChampionIds: () => [],
+    density: 'normal',
+    myPuuid: '',
+    queueId: 0,
+    tier: 'emerald_plus'
+  }
 )
 
 const { getChampionUrl, getItemUrl, getRuneUrl, getSpellUrl } = useAssetUrl()
