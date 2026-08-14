@@ -319,13 +319,16 @@ mod tests {
                 ]
             },
             "win": true,
-            "item0": 0, "item1": 0, "item2": 0, "item3": 0, "item4": 0, "item5": 0, "item6": 0,
-            "perkPrimaryStyle": 8100, "perkSubStyle": 8000,
-            "kills": 8, "deaths": 2, "assists": 5,
-            "goldEarned": 13200, "goldSpent": 13000,
-            "totalDamageDealtToChampions": 28660, "totalDamageDealt": 100000,
-            "totalDamageTaken": 47327, "totalHeal": 8485,
-            "totalMinionsKilled": 167
+            "stats": {
+                "win": true,
+                "item0": 0, "item1": 0, "item2": 0, "item3": 0, "item4": 0, "item5": 0, "item6": 0,
+                "perkPrimaryStyle": 8100, "perkSubStyle": 8000,
+                "kills": 8, "deaths": 2, "assists": 5,
+                "goldEarned": 13200, "goldSpent": 13000,
+                "totalDamageDealtToChampions": 28660, "totalDamageDealt": 100000,
+                "totalDamageTaken": 47327, "totalHeal": 8485,
+                "totalMinionsKilled": 167
+            }
         }"#;
         let p: Participant = serde_json::from_str(json).unwrap();
         let perks = p.perks.as_ref().expect("perks 应解析");
@@ -351,13 +354,16 @@ mod tests {
         let json = r#"{
             "participantId": 1, "teamId": 100, "championId": 897, "spell1Id": 14, "spell2Id": 4,
             "win": true,
-            "item0": 0, "item1": 0, "item2": 0, "item3": 0, "item4": 0, "item5": 0, "item6": 0,
-            "perkPrimaryStyle": 0, "perkSubStyle": 0,
-            "kills": 0, "deaths": 0, "assists": 0,
-            "goldEarned": 0, "goldSpent": 0,
-            "totalDamageDealtToChampions": 0, "totalDamageDealt": 0,
-            "totalDamageTaken": 0, "totalHeal": 0,
-            "totalMinionsKilled": 0
+            "stats": {
+                "win": true,
+                "item0": 0, "item1": 0, "item2": 0, "item3": 0, "item4": 0, "item5": 0, "item6": 0,
+                "perkPrimaryStyle": 0, "perkSubStyle": 0,
+                "kills": 0, "deaths": 0, "assists": 0,
+                "goldEarned": 0, "goldSpent": 0,
+                "totalDamageDealtToChampions": 0, "totalDamageDealt": 0,
+                "totalDamageTaken": 0, "totalHeal": 0,
+                "totalMinionsKilled": 0
+            }
         }"#;
         let p: Participant = serde_json::from_str(json).unwrap();
         assert!(p.perks.is_none());
