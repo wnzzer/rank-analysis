@@ -155,7 +155,12 @@ fn resolve_ai_request(request: &AiStreamRequest) -> Result<ResolvedAiRequest, St
     let baked = (kind == AiProviderKind::DashScope)
         .then_some(option_env!("DASHSCOPE_API_KEY"))
         .flatten();
-    let key = provider_api_key(kind, request.api_key.as_deref(), runtime_env.as_deref(), baked)?;
+    let key = provider_api_key(
+        kind,
+        request.api_key.as_deref(),
+        runtime_env.as_deref(),
+        baked,
+    )?;
     let model = request
         .model
         .as_deref()
