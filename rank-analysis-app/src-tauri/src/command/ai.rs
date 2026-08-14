@@ -734,9 +734,21 @@ mod tests {
             .unwrap(),
             Some("env".to_string())
         );
-        // 全覆盖缺失时报错（baked 不可作为 openai 兜底）
+        // 调用侧约定：openai 不传 baked（baked 只属于 dashscope）。
+        // 函数本身如实使用传入的 baked——是否用它由调用侧按服务商把关
+        assert_eq!(
+            provider_api_key(
+                AiProviderKind::OpenAICompatible,
+                None,
+                None,
+                Some("baked")
+            )
+            .unwrap(),
+            Some("baked".to_string())
+        );
+        // 无 override / env / baked 时如实报错，提示 OPENAI_API_KEY
         assert!(
-            provider_api_key(AiProviderKind::OpenAICompatible, None, None, Some("baked")).is_err()
+            provider_api_key(AiProviderKind::OpenAICompatible, None, None, None).is_err()
         );
     }
 
