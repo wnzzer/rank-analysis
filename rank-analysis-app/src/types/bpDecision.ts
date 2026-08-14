@@ -50,4 +50,11 @@ export interface BpDecision {
   time_left_secs: number
   execute_at_secs_left: number
   user_overridden: boolean
+  /**
+   * 是否真的轮到我了。
+   *
+   * 快照在还没轮到我时也会产出（预选期要提前 hover），因此倒计时类的展示
+   * 必须先看这个字段——否则会在别人的回合里承诺一个不会兑现的自动执行。
+   */
+  is_in_progress: boolean
 }

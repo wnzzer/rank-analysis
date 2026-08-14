@@ -9,14 +9,36 @@ use crate::command::rule_config::{BanRule, PickRule, Position};
 use crate::opgg::data::OpggSnapshot;
 use crate::rule_engine::{detect_my_position, match_condition};
 
-/// LCU 的 `adjustedTimeLeftInPhase` 以**毫秒**返回，转成秒。
+/// 当前回合的真实剩余秒数。
 ///
-/// 真机核对方法：观察 `automation.rs` 里 `BP execute:` 日志打出的 time_left——
-/// 应落在 0~35s 区间且随时间递减；若实测打出的是 0.0xx 量级（例如
-/// "0.027s left"），说明 LCU 返回的其实已经是秒，去掉本函数里的 `/ 1000.0`
-/// 这一处换算即可。
+/// LCU 的 `adjustedTimeLeftInPhase`（毫秒）是**推送时刻的冻结快照**，不是实时
+/// 倒计时：2026-08-14 真机逐秒采样到它在一个 25 秒的 pick 回合里恒为 22.6、
+/// 22 秒纹丝不动，另一处冻在 25.0 十秒后直接跳到 9.0。只读这个值做「剩余
+/// ≤ N 秒就执行」的判断等于永不触发——自动 BP 整局静默的根因就在这里。
+///
+/// 同一 payload 的 `internalNowInEpochMs` 是该快照对应的时刻，扣掉快照至今
+/// 流逝的墙钟才是真实剩余。实测该式每秒精确递减 1.0s，且跨越 LCU 刷新快照
+/// 的那一跳（raw 25.0 → 9.0）修正值无缝衔接（9.5 → 8.5），不产生不连续。
+///
+/// `now_epoch_ms` 由调用方注入以保持纯函数；生产路径用 [`phase_secs_left`]。
+pub fn phase_secs_left_at(timer: &Timer, now_epoch_ms: f64) -> f64 {
+    if timer.internal_now_in_epoch_ms <= 0.0 {
+        // 字段缺失（旧客户端/异常 payload）：退回快照原值。此时宁可不准，
+        // 也不能拿 0 当基准去减——那会得出天文数字的负数，把每一帧都误判成已过期。
+        return timer.adjusted_time_left_in_phase / 1000.0;
+    }
+    // 时钟回拨/LCU 时刻略微超前时钳到 0，避免把剩余时间算得比快照还多。
+    let age_ms = (now_epoch_ms - timer.internal_now_in_epoch_ms).max(0.0);
+    (timer.adjusted_time_left_in_phase - age_ms) / 1000.0
+}
+
+/// [`phase_secs_left_at`] 的生产入口，以系统当前时刻求值。
 pub fn phase_secs_left(timer: &Timer) -> f64 {
-    timer.adjusted_time_left_in_phase / 1000.0
+    let now_epoch_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as f64)
+        .unwrap_or(0.0);
+    phase_secs_left_at(timer, now_epoch_ms)
 }
 
 /// 找到当前用户尚未完成的那个 BP 动作。
@@ -345,6 +367,7 @@ pub fn evaluate_bp_decision(ctx: &BpContext) -> Option<BpDecision> {
         time_left_secs: phase_secs_left(&ctx.session.timer),
         execute_at_secs_left: ctx.execute_at_secs_left,
         user_overridden: detect_override(pending.champion_id, ctx.last_hovered),
+        is_in_progress: pending.is_in_progress,
     })
 }
 
@@ -943,8 +966,59 @@ mod tests {
     fn phase_secs_left_converts_lcu_milliseconds() {
         let t = Timer {
             adjusted_time_left_in_phase: 27_500.0,
+            internal_now_in_epoch_ms: 1_000_000.0,
             ..Default::default()
         };
-        assert!((phase_secs_left(&t) - 27.5).abs() < 1e-9);
+        // 快照零龄（now == internalNow）→ 就是快照原值
+        assert!((phase_secs_left_at(&t, 1_000_000.0) - 27.5).abs() < 1e-9);
+    }
+
+    /// 真机回归：2026-08-14 逐秒采样到 `adjustedTimeLeftInPhase` 在一个 25 秒
+    /// 回合里冻结不动（raw 恒 25.0，快照龄一路涨到 15.5s）。只读 raw 会一直
+    /// 认为「还剩 25 秒」，永远进不了执行窗口——自动 BP 因此整局静默。
+    #[test]
+    fn phase_secs_left_subtracts_snapshot_age() {
+        let t = Timer {
+            adjusted_time_left_in_phase: 25_000.0,
+            internal_now_in_epoch_ms: 1_000_000.0,
+            ..Default::default()
+        };
+        assert!((phase_secs_left_at(&t, 1_000_000.0) - 25.0).abs() < 1e-9);
+        assert!((phase_secs_left_at(&t, 1_015_500.0) - 9.5).abs() < 1e-9);
+        // 冻结的 raw 不再能把剩余时间钉在窗口外
+        assert!(phase_secs_left_at(&t, 1_021_000.0) <= 5.0);
+    }
+
+    /// LCU 刷新快照的那一跳不得造成不连续：真机上 raw 25.0(龄 15.5) 的下一秒
+    /// 变成 raw 9.0(龄 0.5)，修正后应是 9.5 → 8.5 的平滑衔接。
+    #[test]
+    fn phase_secs_left_is_continuous_across_snapshot_refresh() {
+        let stale = Timer {
+            adjusted_time_left_in_phase: 25_000.0,
+            internal_now_in_epoch_ms: 1_000_000.0,
+            ..Default::default()
+        };
+        let fresh = Timer {
+            adjusted_time_left_in_phase: 9_000.0,
+            internal_now_in_epoch_ms: 1_016_000.0,
+            ..Default::default()
+        };
+        let before = phase_secs_left_at(&stale, 1_015_500.0);
+        let after = phase_secs_left_at(&fresh, 1_016_500.0);
+        assert!((before - 9.5).abs() < 1e-9, "before = {before}");
+        assert!((after - 8.5).abs() < 1e-9, "after = {after}");
+    }
+
+    /// 字段缺失（旧客户端/异常 payload，serde default 为 0）时退回快照原值，
+    /// 行为与修正前一致——宁可不准，也不要因为减掉一个 1970 年的时刻而得出
+    /// 天文数字的负数、把「已过期」误判成常态。
+    #[test]
+    fn phase_secs_left_falls_back_when_epoch_missing() {
+        let t = Timer {
+            adjusted_time_left_in_phase: 27_500.0,
+            internal_now_in_epoch_ms: 0.0,
+            ..Default::default()
+        };
+        assert!((phase_secs_left_at(&t, 1_755_000_000_000.0) - 27.5).abs() < 1e-9);
     }
 }

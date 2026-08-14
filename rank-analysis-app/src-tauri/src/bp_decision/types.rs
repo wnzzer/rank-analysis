@@ -115,4 +115,11 @@ pub struct BpDecision {
     pub execute_at_secs_left: f64,
     /// 用户已接管，本阶段不再自动执行
     pub user_overridden: bool,
+    /// 是否真的轮到我了。
+    ///
+    /// 决策快照在**还没轮到我时也会产生**（预选期要提前 hover，见
+    /// `evaluate::find_my_pending_action`），而执行只在轮到我时发生。
+    /// 前端必须据此区分，否则会在别人的回合里显示「Xs 后自动执行」
+    /// 这种不会兑现的承诺。
+    pub is_in_progress: bool,
 }

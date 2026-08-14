@@ -19,6 +19,7 @@ function decision(overrides: Partial<BpDecision> = {}): BpDecision {
     time_left_secs: 20,
     execute_at_secs_left: 5,
     user_overridden: false,
+    is_in_progress: true,
     ...overrides
   }
 }

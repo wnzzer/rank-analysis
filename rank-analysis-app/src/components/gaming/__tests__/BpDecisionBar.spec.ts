@@ -24,8 +24,22 @@ function decision(overrides: Partial<BpDecision> = {}): BpDecision {
     time_left_secs: 8,
     execute_at_secs_left: 5,
     user_overridden: false,
+    is_in_progress: true,
     ...overrides
   }
+}
+
+/** 兜底来源的决策——只有这种来源才该提供「存为规则」 */
+function fallbackDecision(overrides: Partial<BpDecision> = {}): BpDecision {
+  return decision({
+    target: {
+      champion_id: 64,
+      lock: true,
+      origin: { type: 'Fallback', pool_size: 8 },
+      evidence: null
+    },
+    ...overrides
+  })
 }
 
 const mountBar = (d: BpDecision | null, displaySecs = 8) =>
@@ -45,6 +59,15 @@ describe('BpDecisionBar', () => {
     const w = mountBar(decision({ mode: 'Advisory' }))
     expect(w.text()).toContain('建议 BAN')
     expect(w.text()).not.toContain('后自动')
+  })
+
+  // 回归：还没轮到我时计时器走的是别人的回合，倒计时会一路减到 0 却什么都不
+  // 发生——真机上用户先注意到的正是这个假承诺。
+  it('还没轮到我时不显示倒计时，只说明会在我的回合执行', () => {
+    const w = mountBar(decision({ is_in_progress: false }), 3)
+    expect(w.text()).toContain('轮到你时自动 BAN')
+    expect(w.text()).not.toContain('3s')
+    expect(w.text()).not.toContain('s 后自动')
   })
 
   it('Rule 来源显示规则名并用主色', () => {
@@ -119,8 +142,16 @@ describe('BpDecisionBar', () => {
   })
 
   it('点击存为规则触发 emit', async () => {
-    const w = mountBar(decision())
+    const w = mountBar(fallbackDecision())
     await w.find('.bp-save-rule').trigger('click')
     expect(w.emitted('save-rule')).toHaveLength(1)
+  })
+
+  // 规则遍历是 first-match-wins（evaluate.rs 命中即 break），而保存是把新规则
+  // 追加到列表末尾。为一个「已经命中规则」的决策再存一条，产出的必然是被原规则
+  // 永久遮蔽的死规则；evidence 缺失时它还会退化成一条「仅位置」的无条件规则。
+  it('来源已是规则时不提供「存为规则」', () => {
+    const w = mountBar(decision())
+    expect(w.find('.bp-save-rule').exists()).toBe(false)
   })
 })

@@ -34,7 +34,9 @@ use tokio::time::interval;
 
 use crate::config::{extract_bool, get_config, register_on_change_callback, Value};
 use crate::constant::game::{CHAMPSELECT, LOBBY, MATCHMAKING, READYCHECK};
-use crate::lcu::api::champion_select::{get_champion_select_session, post_accept_match};
+use crate::lcu::api::champion_select::{
+    get_champion_select_session, get_fresh_champion_select_session, post_accept_match,
+};
 use crate::lcu::api::lobby::Lobby;
 use crate::lcu::api::phase::get_phase;
 use crate::opgg::data::OpggSnapshot;
@@ -375,10 +377,7 @@ async fn is_leader(members: &[crate::lcu::api::lobby::Member]) -> Result<bool, S
 ///
 /// # 逻辑流程
 ///
-/// 1. 每 1 秒检测一次游戏阶段——执行窗口 `[MIN_EXECUTE_SECS, execute_at_secs_left]`
-///    宽 2s，采样周期必须 ≤ 窗口宽度的一半才能保证命中：若仍按 2s 采样，叠加 LCU
-///    抖动，连续两次采样可能刚好跨过窗口两侧，导致整局静默不锁（常驻求值任务不
-///    受此约束，采样周期保持 2s 不变）
+/// 1. 每 1 秒检测一次游戏阶段，进入 `execute_at_secs_left` 阈值后持续尝试锁定
 /// 2. 当进入 `CHAMPSELECT` 阶段时执行选人逻辑
 /// 3. 调用 `start_select_champion()` 执行具体选人操作
 ///
@@ -492,7 +491,6 @@ async fn load_ban_rules() -> Vec<crate::command::rule_config::BanRule> {
 /// 2. 快照的动作类型与本任务不符则跳过
 /// 3. 交给 `apply_bp_decision`：hover 同步 → 到点锁定
 async fn start_select_champion() -> Result<(), String> {
-    let select_session = get_champion_select_session().await?;
     let Some(decision) = crate::bp_decision::store::read() else {
         log::debug!("No BP decision snapshot yet, skipping this tick");
         return Ok(());
@@ -500,6 +498,7 @@ async fn start_select_champion() -> Result<(), String> {
     if decision.action_type != crate::bp_decision::types::BpActionType::Pick {
         return Ok(());
     }
+    let select_session = get_fresh_champion_select_session().await?;
     apply_bp_decision(&select_session, &decision).await
 }
 
@@ -509,10 +508,7 @@ async fn start_select_champion() -> Result<(), String> {
 ///
 /// # 逻辑流程
 ///
-/// 1. 每 1 秒检测一次游戏阶段——执行窗口 `[MIN_EXECUTE_SECS, execute_at_secs_left]`
-///    宽 2s，采样周期必须 ≤ 窗口宽度的一半才能保证命中：若仍按 2s 采样，叠加 LCU
-///    抖动，连续两次采样可能刚好跨过窗口两侧，导致整局静默不锁（常驻求值任务不
-///    受此约束，采样周期保持 2s 不变）
+/// 1. 每 1 秒检测一次游戏阶段，进入 `execute_at_secs_left` 阈值后持续尝试锁定
 /// 2. 当进入 `CHAMPSELECT` 阶段时执行禁用逻辑
 /// 3. 调用 `start_ban_champion()` 执行具体禁用操作
 ///
@@ -547,9 +543,6 @@ async fn start_champion_ban_automation() {
 
 /// 默认执行阈值：剩余降到该秒数时执行锁定。
 const DEFAULT_EXECUTE_AT_SECS_LEFT: f64 = 5.0;
-
-/// 剩余不足该秒数时放弃本次自动执行，避免半吊子状态。
-pub(crate) const MIN_EXECUTE_SECS: f64 = 3.0;
 
 /// 根据分路信息推断该用哪份 OP.GG 数据。
 ///
@@ -721,8 +714,7 @@ fn should_act(d: &crate::bp_decision::types::BpDecision) -> bool {
 /// **不是**「预告后倒数 N 秒」——固定秒数在不同队列时长下会一会儿太早一会儿来不及。
 ///
 /// `time_left_secs` 必须由调用方用**实时** timer 算出（见 [`apply_bp_decision`]）——
-/// 快照里的 `d.time_left_secs` 是求值 tick 那一刻的值，叠加 session 缓存后
-/// 可能落后到让 `MIN_EXECUTE_SECS` 的保护形同虚设。
+/// 快照里的 `d.time_left_secs` 是求值 tick 那一刻的值，不能用于执行判断。
 fn should_lock(
     d: &crate::bp_decision::types::BpDecision,
     time_left_secs: f64,
@@ -731,10 +723,7 @@ fn should_lock(
     let Some(t) = d.target.as_ref() else {
         return false;
     };
-    is_in_progress
-        && t.lock
-        && time_left_secs <= d.execute_at_secs_left
-        && time_left_secs >= MIN_EXECUTE_SECS
+    is_in_progress && t.lock && time_left_secs > 0.0 && time_left_secs <= d.execute_at_secs_left
 }
 
 /// 按决策快照同步 hover 并在到点时锁定。
@@ -793,15 +782,14 @@ async fn apply_bp_decision(
         .await
         {
             Ok(()) => store::set_last_hovered(Some(target.champion_id)),
-            // hover 是「同步展示」,失败不该否决「到点执行」——执行窗口只有一次机会
+            // hover 是「同步展示」，失败不该否决后续的到点执行
             Err(e) => log::warn!("BP hover sync failed (continuing to lock check): {}", e),
         }
     }
 
     // ---- 到点执行 ----
-    // 时间判断用实时 timer,而非快照的 time_left_secs:session 有 1s 进程内缓存,
-    // 此处的 time_left 最多滞后 ~1s,仍远优于快照的 2s+ 滞后,MIN_EXECUTE_SECS
-    // 的「不足 3s 不动手」保护才站得住。
+    // 时间判断用绕过缓存的实时 timer，而非快照的 time_left_secs。进入阈值后
+    // 每 tick 都会尝试，避免轮询调度或 LCU 抖动跨过一个狭窄窗口后永久放弃。
     let timer = &session.timer;
     // real_time_left: 本 tick 实际参与到点判断的剩余秒数,None = 无计时器模式。
     // 只为下面的执行日志保留——那行日志是真机核对毫秒假设的唯一证据源,必须打真值。
@@ -869,7 +857,6 @@ async fn switch_enabled(key: &str) -> bool {
 /// 2. 快照的动作类型与本任务不符则跳过
 /// 3. 交给 `apply_bp_decision`：hover 同步 → 到点锁定
 async fn start_ban_champion() -> Result<(), String> {
-    let select_session = get_champion_select_session().await?;
     let Some(decision) = crate::bp_decision::store::read() else {
         log::debug!("No BP decision snapshot yet, skipping this tick");
         return Ok(());
@@ -877,6 +864,7 @@ async fn start_ban_champion() -> Result<(), String> {
     if decision.action_type != crate::bp_decision::types::BpActionType::Ban {
         return Ok(());
     }
+    let select_session = get_fresh_champion_select_session().await?;
     apply_bp_decision(&select_session, &decision).await
 }
 
@@ -1178,11 +1166,14 @@ mod bp_execution_tests {
             time_left_secs: time_left,
             execute_at_secs_left: 5.0,
             user_overridden: overridden,
+            // 执行路径不读快照的该字段（用实时 session 的 pending.is_in_progress），
+            // 这里给 true 只为构造合法快照。
+            is_in_progress: true,
         }
     }
 
     #[test]
-    fn should_lock_only_within_threshold_window() {
+    fn should_lock_after_reaching_threshold() {
         // 还早 → 不锁
         assert!(!should_lock(
             &decision(BpMode::Auto, 20.0, false),
@@ -1192,8 +1183,10 @@ mod bp_execution_tests {
         // 到点 → 锁
         assert!(should_lock(&decision(BpMode::Auto, 5.0, false), 5.0, true));
         assert!(should_lock(&decision(BpMode::Auto, 3.5, false), 3.5, true));
-        // 不足 3s → 放弃，避免半吊子状态
-        assert!(!should_lock(&decision(BpMode::Auto, 2.9, false), 2.9, true));
+        // 即使一次采样从 5s 以上跳到 3s 以下，也仍应执行
+        assert!(should_lock(&decision(BpMode::Auto, 2.9, false), 2.9, true));
+        // 已归零 → 不再发送无效请求
+        assert!(!should_lock(&decision(BpMode::Auto, 0.0, false), 0.0, true));
         // 没轮到我 → 不锁
         assert!(!should_lock(
             &decision(BpMode::Auto, 4.0, false),

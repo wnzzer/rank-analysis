@@ -36,10 +36,17 @@ pub struct Action {
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Timer {
+    /// **推送时刻的冻结快照**，不是实时倒计时——真机实测可在一个 25 秒回合里
+    /// 纹丝不动 22 秒。要得到真实剩余必须配合 [`Timer::internal_now_in_epoch_ms`]
+    /// 扣掉快照至今流逝的墙钟，见 `bp_decision::evaluate::phase_secs_left_at`。
     #[serde(default)]
     pub adjusted_time_left_in_phase: f64,
+    /// 上面那个快照对应的时刻（epoch 毫秒）。
+    ///
+    /// 曾误写为 `internal_now_in_phase`（camelCase 后是 `internalNowInPhase`）——
+    /// LCU 没有该字段，于是恒为 serde default 0，白白浪费了唯一能校正快照的信息。
     #[serde(default)]
-    pub internal_now_in_phase: f64,
+    pub internal_now_in_epoch_ms: f64,
     #[serde(default)]
     pub is_infinite: bool,
     #[serde(default)]
@@ -249,6 +256,17 @@ pub fn derive_champ_select_view(
     )
 }
 
+async fn fetch_champion_select_session() -> Result<SelectSession, String> {
+    let uri = "lol-champ-select/v1/session";
+    let select_session = lcu_get::<SelectSession>(uri).await?;
+
+    let mut cache = SELECT_CACHE.lock().unwrap();
+    cache.last_session = Some(select_session.clone());
+    cache.last_fetch_time = Some(Instant::now());
+
+    Ok(select_session)
+}
+
 pub async fn get_champion_select_session() -> Result<SelectSession, String> {
     {
         let cache = SELECT_CACHE.lock().unwrap();
@@ -263,17 +281,15 @@ pub async fn get_champion_select_session() -> Result<SelectSession, String> {
         }
     }
 
-    let uri = "lol-champ-select/v1/session";
-    let select_session = lcu_get::<SelectSession>(uri).await?;
+    fetch_champion_select_session().await
+}
 
-    // 更新缓存
-    {
-        let mut cache = SELECT_CACHE.lock().unwrap();
-        cache.last_session = Some(select_session.clone());
-        cache.last_fetch_time = Some(Instant::now());
-    }
-
-    Ok(select_session)
+/// 获取不经过进程内缓存的选人会话。
+///
+/// 自动 BP 的执行窗口需要最新的 action 和 timer；复用 1 秒缓存会让每秒轮询
+/// 实际观察到约 2 秒一跳的数据，可能直接跨过锁定阈值。
+pub async fn get_fresh_champion_select_session() -> Result<SelectSession, String> {
+    fetch_champion_select_session().await
 }
 
 pub async fn post_accept_match() -> Result<(), String> {
