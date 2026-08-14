@@ -88,7 +88,7 @@ pub struct SynergyItem {
 }
 
 /// 单英雄单位置的对位情报（内存与磁盘缓存的最小单元，命令返回值）。
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ChampionIntel {
     /// 区域（请求参数，写入缓存供来源标注）
@@ -115,7 +115,11 @@ pub struct ChampionIntel {
 /// `TOP|JUNGLE|MID|ADC|SUPPORT`（OP.GG）内时 Err，附带合法取值提示。
 pub fn lcu_to_opgg_position(lcu: &str) -> Result<&'static str, String> {
     match lcu {
-        "TOP" | "JUNGLE" | "MID" | "ADC" | "SUPPORT" => Ok(lcu),
+        "TOP" => Ok("TOP"),
+        "JUNGLE" => Ok("JUNGLE"),
+        "MID" => Ok("MID"),
+        "ADC" => Ok("ADC"),
+        "SUPPORT" => Ok("SUPPORT"),
         "MIDDLE" => Ok("MID"),
         "BOTTOM" => Ok("ADC"),
         "UTILITY" => Ok("SUPPORT"),
@@ -241,7 +245,7 @@ pub fn parse_synergies(body: &str) -> Result<Vec<SynergyItem>, String> {
 /// 拼接 counters 端点 URL。
 fn counters_url(region: &str, champion_id: i32, position: &str, tier: &str) -> String {
     format!(
-        "{}/{}/champions/ranked/{}/{}/{}?tier={}",
+        "{}/{}/champions/ranked/{}/{}?tier={}",
         BASE_URL, region, champion_id, position, tier
     )
 }
