@@ -12,7 +12,7 @@ use std::sync::OnceLock;
 use std::time::Duration;
 
 use reqwest::Client;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 const LIVE_CLIENT_BASE: &str = "http://127.0.0.1:2999";
 const LIVE_CLIENT_TIMEOUT: Duration = Duration::from_secs(3);
@@ -30,7 +30,7 @@ fn live_client() -> &'static Client {
     })
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LiveScore {
     pub assists: u32,
@@ -40,7 +40,7 @@ pub struct LiveScore {
     pub ward_score: u32,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LiveItem {
     /// liveclientdata 的 key 是 PascalCase `itemID`，与其余字段的 camelCase 不一致
     #[serde(rename = "itemID")]
@@ -49,14 +49,14 @@ pub struct LiveItem {
     pub item_count: u32,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LiveGold {
     pub total: u32,
 }
 
 /// 单名玩家实时快照。
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LivePlayer {
     /// 英雄显示名（如 "Ahri"）；与 championKey 不完全一致（如 "MonkeyKing"），
@@ -80,7 +80,7 @@ pub struct LivePlayer {
 /// camelCase 不同源，必须逐字段 rename。按 EventName 区分：ChampionKill（击杀/
 /// 死亡）、DragonKill（含 DragonType）、BaronKill、TurretKilled（含 TowerName）、
 /// GameStart 等。可选字段缺失时归一为 None。
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LiveEvent {
     #[serde(rename = "EventName")]
     pub event_name: String,
@@ -99,7 +99,7 @@ pub struct LiveEvent {
     pub assisters: Vec<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LiveGameData {
     pub game_mode: String,
@@ -107,7 +107,7 @@ pub struct LiveGameData {
 }
 
 /// 全量实时快照（allgamedata 的结构化子集）。
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LiveGameSnapshot {
     pub game_time: f64,
