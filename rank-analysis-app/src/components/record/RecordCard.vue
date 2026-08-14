@@ -11,22 +11,52 @@
   >
     <!-- 单行固定列网格：所有卡片共用同一套列轨道，行与行严格对齐 -->
     <div class="record-card-grid">
-      <!-- 胜负标记 + 时长 -->
+      <!-- 胜负标记 + 时长（hover 看日期/模式，斗魂补名次） -->
       <span
         class="record-card-result-label"
         :class="isWin ? 'record-card-text-win' : 'record-card-text-loss'"
       >
         {{ resultLabel }}
       </span>
-      <span class="font-number record-card-duration">{{ durationText }}</span>
+      <n-tooltip trigger="hover" placement="top">
+        <template #trigger>
+          <span class="record-card-time">
+            <span class="font-number record-card-duration">{{ durationText }}</span>
+            <span class="record-card-mode">{{ modeShortText }}</span>
+          </span>
+        </template>
+        <span>{{ dateText }}</span>
+      </n-tooltip>
 
-      <!-- 英雄头像 + MVP/SVP 角标 -->
+      <!-- 英雄头像 + 召唤师技能 + MVP/SVP 角标 -->
       <div class="record-card-champion">
         <LazyImg
           class="record-card-champion-img"
           :src="`${assetPrefix}/champion/${games.participants[0].championId}`"
           alt="champion"
         />
+        <span
+          v-if="spell1Id > 0"
+          class="record-card-spell record-card-spell-1"
+          :title="`召唤师技能 ${spell1Id}`"
+        >
+          <LazyImg
+            :src="assets.srcOf('spell', spell1Id)"
+            class="record-card-spell-img"
+            alt="spell"
+          />
+        </span>
+        <span
+          v-if="spell2Id > 0"
+          class="record-card-spell record-card-spell-2"
+          :title="`召唤师技能 ${spell2Id}`"
+        >
+          <LazyImg
+            :src="assets.srcOf('spell', spell2Id)"
+            class="record-card-spell-img"
+            alt="spell"
+          />
+        </span>
         <span
           v-if="games.mvp"
           class="record-card-mvp"
@@ -39,13 +69,16 @@
       <!-- 英雄名 -->
       <n-ellipsis class="record-card-champion-name">{{ championName }}</n-ellipsis>
 
-      <!-- KDA -->
-      <span class="font-number record-card-kda">
-        <span class="record-card-kda-kill">{{ games.participants[0].stats?.kills }}</span>
-        <span class="record-card-kda-sep">/</span>
-        <span class="record-card-kda-death">{{ games.participants[0].stats?.deaths }}</span>
-        <span class="record-card-kda-sep">/</span>
-        <span class="record-card-kda-assist">{{ games.participants[0].stats?.assists }}</span>
+      <!-- KDA + CS/分钟（含野怪） -->
+      <span class="record-card-kda">
+        <span class="record-card-kda-line">
+          <span class="record-card-kda-kill">{{ games.participants[0].stats?.kills }}</span>
+          <span class="record-card-kda-sep">/</span>
+          <span class="record-card-kda-death">{{ games.participants[0].stats?.deaths }}</span>
+          <span class="record-card-kda-sep">/</span>
+          <span class="record-card-kda-assist">{{ games.participants[0].stats?.assists }}</span>
+        </span>
+        <span class="record-card-cs">{{ csText }}</span>
       </span>
 
       <!-- 伤害 mini 条（伤害/承伤/治疗三段占全队比例）+ 伤害数值 -->
@@ -178,6 +211,54 @@ const isCherry = computed(() => props.games.gameMode === 'CHERRY')
 const usesAugments = computed(() => isCherry.value || props.games.queueId === 2400)
 const placement = computed(() => props.games.participants[0]?.stats?.subteamPlacement ?? 0)
 
+/* 模式短名：斗魂/极地/单双/灵活/匹配/人机，未知 queueId 时退回 queueName 前 4 字 */
+const MODE_SHORT: Record<number, string> = {
+  400: '匹配',
+  420: '单双',
+  430: '单双',
+  440: '灵活',
+  450: '极地',
+  460: '极地',
+  490: '斗魂',
+  700: '斗魂',
+  720: '斗魂',
+  1010: '斗魂',
+  1700: '斗魂',
+  1710: '斗魂',
+  830: '人机',
+  840: '人机',
+  850: '人机'
+}
+const modeShortText = computed(() => {
+  const known = MODE_SHORT[props.games.queueId]
+  if (known) return known
+  const fallback = (props.games.queueName || '').slice(0, 4)
+  return fallback || '对局'
+})
+
+/** 对局日期（hover 时长列）：MM-DD HH:mm；格式不明的值显示原样 */
+const dateText = computed(() => {
+  const raw = props.games.gameCreationDate
+  if (!raw) return ''
+  const ts = Number(raw)
+  if (!Number.isFinite(ts) || ts <= 0) return String(raw)
+  const d = new Date(ts)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+})
+
+const spell1Id = computed(() => props.games.participants[0]?.spell1Id ?? 0)
+const spell2Id = computed(() => props.games.participants[0]?.spell2Id ?? 0)
+
+/** 补刀/分钟（含野怪），对局时长异常时显示 0 */
+const csText = computed(() => {
+  const s = props.games.participants[0]?.stats
+  const minutes = props.games.gameDuration / 60
+  if (!s || minutes <= 0) return '0.0 CS/分'
+  const cs = (s.totalMinionsKilled ?? 0) + (s.neutralMinionsKilled ?? 0)
+  return `${(cs / minutes).toFixed(1)} CS/分`
+})
+
 const resultLabel = computed(() => {
   if (isCherry.value && placement.value > 0) {
     return `第 ${placement.value} 名`
@@ -292,14 +373,28 @@ function openDetail() {
   color: var(--semantic-loss);
 }
 
-/* 时长 */
+/* 时长 + 模式短名 */
+.record-card-time {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  line-height: 1;
+}
+
 .record-card-duration {
   font-size: var(--font-size-xs);
   color: var(--text-secondary);
   font-weight: 600;
 }
 
-/* 英雄头像 + MVP */
+.record-card-mode {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text-tertiary);
+}
+
+/* 英雄头像 + 召唤师技能 + MVP */
 .record-card-champion {
   position: relative;
   width: 36px;
@@ -321,6 +416,34 @@ function openDetail() {
 
 .record-card-loss .record-card-champion-img {
   border-color: color-mix(in srgb, var(--semantic-loss) 40%, transparent);
+}
+
+/* 召唤师技能：头像左上角竖排两枚小图标 */
+.record-card-spell {
+  position: absolute;
+  left: -3px;
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.55);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  background: var(--glass-bg-low);
+  z-index: 1;
+}
+
+.record-card-spell-1 {
+  top: -2px;
+}
+
+.record-card-spell-2 {
+  top: 11px;
+}
+
+.record-card-spell-img {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .record-card-mvp {
@@ -355,10 +478,26 @@ function openDetail() {
   white-space: nowrap;
 }
 
-/* KDA */
+/* KDA + CS/分钟 */
 .record-card-kda {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.record-card-kda-line {
   font-weight: 650;
   font-size: var(--font-size-base);
+  white-space: nowrap;
+}
+
+.record-card-cs {
+  font-size: 9px;
+  font-weight: 650;
+  color: var(--text-tertiary);
   white-space: nowrap;
 }
 
