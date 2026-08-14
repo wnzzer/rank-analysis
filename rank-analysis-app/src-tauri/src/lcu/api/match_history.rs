@@ -402,6 +402,7 @@ mod mvp_score_tests {
             champion_id: 1,
             spell1_id: 0,
             spell2_id: 0,
+            perks: None,
             stats: s,
         }
     }

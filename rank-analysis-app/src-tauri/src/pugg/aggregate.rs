@@ -251,6 +251,7 @@ mod tests {
             champion_id,
             spell1_id: 4,
             spell2_id: 7,
+            perks: None,
             stats: Stats {
                 win,
                 item0: raw_items[0],
