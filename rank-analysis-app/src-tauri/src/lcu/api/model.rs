@@ -132,6 +132,20 @@ pub struct Stats {
     /// CHERRY/斗魂模式：1~8 表示该小队的最终名次（1=冠军）；非 CHERRY 局为 0
     #[serde(rename = "subteamPlacement", default)]
     pub subteam_placement: i32,
+    // D3-1 用户画像基础字段：LCU match-details(V4) 提供、此前未解析。
+    // 全部带 default——缺失/旧缓存时按 0 降级，不阻塞反序列化。
+    #[serde(rename = "visionScore", default)]
+    pub vision_score: i32,
+    #[serde(rename = "wardsPlaced", default)]
+    pub wards_placed: i32,
+    #[serde(rename = "wardsKilled", default)]
+    pub wards_killed: i32,
+    #[serde(rename = "visionWardsBoughtInGame", default)]
+    pub vision_wards_bought_in_game: i32,
+    #[serde(rename = "sightWardsBoughtInGame", default)]
+    pub sight_wards_bought_in_game: i32,
+    #[serde(rename = "longestTimeSpentLiving", default)]
+    pub longest_time_spent_living: i32,
 }
 
 /// 参与者身份：关联到 Player（账号/召唤师信息）。
@@ -156,11 +170,23 @@ mod tests {
             "totalDamageTaken": 20000, "totalHeal": 7000,
             "totalMinionsKilled": 0,
             "playerSubteamId": 3,
-            "subteamPlacement": 5
+            "subteamPlacement": 5,
+            "visionScore": 42,
+            "wardsPlaced": 21,
+            "wardsKilled": 2,
+            "visionWardsBoughtInGame": 8,
+            "sightWardsBoughtInGame": 12,
+            "longestTimeSpentLiving": 431
         }"#;
         let stats: Stats = serde_json::from_str(json).unwrap();
         assert_eq!(stats.player_subteam_id, 3);
         assert_eq!(stats.subteam_placement, 5);
+        assert_eq!(stats.vision_score, 42);
+        assert_eq!(stats.wards_placed, 21);
+        assert_eq!(stats.wards_killed, 2);
+        assert_eq!(stats.vision_wards_bought_in_game, 8);
+        assert_eq!(stats.sight_wards_bought_in_game, 12);
+        assert_eq!(stats.longest_time_spent_living, 431);
     }
 
     #[test]
@@ -178,6 +204,12 @@ mod tests {
         let stats: Stats = serde_json::from_str(json).unwrap();
         assert_eq!(stats.player_subteam_id, 0);
         assert_eq!(stats.subteam_placement, 0);
+        assert_eq!(stats.vision_score, 0);
+        assert_eq!(stats.wards_placed, 0);
+        assert_eq!(stats.wards_killed, 0);
+        assert_eq!(stats.vision_wards_bought_in_game, 0);
+        assert_eq!(stats.sight_wards_bought_in_game, 0);
+        assert_eq!(stats.longest_time_spent_living, 0);
     }
 
     /// 多杀字段必须透传——曾因 Stats 未声明这些字段被 serde 丢弃，

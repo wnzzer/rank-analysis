@@ -80,6 +80,14 @@
       :is-dark="isDark"
       @mode-change="updateMode"
     />
+
+    <!-- D-P1 用户画像：近 20 场趋势 + AI 成长报告 -->
+    <GrowthTrendCard
+      v-if="!isCrossRegion"
+      :recent-data="recentData"
+      :mode="mode"
+      :is-dark="isDark"
+    />
   </n-flex>
 </template>
 
@@ -96,6 +104,7 @@ import type { championOption } from '@renderer/types/domain/champion'
 import RelationshipPanel from './RelationshipPanel.vue'
 import RankCard from './RankCard.vue'
 import RecentStatsTable from './RecentStatsTable.vue'
+import GrowthTrendCard from './GrowthTrendCard.vue'
 import { championWinRate, type ChampionPoolEntry } from './championPool'
 
 const props = defineProps<{

@@ -17,6 +17,7 @@
 //!     │       ├── kda, kills, deaths, assists
 //!     │       ├── select_wins, select_losses
 //!     │       ├── group_rate, gold_rate, damage_rate
+//!     │       ├── samples, average_cs_per_min, average_vision_score（D3-1 用户画像趋势）
 //!     │       ├── friend_and_dispute: FriendAndDispute
 //!     │       └── one_game_players_map
 //!     └── tag: Vec<RankTag>
@@ -171,6 +172,9 @@ pub struct FriendAndDispute {
 /// - `group_rate`: 参团率
 /// - `average_gold`, `gold_rate`: 平均经济和金币占比
 /// - `average_damage_dealt_to_champions`, `damage_dealt_to_champions_rate`: 平均伤害和伤害占比
+/// - `samples`: 趋势聚合的有效样本场次（与上述统计同窗口、同模式筛选）
+/// - `average_cs_per_min`: 平均补刀速率（每分钟，含野怪，保留 1 位小数）
+/// - `average_vision_score`: 平均视野得分（保留 1 位小数）
 /// - `friend_and_dispute`: 好友/纠纷统计
 /// - `one_game_players_map`: 同场玩家映射（用于预组队检测）
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -202,6 +206,12 @@ pub struct RecentData {
     pub average_damage_dealt_to_champions: i32,
     /// 伤害占比
     pub damage_dealt_to_champions_rate: i32,
+    /// 趋势聚合的有效样本场次（0 = 无样本，前端据此降级展示）
+    pub samples: i32,
+    /// 平均补刀速率（每分钟，含野怪，保留 1 位小数）
+    pub average_cs_per_min: f64,
+    /// 平均视野得分（保留 1 位小数）
+    pub average_vision_score: f64,
     /// 好友/纠纷统计
     pub friend_and_dispute: FriendAndDispute,
     /// 同场玩家映射
@@ -333,6 +343,9 @@ pub async fn get_user_tag_by_puuid(
         damage_dealt_to_champions_rate,
     ) = count_gold_and_group_and_damage_dealt_to_champions(&match_history, mode);
 
+    // D3-1 用户画像：补刀速率 + 视野得分（LCU 详情无按分钟曲线，用整场换算速率）
+    let (samples, average_cs_per_min, average_vision_score) = count_trend_stats(&match_history, mode);
+
     let select_mode_cn = crate::lcu::api::game_queue::mode_display_name(mode);
 
     let mut user_tag = UserTag {
@@ -350,6 +363,9 @@ pub async fn get_user_tag_by_puuid(
             gold_rate,
             average_damage_dealt_to_champions,
             damage_dealt_to_champions_rate,
+            samples,
+            average_cs_per_min,
+            average_vision_score,
             friend_and_dispute: FriendAndDispute::default(),
             one_game_players_map: Some(one_game_player_map.clone()),
         },
@@ -702,4 +718,147 @@ fn count_kda(match_history: &MatchHistory, mode: i32) -> (f64, f64, f64) {
         deaths as f64 / count as f64,
         assists as f64 / count as f64,
     )
+}
+
+/// 计算趋势指标（D3-1 用户画像）：平均补刀速率 + 平均视野得分。
+///
+/// LCU match-details 只有整场统计、没有按分钟曲线，因此补刀速率用
+/// `总补刀 / 时长` 换算（含野怪），供 AI 成长报告引用；视野得分直接取详情统计。
+///
+/// # 参数
+///
+/// - `match_history`: 对局记录（已 enrich_game_detail）
+/// - `mode`: 队列模式筛选（0 表示所有模式）
+///
+/// # 返回值
+///
+/// (有效样本场次, 平均补刀速率(每分钟, 1位小数), 平均视野得分(1位小数))
+///
+/// # 行为
+///
+/// - 与 count_win_and_loss 等保持同一模式筛选与「participants[0] = 自己」定位
+/// - 时长 <= 0（重开局）或无详情的场次不计入样本
+fn count_trend_stats(match_history: &MatchHistory, mode: i32) -> (i32, f64, f64) {
+    let mut samples = 0;
+    let mut cs_per_min_sum = 0.0;
+    let mut vision_sum = 0.0;
+
+    for game in &match_history.games.games {
+        // 模式筛选按中文名分组匹配（如「人机(入门)」对应新旧 830/870 两个队列 ID）
+        if mode != 0
+            && !crate::constant::game::queue_ids_same_group(game.queue_id as u32, mode as u32)
+        {
+            continue;
+        }
+        if game.game_duration <= 0 || game.participants.is_empty() {
+            continue;
+        }
+
+        let my_participant_id = game.participants[0].participant_id;
+        let Some(me) = game
+            .game_detail
+            .participants
+            .iter()
+            .find(|p| p.participant_id == my_participant_id)
+        else {
+            continue;
+        };
+
+        samples += 1;
+        let cs = me.stats.total_minions_killed + me.stats.neutral_minions_killed;
+        cs_per_min_sum += cs as f64 / game.game_duration as f64 * 60.0;
+        vision_sum += me.stats.vision_score as f64;
+    }
+
+    if samples == 0 {
+        return (0, 0.0, 0.0);
+    }
+
+    let average_cs_per_min = ((cs_per_min_sum / samples as f64) * 10.0).trunc() / 10.0;
+    let average_vision_score = ((vision_sum / samples as f64) * 10.0).trunc() / 10.0;
+
+    (samples, average_cs_per_min, average_vision_score)
+}
+
+#[cfg(test)]
+mod trend_stats_tests {
+    use super::*;
+    use crate::lcu::api::game_detail::GameDetail;
+    use crate::lcu::api::match_history::{Game, GamesWrapper, MatchHistory};
+    use crate::lcu::api::model::{Participant, Stats};
+
+    /// 造一局：我(cs=230, 视野=50) 打 30 分钟,对手 cs=100，时长 0 的废案不带时间内
+    fn game(queue_id: i32, duration: i32, cs: i32, neutral: i32, vision: i32) -> Game {
+        let me_stats = Stats {
+            total_minions_killed: cs,
+            neutral_minions_killed: neutral,
+            vision_score: vision,
+            ..Default::default()
+        };
+        let me = Participant {
+            participant_id: 1,
+            team_id: 100,
+            stats: me_stats,
+            ..Default::default()
+        };
+        let other = Participant {
+            participant_id: 2,
+            team_id: 100,
+            stats: Stats {
+                total_minions_killed: 100,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        Game {
+            queue_id,
+            game_duration: duration,
+            participants: vec![me.clone()],
+            game_detail: GameDetail {
+                participants: vec![me, other],
+                ..Default::default()
+            },
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn should_average_cs_per_min_and_vision_with_mode_filter() {
+        // 30 分钟: (200+30) = 230 → 230/1800*60 = 7.6667
+        // 25 分钟: (150+20) = 170 → 6.8
+        // 大乱斗 450 场次、时长 0 废案：不计入
+        let history = MatchHistory {
+            games: GamesWrapper {
+                games: vec![
+                    game(420, 1800, 200, 30, 50),
+                    game(420, 1500, 150, 20, 30),
+                    game(450, 1600, 80, 10, 20),
+                    game(420, 0, 0, 0, 0),
+                ],
+            },
+            ..Default::default()
+        };
+
+        let (samples, cs_per_min, vision) = count_trend_stats(&history, 420);
+
+        assert_eq!(samples, 2);
+        assert_eq!(cs_per_min, 7.2);
+        assert_eq!(vision, 40.0);
+    }
+
+    #[test]
+    fn should_return_zeros_when_no_matching_games() {
+        let history = MatchHistory {
+            games: GamesWrapper {
+                games: vec![game(450, 1600, 80, 10, 20)],
+            },
+            ..Default::default()
+        };
+
+        let (samples, cs_per_min, vision) = count_trend_stats(&history, 420);
+
+        assert_eq!(samples, 0);
+        assert_eq!(cs_per_min, 0.0);
+        assert_eq!(vision, 0.0);
+    }
 }

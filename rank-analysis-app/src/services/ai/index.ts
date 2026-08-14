@@ -15,6 +15,8 @@ import { DEFAULT_SYSTEM_PROMPT, requestAIContentStream } from './stream'
 import { buildPlayerAnalysisPrompt, buildTeamAnalysisPrompt } from './prompts/team'
 import { buildChampSelectPrompt, type ChampSelectPromptExtras } from './prompts/champSelect'
 import { buildLiveGamePrompt, type LiveGamePromptExtras } from './prompts/liveGame'
+import { buildGrowthReportPrompt } from './prompts/growthReport'
+import type { RecentData } from '@renderer/types/domain/analysis'
 import type { LiveGameSnapshot } from '@renderer/services/liveGame'
 import { analyzeMatchDetail } from './matchDetail'
 import type { AIAnalysisReport } from './matchDetail'
@@ -113,6 +115,25 @@ export async function analyzeLiveGameWithAIStream(
     await requestAIContentStream(prompt, callbacks, DEFAULT_SYSTEM_PROMPT)
   } catch (error: any) {
     console.error('Live game AI analysis error:', error)
+    callbacks.onError(error.message || '网络请求失败')
+  }
+}
+
+/**
+ * 成长报告（D-P1 用户画像：战绩页左栏趋势卡）。
+ *
+ * @param recent    后端 user_tag 确定性聚合的趋势事实（KDA/胜率/参团率/补刀/视野/经济/伤害）
+ * @param callbacks 流式回调
+ */
+export async function analyzeGrowthReportWithAIStream(
+  recent: RecentData,
+  callbacks: StreamCallbacks
+): Promise<void> {
+  try {
+    const prompt = buildGrowthReportPrompt(recent)
+    await requestAIContentStream(prompt, callbacks, DEFAULT_SYSTEM_PROMPT)
+  } catch (error: any) {
+    console.error('Growth report AI analysis error:', error)
     callbacks.onError(error.message || '网络请求失败')
   }
 }

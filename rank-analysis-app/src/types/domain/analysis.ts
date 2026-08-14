@@ -106,6 +106,12 @@ export interface RecentData {
   goldRate: number
   averageDamageDealtToChampions: number
   damageDealtToChampionsRate: number
+  /** 趋势聚合的有效样本场次（0 = 无样本，前端据此降级展示） */
+  samples: number
+  /** 平均补刀速率（每分钟，含野怪，保留 1 位小数） */
+  averageCsPerMin: number
+  /** 平均视野得分（保留 1 位小数） */
+  averageVisionScore: number
   oneGamePlayers: Record<string, OneGamePlayer[]>
   friendAndDispute: FriendAndDispute
 }
@@ -129,6 +135,9 @@ export function defaultRecentData(): RecentData {
     goldRate: 0,
     averageDamageDealtToChampions: 0,
     damageDealtToChampionsRate: 0,
+    samples: 0,
+    averageCsPerMin: 0,
+    averageVisionScore: 0,
     oneGamePlayers: {},
     friendAndDispute: defaultFriendAndDispute()
   }
