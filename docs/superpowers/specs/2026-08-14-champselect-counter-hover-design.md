@@ -268,10 +268,10 @@ contribution(C, E) =
 
 | # | 任务 | 涉及 | 验收 |
 |---|---|---|---|
-| T1 | Rust：`opgg/intel.rs`（parse/fetch/缓存/降级链）+ `state.rs` 新缓存 + `get_champion_intel` 命令 + main.rs 注册 + 单测（fixture `intel_sample.json`） | `opgg/intel.rs`、`state.rs`、`command/opgg.rs`、`main.rs`、`opgg/fixtures/` | CI cargo test 全绿 |
-| T2 | 前端 service/composable（防抖/缓存/revision/组装/排序纯函数）+ 纯函数单测 | `services/counterIntel.ts`、`composables/useCounterIntel.ts`、`+spec` | 单测绿 |
-| T3 | CounterHover.vue + 敌方卡（ChampionIntelCard）头像包裹 + 单测 | `components/gaming/CounterHover.vue`、`ChampionIntelCard.vue`、`+spec` | 单测绿 |
-| T4 | 我方卡包裹（PlayerCard）+ BestPicksPanel.vue + Gaming.vue 集成（隐藏规则/watch/get_champion_options）+ 单测 | `PlayerCard.vue`、`BestPicksPanel.vue`、`Gaming.vue`、`+spec` | 单测绿 |
+| T1 ✅ | Rust：`opgg/intel.rs`（parse/fetch/缓存/降级链）+ `state.rs` 新缓存 + `get_champion_intel` 命令 + main.rs 注册 + 单测（fixture `intel_counters_sample.json`/`intel_synergies_sample.json`） | `opgg/intel.rs`、`state.rs`、`command/opgg.rs`、`main.rs`、`opgg/fixtures/` | CI cargo test 全绿 |
+| T2 ✅ | 前端 service/composable（防抖/缓存/revision/组装/排序纯函数）+ 纯函数单测 | `services/counterIntel.ts`、`composables/useCounterIntel.ts`、`+spec` | 单测绿 |
+| T3 ✅ | CounterHover.vue + 敌方卡（ChampionIntelCard）头像包裹 + 单测 | `components/gaming/CounterHover.vue`、`ChampionIntelCard.vue`、`+spec` | 单测绿 |
+| T4 ✅ | 我方卡包裹（PlayerCard）+ BestPicksPanel.vue + Gaming.vue 集成（隐藏规则/watch/get_champion_options）+ 单测 | `PlayerCard.vue`、`BestPicksPanel.vue`、`Gaming.vue`、`+spec` | 单测绿 |
 | T5 | 全量门禁 + CI + spec 文档收尾（任务卡 ✅ + 变更记录 v1.1）+ 交付记录 `.opencode-session/champselect-counter.md` | — | CI 全绿 |
 | T6（V1.1） | 协同搭档 UI：CounterHover 增「最佳搭档」节（synergies 数据已就绪）+ 单测 | `CounterHover.vue`、`+spec` | 单测绿 |
 
@@ -282,3 +282,4 @@ contribution(C, E) =
 |---|---|---|
 | v1.0 | 2026-08-14 | 初版：基于 codegraph 现状盘点（OP.GG counters 管道已全链路可用，零新增网络请求；受 top-3 数据天残约束设计优势对位反推与"未知不编造"纪律） |
 | v1.1 | 2026-08-14 | **数据层推翻重写**：破案 LeagueAkari 内部 API（`lol-api-champion.op.gg/api/{region}/champions/ranked/{id}/{POSITION}?tier=`），实测返回全量对位列表（50 条）+ synergies 50 条 + versions；段位含 `ibsg`（铁/青铜/银/金）直接解决青铜用户问题；HTML 爬取路线废弃（参数后数据 CSR、RSC 500）。后端改为新模块 `opgg/intel.rs`（按需单英雄 2 请求 + 磁盘缓存 12h + stale 降级），P2 评分只用敌方已锁 ≤5 英雄的 counters 反查。UI 增排序交互（胜率/场次 × 升降）+ 滚动区 + 来源标注。P2 不做分路过滤（敌方分路不可知，全量评分+跨位标注）。协同 synergies 数据层本次交付、UI 排 V1.1（T6）。 |
+| v1.1 交付 | 2026-08-14 | T1-T4 全部落地：`get_champion_intel` 命令（Rust 15 单测）+ `useCounterIntel`/`useBestPicks`（防抖 150ms/模块缓存/revision 失效/敌方反查评分，22 单测）+ CounterHover 弹窗（排序/滚动/来源标注/stale，11 单测）+ BestPicksPanel 推荐条（Top3 常驻条 + Top5 展开/证据行/全≤0 提示，9 单测）+ Gaming 集成（ranked && ChampSelect 隐藏规则、`get_champion_options` 懒加载候选池、tier 透传链 Gaming→SubteamCard→两卡）。前端全量 1039 单测绿 + 门禁绿；Rust 编译与单测由 CI 验证（本机无 cargo）。剩余：T5 CI 全绿收尾、T6 协同 UI（V1.1）。 |
