@@ -14,6 +14,8 @@ import { loadChampionNames } from './champion-names'
 import { DEFAULT_SYSTEM_PROMPT, requestAIContentStream } from './stream'
 import { buildPlayerAnalysisPrompt, buildTeamAnalysisPrompt } from './prompts/team'
 import { buildChampSelectPrompt, type ChampSelectPromptExtras } from './prompts/champSelect'
+import { buildLiveGamePrompt, type LiveGamePromptExtras } from './prompts/liveGame'
+import type { LiveGameSnapshot } from '@renderer/services/liveGame'
 import { analyzeMatchDetail } from './matchDetail'
 import type { AIAnalysisReport } from './matchDetail'
 import type { RecentPlayerProfile } from './shared/types'
@@ -90,6 +92,27 @@ export async function analyzeChampSelectWithAIStream(
     await requestAIContentStream(prompt, callbacks, DEFAULT_SYSTEM_PROMPT)
   } catch (error: any) {
     console.error('Champ select AI analysis error:', error)
+    callbacks.onError(error.message || '网络请求失败')
+  }
+}
+
+/**
+ * 对局中实时诊断（D-P2 对局中 tab）。
+ *
+ * @param snapshot  - 实时快照（liveclientdata 结构化子集）
+ * @param callbacks - 流式回调
+ * @param extras    - 我方召唤师名 + PUGG 出装推荐（确定性事实）
+ */
+export async function analyzeLiveGameWithAIStream(
+  snapshot: LiveGameSnapshot,
+  callbacks: StreamCallbacks,
+  extras: LiveGamePromptExtras
+): Promise<void> {
+  try {
+    const prompt = buildLiveGamePrompt(snapshot, extras)
+    await requestAIContentStream(prompt, callbacks, DEFAULT_SYSTEM_PROMPT)
+  } catch (error: any) {
+    console.error('Live game AI analysis error:', error)
     callbacks.onError(error.message || '网络请求失败')
   }
 }

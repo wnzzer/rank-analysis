@@ -157,6 +157,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             command::get_summoner_by_puuid,
             command::get_summoner_by_name,
             command::get_my_summoner,
+            command::get_live_game_data,
             command::rank::get_rank_by_name,
             command::rank::get_rank_by_puuid,
             command::rank::get_ranks_by_puuids,

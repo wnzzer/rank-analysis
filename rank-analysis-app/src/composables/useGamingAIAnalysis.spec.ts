@@ -255,4 +255,26 @@ describe('useGamingAIAnalysis', () => {
     expect(champSelect.result.panelTitle.value).toBe('选人期阵容分析')
     champSelect.unmount()
   })
+
+  it('rerunKind：指定 kind 重跑，不碰另一个 kind 的进度（三 tab 化的重跑分发）', async () => {
+    const sessionData = reactive({ phase: 'InProgress' }) as any
+    const opggMode = ref('ranked' as const)
+    const { result, unmount } = withSetup(() => useGamingAIAnalysis(sessionData, opggMode))
+
+    result.openPanel()
+    await nextTick()
+    captured.team!.onChunk('赛后分析中...')
+    captured.team!.onDone()
+    await nextTick()
+
+    // 对局中阶段显式重跑选人期 kind：只动 champSelect 的进度
+    void result.rerunKind('champSelect')
+    await nextTick()
+    expect(mockChampSelect).toHaveBeenCalledTimes(1)
+    expect(result.kindState.champSelect.loading.value).toBe(true)
+    // game（赛后）的进度原样保留
+    expect(result.kindState.game.result.value).toContain('赛后分析中')
+    expect(mockTeam).toHaveBeenCalledTimes(1)
+    unmount()
+  })
 })

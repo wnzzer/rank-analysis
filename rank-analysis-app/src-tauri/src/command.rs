@@ -59,6 +59,7 @@ pub mod system;
 pub mod user_tag;
 pub mod user_tag_config;
 
+use crate::lcu::api::live_game::LiveGameSnapshot;
 use crate::lcu::api::summoner::Summoner;
 
 /// 根据 PUUID 获取召唤师信息。
@@ -89,6 +90,21 @@ pub async fn get_summoner_by_puuid(puuid: String) -> Result<Summoner, String> {
 #[tauri::command]
 pub async fn get_summoner_by_name(name: String) -> Result<Summoner, String> {
     Summoner::get_summoner_by_name(&name).await
+}
+
+/// 获取对局中实时快照（Live Client Data API）。
+///
+/// 只有在对局内才有数据；不在对局中（或对局刚开始还没数据）返回 null——
+/// 这是正常状态，调用方按「无实时数据」优雅降级即可。
+///
+/// # 返回值
+///
+/// - `Ok(Some(snapshot))`: 对局中实时数据
+/// - `Ok(None)`: 不在对局中 / Live Client 不可用
+/// - `Err(String)`: 数据异常（200 但解析失败）
+#[tauri::command]
+pub async fn get_live_game_data() -> Result<Option<LiveGameSnapshot>, String> {
+    crate::lcu::api::live_game::get_live_game_snapshot().await
 }
 
 /// 获取当前登录客户端的召唤师信息。

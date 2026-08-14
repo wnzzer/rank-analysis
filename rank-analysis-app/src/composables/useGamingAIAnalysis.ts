@@ -12,6 +12,10 @@
  *   显式 {@link rerun} 不受限——用户明确的动作不该被节流拦；
  * - 选人期可注入确定性事实（规则引擎决策 + 阵容强度分），AI 只解释不推翻。
  *
+ * 三 tab 化后（选人/对局中/赛后），本 composable 负责「选人期」与「赛后」两个 kind，
+ * 「对局中」的实时分析走独立的 {@link useLiveAIAnalysis}（自带快照轮询）。
+ * 面板内重跑按钮按当前 tab 分发：{@link rerunKind} 只动指定 kind 的进度。
+ *
  * @module composables/useGamingAIAnalysis
  */
 import {
@@ -66,6 +70,8 @@ export function useGamingAIAnalysis(
   openPanel: () => void
   /** 面板内「重新分析」：无条件丢弃当前 kind 旧结果重跑（不受限流约束） */
   rerun: () => Promise<void>
+  /** 指定 kind 的「重新分析」——三 tab 化后每个 tab 的重跑按钮只动自己的进度 */
+  rerunKind: (kind: AiAnalysisKind) => Promise<void>
 } {
   const message = useMessage()
 
@@ -148,7 +154,10 @@ export function useGamingAIAnalysis(
   }
 
   async function rerun(): Promise<void> {
-    const kind = activeKind.value
+    return rerunKind(activeKind.value)
+  }
+
+  async function rerunKind(kind: AiAnalysisKind): Promise<void> {
     const state = kindState[kind]
     if (state.loading.value) return
     showPanel.value = true
@@ -165,6 +174,7 @@ export function useGamingAIAnalysis(
     panelTitle,
     kindState,
     openPanel,
-    rerun
+    rerun,
+    rerunKind
   }
 }

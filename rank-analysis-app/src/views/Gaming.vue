@@ -39,15 +39,15 @@
             type="info"
             class="gaming-ai-btn"
             :disabled="!sessionData.phase"
-            @click="ai.openPanel"
+            @click="handleOpenPanel"
           >
             <template #icon>
-              <n-spin v-if="ai.loading.value" :size="14" />
+              <n-spin v-if="ai.loading.value || live.loading.value" :size="14" />
               <n-icon v-else><sparkles-outline /></n-icon>
             </template>
           </n-button>
         </template>
-        ✨ AI分析功能：选人阶段分析阵容情报，对局中分析双方阵容和玩家战绩
+        ✨ AI分析功能：选人期分析阵容情报，对局中实时分析出装/经济/团战，赛后复盘整局
       </n-tooltip>
 
       <n-modal v-model:show="showConfig" preset="card" title="显示设置" style="width: 400px">
@@ -62,36 +62,74 @@
         <span class="gaming-config-hint">设置将在下一次刷新或对局时生效</span>
       </n-modal>
 
-      <!-- AI 分析结果弹窗 -->
+      <!-- AI 分析结果弹窗（D-P2 三 tab：选人期 / 对局中 / 赛后，各自独立进度） -->
       <n-modal
         v-model:show="ai.showPanel.value"
         preset="card"
-        :title="ai.panelTitle.value"
-        style="width: 600px"
+        :title="aiPanelTitle"
+        style="width: 640px"
       >
         <template #header-extra>
           <n-button
             size="small"
             tertiary
             type="primary"
-            :disabled="ai.loading.value"
-            @click="ai.rerun"
+            :disabled="currentTabLoading"
+            @click="rerunCurrentTab"
           >
             重新分析
           </n-button>
         </template>
-        <div
-          v-if="ai.renderedResult.value"
-          class="ai-result-content ai-report"
-          v-html="ai.renderedResult.value"
-        ></div>
-        <!-- 首块文本到达前给骨架屏：这里曾经是纯空白弹窗，看着像坏了 -->
-        <div v-else-if="ai.loading.value" class="ai-result-skeleton">
-          <div class="ai-result-skeleton-label">AI 正在分析本局...</div>
-          <n-skeleton text :repeat="4" />
-          <n-skeleton text style="width: 60%" />
-        </div>
-        <div v-else class="ai-result-empty">暂无分析结果，点「重新分析」生成。</div>
+        <n-tabs v-model:value="aiTab" type="line" animated>
+          <n-tab-pane name="champSelect" tab="选人期">
+            <div
+              v-if="champSelectRendered"
+              class="ai-result-content ai-report"
+              v-html="champSelectRendered"
+            ></div>
+            <div v-else-if="ai.kindState.champSelect.loading.value" class="ai-result-skeleton">
+              <div class="ai-result-skeleton-label">AI 正在分析选人期阵容...</div>
+              <n-skeleton text :repeat="4" />
+              <n-skeleton text style="width: 60%" />
+            </div>
+            <div v-else class="ai-result-empty">暂无选人期分析结果，点「重新分析」生成。</div>
+          </n-tab-pane>
+          <n-tab-pane name="live" tab="对局中">
+            <div v-if="live.inGame.value" class="ai-live-hint">
+              对局实时数据每 15 秒自动更新<template v-if="liveUpdatedAt">
+                · 最后更新 {{ liveUpdatedAt }}</template
+              >
+            </div>
+            <div
+              v-if="live.renderedResult.value"
+              class="ai-result-content ai-report"
+              v-html="live.renderedResult.value"
+            ></div>
+            <div v-else-if="live.loading.value" class="ai-result-skeleton">
+              <div class="ai-result-skeleton-label">AI 正在分析对局实时数据...</div>
+              <n-skeleton text :repeat="4" />
+              <n-skeleton text style="width: 60%" />
+            </div>
+            <div v-else class="ai-result-empty">
+              {{
+                live.inGame.value ? '暂无对局中分析结果，点「重新分析」生成。' : '当前不在对局中。'
+              }}
+            </div>
+          </n-tab-pane>
+          <n-tab-pane name="game" tab="赛后">
+            <div
+              v-if="gameRendered"
+              class="ai-result-content ai-report"
+              v-html="gameRendered"
+            ></div>
+            <div v-else-if="ai.kindState.game.loading.value" class="ai-result-skeleton">
+              <div class="ai-result-skeleton-label">AI 正在分析整局...</div>
+              <n-skeleton text :repeat="4" />
+              <n-skeleton text style="width: 60%" />
+            </div>
+            <div v-else class="ai-result-empty">暂无赛后分析结果，点「重新分析」生成。</div>
+          </n-tab-pane>
+        </n-tabs>
       </n-modal>
 
       <div class="gaming-intel-banner">
@@ -208,6 +246,8 @@ import LoadingComponent from '@renderer/components/LoadingComponent.vue'
 import SubteamCard from '@renderer/components/gaming/SubteamCard.vue'
 import BpDecisionBar from '@renderer/components/gaming/BpDecisionBar.vue'
 import { useGamingAIAnalysis } from '@renderer/composables/useGamingAIAnalysis'
+import { useLiveAIAnalysis } from '@renderer/composables/useLiveAIAnalysis'
+import { renderAnalysisReport } from '@renderer/services/ai/matchDetail/renderReport'
 import { useBpDecision } from '@renderer/composables/useBpDecision'
 import { useLineupScore } from '@renderer/composables/useLineupScore'
 import { useSessionSync } from '@renderer/composables/useSessionSync'
@@ -408,6 +448,69 @@ const ai = useGamingAIAnalysis(sessionData, opggMode, {
     }
   })
 })
+
+/**
+ * 对局中实时分析（D-P2 对局中 tab）。
+ *
+ * 与 {@link useGamingAIAnalysis} 平行：对局中自动轮询 liveclientdata 快照，
+ * 分析前先经 liveGameIntel 确定性聚合，AI 只引用不改写。赛前/赛后无实时数据
+ * 时该 tab 展示「当前不在对局中」，轮询与限流由 composable 自管。
+ */
+const live = useLiveAIAnalysis(sessionData, { mySummoner })
+
+/** AI 面板的 tab 结构（D-P2 三 tab）：选人期 / 对局中 / 赛后 */
+type AiTab = 'champSelect' | 'live' | 'game'
+const aiTab = ref<AiTab>('champSelect')
+
+/** 按当前阶段决定面板默认打开的 tab；其余阶段（含兜底）一律赛后 */
+const defaultAiTab = computed<AiTab>(() => {
+  if (sessionData.phase === 'ChampSelect') return 'champSelect'
+  if (sessionData.phase === 'InProgress' || sessionData.phase === 'GameStart') return 'live'
+  return 'game'
+})
+
+/** 面板标题随当前 tab 变化 */
+const aiPanelTitle = computed(() =>
+  aiTab.value === 'champSelect'
+    ? '选人期阵容分析'
+    : aiTab.value === 'live'
+      ? '对局中实时分析'
+      : '赛后复盘'
+)
+
+/** 各 tab 独立渲染（kindState 按 kind 隔离，rendered 由报告渲染器统一转码） */
+const champSelectRendered = computed(() =>
+  renderAnalysisReport(ai.kindState.champSelect.result.value)
+)
+const gameRendered = computed(() => renderAnalysisReport(ai.kindState.game.result.value))
+const liveUpdatedAt = computed(() =>
+  live.lastPollAt.value
+    ? new Date(live.lastPollAt.value).toLocaleTimeString('zh-CN', { hour12: false })
+    : ''
+)
+
+/** 当前 tab 是否在进行中（决定「重新分析」按钮是否可点） */
+const currentTabLoading = computed(() =>
+  aiTab.value === 'live' ? live.loading.value : ai.kindState[aiTab.value].loading.value
+)
+
+/**
+ * AI 按钮入口：打开面板并切到当前阶段对应的 tab；面板里没东西可看才自动发起
+ * （live 走 useLiveAIAnalysis 的 ensureStarted，其余走 ai.openPanel 的限流逻辑）。
+ */
+function handleOpenPanel(): void {
+  const tab = defaultAiTab.value
+  aiTab.value = tab
+  ai.showPanel.value = true
+  if (tab === 'live') live.ensureStarted()
+  else ai.openPanel()
+}
+
+/** 面板内「重新分析」：只重跑当前 tab 对应的分析（不限流） */
+function rerunCurrentTab(): void {
+  if (aiTab.value === 'live') void live.rerun()
+  else void ai.rerunKind(aiTab.value)
+}
 
 /** 存规则进行中标志：防连点导致两次 reload 同一基线、后写覆盖先写丢规则 */
 const savingRule = ref(false)
@@ -714,6 +817,14 @@ onMounted(async () => {
   padding: var(--space-24) var(--space-16);
   text-align: center;
   color: var(--text-secondary);
+}
+
+/* 对局中 tab：实时数据更新的提示条（轮询是自管的，这里只做状态展示） */
+.ai-live-hint {
+  padding: var(--space-8) var(--space-16);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 /* 报告内容样式（章节着色 / hero / 数字名字高亮）由共享 styles/ai-report.css 提供，
