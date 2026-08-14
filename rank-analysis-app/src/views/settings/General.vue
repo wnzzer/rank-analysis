@@ -19,11 +19,17 @@
       </n-form-item>
       <n-form-item label="AI 服务商">
         <n-space vertical :size="4" style="width: 100%">
-          <n-select
-            :value="aiProvider"
-            :options="providerOptions"
-            @update:value="handleProviderUpdate"
-          />
+          <n-space align="center" :size="8" style="width: 100%">
+            <n-select
+              :value="aiProvider"
+              :options="providerOptions"
+              style="flex: 1"
+              @update:value="handleProviderUpdate"
+            />
+            <n-button size="small" secondary :loading="testing" @click="handleTestConnection">
+              测试连接
+            </n-button>
+          </n-space>
           <n-text :depth="3" style="font-size: var(--font-size-sm)">
             {{ providerHelp }}
           </n-text>
@@ -140,6 +146,7 @@ import {
   type AiUsageEntry
 } from '@renderer/services/ai/shared/usage'
 import { getAiProviderConfig, type AiProviderKind } from '@renderer/services/ai/stream'
+import { invoke } from '@tauri-apps/api/core'
 import { useMessage } from 'naive-ui'
 
 const matchCount = ref(4)
@@ -334,6 +341,36 @@ const handleOpenaiKeyUpdate = async () => {
     message.success('设置已保存')
   } catch (e) {
     message.error('保存失败')
+  }
+}
+
+/** 测试连接：提交当前表单可见的服务商配置（含未保存值）给后端做一次最小非流式请求 */
+const testing = ref(false)
+const handleTestConnection = async () => {
+  if (testing.value) return
+  testing.value = true
+  try {
+    const result = (await invoke('test_ai_provider_connection', {
+      request: {
+        prompt: '',
+        systemPrompt: '只回复 OK',
+        model: aiModel.value.trim() || undefined,
+        provider: aiProvider.value === 'dashscope' ? undefined : aiProvider.value,
+        baseUrl: aiBaseUrl.value.trim() || undefined,
+        apiKey:
+          aiProvider.value === 'dashscope'
+            ? dashscopeKey.value.trim() || undefined
+            : aiProvider.value === 'openai'
+              ? aiApiKey.value.trim() || undefined
+              : undefined,
+        responseFormat: undefined
+      }
+    })) as { model?: string; totalTokens?: number }
+    message.success(`连接成功：${result.model || '模型'} · ${result.totalTokens ?? 0} tokens`)
+  } catch (e: any) {
+    message.error(e?.message || String(e) || '连接失败')
+  } finally {
+    testing.value = false
   }
 }
 </script>

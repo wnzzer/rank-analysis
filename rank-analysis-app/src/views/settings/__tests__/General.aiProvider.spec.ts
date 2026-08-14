@@ -9,6 +9,7 @@
  * - 缺省 dashscope：显示「自定义 AI Key」、隐藏「服务端地址」与 OpenAI「API Key」
  * - 切 openai：一次性持久化 provider/baseUrl/model/apiKey 四键，地址与 Key 输入框出现
  * - 切 ollama：两个密钥输入框都消失，地址占位提示本地默认端点
+ * - 测试连接：提交表单所见（含未保存值）到后端连通性自检命令，结果/错误上屏
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -19,6 +20,8 @@ vi.mock('@renderer/services/ipc', () => ({
   getConfigByIpc: vi.fn(),
   putConfigByIpc: vi.fn()
 }))
+
+vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 
 const messageMock = vi.hoisted(() => ({
   success: vi.fn(),
@@ -33,10 +36,12 @@ vi.mock('naive-ui', async importOriginal => {
 
 import { CONFIG_KEYS } from '@renderer/services/configKeys'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
+import { invoke } from '@tauri-apps/api/core'
 import General from '../General.vue'
 
 const mockGet = vi.mocked(getConfigByIpc)
 const mockPut = vi.mocked(putConfigByIpc)
+const mockInvoke = vi.mocked(invoke)
 
 const stubs = {
   Select: {
@@ -70,6 +75,7 @@ beforeEach(() => {
     return undefined
   })
   mockPut.mockResolvedValue(undefined)
+  mockInvoke.mockResolvedValue(undefined)
 })
 
 async function mountGeneral() {
@@ -136,5 +142,37 @@ describe('General.vue AI 服务商设置区', () => {
     await new Promise(r => setTimeout(r, 0))
 
     expect(mockPut).toHaveBeenCalledWith(CONFIG_KEYS.aiBaseUrl, 'http://192.168.1.5:11434')
+  })
+
+  it('测试连接：dashscope 默认态提交表单所见配置（含未保存的 key）', async () => {
+    mockInvoke.mockResolvedValue({ model: 'qwen-flash', totalTokens: 8 })
+    const w = await mountGeneral()
+
+    const btn = w.findAll('button').find(b => b.text().includes('测试连接'))
+    if (!btn) throw new Error('未找到测试连接按钮')
+    await btn.trigger('click')
+    await new Promise(r => setTimeout(r, 0))
+
+    expect(mockInvoke).toHaveBeenCalledWith('test_ai_provider_connection', {
+      request: expect.objectContaining({
+        provider: undefined,
+        baseUrl: undefined,
+        // onMounted 已把 mock 里的 dashscope 键灌进表单 → 走表单可见值
+        apiKey: 'sk-dash'
+      })
+    })
+    expect(messageMock.success).toHaveBeenCalledWith('连接成功：qwen-flash · 8 tokens')
+  })
+
+  it('测试连接失败：后端错误原样上屏', async () => {
+    mockInvoke.mockRejectedValue(new Error('API error (401): Unauthorized'))
+    const w = await mountGeneral()
+
+    const btn = w.findAll('button').find(b => b.text().includes('测试连接'))
+    if (!btn) throw new Error('未找到测试连接按钮')
+    await btn.trigger('click')
+    await new Promise(r => setTimeout(r, 0))
+
+    expect(messageMock.error).toHaveBeenCalledWith('API error (401): Unauthorized')
   })
 })

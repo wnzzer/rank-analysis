@@ -133,6 +133,41 @@ fn provider_default_model(kind: AiProviderKind) -> &'static str {
     }
 }
 
+/// provider 解析结果（stream / 连通性测试两命令共用）。
+struct ResolvedAiRequest {
+    endpoint: String,
+    /// `None` 表示免认证（ollama），不挂 Authorization 头
+    key: Option<String>,
+    model: String,
+}
+
+/// 从请求参数解析 provider 目标：端点、密钥（含 env / 内置 key 读取）、模型。
+/// 密钥缺失时返回带环境变量提示的可读错误。
+fn resolve_ai_request(request: &AiStreamRequest) -> Result<ResolvedAiRequest, String> {
+    let kind = AiProviderKind::parse(request.provider.as_deref());
+    let endpoint = provider_endpoint(kind, request.base_url.as_deref());
+    let runtime_env = match kind {
+        AiProviderKind::DashScope => std::env::var("DASHSCOPE_API_KEY").ok(),
+        AiProviderKind::OpenAICompatible => std::env::var("OPENAI_API_KEY").ok(),
+        AiProviderKind::Ollama => None,
+    };
+    // baked 只属于 dashscope：openai / ollama 不把编译期 Qwen key 送入第三方端点
+    let baked = (kind == AiProviderKind::DashScope)
+        .then_some(option_env!("DASHSCOPE_API_KEY"))
+        .flatten();
+    let key = provider_api_key(kind, request.api_key.as_deref(), runtime_env.as_deref(), baked)?;
+    let model = request
+        .model
+        .as_deref()
+        .unwrap_or_else(|| provider_default_model(kind))
+        .to_string();
+    Ok(ResolvedAiRequest {
+        endpoint,
+        key,
+        model,
+    })
+}
+
 /// 按优先级解析 DashScope 密钥：用户覆盖 > 运行时环境变量 > 编译期注入。
 /// 空白串视同未配置。纯函数，便于单测。
 fn resolve_api_key(
@@ -298,27 +333,10 @@ pub async fn stream_ai_analysis(
     request: AiStreamRequest,
     on_event: Channel<AiStreamEvent>,
 ) -> Result<(), String> {
-    // 解析服务商与端点（D-P4）：未知 / 缺省回退 DashScope，兼容老客户端
-    let kind = AiProviderKind::parse(request.provider.as_deref());
-    let endpoint = provider_endpoint(kind, request.base_url.as_deref());
-
-    // 解析密钥（用户覆盖 → env → 编译期注入；仅 dashscope 有内置 key 兜底，
-    // openai 的 env 名是 OPENAI_API_KEY，ollama 本地免密钥）。失败时发 error 事件并结束。
-    let runtime_env = match kind {
-        AiProviderKind::DashScope => std::env::var("DASHSCOPE_API_KEY").ok(),
-        AiProviderKind::OpenAICompatible => std::env::var("OPENAI_API_KEY").ok(),
-        AiProviderKind::Ollama => None,
-    };
-    let baked = (kind == AiProviderKind::DashScope)
-        .then_some(option_env!("DASHSCOPE_API_KEY"))
-        .flatten();
-    let key = match provider_api_key(
-        kind,
-        request.api_key.as_deref(),
-        runtime_env.as_deref(),
-        baked,
-    ) {
-        Ok(k) => k,
+    // 解析服务商与端点/密钥/模型（D-P4）：未知 / 缺省回退 DashScope。
+    // 密钥缺失时发 error 事件并结束（不 reject 命令，与流式语义一致）。
+    let resolved = match resolve_ai_request(&request) {
+        Ok(r) => r,
         Err(e) => {
             let _ = on_event.send(AiStreamEvent {
                 event: "error".to_string(),
@@ -327,15 +345,10 @@ pub async fn stream_ai_analysis(
             return Ok(());
         }
     };
-    let model = request
-        .model
-        .as_deref()
-        .unwrap_or_else(|| provider_default_model(kind))
-        .to_string();
 
     // 构建请求头（ollama 本地免认证，不带 Authorization）
     let mut headers = HeaderMap::new();
-    if let Some(key) = &key {
+    if let Some(key) = &resolved.key {
         headers.insert(
             AUTHORIZATION,
             HeaderValue::from_str(&format!("Bearer {}", key))
@@ -353,7 +366,7 @@ pub async fn stream_ai_analysis(
         .unwrap_or_else(|| "你是一个LOL游戏分析师，擅长分析玩家战绩和给出游戏建议。请用简洁、专业、直接的中文回复。".to_string());
 
     let body = build_request_body(
-        &model,
+        &resolved.model,
         &system_prompt,
         &request.prompt,
         request.response_format.as_deref(),
@@ -376,7 +389,7 @@ pub async fn stream_ai_analysis(
             attempt += 1;
 
             let response = match client
-                .post(&endpoint)
+                .post(&resolved.endpoint)
                 .headers(headers.clone())
                 .json(&body)
                 .send()
@@ -488,6 +501,81 @@ pub async fn stream_ai_analysis(
     });
 
     Ok(())
+}
+
+/// 连通性自检的最小请求体（非流式）：向所选服务商验证端点 / 密钥 / 模型可用。
+/// 不带 `stream_options`（非流式无 usage 流），提示词固定为极简串。纯函数，便于单测。
+fn build_connection_test_body(model: &str) -> serde_json::Value {
+    json!({
+        "model": model,
+        "messages": [
+            { "role": "system", "content": "只回复 OK" },
+            { "role": "user", "content": "测试连接" }
+        ],
+        "stream": false
+    })
+}
+
+/// 从非流式响应体提取连通性摘要（模型名 + 归一化 token 数）。
+/// usage 缺失 / 字段不存在一律取 0；`model` 缺失取空串。纯函数，便于单测。
+fn response_summary(body: &serde_json::Value) -> serde_json::Value {
+    let get = |snake: &str, camel: &str| {
+        body.get("usage")
+            .and_then(|u| u.get(snake).or_else(|| u.get(camel)))
+            .and_then(|v| v.as_i64())
+            .unwrap_or_default()
+    };
+    json!({
+        "model": body.get("model").and_then(|m| m.as_str()).unwrap_or_default(),
+        "totalTokens": get("total_tokens", "totalTokens")
+    })
+}
+
+/// 连通性自检命令（D-P4）：按与流式分析完全相同的解析路径选中端点 / 密钥 / 模型，
+/// 发一个最小非流式请求验证配置可用。成功返回摘要，失败返回可读错误。
+#[tauri::command]
+pub async fn test_ai_provider_connection(
+    request: AiStreamRequest,
+) -> Result<serde_json::Value, String> {
+    let resolved = resolve_ai_request(&request)?;
+
+    let mut headers = HeaderMap::new();
+    if let Some(key) = &resolved.key {
+        headers.insert(
+            AUTHORIZATION,
+            HeaderValue::from_str(&format!("Bearer {}", key))
+                .map_err(|e| format!("Invalid API key: {}", e))?,
+        );
+    }
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+
+    let response = client
+        .post(&resolved.endpoint)
+        .headers(headers)
+        .json(&build_connection_test_body(&resolved.model))
+        .send()
+        .await
+        .map_err(|e| format!("连接失败：{}", e))?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let error_text = response
+            .text()
+            .await
+            .unwrap_or_else(|_| "Unknown error".to_string());
+        return Err(format!("API error ({}): {}", status, error_text));
+    }
+
+    let body: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("响应解析失败：{}", e))?;
+    Ok(response_summary(&body))
 }
 
 #[cfg(test)]
@@ -755,5 +843,41 @@ mod tests {
             "deepseek-chat"
         );
         assert_eq!(provider_default_model(AiProviderKind::Ollama), "llama3.1");
+    }
+
+    #[test]
+    fn test_body_is_non_stream_and_minimal() {
+        let body = build_connection_test_body("qwen-flash");
+        assert_eq!(body["stream"], false);
+        // 非流式：不带 stream_options，避免无意义字段
+        assert!(body.get("stream_options").is_none());
+        assert_eq!(body["model"], "qwen-flash");
+        assert_eq!(body["messages"][0]["content"], "只回复 OK");
+        assert_eq!(body["messages"][1]["content"], "测试连接");
+    }
+
+    #[test]
+    fn summary_pulls_model_and_usage_with_snake_case() {
+        let body = serde_json::json!({
+            "id": "x",
+            "model": "qwen-flash",
+            "choices": [{"message": {"content": "OK"}}],
+            "usage": {"prompt_tokens": 5, "completion_tokens": 3, "total_tokens": 8}
+        });
+        let summary = response_summary(&body);
+        assert_eq!(summary["model"], "qwen-flash");
+        assert_eq!(summary["totalTokens"], 8);
+    }
+
+    #[test]
+    fn summary_accepts_camel_case_and_missing_usage() {
+        let camel = serde_json::json!({ "model": "m", "usage": { "totalTokens": 9 } });
+        let summary = response_summary(&camel);
+        assert_eq!(summary["totalTokens"], 9);
+        // 无 usage 字段（部分网关响应）→ 0 而非报错
+        let no_usage = serde_json::json!({ "model": "m" });
+        let summary = response_summary(&no_usage);
+        assert_eq!(summary["totalTokens"], 0);
+        assert_eq!(summary["model"], "m");
     }
 }
