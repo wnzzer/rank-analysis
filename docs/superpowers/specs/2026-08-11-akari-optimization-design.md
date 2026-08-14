@@ -437,6 +437,7 @@ D3/方向D AI 增强(独立推进,可与 C 并行)
 | D2-1 | ✅ 选人期 AI tab | `Gaming.vue`、`useBpDecision` | 对局开始前可用 |
 | D2-2 | ✅ 对局中 AI(含 C4 出装诊断) | 新 `useLiveAIAnalysis` | 实时流式输出 |
 | D3-1 | ✅ 长期画像聚合 | `RecentData` 扩展 + Rust 聚合 | 成长报告可生成 |
+| D3-2 | ✅ 分时曲线（按分钟画像） | `minuteCurve.ts` + `useMinuteCurve` + `GrowthTrendCard.vue` | 近 10 场补刀/死亡/参团分钟曲线可看 |
 | D4-1 | ✅ AiProvider trait + Ollama | `command/ai.rs` 重构 | 本地模型可用 |
 | D-测试 | ✅ schema 校验、缓存命中、provider 切换 | — | 全绿 |
 
@@ -689,3 +690,4 @@ D3/方向D AI 增强(独立推进,可与 C 并行)
 | v1.4 | 2026-08-12 | **M4 完成(方向 E 全部落地)**:E1-1 tab 容器(MatchDetailInline 重构为固定 header + 6 tab KeepAlive,新增 matchDetailContext provide/inject 共享数据面,概览移入 SummaryTab);E1-2 数据对比透视表(detailsTable.ts 21 行×6 组纯函数 + StatsTab 过滤/hover 条形/best 高亮,12 单测);E2-1 符文 tab(每人卡片:基石+主副系风格,海克斯模式提示);E3-1 事件 tab(SGP DETAILS 事件流时间线,类型筛选+击杀伤害明细 tooltip,eventsTable.ts 7 单测);E4-1 出装 tab(装备 7 槽/强化槽 + SKILL_LEVEL_UP 加点序列);E5-1 时间线 tab(自绘 SVG 金/CS/经验折线,指标切换+玩家多选,timelineData.ts 8 单测)。关键决策:LCU 无 timeline 端点(风险项验证),事件/时间线数据源直接走 SGP DETAILS(方向 F 已落地);SGP 详情经 context 懒加载共享 |
 | v1.5 | 2026-08-12 | **M5 完成(方向 F 收尾)**:F3-1 SGP 缓存——DETAILS 无 TTL(500 条,key=platform_id:game_id 防串区) + SUMMARY 60s TTL(key 含大区/分页),两 fetch 先查缓存(缓存行为单测×2);F1/F2/F4 已在 4ecd4e4 落地(DETAILS 端点+serde 容错、跨区深翻页 gameId 去重、services/sgp.ts 前端封装+局级缓存)。前端 844 测试全绿;Rust 门禁由 GitHub Actions 兜底 |
 | v1.6 | 2026-08-14 | **M3 完成(方向 D 全量)**:D-P1 结构化复盘+磁盘缓存+D-P2 阶段化 AI(D2-2 含 C4 出装诊断)+D-P3 用户画像+D-P4 平台化(provider 抽象/测试连接按钮)——见 `.opencode-session/D-P4.md` 与 `.opencode-session/D3-1.md`。**collectMode 落地(风险清单解除)**:跨区「收集全部」一键无限深翻页(`collectSgpHistoryAll`,gameId 去重/上限 500/可取消续收/切换玩家作废),趋势条与英雄池样本解除 50 场窗口;服务单测 12 例 + 组件验收 4 例(含真实 UX bug 修复:naive-ui `loading` 吞 click,取消交互改标签状态承载)。全量 vitest 997/997,CI run `31772175058` 全绿 |
+| v1.6.1 | 2026-08-14 | **D-P3 补全(分时曲线)**:趋势卡新增「分时曲线」节——SGP DETAILS 帧流 → 本人逐分钟累计补刀(含野怪)/累计死亡/参团击杀 → 跨近 10 场按在场局数平均(`minuteCurve.ts` 纯函数 11 单测);懒加载展开才串行拉详情、generation 防串(`useMinuteCurve` composable 6 单测);三条迷你 SVG 折线 + 空态降级;接线 MatchHistory `games-change` → Record → UserSidePanel → 趋势卡。全量 vitest 1070/1070,CI run `31810121321` 全绿 |
