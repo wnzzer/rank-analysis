@@ -19,6 +19,14 @@ export const CONFIG_KEYS = {
   errorReportingConsentShown: 'errorReportingConsentShown',
   /** 用户自定义 DashScope API Key（留空用内置打包 key） */
   dashscopeApiKey: 'dashscopeApiKey',
+  /** D-P4：AI 服务商（dashscope | openai | ollama，缺省 dashscope） */
+  aiProvider: 'ai.provider',
+  /** D-P4：OpenAI 兼容 / Ollama 的自定义端点（缺省各官方默认） */
+  aiBaseUrl: 'ai.baseUrl',
+  /** D-P4：模型名覆盖（空串用各调用方默认模型） */
+  aiModel: 'ai.model',
+  /** D-P4：OpenAI 兼容服务商的 API Key（dashscope 仍用 dashscopeApiKey） */
+  aiApiKey: 'ai.apiKey',
   /** 玩家备注是否随 AI 分析请求发送到云端模型（默认开） */
   aiUsePlayerNotes: 'aiUsePlayerNotes',
   /** 云同步开关（默认关，开启需经风险告知弹窗） */

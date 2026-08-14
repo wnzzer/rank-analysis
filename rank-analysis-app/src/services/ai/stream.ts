@@ -1,6 +1,9 @@
 /**
- * 经 Rust 命令 stream_ai_analysis 直连 DashScope 的流式 AI 请求
- * 以及基于 sessionStorage 的结果缓存包装
+ * 经 Rust 命令 stream_ai_analysis 直连 OpenAI 兼容端点的流式 AI 请求
+ * 以及基于 sessionStorage 的结果缓存包装。
+ *
+ * D-P4 平台化：服务商（DashScope / OpenAI 兼容 / Ollama）由设置页配置，
+ * 每次请求前经 {@link getAiProviderConfig} 读取并透传给 Rust 侧。
  */
 
 import { invoke, Channel } from '@tauri-apps/api/core'
@@ -16,6 +19,44 @@ export const DEFAULT_SYSTEM_PROMPT =
  * qwen-flash：基准实测（tests/bench-ai-models.mjs）速度+有效率最优，故作兜底默认。
  */
 export const DEFAULT_MODEL = 'qwen-flash'
+
+/** 支持的服务商（与 Rust `command/ai.rs` 的 AiProviderKind 一一对应） */
+export type AiProviderKind = 'dashscope' | 'openai' | 'ollama'
+
+/**
+ * 设置页配置的 AI 服务商参数（D-P4）。
+ *
+ * `provider` 非法值一律归一为 `dashscope`（与 Rust 侧解析规则一致）；
+ * `apiKey` 按服务商取对应配置键：dashscope 用 `dashscopeApiKey`（历史键名），
+ * openai 用 `aiApiKey`；ollama 本地免密钥恒为空串。
+ */
+export interface AiProviderConfig {
+  provider: AiProviderKind
+  /** 自定义端点：openai（如 https://api.deepseek.com/v1）/ ollama（如 http://127.0.0.1:11434） */
+  baseUrl: string
+  apiKey: string
+  /** 模型名；空串表示用各调用方默认模型 */
+  model: string
+}
+
+/** 从持久化配置读取 AI 服务商参数（键缺失一律空值，不抛错）。 */
+export async function getAiProviderConfig(): Promise<AiProviderConfig> {
+  const [provider, baseUrl, model, aiKey, dashscopeKey] = await Promise.all([
+    getConfigByIpc<string>(CONFIG_KEYS.aiProvider),
+    getConfigByIpc<string>(CONFIG_KEYS.aiBaseUrl),
+    getConfigByIpc<string>(CONFIG_KEYS.aiModel),
+    getConfigByIpc<string>(CONFIG_KEYS.aiApiKey),
+    getConfigByIpc<string>(CONFIG_KEYS.dashscopeApiKey)
+  ])
+  const kind: AiProviderKind =
+    provider === 'openai' || provider === 'ollama' ? provider : 'dashscope'
+  return {
+    provider: kind,
+    baseUrl: baseUrl || '',
+    apiKey: kind === 'dashscope' ? dashscopeKey || '' : aiKey || '',
+    model: model || ''
+  }
+}
 
 /** Rust stream_ai_analysis 命令经 Channel 回传的事件 */
 export interface AiStreamEvent {
@@ -69,8 +110,10 @@ export async function requestAIContentStream(
     fn()
   }
   try {
-    // 用户覆盖 key（设置里可填）；空则后端走 env / 编译期注入
-    const override = (await getConfigByIpc<string>(CONFIG_KEYS.dashscopeApiKey)) || undefined
+    // D-P4：服务商配置（provider/baseUrl/模型/密钥）来自设置页；键缺失时用后端默认
+    const cfg = await getAiProviderConfig()
+    // 设置页配置的模型优先，其次调用方参数
+    const finalModel = cfg.model || model
 
     // 终态回调（onDone/onError）经 settle 包裹，保证恰好触发一次；分发统一走
     // mapStreamEvent，避免 done/error 逻辑与兜底文案在两处重复。
@@ -87,8 +130,11 @@ export async function requestAIContentStream(
       request: {
         prompt,
         systemPrompt,
-        model,
-        apiKey: override,
+        model: finalModel,
+        // dashscope 无自定义端点概念，不发 baseUrl；密钥按服务商已归一到 cfg.apiKey
+        provider: cfg.provider === 'dashscope' ? undefined : cfg.provider,
+        baseUrl: cfg.baseUrl || undefined,
+        apiKey: cfg.apiKey || undefined,
         responseFormat: opts.jsonMode ? 'json_object' : undefined
       },
       onEvent: channel

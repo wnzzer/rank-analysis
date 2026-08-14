@@ -1,11 +1,14 @@
 //! # AI 分析命令模块
 //!
-//! 提供流式 AI 分析功能，直连 DashScope (通义千问) OpenAI 兼容端点。
+//! 提供流式 AI 分析功能，直连兼容 OpenAI 协议的端点（D-P4 平台化：多 provider）。
 //!
 //! ## 主要功能
 //!
 //! - **流式 AI 请求**: 通过 Tauri Channel 实现 SSE 流式输出到前端
-//! - **DashScope (通义千问)**: 调 OpenAI 兼容端点，密钥在 Rust 层解析（见 resolve_api_key）
+//! - **Provider 抽象**(D-P4): 请求参数带 `provider` 与 `baseUrl`，路由到三类端点
+//!   - `dashscope`: 通义千问 OpenAI 兼容端点（默认，密钥三层解析见 resolve_api_key）
+//!   - `openai`: OpenAI 兼容自建/DeepSeek 等，密钥走 `OPENAI_API_KEY` 或设置覆盖
+//!   - `ollama`: 本地模型，免密钥，`baseUrl` 默认 `http://127.0.0.1:11434`
 //!
 //! ## 使用示例
 //!
@@ -14,7 +17,7 @@
 //! const channel = new Channel<AiStreamEvent>()
 //! channel.onmessage = (e) => { /* e.event: 'chunk' | 'done' | 'error' */ }
 //! await invoke('stream_ai_analysis', {
-//!   request: { prompt: '分析这段战绩...', systemPrompt: '你是LOL分析师...' },
+//!   request: { prompt: '分析这段战绩...', systemPrompt: '你是LOL分析师...', provider: 'ollama', baseUrl: 'http://127.0.0.1:11434' },
 //!   onEvent: channel
 //! })
 //! ```
@@ -28,10 +31,107 @@ use tauri::ipc::Channel;
 /// DashScope OpenAI 兼容 chat 端点。
 const DASHSCOPE_URL: &str = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
 
+/// OpenAI 兼容 provider 未指定 baseUrl 时的兜底（DeepSeek 官方端点）。
+const DEFAULT_OPENAI_URL: &str = "https://api.deepseek.com/chat/completions";
+
+/// Ollama 本地端点默认地址（v1 OpenAI 兼容）。
+const DEFAULT_OLLAMA_BASE_URL: &str = "http://127.0.0.1:11434";
+
 /// 前端未指定 model 时的兜底。
 /// qwen-flash：真实基准（tests/bench-ai-models.mjs）Stage1 ~12s/2-of-2 有效、Stage2 ~6s，
 /// 速度与有效率均优于 qwen-plus（~40s 且约半数非法 JSON），故定为默认。
 const DEFAULT_MODEL: &str = "qwen-flash";
+
+/// AI 服务商（D-P4 平台化）。
+///
+/// # 说明
+///
+/// 未知字符串一律按 `DashScope` 处理（向前兼容：老客户端不带 provider 字段）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AiProviderKind {
+    DashScope,
+    OpenAICompatible,
+    Ollama,
+}
+
+impl AiProviderKind {
+    /// 解析前端传入的 provider 字符串；缺省/未知值回退 `DashScope`。纯函数，便于单测。
+    pub fn parse(s: Option<&str>) -> Self {
+        match s.map(str::trim).unwrap_or_default() {
+            "openai" | "deepseek" => Self::OpenAICompatible,
+            "ollama" => Self::Ollama,
+            _ => Self::DashScope,
+        }
+    }
+
+    /// 前端可辨识的标识（settings 的 select 用值）。
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::DashScope => "dashscope",
+            Self::OpenAICompatible => "openai",
+            Self::Ollama => "ollama",
+        }
+    }
+}
+
+/// 解析 provider 对应的 chat 端点。纯函数，便于单测。
+///
+/// - `dashscope`: 固定官方端点，忽略 base_url
+/// - `openai`: base_url 非空时原样使用（兼容 /v1 前缀差异），否则 `DEFAULT_OPENAI_URL`
+/// - `ollama`: `{base_url}/v1/chat/completions`，base_url 缺省用 `DEFAULT_OLLAMA_BASE_URL`
+fn provider_endpoint(kind: AiProviderKind, base_url: Option<&str>) -> String {
+    match kind {
+        AiProviderKind::DashScope => DASHSCOPE_URL.to_string(),
+        AiProviderKind::OpenAICompatible => {
+            let base = base_url.map(str::trim).filter(|s| !s.is_empty());
+            base.unwrap_or(DEFAULT_OPENAI_URL).to_string()
+        }
+        AiProviderKind::Ollama => {
+            let base = base_url
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .unwrap_or(DEFAULT_OLLAMA_BASE_URL)
+                .trim_end_matches('/');
+            format!("{}/v1/chat/completions", base)
+        }
+    }
+}
+
+/// 按 provider 解析 API 密钥。纯函数，便于单测。
+///
+/// - `dashscope`: 用户覆盖 > 运行时 `DASHSCOPE_API_KEY` > 编译期注入（现有三层，baked 仅此服务商有）
+/// - `openai`: 用户覆盖 > 运行时 `OPENAI_API_KEY`（无 baked 兜底，错误信息带环境变量名提示）
+/// - `ollama`: 本地免密钥，恒 `Ok(None)`
+fn provider_api_key(
+    kind: AiProviderKind,
+    override_key: Option<&str>,
+    runtime_env: Option<&str>,
+    baked: Option<&str>,
+) -> Result<Option<String>, String> {
+    match kind {
+        AiProviderKind::Ollama => Ok(None),
+        AiProviderKind::OpenAICompatible => resolve_api_key(override_key, runtime_env, baked)
+            .map(Some)
+            .map_err(|_| {
+                "未配置 API 密钥（设置 OPENAI_API_KEY 环境变量，或在设置中填入）".to_string()
+            }),
+        AiProviderKind::DashScope => resolve_api_key(override_key, runtime_env, baked)
+            .map(Some)
+            .map_err(|_| {
+                "未配置 API 密钥（设置 DASHSCOPE_API_KEY 环境变量，或在设置中填入）".to_string()
+            }),
+    }
+}
+
+/// provider 未传 model 时的默认模型（按服务商）。
+fn provider_default_model(kind: AiProviderKind) -> &'static str {
+    match kind {
+        AiProviderKind::DashScope => DEFAULT_MODEL,
+        // OpenAI 兼容兜底（DeepSeek 语音外常规）；根绝“模型不存在”需在设置里按实际服务商填
+        AiProviderKind::OpenAICompatible => "deepseek-chat",
+        AiProviderKind::Ollama => "llama3.1",
+    }
+}
 
 /// 按优先级解析 DashScope 密钥：用户覆盖 > 运行时环境变量 > 编译期注入。
 /// 空白串视同未配置。纯函数，便于单测。
@@ -46,18 +146,7 @@ fn resolve_api_key(
             return Ok(trimmed.to_string());
         }
     }
-    Err("未配置 DashScope 密钥（设置 DASHSCOPE_API_KEY 环境变量，或在设置中填入）".to_string())
-}
-
-/// 解析最终密钥：用户覆盖 → 运行时环境变量（测试/开发）→ `option_env!` 编译期注入（线上）。
-/// 线上由 CI 在构建时设 `DASHSCOPE_API_KEY`，明文密钥不进源码 / git。
-fn api_key(override_key: Option<&str>) -> Result<String, String> {
-    let runtime = std::env::var("DASHSCOPE_API_KEY").ok();
-    resolve_api_key(
-        override_key,
-        runtime.as_deref(),
-        option_env!("DASHSCOPE_API_KEY"),
-    )
+    Err("未配置 API 密钥（设置环境变量或在设置中填入）".to_string())
 }
 
 /// 从一行 SSE 文本提取增量 token。接受带或不带 `data: ` 前缀的行；
@@ -178,6 +267,10 @@ pub struct AiStreamRequest {
     /// OpenAI 兼容 `response_format.type`（如 `json_object`，强制模型输出合法 JSON）。
     /// 缺省不传该字段（普通文本/markdown 输出）。
     pub response_format: Option<String>,
+    /// 服务商标识（D-P4）：`dashscope` | `openai` | `ollama`；缺省 / 未知值按 `dashscope` 处理
+    pub provider: Option<String>,
+    /// 服务商自定义端点（D-P4）：仅 `openai` / `ollama` 使用，缺省用各自官方默认值
+    pub base_url: Option<String>,
 }
 
 /// AI 流式响应事件
@@ -205,8 +298,22 @@ pub async fn stream_ai_analysis(
     request: AiStreamRequest,
     on_event: Channel<AiStreamEvent>,
 ) -> Result<(), String> {
-    // 解析密钥（用户覆盖 → env → 编译期注入）。失败时发 error 事件并结束（不 reject 命令）。
-    let key = match api_key(request.api_key.as_deref()) {
+    // 解析服务商与端点（D-P4）：未知 / 缺省回退 DashScope，兼容老客户端
+    let kind = AiProviderKind::parse(request.provider.as_deref());
+    let endpoint = provider_endpoint(kind, request.base_url.as_deref());
+
+    // 解析密钥（用户覆盖 → env → 编译期注入；仅 dashscope 有内置 key 兜底，
+    // openai 的 env 名是 OPENAI_API_KEY，ollama 本地免密钥）。失败时发 error 事件并结束。
+    let runtime_env = match kind {
+        AiProviderKind::DashScope => std::env::var("DASHSCOPE_API_KEY").ok(),
+        AiProviderKind::OpenAICompatible => std::env::var("OPENAI_API_KEY").ok(),
+        AiProviderKind::Ollama => None,
+    };
+    let baked = (kind == AiProviderKind::DashScope)
+        .then_some(option_env!("DASHSCOPE_API_KEY"))
+        .flatten();
+    let key = match provider_api_key(kind, request.api_key.as_deref(), runtime_env.as_deref(), baked)
+    {
         Ok(k) => k,
         Err(e) => {
             let _ = on_event.send(AiStreamEvent {
@@ -219,16 +326,18 @@ pub async fn stream_ai_analysis(
     let model = request
         .model
         .as_deref()
-        .unwrap_or(DEFAULT_MODEL)
+        .unwrap_or_else(|| provider_default_model(kind))
         .to_string();
 
-    // 构建请求头
+    // 构建请求头（ollama 本地免认证，不带 Authorization）
     let mut headers = HeaderMap::new();
-    headers.insert(
-        AUTHORIZATION,
-        HeaderValue::from_str(&format!("Bearer {}", key))
-            .map_err(|e| format!("Invalid API key: {}", e))?,
-    );
+    if let Some(key) = &key {
+        headers.insert(
+            AUTHORIZATION,
+            HeaderValue::from_str(&format!("Bearer {}", key))
+                .map_err(|e| format!("Invalid API key: {}", e))?,
+        );
+    }
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
 
     // 构建请求体。
@@ -263,7 +372,7 @@ pub async fn stream_ai_analysis(
             attempt += 1;
 
             let response = match client
-                .post(DASHSCOPE_URL)
+                .post(&endpoint)
                 .headers(headers.clone())
                 .json(&body)
                 .send()
@@ -498,5 +607,106 @@ mod tests {
     fn backoff_grows_with_attempt() {
         assert!(backoff_delay(2) > backoff_delay(1));
         assert!(backoff_delay(1) >= std::time::Duration::from_millis(1));
+    }
+
+    #[test]
+    fn provider_kind_parses_known_values_and_defaults_to_dashscope() {
+        assert_eq!(AiProviderKind::parse(Some("dashscope")), AiProviderKind::DashScope);
+        assert_eq!(AiProviderKind::parse(Some("openai")), AiProviderKind::OpenAICompatible);
+        // "deepseek" 是 openai 兼容组的别名
+        assert_eq!(AiProviderKind::parse(Some("deepseek")), AiProviderKind::OpenAICompatible);
+        assert_eq!(AiProviderKind::parse(Some("ollama")), AiProviderKind::Ollama);
+        // 缺省 / 空白 / 未知值一律回退 DashScope（老客户端兼容）
+        assert_eq!(AiProviderKind::parse(None), AiProviderKind::DashScope);
+        assert_eq!(AiProviderKind::parse(Some("")), AiProviderKind::DashScope);
+        assert_eq!(AiProviderKind::parse(Some("  ")), AiProviderKind::DashScope);
+        assert_eq!(AiProviderKind::parse(Some("grok")), AiProviderKind::DashScope);
+        // 标识与 as_str 往返一致
+        for kind in [
+            AiProviderKind::DashScope,
+            AiProviderKind::OpenAICompatible,
+            AiProviderKind::Ollama,
+        ] {
+            assert_eq!(AiProviderKind::parse(Some(kind.as_str())), kind);
+        }
+    }
+
+    #[test]
+    fn endpoint_dashscope_is_fixed_and_ignores_base_url() {
+        assert_eq!(
+            provider_endpoint(AiProviderKind::DashScope, Some("http://evil:1")),
+            "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+        );
+        assert_eq!(
+            provider_endpoint(AiProviderKind::DashScope, None),
+            "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+        );
+    }
+
+    #[test]
+    fn endpoint_openai_uses_base_url_when_given_else_default() {
+        assert_eq!(
+            provider_endpoint(AiProviderKind::OpenAICompatible, Some(" https://x.dev/v1 ")),
+            "https://x.dev/v1"
+        );
+        // 空白 base_url 视为未配置
+        assert_eq!(
+            provider_endpoint(AiProviderKind::OpenAICompatible, Some("  ")),
+            "https://api.deepseek.com/chat/completions"
+        );
+        assert_eq!(
+            provider_endpoint(AiProviderKind::OpenAICompatible, None),
+            "https://api.deepseek.com/chat/completions"
+        );
+    }
+
+    #[test]
+    fn endpoint_ollama_appends_v1_and_uses_default_host() {
+        assert_eq!(
+            provider_endpoint(AiProviderKind::Ollama, Some("http://192.168.1.5:11434")),
+            "http://192.168.1.5:11434/v1/chat/completions"
+        );
+        // 尾斜杠去除，避免双斜杠
+        assert_eq!(
+            provider_endpoint(AiProviderKind::Ollama, Some("http://127.0.0.1:11434/")),
+            "http://127.0.0.1:11434/v1/chat/completions"
+        );
+        assert_eq!(
+            provider_endpoint(AiProviderKind::Ollama, None),
+            "http://127.0.0.1:11434/v1/chat/completions"
+        );
+    }
+
+    #[test]
+    fn provider_key_ollama_is_always_none() {
+        // 即使传了 key / env / baked 也返回 None → 不挂 Authorization 头
+        assert_eq!(
+            provider_api_key(AiProviderKind::Ollama, Some("sk-x"), Some("env"), Some("baked")).unwrap(),
+            None
+        );
+    }
+
+    #[test]
+    fn provider_key_openai_uses_override_then_env_without_baked() {
+        // baked 只属于 dashscope：openai 传 baked 也不该用它
+        assert_eq!(
+            provider_api_key(AiProviderKind::OpenAICompatible, Some("ov"), Some("env"), Some("baked"))
+                .unwrap(),
+            Some("ov".to_string())
+        );
+        assert_eq!(
+            provider_api_key(AiProviderKind::OpenAICompatible, None, Some("env"), Some("baked"))
+                .unwrap(),
+            Some("env".to_string())
+        );
+        // 全覆盖缺失时报错（baked 不可作为 openai 兜底）
+        assert!(provider_api_key(AiProviderKind::OpenAICompatible, None, None, Some("baked")).is_err());
+    }
+
+    #[test]
+    fn provider_default_model_differs_per_kind() {
+        assert_eq!(provider_default_model(AiProviderKind::DashScope), "qwen-flash");
+        assert_eq!(provider_default_model(AiProviderKind::OpenAICompatible), "deepseek-chat");
+        assert_eq!(provider_default_model(AiProviderKind::Ollama), "llama3.1");
     }
 }

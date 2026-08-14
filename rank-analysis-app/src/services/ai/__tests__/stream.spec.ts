@@ -1,7 +1,13 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { AiStreamEvent } from '../stream'
-import { mapStreamEvent, requestAIContentStream } from '../stream'
+import {
+  DEFAULT_SYSTEM_PROMPT,
+  getAiProviderConfig,
+  mapStreamEvent,
+  requestAIContentStream
+} from '../stream'
 import type { StreamCallbacks } from '../types'
+import { getConfigByIpc } from '../../ipc'
 
 // 用可手动驱动的假 Channel 替换真实 IPC，单测 requestAIContentStream 的终态去重。
 vi.mock('@tauri-apps/api/core', () => {
@@ -10,7 +16,7 @@ vi.mock('@tauri-apps/api/core', () => {
   }
   return { Channel, invoke: vi.fn() }
 })
-vi.mock('../ipc', () => ({ getConfigByIpc: vi.fn().mockResolvedValue(undefined) }))
+vi.mock('../../ipc', () => ({ getConfigByIpc: vi.fn().mockResolvedValue(undefined) }))
 
 function makeCallbacks(): StreamCallbacks & {
   chunks: string[]
@@ -150,5 +156,139 @@ describe('requestAIContentStream 终态恰好一次', () => {
       { promptTokens: 1, completionTokens: 2, totalTokens: 3 },
       { promptTokens: 9, completionTokens: 9, totalTokens: 18 }
     ])
+  })
+})
+
+describe('getAiProviderConfig（D-P4 服务商配置归一）', () => {
+  const mockGet = vi.mocked(getConfigByIpc)
+  const vals = (map: Record<string, string>) =>
+    mockGet.mockImplementation(async (key: string) => map[key] as string | undefined)
+
+  beforeEach(() => {
+    mockGet.mockReset()
+  })
+
+  it('缺省/未知 provider 归一为 dashscope，key 取 dashscopeApiKey', async () => {
+    vals({ dashscopeApiKey: 'sk-dash' })
+    expect(await getAiProviderConfig()).toEqual({
+      provider: 'dashscope',
+      baseUrl: '',
+      apiKey: 'sk-dash',
+      model: ''
+    })
+    // 未知 provider（老客户端/手填）也归一 dashscope
+    vals({ 'ai.provider': 'grok', dashscopeApiKey: 'sk-dash' })
+    expect((await getAiProviderConfig()).provider).toBe('dashscope')
+  })
+
+  it('openai 用 aiApiKey 与 aiBaseUrl', async () => {
+    vals({
+      'ai.provider': 'openai',
+      'ai.baseUrl': 'https://x.dev/v1',
+      'ai.apiKey': 'sk-abc',
+      'ai.model': 'deepseek-chat',
+      dashscopeApiKey: 'sk-dash'
+    })
+    expect(await getAiProviderConfig()).toEqual({
+      provider: 'openai',
+      baseUrl: 'https://x.dev/v1',
+      apiKey: 'sk-abc',
+      model: 'deepseek-chat'
+    })
+  })
+
+  it('ollama 免密钥，apiKey 恒为空串（dashscope key 不外泄）', async () => {
+    vals({ 'ai.provider': 'ollama', dashscopeApiKey: 'sk-dash' })
+    expect(await getAiProviderConfig()).toEqual({
+      provider: 'ollama',
+      baseUrl: '',
+      apiKey: '',
+      model: ''
+    })
+  })
+
+  it('全部键缺失时回退纯默认值', async () => {
+    vals({})
+    expect(await getAiProviderConfig()).toEqual({
+      provider: 'dashscope',
+      baseUrl: '',
+      apiKey: '',
+      model: ''
+    })
+  })
+})
+
+describe('requestAIContentStream 透传服务商配置（D-P4）', () => {
+  const mockGet = vi.mocked(getConfigByIpc)
+
+  beforeEach(async () => {
+    mockGet.mockReset()
+    // invoke 是跨用例共享的 mock，逐用例重置避免拿到上一个请求体
+    const { invoke } = await import('@tauri-apps/api/core')
+    ;(invoke as unknown as ReturnType<typeof vi.fn>).mockReset()
+  })
+
+  it('openai 配置透传到 invoke 请求体，模型用配置值', async () => {
+    mockGet.mockImplementation(async (key: string) => {
+      const map: Record<string, string> = {
+        'ai.provider': 'openai',
+        'ai.baseUrl': 'https://x.dev/v1',
+        'ai.model': 'deepseek-chat',
+        'ai.apiKey': 'sk-abc'
+      }
+      return map[key] as string | undefined
+    })
+    const { invoke } = await import('@tauri-apps/api/core')
+    ;(invoke as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(undefined)
+
+    await requestAIContentStream('p', makeCallbacks())
+    const calls = (invoke as unknown as ReturnType<typeof vi.fn>).mock.calls.filter(
+      c => c[0] === 'stream_ai_analysis'
+    )
+    expect(calls[0][1].request).toEqual({
+      prompt: 'p',
+      systemPrompt: DEFAULT_SYSTEM_PROMPT,
+      model: 'deepseek-chat',
+      provider: 'openai',
+      baseUrl: 'https://x.dev/v1',
+      apiKey: 'sk-abc',
+      responseFormat: undefined
+    })
+  })
+
+  it('dashscope 不发 provider/baseUrl；模型回退调用方参数', async () => {
+    mockGet.mockImplementation(async () => undefined)
+    const { invoke } = await import('@tauri-apps/api/core')
+    ;(invoke as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(undefined)
+
+    await requestAIContentStream('p', makeCallbacks(), 'sys', 'qwen-flash')
+    const calls = (invoke as unknown as ReturnType<typeof vi.fn>).mock.calls.filter(
+      c => c[0] === 'stream_ai_analysis'
+    )
+    const req = calls[0][1].request
+    expect(req.provider).toBeUndefined()
+    expect(req.baseUrl).toBeUndefined()
+    expect(req.apiKey).toBeUndefined()
+    expect(req.model).toBe('qwen-flash')
+    expect(req.systemPrompt).toBe('sys')
+  })
+
+  it('ollama 不发 apiKey（免密钥），baseUrl 透传', async () => {
+    mockGet.mockImplementation(async (key: string) => {
+      if (key === 'ai.provider') return 'ollama'
+      if (key === 'ai.baseUrl') return 'http://127.0.0.1:11434'
+      return undefined
+    })
+    const { invoke } = await import('@tauri-apps/api/core')
+    ;(invoke as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(undefined)
+
+    await requestAIContentStream('p', makeCallbacks())
+    const calls = (invoke as unknown as ReturnType<typeof vi.fn>).mock.calls.filter(
+      c => c[0] === 'stream_ai_analysis'
+    )
+    const req = calls[0][1].request
+    expect(req.provider).toBe('ollama')
+    expect(req.baseUrl).toBe('http://127.0.0.1:11434')
+    expect(req.apiKey).toBeUndefined()
   })
 })

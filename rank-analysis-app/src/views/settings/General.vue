@@ -17,7 +17,43 @@
           </n-text>
         </n-space>
       </n-form-item>
-      <n-form-item label="自定义 AI Key">
+      <n-form-item label="AI 服务商">
+        <n-space vertical :size="4" style="width: 100%">
+          <n-select
+            :value="aiProvider"
+            :options="providerOptions"
+            @update:value="handleProviderUpdate"
+          />
+          <n-text :depth="3" style="font-size: var(--font-size-sm)">
+            {{ providerHelp }}
+          </n-text>
+        </n-space>
+      </n-form-item>
+      <n-form-item v-if="aiProvider !== 'dashscope'" label="服务端地址">
+        <n-space vertical :size="4" style="width: 100%">
+          <n-input
+            v-model:value="aiBaseUrl"
+            :placeholder="baseUrlPlaceholder"
+            @blur="handleBaseUrlUpdate"
+          />
+          <n-text :depth="3" style="font-size: var(--font-size-sm)">
+            {{ baseUrlHelp }}
+          </n-text>
+        </n-space>
+      </n-form-item>
+      <n-form-item label="AI 模型">
+        <n-space vertical :size="4" style="width: 100%">
+          <n-input
+            v-model:value="aiModel"
+            :placeholder="modelPlaceholder"
+            @blur="handleModelUpdate"
+          />
+          <n-text :depth="3" style="font-size: var(--font-size-sm)">
+            覆盖所有 AI 分析使用的模型名；留空用各服务商默认。
+          </n-text>
+        </n-space>
+      </n-form-item>
+      <n-form-item v-if="aiProvider === 'dashscope'" label="自定义 AI Key">
         <n-space vertical :size="4">
           <n-input
             v-model:value="dashscopeKey"
@@ -28,6 +64,20 @@
           />
           <n-text :depth="3" style="font-size: var(--font-size-sm)">
             填入你自己的 DashScope (通义千问) API Key 则走你的额度；留空使用内置 Key。
+          </n-text>
+        </n-space>
+      </n-form-item>
+      <n-form-item v-if="aiProvider === 'openai'" label="API Key">
+        <n-space vertical :size="4">
+          <n-input
+            v-model:value="aiApiKey"
+            type="password"
+            show-password-on="click"
+            placeholder="留空使用 OPENAI_API_KEY 环境变量"
+            @blur="handleOpenaiKeyUpdate"
+          />
+          <n-text :depth="3" style="font-size: var(--font-size-sm)">
+            填 OpenAI 兼容服务商（DeepSeek / 自建网关）的 API Key；Ollama 本地免密钥。
           </n-text>
         </n-space>
       </n-form-item>
@@ -89,17 +139,63 @@ import {
   sumAiUsage,
   type AiUsageEntry
 } from '@renderer/services/ai/shared/usage'
+import { getAiProviderConfig, type AiProviderKind } from '@renderer/services/ai/stream'
 import { useMessage } from 'naive-ui'
 
 const matchCount = ref(4)
 const errorReporting = ref(false)
 const dashscopeKey = ref('')
+/** D-P4：AI 服务商配置（缺省 dashscope，兼容老配置） */
+const aiProvider = ref<AiProviderKind>('dashscope')
+const aiBaseUrl = ref('')
+const aiModel = ref('')
+const aiApiKey = ref('')
 /** AI 分析是否携带玩家备注（默认开：键不存在时视为 true） */
 const aiUseNotes = ref(true)
 /** D-P1：AI 用量台账（每次完整分析一条，倒序展示） */
 const usageLog = ref<AiUsageEntry[]>([])
 const usageTotal = computed(() => sumAiUsage(usageLog.value))
 const message = useMessage()
+
+const providerOptions = [
+  { label: 'DashScope（通义千问，内置 Key 可用）', value: 'dashscope' },
+  { label: 'OpenAI 兼容（DeepSeek / 自建网关）', value: 'openai' },
+  { label: 'Ollama（本地模型，免密钥）', value: 'ollama' }
+]
+
+const providerHelp = computed(() => {
+  switch (aiProvider.value) {
+    case 'openai':
+      return 'OpenAI 兼容端点，如 DeepSeek / 自建网关；密钥填下方「API Key」或设 OPENAI_API_KEY 环境变量。'
+    case 'ollama':
+      return '本地模型（免密钥）。需先安装 Ollama 并拉取模型，地址默认 http://127.0.0.1:11434。'
+    default:
+      return '通义千问官方服务。不填 Key 时自动使用内置 Key（见下方「自定义 AI Key」）。'
+  }
+})
+
+const modelPlaceholder = computed(() => {
+  switch (aiProvider.value) {
+    case 'openai':
+      return '留空使用默认（deepseek-chat）'
+    case 'ollama':
+      return '留空使用默认（llama3.1）'
+    default:
+      return '留空使用默认（qwen-flash）'
+  }
+})
+
+const baseUrlPlaceholder = computed(() =>
+  aiProvider.value === 'ollama'
+    ? 'http://127.0.0.1:11434（留空使用默认）'
+    : 'https://api.deepseek.com/v1（留空使用默认）'
+)
+
+const baseUrlHelp = computed(() =>
+  aiProvider.value === 'ollama'
+    ? 'Ollama 服务的监听地址，需与实际运行地址一致。'
+    : '留空使用 DeepSeek 官方端点；自建网关请填完整的 OpenAI 兼容地址（含 /v1）。'
+)
 
 const formatTime = (time: number) => new Date(time).toLocaleString()
 
@@ -134,6 +230,19 @@ onMounted(async () => {
     const key = await getConfigByIpc<string>(CONFIG_KEYS.dashscopeApiKey)
     if (typeof key === 'string') {
       dashscopeKey.value = key
+    }
+  } catch (e) {
+    console.error(e)
+  }
+  try {
+    const cfg = await getAiProviderConfig()
+    aiProvider.value = cfg.provider
+    aiBaseUrl.value = cfg.baseUrl
+    aiModel.value = cfg.model
+    // apiKey 字段按当前服务商归一到 dashscopeApiKey，openai 场景需读原始 aiApiKey
+    const openaiKey = await getConfigByIpc<string>(CONFIG_KEYS.aiApiKey)
+    if (typeof openaiKey === 'string') {
+      aiApiKey.value = openaiKey
     }
   } catch (e) {
     console.error(e)
@@ -180,6 +289,48 @@ const handleAiUseNotesUpdate = async (value: boolean) => {
 const handleDashscopeKeyUpdate = async () => {
   try {
     await putConfigByIpc(CONFIG_KEYS.dashscopeApiKey, dashscopeKey.value.trim())
+    message.success('设置已保存')
+  } catch (e) {
+    message.error('保存失败')
+  }
+}
+
+const handleProviderUpdate = async (value: AiProviderKind) => {
+  // 先落 ref 再持久化（沿用 Automation.vue 单向绑定约定：select 不配 v-model）
+  aiProvider.value = value
+  try {
+    await putConfigByIpc(CONFIG_KEYS.aiProvider, value)
+    // 服务商切换时一并持久化当前可见配置，避免 v-if 隐藏未 blur 的输入被丢弃
+    await putConfigByIpc(CONFIG_KEYS.aiBaseUrl, aiBaseUrl.value.trim())
+    await putConfigByIpc(CONFIG_KEYS.aiModel, aiModel.value.trim())
+    await putConfigByIpc(CONFIG_KEYS.aiApiKey, aiApiKey.value.trim())
+    message.success('设置已保存')
+  } catch (e) {
+    message.error('保存失败')
+  }
+}
+
+const handleBaseUrlUpdate = async () => {
+  try {
+    await putConfigByIpc(CONFIG_KEYS.aiBaseUrl, aiBaseUrl.value.trim())
+    message.success('设置已保存')
+  } catch (e) {
+    message.error('保存失败')
+  }
+}
+
+const handleModelUpdate = async () => {
+  try {
+    await putConfigByIpc(CONFIG_KEYS.aiModel, aiModel.value.trim())
+    message.success('设置已保存')
+  } catch (e) {
+    message.error('保存失败')
+  }
+}
+
+const handleOpenaiKeyUpdate = async () => {
+  try {
+    await putConfigByIpc(CONFIG_KEYS.aiApiKey, aiApiKey.value.trim())
     message.success('设置已保存')
   } catch (e) {
     message.error('保存失败')
