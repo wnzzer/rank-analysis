@@ -29,8 +29,8 @@ pub const TTL_SECS: i64 = 12 * 60 * 60;
 
 /// region 白名单（与 OP.GG 首页区域导航一致）。
 pub const VALID_REGIONS: [&str; 19] = [
-    "global", "na", "euw", "eune", "kr", "jp", "br", "lan", "las", "oce", "ru", "tr", "sea",
-    "tw", "vn", "th", "sg", "me1", "me2",
+    "global", "na", "euw", "eune", "kr", "jp", "br", "lan", "las", "oce", "ru", "tr", "sea", "tw",
+    "vn", "th", "sg", "me1", "me2",
 ];
 
 /// tier 白名单：OP.GG 支持的段位分段参数（实测 `ibsg`（铁/青铜/银/金）与
@@ -276,10 +276,12 @@ pub async fn fetch_champion_intel(
         .build()
         .map_err(|e| e.to_string())?;
 
-    let counters_body = get_text(&client, &counters_url(region, champion_id, position, tier)).await?;
+    let counters_body =
+        get_text(&client, &counters_url(region, champion_id, position, tier)).await?;
     let counters = parse_counters(&counters_body)?;
 
-    let synergies_body = get_text(&client, &synergies_url(region, champion_id, position, tier)).await?;
+    let synergies_body =
+        get_text(&client, &synergies_url(region, champion_id, position, tier)).await?;
     let synergies = parse_synergies(&synergies_body)?;
 
     Ok((counters, synergies))
@@ -299,12 +301,18 @@ async fn get_text(client: &Client, url: &str) -> Result<String, String> {
 
 /// 缓存键（内存 moka 键 + 磁盘文件名）：全部来自白名单枚举，文件名安全。
 pub fn cache_key(region: &str, tier: &str, champion_id: i32, position: &str) -> String {
-    format!("opgg_intel_{}_{}_{}_{}", region, tier, champion_id, position)
+    format!(
+        "opgg_intel_{}_{}_{}_{}",
+        region, tier, champion_id, position
+    )
 }
 
 /// 默认缓存文件路径（系统临时目录下的绝对路径）。
 pub fn default_path(region: &str, tier: &str, champion_id: i32, position: &str) -> PathBuf {
-    crate::paths::cache_file(&format!("{}.json", cache_key(region, tier, champion_id, position)))
+    crate::paths::cache_file(&format!(
+        "{}.json",
+        cache_key(region, tier, champion_id, position)
+    ))
 }
 
 /// 序列化对位情报写入指定路径。
@@ -570,7 +578,10 @@ mod tests {
     fn default_path_should_be_absolute_and_scoped() {
         let p = default_path("global", "emerald_plus", 34, "TOP");
         assert!(p.is_absolute());
-        assert!(p.to_str().unwrap().contains("opgg_intel_global_emerald_plus_34_TOP.json"));
+        assert!(p
+            .to_str()
+            .unwrap()
+            .contains("opgg_intel_global_emerald_plus_34_TOP.json"));
     }
 
     #[test]
@@ -638,7 +649,9 @@ mod tests {
             NOW,
             || {
                 fetch_called.store(true, Ordering::SeqCst);
-                async { Err::<(Vec<CounterItem>, Vec<SynergyItem>), String>("should not fetch".into()) }
+                async {
+                    Err::<(Vec<CounterItem>, Vec<SynergyItem>), String>("should not fetch".into())
+                }
             },
             disk_none,
             disk_save_ok,
@@ -646,7 +659,10 @@ mod tests {
         .await
         .unwrap();
 
-        assert!(!fetch_called.load(Ordering::SeqCst), "内存 fresh 不应触发拉取");
+        assert!(
+            !fetch_called.load(Ordering::SeqCst),
+            "内存 fresh 不应触发拉取"
+        );
         assert!(!stale);
         assert_eq!(intel.fetched_at, NOW - 100);
     }
@@ -664,7 +680,9 @@ mod tests {
             NOW,
             || {
                 fetch_called.store(true, Ordering::SeqCst);
-                async { Err::<(Vec<CounterItem>, Vec<SynergyItem>), String>("should not fetch".into()) }
+                async {
+                    Err::<(Vec<CounterItem>, Vec<SynergyItem>), String>("should not fetch".into())
+                }
             },
             |_k| Some(intel_at(NOW - 100)),
             disk_save_ok,
@@ -672,7 +690,10 @@ mod tests {
         .await
         .unwrap();
 
-        assert!(!fetch_called.load(Ordering::SeqCst), "磁盘 fresh 不应触发拉取");
+        assert!(
+            !fetch_called.load(Ordering::SeqCst),
+            "磁盘 fresh 不应触发拉取"
+        );
         assert!(!stale);
         assert_eq!(intel.fetched_at, NOW - 100);
         // 磁盘命中应回填内存，后续查询命令可复用
