@@ -1,5 +1,5 @@
 ## Goal
-- 交付「选人期对位悬浮弹窗（P1）+ 敌方已锁阵容→我方最优英雄推荐（P2）」（spec `docs/superpowers/specs/2026-08-14-champselect-counter-hover-design.md` v1.1）；T5 收尾中：CI rustfmt 修复已提交，待 CI 复跑全绿
+- 交付「选人期对位悬浮弹窗（P1）+ 敌方已锁阵容→我方最优英雄推荐（P2）+ 协同搭档节（T6）」（spec `docs/superpowers/specs/2026-08-14-champselect-counter-hover-design.md` v1.1）；**全部任务卡 ✅，spec 已关闭**
 
 ## Constraints & Preferences
 - 数据源 = LeagueAkari 逆向端点 `lol-api-champion.op.gg/api/{region}/champions/ranked/{id}/{POSITION}?tier=`（counters）+ `/synergies`（协同 UI 排 V1.1 T6）
@@ -18,12 +18,14 @@
 - **CI 修复完成 ✅**：三轮迭代全部解决——(1) rustfmt 9 处 diff（`057928c`）；(2) clippy 编译错误×3：`counters_url` 6 占位符 5 参数、`ChampionIntel` 缺 `PartialEq`（E0369）、`lcu_to_opgg_position` lifetime（`4fc4949`）；(3) clippy lint×2：`ensure_intel_impl` too_many_arguments 8/7（`6217f10`）、`&position` needless_borrow（`aee9850`）
 - **CI 全绿确认**：Quality Checks run `31795960055` success——Frontend Code Quality / Security Audit / Rust (macos) / Rust (windows) 全 ✓（rustfmt + clippy -D warnings + cargo test 全过）
 - **spec 收尾**（commit `8c49342`）：任务卡 T1-T4 ✅ + 变更记录 v1.1 交付行 + 交付记录 `.opencode-session/champselect-counter.md`
+- **T6 协同搭档节已交付**（commit `c4cbe4c`）：`counterIntel.ts` 加 `sortSynergies`/`formatSynergyLine` + `DEFAULT_SYNERGY_SORT`；`useCounterIntel` 加 `sortedSynergies`；CounterHover「最佳搭档」节（副标题分隔、独立排序表头、仅搭档有数据也渲染、空态条件改为对位与搭档皆空）；新增 10 测试（service 5 + composable 2 + 组件 3）；前端全量 1049/1049 绿 + prettier/vue-tsc/eslint 全干净；**CI `31797335422` success 全绿**
+- **spec 关闭**（未提交）：任务卡 T1-T6 全 ✅ + 变更记录 v1.1 交付（终）行
 
 ### In Progress
-- (none) — T5 全部完成
+- (none) — T6 完成，spec 关闭
 
 ### Blocked
-- 本机无 cargo：rustfmt/clippy/cargo test 全部依赖 CI 反馈，迭代慢（本轮 3 轮循环）
+- 本机无 cargo：rustfmt/clippy/cargo test 全部依赖 CI 反馈，迭代慢（T1 修复 3 轮循环，T6 无 Rust 改动未受影响）
 
 ## Key Decisions
 - 测试隔离（T2 修复根因）：每个 composable 测试 `effectScope()` 包裹 + `scope.stop()` + `vi.clearAllTimers()`——根治 revision 测试 3 次调用（前序测试实例存活导致 bump revision 时旧 watch 也调度 fetch）
@@ -35,23 +37,24 @@
 - rustfmt 修复全按 CI diff 逐处手动对齐（VALID_REGIONS 数组合并行、`get_text(...)`/`format!`/async 块/assert! 折行）——无 cargo fmt 的替代方案
 
 ## Next Steps
-1. T6 协同搭档 UI（V1.1）：CounterHover 增「最佳搭档」节（synergies 数据已就绪）
-2. 确认 git status 干净（`.opencode-session/` 未跟踪需显式 add）
+1. 提交 spec 关闭（任务卡全部 ✅ + 变更记录 v1.1 交付（终）行）+ 交付记录
+2. 可选：本轮 EXE 交付件如需含 T1-T6 功能，触发 `gh workflow run "Build EXE (No Sign)"`（或手工构建）；手工验证清单见 spec §9.6（悬浮弹窗视觉与排序、阵容推荐逐人核对 API 数据一致）
 
 ## Critical Context
-- **CI 最终全绿**：Quality Checks `31795960055` success（4 job 全 ✓）
+- **CI 最终全绿**：Quality Checks `31795960055`（T5 修复）+ `31797335422`（T6）success（4 job 全 ✓）
 - 端点到货实测（2026-08-14）：counters 200/50 条、synergies 200/50 条、versions `["16.16","16.15"]`、非法 tier 422、POSITION 枚举大写（MID/ADC 非 LCU 命名需转换）
 - 敌方 intent 恒 0 → 只看 `championId>0`；敌方 assignedPosition 恒空 → 主分路用 `getChampionMeta` 近似
 - Gaming.vue 候选池 `get_champion_options` 返回 `championOption[]`（`{value,label,realName,nickname}`），`allChampionIds=map(o=>o.value)`
-- 提交基线：`aee9850`（needless_borrow，最新）→ `6217f10`（too_many_arguments）→ `4fc4949`（clippy 编译×3）→ `8c49342`（spec 收尾）→ `057928c`（rustfmt×9）→ `d7ff49a`（T4）→ `c2119ca`（T3）→ `c89d8f5`（T2）→ `edc9237`（T1）→ `068a046`（spec）
+- 提交基线：`c4cbe4c`（T6 最新）→ `19d9111`（交付记录补录）→ `aee9850`（needless_borrow）→ `6217f10`（too_many_arguments）→ `4fc4949`（clippy 编译×3）→ `8c49342`（spec 收尾）→ `057928c`（rustfmt×9）→ `d7ff49a`（T4）→ `c2119ca`（T3）→ `c89d8f5`（T2）→ `edc9237`（T1）→ `068a046`（spec）
 - push 命令：`git push fork main`（origin 是 upstream `wnzzer/rank-analysis` 只读）
 - clippy 排查要点（供后续复用）：`-D warnings` 下 `too_many_arguments`（阈值 7，依赖注入聚合点可 allow）、`needless_borrow`（`&str` 参数前多 `&`）都会 fail 编译
 
 ## Relevant Files
-- `rank-analysis-app/src-tauri/src/opgg/intel.rs`：T1 新模块（15 单测，rustfmt 已对齐）
-- `docs/superpowers/specs/2026-08-14-champselect-counter-hover-design.md`：任务卡 + 变更记录 v1.1（已加交付行，未提交）
-- `rank-analysis-app/src/components/gaming/CounterHover.vue` + `__tests__/CounterHover.spec.ts`：T3 弹窗（11 测）
+- `rank-analysis-app/src-tauri/src/opgg/intel.rs`：T1 新模块（15 单测，rustfmt/clippy 已对齐）
+- `docs/superpowers/specs/2026-08-14-champselect-counter-hover-design.md`：任务卡 T1-T6 全 ✅ + 变更记录 v1.1 交付（终）行（未提交）
+- `rank-analysis-app/src/components/gaming/CounterHover.vue` + `__tests__/CounterHover.spec.ts`：T3 弹窗 + T6 最佳搭档节（14 测）
+- `rank-analysis-app/src/services/counterIntel.ts` + `__tests__/counterIntel.spec.ts`：T2 数据层 + T6 `sortSynergies`/`formatSynergyLine`（19 测）
+- `rank-analysis-app/src/composables/useCounterIntel.ts` + `useCounterIntel.spec.ts`：T2 数据层 + T6 `sortedSynergies`（12 测）
 - `rank-analysis-app/src/components/gaming/BestPicksPanel.vue` + `__tests__/BestPicksPanel.spec.ts`：T4 推荐条（9 测）
 - `rank-analysis-app/src/views/Gaming.vue`：T4 集成点（subteam-col 列布局、候选池懒加载、tier 透传）
-- `rank-analysis-app/src/composables/useCounterIntel.ts` + `spec`、`src/services/counterIntel.ts` + `spec`：T2 数据层（22 测）
 - `rank-analysis-app/src/components/gaming/PlayerCard.vue`、`ChampionIntelCard.vue`、`SubteamCard.vue`：T3/T4 头像包裹 + tier prop 链
