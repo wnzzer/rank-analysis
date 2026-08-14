@@ -19,7 +19,8 @@
 - **CI 全绿确认**：Quality Checks run `31795960055` success——Frontend Code Quality / Security Audit / Rust (macos) / Rust (windows) 全 ✓（rustfmt + clippy -D warnings + cargo test 全过）
 - **spec 收尾**（commit `8c49342`）：任务卡 T1-T4 ✅ + 变更记录 v1.1 交付行 + 交付记录 `.opencode-session/champselect-counter.md`
 - **T6 协同搭档节已交付**（commit `c4cbe4c`）：`counterIntel.ts` 加 `sortSynergies`/`formatSynergyLine` + `DEFAULT_SYNERGY_SORT`；`useCounterIntel` 加 `sortedSynergies`；CounterHover「最佳搭档」节（副标题分隔、独立排序表头、仅搭档有数据也渲染、空态条件改为对位与搭档皆空）；新增 10 测试（service 5 + composable 2 + 组件 3）；前端全量 1049/1049 绿 + prettier/vue-tsc/eslint 全干净；**CI `31797335422` success 全绿**
-- **spec 关闭**（未提交）：任务卡 T1-T6 全 ✅ + 变更记录 v1.1 交付（终）行
+- **spec 关闭**（commit `6bec28a`）：任务卡 T1-T6 全 ✅ + 变更记录 v1.1 交付（终）行
+- **EXE 交付件**：Build EXE (No Sign) run `31798501298` success，artifact `rank-analysis-exe`（`Rank Analysis_0.0.0_x64-setup.exe` 5.4MB，含 T1-T6 全部功能）；已下载至 `%TEMP%\opencode\exe-download\rank-analysis-exe\`
 
 ### In Progress
 - (none) — T6 完成，spec 关闭
@@ -37,8 +38,8 @@
 - rustfmt 修复全按 CI diff 逐处手动对齐（VALID_REGIONS 数组合并行、`get_text(...)`/`format!`/async 块/assert! 折行）——无 cargo fmt 的替代方案
 
 ## Next Steps
-1. 提交 spec 关闭（任务卡全部 ✅ + 变更记录 v1.1 交付（终）行）+ 交付记录
-2. 可选：本轮 EXE 交付件如需含 T1-T6 功能，触发 `gh workflow run "Build EXE (No Sign)"`（或手工构建）；手工验证清单见 spec §9.6（悬浮弹窗视觉与排序、阵容推荐逐人核对 API 数据一致）
+1. 手工验证（spec §9.6 清单，真机 LCU）：悬浮弹窗视觉与排序、最佳搭档节、阵容推荐逐人核对 API 数据一致（无编造）；验证通过后把 EXE 分发
+2. 后续功能迭代：以 codegraph 现状盘点为准（本项目已无此 spec 内待办）
 
 ## Critical Context
 - **CI 最终全绿**：Quality Checks `31795960055`（T5 修复）+ `31797335422`（T6）success（4 job 全 ✓）
