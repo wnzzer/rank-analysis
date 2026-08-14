@@ -24,6 +24,7 @@ function decision(overrides: Partial<BpDecision> = {}): BpDecision {
     time_left_secs: 8,
     execute_at_secs_left: 5,
     user_overridden: false,
+    is_in_progress: true,
     ...overrides
   }
 }
@@ -45,6 +46,15 @@ describe('BpDecisionBar', () => {
     const w = mountBar(decision({ mode: 'Advisory' }))
     expect(w.text()).toContain('建议 BAN')
     expect(w.text()).not.toContain('后自动')
+  })
+
+  // 回归：还没轮到我时计时器走的是别人的回合，倒计时会一路减到 0 却什么都不
+  // 发生——真机上用户先注意到的正是这个假承诺。
+  it('还没轮到我时不显示倒计时，只说明会在我的回合执行', () => {
+    const w = mountBar(decision({ is_in_progress: false }), 3)
+    expect(w.text()).toContain('轮到你时自动 BAN')
+    expect(w.text()).not.toContain('3s')
+    expect(w.text()).not.toContain('s 后自动')
   })
 
   it('Rule 来源显示规则名并用主色', () => {

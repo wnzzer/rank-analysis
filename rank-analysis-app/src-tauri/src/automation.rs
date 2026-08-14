@@ -1166,6 +1166,9 @@ mod bp_execution_tests {
             time_left_secs: time_left,
             execute_at_secs_left: 5.0,
             user_overridden: overridden,
+            // 执行路径不读快照的该字段（用实时 session 的 pending.is_in_progress），
+            // 这里给 true 只为构造合法快照。
+            is_in_progress: true,
         }
     }
 

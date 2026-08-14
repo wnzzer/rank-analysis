@@ -36,10 +36,17 @@ pub struct Action {
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Timer {
+    /// **推送时刻的冻结快照**，不是实时倒计时——真机实测可在一个 25 秒回合里
+    /// 纹丝不动 22 秒。要得到真实剩余必须配合 [`Timer::internal_now_in_epoch_ms`]
+    /// 扣掉快照至今流逝的墙钟，见 `bp_decision::evaluate::phase_secs_left_at`。
     #[serde(default)]
     pub adjusted_time_left_in_phase: f64,
+    /// 上面那个快照对应的时刻（epoch 毫秒）。
+    ///
+    /// 曾误写为 `internal_now_in_phase`（camelCase 后是 `internalNowInPhase`）——
+    /// LCU 没有该字段，于是恒为 serde default 0，白白浪费了唯一能校正快照的信息。
     #[serde(default)]
-    pub internal_now_in_phase: f64,
+    pub internal_now_in_epoch_ms: f64,
     #[serde(default)]
     pub is_infinite: bool,
     #[serde(default)]

@@ -25,12 +25,15 @@ const { getChampionUrl } = useAssetUrl()
 
 const actionLabel = computed(() => (props.decision?.action_type === 'Ban' ? 'BAN' : '选'))
 
-/** 标题：Auto 带倒计时，Advisory 降级为「建议 X」，已接管则明说 */
+/** 标题：Auto 且轮到我了才带倒计时，Advisory 降级为「建议 X」，已接管则明说 */
 const headline = computed(() => {
   const d = props.decision
   if (!d) return ''
   if (d.user_overridden) return `你已接管，本阶段不再自动${actionLabel.value}`
   if (d.mode === 'Advisory') return `建议 ${actionLabel.value}`
+  // 还没轮到我：快照照常产出（预选期就要提前 hover），但此刻计时器走的是别人
+  // 的回合，显示「Xs 后自动执行」等于给一个不会兑现的承诺。
+  if (!d.is_in_progress) return `轮到你时自动 ${actionLabel.value}`
   return `${Math.ceil(props.displaySecs)}s 后自动 ${actionLabel.value}`
 })
 
