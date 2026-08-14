@@ -29,6 +29,19 @@ function decision(overrides: Partial<BpDecision> = {}): BpDecision {
   }
 }
 
+/** 兜底来源的决策——只有这种来源才该提供「存为规则」 */
+function fallbackDecision(overrides: Partial<BpDecision> = {}): BpDecision {
+  return decision({
+    target: {
+      champion_id: 64,
+      lock: true,
+      origin: { type: 'Fallback', pool_size: 8 },
+      evidence: null
+    },
+    ...overrides
+  })
+}
+
 const mountBar = (d: BpDecision | null, displaySecs = 8) =>
   mount(BpDecisionBar, { props: { decision: d, displaySecs } })
 
@@ -129,8 +142,16 @@ describe('BpDecisionBar', () => {
   })
 
   it('点击存为规则触发 emit', async () => {
-    const w = mountBar(decision())
+    const w = mountBar(fallbackDecision())
     await w.find('.bp-save-rule').trigger('click')
     expect(w.emitted('save-rule')).toHaveLength(1)
+  })
+
+  // 规则遍历是 first-match-wins（evaluate.rs 命中即 break），而保存是把新规则
+  // 追加到列表末尾。为一个「已经命中规则」的决策再存一条，产出的必然是被原规则
+  // 永久遮蔽的死规则；evidence 缺失时它还会退化成一条「仅位置」的无条件规则。
+  it('来源已是规则时不提供「存为规则」', () => {
+    const w = mountBar(decision())
+    expect(w.find('.bp-save-rule').exists()).toBe(false)
   })
 })
