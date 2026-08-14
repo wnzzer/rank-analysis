@@ -455,7 +455,7 @@ pub async fn ensure_champion_intel(
             async move { fetch_champion_intel(&region, champion_id, &position, &tier).await }
         },
         |k| load_from_path(&crate::paths::cache_file(&format!("{}.json", k))),
-        |i| save_to_path(i, &default_path(&i.region, &i.tier, champion_id, &position)),
+        |i| save_to_path(i, &default_path(&i.region, &i.tier, champion_id, position)),
     )
     .await
 }
