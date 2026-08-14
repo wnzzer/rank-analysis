@@ -312,8 +312,12 @@ pub async fn stream_ai_analysis(
     let baked = (kind == AiProviderKind::DashScope)
         .then_some(option_env!("DASHSCOPE_API_KEY"))
         .flatten();
-    let key = match provider_api_key(kind, request.api_key.as_deref(), runtime_env.as_deref(), baked)
-    {
+    let key = match provider_api_key(
+        kind,
+        request.api_key.as_deref(),
+        runtime_env.as_deref(),
+        baked,
+    ) {
         Ok(k) => k,
         Err(e) => {
             let _ = on_event.send(AiStreamEvent {
@@ -611,16 +615,28 @@ mod tests {
 
     #[test]
     fn provider_kind_parses_known_values_and_defaults_to_dashscope() {
-        assert_eq!(AiProviderKind::parse(Some("dashscope")), AiProviderKind::DashScope);
-        assert_eq!(AiProviderKind::parse(Some("openai")), AiProviderKind::OpenAICompatible);
+        assert_eq!(
+            AiProviderKind::parse(Some("dashscope")),
+            AiProviderKind::DashScope
+        );
+        assert_eq!(
+            AiProviderKind::parse(Some("openai")),
+            AiProviderKind::OpenAICompatible
+        );
         // "deepseek" 是 openai 兼容组的别名
-        assert_eq!(AiProviderKind::parse(Some("deepseek")), AiProviderKind::OpenAICompatible);
+        assert_eq!(
+            AiProviderKind::parse(Some("deepseek")),
+            AiProviderKind::OpenAICompatible
+        );
         assert_eq!(AiProviderKind::parse(Some("ollama")), AiProviderKind::Ollama);
         // 缺省 / 空白 / 未知值一律回退 DashScope（老客户端兼容）
         assert_eq!(AiProviderKind::parse(None), AiProviderKind::DashScope);
         assert_eq!(AiProviderKind::parse(Some("")), AiProviderKind::DashScope);
         assert_eq!(AiProviderKind::parse(Some("  ")), AiProviderKind::DashScope);
-        assert_eq!(AiProviderKind::parse(Some("grok")), AiProviderKind::DashScope);
+        assert_eq!(
+            AiProviderKind::parse(Some("grok")),
+            AiProviderKind::DashScope
+        );
         // 标识与 as_str 往返一致
         for kind in [
             AiProviderKind::DashScope,
@@ -681,7 +697,13 @@ mod tests {
     fn provider_key_ollama_is_always_none() {
         // 即使传了 key / env / baked 也返回 None → 不挂 Authorization 头
         assert_eq!(
-            provider_api_key(AiProviderKind::Ollama, Some("sk-x"), Some("env"), Some("baked")).unwrap(),
+            provider_api_key(
+                AiProviderKind::Ollama,
+                Some("sk-x"),
+                Some("env"),
+                Some("baked")
+            )
+            .unwrap(),
             None
         );
     }
@@ -690,23 +712,41 @@ mod tests {
     fn provider_key_openai_uses_override_then_env_without_baked() {
         // baked 只属于 dashscope：openai 传 baked 也不该用它
         assert_eq!(
-            provider_api_key(AiProviderKind::OpenAICompatible, Some("ov"), Some("env"), Some("baked"))
-                .unwrap(),
+            provider_api_key(
+                AiProviderKind::OpenAICompatible,
+                Some("ov"),
+                Some("env"),
+                Some("baked")
+            )
+            .unwrap(),
             Some("ov".to_string())
         );
         assert_eq!(
-            provider_api_key(AiProviderKind::OpenAICompatible, None, Some("env"), Some("baked"))
-                .unwrap(),
+            provider_api_key(
+                AiProviderKind::OpenAICompatible,
+                None,
+                Some("env"),
+                Some("baked")
+            )
+            .unwrap(),
             Some("env".to_string())
         );
         // 全覆盖缺失时报错（baked 不可作为 openai 兜底）
-        assert!(provider_api_key(AiProviderKind::OpenAICompatible, None, None, Some("baked")).is_err());
+        assert!(
+            provider_api_key(AiProviderKind::OpenAICompatible, None, None, Some("baked")).is_err()
+        );
     }
 
     #[test]
     fn provider_default_model_differs_per_kind() {
-        assert_eq!(provider_default_model(AiProviderKind::DashScope), "qwen-flash");
-        assert_eq!(provider_default_model(AiProviderKind::OpenAICompatible), "deepseek-chat");
+        assert_eq!(
+            provider_default_model(AiProviderKind::DashScope),
+            "qwen-flash"
+        );
+        assert_eq!(
+            provider_default_model(AiProviderKind::OpenAICompatible),
+            "deepseek-chat"
+        );
         assert_eq!(provider_default_model(AiProviderKind::Ollama), "llama3.1");
     }
 }
