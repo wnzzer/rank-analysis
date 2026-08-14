@@ -628,7 +628,10 @@ mod tests {
             AiProviderKind::parse(Some("deepseek")),
             AiProviderKind::OpenAICompatible
         );
-        assert_eq!(AiProviderKind::parse(Some("ollama")), AiProviderKind::Ollama);
+        assert_eq!(
+            AiProviderKind::parse(Some("ollama")),
+            AiProviderKind::Ollama
+        );
         // 缺省 / 空白 / 未知值一律回退 DashScope（老客户端兼容）
         assert_eq!(AiProviderKind::parse(None), AiProviderKind::DashScope);
         assert_eq!(AiProviderKind::parse(Some("")), AiProviderKind::DashScope);
