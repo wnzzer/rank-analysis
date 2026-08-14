@@ -21,6 +21,8 @@
           :is-cross-region="isCrossRegion"
           :champion-pool="championPool"
           :hovered-champion="hoveredChampion"
+          :games="games"
+          :my-puuid="summoner.puuid"
           @mode-change="updateMode"
         />
       </aside>
@@ -30,6 +32,7 @@
             @hover-champion="hoveredChampion = $event"
             @leave-champion="hoveredChampion = null"
             @pool-change="championPool = $event"
+            @games-change="games = $event"
           />
         </div>
       </main>
@@ -41,6 +44,7 @@ import { ref } from 'vue'
 import MatchHistory from '../components/record/MatchHistory.vue'
 import PlayerBar from '../components/record/PlayerBar.vue'
 import UserSidePanel from '../components/record/UserSidePanel.vue'
+import type { Game } from '../types/domain/match'
 import type { ChampionPoolEntry } from '../components/record/championPool'
 import { useBreakpoint } from '@renderer/composables/useBreakpoint'
 import { usePlayerRecordData } from '@renderer/composables/usePlayerRecordData'
@@ -62,6 +66,8 @@ const {
 /** 左栏英雄池数据与当前 hover 高亮（由 MatchHistory 上抛） */
 const championPool = ref<ChampionPoolEntry[]>([])
 const hoveredChampion = ref<number | null>(null)
+/** 近期对局全量（由 MatchHistory 上抛，D-P3 分时曲线数据源） */
+const games = ref<Game[]>([])
 </script>
 <style scoped>
 /* 整页 token 覆盖:所有子组件 var(--font-size-*) 自动跟随 viewport 缩放 (1100→2200) */

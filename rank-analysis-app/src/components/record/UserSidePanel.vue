@@ -81,12 +81,14 @@
       @mode-change="updateMode"
     />
 
-    <!-- D-P1 用户画像：近 20 场趋势 + AI 成长报告 -->
+    <!-- D-P1 用户画像：近 20 场趋势 + AI 成长报告 + D-P3 分时曲线 -->
     <GrowthTrendCard
       v-if="!isCrossRegion"
       :recent-data="recentData"
       :mode="mode"
       :is-dark="isDark"
+      :games="games"
+      :my-puuid="myPuuid"
     />
   </n-flex>
 </template>
@@ -100,6 +102,7 @@ import { assetPrefix } from '@renderer/services/http'
 import { winRateColor } from '@renderer/utils/colors'
 import type { Rank, RecentWinRate } from '@renderer/types/domain/player'
 import type { RecentData } from '@renderer/types/domain/analysis'
+import type { Game } from '@renderer/types/domain/match'
 import type { championOption } from '@renderer/types/domain/champion'
 import RelationshipPanel from './RelationshipPanel.vue'
 import RankCard from './RankCard.vue'
@@ -116,6 +119,10 @@ const props = defineProps<{
   isCrossRegion: boolean
   championPool: ChampionPoolEntry[]
   hoveredChampion: number | null
+  /** 近期对局全量（透传给趋势卡做 D-P3 分时曲线） */
+  games: Game[]
+  /** 本人 puuid（跨区为空时趋势卡用 games[0] 兜底） */
+  myPuuid: string
 }>()
 
 const emit = defineEmits<{

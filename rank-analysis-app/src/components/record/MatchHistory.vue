@@ -178,6 +178,7 @@ const emit = defineEmits<{
   'hover-champion': [championId: number]
   'leave-champion': []
   'pool-change': [entries: ChampionPoolEntry[]]
+  'games-change': [games: Game[]]
 }>()
 
 /**
@@ -273,6 +274,9 @@ const trendFiltered = computed(() => filteredGames.value)
 const championPool = computed<ChampionPoolEntry[]>(() => aggregateChampionPool(allGames.value))
 
 watch(championPool, pool => emit('pool-change', pool), { immediate: true })
+
+/** 全量对局上抛（D-P3 分时曲线数据源）：每次引用变化（新拉/收集/重置）通知父级 */
+watch(allGames, games => emit('games-change', games), { immediate: true })
 
 /** 点击趋势格后的高亮对局 id（列表内定位用，闪烁后清除） */
 const highlightedGameId = ref<number | null>(null)

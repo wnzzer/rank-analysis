@@ -22,7 +22,31 @@ vi.mock('@renderer/composables/useGrowthReport', () => ({
   useGrowthReport: () => ({ loading, result, renderedResult: result, generate })
 }))
 
+/** 分时曲线 mock：状态可由测试注入 */
+const curveState = vi.hoisted(() => {
+  const { ref } = require('vue') as typeof import('vue')
+  return {
+    curve: ref<import('@renderer/components/record/minuteCurve').AggregatedMinuteCurve | null>(
+      null
+    ),
+    curveLoading: ref(false),
+    curveError: ref(false),
+    load: vi.fn()
+  }
+})
+vi.mock('@renderer/composables/useMinuteCurve', () => ({
+  MINUTE_CURVE_LIMIT: 10,
+  useMinuteCurve: () => ({
+    curve: curveState.curve,
+    loading: curveState.curveLoading,
+    error: curveState.curveError,
+    load: curveState.load,
+    reset: vi.fn()
+  })
+}))
+
 import GrowthTrendCard from '../GrowthTrendCard.vue'
+import type { Game } from '@renderer/types/domain/match'
 
 const stubs = {
   Card: { template: '<div><slot /></div>' },
@@ -31,7 +55,8 @@ const stubs = {
     template: '<button :disabled="$attrs.disabled" @click="$emit(\'click\')"><slot /></button>'
   },
   Flex: { template: '<div :style="$attrs.style"><slot /></div>' },
-  Text: { template: '<span><slot /></span>' }
+  Text: { template: '<span><slot /></span>' },
+  Spin: { template: '<span class="n-spin-stub" />' }
 }
 
 function recentData(overrides: Partial<RecentData> = {}): RecentData {
@@ -115,5 +140,84 @@ describe('GrowthTrendCard', () => {
     const wrapper = mountCard(recentData())
     await wrapper.vm.$nextTick()
     expect(wrapper.find('button').text()).toBe('重新生成')
+  })
+})
+
+describe('GrowthTrendCard 分时曲线（D-P3）', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    curveState.curve.value = null
+    curveState.curveLoading.value = false
+    curveState.curveError.value = false
+  })
+
+  function gameOf(id: number): Game {
+    return {
+      mvp: '1',
+      gameDetail: null as unknown as Game['gameDetail'],
+      gameId: id,
+      gameCreationDate: '',
+      gameDuration: 0,
+      gameMode: 'CLASSIC',
+      gameType: '',
+      mapId: 11,
+      queueId: 420,
+      queueName: '单双排',
+      platformId: 'TJ100',
+      participantIdentities: [],
+      participants: []
+    }
+  }
+
+  function mountWithGames(games: Game[] = [], myPuuid = 'puuid-me') {
+    return mount(GrowthTrendCard, {
+      props: { recentData: recentData(), mode: '全部', isDark: true, games, myPuuid },
+      global: { stubs }
+    })
+  }
+
+  it('无游戏列表时「查看」按钮禁用（无数据源）', () => {
+    const wrapper = mountWithGames([], '')
+    const buttons = wrapper.findAll('button')
+    const curveBtn = buttons[buttons.length - 1]
+    expect(curveBtn.text()).toBe('查看')
+    expect(curveBtn.attributes('disabled')).toBeDefined()
+  })
+
+  it('点击「查看」展开曲线：调用 load 并渲染三条折线', async () => {
+    const wrapper = mountWithGames([gameOf(1), gameOf(2)], 'puuid-me')
+    const buttons = wrapper.findAll('button')
+    // 展开瞬间 curve 尚空 → 触发 load
+    await buttons[buttons.length - 1].trigger('click')
+    expect(curveState.load).toHaveBeenCalledTimes(1)
+    // 数据异步就绪后渲染三条折线（模拟 load 结果写入）
+    curveState.curve.value = {
+      minutes: [0, 1, 2],
+      cs: [0, 4, 9],
+      deaths: [0, 1, 1],
+      fights: [0, 0.5, 0.5],
+      sourceCount: 2
+    }
+    await wrapper.vm.$nextTick()
+    expect(wrapper.findAll('svg')).toHaveLength(3)
+    expect(wrapper.text()).toContain('补刀（累计）')
+    expect(wrapper.text()).toContain('死亡（累计）')
+    expect(wrapper.text()).toContain('参团击杀/分钟')
+    expect(wrapper.text()).toContain('近 2 场平均')
+  })
+
+  it('curve 为空时仍渲染面板框架（数据由 load 异步填充）', async () => {
+    const wrapper = mountWithGames([gameOf(1)], 'puuid-me')
+    const buttons = wrapper.findAll('button')
+    await buttons[buttons.length - 1].trigger('click')
+    expect(curveState.load).toHaveBeenCalledTimes(1)
+  })
+
+  it('再次点击「收起」清空面板', async () => {
+    const wrapper = mountWithGames([gameOf(1)], 'puuid-me')
+    const buttons = wrapper.findAll('button')
+    await buttons[buttons.length - 1].trigger('click')
+    await buttons[buttons.length - 1].trigger('click')
+    expect(wrapper.find('.curve-panel').exists()).toBe(false)
   })
 })
