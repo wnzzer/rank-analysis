@@ -76,7 +76,10 @@ function makeIntel(overrides: Partial<ChampionIntel> = {}): ChampionIntel {
       { championId: 3, play: 2401, win: 1246, winRate: 0.519 },
       { championId: 4, play: 300, win: 120, winRate: 0.4 }
     ],
-    synergies: [],
+    synergies: [
+      { synergyChampionId: 5, synergyPosition: 'SUPPORT', winRate: 0.58, play: 890 },
+      { synergyChampionId: 6, synergyPosition: 'SUPPORT', winRate: 0.52, play: 430 }
+    ],
     ...overrides
   }
 }
@@ -124,7 +127,7 @@ describe('CounterHover', () => {
   })
 
   it('无数据时显示空态文案，不渲染表格', async () => {
-    composableMock.intel.value = makeIntel({ counters: [] })
+    composableMock.intel.value = makeIntel({ counters: [], synergies: [] })
     const wrapper = await mountHover()
     expect(wrapper.text()).toContain('该分路对位样本不足')
     expect(wrapper.find('table').exists()).toBe(false)
@@ -146,7 +149,7 @@ describe('CounterHover', () => {
     composableMock.intel.value = makeIntel()
     const wrapper = await mountHover()
     const cells = wrapper.findAll('tbody tr')
-    expect(cells).toHaveLength(4)
+    expect(cells).toHaveLength(6)
     const first = cells[0].findAll('td')
     expect(first[1].text()).toContain('54.2')
     expect(first[2].text()).toBe('3120')
@@ -200,5 +203,33 @@ describe('CounterHover', () => {
     await new Promise(r => setTimeout(r, 0))
     expect(mockedGetOpggStatus).toHaveBeenCalledWith('ranked')
     expect(wrapper.text()).toContain('英雄1')
+  })
+
+  it('最佳搭档节：渲染副标题与搭档列表（默认胜率降序）', async () => {
+    composableMock.intel.value = makeIntel()
+    const wrapper = await mountHover()
+    expect(wrapper.text()).toContain('最佳搭档')
+    const synergyRows = wrapper.findAll('.counter-hover-section tbody tr')
+    expect(synergyRows).toHaveLength(2)
+    const first = synergyRows[0].findAll('td')
+    expect(first[1].text()).toContain('58.0')
+    expect(first[2].text()).toBe('890')
+  })
+
+  it('最佳搭档节：搭档表头点击切换排序（胜率升序）', async () => {
+    composableMock.intel.value = makeIntel()
+    const wrapper = await mountHover()
+    const synergyHeaders = wrapper.findAll('.counter-hover-section th')
+    await synergyHeaders[1].trigger('click') // 搭档胜率列 → 升序
+    const rows = wrapper.findAll('.counter-hover-section tbody tr')
+    const first = rows[0].findAll('td')
+    expect(first[1].text()).toContain('52.0')
+  })
+
+  it('仅搭档有数据时也渲染（对位表隐藏，搭档节保留）', async () => {
+    composableMock.intel.value = makeIntel({ counters: [] })
+    const wrapper = await mountHover()
+    expect(wrapper.find('.counter-hover-section').exists()).toBe(true)
+    expect(wrapper.findAll('.counter-hover-table').length).toBe(1)
   })
 })

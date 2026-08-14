@@ -18,11 +18,16 @@
       <div v-else-if="error" class="counter-hover-hint counter-hover-error">
         OP.GG 数据未就绪（需联网拉取或等待重试）
       </div>
-      <div v-else-if="rows.length === 0" class="counter-hover-hint">
+      <div v-else-if="rows.length === 0 && synergyRows.length === 0" class="counter-hover-hint">
         该分路对位样本不足（OP.GG 暂无数据）
       </div>
-      <n-scrollbar v-else max-height="400px" class="counter-hover-scroll">
-        <table class="counter-hover-table">
+      <n-scrollbar
+        v-else
+        max-height="400px"
+        class="counter-hover-scroll"
+        :class="{ 'counter-hover-scroll-split': rows.length > 0 && synergyRows.length > 0 }"
+      >
+        <table v-if="rows.length > 0" class="counter-hover-table">
           <thead>
             <tr>
               <th class="ch-col">英雄</th>
@@ -51,6 +56,39 @@
             </tr>
           </tbody>
         </table>
+
+        <div v-if="synergyRows.length > 0" class="counter-hover-section">
+          <div class="counter-hover-subtitle">最佳搭档</div>
+          <table class="counter-hover-table">
+            <thead>
+              <tr>
+                <th class="ch-col">英雄</th>
+                <th
+                  v-for="col in synergySortableCols"
+                  :key="col.key"
+                  class="sort-col"
+                  :class="{ 'sort-active': synergySortKey === col.key }"
+                  @click="toggleSynergySort(col.key)"
+                >
+                  {{ col.label
+                  }}<span v-if="synergySortKey === col.key" class="sort-arrow">{{
+                    synergySortDir === 'desc' ? ' ▼' : ' ▲'
+                  }}</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="s in synergyRows" :key="s.synergyChampionId">
+                <td class="ch-col">
+                  <img class="ch-avatar" :src="getChampionUrl(s.synergyChampionId)" alt="" />
+                  <span class="ch-name">{{ championName(s.synergyChampionId) }}</span>
+                </td>
+                <td :class="wrClass(s.winRate)">{{ formatWinRate(s.winRate) }}</td>
+                <td>{{ s.play }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </n-scrollbar>
 
       <div class="counter-hover-footer">
@@ -63,11 +101,13 @@
 
 <script setup lang="ts">
 /**
- * 选人期对位弹窗（P1）：悬浮任意已见英雄头像，展示该英雄该位置的全量对位列表。
+ * 选人期对位弹窗（P1）：悬浮任意已见英雄头像，展示该英雄该位置的全量对位列表
+ * 与最佳搭档节（V1.1，synergies 数据同源同命令返回）。
  *
  * 数据来自后端 `get_champion_intel`（Akari 端点直连，磁盘 12h 缓存 + stale 降级），
  * 取数细节见 `useCounterIntel`（150ms 防抖 + 模块级缓存 + `opggRevision` 失效）。
- * 排序交互本地维护：胜率/场次表头可点击，当前列显示箭头，点击未排序列默认降序。
+ * 对位与搭档两个表格各自独立排序：胜率/场次表头可点击，当前列显示箭头，
+ * 点击未排序列默认降序。
  * 底部固定来源标注（region · tier · patch · stale 标记），防数据口径误导。
  */
 import { computed, onMounted, ref, toRef } from 'vue'
@@ -75,10 +115,17 @@ import { NPopover, NScrollbar } from 'naive-ui'
 import { useAssetUrl } from '@renderer/composables/useAssetUrl'
 import {
   DEFAULT_COUNTER_SORT,
+  DEFAULT_SYNERGY_SORT,
   type CounterSortDir,
-  type CounterSortKey
+  type CounterSortKey,
+  type SynergySortDir,
+  type SynergySortKey
 } from '@renderer/services/counterIntel'
-import { sortedCounters, useCounterIntel } from '@renderer/composables/useCounterIntel'
+import {
+  sortedCounters,
+  sortedSynergies,
+  useCounterIntel
+} from '@renderer/composables/useCounterIntel'
 import { getChampionName, loadChampionNames } from '@renderer/services/ai/champion-names'
 import { formatWinRate } from './championIntel'
 import { getOpggStatus } from '@renderer/services/opgg'
@@ -121,6 +168,28 @@ function toggleSort(key: CounterSortKey): void {
   } else {
     sortKey.value = key
     sortDir.value = 'desc'
+  }
+}
+
+const synergySortKey = ref<SynergySortKey>(DEFAULT_SYNERGY_SORT.key)
+const synergySortDir = ref<SynergySortDir>(DEFAULT_SYNERGY_SORT.dir)
+
+const synergyRows = computed(() =>
+  sortedSynergies(intel.value, synergySortKey.value, synergySortDir.value)
+)
+
+const synergySortableCols: { key: SynergySortKey; label: string }[] = [
+  { key: 'winRate', label: '胜率' },
+  { key: 'play', label: '场次' }
+]
+
+/** 搭档表头点击：同列翻转方向，未排序列默认降序 */
+function toggleSynergySort(key: SynergySortKey): void {
+  if (synergySortKey.value === key) {
+    synergySortDir.value = synergySortDir.value === 'desc' ? 'asc' : 'desc'
+  } else {
+    synergySortKey.value = key
+    synergySortDir.value = 'desc'
   }
 }
 
@@ -189,6 +258,21 @@ onMounted(async () => {
   width: 100%;
   border-collapse: collapse;
   font-variant-numeric: tabular-nums;
+}
+
+.counter-hover-section {
+  margin-top: 10px;
+}
+
+.counter-hover-scroll-split .counter-hover-section {
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(128, 128, 128, 0.18);
+}
+
+.counter-hover-subtitle {
+  font-weight: 700;
+  margin-bottom: 4px;
 }
 
 .counter-hover-table th,

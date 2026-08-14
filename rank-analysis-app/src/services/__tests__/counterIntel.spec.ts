@@ -9,11 +9,14 @@ import { invoke } from '@tauri-apps/api/core'
 import {
   computeBestPicks,
   formatCounterLine,
+  formatSynergyLine,
   getChampionIntel,
   positionToOpgg,
   sortCounters,
+  sortSynergies,
   type ChampionIntel,
-  type CounterItem
+  type CounterItem,
+  type SynergyItem
 } from '../counterIntel'
 
 function counter(championId: number, winRate: number, play: number): CounterItem {
@@ -74,6 +77,42 @@ describe('formatCounterLine', () => {
   it('胜率保留一位小数并带局数', () => {
     expect(formatCounterLine(0.5714, 120)).toBe('57.1% · 120 局')
     expect(formatCounterLine(0.5, 0)).toBe('50.0% · 0 局')
+  })
+})
+
+function synergy(championId: number, winRate: number, play: number): SynergyItem {
+  return { synergyChampionId: championId, synergyPosition: 'SUPPORT', winRate, play }
+}
+
+describe('sortSynergies（V1.1 最佳搭档）', () => {
+  const items = [synergy(10, 0.44, 200), synergy(20, 0.52, 100), synergy(30, 0.52, 300)]
+
+  it('胜率降序为默认方向', () => {
+    const got = sortSynergies(items, 'winRate', 'desc')
+    expect(got.map(s => s.synergyChampionId)).toEqual([20, 30, 10])
+  })
+
+  it('胜率升序', () => {
+    const got = sortSynergies(items, 'winRate', 'asc')
+    expect(got.map(s => s.synergyChampionId)).toEqual([10, 20, 30])
+  })
+
+  it('场次降序', () => {
+    const got = sortSynergies(items, 'play', 'desc')
+    expect(got.map(s => s.synergyChampionId)).toEqual([30, 10, 20])
+  })
+
+  it('不修改原数组', () => {
+    const before = items.map(s => s.synergyChampionId)
+    sortSynergies(items, 'play', 'asc')
+    expect(items.map(s => s.synergyChampionId)).toEqual(before)
+  })
+})
+
+describe('formatSynergyLine（V1.1 最佳搭档）', () => {
+  it('胜率保留一位小数并带局数', () => {
+    expect(formatSynergyLine(0.553, 890)).toBe('55.3% · 890 局')
+    expect(formatSynergyLine(0.5, 0)).toBe('50.0% · 0 局')
   })
 })
 

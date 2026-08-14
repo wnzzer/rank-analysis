@@ -5,7 +5,12 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { effectScope, nextTick, ref } from 'vue'
-import { clearCounterIntelCache, useBestPicks, useCounterIntel } from './useCounterIntel'
+import {
+  clearCounterIntelCache,
+  sortedSynergies,
+  useBestPicks,
+  useCounterIntel
+} from './useCounterIntel'
 import { getChampionIntel } from '@renderer/services/counterIntel'
 import { bumpOpggRevision, getChampionMeta } from '@renderer/services/opgg'
 
@@ -251,5 +256,27 @@ describe('useBestPicks', () => {
     await vi.advanceTimersByTimeAsync(DEBOUNCE)
     await nextTick()
     expect(picks.value).toEqual([])
+  })
+})
+
+describe('sortedSynergies（V1.1 最佳搭档）', () => {
+  it('按胜率降序返回搭档列表', () => {
+    const intel = {
+      region: 'global',
+      tier: 'emerald_plus',
+      fetchedAt: 0,
+      stale: false,
+      counters: [],
+      synergies: [
+        { synergyChampionId: 10, synergyPosition: 'SUPPORT', winRate: 0.5, play: 100 },
+        { synergyChampionId: 20, synergyPosition: 'SUPPORT', winRate: 0.58, play: 200 }
+      ]
+    }
+    const got = sortedSynergies(intel, 'winRate', 'desc')
+    expect(got.map(s => s.synergyChampionId)).toEqual([20, 10])
+  })
+
+  it('空数据返回空数组', () => {
+    expect(sortedSynergies(null, 'winRate', 'desc')).toEqual([])
   })
 })

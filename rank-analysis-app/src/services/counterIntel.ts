@@ -46,6 +46,16 @@ export const DEFAULT_COUNTER_SORT: { key: CounterSortKey; dir: CounterSortDir } 
   dir: 'desc'
 }
 
+/** 搭档排序键与方向（与对位表一致，胜率/场次可排） */
+export type SynergySortKey = 'winRate' | 'play'
+export type SynergySortDir = 'asc' | 'desc'
+
+/** 默认搭档排序：胜率降序（默契最高的搭档排最前） */
+export const DEFAULT_SYNERGY_SORT: { key: SynergySortKey; dir: SynergySortDir } = {
+  key: 'winRate',
+  dir: 'desc'
+}
+
 /**
  * 把 LCU/前端分路命名转成 OP.GG 命名（MIDDLE→MID、BOTTOM→ADC、UTILITY→SUPPORT）。
  * 未知/非法值返回 null（调用方走主分路推断或放弃请求）。
@@ -88,6 +98,28 @@ export function sortCounters(
  * 例：`57.0% · 120 局`
  */
 export function formatCounterLine(winRate: number, play: number): string {
+  return `${(winRate * 100).toFixed(1)}% · ${play} 局`
+}
+
+/**
+ * 搭档列表排序（纯函数，不修改原数组）。
+ *
+ * 与 [`sortCounters`] 同规则：按胜率/场次升或降序，同值保持原始顺序（稳定排序）。
+ */
+export function sortSynergies(
+  items: SynergyItem[],
+  key: SynergySortKey,
+  dir: SynergySortDir
+): SynergyItem[] {
+  const factor = dir === 'asc' ? 1 : -1
+  return [...items].sort((a, b) => (a[key] - b[key]) * factor)
+}
+
+/**
+ * 搭档行文案：胜率（一位小数）+ 局数。
+ * 例：`55.3% · 890 局`
+ */
+export function formatSynergyLine(winRate: number, play: number): string {
   return `${(winRate * 100).toFixed(1)}% · ${play} 局`
 }
 

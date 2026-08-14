@@ -15,11 +15,15 @@ import {
   getChampionIntel,
   positionToOpgg,
   sortCounters,
+  sortSynergies,
   type BestPick,
   type ChampionIntel,
   type CounterItem,
   type CounterSortDir,
-  type CounterSortKey
+  type CounterSortKey,
+  type SynergyItem,
+  type SynergySortDir,
+  type SynergySortKey
 } from '@renderer/services/counterIntel'
 import { getChampionMeta, opggRevision } from '@renderer/services/opgg'
 
@@ -47,6 +51,16 @@ export function sortedCounters(
 ): CounterItem[] {
   if (!intel) return []
   return sortCounters(intel.counters, sortKey, sortDir)
+}
+
+/** 排序后的搭档列表（纯函数，弹窗搭档节排序用）。 */
+export function sortedSynergies(
+  intel: ChampionIntel | null,
+  sortKey: SynergySortKey,
+  sortDir: SynergySortDir
+): SynergyItem[] {
+  if (!intel) return []
+  return sortSynergies(intel.synergies, sortKey, sortDir)
 }
 
 /**
