@@ -348,7 +348,7 @@ function loadAssetsIfNeeded() {
   const spellIdsToLoad = new Set<number>()
   for (const player of detailPlayers.value) {
     for (const id of itemIds(player.stats)) if (id > 0) itemIdsToLoad.add(id)
-    for (const id of displayedPerkIds(player.stats)) perkIdsToLoad.add(id)
+    for (const id of perkIdsOf(player)) if (id > 0) perkIdsToLoad.add(id)
     if (player.spell1Id > 0) spellIdsToLoad.add(player.spell1Id)
     if (player.spell2Id > 0) spellIdsToLoad.add(player.spell2Id)
   }
@@ -357,6 +357,27 @@ function loadAssetsIfNeeded() {
     { kind: 'perk', ids: [...perkIdsToLoad] },
     { kind: 'spell', ids: [...spellIdsToLoad] }
   ])
+}
+
+/**
+ * 完整符文图标集合：扁平三字段（SummaryTab 用）+ 完整符文页（RunesTab 用：
+ * styles 全量 selections + 风格 + statPerks 属性碎片）。
+ */
+function perkIdsOf(player: DetailPlayer): number[] {
+  const ids = new Set<number>(displayedPerkIds(player.stats))
+  const perks = player.perks
+  if (!perks) return [...ids]
+  for (const style of perks.styles) {
+    if (style.style > 0) ids.add(style.style)
+    for (const sel of style.selections) if (sel.perk > 0) ids.add(sel.perk)
+  }
+  const sp = perks.statPerks
+  if (sp) {
+    if (sp.offense > 0) ids.add(sp.offense)
+    if (sp.flex > 0) ids.add(sp.flex)
+    if (sp.defense > 0) ids.add(sp.defense)
+  }
+  return [...ids]
 }
 
 function displayedPerkIds(stats: ParticipantStats) {
@@ -372,13 +393,20 @@ const sgpDetail = ref<SgpGameDetail | null>(null)
 const sgpDetailStatus = ref<SgpDetailStatus>('idle')
 
 async function loadSgpDetail() {
+  // 幂等：loading 中不重复发；error 可重试（重试按钮直接调本函数）
   if (sgpDetailStatus.value === 'loading' || sgpDetailStatus.value === 'ready') return
   const g = props.game
   if (!g) return
   sgpDetailStatus.value = 'loading'
   try {
     const resp = await getSgpMatchDetail(g.platformId, g.gameId)
-    sgpDetail.value = resp?.json ?? null
+    if (resp === null) {
+      // 服务层吞错返回 null（网络/token/主机映射失败）——置 error，tab 展示错误态 + 重试
+      sgpDetail.value = null
+      sgpDetailStatus.value = 'error'
+      return
+    }
+    sgpDetail.value = resp.json ?? null
     sgpDetailStatus.value = 'ready'
   } catch (err) {
     console.error('[record] SGP DETAILS 加载失败', err)

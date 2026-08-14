@@ -36,7 +36,58 @@ pub struct Participant {
     pub spell1_id: i32,
     #[serde(rename = "spell2Id")]
     pub spell2_id: i32,
+    /// 完整符文页：主/副系 styles（各含 3/2 个 selections）+ statPerks。
+    /// LCU match-details 提供；SGP match-v5 同构（map_participant 透传）。
+    /// 旧缓存/缺失时为 None，前端回退扁平 perk0/perkPrimaryStyle/perkSubStyle。
+    #[serde(rename = "perks", default)]
+    pub perks: Option<Perks>,
     pub stats: Stats,
+}
+
+/// 完整符文页：LCU match-details `participants[].perks`（SGP match-v5 同构）。
+/// 主系 styles[0]（基石 + 3 符文）、副系 styles[1]（2 符文）、statPerks 三个固定槽。
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Perks {
+    #[serde(default)]
+    pub stat_perks: Option<PerkStatPerks>,
+    #[serde(default)]
+    pub styles: Vec<PerkStyle>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PerkStatPerks {
+    #[serde(default)]
+    pub defense: i32,
+    #[serde(default)]
+    pub flex: i32,
+    #[serde(default)]
+    pub offense: i32,
+}
+
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PerkStyle {
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub style: i32,
+    #[serde(default)]
+    pub selections: Vec<PerkSelection>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PerkSelection {
+    #[serde(default)]
+    pub perk: i32,
+    #[serde(default)]
+    pub var1: i32,
+    #[serde(default)]
+    pub var2: i32,
+    #[serde(default)]
+    pub var3: i32,
 }
 
 /// 单局统计：胜负、装备、符文、KDA 等。
@@ -244,5 +295,72 @@ mod tests {
         let json = serde_json::to_string(&stats).unwrap();
         assert!(json.contains("\"pentaKills\":1"));
         assert!(json.contains("\"tripleKills\":0"));
+    }
+
+    /// LCU match-details 的完整符文页必须解析透传：styles 全量（基石+3/2 符文）与 statPerks。
+    #[test]
+    fn should_parse_full_perks_from_lcu_detail() {
+        let json = r#"{
+            "participantId": 1, "teamId": 100, "championId": 897, "spell1Id": 14, "spell2Id": 4,
+            "perks": {
+                "statPerks": { "defense": 5008, "flex": 5008, "offense": 5008 },
+                "styles": [
+                    { "description": "primaryStyle", "style": 8100,
+                      "selections": [
+                        { "perk": 8112, "var1": 1, "var2": 2, "var3": 3 },
+                        { "perk": 9111, "var1": 0, "var2": 0, "var3": 0 },
+                        { "perk": 9112, "var1": 0, "var2": 0, "var3": 0 }
+                      ] },
+                    { "description": "subStyle", "style": 8000,
+                      "selections": [
+                        { "perk": 8275, "var1": 0, "var2": 0, "var3": 0 },
+                        { "perk": 8347, "var1": 0, "var2": 0, "var3": 0 }
+                      ] }
+                ]
+            },
+            "win": true,
+            "item0": 0, "item1": 0, "item2": 0, "item3": 0, "item4": 0, "item5": 0, "item6": 0,
+            "perkPrimaryStyle": 8100, "perkSubStyle": 8000,
+            "kills": 8, "deaths": 2, "assists": 5,
+            "goldEarned": 13200, "goldSpent": 13000,
+            "totalDamageDealtToChampions": 28660, "totalDamageDealt": 100000,
+            "totalDamageTaken": 47327, "totalHeal": 8485,
+            "totalMinionsKilled": 167
+        }"#;
+        let p: Participant = serde_json::from_str(json).unwrap();
+        let perks = p.perks.as_ref().expect("perks 应解析");
+        assert_eq!(perks.styles.len(), 2);
+        assert_eq!(perks.styles[0].style, 8100);
+        assert_eq!(perks.styles[0].selections.len(), 3);
+        assert_eq!(perks.styles[0].selections[0].perk, 8112);
+        assert_eq!(perks.styles[1].selections.len(), 2);
+        let stat = perks.stat_perks.as_ref().unwrap();
+        assert_eq!(stat.defense, 5008);
+        assert_eq!(stat.flex, 5008);
+        assert_eq!(stat.offense, 5008);
+        // 序列化回 camelCase 供前端消费
+        let out = serde_json::to_string(&p).unwrap();
+        assert!(out.contains("\"statPerks\""));
+        assert!(out.contains("\"styles\""));
+        assert!(out.contains("\"perk\":8112"));
+    }
+
+    /// 无 perks 字段的旧数据：None 降级，不阻塞反序列化。
+    #[test]
+    fn should_tolerate_missing_perks() {
+        let json = r#"{
+            "participantId": 1, "teamId": 100, "championId": 897, "spell1Id": 14, "spell2Id": 4,
+            "win": true,
+            "item0": 0, "item1": 0, "item2": 0, "item3": 0, "item4": 0, "item5": 0, "item6": 0,
+            "perkPrimaryStyle": 0, "perkSubStyle": 0,
+            "kills": 0, "deaths": 0, "assists": 0,
+            "goldEarned": 0, "goldSpent": 0,
+            "totalDamageDealtToChampions": 0, "totalDamageDealt": 0,
+            "totalDamageTaken": 0, "totalHeal": 0,
+            "totalMinionsKilled": 0
+        }"#;
+        let p: Participant = serde_json::from_str(json).unwrap();
+        assert!(p.perks.is_none());
+        assert_eq!(p.champion_id, 897);
     }
 }

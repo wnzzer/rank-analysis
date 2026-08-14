@@ -61,6 +61,26 @@ export interface ParticipantStats {
   subteamPlacement: number
 }
 
+export interface GamePerkSelection {
+  perk: number
+  var1: number
+  var2: number
+  var3: number
+}
+
+export interface GamePerkStyle {
+  /** 主系 primaryStyle / 副系 subStyle（LCU 提供，SGP 可能缺） */
+  description?: string
+  style: number
+  selections: GamePerkSelection[]
+}
+
+/** 完整符文页：LCU match-details `participants[].perks`（SGP match-v5 同构） */
+export interface GamePerks {
+  statPerks?: { defense: number; flex: number; offense: number }
+  styles: GamePerkStyle[]
+}
+
 export interface Participant {
   win: boolean
   participantId: number
@@ -68,6 +88,8 @@ export interface Participant {
   championId: number
   spell1Id: number
   spell2Id: number
+  /** 完整符文页（styles 全量 + statPerks）；旧缓存/缺失时为 undefined，回退 stats 扁平字段 */
+  perks?: GamePerks
   stats: ParticipantStats
 }
 

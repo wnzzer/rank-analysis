@@ -35,6 +35,8 @@ export interface DetailPlayer {
   championId: number
   spell1Id: number
   spell2Id: number
+  /** 完整符文页（LCU/SGP 透传）；缺失时回退 stats.perk0/perkPrimaryStyle/perkSubStyle */
+  perks?: Participant['perks']
   stats: ParticipantStats
   displayName: string
   /** 玩家唯一标识，来自 participantIdentity，用于玩家备注 */
@@ -292,6 +294,7 @@ export function useMatchDetailPlayers(
           championId: p.championId,
           spell1Id: p.spell1Id,
           spell2Id: p.spell2Id,
+          perks: p.perks,
           stats: p.stats,
           displayName,
           puuid: identity?.player.puuid ?? '',

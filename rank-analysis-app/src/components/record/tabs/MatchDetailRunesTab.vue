@@ -1,6 +1,7 @@
 <template>
-  <!-- 符文 tab（LCU 版）：每人一张卡片——主系基石 + 主系/副系风格；
-       完整符文页（6 符文 + statPerks）需 SGP 数据源 -->
+  <!-- 符文 tab：每人一张卡片——完整符文页（主系 3 符文 + 副系 2 符文 + 属性碎片）。
+       数据源 = LCU match-details `participants[].perks`（跨区 SGP match-v5 同构透传）；
+       旧缓存无 perks 时回退扁平 perk0/perkPrimaryStyle/perkSubStyle -->
   <div class="match-detail-runes-tab">
     <div v-if="ctx.usesAugments.value" class="match-detail-runes-hint">
       本局为海克斯/斗魂模式，无传统符文页（以海克斯强化代替）。
@@ -39,40 +40,94 @@
           </div>
 
           <div class="match-detail-runes-body">
-            <!-- 主系：基石符文 -->
-            <div class="match-detail-runes-slot">
-              <span class="match-detail-runes-slot-label">主系</span>
-              <n-tooltip trigger="hover" placement="top">
-                <template #trigger>
+            <template v-if="perksOf(player).primary">
+              <!-- 主系：基石 + 3 符文 + 风格 -->
+              <div class="match-detail-runes-slot">
+                <span class="match-detail-runes-slot-label">主系</span>
+                <n-tooltip trigger="hover" placement="top">
+                  <template #trigger>
+                    <img
+                      v-if="perkSrc(perksOf(player).primary!.selections[0]?.perk)"
+                      :src="perkSrc(perksOf(player).primary!.selections[0]!.perk)"
+                      class="match-detail-runes-keystone"
+                      alt="perk"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  </template>
+                  {{ perkName(perksOf(player).primary!.selections[0]?.perk ?? 0) }}
+                </n-tooltip>
+                <span class="match-detail-runes-style">
+                  {{ styleName(perksOf(player).primary!.style) }}
+                </span>
+                <div class="match-detail-runes-perk-list">
                   <img
-                    v-if="perkSrc(player.stats.perk0)"
-                    :src="perkSrc(player.stats.perk0)"
-                    class="match-detail-runes-keystone"
-                    alt="perk"
-                    loading="lazy"
-                    decoding="async"
+                    v-for="sel in perksOf(player).primary!.selections.slice(1)"
+                    :key="sel.perk"
+                    v-bind="perkImgAttrs(sel.perk)"
                   />
-                </template>
-                {{ perkName(player.stats.perk0) }}
-              </n-tooltip>
-              <span class="match-detail-runes-style">
-                {{ styleName(player.stats.perkPrimaryStyle) }}
-              </span>
-            </div>
+                </div>
+              </div>
 
-            <!-- 副系：风格 -->
-            <div class="match-detail-runes-slot">
-              <span class="match-detail-runes-slot-label">副系</span>
-              <span class="match-detail-runes-style">
-                {{ styleName(player.stats.perkSubStyle) }}
-              </span>
-              <n-tooltip trigger="hover" placement="top">
-                <template #trigger>
-                  <span class="match-detail-runes-more">完整符文页需 SGP</span>
-                </template>
-                主系基石 + 主/副系风格由 LCU 提供；6 符文页与 statPerks 需 SGP 数据源
-              </n-tooltip>
-            </div>
+              <!-- 副系：2 符文 + 风格 -->
+              <div class="match-detail-runes-slot" v-if="perksOf(player).sub">
+                <span class="match-detail-runes-slot-label">副系</span>
+                <span class="match-detail-runes-style">
+                  {{ styleName(perksOf(player).sub!.style) }}
+                </span>
+                <div class="match-detail-runes-perk-list">
+                  <img
+                    v-for="sel in perksOf(player).sub!.selections"
+                    :key="sel.perk"
+                    v-bind="perkImgAttrs(sel.perk)"
+                  />
+                </div>
+              </div>
+
+              <!-- 属性碎片 -->
+              <div class="match-detail-runes-slot" v-if="perksOf(player).statIds.length">
+                <span class="match-detail-runes-slot-label">属性</span>
+                <div class="match-detail-runes-perk-list">
+                  <img v-for="id in perksOf(player).statIds" :key="id" v-bind="perkImgAttrs(id)" />
+                </div>
+              </div>
+            </template>
+
+            <!-- 回退：无完整 perks（旧缓存/异常数据）时只显示 LCU 扁平三字段 -->
+            <template v-else>
+              <div class="match-detail-runes-slot">
+                <span class="match-detail-runes-slot-label">主系</span>
+                <n-tooltip trigger="hover" placement="top">
+                  <template #trigger>
+                    <img
+                      v-if="perkSrc(player.stats.perk0)"
+                      :src="perkSrc(player.stats.perk0)"
+                      class="match-detail-runes-keystone"
+                      alt="perk"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  </template>
+                  {{ perkName(player.stats.perk0) }}
+                </n-tooltip>
+                <span class="match-detail-runes-style">
+                  {{ styleName(player.stats.perkPrimaryStyle) }}
+                </span>
+              </div>
+
+              <div class="match-detail-runes-slot">
+                <span class="match-detail-runes-slot-label">副系</span>
+                <span class="match-detail-runes-style">
+                  {{ styleName(player.stats.perkSubStyle) }}
+                </span>
+                <n-tooltip trigger="hover" placement="top">
+                  <template #trigger>
+                    <span class="match-detail-runes-more">符文页数据缺失</span>
+                  </template>
+                  旧缓存/异常数据未携带完整符文页，仅显示主系基石与主/副系风格
+                </n-tooltip>
+              </div>
+            </template>
           </div>
         </div>
       </div>
@@ -90,6 +145,7 @@ import { NTag, NTooltip } from 'naive-ui'
 import { searchSummoner } from '@renderer/utils/navigation'
 import { assetPrefix } from '@renderer/services/http'
 import LazyImg from '@renderer/components/common/LazyImg.vue'
+import type { GamePerks } from '@renderer/types/domain/match'
 import { matchDetailContextKey } from '../matchDetailContext'
 
 const injected = inject(matchDetailContextKey)
@@ -112,6 +168,31 @@ function perkName(perkId: number) {
 /** 主/副系风格名（风格 id 也在 perk 缓存中，未命中回退编号） */
 const styleName = (styleId: number) =>
   styleId <= 0 ? '未选择' : (ctx.assets.detailOf('perk', styleId)?.name ?? `风格 #${styleId}`)
+
+/** 完整符文页切分：主系（styles[0]，基石在 selections[0]）/ 副系（styles[1]）/ 属性碎片 */
+function perksOf(player: { perks?: GamePerks }) {
+  const p = player.perks
+  const primary = p?.styles?.[0]
+  const sub = p?.styles?.[1]
+  return {
+    primary,
+    sub,
+    statIds: p?.statPerks ? [p.statPerks.offense, p.statPerks.flex, p.statPerks.defense] : []
+  }
+}
+
+/** 普通符文小图标（20px 槽位）属性；无 id 不渲染 */
+function perkImgAttrs(perkId: number) {
+  return perkId > 0
+    ? {
+        src: ctx.assets.srcOf('perk', perkId),
+        class: 'match-detail-runes-perk',
+        alt: 'perk',
+        loading: 'lazy' as const,
+        decoding: 'async' as const
+      }
+    : { class: 'match-detail-runes-perk match-detail-runes-perk--empty' }
+}
 </script>
 
 <style scoped>
@@ -248,6 +329,28 @@ const styleName = (styleId: number) =>
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.match-detail-runes-perk-list {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-left: auto;
+}
+
+.match-detail-runes-perk {
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-elevated);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.match-detail-runes-perk--empty {
+  opacity: 0.25;
+  border-style: dashed;
 }
 
 .match-detail-runes-more {

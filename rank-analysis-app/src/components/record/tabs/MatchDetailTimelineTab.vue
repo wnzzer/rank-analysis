@@ -7,11 +7,20 @@
       <span>正在加载帧数据…</span>
     </div>
 
-    <div v-else-if="!hasData" class="match-detail-timeline-state">
-      <span class="match-detail-timeline-state-title">无曲线数据</span>
+    <div v-else-if="failed" class="match-detail-timeline-state">
+      <span class="match-detail-timeline-state-title">帧数据拉取失败</span>
       <span class="match-detail-timeline-state-desc">
-        逐分钟金 / CS / 经验曲线来自 SGP 数据源；LCU 战绩无
-        participantFrames。跨区/腾讯通道战绩可加载。
+        SGP 数据通道暂不可用（网络 / 令牌 / 大区支持），请重试。
+      </span>
+      <button type="button" class="match-detail-timeline-retry" @click="ctx.loadSgpDetail()">
+        重试
+      </button>
+    </div>
+
+    <div v-else-if="!hasData" class="match-detail-timeline-state">
+      <span class="match-detail-timeline-state-title">本局无逐分钟数据</span>
+      <span class="match-detail-timeline-state-desc">
+        逐分钟金 / CS / 经验曲线来自 SGP 数据源；该局未返回逐分钟帧数据（部分模式/数据缺失）。
       </span>
     </div>
 
@@ -133,6 +142,8 @@ onMounted(() => {
 const loading = computed(
   () => ctx.sgpDetailStatus.value === 'loading' || ctx.sgpDetailStatus.value === 'idle'
 )
+/** 拉取失败（网络/令牌/主机映射）——展示错误态 + 重试按钮 */
+const failed = computed(() => ctx.sgpDetailStatus.value === 'error')
 
 const metric = ref<TimelineMetric>('gold')
 const metricLabel = computed(
@@ -270,6 +281,22 @@ const gridLines = computed(() => {
   max-width: 420px;
   text-align: center;
   line-height: 1.6;
+}
+
+.match-detail-timeline-retry {
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-10);
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border-subtle);
+  background: var(--glass-bg-mid);
+  color: var(--accent-blue);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-expo);
+}
+
+.match-detail-timeline-retry:hover {
+  background: var(--glass-bg-high);
 }
 
 .match-detail-timeline-controls {

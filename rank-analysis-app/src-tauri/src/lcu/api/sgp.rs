@@ -20,7 +20,7 @@
 use crate::constant;
 use crate::lcu::api::game_detail::GameDetail;
 use crate::lcu::api::match_history::{Game, GamesWrapper, MatchHistory};
-use crate::lcu::api::model::{Participant, ParticipantIdentity, Player, Stats};
+use crate::lcu::api::model::{Participant, ParticipantIdentity, Perks, Player, Stats};
 use crate::lcu::api::summoner::Summoner;
 use crate::lcu::util::http::{lcu_get, riot_client_get, sgp_get};
 use moka::future::Cache;
@@ -385,6 +385,10 @@ fn map_participant(p: &Value) -> Participant {
         champion_id: i32_at(p, "championId"),
         spell1_id: i32_at(p, "spell1Id"),
         spell2_id: i32_at(p, "spell2Id"),
+        // 完整符文页透传（match-v5 的 perks 与 LCU 同构）；解析失败按 None 降级
+        perks: p
+            .get("perks")
+            .and_then(|v| serde_json::from_value::<Perks>(v.clone()).ok()),
         stats,
     }
 }
@@ -578,7 +582,9 @@ mod tests {
               "totalMinionsKilled": 167, "neutralMinionsKilled": 0,
               "puuid": "me-puuid", "riotIdGameName": "我", "riotIdTagline": "1234",
               "summonerName": "我", "summonerId": 111,
-              "perks": { "styles": [ { "style": 8100, "selections": [ { "perk": 8112 } ] }, { "style": 8000 } ] } },
+              "perks": { "statPerks": { "defense": 5008, "flex": 5008, "offense": 5008 },
+                "styles": [ { "style": 8100, "selections": [ { "perk": 8112 }, { "perk": 9111 }, { "perk": 9112 } ] },
+                            { "style": 8000, "selections": [ { "perk": 8275 }, { "perk": 8347 } ] } ] } },
             { "participantId": 2, "teamId": 100, "championId": 200, "spell1Id": 4, "spell2Id": 7,
               "win": true, "kills": 3, "deaths": 5, "assists": 10,
               "item0": 0, "item1": 0, "item2": 0, "item3": 0, "item4": 0, "item5": 0, "item6": 0,
@@ -588,7 +594,9 @@ mod tests {
               "totalMinionsKilled": 20, "neutralMinionsKilled": 100,
               "puuid": "other", "riotIdGameName": "队友", "riotIdTagline": "5678",
               "summonerName": "队友", "summonerId": 222,
-              "perks": { "styles": [ { "style": 8200, "selections": [ { "perk": 8214 } ] }, { "style": 8400 } ] } }
+              "perks": { "statPerks": { "defense": 5001, "flex": 5002, "offense": 5003 },
+                "styles": [ { "style": 8200, "selections": [ { "perk": 8214 }, { "perk": 9211 }, { "perk": 9212 } ] },
+                            { "style": 8400, "selections": [ { "perk": 8473 }, { "perk": 8453 } ] } ] } }
         ],
         "teams": [ { "teamId": 100, "win": true } ]
     } } ] }"#;
@@ -614,6 +622,13 @@ mod tests {
         assert_eq!(g.participants[0].stats.perk_primary_style, 8100);
         assert_eq!(g.participants[0].stats.perk_sub_style, 8000);
         assert_eq!(g.participants[0].stats.perk0, 8112);
+        // 完整符文页透传：game_detail 的 participants 带 perks（styles 全量 + statPerks）
+        let perks = g.game_detail.participants[0].perks.as_ref().unwrap();
+        assert_eq!(perks.styles.len(), 2);
+        assert_eq!(perks.styles[0].style, 8100);
+        assert_eq!(perks.styles[0].selections.len(), 3);
+        assert_eq!(perks.styles[1].selections.len(), 2);
+        assert_eq!(perks.stat_perks.as_ref().unwrap().offense, 5008);
         // 身份[0] = 我
         assert_eq!(g.participant_identities[0].player.game_name, "我");
         assert_eq!(g.participant_identities[0].player.tag_line, "1234");

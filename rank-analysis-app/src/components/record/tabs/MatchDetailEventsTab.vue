@@ -8,11 +8,22 @@
       <span>正在加载事件流…</span>
     </div>
 
-    <!-- 无数据：SGP 未就绪（不是本机战绩通道或对局过老） -->
-    <div v-else-if="events.length === 0" class="match-detail-events-state">
-      <span class="match-detail-events-state-title">无事件数据</span>
+    <!-- 拉取失败：网络/令牌/主机映射——错误态 + 重试 -->
+    <div v-else-if="failed" class="match-detail-events-state">
+      <span class="match-detail-events-state-title">事件流拉取失败</span>
       <span class="match-detail-events-state-desc">
-        事件流来自 SGP 数据源；LCU 战绩通道无 timeline 端点。跨区/腾讯通道战绩可加载。
+        SGP 数据通道暂不可用（网络 / 令牌 / 大区支持），请重试。
+      </span>
+      <button type="button" class="match-detail-events-retry" @click="ctx.loadSgpDetail()">
+        重试
+      </button>
+    </div>
+
+    <!-- 无数据：拉取成功但该局无事件 -->
+    <div v-else-if="events.length === 0" class="match-detail-events-state">
+      <span class="match-detail-events-state-title">本局无事件数据</span>
+      <span class="match-detail-events-state-desc">
+        事件流来自 SGP 数据源；该局未返回事件数据（部分模式/数据缺失）。
       </span>
     </div>
 
@@ -108,6 +119,8 @@ onMounted(() => {
 const loading = computed(
   () => ctx.sgpDetailStatus.value === 'loading' || ctx.sgpDetailStatus.value === 'idle'
 )
+/** 拉取失败（网络/令牌/主机映射）——展示错误态 + 重试按钮 */
+const failed = computed(() => ctx.sgpDetailStatus.value === 'error')
 
 /** 玩家 id → DetailPlayer 快速映射（事件归属/击杀方/受害者取名用） */
 const playerById = computed(() => {
@@ -385,6 +398,22 @@ const visibleEvents = computed(() => {
   max-width: 420px;
   text-align: center;
   line-height: 1.6;
+}
+
+.match-detail-events-retry {
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-10);
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border-subtle);
+  background: var(--glass-bg-mid);
+  color: var(--accent-blue);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-expo);
+}
+
+.match-detail-events-retry:hover {
+  background: var(--glass-bg-high);
 }
 
 .match-detail-events-filters {
