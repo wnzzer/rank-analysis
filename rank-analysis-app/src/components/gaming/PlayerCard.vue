@@ -49,7 +49,22 @@
         <div class="profile-section">
           <n-flex align="center" :wrap="false" class="profile-row">
             <div class="avatar-wrapper">
+              <CounterHover
+                v-if="opggMode === 'ranked' && sessionSummoner.championId > 0"
+                :champion-id="sessionSummoner.championId"
+                :position="opggMeta?.position ?? ''"
+                :tier="tier"
+              >
+                <n-image
+                  width="100%"
+                  :src="assetPrefix + '/champion/' + sessionSummoner.championId"
+                  preview-disabled
+                  :fallback-src="nullImg"
+                  class="champion-img"
+                />
+              </CounterHover>
               <n-image
+                v-else
                 width="100%"
                 :src="assetPrefix + '/champion/' + sessionSummoner.championId"
                 preview-disabled
@@ -221,6 +236,7 @@ import PlayerStatsCard from './PlayerStatsCard.vue'
 import LazyImg from '@renderer/components/common/LazyImg.vue'
 import PlayerNoteBadge from '@renderer/components/common/PlayerNoteBadge.vue'
 import PatchNoteBadge from './PatchNoteBadge.vue'
+import CounterHover from './CounterHover.vue'
 import UnifiedTagRow from '@renderer/components/common/UnifiedTagRow.vue'
 import {
   getChampionMeta,
@@ -259,13 +275,16 @@ interface Props {
   pickState?: string
   /** 是否是自己：名字旁标「我」，与战绩详情窗口的约定一致 */
   isSelf?: boolean
+  /** OP.GG 段位分段（透传给 CounterHover 对位弹窗） */
+  tier?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
   team: undefined,
   density: 'normal',
   pickState: '',
-  isSelf: false
+  isSelf: false,
+  tier: 'emerald_plus'
 })
 
 /** n-card content-style：用 token 控制内边距（P0 收紧为 --space-4 让 4 场 1 屏装下） */

@@ -35,6 +35,7 @@
           :opgg-mode="opggMode"
           :pick-state="phase === 'ChampSelect' ? p.pickState : ''"
           :is-self="!!myPuuid && p.summoner.puuid === myPuuid"
+          :tier="tier"
           :style="{ '--stagger-i': i }"
         />
       </template>

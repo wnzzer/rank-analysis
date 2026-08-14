@@ -214,23 +214,30 @@
       </div>
 
       <div class="gaming-grid" :class="{ 'gaming-grid-multi': sessionData.isMultiTeam }">
-        <SubteamCard
-          v-for="st of orderedSubteams"
-          :key="`subteam-${st.subteamId}`"
-          :subteam="st"
-          :is-mine="st.subteamId === sessionData.mySubteamId"
-          :expected-size="expectedSubteamSize"
-          :type-cn="sessionData.typeCn"
-          :mode-type="sessionData.type"
-          :queue-id="sessionData.queueId"
-          :tiers-by-subteam="tiersBySubteam"
-          :density="density"
-          :phase="sessionData.phase"
-          :opgg-mode="opggMode"
-          :my-champion-ids="myChampionIds"
-          :my-puuid="mySummonerPuuid"
-          :tier="opggTier"
-        />
+        <div v-for="st of orderedSubteams" :key="`subteam-col-${st.subteamId}`" class="subteam-col">
+          <BestPicksPanel
+            v-if="showBestPicks && st.subteamId !== sessionData.mySubteamId"
+            :enemy-ids="enemyLockedIds"
+            :candidate-ids="bestPickCandidates"
+            :tier="opggTier"
+            :region="'global'"
+          />
+          <SubteamCard
+            :subteam="st"
+            :is-mine="st.subteamId === sessionData.mySubteamId"
+            :expected-size="expectedSubteamSize"
+            :type-cn="sessionData.typeCn"
+            :mode-type="sessionData.type"
+            :queue-id="sessionData.queueId"
+            :tiers-by-subteam="tiersBySubteam"
+            :density="density"
+            :phase="sessionData.phase"
+            :opgg-mode="opggMode"
+            :my-champion-ids="myChampionIds"
+            :my-puuid="mySummonerPuuid"
+            :tier="opggTier"
+          />
+        </div>
       </div>
     </div>
   </template>
@@ -239,12 +246,14 @@
 <script lang="ts" setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { invoke } from '@tauri-apps/api/core'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import { SettingsOutline, SparklesOutline } from '@vicons/ionicons5'
 import { useMessage } from 'naive-ui'
 
 import LoadingComponent from '@renderer/components/LoadingComponent.vue'
 import SubteamCard from '@renderer/components/gaming/SubteamCard.vue'
+import BestPicksPanel from '@renderer/components/gaming/BestPicksPanel.vue'
 import BpDecisionBar from '@renderer/components/gaming/BpDecisionBar.vue'
 import { useGamingAIAnalysis } from '@renderer/composables/useGamingAIAnalysis'
 import { useLiveAIAnalysis } from '@renderer/composables/useLiveAIAnalysis'
@@ -269,6 +278,7 @@ import { buildRuleDraft } from '@renderer/services/bpRuleDraft'
 import { getChampionName, loadChampionNames } from '@renderer/services/ai/champion-names'
 import type { Position, PickRule, BanRule } from '@renderer/types/rules'
 import type { ChampSelect } from '@renderer/types/domain/gaming'
+import type { championOption } from '@renderer/types/domain/champion'
 
 /** 选人阶段 stepper 的四步定义，顺序与展示文案固定 */
 const STAGE_STEPS: Array<{ key: string; label: string }> = [
@@ -311,6 +321,66 @@ const myChampionIds = computed(
       .find(s => s.subteamId === sessionData.mySubteamId)
       ?.players.map(p => p.championId)
       .filter(id => id > 0) ?? []
+)
+
+/**
+ * P2 候选池：全量英雄列表（get_champion_options 一次性拉取，懒加载）。
+ * 只依赖后端命令，与 loadChampionNames 各自独立、无冲突。
+ */
+const allChampionIds = ref<number[]>([])
+let championOptionsLoaded = false
+
+/** 候选池懒加载：仅 ranked && ChampSelect 且敌方锁定 ≥1 时才首次拉取 */
+async function ensureChampionOptions(): Promise<void> {
+  if (championOptionsLoaded) return
+  try {
+    const options = await invoke<championOption[]>('get_champion_options')
+    allChampionIds.value = options.map(o => o.value)
+    championOptionsLoaded = true
+  } catch (e) {
+    console.warn('[gaming] 候选池拉取失败:', e)
+  }
+}
+
+/** 敌方已锁英雄 id（>0 即已锁定；敌方 intent 恒 0 无需区分 pickState） */
+const enemyLockedIds = computed(
+  () =>
+    orderedSubteams.value
+      .filter(s => s.subteamId !== sessionData.mySubteamId)
+      .flatMap(s => s.players.map(p => p.championId))
+      .filter(id => id > 0) ?? []
+)
+
+/** 推荐隐藏规则：ranked 队列 && 选人阶段 && 候选池已就绪 */
+const showBestPicks = computed(
+  () =>
+    opggMode.value === 'ranked' &&
+    sessionData.phase === 'ChampSelect' &&
+    allChampionIds.value.length > 0
+)
+
+/**
+ * 候选集：全量池排除 双方 ban / 我方已亮（含 intent、picking、locked）/
+ * 敌方已锁——被占用或被禁的英雄不参与「最优应对」推荐。
+ */
+const bestPickCandidates = computed(() => {
+  if (allChampionIds.value.length === 0) return []
+  const taken = new Set<number>([
+    ...myBans.value,
+    ...theirBans.value,
+    ...myChampionIds.value,
+    ...enemyLockedIds.value
+  ])
+  return allChampionIds.value.filter(id => !taken.has(id))
+})
+
+// 选人阶段敌方锁定后触发候选池懒加载（数据源就绪后 watch 重算推荐）
+watch(
+  () => [sessionData.phase, enemyLockedIds.value.length] as const,
+  ([phase, n]) => {
+    if (phase === 'ChampSelect' && n > 0) void ensureChampionOptions()
+  },
+  { immediate: true }
 )
 
 /**
@@ -840,6 +910,20 @@ onMounted(async () => {
   max-width: 2600px;
   margin: 0 auto;
   gap: var(--space-16);
+}
+
+/* 每列：BestPicksPanel 置于 SubteamCard 正上方，纵向排布撑满 */
+.subteam-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-height: 0;
+  height: 100%;
+}
+
+.subteam-col > :last-child {
+  flex: 1;
+  min-height: 0;
 }
 
 .gaming-grid-multi {
