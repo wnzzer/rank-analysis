@@ -340,6 +340,20 @@ impl MatchHistory {
                     .max(p.stats.total_minions_killed + p.stats.neutral_minions_killed);
                 max_v.4 = max_v.4.max(p.stats.damage_dealt_to_turrets);
             }
+            // 参团率：本人 (kills+assists) / 同队总击杀（CHERRY 按 subteam），与 MVP 评分同分母。
+            // 直接写入 stats.groupRate（此前该字段从未填充，前端战绩行固定显示 0%）。
+            let my_key = if is_cherry && my_subteam > 0 {
+                my_subteam
+            } else {
+                team_id
+            };
+            let team_kills = group_kills.get(&my_key).copied().unwrap_or(0);
+            if team_kills > 0 {
+                let my_stats = &mut game.participants[0].stats;
+                my_stats.group_rate =
+                    (((my_stats.kills + my_stats.assists) as f64 / team_kills as f64) * 100.0)
+                        .min(100.0) as i32;
+            }
             let score_of = |p: &Participant| {
                 let key = if is_cherry && p.stats.player_subteam_id > 0 {
                     p.stats.player_subteam_id
@@ -482,6 +496,34 @@ mod mvp_score_tests {
             mh.games.games[0].mvp, "SVP",
             "败方唯一玩家即败方最高分，应为 SVP"
         );
+    }
+
+    /// 参团率 = (kills+assists)/同队总击杀：carry (9+15)/19 → 截断 100%；farmer 10/19 → 52%。
+    #[test]
+    fn calculate_fills_group_rate_for_my_team() {
+        let mut mh = game_with_me(carry());
+        mh.calculate().unwrap();
+        assert_eq!(mh.games.games[0].participants[0].stats.group_rate, 100);
+        let mut mh = game_with_me(farmer());
+        mh.calculate().unwrap();
+        assert_eq!(mh.games.games[0].participants[0].stats.group_rate, 52);
+    }
+
+    #[test]
+    fn calculate_group_rate_zero_when_team_has_no_kills() {
+        let mut game = Game {
+            game_mode: "CLASSIC".to_string(),
+            participants: vec![part(9, 300, stats((0, 7, 0), (5_000, 8_000, 6_000, 60, 0), false))],
+            ..Default::default()
+        };
+        game.game_detail.participants = vec![farmer(), carry(), loser()];
+        let mut mh = MatchHistory {
+            games: GamesWrapper { games: vec![game] },
+            ..Default::default()
+        };
+        mh.calculate().unwrap();
+        // team 300 无人同队 → 分母 0 → 保持 0，不得 panic
+        assert_eq!(mh.games.games[0].participants[0].stats.group_rate, 0);
     }
 }
 
