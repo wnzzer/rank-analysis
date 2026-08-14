@@ -222,7 +222,7 @@ D3/方向D AI 增强(独立推进,可与 C 并行)
 **③ 筛选行**
 - 现筛选(英雄/模式)保留;加分页控件入行内
 - **新筛选维度(低成本)**:胜负、时间范围(近3h/24h/7d/30d)——注意:LCU 列表接口不支持服务端过滤(现实现是前端过滤 `get_filter_match_history_by_name` 拉 0-49 再筛),**趋势条和筛选共用同一份过滤逻辑**,放 `components/record/matchFilters.ts` 纯函数(可单测)
-- "收集更多"按钮 = 现 `nextPage` 语义,一次 10 场;趋势条滚到底自动接续(SGP 路径下 `collectMode` 批量收集可后置,不阻塞)
+- "收集更多"按钮 = 现 `nextPage` 语义,一次 10 场;趋势条滚到底自动接续 ✅ collectMode 已落地:跨区「收集全部」一键无限深翻页(`services/sgp.ts` `collectSgpHistoryAll`,gameId 去重/上限 500/可取消续收),趋势条/英雄池样本解除 50 场窗口(2026-08-14)
 
 **④ 表现趋势条(★独有创新,两边都没有)**
 - 新组件 `components/record/TrendBar.vue`:横向 flex,每场一个格
@@ -431,14 +431,16 @@ D3/方向D AI 增强(独立推进,可与 C 并行)
 
 | # | 任务 | 涉及 | 验收 |
 |---|---|---|---|
-| D1-1 | AIAnalysisReport schema + 渲染卡片化 | `services/ai/types.ts`、`MatchAIPanel.vue`、`AgentReport.vue`(新) | 复盘零 markdown 长文 |
-| D1-2 | Rust 磁盘缓存 | `command/ai.rs` | 同局重开 0 消耗 |
-| D1-3 | token 统计 | `ai.rs` + 设置页 | 可见成本 |
-| D2-1 | 选人期 AI tab | `Gaming.vue`、`useBpDecision` | 对局开始前可用 |
-| D2-2 | 对局中 AI(含 C4 出装诊断) | 新 `useLiveAIAnalysis` | 实时流式输出 |
-| D3-1 | 长期画像聚合 | `RecentData` 扩展 + Rust 聚合 | 成长报告可生成 |
-| D4-1 | AiProvider trait + Ollama | `command/ai.rs` 重构 | 本地模型可用 |
-| D-测试 | schema 校验、缓存命中、provider 切换 | — | 全绿 |
+| D1-1 | ✅ AIAnalysisReport schema + 渲染卡片化 | `services/ai/types.ts`、`MatchAIPanel.vue`、`AgentReport.vue`(新) | 复盘零 markdown 长文 |
+| D1-2 | ✅ Rust 磁盘缓存 | `command/ai.rs` | 同局重开 0 消耗 |
+| D1-3 | ✅ token 统计 | `ai.rs` + 设置页 | 可见成本 |
+| D2-1 | ✅ 选人期 AI tab | `Gaming.vue`、`useBpDecision` | 对局开始前可用 |
+| D2-2 | ✅ 对局中 AI(含 C4 出装诊断) | 新 `useLiveAIAnalysis` | 实时流式输出 |
+| D3-1 | ✅ 长期画像聚合 | `RecentData` 扩展 + Rust 聚合 | 成长报告可生成 |
+| D4-1 | ✅ AiProvider trait + Ollama | `command/ai.rs` 重构 | 本地模型可用 |
+| D-测试 | ✅ schema 校验、缓存命中、provider 切换 | — | 全绿 |
+
+> 方向 D 完成记录(2026-08-14):D-P1 结构化+磁盘缓存(D1-1..D1-3)、D-P2 阶段化 AI(D2-1/D2-2)、D-P3 画像(D3-1)、D-P4 平台化(D4-1 + 设置页「测试连接」自检)。Rust 门禁由 CI 兜底(Quality Checks win+mac 双矩阵)。详见 `.opencode-session/D-P4.md`
 
 ---
 
@@ -629,7 +631,7 @@ D3/方向D AI 增强(独立推进,可与 C 并行)
 
 | 风险 | 影响 | 缓解 |
 |---|---|---|
-| LCU list 接口只返 50 场窗口(`MAX_CACHE_END`) | 趋势条/聚合样本上限 | 明示"仅近 50 场";SGP 路径延伸(collectMode 思路后置) |
+| **LCU list 接口只返 50 场窗口(`MAX_CACHE_END`)** | 趋势条/聚合样本上限 | 跨区已由 collectMode 解除(「收集全部」无限深翻页, 2026-08-14);LCU 路径明示"仅近 50 场" |
 | OP.GG 站改版破坏解析 | C2 失效 | 增益性功能,失败仅影响推荐来源标注;C1 PUGG 兜底 |
 | 就地把 10 人对局表塞进 Drawer 的宽度不足 | B/A UI 挤 | 抽屉 min-width 1360 + 顺滑滚动(现有 MatchDetail.vue 版心 1360 经验复用) |
 | AI 结构化输出偶发非法 JSON | D-P1 | 已有 json_object + 重试;前端解析失败回退 markdown 渲染 |
@@ -653,7 +655,7 @@ D3/方向D AI 增强(独立推进,可与 C 并行)
 | 英雄池聚合 | `champion-analysis/ChampionAnalysisContent.vue` + `PlayerInfoCardChampionUsage.vue` | 胜率 ring、AkariScore、hover 浮层 |
 | 筛选 | `match-history-filters/combinator-*` | 谓词组合思想(我们只做简单版:胜负/时间/英雄/模式) |
 | 出装符文 | `src-opgg-window/opgg/widgets/OpggChampionRunes.vue` / `OpggChampionBoots.vue` / `OpggChampionSkills.vue` | 展示形态(10 格装备格/符文树) |
-| 收集模式 | `match-history-init-param-collect.ts` | SGP 分批收集(我们后置) |
+| 收集模式 | `match-history-init-param-collect.ts` | ✅ SGP 分批收集已落地:跨区「收集全部」`collectSgpHistoryAll`(2026-08-14) |
 | 详情 6 tab 容器 | `match-card/MatchCardDetails.vue` | TabSwitch + KeepAlive + 条件 tab + watchEffect 回退 |
 | 数据对比透视表 | `match-card/tabs/MatchCardDetailsTab.vue` + `utils/details-table.ts` | 行分组/双 sticky/行过滤/渲染器/undocumented 兜底组 |
 | 事件时间线 | `match-card/tabs/MatchCardEventsTab.vue` | NTimeline + 类型/英雄筛选 + 地图位置/伤害明细 Popover |
@@ -686,3 +688,4 @@ D3/方向D AI 增强(独立推进,可与 C 并行)
 | v1.3 | 2026-08-12 | 新增方向 E(详情页 6 tab 追平:tab 容器/数据对比透视表/符文/事件/出装/时间线,LCU 先行 + SGP 增强)与方向 F(SGP 数据源升级:DETAILS 端点/深翻页/缓存);里程碑新增 M4/M5;ADR/风险/参考索引同步扩充。基于对 Akari 详情页源码拆解(6 tab 能力矩阵:LCU 可做 vs SGP 独有) |
 | v1.4 | 2026-08-12 | **M4 完成(方向 E 全部落地)**:E1-1 tab 容器(MatchDetailInline 重构为固定 header + 6 tab KeepAlive,新增 matchDetailContext provide/inject 共享数据面,概览移入 SummaryTab);E1-2 数据对比透视表(detailsTable.ts 21 行×6 组纯函数 + StatsTab 过滤/hover 条形/best 高亮,12 单测);E2-1 符文 tab(每人卡片:基石+主副系风格,海克斯模式提示);E3-1 事件 tab(SGP DETAILS 事件流时间线,类型筛选+击杀伤害明细 tooltip,eventsTable.ts 7 单测);E4-1 出装 tab(装备 7 槽/强化槽 + SKILL_LEVEL_UP 加点序列);E5-1 时间线 tab(自绘 SVG 金/CS/经验折线,指标切换+玩家多选,timelineData.ts 8 单测)。关键决策:LCU 无 timeline 端点(风险项验证),事件/时间线数据源直接走 SGP DETAILS(方向 F 已落地);SGP 详情经 context 懒加载共享 |
 | v1.5 | 2026-08-12 | **M5 完成(方向 F 收尾)**:F3-1 SGP 缓存——DETAILS 无 TTL(500 条,key=platform_id:game_id 防串区) + SUMMARY 60s TTL(key 含大区/分页),两 fetch 先查缓存(缓存行为单测×2);F1/F2/F4 已在 4ecd4e4 落地(DETAILS 端点+serde 容错、跨区深翻页 gameId 去重、services/sgp.ts 前端封装+局级缓存)。前端 844 测试全绿;Rust 门禁由 GitHub Actions 兜底 |
+| v1.6 | 2026-08-14 | **M3 完成(方向 D 全量)**:D-P1 结构化复盘+磁盘缓存+D-P2 阶段化 AI(D2-2 含 C4 出装诊断)+D-P3 用户画像+D-P4 平台化(provider 抽象/测试连接按钮)——见 `.opencode-session/D-P4.md` 与 `.opencode-session/D3-1.md`。**collectMode 落地(风险清单解除)**:跨区「收集全部」一键无限深翻页(`collectSgpHistoryAll`,gameId 去重/上限 500/可取消续收/切换玩家作废),趋势条与英雄池样本解除 50 场窗口;服务单测 12 例 + 组件验收 4 例(含真实 UX bug 修复:naive-ui `loading` 吞 click,取消交互改标签状态承载)。全量 vitest 997/997,CI run `31772175058` 全绿 |
