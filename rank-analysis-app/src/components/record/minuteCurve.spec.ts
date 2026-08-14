@@ -7,6 +7,8 @@ import {
   aggregateMinuteCurves,
   buildGameMinuteCurve,
   MAX_CURVE_MINUTES,
+  summarizeMinuteCurve,
+  type AggregatedMinuteCurve,
   type SgpGameDetail
 } from './minuteCurve'
 
@@ -169,5 +171,65 @@ describe('aggregateMinuteCurves', () => {
 
   it('空列表 → null', () => {
     expect(aggregateMinuteCurves([])).toBeNull()
+  })
+})
+
+describe('summarizeMinuteCurve（分时画像特征）', () => {
+  function aggOf(
+    cs: number[],
+    deaths: number[],
+    fights: number[],
+    sourceCount = 3
+  ): AggregatedMinuteCurve {
+    return {
+      minutes: cs.map((_, m) => m),
+      cs,
+      deaths,
+      fights,
+      sourceCount
+    }
+  }
+
+  it('null / 空轴 → null', () => {
+    expect(summarizeMinuteCurve(null)).toBeNull()
+    expect(summarizeMinuteCurve(aggOf([], [], []))).toBeNull()
+  })
+
+  it('补刀取 15/25 分钟锚点，轴不足时取末值', () => {
+    // 轴不足（0..6 分钟）→ 15 分钟锚点取末值
+    const short = summarizeMinuteCurve(
+      aggOf([0, 5, 10, 16, 20, 24, 28], [0, 1, 1, 1, 1, 1, 1], [0, 0, 0, 1, 1, 1, 1])
+    )!
+    expect(short.csAt15).toBe(28)
+    expect(short.csAt25).toBe(28)
+    // 轴充足（0..30 分钟）→ 取 index 15 / 25
+    const cs = Array.from({ length: 31 }, (_, m) => m * 2)
+    const long = summarizeMinuteCurve(aggOf(cs, new Array(31).fill(0), new Array(31).fill(0)))!
+    expect(long.csAt15).toBe(30)
+    expect(long.csAt25).toBe(50)
+  })
+
+  it('死亡集中段 = 累计增速最快的分钟段', () => {
+    // 0..4 分钟死亡 0,0,2,3,4：增速峰值在 minute2（+2），并列段按升序收尾
+    const s = summarizeMinuteCurve(aggOf([0, 1, 2, 3, 4], [0, 0, 2, 3, 4], [0, 0, 0, 0, 0]))!
+    expect(s.deathsBy15).toBe(4)
+    expect(s.deathsTotal).toBe(4)
+    expect(s.deathSpikeMinutes[0]).toBe(2) // 增速最快的段
+    expect(s.deathSpikeMinutes.length).toBeLessThanOrEqual(3)
+    expect(s.fightPeakMinutes).toEqual([])
+    expect(s.avgFightsPerMin).toBe(0)
+  })
+
+  it('参团活跃段取事件数最高的分钟', () => {
+    const s = summarizeMinuteCurve(aggOf([0, 1, 2], [0, 0, 0], [0, 3, 0]))!
+    expect(s.fightPeakMinutes).toEqual([1])
+    expect(s.avgFightsPerMin).toBe(1)
+  })
+
+  it('累计死亡 spike 最多 3 个且升序', () => {
+    const s = summarizeMinuteCurve(
+      aggOf([0, 1, 2, 3, 4, 5], [0, 0, 1, 2, 3, 3], [0, 0, 0, 0, 0, 0])
+    )!
+    expect(s.deathSpikeMinutes.length).toBeLessThanOrEqual(3)
   })
 })

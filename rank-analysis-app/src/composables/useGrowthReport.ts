@@ -10,20 +10,24 @@ import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useMessage } from 'naive-ui'
 import { analyzeGrowthReportWithAIStream, type StreamCallbacks } from '@renderer/services/ai'
 import { renderAnalysisReport } from '@renderer/services/ai/matchDetail/renderReport'
+import type { MinuteCurveInsights } from '@renderer/components/record/minuteCurve'
 import type { RecentData } from '@renderer/types/domain/analysis'
 
 export function useGrowthReport(): {
   loading: Ref<boolean>
   result: Ref<string>
   renderedResult: ComputedRef<string>
-  generate: (recent: RecentData) => Promise<void>
+  generate: (recent: RecentData, curveInsights?: MinuteCurveInsights | null) => Promise<void>
 } {
   const message = useMessage()
   const loading = ref(false)
   const result = ref('')
   const renderedResult = computed(() => renderAnalysisReport(result.value))
 
-  async function generate(recent: RecentData): Promise<void> {
+  async function generate(
+    recent: RecentData,
+    curveInsights?: MinuteCurveInsights | null
+  ): Promise<void> {
     if (loading.value) return
     if ((recent.samples ?? 0) <= 0) {
       message.warning('近 20 场暂无有效样本，无法生成成长报告')
@@ -45,7 +49,7 @@ export function useGrowthReport(): {
           loading.value = false
         }
       }
-      await analyzeGrowthReportWithAIStream(recent, callbacks)
+      await analyzeGrowthReportWithAIStream(recent, callbacks, curveInsights)
     } catch (e: any) {
       message.error('成长报告生成失败: ' + (e?.message || '未知错误'))
       loading.value = false

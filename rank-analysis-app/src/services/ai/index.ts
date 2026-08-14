@@ -124,13 +124,15 @@ export async function analyzeLiveGameWithAIStream(
  *
  * @param recent    后端 user_tag 确定性聚合的趋势事实（KDA/胜率/参团率/补刀/视野/经济/伤害）
  * @param callbacks 流式回调
+ * @param curveInsights 分时画像特征（D-P3，前端从 SGP 帧流提炼；未加载时省略，prompt 纪律禁止编造）
  */
 export async function analyzeGrowthReportWithAIStream(
   recent: RecentData,
-  callbacks: StreamCallbacks
+  callbacks: StreamCallbacks,
+  curveInsights?: import('@renderer/components/record/minuteCurve').MinuteCurveInsights | null
 ): Promise<void> {
   try {
-    const prompt = buildGrowthReportPrompt(recent)
+    const prompt = buildGrowthReportPrompt(recent, curveInsights)
     await requestAIContentStream(prompt, callbacks, DEFAULT_SYSTEM_PROMPT)
   } catch (error: any) {
     console.error('Growth report AI analysis error:', error)

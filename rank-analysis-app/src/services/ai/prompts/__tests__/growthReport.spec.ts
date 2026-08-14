@@ -8,8 +8,9 @@
  * - 样本不足时仍有「窗口」事实但保持纪律
  */
 import { describe, it, expect } from 'vitest'
-import { buildGrowthReportPrompt, growthTrendText } from '../growthReport'
+import { buildGrowthReportPrompt, growthCurveText, growthTrendText } from '../growthReport'
 import type { RecentData } from '@renderer/types/domain/analysis'
+import type { MinuteCurveInsights } from '@renderer/components/record/minuteCurve'
 
 function recent(overrides: Partial<RecentData> = {}): RecentData {
   return {
@@ -80,7 +81,45 @@ describe('buildGrowthReportPrompt', () => {
     expect(prompt).toContain('只能引用与解释')
     expect(prompt).toContain('禁止改写数字')
     expect(prompt).toContain('禁止自创数据')
-    expect(prompt).toContain('没有数据的维度')
+    expect(prompt).toContain('未提供的维度')
     expect(prompt).toContain('150 字以内')
+  })
+
+  it('不带分时画像时不输出分时画像块', () => {
+    const prompt = buildGrowthReportPrompt(recent())
+    expect(prompt).not.toContain('15 分钟累计补刀')
+    expect(prompt).not.toContain('分时画像（近 10 场平均')
+  })
+
+  it('带分时画像时输出确定性数字块（15 分钟补刀/死亡时机/参团节奏）', () => {
+    const insights: MinuteCurveInsights = {
+      csAt15: 42,
+      csAt25: 118,
+      deathsBy15: 1.5,
+      deathsTotal: 4,
+      deathSpikeMinutes: [18, 24],
+      fightPeakMinutes: [8, 22],
+      avgFightsPerMin: 0.38
+    }
+    const prompt = buildGrowthReportPrompt(recent(), insights)
+    expect(prompt).toContain('分时画像')
+    expect(prompt).toContain('15 分钟累计补刀：42（25 分钟：118）')
+    expect(prompt).toContain('15 分钟前累计 1.5 次，全场累计 4 次')
+    expect(prompt).toContain('18 分钟、24 分钟')
+    expect(prompt).toContain('每分钟平均 0.38 个参团击杀')
+  })
+
+  it('growthCurveText 无集中段时用「无明显集中段」降级', () => {
+    const text = growthCurveText({
+      csAt15: 40,
+      csAt25: 100,
+      deathsBy15: 0,
+      deathsTotal: 1,
+      deathSpikeMinutes: [],
+      fightPeakMinutes: [],
+      avgFightsPerMin: 0.1
+    })
+    expect(text).toContain('无明显集中段')
+    expect(text).toContain('节奏平缓')
   })
 })

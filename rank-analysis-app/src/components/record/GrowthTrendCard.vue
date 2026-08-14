@@ -151,8 +151,8 @@ import type { Game } from '@renderer/types/domain/match'
 import { kdaColor, winRateColor, groupRateColor } from '@renderer/utils/colors'
 import { winRate } from '@renderer/utils/rank'
 import { useGrowthReport } from '@renderer/composables/useGrowthReport'
-import { useMinuteCurve } from '@renderer/composables/useMinuteCurve'
-import { MINUTE_CURVE_LIMIT } from '@renderer/composables/useMinuteCurve'
+import { useMinuteCurve, MINUTE_CURVE_LIMIT } from '@renderer/composables/useMinuteCurve'
+import { summarizeMinuteCurve } from './minuteCurve'
 
 const props = withDefaults(
   defineProps<{
@@ -174,7 +174,16 @@ const winRateNum = computed(() =>
   winRate(props.recentData.selectWins, props.recentData.selectLosses)
 )
 
-const onGenerate = () => generate(props.recentData)
+const onGenerate = async () => {
+  // D-P3：生成前确保分时曲线数据（未展开过则先拉；失败降级不带曲线，不阻塞报告）
+  let insights = null
+  if (curveAvailable.value) {
+    let data = curve.value
+    if (!data) data = await curveLoad()
+    if (data) insights = summarizeMinuteCurve(data)
+  }
+  await generate(props.recentData, insights)
+}
 
 // ── 分时曲线（D-P3）──
 const curveGames = computed(() =>

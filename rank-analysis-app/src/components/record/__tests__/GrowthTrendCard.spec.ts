@@ -220,4 +220,33 @@ describe('GrowthTrendCard 分时曲线（D-P3）', () => {
     await buttons[buttons.length - 1].trigger('click')
     expect(wrapper.find('.curve-panel').exists()).toBe(false)
   })
+
+  it('点「生成报告」：curve 已加载 → 不重拉，generate 收到分时画像', async () => {
+    curveState.curve.value = {
+      minutes: [0, 1, 2],
+      cs: [0, 4, 9],
+      deaths: [0, 1, 1],
+      fights: [0, 0.5, 0.5],
+      sourceCount: 2
+    }
+    const wrapper = mountWithGames([gameOf(1)], 'puuid-me')
+    await wrapper.find('button').trigger('click')
+    expect(curveState.load).not.toHaveBeenCalled()
+    expect(generate).toHaveBeenCalledTimes(1)
+    const [, insights] = generate.mock.calls[0] as unknown as [
+      RecentData,
+      import('@renderer/components/record/minuteCurve').MinuteCurveInsights | null
+    ]
+    expect(insights?.csAt15).toBe(9) // 轴不足（0..2）→ 末值
+    expect(insights?.deathsBy15).toBe(1)
+  })
+
+  it('点「生成报告」：curve 未加载 → 先 load，失败降级不带画像', async () => {
+    curveState.load.mockResolvedValueOnce(undefined)
+    const wrapper = mountWithGames([gameOf(1)], 'puuid-me')
+    await wrapper.find('button').trigger('click')
+    expect(curveState.load).toHaveBeenCalledTimes(1)
+    expect(generate).toHaveBeenCalledTimes(1)
+    expect(generate.mock.calls[0][1]).toBeNull()
+  })
 })
