@@ -1,19 +1,19 @@
 /**
- * 公告 HTML → 纯文本，以及 GitHub Models 结构化抽取调用。
+ * 公告 HTML → 纯文本，以及 DashScope 结构化抽取调用。
  * AI 负责「理解」：判定是否端游版本公告、提取英雄段、判方向；
  * 文本预处理只做机械转换，不做任何语义筛选。
  */
 
-export const MODELS_URL = 'https://models.github.ai/inference/chat/completions'
+/** DashScope 的 OpenAI 兼容 chat completions 端点。 */
+export const DASHSCOPE_URL =
+  'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions'
+// 保留原导出名，兼容已有脚本；实际值与当前端点一致。
+export const MODELS_URL = DASHSCOPE_URL
 /**
- * 2026-07-29 横评（同一篇 7月30日公告，原文 11 个英雄 / 卑尔维斯 49 条改动）：
- * - gpt-4o-mini：只抽到 8 个英雄、卑尔维斯 36 条，且把加强削弱并存的改动一律判成 nerf
- * - gpt-4.1：11 个英雄，卑尔维斯 43 条，仍有遗漏
- * - gpt-4.1-mini：抽出 23 个英雄，把非英雄段落也算了进来
- * - gpt-4o：11 个英雄、卑尔维斯 49 条与原文精确对齐，direction 判定也最准，且最快
- * 属 high 档 rate limit，但只在 docid 变化时才真调模型（约每月 2 次），配额充裕。
+ * qwen-flash 是仓库内其他 AI 功能的默认模型，已验证支持该兼容端点的 JSON 模式，
+ * 且足以覆盖公告抽取所需的上下文长度。
  */
-export const MODEL_ID = 'openai/gpt-4o'
+export const MODEL_ID = 'qwen-flash'
 
 /**
  * 公告页实际出现的 HTML 实体。
@@ -91,7 +91,7 @@ export function parseModelJson(content) {
 }
 
 export async function callModel(articleText, token, fetchFn = fetch) {
-  const res = await fetchFn(MODELS_URL, {
+  const res = await fetchFn(DASHSCOPE_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({
@@ -100,16 +100,16 @@ export async function callModel(articleText, token, fetchFn = fetch) {
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
-        // 60k 字符 ≈ 30k+ token，gpt-4o-mini 128k 上限内；公告实测 20-50KB
+        // 60k 字符约 30k+ token；公告实测 20-50KB，留出 prompt 与回包空间。
         { role: 'user', content: articleText.slice(0, 60000) }
       ]
     })
   })
   if (!res.ok) {
-    throw new Error(`GitHub Models HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`)
+    throw new Error(`DashScope HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`)
   }
   const data = await res.json()
   const content = data?.choices?.[0]?.message?.content
-  if (!content) throw new Error('GitHub Models: 回包无 content')
+  if (!content) throw new Error('DashScope: 回包无 content')
   return parseModelJson(content)
 }

@@ -20,9 +20,9 @@ function readExisting() {
   }
 }
 
-const token = process.env.GITHUB_TOKEN
+const token = process.env.DASHSCOPE_API_KEY
 if (!token) {
-  console.error('缺少 GITHUB_TOKEN 环境变量')
+  console.error('缺少 DASHSCOPE_API_KEY 环境变量')
   process.exit(1)
 }
 

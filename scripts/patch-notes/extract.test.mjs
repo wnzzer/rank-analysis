@@ -1,6 +1,13 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { htmlToText, parseModelJson, callModel, MODELS_URL, MODEL_ID } from './extract.mjs'
+import {
+  htmlToText,
+  parseModelJson,
+  callModel,
+  DASHSCOPE_URL,
+  MODELS_URL,
+  MODEL_ID
+} from './extract.mjs'
 
 // 按真实公告页结构裁剪（与 Rust cn_patch_notes.rs 原 fixture 同源）
 const HTML = `
@@ -33,7 +40,7 @@ test('parseModelJson 容忍代码栅栏包装', () => {
   assert.deepEqual(parseModelJson('{"a":1}'), { a: 1 })
 })
 
-test('callModel 发 POST 到 GitHub Models 并解析回包', async () => {
+test('callModel 发 POST 到 DashScope 并解析回包', async () => {
   let captured = null
   const fetchFn = async (url, init) => {
     captured = { url, init }
@@ -45,7 +52,10 @@ test('callModel 发 POST 到 GitHub Models 并解析回包', async () => {
     }
   }
   const out = await callModel('正文', 'tok', fetchFn)
-  assert.equal(captured.url, MODELS_URL)
+  assert.equal(captured.url, DASHSCOPE_URL)
+  assert.equal(MODELS_URL, DASHSCOPE_URL)
+  assert.equal(captured.init.method, 'POST')
+  assert.equal(captured.init.headers['Content-Type'], 'application/json')
   assert.equal(JSON.parse(captured.init.body).model, MODEL_ID)
   assert.equal(JSON.parse(captured.init.body).temperature, 0)
   assert.equal(captured.init.headers.Authorization, 'Bearer tok')
@@ -54,5 +64,5 @@ test('callModel 发 POST 到 GitHub Models 并解析回包', async () => {
 
 test('callModel 非 200 抛错', async () => {
   const fetchFn = async () => ({ ok: false, status: 429, text: async () => 'rate limited' })
-  await assert.rejects(() => callModel('x', 'tok', fetchFn), /429/)
+  await assert.rejects(() => callModel('x', 'tok', fetchFn), /DashScope HTTP 429/)
 })

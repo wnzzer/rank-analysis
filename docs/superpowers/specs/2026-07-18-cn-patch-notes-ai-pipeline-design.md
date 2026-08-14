@@ -14,8 +14,8 @@
    规则筛选会漏，导致中文快照停留在旧版本；
 2. **方向判定保守**：无 `X → Y` 数值对比时靠关键词启发式，误差不可控。
 
-本设计将「拉取 + 解析 + 方向判定」整体搬进 GitHub Actions，由 AI（GitHub
-Models）做语义抽取，产物为仓库内受校验的静态 JSON；客户端只消费成品数据，
+本设计将「拉取 + 解析 + 方向判定」整体搬进 GitHub Actions，由 AI（DashScope
+通义千问）做语义抽取，产物为仓库内受校验的静态 JSON；客户端只消费成品数据，
 不再包含任何 HTML 解析逻辑。脆弱环节从全体用户机器收敛到单一可观测的 CI。
 
 **非目标**：版本改动独立浏览页（archive 数据为其预留，但本期不做）；Wiki
@@ -28,7 +28,7 @@ GitHub Actions（cron 每 6h + workflow_dispatch）
   1. 拉 CMC 频道列表（target=24，官方公告频道）
   2. 宽松筛选候选文章（含「更新公告」即候选，AI 负责确认）
   3. 拉文章页 → GBK 解码 → 去标签取纯文本
-  4. GitHub Models 结构化抽取（GITHUB_TOKEN，permissions: models: read）
+  4. DashScope 结构化抽取（DASHSCOPE_API_KEY）
   5. 校验闸门（Schema + 英雄名对照 + 数量边界）
   6. docid 有变化才 commit data/patch-notes/ → push main
        └→ 现有 sync-gitcode.yml 自动镜像到 GitCode
@@ -46,9 +46,9 @@ GitHub Actions（cron 每 6h + workflow_dispatch）
   近 4 个月全部 5 期正式版本公告均带跳转链，且站内帖无稳定正文接口（CMC 详情
   端点返回 p0 error，gicp 模式 404）；不停机小补丁通常无英雄平衡改动，可接受。
 - `extract.mjs`：文章 HTML → 纯文本（GBK 解码、`<br>` 转行、去标签、实体解码——
-  逻辑自 `cn_patch_notes.rs` 平移）；调 GitHub Models
-  （`https://models.github.ai/inference/chat/completions`，模型 `openai/gpt-4o-mini`
-  级别），system prompt 要求输出严格 JSON：判断该文是否为端游版本更新公告、
+  逻辑自 `cn_patch_notes.rs` 平移）；调 DashScope OpenAI 兼容端点
+  （`https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions`，模型
+  `qwen-flash`），system prompt 要求输出严格 JSON：判断该文是否为端游版本更新公告、
   提取每个英雄的中文名 / 改动方向（buff|nerf|adjusted）/ 改动条目原文数组。
 - `validate.mjs`：校验闸门（见下）。
 - `run.mjs`：编排 + docid 对比 + 写文件。
@@ -100,11 +100,11 @@ data/patch-notes/
 ### 4. Workflow `.github/workflows/patch-notes-data.yml`
 
 - 触发：`schedule`（每 6h）+ `workflow_dispatch`；
-- `permissions: contents: write, models: read`；
+- `permissions: contents: write`；
 - 步骤：checkout → node scripts/patch-notes/run.mjs → 若 `cn-latest.json` 有
   diff 则以 bot 身份 commit + push main（commit message
   `chore(data): 更新国服英雄改动 <patchLabel>`）；
-- GITHUB_TOKEN 的 push **不会触发其他 workflow**（GitHub 防递归机制），
+- 用于推送的 GITHUB_TOKEN **不会触发其他 workflow**（GitHub 防递归机制），
   sync-gitcode 不会跟跑；因此本 workflow 自带「推 GitCode 镜像」一步，
   复用现有 `GITCODE_TOKEN` secret，与 sync-gitcode.yml 同款推法；
 - 并发组 `patch-notes-data`，`cancel-in-progress: true`。
@@ -145,7 +145,7 @@ data/patch-notes/
   （21 天整）、缓存降级链（复用现有测试模式）、command 合并优先级
   （CN 命中优先于 Wiki）；
 - 端到端验收：手动 `workflow_dispatch` 一次真跑（验证 runner 可达 qq.com 与
-  GitHub Models 配额），确认产物 JSON 落库；应用内选人页看到中文明细。
+  DashScope API 配额），确认产物 JSON 落库；应用内选人页看到中文明细。
 
 ## 里程碑
 
