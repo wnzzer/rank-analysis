@@ -878,8 +878,7 @@ async fn apply_bp_decision(
                     && session.bench_champions.contains(&target.champion_id)
                 {
                     let can_swap = {
-                        let mut guard =
-                            last_bench_swap().lock().unwrap_or_else(|e| e.into_inner());
+                        let mut guard = last_bench_swap().lock().unwrap_or_else(|e| e.into_inner());
                         match *guard {
                             Some(at) if at.elapsed() >= BENCH_SWAP_COOLDOWN => {
                                 *guard = Some(std::time::Instant::now());
