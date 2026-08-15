@@ -381,6 +381,8 @@ mod tests {
             actions,
             timer: Timer::default(),
             local_player_cell_id: 0,
+            trades: Vec::new(),
+            bench_champions: Vec::new(),
         }
     }
 
@@ -565,6 +567,8 @@ mod tests {
                 ..Default::default()
             },
             local_player_cell_id: 0,
+            trades: Vec::new(),
+            bench_champions: Vec::new(),
         }
     }
 
@@ -772,6 +776,8 @@ mod tests {
             actions: vec![vec![action(0, 10, 64, true, false, "pick", true)]],
             timer: Timer::default(),
             local_player_cell_id: 0,
+            trades: Vec::new(),
+            bench_champions: Vec::new(),
         };
         assert!(evaluate_bp_decision(&ctx(&s, &[], &[64], None)).is_none());
     }

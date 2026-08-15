@@ -401,6 +401,8 @@ mod tests {
             actions: vec![actions],
             timer: Timer::default(),
             local_player_cell_id: 0,
+            trades: Vec::new(),
+            bench_champions: Vec::new(),
         }
     }
 

@@ -61,6 +61,8 @@ mod tests {
             actions: vec![],
             timer: Default::default(),
             local_player_cell_id: 0,
+            trades: Vec::new(),
+            bench_champions: Vec::new(),
         }
     }
 
@@ -202,6 +204,8 @@ mod tests {
             actions: vec![],
             timer: Default::default(),
             local_player_cell_id: 0,
+            trades: Vec::new(),
+            bench_champions: Vec::new(),
         }
     }
 

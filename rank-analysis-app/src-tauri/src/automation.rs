@@ -877,14 +877,22 @@ async fn apply_bp_decision(
                 if target.champion_id != locked_id
                     && session.bench_champions.contains(&target.champion_id)
                 {
-                    let mut guard = last_bench_swap().lock().unwrap_or_else(|e| e.into_inner());
-                    let can_swap = match *guard {
-                        Some(at) => at.elapsed() >= BENCH_SWAP_COOLDOWN,
-                        None => true,
+                    let can_swap = {
+                        let mut guard =
+                            last_bench_swap().lock().unwrap_or_else(|e| e.into_inner());
+                        match *guard {
+                            Some(at) if at.elapsed() >= BENCH_SWAP_COOLDOWN => {
+                                *guard = Some(std::time::Instant::now());
+                                true
+                            }
+                            Some(_) => false,
+                            None => {
+                                *guard = Some(std::time::Instant::now());
+                                true
+                            }
+                        }
                     };
                     if can_swap {
-                        *guard = Some(std::time::Instant::now());
-                        drop(guard);
                         log::info!(
                             "BP bench swap: locked {} -> target {}",
                             locked_id,
