@@ -345,6 +345,11 @@ const SGP_USER_AGENT: &str = "LeagueOfLegendsClient/15.0.0.0 (rcp-be-lol-match-h
 fn sgp_client() -> &'static Client {
     SGP_CLIENT.get_or_init(|| {
         Client::builder()
+            // SGP 主机是腾讯国服域名（tj100-sgp.lol.qq.com 等），国内直连即可；
+            // reqwest 默认会读系统代理，玩家开 Clash/梯子时请求会被劫持到国外
+            // 节点导致超时/TLS 失败（「SGP 数据通道暂不可用」）。与 LCU 客户端
+            // 同理必须显式绕开系统代理。
+            .no_proxy()
             .timeout(Duration::from_secs(15))
             .build()
             .expect("Failed to build SGP reqwest client")
