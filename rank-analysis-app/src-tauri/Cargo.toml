@@ -61,6 +61,8 @@ sentry = { version = "0.42", features = ["log", "logs"] }
 tauri-plugin-sentry = "0.5"
 # 匿名设备 ID（observability.rs 持久化生成，仅用于 Sentry DAU 去重）
 uuid = { version = "1", features = ["v4"] }
+# 遇见过玩家全量库（P1-1）：bundled 免系统依赖，随应用自带 SQLite
+rusqlite = { version = "0.32", features = ["bundled"] }
 
 # ---- Windows 专属依赖 ----
 # 这些 crate 只在 Windows 编译，避免 macOS/Linux 上因目标平台不支持而编译失败。

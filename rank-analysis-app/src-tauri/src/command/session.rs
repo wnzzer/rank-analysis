@@ -156,6 +156,10 @@ pub struct SessionSummoner {
     pub rank: Rank,
     /// 与当前用户的历史对局记录
     pub meet_games: Vec<OneGamePlayer>,
+    /// 与当前用户的累计相遇总场次（meet.db 全量聚合；实时 20 场窗口外的
+    /// 历史也计入，快照无战绩数据时为 0 兜底）
+    #[serde(default)]
+    pub meet_total: i64,
     /// 预组队标记
     pub pre_group_markers: PreGroupMarker,
     /// 是否仍在加载中
@@ -1004,13 +1008,44 @@ fn insert_meet_gamers_record(session_data: &mut SessionData, my_puuid: &str) {
         .and_then(|s| s.user_tag.recent_data.one_game_players_map.clone());
 
     if let Some(my_map) = my_one_game_players_map {
+        // P1-1：当前用户近 20 场遇见的对手全量 upsert 入库（跨会话/跨版本累积）。
+        // 幂等主键 (puuid, gameId)，重复会话不会造成重复计数。
+        for games in my_map.values() {
+            crate::meet_db::record_games(games);
+        }
         for subteam in &mut session_data.subteams {
             for s in &mut subteam.players {
                 if s.summoner.puuid == my_puuid {
                     continue;
                 }
-                if let Some(games) = my_map.get(&s.summoner.puuid) {
-                    s.meet_games = games.clone();
+                // 实时近 20 场明细 + 库内补足更早的历史（按 gameId 去重，
+                // 命中实时列表的历史不重复挂；库 recent 新→旧，push 后总序仍新→旧）
+                let mut games = my_map.get(&s.summoner.puuid).cloned().unwrap_or_default();
+                if let Some(summary) = crate::meet_db::query_summary(&s.summoner.puuid) {
+                    s.meet_total = summary.total;
+                    let known: std::collections::HashSet<i64> =
+                        games.iter().map(|g| g.game_id).collect();
+                    for older in summary.recent.iter().rev() {
+                        if !known.contains(&older.game_id) {
+                            games.push(older.clone());
+                        }
+                    }
+                }
+                s.meet_games = games;
+            }
+        }
+    } else {
+        // 我的快照缺席（战绩拉取失败）时至少给出库内历史，避免「曾经遇见」被刷没
+        for subteam in &mut session_data.subteams {
+            for s in &mut subteam.players {
+                if s.summoner.puuid == my_puuid {
+                    continue;
+                }
+                if let Some(summary) = crate::meet_db::query_summary(&s.summoner.puuid) {
+                    s.meet_total = summary.total;
+                    if s.meet_games.is_empty() {
+                        s.meet_games = summary.recent;
+                    }
                 }
             }
         }

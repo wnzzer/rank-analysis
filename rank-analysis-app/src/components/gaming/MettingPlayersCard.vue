@@ -1,5 +1,8 @@
 <template>
   <div class="meeting-players-container">
+    <div v-if="showTotalLine" class="meet-total-line">
+      共遇见过 <b>{{ meetTotal }}</b> 场；以下展示最近可查的 {{ meetGames.length }} 场
+    </div>
     <n-modal
       v-model:show="showDetail"
       preset="card"
@@ -61,7 +64,7 @@ import type { Game } from '../record/match'
 import { assetPrefix } from '../../services/http'
 import MatchDetailInline from '../record/MatchDetailInline.vue'
 import { invoke } from '@tauri-apps/api/core'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import LazyImg from '@renderer/components/common/LazyImg.vue'
 
 function getFormattedDate(dateString: string) {
@@ -95,14 +98,35 @@ function closeDetail() {
   selectedGame.value = null
 }
 
-defineProps<{
+const props = defineProps<{
   meetGames: OneGamePlayer[]
+  /** 累计相遇总场次（meet.db 全量聚合）；大于明细条数时说明还有更早的历史 */
+  meetTotal?: number
 }>()
+
+/** 库里累计数大于本屏明细数时，提示「还有更早的历史」，避免玩家误以为只有这么多 */
+const showTotalLine = computed(() => {
+  const total = props.meetTotal ?? 0
+  return total > 0 && total !== props.meetGames.length
+})
 </script>
 
 <style scoped>
 .meeting-players-container {
   max-width: 540px;
+}
+
+.meet-total-line {
+  margin-bottom: var(--space-6);
+  padding: var(--space-4) var(--space-8);
+  border-radius: var(--radius-md);
+  background-color: var(--glass-bg-high);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.meet-total-line b {
+  color: var(--text-primary);
 }
 
 .game-card {

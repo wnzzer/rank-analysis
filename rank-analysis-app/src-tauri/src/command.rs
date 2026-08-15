@@ -49,6 +49,7 @@ pub mod fandom;
 pub mod info;
 pub mod launcher;
 pub mod match_history;
+pub mod meet;
 pub mod opgg;
 pub mod rank;
 pub mod replay;

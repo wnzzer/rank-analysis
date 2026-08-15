@@ -168,6 +168,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             command::match_history::get_match_history_by_name,
             command::match_history::get_filter_match_history_by_name,
             command::match_history::get_game_by_id,
+            command::meet::query_meet_summary,
             command::user_tag::get_user_tag_by_puuid,
             command::user_tag::get_user_tag_by_name,
             command::user_tag_config::get_all_tag_configs,

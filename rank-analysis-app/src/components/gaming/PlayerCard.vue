@@ -178,10 +178,13 @@
                 </template>
                 预组队：近期多次同队，大概率一起排的；编号仅区分不同组
               </n-tooltip>
-              <n-tag v-if="sessionSummoner.meetGames?.length > 0" type="warning" size="small" round>
+              <n-tag v-if="meetCount > 0" type="warning" size="small" round>
                 <n-popover trigger="hover">
-                  <template #trigger>遇见过 ×{{ sessionSummoner.meetGames.length }}</template>
-                  <MettingPlayersCard :meet-games="sessionSummoner.meetGames"></MettingPlayersCard>
+                  <template #trigger>遇见过 ×{{ meetCount }}</template>
+                  <MettingPlayersCard
+                    :meet-games="sessionSummoner.meetGames"
+                    :meet-total="sessionSummoner.meetTotal"
+                  ></MettingPlayersCard>
                 </n-popover>
               </n-tag>
               <UnifiedTagRow
@@ -285,6 +288,16 @@ const props = withDefaults(defineProps<Props>(), {
   pickState: '',
   isSelf: false,
   tier: 'emerald_plus'
+})
+
+/**
+ * 遇见过计数：优先展示全量累计（meet_total 来自 meet.db 聚合，含实时窗口外的历史），
+ * 老会话/无该字段时回退到实时明细条数。
+ */
+const meetCount = computed(() => {
+  const total = props.sessionSummoner?.meetTotal
+  const list = props.sessionSummoner?.meetGames?.length ?? 0
+  return total && total > 0 ? total : list
 })
 
 /** n-card content-style：用 token 控制内边距（P0 收紧为 --space-4 让 4 场 1 屏装下） */

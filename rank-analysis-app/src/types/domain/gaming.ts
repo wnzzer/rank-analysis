@@ -26,6 +26,11 @@ export interface SessionSummoner {
   userTag: UserTag
   rank: Rank
   meetGames: OneGamePlayer[]
+  /**
+   * 累计相遇总场次（meet.db 全量聚合，含实时 20 场窗口外的历史）；
+   * 老后端/无记录时为 0 或缺失
+   */
+  meetTotal?: number
   preGroupMarkers: PreGroupMarkers
   isLoading?: boolean
   /**
