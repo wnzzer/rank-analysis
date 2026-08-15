@@ -21,9 +21,8 @@
       <div v-else-if="rows.length === 0 && synergyRows.length === 0" class="counter-hover-hint">
         该分路对位样本不足（OP.GG 暂无数据）
       </div>
-      <n-scrollbar
+      <div
         v-else
-        max-height="400px"
         class="counter-hover-scroll"
         :class="{ 'counter-hover-scroll-split': rows.length > 0 && synergyRows.length > 0 }"
       >
@@ -89,7 +88,7 @@
             </tbody>
           </table>
         </div>
-      </n-scrollbar>
+      </div>
 
       <div class="counter-hover-footer">
         OP.GG {{ intel?.region ?? '—' }} · {{ intel?.tier ?? '—' }} · {{ patchText
@@ -111,7 +110,7 @@
  * 底部固定来源标注（region · tier · patch · stale 标记），防数据口径误导。
  */
 import { computed, onMounted, ref, toRef } from 'vue'
-import { NPopover, NScrollbar } from 'naive-ui'
+import { NPopover } from 'naive-ui'
 import { useAssetUrl } from '@renderer/composables/useAssetUrl'
 import {
   DEFAULT_COUNTER_SORT,
@@ -262,6 +261,23 @@ onMounted(async () => {
 
 .counter-hover-section {
   margin-top: 10px;
+}
+
+/* 弹层滚动容器：内容超高时上下滚动（原生 overflow，不依赖组件库行为） */
+.counter-hover-scroll {
+  max-height: 400px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+}
+
+.counter-hover-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.counter-hover-scroll::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text-tertiary, #888) 45%, transparent);
+  border-radius: 999px;
 }
 
 .counter-hover-scroll-split .counter-hover-section {
