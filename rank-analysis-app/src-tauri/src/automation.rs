@@ -401,6 +401,8 @@ async fn start_champion_select_automation() {
         };
 
         if cur_phase != CHAMPSELECT {
+            // 离场即重置执行侧粘性状态（bench 换人冷却），防止跨局生效
+            reset_execution_state();
             continue;
         }
 
@@ -503,6 +505,63 @@ async fn start_select_champion() -> Result<(), String> {
     apply_bp_decision(&select_session, &decision).await
 }
 
+/// 自动确认英雄交易请求（P1-2）。
+///
+/// 我方队员之间的换人请求以 `session.trades` 暴露（`state == "AVAILABLE"` 待确认）。
+/// 接受 **别人发起**（`cell_id != 自己格子`）的请求即可协助队伍完成换人；
+/// 自己发起的等对方确认，不需要我们动作。
+///
+/// 2s 轮询：trade 确认没有时间窗压力（不像锁定只有几秒窗口），慢一点换来
+/// 更少的会话读取，且能避免与执行侧（1s 轮询）在同一 tick 打架。
+async fn start_trade_automation() {
+    log::info!("Starting trade automation");
+    let mut ticker = interval(Duration::from_secs(2));
+
+    loop {
+        ticker.tick().await;
+
+        let cur_phase = match get_phase().await {
+            Ok(phase) => phase,
+            Err(e) => {
+                log::error!("Get phase error: {}", e);
+                continue;
+            }
+        };
+        if cur_phase != CHAMPSELECT {
+            continue;
+        }
+
+        let session = match crate::lcu::api::champion_select::get_champion_select_session().await {
+            Ok(s) => s,
+            Err(e) => {
+                log::error!("Trade check session error: {}", e);
+                continue;
+            }
+        };
+        // 快照可能携带已处理过的 AVAILABLE（接受后 LCU 状态流转不是即时的），
+        // 重复 accept 一次 LCU 会以 4xx 拒绝——打 warn 后继续，不视为致命。
+        for trade in &session.trades {
+            if trade.state == "AVAILABLE" && trade.cell_id != session.local_player_cell_id {
+                log::info!(
+                    "BP trade auto-accept: trade={} from_cell={} champion={}",
+                    trade.id,
+                    trade.cell_id,
+                    trade.champion_id
+                );
+                if let Err(e) = crate::lcu::api::champion_select::accept_trade(trade.id).await {
+                    log::warn!("BP trade accept failed (可能已处理): {}", e);
+                }
+            }
+        }
+    }
+}
+
+/// 退出选人阶段后重置执行侧粘性状态（冷却计时器等），避免跨局失效。
+fn reset_execution_state() {
+    let mut guard = last_bench_swap().lock().unwrap_or_else(|e| e.into_inner());
+    *guard = None;
+}
+
 /// 自动禁用英雄任务。
 ///
 /// 在选人阶段自动禁用配置的英雄。
@@ -551,6 +610,20 @@ const DEFAULT_EXECUTE_AT_SECS_LEFT: f64 = 5.0;
 /// 剩余不足该秒数时放弃本次自动执行，避免半吊子状态。
 pub(crate) const MIN_EXECUTE_SECS: f64 = 3.0;
 
+/// bench 换人冷却：锁定后决策变化引发的换人至少间隔这么久，
+/// 防止「双维推荐在多个目标间震荡」时把 LCU 的换人窗口刷穿。
+const BENCH_SWAP_COOLDOWN: Duration = Duration::from_secs(30);
+
+/// 上次 bench 换人的时刻（None = 未换过/已离场重置）。执行侧粘性状态，
+/// 离开选人阶段由 [`reset_execution_state`] 清空。
+static LAST_BENCH_SWAP: std::sync::OnceLock<std::sync::Mutex<Option<std::time::Instant>>> =
+    std::sync::OnceLock::new();
+
+/// 取 bench 换人冷却状态：不存在时惰性创建。
+fn last_bench_swap() -> &'static std::sync::Mutex<Option<std::time::Instant>> {
+    LAST_BENCH_SWAP.get_or_init(|| std::sync::Mutex::new(None))
+}
+
 /// 根据分路信息推断该用哪份 OP.GG 数据。
 ///
 /// 有分路 = 排位/征召 → ranked；无分路（ARAM、部分匹配）→ aram。
@@ -590,6 +663,36 @@ async fn load_pick_pool() -> Vec<i32> {
 
 async fn load_ban_pool() -> Vec<i32> {
     load_champion_pool("settings.auto.banChampionSlice").await
+}
+
+/// 相位执行时刻（剩余秒数）, `settings.auto.executeAtSecs` 可调（P1-2）。
+///
+/// 数值解析兼容 `{ "value": 5.0 }` 包装与裸数两种形态；缺失/非法一律回退
+/// [`DEFAULT_EXECUTE_AT_SECS_LEFT`]。范围钳到 [3.0, 35.0]：太早会锁定后
+/// 被队友「你选了吗」催促，太晚有 `MIN_EXECUTE_SECS` 兜底也只在 3s 前敢动手。
+async fn load_execute_at_secs() -> f64 {
+    const FLOOR: f64 = 3.0;
+    const CEIL: f64 = 35.0;
+    // serde_yaml::Value：整数走 Integer，小数为 Number(→as_f64)；
+    // 兼容前端 putConfigByIpc 的 { "value": ... } 包装与后端裸值两种形态。
+    let extract = |v: &Value| -> Option<f64> {
+        match v {
+            Value::Integer(i) => Some(*i as f64),
+            Value::Number(n) => n.as_f64(),
+            Value::Map(m) => m.get("value").and_then(|inner| match inner {
+                Value::Integer(i) => Some(*i as f64),
+                Value::Number(n) => n.as_f64(),
+                _ => None,
+            }),
+            _ => None,
+        }
+    };
+    match get_config("settings.auto.executeAtSecs").await {
+        Ok(v) => extract(&v)
+            .map(|n| n.clamp(FLOOR, CEIL))
+            .unwrap_or(DEFAULT_EXECUTE_AT_SECS_LEFT),
+        Err(_) => DEFAULT_EXECUTE_AT_SECS_LEFT,
+    }
 }
 
 /// BP 决策快照的常驻求值任务。
@@ -689,7 +792,7 @@ async fn start_bp_decision_automation(app: tauri::AppHandle) {
             ban_pool: &ban_pool,
             snapshot: snapshot.as_deref(),
             mode,
-            execute_at_secs_left: DEFAULT_EXECUTE_AT_SECS_LEFT,
+            execute_at_secs_left: load_execute_at_secs().await,
             last_hovered: store::last_hovered(),
         };
         let mut decision = evaluate::evaluate_bp_decision(&ctx);
@@ -747,6 +850,56 @@ async fn apply_bp_decision(
     decision: &crate::bp_decision::types::BpDecision,
 ) -> Result<(), String> {
     use crate::bp_decision::{evaluate, store, types::BpActionType};
+
+    // ---- bench 换人（锁定后换英雄）----
+    // 我的 pick **已锁定**（completed）：不能再用 PATCH action 换人，只有 bench
+    // 换入一条路。触发时机：队友锁定引发双维推荐变化、或首选被抢导致决策改推。
+    // 只在目标确实在 bench 池中时动手（LCU 给了「可换入」清单，不存在随手换）。
+    // 30s 冷却防震荡：换人本身要排队落地，双维推荐若在两个目标间来回横跳，
+    // 冷却会把节奏降到一个可持续的频率，而不是把 LCU 窗口刷穿。
+    //
+    // 注意必须放在 find_my_pending_action 之前：锁定后 pending action 已 completed，
+    // 函数中部对 pending 的依赖会让本段永远不可达。
+    if decision.action_type == BpActionType::Pick && should_act(decision) {
+        let locked = session
+            .actions
+            .iter()
+            .flatten()
+            .find(|a| {
+                a.actor_cell_id == session.local_player_cell_id
+                    && a.action_type == "pick"
+                    && a.completed
+                    && a.champion_id > 0
+            })
+            .map(|a| a.champion_id);
+        if let Some(locked_id) = locked {
+            if let Some(target) = decision.target.as_ref() {
+                if target.champion_id != locked_id
+                    && session.bench_champions.contains(&target.champion_id)
+                {
+                    let mut guard = last_bench_swap().lock().unwrap_or_else(|e| e.into_inner());
+                    let can_swap = match *guard {
+                        Some(at) => at.elapsed() >= BENCH_SWAP_COOLDOWN,
+                        None => true,
+                    };
+                    if can_swap {
+                        *guard = Some(std::time::Instant::now());
+                        drop(guard);
+                        log::info!(
+                            "BP bench swap: locked {} -> target {}",
+                            locked_id,
+                            target.champion_id
+                        );
+                        crate::lcu::api::champion_select::swap_bench_champion(
+                            target.champion_id,
+                        )
+                        .await?;
+                    }
+                    return Ok(());
+                }
+            }
+        }
+    }
 
     let Some(pending) = evaluate::find_my_pending_action(session) else {
         return Ok(());
@@ -955,6 +1108,19 @@ async fn init_run_automation(app: tauri::AppHandle) {
         }
     }
 
+    match get_config("settings.auto.tradeConfirmSwitch").await {
+        Ok(value) => {
+            log::info!("Auto-trade confirm config value: {:?}", value);
+            if let Some(true) = extract_bool(&value) {
+                log::info!("Auto-trade confirm is enabled, starting task");
+                manager.start_task("trade_confirm", start_trade_automation());
+            }
+        }
+        Err(e) => {
+            log::error!("Failed to get tradeConfirmSwitch config: {}", e);
+        }
+    }
+
     log::info!("Automation tasks initialization completed");
 }
 
@@ -1057,6 +1223,19 @@ pub async fn start_automation(app: tauri::AppHandle) {
                     }
                 } else {
                     log::warn!("Invalid value for banChampionSwitch: {:?}", new_value);
+                }
+            }
+            "settings.auto.tradeConfirmSwitch" => {
+                if let Some(enabled) = extract_bool(new_value) {
+                    if enabled {
+                        log::info!("Config: Enabling trade confirm automation");
+                        manager.start_task("trade_confirm", start_trade_automation());
+                    } else {
+                        log::info!("Config: Disabling trade confirm automation");
+                        manager.stop_task("trade_confirm");
+                    }
+                } else {
+                    log::warn!("Invalid value for tradeConfirmSwitch: {:?}", new_value);
                 }
             }
             _ => {

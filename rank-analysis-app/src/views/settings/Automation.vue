@@ -249,6 +249,40 @@
       :champion-options="options"
       @adopted="onSuggestAdopted"
     />
+
+    <!-- 选人执行偏好（P1-2） -->
+    <n-card>
+      <template #header>
+        <span class="setting-label">
+          <n-icon size="20" color="#18a058">
+            <FlashOutline />
+          </n-icon>
+          选人执行偏好
+        </span>
+      </template>
+      <n-space vertical>
+        <n-flex align="center" justify="space-between">
+          <n-text>自动确认换人请求（队友发起时自动接受）</n-text>
+          <n-switch v-model:value="autoTradeConfirm" @update:value="updateTradeConfirmSwitch" />
+        </n-flex>
+        <n-flex align="center" justify="space-between">
+          <n-text>锁定执行时刻（剩余秒数 3~35，越小越贴倒计时）</n-text>
+          <n-input-number
+            v-model:value="executeAtSecs"
+            :min="3"
+            :max="35"
+            :step="0.5"
+            size="small"
+            style="width: 110px"
+            @update:value="saveExecuteAtSecs"
+          />
+        </n-flex>
+        <n-text depth="3" style="font-size: var(--font-size-sm)">
+          已锁定后若推荐变化（含队友锁定引发的双维变化）且新目标在可换池中， 将自动 bench 换入（30s
+          冷却防震荡）。
+        </n-text>
+      </n-space>
+    </n-card>
   </n-space>
 </template>
 <script setup lang="ts">
@@ -318,11 +352,24 @@ onMounted(async () => {
   myPickData.value = (await getConfigByIpc<number[]>('settings.auto.pickChampionSlice')) ?? []
   myBanData.value = (await getConfigByIpc<number[]>('settings.auto.banChampionSlice')) ?? []
   autoStart.value = (await getConfigByIpc<boolean>('settings.auto.startMatchSwitch')) ?? false
+  autoTradeConfirm.value =
+    (await getConfigByIpc<boolean>('settings.auto.tradeConfirmSwitch')) ?? false
+  executeAtSecs.value = (await getConfigByIpc<number>('settings.auto.executeAtSecs')) ?? 5
   await loadOpggTier()
   await reloadPickRules()
   await reloadBanRules()
   configLoaded.value = true
 })
+
+async function updateTradeConfirmSwitch() {
+  await putConfigByIpc('settings.auto.tradeConfirmSwitch', autoTradeConfirm.value)
+}
+
+async function saveExecuteAtSecs() {
+  const v = executeAtSecs.value
+  if (v == null) return
+  await putConfigByIpc('settings.auto.executeAtSecs', Math.min(35, Math.max(3, v)))
+}
 
 function openPickEdit(rule?: PickRule) {
   pickEditing.value = rule ? JSON.parse(JSON.stringify(rule)) : undefined
@@ -398,6 +445,10 @@ const autoAccept = ref(false)
 const autoPick = ref(false)
 const autoBan = ref(false)
 const autoStart = ref(false)
+/** 自动确认换人请求（P1-2，队友发起时自动接受） */
+const autoTradeConfirm = ref(false)
+/** 锁定执行时刻（剩余秒数，3~35） */
+const executeAtSecs = ref(5)
 
 const selectPickChampionId = ref(null)
 const selectBanChampionId = ref(null)

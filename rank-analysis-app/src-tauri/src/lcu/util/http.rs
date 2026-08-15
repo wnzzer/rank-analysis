@@ -229,6 +229,36 @@ pub async fn lcu_post<T: DeserializeOwned, D: Serialize>(uri: &str, data: &D) ->
     Err("POST请求失败或认证失效".to_string())
 }
 
+/// 向 LCU 发起 PUT 请求，请求体为 JSON。失败时刷新认证并重试一次。
+///
+/// 与 [`lcu_post`] 完全同构；LCU 的「换取 bench 英雄」等接口用 PUT 而非 POST，
+/// 需要独立的动词封装（`reqwest` 客户端按方法区分，无法共用）。
+pub async fn lcu_put<T: DeserializeOwned, D: Serialize>(
+    uri: &str,
+    data: &D,
+) -> Result<T, String> {
+    for _ in 0..2 {
+        let (token, port) = get_auth_pair().map_err(|e| format!("LCU认证失败: {}", e))?;
+        let url = build_url(&token, uri, &port);
+        let resp = get_client().put(&url).json(data).send().await;
+        match resp {
+            Ok(r) if r.status().is_success() => {
+                let body = r
+                    .text()
+                    .await
+                    .map_err(|e| format!("读取响应失败: {}", e))?;
+                return deserialize_lcu_body::<T>(&body);
+            }
+            _ => {
+                if let Err(e) = refresh_auth() {
+                    log::info!("刷新LCU认证失败（可先打开游戏再重试）: {}", e);
+                }
+            }
+        }
+    }
+    Err("PUT请求失败或认证失效".to_string())
+}
+
 /// 向 LCU 发起 PATCH 请求，请求体为 JSON。失败时刷新认证并重试一次。
 pub async fn lcu_patch<T: DeserializeOwned, D: Serialize>(
     uri: &str,

@@ -5,7 +5,7 @@
 use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, Instant};
 
-use crate::lcu::util::http::{lcu_get, lcu_patch, lcu_post};
+use crate::lcu::util::http::{lcu_get, lcu_patch, lcu_post, lcu_put};
 use serde::{Deserialize, Serialize};
 
 /// 选人会话：己方队伍、行动列表、计时器、本地玩家格子 ID。
@@ -18,6 +18,30 @@ pub struct SelectSession {
     pub actions: Vec<Vec<Action>>,
     pub timer: Timer,
     pub local_player_cell_id: i32,
+    /// 选人期可换入的英雄池（bench）：LCU 在换人窗口推送，`swap_bench_champion`
+    /// 配合使用；非换人阶段/旧接口为空。
+    #[serde(default)]
+    pub bench_champions: Vec<i32>,
+    /// 我方正在进行的交易请求（换英雄），驱动 trade 自动确认。
+    #[serde(default)]
+    pub trades: Vec<Trade>,
+}
+
+/// 一次英雄交易请求（我方队员间的换人确认流）。
+///
+/// `cell_id` 是**发起方**格子（我方 0~4）。对接受方来说，需要确认的请求
+/// 是 `cell_id != 自己的格子` 且 `state == "AVAILABLE"` 的那些。
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Trade {
+    pub id: i32,
+    pub cell_id: i32,
+    pub champion_id: i32,
+    /// "AVAILABLE" | "ACCEPTED" | "DECLINED" | "SWAPPING" | "INVALID"
+    #[serde(default)]
+    pub state: String,
+    #[serde(default)]
+    pub is_trade_accepted: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -305,6 +329,32 @@ pub async fn patch_session_action(
     };
 
     lcu_patch::<(), _>(&uri, &patch_data).await?;
+    Ok(())
+}
+
+/// 接受一次英雄交易请求（`trade.id` 来自 `SelectSession.trades`）。
+///
+/// LCU 端点 `POST lol-champ-select/v1/session/trades/{id}/accept`，成功返回 204。
+pub async fn accept_trade(trade_id: i32) -> Result<(), String> {
+    let uri = format!("lol-champ-select/v1/session/trades/{}/accept", trade_id);
+    lcu_post::<(), _>(&uri, &()).await?;
+    Ok(())
+}
+
+/// 拒绝一次英雄交易请求（`trade.id` 来自 `SelectSession.trades`）。
+pub async fn decline_trade(trade_id: i32) -> Result<(), String> {
+    let uri = format!("lol-champ-select/v1/session/trades/{}/decline", trade_id);
+    lcu_post::<(), _>(&uri, &()).await?;
+    Ok(())
+}
+
+/// 与我方选人用作预选/锁定的英雄「换出到」bench，并把 bench 上的 `champion_id`
+/// 换入当前格子。用于「已锁定 A 但决策改推 B（B 在 bench 中）」的换人。
+///
+/// LCU 端点 `PUT lol-champ-select/v1/session/bench/swap/{championId}`。
+pub async fn swap_bench_champion(champion_id: i32) -> Result<(), String> {
+    let uri = format!("lol-champ-select/v1/session/bench/swap/{}", champion_id);
+    lcu_put::<(), _>(&uri, &()).await?;
     Ok(())
 }
 
