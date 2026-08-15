@@ -60,6 +60,7 @@ use crate::lcu::api::summoner::Summoner;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 
 /// Session 任务全局序列号——**只允许最新任务推送事件**。
@@ -268,6 +269,28 @@ fn champ_select_to_one_player(
     }
 }
 
+/// 选人会话拉取重试次数与间隔。
+///
+/// 开局瞬间 `lol-champ-select/v1/session` 可能尚未就绪（gameflow phase 已
+/// 翻转、会话对象还在创建）：短重试降低「空窗口」，重试间休眠是刻意为之，
+/// 给客户端留出会话初始化时间。
+const SELECT_SESSION_ATTEMPTS: usize = 3;
+const SELECT_SESSION_RETRY_DELAY: Duration = Duration::from_millis(300);
+
+/// 清空 gameflow 会话中可能残留的上一局数据（队伍 + selections）。
+///
+/// 选人阶段开始瞬间，`lol-gameflow/v1/session` 可能仍返回上一局的会话快照
+/// （项目内真机复现过其 `playerChampionSelections` 残留，见
+/// [`build_classic_subteams`] 的 `in_champ_select` 守卫注释；队伍数据同源残留）。
+/// 此时若选人会话拉取失败，绝不能用这份快照当本局数据推送——否则用户会在
+/// 选人阶段看到上一局的人。经典分支直用 team_one/team_two，斗魂分支会退到
+/// selections 兜底，两处一并清空。
+fn clear_stale_gameflow_session(session: &mut Session) {
+    session.game_data.team_one.clear();
+    session.game_data.team_two.clear();
+    session.game_data.player_champion_selections.clear();
+}
+
 /// 实际处理会话数据：拉取 phase/session、组队、补全玩家信息并依次推送事件。
 ///
 /// 这是内部核心处理函数，负责完整的会话数据获取和事件推送流程。
@@ -318,7 +341,18 @@ async fn process_session_data(app_handle: AppHandle, seq: u64) -> Result<(), Str
     let mut champ_select_view: Option<crate::lcu::api::champion_select::ChampSelectView> = None;
 
     if phase == "ChampSelect" {
-        match get_champion_select_session().await {
+        // 开局瞬间选人会话可能尚未就绪（gameflow phase 已翻转、会话对象还在
+        // 创建）：短重试几次再放弃，尽力避免本轮推送空/旧数据。
+        let mut select_result: Result<crate::lcu::api::champion_select::SelectSession, String> =
+            Err(String::new());
+        for _ in 0..SELECT_SESSION_ATTEMPTS {
+            select_result = get_champion_select_session().await;
+            if select_result.is_ok() {
+                break;
+            }
+            tokio::time::sleep(SELECT_SESSION_RETRY_DELAY).await;
+        }
+        match select_result {
             Ok(select_session) => {
                 let (view, pick_states) =
                     crate::lcu::api::champion_select::derive_champ_select_view(&select_session);
@@ -339,6 +373,12 @@ async fn process_session_data(app_handle: AppHandle, seq: u64) -> Result<(), Str
             }
             Err(e) => {
                 log::warn!("Failed to get champion select session: {}", e);
+                // 选人会话不可用：gameflow 会话此刻可能仍指向上一局（真机复现过其
+                // selections 残留，队伍数据同源残留，见 build_classic_subteams 的
+                // in_champ_select 守卫注释）。绝不能把它当本局数据推送——否则用户会
+                // 在选人阶段看到上一局的人。清空后本轮推送空小队，由后续 LCU 事件
+                // 触发的新任务补上。
+                clear_stale_gameflow_session(&mut session);
             }
         }
     }
@@ -1377,6 +1417,37 @@ mod tests {
                 .iter()
                 .any(|p| p.summoner.puuid == "ally-1"),
             "我不应出现在敌方"
+        );
+    }
+
+    /// 回归：选人会话拉取失败时，必须清空 gameflow 中可能残留的上一局
+    /// 队伍与 selections，防止把上一局玩家当成本局展示（用户表现为选人阶段
+    /// 看到上一局的人；经典分支直用队伍、斗魂分支会退到 selections 兜底）。
+    #[test]
+    fn champ_select_failure_clears_stale_gameflow_data() {
+        let mut session = make_session_classic();
+        session.phase = "ChampSelect".into();
+        // 模拟 gameflow 会话仍残留上一局数据：10 人队伍 + 10 条 selections（含"我"）
+        session.game_data.player_champion_selections = stale_selections_with_me("ally-1");
+
+        clear_stale_gameflow_session(&mut session);
+
+        assert!(session.game_data.team_one.is_empty(), "我方队伍应被清空");
+        assert!(session.game_data.team_two.is_empty(), "敌方队伍应被清空");
+        assert!(
+            session.game_data.player_champion_selections.is_empty(),
+            "selections 应被清空（斗魂分支会退到它兜底）"
+        );
+
+        // 清空后经典分支不再展示任何（上一局的）玩家
+        let mut data = SessionData {
+            game_mode: "CLASSIC".into(),
+            ..Default::default()
+        };
+        build_classic_subteams(&mut session, &mut data, "ally-1");
+        assert!(
+            data.subteams.iter().all(|s| s.players.is_empty()),
+            "清空后选人期不应展示任何（上一局的）玩家"
         );
     }
 
