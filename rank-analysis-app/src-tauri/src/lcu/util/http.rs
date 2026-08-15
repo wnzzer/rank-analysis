@@ -233,20 +233,14 @@ pub async fn lcu_post<T: DeserializeOwned, D: Serialize>(uri: &str, data: &D) ->
 ///
 /// 与 [`lcu_post`] 完全同构；LCU 的「换取 bench 英雄」等接口用 PUT 而非 POST，
 /// 需要独立的动词封装（`reqwest` 客户端按方法区分，无法共用）。
-pub async fn lcu_put<T: DeserializeOwned, D: Serialize>(
-    uri: &str,
-    data: &D,
-) -> Result<T, String> {
+pub async fn lcu_put<T: DeserializeOwned, D: Serialize>(uri: &str, data: &D) -> Result<T, String> {
     for _ in 0..2 {
         let (token, port) = get_auth_pair().map_err(|e| format!("LCU认证失败: {}", e))?;
         let url = build_url(&token, uri, &port);
         let resp = get_client().put(&url).json(data).send().await;
         match resp {
             Ok(r) if r.status().is_success() => {
-                let body = r
-                    .text()
-                    .await
-                    .map_err(|e| format!("读取响应失败: {}", e))?;
+                let body = r.text().await.map_err(|e| format!("读取响应失败: {}", e))?;
                 return deserialize_lcu_body::<T>(&body);
             }
             _ => {

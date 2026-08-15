@@ -890,10 +890,8 @@ async fn apply_bp_decision(
                             locked_id,
                             target.champion_id
                         );
-                        crate::lcu::api::champion_select::swap_bench_champion(
-                            target.champion_id,
-                        )
-                        .await?;
+                        crate::lcu::api::champion_select::swap_bench_champion(target.champion_id)
+                            .await?;
                     }
                     return Ok(());
                 }
