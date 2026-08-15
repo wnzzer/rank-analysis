@@ -21,13 +21,27 @@ import Framework from '@renderer/components/Framework.vue'
 import { useSettingsStore } from '@renderer/pinia/setting'
 import { useTheme } from '@renderer/composables/useTheme'
 import { buildThemeOverrides } from '@renderer/theme/overrides'
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { GlobalThemeOverrides } from 'naive-ui'
 
 const settingsStore = useSettingsStore()
 const { isDark } = useTheme()
 
 const themeOverrides = computed<GlobalThemeOverrides>(() => buildThemeOverrides(isDark.value))
+
+// naive 弹层（popover/tooltip/dropdown）默认 teleport 到 body（#app 组件树之外），
+// 浅色变量若只挂在组件树上，弹层里 var(--text-primary) 会回落到 :root 的深色
+// 白字 → 浅色主题下弹层白底白字看不清。把主题 class 同步挂到 <html>，让
+// :root.theme-light 的变量作用域覆盖整个文档。
+watch(
+  isDark,
+  v => {
+    const el = document.documentElement
+    el.classList.toggle('theme-light', !v)
+    el.classList.toggle('theme-dark', v)
+  },
+  { immediate: true }
+)
 </script>
 <style lang="css">
 html,
