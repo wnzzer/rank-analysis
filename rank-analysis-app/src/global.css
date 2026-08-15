@@ -1,5 +1,8 @@
 :root {
-  font-family: 'Inter', sans-serif;
+  /* 系统字体栈：不再依赖 Google Fonts（渲染阻塞+代理期挂起会导致启动/详情页卡顿） */
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
@@ -190,7 +193,8 @@
 }
 
 .font-number {
-  font-family: 'Oswald', sans-serif;
+  /* Oswald 的本地替代：Bahnschrift（Win10+ 自带，数字为窄体同风格）；无则回退系统 */
+  font-family: 'Bahnschrift', 'Segoe UI', sans-serif;
   letter-spacing: 0.5px;
 }
 

@@ -19,7 +19,7 @@
         "fullscreen": false,
         "decorations": false,
         "transparent": true,
-        "backgroundColor": "#10131a",
+        "backgroundColor": "#0d0d0f",
         "center": true,
         "theme": "Dark",
         "dragDropEnabled": false
