@@ -25,7 +25,7 @@ use crate::lcu::api::rank::{QueueInfo, QueueMap, Rank};
 use crate::lcu::api::summoner::Summoner;
 use crate::lcu::util::http::{lcu_get, riot_client_get, sgp_get};
 use moka::future::Cache;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::LazyLock;
 use std::time::Duration;
@@ -77,14 +77,14 @@ pub async fn get_league_session_token() -> Result<String, String> {
 // ─────────────────────────── 段位 rankedStats ───────────────────────────
 
 /// SGP `leagues-ledge` rankedStats 响应（与 LCU `lol-ranked` 同构，字段缺失 default 容错）。
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct SgpRankedStats {
     pub queues: Vec<SgpRankedQueue>,
 }
 
 /// rankedStats 中的单个队列段位。tier 缺失 = 未定级；大师及以上无 `rank` 分段。
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct SgpRankedQueue {
     pub queue_type: Option<String>,
@@ -227,7 +227,7 @@ pub async fn fetch_match_history_summary(
 /// 单局详情响应中的单个参与者帧统计（每分钟一条，SGP 独有伤害/坐标）。
 ///
 /// 字段缺失一律 default：腾讯响应随版本演进，宁可 null 不可 panic。
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct SgpFrameParticipantStats {
     pub current_gold: i32,
@@ -247,14 +247,14 @@ pub struct SgpFrameParticipantStats {
     pub champion_stats: Option<SgpFrameChampionStats>,
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct SgpFramePosition {
     pub x: i32,
     pub y: i32,
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct SgpFrameDamageStats {
     pub magic_damage_done: Option<f64>,
@@ -268,7 +268,7 @@ pub struct SgpFrameDamageStats {
     pub total_damage_taken: Option<f64>,
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct SgpFrameChampionStats {
     pub attack_damage: Option<f64>,
@@ -282,7 +282,7 @@ pub struct SgpFrameChampionStats {
 }
 
 /// 击杀事件里的伤害明细（谁打了谁、各来源物理/魔法/真实）。
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct SgpDamageDetail {
     pub basic: Option<bool>,
@@ -300,7 +300,7 @@ pub struct SgpDamageDetail {
 /// 单局详情里的一条帧事件。///
 /// 事件类型参考 Akari `DetailedGameEventType`(DETAILS 端点):击杀/特殊击杀(一血/多杀/团灭)/
 /// 建筑/精英怪/塔皮/装备买/卖/撤销/技能加点/插眼/游戏结束。字段缺失 default 容错。
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct SgpFrameEvent {
     pub r#type: Option<String>,
@@ -333,7 +333,7 @@ pub struct SgpFrameEvent {
 }
 
 /// 单局详情的一条帧(约每分钟一条)。
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct SgpFrame {
     pub timestamp: Option<i64>,
@@ -343,7 +343,7 @@ pub struct SgpFrame {
 }
 
 /// DETAILS 响应的 `json` 体。
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct SgpGameDetail {
     pub end_of_game_result: Option<String>,
@@ -353,7 +353,7 @@ pub struct SgpGameDetail {
     pub participants: Vec<SgpDetailParticipant>,
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct SgpDetailParticipant {
     pub participant_id: Option<i32>,
@@ -361,7 +361,7 @@ pub struct SgpDetailParticipant {
 }
 
 /// DETAILS 响应整体: `{ metadata, json }`。
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct SgpGameDetailResponse {
     pub metadata: Option<Value>,
