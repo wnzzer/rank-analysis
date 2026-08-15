@@ -27,7 +27,11 @@ const RECENT_LIMIT: usize = 20;
 
 /// 全局连接句柄：懒打开，失败（权限/磁盘）后置 None 静默降级。
 static CONN: LazyLock<Mutex<Option<Connection>>> = LazyLock::new(|| {
-    Mutex::new(open_db().map_err(|e| log::warn!("meet.db 打开失败，遇见过持久化停用: {e}")).ok())
+    Mutex::new(
+        open_db()
+            .map_err(|e| log::warn!("meet.db 打开失败，遇见过持久化停用: {e}"))
+            .ok(),
+    )
 });
 
 /// 打开（必要时创建）库文件并建表。
@@ -158,7 +162,11 @@ fn query_summary_in(conn: &Connection, puuid: &str) -> rusqlite::Result<MeetSumm
         )?;
         let mut rows = stmt.query(params![puuid])?;
         match rows.next()? {
-            Some(row) => (row.get::<_, i64>(0)?, row.get::<_, i64>(1)?, row.get::<_, i64>(2)?),
+            Some(row) => (
+                row.get::<_, i64>(0)?,
+                row.get::<_, i64>(1)?,
+                row.get::<_, i64>(2)?,
+            ),
             None => (0, 0, 0),
         }
     };
@@ -222,7 +230,13 @@ fn query_summary_in(conn: &Connection, puuid: &str) -> rusqlite::Result<MeetSumm
 mod tests {
     use super::*;
 
-    fn game(puuid: &str, game_id: i64, created_at: &str, my_team: bool, win: bool) -> OneGamePlayer {
+    fn game(
+        puuid: &str,
+        game_id: i64,
+        created_at: &str,
+        my_team: bool,
+        win: bool,
+    ) -> OneGamePlayer {
         OneGamePlayer {
             index: 0,
             game_id,
@@ -250,9 +264,15 @@ mod tests {
     #[test]
     fn record_is_idempotent_by_puuid_and_game_id() {
         let conn = mem_conn();
-        record_games_in(&conn, &[game("P-1", 11, "2026-08-10T12:00:00Z", true, true)]);
+        record_games_in(
+            &conn,
+            &[game("P-1", 11, "2026-08-10T12:00:00Z", true, true)],
+        );
         // 同一场重复入库：不重复计数
-        record_games_in(&conn, &[game("P-1", 11, "2026-08-10T12:00:00Z", true, true)]);
+        record_games_in(
+            &conn,
+            &[game("P-1", 11, "2026-08-10T12:00:00Z", true, true)],
+        );
         let sum = query_summary_in(&conn, "P-1").unwrap();
         assert_eq!(sum.total, 1);
     }
@@ -282,7 +302,13 @@ mod tests {
         // 25 场（超过 RECENT_LIMIT=20）
         let mut games = Vec::new();
         for i in 0..25 {
-            games.push(game("P-1", 100 + i, &format!("2026-08-{:02}T12:00:00Z", (i % 28) + 1), true, true));
+            games.push(game(
+                "P-1",
+                100 + i,
+                &format!("2026-08-{:02}T12:00:00Z", (i % 28) + 1),
+                true,
+                true,
+            ));
         }
         record_games_in(&conn, &games);
         let sum = query_summary_in(&conn, "P-1").unwrap();
@@ -306,7 +332,10 @@ mod tests {
     #[test]
     fn different_players_do_not_leak() {
         let conn = mem_conn();
-        record_games_in(&conn, &[game("P-2", 44, "2026-08-13T12:00:00Z", false, true)]);
+        record_games_in(
+            &conn,
+            &[game("P-2", 44, "2026-08-13T12:00:00Z", false, true)],
+        );
         let p1 = query_summary_in(&conn, "P-1").unwrap();
         assert_eq!(p1.total, 0);
     }
