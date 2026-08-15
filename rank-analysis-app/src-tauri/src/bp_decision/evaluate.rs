@@ -41,6 +41,49 @@ pub fn phase_secs_left(timer: &Timer) -> f64 {
     phase_secs_left_at(timer, now_epoch_ms)
 }
 
+/// LCU 选人期真正允许提交 ban/pick 的计时器阶段。
+///
+/// `timer.phase` 会走 `PLANNING`（预选宣告）→ `BAN_PICK` → `FINALIZATION`（确认），
+/// **每个阶段都有自己独立的倒计时**。坑在于 LCU 早在 `PLANNING` 期间就把 ban
+/// action 全部标成 `isInProgress=true`，而该阶段的 12 秒计时器同样会走到 5 秒
+/// 以内——真机实测（2026-08-15）由此触发过一次无效执行：PATCH 被 LCU 静默无视，
+/// 直到 20 秒后真正的 `BAN_PICK` 阶段才成功，期间界面还显示了一个走到 0 的假倒计时。
+///
+/// 空字符串 = 字段缺失/旧客户端，此时不阻拦，退回加入本判断前的行为。
+pub fn is_actionable_phase(timer_phase: &str) -> bool {
+    timer_phase.is_empty() || timer_phase == "BAN_PICK"
+}
+
+/// 找到当前用户尚未完成的、**指定类型**的那个 BP 动作。
+///
+/// 与 [`find_my_pending_action`] 的区别：后者回答「现在该看哪个动作」（供展示），
+/// 本函数回答「我的 ban / 我的 pick 分别是哪个」（供执行）。ban 与 pick 是两条
+/// 独立轨道——pick 的 hover 应当在选人期一开始就做，不该因为 ban 尚未完成而空转。
+pub fn find_my_pending_action_of_type(
+    session: &SelectSession,
+    action_type: BpActionType,
+) -> Option<MyPendingAction> {
+    let my_cell = session.local_player_cell_id;
+    session
+        .actions
+        .iter()
+        .flatten()
+        .filter(|a| a.actor_cell_id == my_cell && !a.completed)
+        .find_map(|a| {
+            let ty = match a.action_type.as_str() {
+                "ban" => BpActionType::Ban,
+                "pick" => BpActionType::Pick,
+                _ => return None,
+            };
+            (ty == action_type).then_some(MyPendingAction {
+                action_id: a.id,
+                action_type: ty,
+                is_in_progress: a.is_in_progress,
+                champion_id: a.champion_id,
+            })
+        })
+}
+
 /// 找到当前用户尚未完成的那个 BP 动作。
 ///
 /// 优先返回 `is_in_progress` 的（轮到我了），否则返回第一个未完成的
@@ -268,6 +311,14 @@ fn rejection_for(champion_id: i32, u: Unavailable) -> BpRejected {
 /// 3. 无论走哪条路，都尝试为目标附上 evidence（面对当前阵容的最差对位）
 pub fn evaluate_bp_decision(ctx: &BpContext) -> Option<BpDecision> {
     let pending = find_my_pending_action(ctx.session)?;
+    evaluate_for_action(ctx, pending)
+}
+
+/// 针对**指定**的待办动作求值。
+///
+/// 从 [`evaluate_bp_decision`] 拆出来：ban 与 pick 是两条独立轨道，各自的执行
+/// 任务需要各自的决策，不能共用「当前那一个」动作（否则 ban 阶段 pick 全程空转）。
+pub fn evaluate_for_action(ctx: &BpContext, pending: MyPendingAction) -> Option<BpDecision> {
     let unavailable = unavailable_map(ctx.session);
     let my_position = detect_my_position(ctx.session, ctx.my_puuid);
     let enemy_ids = enemy_champion_ids(ctx.session);
@@ -367,7 +418,10 @@ pub fn evaluate_bp_decision(ctx: &BpContext) -> Option<BpDecision> {
         time_left_secs: phase_secs_left(&ctx.session.timer),
         execute_at_secs_left: ctx.execute_at_secs_left,
         user_overridden: detect_override(pending.champion_id, ctx.last_hovered),
-        is_in_progress: pending.is_in_progress,
+        // 与 is_actionable_phase 相与：LCU 在 PLANNING 期间就把 ban action 标成
+        // in-progress，但那时提交无效。对前端而言「轮到我了」必须等价于「现在
+        // 倒计时归零就真的会执行」，否则决策带又会给出不会兑现的承诺。
+        is_in_progress: pending.is_in_progress && is_actionable_phase(&ctx.session.timer.phase),
     })
 }
 
@@ -914,6 +968,45 @@ mod tests {
         assert_eq!(p.action_id, 11);
         assert_eq!(p.action_type, BpActionType::Ban);
         assert!(p.is_in_progress);
+    }
+
+    /// 真机现象：ban 阶段 pick 任务全程空转，hover 要等 ban 完成后才发生。
+    /// 根因是执行侧只会拿到「当前那一个」动作；按类型定位后两条轨道各走各的。
+    #[test]
+    fn find_pending_of_type_finds_my_pick_while_ban_in_progress() {
+        let s = session(vec![
+            vec![action(0, 11, 0, false, true, "ban", true)],
+            vec![action(0, 10, 0, false, false, "pick", true)],
+        ]);
+        let pick = find_my_pending_action_of_type(&s, BpActionType::Pick).unwrap();
+        assert_eq!(pick.action_id, 10);
+        assert!(!pick.is_in_progress, "还没轮到我 pick");
+
+        let ban = find_my_pending_action_of_type(&s, BpActionType::Ban).unwrap();
+        assert_eq!(ban.action_id, 11);
+        assert!(ban.is_in_progress);
+    }
+
+    #[test]
+    fn find_pending_of_type_skips_completed_and_others_actions() {
+        let s = session(vec![vec![
+            action(0, 10, 64, true, false, "pick", true), // 我的，已完成
+            action(1, 20, 0, false, true, "pick", true),  // 别人的
+        ]]);
+        assert!(find_my_pending_action_of_type(&s, BpActionType::Pick).is_none());
+    }
+
+    /// LCU 在 PLANNING（预选宣告）期间就把 ban action 标成 is_in_progress，
+    /// 且该阶段有自己的 12 秒计时器。真机上它走到 <=5s 时触发了一次无效执行
+    /// （PATCH 被 LCU 无视），随后真正的 BAN_PICK 阶段才成功——期间界面还显示
+    /// 了一个会走到 0 的倒计时。只有 BAN_PICK 才是可提交阶段。
+    #[test]
+    fn only_ban_pick_phase_is_actionable() {
+        assert!(is_actionable_phase("BAN_PICK"));
+        assert!(!is_actionable_phase("PLANNING"));
+        assert!(!is_actionable_phase("FINALIZATION"));
+        // 字段缺失（旧客户端/异常 payload）不阻拦，退回修改前的行为
+        assert!(is_actionable_phase(""));
     }
 
     #[test]

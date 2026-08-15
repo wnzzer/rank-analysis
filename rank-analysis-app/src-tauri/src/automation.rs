@@ -30,7 +30,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
-use tokio::time::interval;
+use tokio::time::{interval, MissedTickBehavior};
 
 use crate::config::{extract_bool, get_config, register_on_change_callback, Value};
 use crate::constant::game::{CHAMPSELECT, LOBBY, MATCHMAKING, READYCHECK};
@@ -163,6 +163,7 @@ use std::future::Future;
 async fn start_accept_match_automation() {
     log::info!("Starting accept match automation");
     let mut ticker = interval(Duration::from_millis(100));
+    ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
 
     loop {
         ticker.tick().await;
@@ -204,6 +205,10 @@ async fn start_accept_match_automation() {
 async fn start_match_automation() {
     log::info!("Starting match automation");
     let mut ticker = interval(Duration::from_secs(1));
+    // 迟到的 tick 只该丢弃，不该重放：tokio 默认的 MissedTickBehavior::Burst 会在
+    // 运行时被阻塞后把攒下的 tick 一次性补发。真机 2026-08-15 实测，自动 BP 因此在
+    // ~1 秒内连发 8 次 PATCH（tick 空档 6.2s 后以 ~18ms 间隔爆发）。
+    ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
     let mut last_search_state = String::new();
     let mut auto_match_enabled = true;
 
@@ -387,6 +392,10 @@ async fn is_leader(members: &[crate::lcu::api::lobby::Member]) -> Result<bool, S
 async fn start_champion_select_automation() {
     log::info!("Starting champion select automation");
     let mut ticker = interval(Duration::from_secs(1));
+    // 迟到的 tick 只该丢弃，不该重放：tokio 默认的 MissedTickBehavior::Burst 会在
+    // 运行时被阻塞后把攒下的 tick 一次性补发。真机 2026-08-15 实测，自动 BP 因此在
+    // ~1 秒内连发 8 次 PATCH（tick 空档 6.2s 后以 ~18ms 间隔爆发）。
+    ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
 
     loop {
         ticker.tick().await;
@@ -491,13 +500,10 @@ async fn load_ban_rules() -> Vec<crate::command::rule_config::BanRule> {
 /// 2. 快照的动作类型与本任务不符则跳过
 /// 3. 交给 `apply_bp_decision`：hover 同步 → 到点锁定
 async fn start_select_champion() -> Result<(), String> {
-    let Some(decision) = crate::bp_decision::store::read() else {
-        log::debug!("No BP decision snapshot yet, skipping this tick");
+    let Some(decision) = crate::bp_decision::store::read_pick() else {
+        log::debug!("No BP pick decision snapshot yet, skipping this tick");
         return Ok(());
     };
-    if decision.action_type != crate::bp_decision::types::BpActionType::Pick {
-        return Ok(());
-    }
     let select_session = get_fresh_champion_select_session().await?;
     apply_bp_decision(&select_session, &decision).await
 }
@@ -518,6 +524,10 @@ async fn start_select_champion() -> Result<(), String> {
 async fn start_champion_ban_automation() {
     log::info!("Starting champion ban automation");
     let mut ticker = interval(Duration::from_secs(1));
+    // 迟到的 tick 只该丢弃，不该重放：tokio 默认的 MissedTickBehavior::Burst 会在
+    // 运行时被阻塞后把攒下的 tick 一次性补发。真机 2026-08-15 实测，自动 BP 因此在
+    // ~1 秒内连发 8 次 PATCH（tick 空档 6.2s 后以 ~18ms 间隔爆发）。
+    ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
 
     loop {
         ticker.tick().await;
@@ -598,6 +608,7 @@ async fn start_bp_decision_automation(app: tauri::AppHandle) {
 
     log::info!("Starting BP decision evaluation (always-on)");
     let mut ticker = interval(Duration::from_secs(2));
+    ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
 
     // OP.GG 快照跨 tick 复用：选人期内只取一次（按模式），失败也只试一次——
     // 失败重试交给下一局（离开选人期时清空），避免 2s 热循环里对不可达的
@@ -663,36 +674,53 @@ async fn start_bp_decision_automation(app: tauri::AppHandle) {
         let pick_on = switch_enabled("settings.auto.pickChampionSwitch").await;
         let ban_on = switch_enabled("settings.auto.banChampionSwitch").await;
 
-        let pending = evaluate::find_my_pending_action(&session);
-        let pending_is_ban = pending
-            .map(|p| p.action_type == crate::bp_decision::types::BpActionType::Ban)
-            .unwrap_or(false);
-        let mode = if (pending_is_ban && ban_on) || (!pending_is_ban && pick_on) {
-            BpMode::Auto
-        } else {
-            BpMode::Advisory
-        };
+        use crate::bp_decision::types::BpActionType;
 
-        let ctx = evaluate::BpContext {
-            session: &session,
-            my_puuid: &my_summoner.puuid,
-            pick_rules: &pick_rules,
-            ban_rules: &ban_rules,
-            pick_pool: &pick_pool,
-            ban_pool: &ban_pool,
-            snapshot: snapshot.as_deref(),
-            mode,
-            execute_at_secs_left: DEFAULT_EXECUTE_AT_SECS_LEFT,
-            last_hovered: store::last_hovered(),
+        // ban 与 pick 各求一次值：两条执行轨道各读各的，pick 的 hover 才能在 ban
+        // 阶段就开始（真机现象「预选期不预选」的根因是两者共用了「当前那一个」动作）。
+        let last_hovered = store::last_hovered();
+        let eval_for = |action_type: BpActionType, auto_on: bool| {
+            let pending = evaluate::find_my_pending_action_of_type(&session, action_type)?;
+            let ctx = evaluate::BpContext {
+                session: &session,
+                my_puuid: &my_summoner.puuid,
+                pick_rules: &pick_rules,
+                ban_rules: &ban_rules,
+                pick_pool: &pick_pool,
+                ban_pool: &ban_pool,
+                snapshot: snapshot.as_deref(),
+                mode: if auto_on {
+                    BpMode::Auto
+                } else {
+                    BpMode::Advisory
+                },
+                execute_at_secs_left: DEFAULT_EXECUTE_AT_SECS_LEFT,
+                last_hovered,
+            };
+            let mut d = evaluate::evaluate_for_action(&ctx, pending)?;
+            // 接管标记以执行侧的粘性记录为准：一旦判定接管，即使用户随后撤回 hover
+            // (detect_override 重算为 false)，本阶段也不会再自动执行——快照必须如实
+            // 反映，否则决策带会承诺一次永远不会发生的自动锁定
+            d.user_overridden = d.user_overridden || store::is_overridden(pending.action_id);
+            Some((pending.action_id, d))
         };
-        let mut decision = evaluate::evaluate_bp_decision(&ctx);
-        // 接管标记以执行侧的粘性记录为准：一旦判定接管，即使用户随后撤回 hover
-        // (detect_override 重算为 false)，本阶段也不会再自动执行——快照必须如实
-        // 反映，否则决策带会承诺一次永远不会发生的自动锁定
-        if let (Some(d), Some(p)) = (decision.as_mut(), pending) {
-            d.user_overridden = d.user_overridden || store::is_overridden(p.action_id);
-        }
-        store::write(decision);
+        let ban_decision = eval_for(BpActionType::Ban, ban_on);
+        let pick_decision = eval_for(BpActionType::Pick, pick_on);
+
+        // 展示用的「当前」决策：复用已算好的两份，按 find_my_pending_action 的
+        // 口径挑一份，避免第三次求值。
+        let current = evaluate::find_my_pending_action(&session).and_then(|p| {
+            [ban_decision.as_ref(), pick_decision.as_ref()]
+                .into_iter()
+                .flatten()
+                .find(|(id, _)| *id == p.action_id)
+                .map(|(_, d)| d.clone())
+        });
+        store::write(
+            current,
+            ban_decision.map(|(_, d)| d),
+            pick_decision.map(|(_, d)| d),
+        );
     }
 }
 
@@ -719,11 +747,18 @@ fn should_lock(
     d: &crate::bp_decision::types::BpDecision,
     time_left_secs: f64,
     is_in_progress: bool,
+    timer_phase: &str,
 ) -> bool {
     let Some(t) = d.target.as_ref() else {
         return false;
     };
-    is_in_progress && t.lock && time_left_secs > 0.0 && time_left_secs <= d.execute_at_secs_left
+    // 阶段门不可省：PLANNING 的独立计时器同样会走进 (0, execute_at] 窗口，而那时
+    // 提交会被 LCU 静默无视（真机 2026-08-15 实测）。详见 evaluate::is_actionable_phase。
+    crate::bp_decision::evaluate::is_actionable_phase(timer_phase)
+        && is_in_progress
+        && t.lock
+        && time_left_secs > 0.0
+        && time_left_secs <= d.execute_at_secs_left
 }
 
 /// 按决策快照同步 hover 并在到点时锁定。
@@ -737,15 +772,12 @@ async fn apply_bp_decision(
 ) -> Result<(), String> {
     use crate::bp_decision::{evaluate, store, types::BpActionType};
 
-    let Some(pending) = evaluate::find_my_pending_action(session) else {
+    // 按决策自身的类型定位我的动作,而不是「当前那一个」——ban 与 pick 是两条独立
+    // 轨道,pick 的 hover 要在选人期一开始就做,不能因为 ban 尚未完成而空转。
+    let Some(pending) = evaluate::find_my_pending_action_of_type(session, decision.action_type)
+    else {
         return Ok(());
     };
-
-    // 快照最旧可比实时 session 落后一个 tick,相位切换(ban→pick)恰落在窗口里:
-    // 类型不一致时本 tick 什么都不做,等下一 tick 的新快照
-    if decision.action_type != pending.action_type {
-        return Ok(());
-    }
 
     // 接管检测用实时数据:用户在快照生成后的 2s 窗口内抢过方向盘也要立即退让。
     // 快照里的 user_overridden 是 2s 前算的,只用于展示与本 tick 的保守短路,
@@ -793,16 +825,17 @@ async fn apply_bp_decision(
     let timer = &session.timer;
     // real_time_left: 本 tick 实际参与到点判断的剩余秒数,None = 无计时器模式。
     // 只为下面的执行日志保留——那行日志是真机核对毫秒假设的唯一证据源,必须打真值。
+    let actionable = crate::bp_decision::evaluate::is_actionable_phase(&timer.phase);
     let (lock_now, real_time_left): (bool, Option<f64>) = if timer.is_infinite {
         // 无计时器模式(自定义房间等):退回「轮到我就执行」,与旧实现行为一致
-        (pending.is_in_progress && target.lock, None)
+        (actionable && pending.is_in_progress && target.lock, None)
     } else {
         let time_left = crate::bp_decision::evaluate::phase_secs_left(timer);
         if time_left <= 0.0 {
             // timer 字段缺失(serde default 全 0)或已归零:宁可不动手,但要留下现场;
-            // 只在真轮到我(is_in_progress)时才打 warn——否则一个坏 timer 的会话
-            // 会在预选期每 2s 刷屏,而那时压根还没到需要提醒的时候
-            if pending.is_in_progress {
+            // 只在真轮到我、且处于可提交阶段时才打 warn——否则 PLANNING 阶段
+            // 归零、或一个坏 timer 的会话,会在压根还没轮到动手时每 tick 刷屏
+            if actionable && pending.is_in_progress {
                 log::warn!(
                     "BP timer unusable (time_left={:.1}), skip auto lock",
                     time_left
@@ -811,7 +844,7 @@ async fn apply_bp_decision(
             (false, Some(time_left))
         } else {
             (
-                should_lock(decision, time_left, pending.is_in_progress),
+                should_lock(decision, time_left, pending.is_in_progress, &timer.phase),
                 Some(time_left),
             )
         }
@@ -857,13 +890,10 @@ async fn switch_enabled(key: &str) -> bool {
 /// 2. 快照的动作类型与本任务不符则跳过
 /// 3. 交给 `apply_bp_decision`：hover 同步 → 到点锁定
 async fn start_ban_champion() -> Result<(), String> {
-    let Some(decision) = crate::bp_decision::store::read() else {
-        log::debug!("No BP decision snapshot yet, skipping this tick");
+    let Some(decision) = crate::bp_decision::store::read_ban() else {
+        log::debug!("No BP ban decision snapshot yet, skipping this tick");
         return Ok(());
     };
-    if decision.action_type != crate::bp_decision::types::BpActionType::Ban {
-        return Ok(());
-    }
     let select_session = get_fresh_champion_select_session().await?;
     apply_bp_decision(&select_session, &decision).await
 }
@@ -1172,27 +1202,69 @@ mod bp_execution_tests {
         }
     }
 
+    /// 绝大多数用例只关心时间/回合维度，阶段固定为可提交的 BAN_PICK；
+    /// 阶段维度本身由 `should_not_lock_outside_ban_pick_phase` 单独覆盖。
+    fn lock_in_ban_pick(
+        d: &crate::bp_decision::types::BpDecision,
+        time_left: f64,
+        is_in_progress: bool,
+    ) -> bool {
+        should_lock(d, time_left, is_in_progress, "BAN_PICK")
+    }
+
     #[test]
     fn should_lock_after_reaching_threshold() {
         // 还早 → 不锁
-        assert!(!should_lock(
+        assert!(!lock_in_ban_pick(
             &decision(BpMode::Auto, 20.0, false),
             20.0,
             true
         ));
         // 到点 → 锁
-        assert!(should_lock(&decision(BpMode::Auto, 5.0, false), 5.0, true));
-        assert!(should_lock(&decision(BpMode::Auto, 3.5, false), 3.5, true));
+        assert!(lock_in_ban_pick(
+            &decision(BpMode::Auto, 5.0, false),
+            5.0,
+            true
+        ));
+        assert!(lock_in_ban_pick(
+            &decision(BpMode::Auto, 3.5, false),
+            3.5,
+            true
+        ));
         // 即使一次采样从 5s 以上跳到 3s 以下，也仍应执行
-        assert!(should_lock(&decision(BpMode::Auto, 2.9, false), 2.9, true));
+        assert!(lock_in_ban_pick(
+            &decision(BpMode::Auto, 2.9, false),
+            2.9,
+            true
+        ));
         // 已归零 → 不再发送无效请求
-        assert!(!should_lock(&decision(BpMode::Auto, 0.0, false), 0.0, true));
+        assert!(!lock_in_ban_pick(
+            &decision(BpMode::Auto, 0.0, false),
+            0.0,
+            true
+        ));
         // 没轮到我 → 不锁
-        assert!(!should_lock(
+        assert!(!lock_in_ban_pick(
             &decision(BpMode::Auto, 4.0, false),
             4.0,
             false
         ));
+    }
+
+    /// 真机回归（2026-08-15）：LCU 在 PLANNING 期间就把 ban action 标成
+    /// is_in_progress，而 PLANNING 有自己的 12 秒计时器，同样会走进执行窗口。
+    /// 当时因此发出了一次被 LCU 静默无视的 ban，20 秒后 BAN_PICK 才真正成功。
+    #[test]
+    fn should_not_lock_outside_ban_pick_phase() {
+        let d = decision(BpMode::Auto, 4.0, false);
+        assert!(
+            !should_lock(&d, 4.0, true, "PLANNING"),
+            "PLANNING 的独立倒计时进了窗口也不能提交"
+        );
+        assert!(!should_lock(&d, 4.0, true, "FINALIZATION"));
+        assert!(should_lock(&d, 4.0, true, "BAN_PICK"));
+        // 字段缺失 → 不阻拦，退回加入阶段门之前的行为
+        assert!(should_lock(&d, 4.0, true, ""));
     }
 
     // 钉死 should_lock 的实时语义:传参才是决策依据,快照里的 time_left_secs
@@ -1203,13 +1275,17 @@ mod bp_execution_tests {
     #[test]
     fn should_lock_when_real_time_param_is_within_window_even_if_snapshot_is_stale_and_early() {
         // 快照写 20s(早),但实时传参 4.0s(到点)→ 应锁
-        assert!(should_lock(&decision(BpMode::Auto, 20.0, false), 4.0, true));
+        assert!(lock_in_ban_pick(
+            &decision(BpMode::Auto, 20.0, false),
+            4.0,
+            true
+        ));
     }
 
     #[test]
     fn should_not_lock_when_real_time_param_is_early_even_if_snapshot_is_stale_and_at_threshold() {
         // 快照写 4s(到点),但实时传参 20.0s(还早)→ 不应锁
-        assert!(!should_lock(
+        assert!(!lock_in_ban_pick(
             &decision(BpMode::Auto, 4.0, false),
             20.0,
             true
@@ -1228,7 +1304,7 @@ mod bp_execution_tests {
         let mut d = decision(BpMode::Auto, 4.0, false);
         d.target.as_mut().unwrap().lock = false;
         assert!(
-            !should_lock(&d, 4.0, true),
+            !lock_in_ban_pick(&d, 4.0, true),
             "lock=false 的规则只 hover，不自动确定"
         );
     }
