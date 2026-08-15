@@ -560,7 +560,9 @@ async fn start_trade_automation() {
 fn reset_execution_state() {
     let mut guard = last_bench_swap().lock().unwrap_or_else(|e| e.into_inner());
     *guard = None;
-    let mut applied = last_rune_applied().lock().unwrap_or_else(|e| e.into_inner());
+    let mut applied = last_rune_applied()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     *applied = None;
 }
 
@@ -750,7 +752,9 @@ async fn apply_rune_page_if_needed() -> Result<(), String> {
     };
 
     {
-        let guard = last_rune_applied().lock().unwrap_or_else(|e| e.into_inner());
+        let guard = last_rune_applied()
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         if *guard == Some((my_champion, page.id)) {
             return Ok(());
         }
@@ -758,7 +762,9 @@ async fn apply_rune_page_if_needed() -> Result<(), String> {
 
     let current_id = crate::lcu::api::perks::get_current_perk_page_id().await?;
     if current_id == page.id {
-        let mut guard = last_rune_applied().lock().unwrap_or_else(|e| e.into_inner());
+        let mut guard = last_rune_applied()
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         *guard = Some((my_champion, page.id));
         return Ok(());
     }
@@ -771,7 +777,9 @@ async fn apply_rune_page_if_needed() -> Result<(), String> {
         current_id
     );
     crate::lcu::api::perks::set_current_perk_page(page.id).await?;
-    let mut guard = last_rune_applied().lock().unwrap_or_else(|e| e.into_inner());
+    let mut guard = last_rune_applied()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     *guard = Some((my_champion, page.id));
     Ok(())
 }
@@ -1584,8 +1592,7 @@ mod tests {
             serde_json::json!({ "championId": 0, "pageName": "非法英雄" }),
         ];
         let rules = parse_rune_rules_value(&Value::List(
-            rows
-                .into_iter()
+            rows.into_iter()
                 .map(|r| serde_json::from_value::<Value>(r).unwrap())
                 .collect(),
         ));
@@ -1611,7 +1618,9 @@ mod tests {
         }
     }
 
-    fn session_with(actions: Vec<crate::lcu::api::champion_select::Action>) -> crate::lcu::api::champion_select::SelectSession {
+    fn session_with(
+        actions: Vec<crate::lcu::api::champion_select::Action>,
+    ) -> crate::lcu::api::champion_select::SelectSession {
         crate::lcu::api::champion_select::SelectSession {
             my_team: vec![],
             their_team: vec![],
@@ -1634,10 +1643,7 @@ mod tests {
 
     #[test]
     fn locked_champion_ignores_ban_and_uncompleted_actions() {
-        let s = session_with(vec![
-            action(0, 5, true, "ban"),
-            action(0, 0, false, "pick"),
-        ]);
+        let s = session_with(vec![action(0, 5, true, "ban"), action(0, 0, false, "pick")]);
         assert_eq!(my_locked_champion(&s), None);
     }
 
