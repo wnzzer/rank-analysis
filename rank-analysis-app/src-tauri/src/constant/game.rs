@@ -472,7 +472,7 @@ pub fn get_sgp_common_host(platform_id: &str) -> Option<&'static str> {
 }
 
 /// 按 platformId 取 SGP 子区参数（regionPathParam）。与 platformId 相同则原样返回。
-pub fn get_sgp_region_path_param<'a>(platform_id: &'a str) -> &'a str {
+pub fn get_sgp_region_path_param(platform_id: &str) -> &str {
     SGP_REGION_PATH_PARAM
         .get(platform_id)
         .copied()
