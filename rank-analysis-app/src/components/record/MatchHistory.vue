@@ -100,6 +100,7 @@
             <MatchDetailInline
               v-if="expandedGameIds.has(game.gameId)"
               :game="game"
+              :region="region"
               @close="collapseDetail(game.gameId)"
             />
           </Transition>

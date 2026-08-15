@@ -230,7 +230,7 @@ import MatchDetailEventsTab from './tabs/MatchDetailEventsTab.vue'
 import MatchDetailBuildsTab from './tabs/MatchDetailBuildsTab.vue'
 import MatchDetailTimelineTab from './tabs/MatchDetailTimelineTab.vue'
 
-const props = defineProps<{ game: Game | null }>()
+const props = defineProps<{ game: Game | null; region?: string }>()
 const emit = defineEmits<{ close: [] }>()
 
 const { isDark } = useTheme()
@@ -254,8 +254,13 @@ const ai = useMatchAIAnalysis(gameRef)
 const replay = useMatchReplay(gameRef)
 const assets = useRecordAssets()
 const { copy } = useCopy()
-// 段位跟随本局队列（440 灵活组排 / 其余单双排），语义与 useSessionTiers 的 pickQueueInfo 一致
-const ranks = useMatchPlayerRanks(detailPlayers, () => props.game?.queueId)
+// 段位跟随本局队列（440 灵活组排 / 其余单双排），语义与 useSessionTiers 的 pickQueueInfo 一致；
+// 跨区详情（region 非空）走 SGP rankedStats 直查（LCU 段位端点只能查当前登录区）
+const ranks = useMatchPlayerRanks(
+  detailPlayers,
+  () => props.game?.queueId,
+  () => props.region
+)
 
 function totalCs(stats: ParticipantStats) {
   return stats.totalMinionsKilled + stats.neutralMinionsKilled

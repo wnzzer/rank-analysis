@@ -21,6 +21,7 @@ use crate::constant;
 use crate::lcu::api::game_detail::GameDetail;
 use crate::lcu::api::match_history::{Game, GamesWrapper, MatchHistory};
 use crate::lcu::api::model::{Participant, ParticipantIdentity, Perks, Player, Stats};
+use crate::lcu::api::rank::{QueueInfo, QueueMap, Rank};
 use crate::lcu::api::summoner::Summoner;
 use crate::lcu::util::http::{lcu_get, riot_client_get, sgp_get};
 use moka::future::Cache;
@@ -58,6 +59,122 @@ pub async fn get_entitlements_access_token() -> Result<String, String> {
         return Err("entitlements accessToken 为空（客户端未就绪？）".to_string());
     }
     Ok(t.access_token)
+}
+
+/// 从本地 LCU 取 SGP 会话 token（`lol-league-session/v1/league-session-token`）。
+///
+/// 该 token 供会话系端点（`leagues-ledge` 段位等）使用，与 entitlements token 分流
+/// （对齐 LeagueAkari 的双 token 模型）。响应为裸 JSON 字符串。token 会轮换，
+/// 每次请求前重新获取。
+pub async fn get_league_session_token() -> Result<String, String> {
+    let t = lcu_get::<String>("lol-league-session/v1/league-session-token").await?;
+    if t.trim().is_empty() {
+        return Err("league-session token 为空（客户端未就绪？）".to_string());
+    }
+    Ok(t)
+}
+
+// ─────────────────────────── 段位 rankedStats ───────────────────────────
+
+/// SGP `leagues-ledge` rankedStats 响应（与 LCU `lol-ranked` 同构，字段缺失 default 容错）。
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SgpRankedStats {
+    pub queues: Vec<SgpRankedQueue>,
+}
+
+/// rankedStats 中的单个队列段位。tier 缺失 = 未定级；大师及以上无 `rank` 分段。
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SgpRankedQueue {
+    pub queue_type: Option<String>,
+    pub tier: Option<String>,
+    pub rank: Option<String>,
+    pub league_points: Option<i32>,
+    pub wins: Option<i32>,
+    pub losses: Option<i32>,
+    pub provisional_games_remaining: Option<i32>,
+    pub highest_tier: Option<String>,
+    pub highest_rank: Option<String>,
+}
+
+/// SGP 段位缓存（30min TTL，对齐 `command/rank.rs` 的 `RANK_CACHE` 语义：
+/// 段位一次会话内几乎不变；max 500 防爆）。
+/// key = `{platform_id}:{puuid}` —— 带大区防串区。
+static SGP_RANKED_CACHE: LazyLock<Cache<String, SgpRankedStats>> = LazyLock::new(|| {
+    Cache::builder()
+        .max_capacity(500)
+        .time_to_live(Duration::from_secs(30 * 60))
+        .build()
+});
+
+/// SGP 错误是否为「玩家/大区无记录」（404）——未定级时返回空结构而非报错。
+fn is_sgp_not_found(err: &str) -> bool {
+    err.contains("非 2xx（404）")
+}
+
+/// 拉取指定大区某玩家的段位（`leagues-ledge/v2/rankedStats`）。
+///
+/// # 参数
+/// - `platform_id`: 目标大区（如 `HN10` / `NA1`），映射为 SGP common 主机。
+/// - `puuid`: 目标玩家 PUUID（全局唯一，跨区一致）。
+///
+/// 用 **league-session token**（非战绩用的 entitlements token），走 common 主机
+/// （腾讯区与战绩同主机；国际区为 `{region}-red.lol.sgp.pvp.net`）。
+/// 404（未定级/该大区无记录）返回空结构，前端自然显示「无段位」。
+pub async fn fetch_ranked_stats(
+    platform_id: &str,
+    puuid: &str,
+) -> Result<SgpRankedStats, String> {
+    let key = format!("{platform_id}:{puuid}");
+    if let Some(cached) = SGP_RANKED_CACHE.get(&key).await {
+        return Ok(cached);
+    }
+    let host = constant::game::get_sgp_common_host(platform_id)
+        .ok_or_else(|| format!("未知大区 {}，无对应 SGP common 主机", platform_id))?;
+    let token = get_league_session_token().await?;
+    let uri = format!("leagues-ledge/v2/rankedStats/puuid/{}", puuid);
+    match sgp_get::<SgpRankedStats>(host, &uri, &token).await {
+        Ok(stats) => {
+            SGP_RANKED_CACHE.insert(key, stats.clone()).await;
+            Ok(stats)
+        }
+        Err(e) if is_sgp_not_found(&e) => Ok(SgpRankedStats::default()),
+        Err(e) => Err(e),
+    }
+}
+
+/// SGP rankedStats → 本项目 `Rank`（`queueMap` 结构）。
+///
+/// 只取单双排/灵活两个队列（前端消费面），其余队列忽略；缺失字段按未定级处理
+/// （tier 空串，前端 `hasRealTier` 判空显示「无段位」）；大师以上无分段时
+/// division 置 "NA"（对齐 LCU 未定级惯例，高段位展示走胜点不读分段）。
+pub fn map_sgp_ranked_stats_to_rank(stats: &SgpRankedStats) -> Rank {
+    let mut rank = Rank {
+        queue_map: QueueMap {
+            ranked_solo_5x5: QueueInfo::default(),
+            ranked_flex_sr: QueueInfo::default(),
+        },
+    };
+    for q in &stats.queues {
+        let Some(queue_type) = q.queue_type.as_deref() else { continue };
+        let info = match queue_type {
+            "RANKED_SOLO_5x5" => &mut rank.queue_map.ranked_solo_5x5,
+            "RANKED_FLEX_SR" => &mut rank.queue_map.ranked_flex_sr,
+            _ => continue,
+        };
+        info.queue_type = queue_type.to_string();
+        info.tier = q.tier.clone().unwrap_or_default();
+        info.division = q.rank.clone().unwrap_or_else(|| "NA".to_string());
+        info.highest_tier = q.highest_tier.clone().unwrap_or_default();
+        info.highest_division = q.highest_rank.clone().unwrap_or_default();
+        info.is_provisional = q.provisional_games_remaining.unwrap_or(0) > 0;
+        info.league_points = q.league_points.unwrap_or(0);
+        info.wins = q.wins.unwrap_or(0);
+        info.losses = q.losses.unwrap_or(0);
+    }
+    rank.enrich_cn_info();
+    rank
 }
 
 /// 当前登录客户端所在大区的 `platformId`（如 `TJ100` / `HN1`）。
@@ -539,6 +656,16 @@ pub async fn get_match_history_by_name(
     Ok(mh)
 }
 
+/// 跨区按「名字#TAG」查玩家段位：解析 puuid（RC）→ SGP rankedStats → 映射 `Rank`。
+///
+/// 这是「跨区段位」的对外主入口（玩家条/详情页共用同一映射）。
+pub async fn get_rank_by_name(region: &str, name: &str) -> Result<Rank, String> {
+    let (game_name, tag_line) = split_riot_id(name)?;
+    let puuid = resolve_puuid_by_riot_id(&game_name, &tag_line).await?;
+    let stats = fetch_ranked_stats(region, &puuid).await?;
+    Ok(map_sgp_ranked_stats_to_rank(&stats))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -788,5 +915,97 @@ mod tests {
             .await;
         // 同 gameId 不同大区:key 不同 → 未命中(防串区)
         assert!(SGP_DETAIL_CACHE.get(&"HN10:7".to_string()).await.is_none());
+    }
+
+    // ── rankedStats → Rank 映射（F1：段位直查）──
+
+    /// 用 from_str 解析（避免深层 json! 宏），构造完整双队列 rankedStats 样本。
+    const RANKED_SAMPLE: &str = r#"{
+        "queues": [
+            { "queueType": "RANKED_SOLO_5x5", "tier": "GOLD", "rank": "II", "leaguePoints": 45,
+              "wins": 12, "losses": 8, "provisionalGamesRemaining": 0,
+              "highestTier": "PLATINUM", "highestRank": "III" },
+            { "queueType": "RANKED_FLEX_SR", "tier": "DIAMOND", "rank": "IV", "leaguePoints": 3,
+              "wins": 40, "losses": 20, "provisionalGamesRemaining": 0,
+              "highestTier": "DIAMOND", "highestRank": "II" }
+        ]
+    }"#;
+
+    #[test]
+    fn map_ranked_stats_maps_both_queues_with_cn() {
+        let stats: SgpRankedStats = serde_json::from_str(RANKED_SAMPLE).unwrap();
+        let rank = map_sgp_ranked_stats_to_rank(&stats);
+        let solo = &rank.queue_map.ranked_solo_5x5;
+        assert_eq!(solo.tier, "GOLD");
+        assert_eq!(solo.tier_cn, "荣耀黄金");
+        assert_eq!(solo.division, "II");
+        assert_eq!(solo.league_points, 45);
+        assert_eq!(solo.wins, 12);
+        assert_eq!(solo.losses, 8);
+        assert_eq!(solo.highest_tier, "PLATINUM");
+        assert_eq!(solo.queue_type_cn, "单双排");
+        assert!(!solo.is_provisional);
+        let flex = &rank.queue_map.ranked_flex_sr;
+        assert_eq!(flex.tier, "DIAMOND");
+        assert_eq!(flex.tier_cn, "璀璨钻石");
+        assert_eq!(flex.division, "IV");
+        assert_eq!(flex.queue_type_cn, "灵活组排");
+    }
+
+    #[test]
+    fn map_ranked_stats_unranked_defaults_to_empty() {
+        // 未定级：queues 里没有该队列 / 缺 tier → 空串（前端 hasRealTier 判空显示「无段位」）
+        let stats: SgpRankedStats = serde_json::from_str(r#"{ "queues": [] }"#).unwrap();
+        let rank = map_sgp_ranked_stats_to_rank(&stats);
+        assert_eq!(rank.queue_map.ranked_solo_5x5.tier, "");
+        assert_eq!(rank.queue_map.ranked_solo_5x5.tier_cn, "无");
+        assert_eq!(rank.queue_map.ranked_flex_sr.tier, "");
+    }
+
+    #[test]
+    fn map_ranked_stats_master_has_no_division() {
+        // 大师及以上没有 rank 分段 → division 落 "NA"（展示走胜点，不读分段）
+        let stats: SgpRankedStats = serde_json::from_str(
+            r#"{ "queues": [ { "queueType": "RANKED_SOLO_5x5", "tier": "MASTER",
+                "leaguePoints": 234, "wins": 90, "losses": 70 } ] }"#,
+        )
+        .unwrap();
+        let rank = map_sgp_ranked_stats_to_rank(&stats);
+        let solo = &rank.queue_map.ranked_solo_5x5;
+        assert_eq!(solo.tier, "MASTER");
+        assert_eq!(solo.division, "NA");
+        assert_eq!(solo.league_points, 234);
+    }
+
+    #[test]
+    fn map_ranked_stats_provisional_detection() {
+        // 定级赛中（provisionalGamesRemaining > 0）→ is_provisional
+        let stats: SgpRankedStats = serde_json::from_str(
+            r#"{ "queues": [ { "queueType": "RANKED_SOLO_5x5", "tier": "SILVER", "rank": "I",
+                "provisionalGamesRemaining": 3, "wins": 0, "losses": 0 } ] }"#,
+        )
+        .unwrap();
+        let rank = map_sgp_ranked_stats_to_rank(&stats);
+        assert!(rank.queue_map.ranked_solo_5x5.is_provisional);
+        assert_eq!(rank.queue_map.ranked_solo_5x5.tier_cn, "不屈白银");
+    }
+
+    #[test]
+    fn map_ranked_stats_ignores_unknown_queues() {
+        // 非双排队列（如 TFT/斗魂）不进入 queueMap，也不 panic
+        let stats: SgpRankedStats = serde_json::from_str(
+            r#"{ "queues": [ { "queueType": "RANKED_TFT", "tier": "GOLD" } ] }"#,
+        )
+        .unwrap();
+        let rank = map_sgp_ranked_stats_to_rank(&stats);
+        assert_eq!(rank.queue_map.ranked_solo_5x5.tier, "");
+        assert_eq!(rank.queue_map.ranked_flex_sr.tier, "");
+    }
+
+    #[test]
+    fn sgp_not_found_matches_404_error_text() {
+        assert!(is_sgp_not_found("SGP 非 2xx（404）: 404 Not Found"));
+        assert!(!is_sgp_not_found("SGP 非 2xx（401）: unauthorized"));
+        assert!(!is_sgp_not_found("SGP 请求失败（网络/TLS）: timeout"));
     }
 }

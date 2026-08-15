@@ -11,6 +11,7 @@
 
 import { invoke } from '@tauri-apps/api/core'
 import type { Game, MatchHistory } from '@renderer/types/domain/match'
+import type { Rank } from '@renderer/types/domain/player'
 
 /** SGP DETAILS 响应的 `json` 体（与 Rust `SgpGameDetailResponse` 对应，字段全可选容错） */
 export interface SgpFramePosition {
@@ -163,8 +164,45 @@ export async function getSgpMatchHistoryByName(
   }
 }
 
-/** 局级详情缓存：gameId + region → 响应（无 TTL，局数据不可变；上限防爆） */
-const detailCache = new Map<string, SgpGameDetailResponse | Promise<SgpGameDetailResponse | null>>()
+/**
+ * 跨区按「名字#TAG」查玩家段位（玩家条/左栏场景）。
+ *
+ * Rust 侧流程：名字#TAG → RC 解析全局 puuid → 目标大区 SGP `leagues-ledge`
+ * rankedStats 直查（league-session token）→ 映射为既有 `Rank` 结构。
+ * 未定级/该大区无记录返回空 Rank（各队列 tier 为空，展示层显示「无段位」）。
+ * @returns 段位信息；失败返回 null（保持现有降级语义）
+ */
+export async function getSgpRankByName(region: string, name: string): Promise<Rank | null> {
+  try {
+    return await invoke<Rank>('get_sgp_rank_by_name', { region, name })
+  } catch (err) {
+    console.error('[sgp] getSgpRankByName failed', err)
+    return null
+  }
+}
+
+/**
+ * 跨区批量按 puuid 查段位：一次 IPC 拿整批（Rust 侧并发 + 30min 缓存兜底）。
+ *
+ * 跨区战绩详情页 10 人场景替代逐个 IPC；单人失败返回 null 不拖垮整批。
+ * 与 LCU 版 `getRanksByPuuids` 语义对齐，但**不加前端缓存**——Rust 侧已有
+ * 30min TTL，跨区场景也不是反复打开的常规路径。
+ * @returns puuid → 段位信息；无数据/失败为 null；空输入返回空对象（不发请求）
+ */
+export async function getSgpRanksByPuuids(
+  region: string,
+  puuids: string[]
+): Promise<Record<string, Rank | null>> {
+  const unique = [...new Set(puuids.filter(Boolean))]
+  if (unique.length === 0) return {}
+  return invoke<Record<string, Rank | null>>('get_sgp_ranks_by_puuids', {
+    region,
+    puuids: unique
+  })
+}
+
+/** 局级详情缓存：gameId + region → 响应（无 TTL，局数据不可变；上限防爆） */ const detailCache =
+  new Map<string, SgpGameDetailResponse | Promise<SgpGameDetailResponse | null>>()
 const DETAIL_CACHE_MAX = 200
 
 /**

@@ -2,7 +2,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { invoke } from '@tauri-apps/api/core'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
-import { getSgpRegions } from '@renderer/services/sgp'
+import { getSgpRankByName, getSgpRegions } from '@renderer/services/sgp'
 import { modeOptions, initModeOptions } from '@renderer/composables/useGameModes'
 import {
   defaultRank,
@@ -24,7 +24,7 @@ import {
  * summoner / rank / 近期胜率 / 标签 / 近期聚合数据。
  *
  * 从原 UserRecord.vue 迁移：路由 name/region 查询参数加载，跨区查询时
- * 段位/胜率/标签不支持跨区只展示玩家名与大区，其余置默认。
+ * 段位走 SGP rankedStats 直查；胜率/标签不支持跨区，只展示玩家名、段位与大区。
  */
 export function usePlayerRecordData() {
   const route = useRoute()
@@ -57,12 +57,14 @@ export function usePlayerRecordData() {
 
     name = summonerName
 
-    // 跨区：段位/胜率/标签不支持跨区，只展示玩家名与大区，其余置默认。
+    // 跨区：胜率/标签不支持跨区（SGP 无这些数据），只补段位——走 SGP
+    // `leagues-ledge` rankedStats 直查（LCU 段位端点只能查当前登录区）。
     // 对局战绩由右侧 MatchHistory 走 SGP，不在此处加载。
     if (region.value) {
       const [g, t] = summonerName.split('#')
       summoner.value = { ...defaultSummoner(), gameName: g ?? summonerName, tagLine: t ?? '' }
-      rank.value = defaultRank()
+      const sgpRank = await getSgpRankByName(region.value, summonerName)
+      rank.value = sgpRank ?? defaultRank()
       solo5v5.value = defaultRecentWinRate()
       flex.value = defaultRecentWinRate()
       recentData.value = defaultRecentData()

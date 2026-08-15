@@ -3,10 +3,14 @@
  *
  * 段位只能查到玩家的"当前"段位——LCU 没有"打这局时的段位"这个数据，翻旧对局时
  * 显示的是这人今天的段位。这是平台限制，UI 侧靠 tooltip 文案说明，不做数据层伪装。
+ *
+ * 跨区（`region` 非空）时走 SGP `leagues-ledge` rankedStats 直查（LCU 段位端点
+ * 只能查当前登录区）；同区仍走 LCU 批量端点（本地更快）。
  */
 
 import { computed, ref, watch, type MaybeRefOrGetter, toValue } from 'vue'
 import { getRanksByPuuids } from '@renderer/services/rank'
+import { getSgpRanksByPuuids } from '@renderer/services/sgp'
 import {
   hasRealTier,
   formatTierText,
@@ -34,11 +38,13 @@ export interface RankLookupPlayer {
  * 批量取一局玩家的段位，返回 puuid → 展示数据的响应式映射。
  * @param players - 详情页玩家列表（或其 getter/ref）
  * @param queueId - 本局队列 ID（`Game.queueId`），决定展示单双排还是灵活段位
+ * @param region - 目标大区 platformId（跨区/SGP 查询时传，如 `HN10`；空 = 当前区走 LCU）
  * @returns `tiersByPuuid`：puuid → {@link MatchPlayerTier}；无数据/未定级/请求失败/尚未加载完成时值为 `null`
  */
 export function useMatchPlayerRanks(
   players: MaybeRefOrGetter<RankLookupPlayer[]>,
-  queueId: MaybeRefOrGetter<number | undefined>
+  queueId: MaybeRefOrGetter<number | undefined>,
+  region: MaybeRefOrGetter<string | undefined> = ''
 ) {
   /** puuid → 原始 Rank；null 表示已请求但失败或本就没有该玩家的数据 */
   const ranksByPuuid = ref<Record<string, Rank | null>>({})
@@ -52,7 +58,10 @@ export function useMatchPlayerRanks(
     // 一次 IPC 拿整批（Rust 侧并发 + 30min 缓存），单人失败返回 null 不拖垮整批。
     // 整批失败时不写 ranksByPuuid——下次打开详情还能重试。
     try {
-      const results = await getRanksByPuuids(targets)
+      const targetRegion = toValue(region)
+      const results = targetRegion
+        ? await getSgpRanksByPuuids(targetRegion, targets)
+        : await getRanksByPuuids(targets)
       const next = { ...ranksByPuuid.value }
       for (const puuid of targets) {
         // 整体失败时 results 缺该 key → 跳过，不标记"已请求"，保留下次重试机会
@@ -68,7 +77,9 @@ export function useMatchPlayerRanks(
     () =>
       toValue(players)
         .map(p => p.puuid)
-        .join(','),
+        .join(',') +
+      '|' +
+      (toValue(region) ?? ''),
     () => {
       void loadRanks(toValue(players).map(p => p.puuid))
     },

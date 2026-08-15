@@ -420,6 +420,10 @@ pub async fn riot_client_get<T: DeserializeOwned>(
 ///
 /// 正常 TLS + 拟真 UA。非 2xx 时把状态码与截断的 body 一并返回，便于区分
 /// 「网络/证书失败」「token 失效(401)」「玩家/大区不存在」。
+///
+/// 网络错误与 5xx 自动重试（共 3 次尝试，指数退避 300ms/600ms，对齐 LeagueAkari
+/// 的 axios-retry 语义——重试只覆盖「可能瞬时失败」的传输层错误，4xx 业务错误
+/// 原样返回避免放大无效请求）。
 pub async fn sgp_get<T: DeserializeOwned>(
     host: &str,
     uri: &str,
@@ -427,23 +431,59 @@ pub async fn sgp_get<T: DeserializeOwned>(
 ) -> Result<T, String> {
     let uri = uri.trim_start_matches('/');
     let url = format!("https://{}/{}", host, uri);
-    let resp = sgp_client()
-        .get(&url)
-        .bearer_auth(bearer)
-        .header(reqwest::header::USER_AGENT, SGP_USER_AGENT)
-        .send()
-        .await
-        .map_err(|e| format!("SGP 请求失败（网络/TLS）: {}", e))?;
-    let status = resp.status();
-    let body = resp
-        .text()
-        .await
-        .map_err(|e| format!("读取 SGP 响应失败: {}", e))?;
-    if !status.is_success() {
-        let snippet: String = body.chars().take(200).collect();
-        return Err(format!("SGP 非 2xx（{}）: {}", status, snippet));
+
+    let mut last_err: Option<String> = None;
+    for attempt in 0..=SGP_MAX_RETRIES {
+        let resp = sgp_client()
+            .get(&url)
+            .bearer_auth(bearer)
+            .header(reqwest::header::USER_AGENT, SGP_USER_AGENT)
+            .send()
+            .await;
+        match resp {
+            Ok(resp) => {
+                let status = resp.status();
+                let body = resp
+                    .text()
+                    .await
+                    .map_err(|e| format!("读取 SGP 响应失败: {}", e))?;
+                if !status.is_success() {
+                    let snippet: String = body.chars().take(200).collect();
+                    if should_retry_sgp(status, attempt) {
+                        last_err = Some(format!("SGP 非 2xx（{}）: {}", status, snippet));
+                        sleep_retry_sgp(attempt).await;
+                        continue;
+                    }
+                    return Err(format!("SGP 非 2xx（{}）: {}", status, snippet));
+                }
+                return serde_json::from_str::<T>(&body)
+                    .map_err(|e| format!("SGP 反序列化失败: {}", e));
+            }
+            Err(e) => {
+                // 网络/TLS 失败属「可能瞬时」的传输层错误，未用尽次数则重试
+                if attempt < SGP_MAX_RETRIES {
+                    last_err = Some(format!("SGP 请求失败（网络/TLS）: {}", e));
+                    sleep_retry_sgp(attempt).await;
+                    continue;
+                }
+                return Err(format!("SGP 请求失败（网络/TLS）: {}", e));
+            }
+        }
     }
-    serde_json::from_str::<T>(&body).map_err(|e| format!("SGP 反序列化失败: {}", e))
+    Err(last_err.unwrap_or_else(|| "SGP 请求失败（重试次数用尽）".to_string()))
+}
+
+/// SGP 最大重试次数（共 `SGP_MAX_RETRIES + 1` 次尝试）。
+const SGP_MAX_RETRIES: u32 = 2;
+
+/// 判断 HTTP 响应是否应重试：5xx 重试；4xx 业务错误不重试（避免放大无效请求）。
+fn should_retry_sgp(status: StatusCode, attempt: u32) -> bool {
+    attempt < SGP_MAX_RETRIES && status.is_server_error()
+}
+
+/// 重试退避：300ms / 600ms（指数）。
+async fn sleep_retry_sgp(attempt: u32) {
+    tokio::time::sleep(Duration::from_millis(300 * (1u64 << attempt))).await;
 }
 
 #[cfg(test)]
@@ -485,5 +525,30 @@ mod tests {
     fn deserialize_body_reports_malformed_json() {
         // 非空但不是合法 JSON 时仍应报错（不要把坏数据吞成默认值）。
         assert!(deserialize_lcu_body::<Vec<i32>>("{not json").is_err());
+    }
+
+    // ── SGP 重试策略（F1：对齐 LeagueAkari axios-retry 语义）──
+
+    #[test]
+    fn sgp_retry_5xx_until_attempts_exhausted() {
+        assert!(should_retry_sgp(StatusCode::INTERNAL_SERVER_ERROR, 0));
+        assert!(should_retry_sgp(StatusCode::BAD_GATEWAY, 1));
+        // 最后一次尝试后不再重试
+        assert!(!should_retry_sgp(StatusCode::INTERNAL_SERVER_ERROR, 2));
+        assert!(!should_retry_sgp(StatusCode::INTERNAL_SERVER_ERROR, 3));
+    }
+
+    #[test]
+    fn sgp_retry_never_for_4xx_business_errors() {
+        // 401 token 失效 / 404 玩家不存在等业务错误原样返回，不放大无效请求
+        assert!(!should_retry_sgp(StatusCode::UNAUTHORIZED, 0));
+        assert!(!should_retry_sgp(StatusCode::NOT_FOUND, 0));
+        assert!(!should_retry_sgp(StatusCode::TOO_MANY_REQUESTS, 0));
+    }
+
+    #[test]
+    fn sgp_retry_does_not_retry_success() {
+        assert!(!should_retry_sgp(StatusCode::OK, 0));
+        assert!(!should_retry_sgp(StatusCode::NO_CONTENT, 1));
     }
 }

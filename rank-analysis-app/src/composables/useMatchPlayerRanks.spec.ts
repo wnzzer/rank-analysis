@@ -11,10 +11,13 @@ import { mount } from '@vue/test-utils'
 import type { Rank } from '@renderer/types/domain/player'
 
 vi.mock('@renderer/services/rank', () => ({ getRanksByPuuids: vi.fn() }))
+vi.mock('@renderer/services/sgp', () => ({ getSgpRanksByPuuids: vi.fn() }))
 import { getRanksByPuuids } from '@renderer/services/rank'
+import { getSgpRanksByPuuids } from '@renderer/services/sgp'
 import { useMatchPlayerRanks } from './useMatchPlayerRanks'
 
 const mockGetRanks = vi.mocked(getRanksByPuuids)
+const mockGetSgpRanks = vi.mocked(getSgpRanksByPuuids)
 
 function makeRank(soloTier: string, flexTier = '', soloLeaguePoints = 40): Rank {
   return {
@@ -178,5 +181,61 @@ describe('useMatchPlayerRanks', () => {
     expect(mockGetRanks).toHaveBeenCalledTimes(2)
     expect(mockGetRanks).toHaveBeenLastCalledWith(['p1', 'p2'])
     expect(result.tiersByPuuid.value.p1).not.toBeNull()
+  })
+
+  // ── 跨区（region 非空）路径：走 SGP rankedStats 批量端点，展示逻辑与 LCU 路径一致 ──
+
+  it('uses the SGP batch endpoint when region is set, with the same display mapping', async () => {
+    mockGetSgpRanks.mockResolvedValue({ p1: makeRank('DIAMOND') })
+    const players = ref([{ puuid: 'p1' }])
+    const { result } = withSetup(() => useMatchPlayerRanks(players, ref(420), ref('HN10')))
+
+    await flush()
+
+    expect(mockGetSgpRanks).toHaveBeenCalledWith('HN10', ['p1'])
+    expect(mockGetRanks).not.toHaveBeenCalled()
+    const tier = result.tiersByPuuid.value.p1
+    expect(tier).not.toBeNull()
+    expect(tier?.shortText).toBe('ND IV')
+  })
+
+  it('uses the LCU endpoint when region is empty, even if a previous region was set', async () => {
+    mockGetSgpRanks.mockResolvedValue({ p1: makeRank('GOLD') })
+    mockGetRanks.mockResolvedValue({ p2: makeRank('SILVER') })
+    const players = ref([{ puuid: 'p1' }])
+    const region = ref<string | undefined>('HN10')
+    const { result } = withSetup(() => useMatchPlayerRanks(players, ref(420), region))
+
+    await flush()
+    expect(mockGetSgpRanks).toHaveBeenCalledTimes(1)
+
+    // 切回当前区（region 清空）且出现新玩家 → 新玩家走 LCU 路径（已缓存的 p1 不重查）
+    players.value = [{ puuid: 'p1' }, { puuid: 'p2' }]
+    region.value = undefined
+    await flush()
+
+    expect(mockGetSgpRanks).toHaveBeenCalledTimes(1)
+    expect(mockGetRanks).toHaveBeenCalledWith(['p2'])
+    expect(result.tiersByPuuid.value.p2?.tooltipText).toContain('SILVER')
+  })
+
+  it('degrades SGP failures to null without throwing', async () => {
+    mockGetSgpRanks.mockRejectedValue(new Error('SGP 401'))
+    const players = ref([{ puuid: 'p1' }])
+    const { result } = withSetup(() => useMatchPlayerRanks(players, ref(420), ref('NA1')))
+
+    await flush()
+
+    expect(result.tiersByPuuid.value.p1).toBeNull()
+  })
+
+  it('skips empty puuids on the SGP path without calling the endpoint', async () => {
+    const players = ref([{ puuid: '' }])
+    const { result } = withSetup(() => useMatchPlayerRanks(players, ref(420), ref('HN10')))
+
+    await flush()
+
+    expect(mockGetSgpRanks).not.toHaveBeenCalled()
+    expect(result.tiersByPuuid.value).toEqual({})
   })
 })

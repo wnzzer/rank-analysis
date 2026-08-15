@@ -1,12 +1,15 @@
 //! # SGP 跨区查询命令模块
 //!
-//! 「全区战绩」对外命令：大区列表、当前登录大区、按 puuid 拉取任意大区战绩。
-//! 本地 LCU 只能查当前登录区，这里经 SGP 网关（[`crate::lcu::api::sgp`]）跨区。
+//! 「全区战绩」与「跨区段位」对外命令：大区列表、当前登录大区、按 puuid 拉取任意
+//! 大区战绩、按 puuid 拉取任意大区段位。本地 LCU 只能查当前登录区，这里经 SGP
+//! 网关（[`crate::lcu::api::sgp`]）跨区。
 
 use crate::constant;
 use crate::lcu::api::match_history::MatchHistory;
+use crate::lcu::api::rank::Rank;
 use crate::lcu::api::sgp;
 use serde::Serialize;
+use std::collections::HashMap;
 /// 大区选项（前端下拉用）：platformId + 中文名。
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -17,9 +20,11 @@ pub struct RegionOption {
     pub label: String,
 }
 
-/// 大区展示顺序（官方习惯：艾欧尼亚→黑玫→联盟一至五区→峡谷之巅），而非 platformId 字典序。
-const REGION_ORDER: [&str; 8] = [
-    "HN1", "HN10", "NJ100", "GZ100", "CQ100", "TJ100", "TJ101", "BGP2",
+/// 大区展示顺序：腾讯官方习惯（艾欧尼亚→黑玫→联盟一至五区→峡谷之巅），
+/// 随后国际区（对齐 LeagueAkari builtin 配置的顺序），而非 platformId 字典序。
+const REGION_ORDER: [&str; 24] = [
+    "HN1", "HN10", "NJ100", "GZ100", "CQ100", "TJ100", "TJ101", "BGP2", "TW2", "SG2", "PH2",
+    "VN2", "PBE", "EUW", "JP", "RU", "BR1", "OC1", "TR1", "LA1", "LA2", "NA1", "TH2", "KR",
 ];
 
 /// 支持跨区查询的大区列表（有 SGP 主机映射的腾讯大区），按官方习惯顺序排列。
@@ -85,6 +90,52 @@ pub async fn get_sgp_match_detail(
     sgp::fetch_match_detail(&region, game_id).await
 }
 
+/// 跨区按「名字#TAG」查玩家段位。
+///
+/// # 流程
+/// `名字#TAG` → Riot Client 解析全局 puuid → 目标大区 SGP `leagues-ledge`
+/// rankedStats 直查 → 映射为现有 `Rank`（复用前端展示链：图标/中文/胜点）。
+/// 未定级/该大区无记录返回空 Rank（各队列 tier 为空，前端显示「无段位」）。
+///
+/// # 参数
+/// - `region`: 目标大区 platformId（如 `HN10` / `NA1`），来自 [`get_sgp_regions`]
+/// - `name`: 完整 Riot ID `名字#TAG`
+#[tauri::command]
+pub async fn get_sgp_rank_by_name(region: String, name: String) -> Result<Rank, String> {
+    crate::observability::track_feature("sgp_cross_region_rank");
+    sgp::get_rank_by_name(&region, &name).await
+}
+
+/// 跨区批量按 PUUID 查段位：单次 IPC 返回多人的段位（SGP 侧 30min 缓存兜底）。
+///
+/// 跨区战绩详情页 10 人场景替代逐个 IPC（语义对齐 `get_ranks_by_puuids`）：
+/// 单人失败返回 None 不拖垮整批。
+///
+/// # 参数
+/// - `region`: 目标大区 platformId
+/// - `puuids`: 召唤师 PUUID 列表
+///
+/// # 返回值
+/// puuid → 段位信息；查询失败/无数据/未定级的玩家为 `None`
+#[tauri::command]
+pub async fn get_sgp_ranks_by_puuids(
+    region: String,
+    puuids: Vec<String>,
+) -> HashMap<String, Option<Rank>> {
+    let results = futures::future::join_all(puuids.into_iter().map(|puuid| {
+        let region = region.clone();
+        async move {
+            let rank = sgp::fetch_ranked_stats(&region, &puuid)
+                .await
+                .ok()
+                .map(|stats| sgp::map_sgp_ranked_stats_to_rank(&stats));
+            (puuid, rank)
+        }
+    }))
+    .await;
+    results.into_iter().collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -101,10 +152,26 @@ mod tests {
         assert!(regions
             .iter()
             .any(|r| r.value == "HN10" && r.label == "黑色玫瑰"));
-        // 官方习惯顺序：艾欧尼亚打头、峡谷之巅收尾
+        // 官方习惯顺序：艾欧尼亚打头、腾讯区后接国际区、韩国收尾
         assert_eq!(regions.first().unwrap().value, "HN1");
         assert_eq!(regions.first().unwrap().label, "艾欧尼亚");
-        assert_eq!(regions.last().unwrap().value, "BGP2");
-        assert_eq!(regions.last().unwrap().label, "峡谷之巅");
+        assert_eq!(regions.last().unwrap().value, "KR");
+        assert_eq!(regions.last().unwrap().label, "韩国");
+        // 腾讯 8 区都在国际区之前
+        let tencent_last = regions.iter().position(|r| r.value == "BGP2").unwrap();
+        let intl_first = regions.iter().position(|r| r.value == "TW2").unwrap();
+        assert!(tencent_last < intl_first);
+    }
+
+    #[test]
+    fn regions_cover_international_servers_with_cn_names() {
+        let regions = get_sgp_regions();
+        for pid in [
+            "TW2", "SG2", "PH2", "VN2", "PBE", "EUW", "JP", "RU", "BR1", "OC1", "TR1", "LA1",
+            "LA2", "NA1", "TH2", "KR",
+        ] {
+            let opt = regions.iter().find(|r| r.value == pid).unwrap_or_else(|| panic!("缺国际区 {pid}"));
+            assert!(!opt.label.is_empty(), "国际区 {pid} 中文名为空");
+        }
     }
 }

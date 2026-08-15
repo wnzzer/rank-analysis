@@ -28,21 +28,35 @@ pub static SGP_SERVER_ID_TO_NAME: phf::Map<&'static str, &'static str> = phf_map
     "GZ100" => "联盟二区",
     "CQ100" => "联盟三区",
     "BGP2" => "峡谷之巅",
-    "PBE" => "体验服",
     "TW2" => "台湾",
     "SG2" => "新加坡",
     "PH2" => "菲律宾",
     "VN2" => "越南",
+    "PBE" => "PBE",
+    "EUW" => "欧服",
+    "JP" => "日本",
+    "RU" => "俄罗斯",
+    "BR1" => "巴西",
+    "OC1" => "大洋洲",
+    "TR1" => "土耳其",
+    "LA1" => "拉美北部",
+    "LA2" => "拉美南部",
+    "NA1" => "北美",
+    "TH2" => "泰国",
+    "KR" => "韩国",
     "" => "暂无",
 };
 
-/// platformId → 腾讯 SGP 网关主机（含端口 21019）。
+/// platformId → SGP 战绩主机（match-history 系端点用，含端口/域名）。
 ///
 /// 全区战绩查询用：本地 LCU 只能查当前登录区，跨区须直连目标大区的 SGP 主机。
-/// 主机名不规则（部分含 `-k8s-`），**逐条硬编码不可拼接**。端口统一 21019，
-/// 走正常公网 TLS（`lol.qq.com` 有效证书）。来源 LeagueAkari-Config；其中
-/// TJ100 / HN10 已真机验证（2026-07，同区 200 + 跨区 token 通用）。
+/// 腾讯区主机名不规则（部分含 `-k8s-`），**逐条硬编码不可拼接**；端口统一 21019，
+/// 走正常公网 TLS（`lol.qq.com` 有效证书）。国际区走 Riot 的 `*-red.pp.sgp.pvp.net`
+/// 区域聚合主机（亚太/美西/欧中/日韩四类）。来源 LeagueAkari builtin 配置
+/// （`BUILTIN_SGP_LEAGUE_SERVERS_CONFIG`）；其中 TJ100 / HN10 已真机验证
+/// （2026-07，同区 200 + 跨区 token 通用）。
 pub static SGP_PLATFORM_TO_HOST: phf::Map<&'static str, &'static str> = phf_map! {
+    // 腾讯大区（matchHistory == common 同一主机）
     "HN1"   => "hn1-k8s-sgp.lol.qq.com:21019",   // 艾欧尼亚
     "HN10"  => "hn10-k8s-sgp.lol.qq.com:21019",  // 黑色玫瑰（已验证）
     "NJ100" => "nj100-sgp.lol.qq.com:21019",     // 联盟一区
@@ -51,6 +65,67 @@ pub static SGP_PLATFORM_TO_HOST: phf::Map<&'static str, &'static str> = phf_map!
     "TJ100" => "tj100-sgp.lol.qq.com:21019",     // 联盟四区（已验证）
     "TJ101" => "tj101-sgp.lol.qq.com:21019",     // 联盟五区
     "BGP2"  => "bgp2-k8s-sgp.lol.qq.com:21019",  // 峡谷之巅
+    // 国际区（matchHistory 主机，按区域聚合）
+    "TW2"   => "apse1-red.pp.sgp.pvp.net",       // 台湾（亚太）
+    "SG2"   => "apse1-red.pp.sgp.pvp.net",       // 新加坡（亚太）
+    "PH2"   => "apse1-red.pp.sgp.pvp.net",       // 菲律宾（亚太）
+    "VN2"   => "apse1-red.pp.sgp.pvp.net",       // 越南（亚太）
+    "OC1"   => "apse1-red.pp.sgp.pvp.net",       // 大洋洲（亚太）
+    "TH2"   => "apse1-red.pp.sgp.pvp.net",       // 泰国（亚太）
+    "KR"    => "apne1-red.pp.sgp.pvp.net",       // 韩国（日韩）
+    "JP"    => "apne1-red.pp.sgp.pvp.net",       // 日本（日韩）
+    "EUW"   => "euc1-red.pp.sgp.pvp.net",        // 欧服（欧洲中）
+    "RU"    => "euc1-red.pp.sgp.pvp.net",        // 俄罗斯（欧洲中）
+    "TR1"   => "euc1-red.pp.sgp.pvp.net",        // 土耳其（欧洲中）
+    "BR1"   => "usw2-red.pp.sgp.pvp.net",        // 巴西（美西）
+    "LA1"   => "usw2-red.pp.sgp.pvp.net",        // 拉美北部（美西）
+    "LA2"   => "usw2-red.pp.sgp.pvp.net",        // 拉美南部（美西）
+    "NA1"   => "usw2-red.pp.sgp.pvp.net",        // 北美（美西）
+    "PBE"   => "usw2-red.pp.sgp.pvp.net",        // PBE（美西）
+};
+
+/// platformId → SGP common 主机（段位等 league-session 系端点用）。
+///
+/// 腾讯区与战绩主机同一台（21019）；国际区为 `{region}-red.lol.sgp.pvp.net`
+/// （各国独立边缘节点，区别于战绩的区域聚合主机）。来源同
+/// [`SGP_PLATFORM_TO_HOST`]（LeagueAkari builtin 配置）。
+pub static SGP_PLATFORM_TO_COMMON_HOST: phf::Map<&'static str, &'static str> = phf_map! {
+    // 腾讯大区（与 matchHistory 同一主机）
+    "HN1"   => "hn1-k8s-sgp.lol.qq.com:21019",
+    "HN10"  => "hn10-k8s-sgp.lol.qq.com:21019",
+    "NJ100" => "nj100-sgp.lol.qq.com:21019",
+    "GZ100" => "gz100-sgp.lol.qq.com:21019",
+    "CQ100" => "cq100-sgp.lol.qq.com:21019",
+    "TJ100" => "tj100-sgp.lol.qq.com:21019",
+    "TJ101" => "tj101-sgp.lol.qq.com:21019",
+    "BGP2"  => "bgp2-k8s-sgp.lol.qq.com:21019",
+    // 国际区（common 主机）
+    "TW2"   => "tw2-red.lol.sgp.pvp.net",
+    "SG2"   => "sg2-red.lol.sgp.pvp.net",
+    "PH2"   => "ph2-red.lol.sgp.pvp.net",
+    "VN2"   => "vn2-red.lol.sgp.pvp.net",
+    "OC1"   => "oce-red.lol.sgp.pvp.net",
+    "TH2"   => "th2-red.lol.sgp.pvp.net",
+    "KR"    => "kr-red.lol.sgp.pvp.net",
+    "JP"    => "jp-red.lol.sgp.pvp.net",
+    "EUW"   => "euw-red.lol.sgp.pvp.net",
+    "RU"    => "ru-red.lol.sgp.pvp.net",
+    "TR1"   => "tr-red.lol.sgp.pvp.net",
+    "BR1"   => "br-red.lol.sgp.pvp.net",
+    "LA1"   => "lan-red.lol.sgp.pvp.net",
+    "LA2"   => "las-red.lol.sgp.pvp.net",
+    "NA1"   => "na-red.lol.sgp.pvp.net",
+    "PBE"   => "pbe-red.lol.sgp.pvp.net",
+};
+
+/// 国际区个别区的 SGP 子区参数（URL 里的 regionPathParam）与 platformId 不同。
+///
+/// 仅列与 platformId 不一致的区（对齐 LeagueAkari builtin 的 `regionPathParam`）；
+/// 其余区子区参数即 platformId 本身。
+pub static SGP_REGION_PATH_PARAM: phf::Map<&'static str, &'static str> = phf_map! {
+    "PBE" => "PBE1",
+    "EUW" => "EUW1",
+    "JP"  => "JP1",
 };
 
 // 英文段位到中文映射
@@ -391,6 +466,19 @@ pub fn get_sgp_host(platform_id: &str) -> Option<&'static str> {
     SGP_PLATFORM_TO_HOST.get(platform_id).copied()
 }
 
+/// 按 platformId 取 SGP common 主机（段位等 league-session 系端点用）。未收录返回 `None`。
+pub fn get_sgp_common_host(platform_id: &str) -> Option<&'static str> {
+    SGP_PLATFORM_TO_COMMON_HOST.get(platform_id).copied()
+}
+
+/// 按 platformId 取 SGP 子区参数（regionPathParam）。与 platformId 相同则原样返回。
+pub fn get_sgp_region_path_param<'a>(platform_id: &'a str) -> &'a str {
+    SGP_REGION_PATH_PARAM
+        .get(platform_id)
+        .copied()
+        .unwrap_or(platform_id)
+}
+
 pub fn get_tier_en_to_cn(key: &str) -> Option<&'static str> {
     TIER_EN_TO_CN.get(key).copied()
 }
@@ -522,5 +610,68 @@ mod tests {
     #[test]
     fn matched_queues_430_490_are_same_group() {
         assert!(queue_ids_same_group(430, 490));
+    }
+
+    // ── SGP 主机映射（F1：国际服补全 + common 主机）──
+
+    #[test]
+    fn sgp_hosts_cover_all_tencent_and_international_regions() {
+        // 腾讯 8 区 + 国际 16 区全部有战绩主机与 common 主机
+        let tencent = ["HN1", "HN10", "NJ100", "GZ100", "CQ100", "TJ100", "TJ101", "BGP2"];
+        let international = [
+            "TW2", "SG2", "PH2", "VN2", "OC1", "TH2", "KR", "JP", "EUW", "RU", "TR1", "BR1",
+            "LA1", "LA2", "NA1", "PBE",
+        ];
+        for pid in tencent.iter().chain(international.iter()) {
+            assert!(
+                get_sgp_host(pid).is_some(),
+                "战绩主机缺失: {pid}"
+            );
+            assert!(
+                get_sgp_common_host(pid).is_some(),
+                "common 主机缺失: {pid}"
+            );
+        }
+        assert_eq!(get_sgp_host("XX99"), None);
+        assert_eq!(get_sgp_common_host("XX99"), None);
+    }
+
+    #[test]
+    fn sgp_tencent_hosts_share_match_history_and_common() {
+        // 腾讯区 matchHistory == common（同一 21019 主机）
+        for pid in ["HN1", "HN10", "TJ100", "BGP2"] {
+            assert_eq!(get_sgp_host(pid), get_sgp_common_host(pid));
+        }
+        // 国际区两者不同：common 走国别边缘节点，战绩走区域聚合主机
+        assert_ne!(get_sgp_host("NA1"), get_sgp_common_host("NA1"));
+        assert_eq!(get_sgp_common_host("NA1"), Some("na-red.lol.sgp.pvp.net"));
+        assert_eq!(get_sgp_host("KR"), Some("apne1-red.pp.sgp.pvp.net"));
+        assert_eq!(get_sgp_common_host("KR"), Some("kr-red.lol.sgp.pvp.net"));
+    }
+
+    #[test]
+    fn sgp_region_path_param_aliases() {
+        // 仅 PBE/EUW/JP 与 platformId 不同（对齐 LeagueAkari builtin）
+        assert_eq!(get_sgp_region_path_param("PBE"), "PBE1");
+        assert_eq!(get_sgp_region_path_param("EUW"), "EUW1");
+        assert_eq!(get_sgp_region_path_param("JP"), "JP1");
+        // 其余区子区参数即 platformId 本身
+        assert_eq!(get_sgp_region_path_param("NA1"), "NA1");
+        assert_eq!(get_sgp_region_path_param("HN10"), "HN10");
+    }
+
+    #[test]
+    fn sgp_international_regions_have_cn_names() {
+        // 国际区必须在名称表里有中文名（大区下拉直接消费）
+        for pid in [
+            "TW2", "SG2", "PH2", "VN2", "OC1", "TH2", "KR", "JP", "EUW", "RU", "TR1", "BR1",
+            "LA1", "LA2", "NA1", "PBE",
+        ] {
+            assert!(
+                get_sgp_server_id_to_name(pid).is_some(),
+                "国际区缺少中文名: {pid}"
+            );
+        }
+        assert_eq!(get_sgp_server_id_to_name("NA1"), Some("北美"));
     }
 }
