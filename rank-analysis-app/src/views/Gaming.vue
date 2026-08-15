@@ -222,7 +222,9 @@
             :teammate-ids="teammatePickedIds"
             :my-position="teammatesMyPosition"
             :tier="opggTier"
+            :tier-loading="opggTierLoading"
             :region="'global'"
+            @switch-tier="onTierChange"
           />
           <SubteamCard
             :subteam="st"
@@ -277,7 +279,7 @@ import {
 } from '@renderer/services/opgg'
 import { useOpggTier } from '@renderer/composables/useOpggTier'
 import { buildRuleDraft } from '@renderer/services/bpRuleDraft'
-import { positionToOpgg } from '@renderer/services/counterIntel'
+import { normalizeLcuPosition } from '@renderer/services/counterIntel'
 import { getChampionName, loadChampionNames } from '@renderer/services/ai/champion-names'
 import type { Position, PickRule, BanRule } from '@renderer/types/rules'
 import type { ChampSelect, Subteam } from '@renderer/types/domain/gaming'
@@ -346,7 +348,8 @@ const teammatePickedIds = computed(() => {
 /** 我本局分路（LCU 命名 top/jungle/...；空 = 位置未知，不过滤候选池） */
 const teammatesMyPosition = computed(() => {
   const pos = myPosition.value
-  return pos && positionToOpgg(pos) ? pos : ''
+  // 大小写不敏感校验：LCU 下发的是小写，直接 positionToOpgg 会漏判
+  return pos && normalizeLcuPosition(pos) ? pos : ''
 })
 
 /** 当前对局对应的 OP.GG 数据模式（ARAM 队列走 aram，其余走 ranked） */

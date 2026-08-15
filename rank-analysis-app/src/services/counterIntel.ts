@@ -80,6 +80,47 @@ export function positionToOpgg(lcu: string): string | null {
 }
 
 /**
+ * LCU 分路 → OP.GG 命名（大小写不敏感）。
+ *
+ * LCU 选人会话的 `assignedPosition` 是纯小写（top/jungle/middle/bottom/utility），
+ * 而 [`positionToOpgg`] 只认大写——两处命名体系拼不上时直接返回 null，调用方
+ * （候选池位置收敛）会静默退化成「不过滤」：推荐条混入所有位置的英雄。
+ * 这里统一先转大写再走既有映射，保证大小写任意都能命中。
+ */
+export function normalizeLcuPosition(lcu: string): string | null {
+  return positionToOpgg(lcu.toUpperCase())
+}
+
+/** 推荐条位置筛选选项（"follow" = 跟随我本局分路；"all" = 全位置） */
+export type PickPositionFilter =
+  'follow' | 'all' | 'TOP' | 'JUNGLE' | 'MIDDLE' | 'BOTTOM' | 'UTILITY'
+
+/** 推荐条位置筛选下拉选项（label 中文、value 走 LCU 命名） */
+export const PICK_POSITION_OPTIONS: Array<{ label: string; value: PickPositionFilter }> = [
+  { label: '跟随我的分路', value: 'follow' },
+  { label: '全部位置', value: 'all' },
+  { label: '上单', value: 'TOP' },
+  { label: '打野', value: 'JUNGLE' },
+  { label: '中单', value: 'MIDDLE' },
+  { label: '下路', value: 'BOTTOM' },
+  { label: '辅助', value: 'UTILITY' }
+]
+
+/**
+ * 推荐条位置筛选 → `useBestPicks` 的 myPosition 入参（纯函数，可单测）。
+ *
+ * - `follow`：跟随我本局分路（LCU 命名，可能为空串 = 位置未知）；规范化后返回
+ *   OP.GG 命名，未知位置返回空串（不过滤候选池）。
+ * - `all`：空串，候选池不做位置收敛。
+ * - 具体分路：该分路的 OP.GG 命名。
+ */
+export function resolvePanelPosition(filter: PickPositionFilter, myPosition: string): string {
+  if (filter === 'all') return ''
+  if (filter === 'follow') return normalizeLcuPosition(myPosition) ?? ''
+  return normalizeLcuPosition(filter) ?? ''
+}
+
+/**
  * 对位列表排序（纯函数，不修改原数组）。
  *
  * 方向说明：按胜率/场次升或降序；同值保持原始顺序（稳定排序）。

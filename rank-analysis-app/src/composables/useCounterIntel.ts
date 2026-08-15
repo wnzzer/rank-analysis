@@ -13,6 +13,7 @@ import { getCurrentScope, onScopeDispose, ref, watch, type Ref } from 'vue'
 import {
   computeDualPicks,
   getChampionIntel,
+  normalizeLcuPosition,
   positionToOpgg,
   sortCounters,
   sortSynergies,
@@ -220,10 +221,11 @@ export function useBestPicks(
       }
       if (disposed) return
 
-      // 位置收敛：仅当我方分路已知时，把候选池过滤到同主分路英雄
+      // 位置收敛：仅当我方分路已知时，把候选池过滤到同主分路英雄。
+      // 用大小写不敏感的规范化：LCU 下发的是小写，直接 positionToOpgg 会漏判。
       let pool = candidates
       if (myPos) {
-        const target = positionToOpgg(myPos)
+        const target = normalizeLcuPosition(myPos)
         if (target) {
           const kept: number[] = []
           for (const c of candidates) {

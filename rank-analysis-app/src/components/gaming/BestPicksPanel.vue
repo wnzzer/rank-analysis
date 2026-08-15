@@ -27,19 +27,46 @@
           </span>
           <span v-else-if="error" class="bp-error-text">OP.GG 数据未就绪</span>
           <span v-else class="bp-empty-text">{{ emptyText }}</span>
-          <span class="bp-expand-hint">▼ 展开 Top5</span>
+          <span class="bp-expand-hint">▼ {{ expandHint }}</span>
         </div>
       </template>
       <div class="bp-panel-content">
         <div class="bp-panel-title">
           {{ titleText }}
-          <span class="bp-panel-count">{{ picks.length }} 个候选</span>
+          <span class="bp-panel-count">{{ shownPicks.length }}/{{ picks.length }} 个候选</span>
+        </div>
+        <div class="bp-controls">
+          <span class="bp-control-label">位置</span>
+          <n-select
+            v-model:value="positionFilter"
+            :options="PICK_POSITION_OPTIONS"
+            size="tiny"
+            class="bp-control"
+          />
+          <span class="bp-control-label">段位</span>
+          <n-select
+            :value="tier"
+            :options="[...TIER_OPTIONS]"
+            :loading="tierLoading"
+            :disabled="tierLoading"
+            size="tiny"
+            class="bp-control"
+            @update:value="onSwitchTier"
+          />
+          <span class="bp-control-label">数量</span>
+          <n-select
+            v-model:value="displayCount"
+            :options="COUNT_OPTIONS"
+            size="tiny"
+            class="bp-control"
+            @update:value="onChangeCount"
+          />
         </div>
         <div v-if="allNonPositive" class="bp-none-warning">
           敌方当前阵容下无正面对位优势英雄（以下为相对最不劣）
         </div>
         <n-scrollbar v-if="picks.length > 0" max-height="380px" class="bp-panel-scroll">
-          <div v-for="p in picks.slice(0, 5)" :key="p.championId" class="bp-pick-card">
+          <div v-for="p in shownPicks" :key="p.championId" class="bp-pick-card">
             <img class="bp-pick-card-avatar" :src="getChampionUrl(p.championId)" alt="" />
             <div class="bp-pick-card-main">
               <div class="bp-pick-card-head">
@@ -113,12 +140,20 @@
  *
  * 隐藏规则由父组件控制（仅 ranked && ChampSelect 渲染本组件）。
  */
-import { computed } from 'vue'
-import { NPopover, NScrollbar } from 'naive-ui'
+import { computed, onMounted, ref } from 'vue'
+import { NPopover, NScrollbar, NSelect } from 'naive-ui'
 import { useAssetUrl } from '@renderer/composables/useAssetUrl'
-import { formatCounterLine, type DualPick } from '@renderer/services/counterIntel'
+import {
+  formatCounterLine,
+  PICK_POSITION_OPTIONS,
+  resolvePanelPosition,
+  type DualPick,
+  type PickPositionFilter
+} from '@renderer/services/counterIntel'
 import { useBestPicks } from '@renderer/composables/useCounterIntel'
 import { getChampionName } from '@renderer/services/ai/champion-names'
+import { TIER_OPTIONS, type OpggTier } from '@renderer/services/opgg'
+import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 
 const props = withDefaults(
   defineProps<{
@@ -128,17 +163,55 @@ const props = withDefaults(
     candidateIds: number[]
     /** OP.GG 段位分段 */
     tier: string
+    /** 段位切换中（禁用下拉避免并发切换） */
+    tierLoading?: boolean
     /** 区域 */
     region?: string
     /** 我方已亮队友英雄 ID（含 intent/picking/locked；空 = 纯对位推荐） */
     teammateIds?: number[]
-    /** 我本局分路（LCU 命名；空 = 不过滤候选位置） */
+    /** 我本局分路（LCU 命名，大小写均可；空 = 不过滤候选位置） */
     myPosition?: string
   }>(),
-  { region: 'global', teammateIds: () => [], myPosition: '' }
+  { tierLoading: false, region: 'global', teammateIds: () => [], myPosition: '' }
 )
 
+const emit = defineEmits<{ 'switch-tier': [next: OpggTier] }>()
+
 const { getChampionUrl } = useAssetUrl()
+
+/** 显示数量选项：固定档位 + 全部（默认 5，与历史 top5 一致） */
+const COUNT_OPTIONS: Array<{ label: string; value: number | 'all' }> = [
+  { label: '5 个', value: 5 },
+  { label: '10 个', value: 10 },
+  { label: '20 个', value: 20 },
+  { label: '全部', value: 'all' }
+]
+
+const COUNT_CONFIG_KEY = 'bestPicksCount'
+const COUNT_VALID: readonly number[] = [5, 10, 20]
+
+/** 面板内展示的推荐数量（'all' = 不限） */
+const displayCount = ref<number | 'all'>(5)
+
+/** 位置筛选：默认跟随我本局分路，可选全位置或指定分路 */
+const positionFilter = ref<PickPositionFilter>('follow')
+
+/** 实际生效的候选位置（OP.GG 命名；空串 = 不过滤） */
+const effectivePosition = computed(() =>
+  resolvePanelPosition(positionFilter.value, props.myPosition)
+)
+
+/** 展示用推荐列表：按显示数量截断（'all' 时全量） */
+const shownPicks = computed(() =>
+  picks.value.slice(0, displayCount.value === 'all' ? picks.value.length : displayCount.value)
+)
+
+/** 常驻条展开提示：数量档位 >= 实际候选数或「全部」时显示展开全部 */
+const expandHint = computed(() => {
+  const n = displayCount.value
+  if (n === 'all' || picks.value.length <= n) return '展开全部'
+  return `展开 Top${n}`
+})
 
 const { picks, isLoading, error } = useBestPicks(
   computed(() => props.enemyIds),
@@ -146,8 +219,34 @@ const { picks, isLoading, error } = useBestPicks(
   computed(() => props.tier),
   computed(() => props.region),
   computed(() => props.teammateIds),
-  computed(() => props.myPosition)
+  effectivePosition
 )
+
+/** 显示数量变化：落配置持久化（下次打开仍生效） */
+async function onChangeCount(v: number | 'all'): Promise<void> {
+  displayCount.value = v
+  try {
+    await putConfigByIpc(COUNT_CONFIG_KEY, v)
+  } catch (e) {
+    console.warn('[bestPicks] 显示数量配置保存失败:', e)
+  }
+}
+
+/** 段位切换：交给父组件统一处理（写配置 + 重拉快照 + 失败回滚） */
+function onSwitchTier(v: OpggTier): void {
+  emit('switch-tier', v)
+}
+
+onMounted(async () => {
+  try {
+    const saved = await getConfigByIpc<number | string>(COUNT_CONFIG_KEY)
+    if (saved === 'all' || (typeof saved === 'number' && COUNT_VALID.includes(saved))) {
+      displayCount.value = saved as number | 'all'
+    }
+  } catch (e) {
+    console.warn('[bestPicks] 显示数量配置读取失败:', e)
+  }
+})
 
 const enemyPicks = computed(() =>
   props.enemyIds.filter(id => id > 0).map(id => ({ championId: id }))
@@ -306,6 +405,25 @@ function championName(id: number): string {
   margin-left: 6px;
   font-weight: 400;
   opacity: 0.6;
+}
+
+.bp-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.12);
+}
+
+.bp-control-label {
+  font-size: 11px;
+  opacity: 0.6;
+}
+
+.bp-control {
+  width: 118px;
 }
 
 .bp-none-warning {

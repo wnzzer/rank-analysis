@@ -7,7 +7,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import { computed } from 'vue'
+import { computed, nextTick } from 'vue'
+import { NSelect } from 'naive-ui'
 import type { DualPick } from '@renderer/services/counterIntel'
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
@@ -43,8 +44,8 @@ import { useBestPicks } from '@renderer/composables/useCounterIntel'
 
 const mockedUseBestPicks = vi.mocked(useBestPicks)
 
-function makePicks(): DualPick[] {
-  return [
+function makePicks(count = 3): DualPick[] {
+  const base: DualPick[] = [
     {
       championId: 51,
       score: 0.62,
@@ -75,6 +76,23 @@ function makePicks(): DualPick[] {
       synergyEvidences: []
     }
   ]
+  if (count <= base.length) return base.slice(0, count)
+  // 超出 3 条时用无证据占位卡补齐（分路/数量截断测试只需要「存在多张卡」）
+  return base.concat(
+    Array.from({ length: count - base.length }, (_, i) => ({
+      championId: 1000 + i,
+      score: 0.05,
+      counterScore: 0.05,
+      synergyScore: 0,
+      evidences: [],
+      synergyEvidences: []
+    }))
+  )
+}
+
+/** 面板内第 index 个 n-select（模板顺序：0 位置 / 1 段位 / 2 数量） */
+function wrapperSelect(index: number, wrapper: ReturnType<typeof mount>): ReturnType<typeof mount> {
+  return wrapper.findAllComponents(NSelect)[index]
 }
 
 async function mountPanel(props: Record<string, unknown> = {}): Promise<ReturnType<typeof mount>> {
@@ -119,13 +137,50 @@ describe('BestPicksPanel', () => {
     expect(args[2].value).toEqual(tier.value)
   })
 
-  it('把 teammateIds/myPosition 传给 useBestPicks（协同维度透传）', async () => {
+  it('把 teammateIds/myPosition（规范化成 OP.GG 命名）传给 useBestPicks（协同维度透传）', async () => {
     await mountPanel({ teammateIds: [300, 301], myPosition: 'BOTTOM' })
     const args = mockedUseBestPicks.mock.calls[0]
     const teammates = computed(() => [300, 301])
-    const pos = computed(() => 'BOTTOM')
+    const pos = computed(() => 'ADC')
     expect(args[4]?.value).toEqual(teammates.value)
     expect(args[5]?.value).toEqual(pos.value)
+  })
+
+  it('位置筛选切到具体分路后 myPosition 入参跟随（默认跟随我的分路）', async () => {
+    const wrapper = await mountPanel({ myPosition: 'top' })
+    const args = mockedUseBestPicks.mock.calls[0]
+    expect(args[5]?.value).toBe('TOP')
+    const posSelect = wrapperSelect(0, wrapper)
+    posSelect.vm.$emit('update:value', 'JUNGLE')
+    await nextTick()
+    expect(args[5]?.value).toBe('JUNGLE')
+    posSelect.vm.$emit('update:value', 'all')
+    await nextTick()
+    expect(args[5]?.value).toBe('')
+  })
+
+  it('段位下拉切换向外 emit switch-tier（由父组件统一处理）', async () => {
+    const wrapper = await mountPanel()
+    wrapperSelect(1, wrapper).vm.$emit('update:value', 'diamond_plus')
+    expect(wrapper.emitted('switch-tier')).toEqual([['diamond_plus']])
+  })
+
+  it('显示数量默认 5：候选超过 5 个时只渲染前 5 张卡', async () => {
+    const picks = makePicks(6)
+    const wrapper = await mountPanel()
+    composableMock.picks.value = picks
+    await nextTick()
+    const cards = wrapper.findAll('.bp-pick-card')
+    expect(cards).toHaveLength(5)
+    expect(cards[0].text()).toContain('英雄51')
+  })
+
+  it('显示数量切到「全部」后渲染全部候选', async () => {
+    composableMock.picks.value = makePicks(6)
+    const wrapper = await mountPanel()
+    wrapperSelect(2, wrapper).vm.$emit('update:value', 'all')
+    await nextTick()
+    expect(wrapper.findAll('.bp-pick-card')).toHaveLength(6)
   })
 
   it('敌方锁定 ≥2 时显示推荐条，含敌方头像与 Top3 应对', async () => {
