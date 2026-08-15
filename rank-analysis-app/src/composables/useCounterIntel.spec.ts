@@ -257,6 +257,182 @@ describe('useBestPicks', () => {
     await nextTick()
     expect(picks.value).toEqual([])
   })
+
+  it('队友已亮 → 拉队友协同数据并入推荐（场景1：纯协同排序）', async () => {
+    const enemyIds = ref<number[]>([])
+    const candidates = ref<number[]>([1, 2])
+    const teammateIds = ref<number[]>([300])
+    mockedGetChampionMeta.mockImplementation(async () => ({
+      championId: 300,
+      position: 'UTILITY',
+      tier: 1,
+      rank: 1,
+      rankPrevPatch: 0,
+      winRate: 0.5,
+      pickRate: 0.1,
+      banRate: 0.05,
+      roleRate: 0.8,
+      isMainPosition: true
+    }))
+    // 队友 300（SUPPORT）与候选 1 协同 0.58、候选 2 协同 0.52
+    mockedGetChampionIntel.mockImplementation(async (_r, championId) => {
+      if (championId === 300) {
+        return {
+          region: 'global',
+          tier: 'emerald_plus',
+          fetchedAt: 0,
+          stale: false,
+          counters: [],
+          synergies: [
+            { synergyChampionId: 1, synergyPosition: 'ADC', winRate: 0.58, play: 890 },
+            { synergyChampionId: 2, synergyPosition: 'ADC', winRate: 0.52, play: 430 }
+          ]
+        }
+      }
+      return null
+    })
+
+    const { picks } = scope.run(() =>
+      useBestPicks(enemyIds, candidates, ref('emerald_plus'), ref('global'), teammateIds)
+    )!
+    await vi.advanceTimersByTimeAsync(DEBOUNCE)
+    await nextTick()
+    await vi.advanceTimersByTimeAsync(0)
+    await nextTick()
+
+    // 队友 intel 走位置映射：UTILITY → SUPPORT
+    expect(mockedGetChampionIntel).toHaveBeenCalledWith('global', 300, 'SUPPORT', 'emerald_plus')
+    expect(picks.value[0].championId).toBe(1)
+    expect(picks.value[0].synergyScore).toBeCloseTo(0.08)
+    expect(picks.value[0].counterScore).toBeCloseTo(0)
+    expect(picks.value[0].synergyEvidences).toHaveLength(1)
+    expect(picks.value[1].championId).toBe(2)
+  })
+
+  it('场景3：敌方+队友齐备 → 双维融合（协同分改写纯对位排序）', async () => {
+    const enemyIds = ref<number[]>([100])
+    const candidates = ref<number[]>([1, 2])
+    const teammateIds = ref<number[]>([300])
+    mockedGetChampionMeta.mockImplementation(async () => ({
+      championId: 300,
+      position: 'MIDDLE',
+      tier: 1,
+      rank: 1,
+      rankPrevPatch: 0,
+      winRate: 0.5,
+      pickRate: 0.1,
+      banRate: 0.05,
+      roleRate: 0.8,
+      isMainPosition: true
+    }))
+    mockedGetChampionIntel.mockImplementation(async (_r, championId) => {
+      if (championId === 100) {
+        return {
+          region: 'global',
+          tier: 'emerald_plus',
+          fetchedAt: 0,
+          stale: false,
+          counters: [
+            { championId: 1, play: 200, win: 90, winRate: 0.45 },
+            { championId: 2, play: 100, win: 60, winRate: 0.45 }
+          ],
+          synergies: []
+        }
+      }
+      if (championId === 300) {
+        return {
+          region: 'global',
+          tier: 'emerald_plus',
+          fetchedAt: 0,
+          stale: false,
+          counters: [],
+          synergies: [{ synergyChampionId: 2, synergyPosition: 'MID', winRate: 0.6, play: 300 }]
+        }
+      }
+      return null
+    })
+
+    const { picks } = scope.run(() =>
+      useBestPicks(enemyIds, candidates, ref('emerald_plus'), ref('global'), teammateIds)
+    )!
+    await vi.advanceTimersByTimeAsync(DEBOUNCE)
+    await nextTick()
+    await vi.advanceTimersByTimeAsync(0)
+    await nextTick()
+
+    // 候选 1：counter +0.05 → 0.05；候选 2：counter +0.05 + syn +0.10 → 0.15 反超
+    expect(picks.value[0].championId).toBe(2)
+    expect(picks.value[0].score).toBeCloseTo(0.15)
+    expect(picks.value[1].championId).toBe(1)
+    expect(picks.value[1].score).toBeCloseTo(0.05)
+  })
+
+  it('myPosition 非空 → 候选池收敛到同主分路英雄', async () => {
+    const enemyIds = ref<number[]>([100])
+    const candidates = ref<number[]>([1, 2])
+    const myPosition = ref('BOTTOM')
+    // 候选 1 主分路 BOTTOM（→ADC）保留；候选 2 主分路 TOP 被过滤
+    mockedGetChampionMeta.mockImplementation(async (_m, championId) => ({
+      championId,
+      position: championId === 1 ? 'BOTTOM' : 'TOP',
+      tier: 1,
+      rank: 1,
+      rankPrevPatch: 0,
+      winRate: 0.5,
+      pickRate: 0.1,
+      banRate: 0.05,
+      roleRate: 0.8,
+      isMainPosition: true
+    }))
+    mockedGetChampionIntel.mockImplementation(async (_r, championId) => {
+      if (championId === 100) {
+        return {
+          region: 'global',
+          tier: 'emerald_plus',
+          fetchedAt: 0,
+          stale: false,
+          counters: [
+            { championId: 1, play: 200, win: 90, winRate: 0.45 },
+            { championId: 2, play: 100, win: 60, winRate: 0.4 }
+          ],
+          synergies: []
+        }
+      }
+      return null
+    })
+
+    const { picks } = scope.run(() =>
+      useBestPicks(enemyIds, candidates, ref('emerald_plus'), ref('global'), ref([]), myPosition)
+    )!
+    await vi.advanceTimersByTimeAsync(DEBOUNCE)
+    await nextTick()
+    await vi.advanceTimersByTimeAsync(0)
+    await nextTick()
+
+    // 位置过滤后仅候选 1 参与评分（候选 2 虽对位数据更优也被排除）
+    expect(picks.value.map(p => p.championId)).toEqual([1])
+    expect(picks.value[0].score).toBeCloseTo(0.05)
+  })
+
+  it('敌方 0 + 队友 0（纯空）不发请求；敌方 0 + 队友 ≥1 触发（纯协同入口）', async () => {
+    const enemyIds = ref<number[]>([])
+    const candidates = ref<number[]>([1])
+    const teammateIds = ref<number[]>([])
+    const { picks } = scope.run(() =>
+      useBestPicks(enemyIds, candidates, ref('emerald_plus'), ref('global'), teammateIds)
+    )!
+    await vi.advanceTimersByTimeAsync(DEBOUNCE + 10)
+    expect(picks.value).toEqual([])
+    expect(mockedGetChampionIntel).not.toHaveBeenCalled()
+
+    teammateIds.value = [300]
+    mockedGetChampionMeta.mockResolvedValue(null)
+    await vi.advanceTimersByTimeAsync(DEBOUNCE + 10)
+    await nextTick()
+    // 队友快照缺失 → 协同缺席（不编造），picks 空但不拦截请求
+    expect(mockedGetChampionMeta).toHaveBeenCalledWith('ranked', 300)
+    expect(picks.value).toEqual([])
+  })
 })
 
 describe('sortedSynergies（V1.1 最佳搭档）', () => {

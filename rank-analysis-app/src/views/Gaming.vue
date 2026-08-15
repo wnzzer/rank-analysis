@@ -216,9 +216,11 @@
       <div class="gaming-grid" :class="{ 'gaming-grid-multi': sessionData.isMultiTeam }">
         <div v-for="st of orderedSubteams" :key="`subteam-col-${st.subteamId}`" class="subteam-col">
           <BestPicksPanel
-            v-if="showBestPicks && st.subteamId !== sessionData.mySubteamId"
+            v-if="showBestPicks && panelForColumn(st)"
             :enemy-ids="enemyLockedIds"
             :candidate-ids="bestPickCandidates"
+            :teammate-ids="teammatePickedIds"
+            :my-position="teammatesMyPosition"
             :tier="opggTier"
             :region="'global'"
           />
@@ -275,9 +277,10 @@ import {
 } from '@renderer/services/opgg'
 import { useOpggTier } from '@renderer/composables/useOpggTier'
 import { buildRuleDraft } from '@renderer/services/bpRuleDraft'
+import { positionToOpgg } from '@renderer/services/counterIntel'
 import { getChampionName, loadChampionNames } from '@renderer/services/ai/champion-names'
 import type { Position, PickRule, BanRule } from '@renderer/types/rules'
-import type { ChampSelect } from '@renderer/types/domain/gaming'
+import type { ChampSelect, Subteam } from '@renderer/types/domain/gaming'
 import type { championOption } from '@renderer/types/domain/champion'
 
 /** 选人阶段 stepper 的四步定义，顺序与展示文案固定 */
@@ -309,6 +312,41 @@ const orderedSubteams = computed(() => {
     .filter(s => s.subteamId !== sessionData.mySubteamId)
     .sort((a, b) => a.subteamId - b.subteamId)
   return my ? [my, ...others] : others
+})
+
+/**
+ * 推荐条落列规则：敌方已锁 ≥2 → 显示在敌方列（对位视角）；敌方未锁/不足但
+ * 我方队友已亮 ≥1 → 显示在我方列（纯协同视角）。两态互斥，避免面板重复。
+ */
+const panelForColumn = (st: Subteam): boolean => {
+  if (st.subteamId === sessionData.mySubteamId) {
+    return enemyLockedIds.value.length < 2 && teammatePickedIds.value.length >= 1
+  }
+  return enemyLockedIds.value.length >= 2
+}
+
+/**
+ * 我方已亮队友英雄 id（含 intent/picking/locked，排除 ban 态与我自己）：
+ * 协同推荐以「队友预选/锁定」为锚（场景：辅助预选 X → 推荐协同最优 AD）。
+ */
+const teammatePickedIds = computed(() => {
+  const my = orderedSubteams.value.find(s => s.subteamId === sessionData.mySubteamId)
+  return (
+    my?.players
+      .filter(
+        p =>
+          p.championId > 0 &&
+          p.pickState !== 'banning' &&
+          p.summoner.puuid !== mySummonerPuuid.value
+      )
+      .map(p => p.championId) ?? []
+  )
+})
+
+/** 我本局分路（LCU 命名 top/jungle/...；空 = 位置未知，不过滤候选池） */
+const teammatesMyPosition = computed(() => {
+  const pos = myPosition.value
+  return pos && positionToOpgg(pos) ? pos : ''
 })
 
 /** 当前对局对应的 OP.GG 数据模式（ARAM 队列走 aram，其余走 ranked） */

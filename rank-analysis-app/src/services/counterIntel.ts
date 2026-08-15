@@ -223,3 +223,112 @@ function round2(v: number): number {
 function sumPlay(evidences: PickEvidence[]): number {
   return evidences.reduce((acc, e) => acc + e.play, 0)
 }
+
+// ---------- P3 双维推荐（counter 对位 + synergy 协同） ----------
+
+/** 协同证据：候选与某队友的搭档数据（源自队友 intel 的 synergies 列表） */
+export interface SynergyEvidence {
+  /** 队友（已亮英雄）ID */
+  teammateChampionId: number
+  /** 搭档位置（队友数据标注，如 ADC/SUPPORT） */
+  synergyPosition: string
+  /** 与该队友搭档的胜率（0~1） */
+  winRate: number
+  /** 样本对局数 */
+  play: number
+}
+
+/** 双维推荐结果：counter（打敌方）+ synergy（配队友）融合 */
+export interface DualPick {
+  championId: number
+  /** 融合分 = counterScore + synergyScore */
+  score: number
+  /** 对位分：Σ(候选打该敌胜率 - 0.5) */
+  counterScore: number
+  /** 协同分：Σ(与队友协同胜率 - 0.5) */
+  synergyScore: number
+  /** 对位证据（沿用 PickEvidence，favored/countered 语义同 computeBestPicks） */
+  evidences: PickEvidence[]
+  /** 协同证据（与队友的搭档数据） */
+  synergyEvidences: SynergyEvidence[]
+}
+
+/**
+ * 双维推荐：我方候选对敌方已锁的反查对位分 + 对队友已亮的协同分融合排序。
+ *
+ * 场景：
+ * 1. 只有队友已亮 → 纯协同推荐（「辅助预选 X，我 AD 该选谁」）；
+ * 2. 只有敌方已锁 → 退化为 computeBestPicks 的对位推荐；
+ * 3. 双方都有 → 协同 + 克制双维融合（score = counterScore + synergyScore）。
+ *
+ * 协同来源：队友的 intel.synergies（OP.GG 搭档列表，含搭档位置与胜率），
+ * 对候选 C 直接命中 synergyChampionId === C 的条目；无数据的队友/敌方
+ * 记 0 分不编造。排序：融合分降序；同分按证据总场次降序，再按 championId 升序。
+ *
+ * @param candidateIds - 排除 ban/锁定/intent 后的候选英雄 ID
+ * @param enemyIntelById - 敌方已锁英雄 ID → 其 intel（缺测者整队缺席对位分）
+ * @param teammateIntelById - 我方已亮队友英雄 ID → 其 intel（缺席者无协同分）
+ */
+export function computeDualPicks(
+  candidateIds: number[],
+  enemyIntelById: Map<number, ChampionIntel>,
+  teammateIntelById: Map<number, ChampionIntel>
+): DualPick[] {
+  if (candidateIds.length === 0) return []
+  if (enemyIntelById.size === 0 && teammateIntelById.size === 0) return []
+
+  const results = candidateIds.map<DualPick>(candidateId => {
+    let counterScore = 0
+    let synergyScore = 0
+    const evidences: PickEvidence[] = []
+    const synergyEvidences: SynergyEvidence[] = []
+
+    for (const [enemyId, intel] of enemyIntelById) {
+      const entry = intel.counters.find(c => c.championId === candidateId)
+      if (!entry) continue
+      const winRate = 1 - entry.winRate
+      counterScore += winRate - 0.5
+      evidences.push({
+        againstChampionId: enemyId,
+        relation: winRate >= 0.5 ? 'favored' : 'countered',
+        winRate,
+        play: entry.play
+      })
+    }
+
+    for (const [teammateId, intel] of teammateIntelById) {
+      const entry = intel.synergies.find(s => s.synergyChampionId === candidateId)
+      if (!entry) continue
+      synergyScore += entry.winRate - 0.5
+      synergyEvidences.push({
+        teammateChampionId: teammateId,
+        synergyPosition: entry.synergyPosition,
+        winRate: entry.winRate,
+        play: entry.play
+      })
+    }
+
+    const score = round2(counterScore + synergyScore)
+    return {
+      championId: candidateId,
+      score,
+      counterScore: round2(counterScore),
+      synergyScore: round2(synergyScore),
+      evidences,
+      synergyEvidences
+    }
+  })
+
+  return results.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score
+    const playA = sumPlay(a.evidences) + sumSynergyPlay(a.synergyEvidences)
+    const playB = sumPlay(b.evidences) + sumSynergyPlay(b.synergyEvidences)
+    if (playB !== playA) return playB - playA
+    return a.championId - b.championId
+  })
+}
+
+/** 协同证据总场次 */
+function sumSynergyPlay(evidences: SynergyEvidence[]): number {
+  return evidences.reduce((acc, e) => acc + e.play, 0)
+}

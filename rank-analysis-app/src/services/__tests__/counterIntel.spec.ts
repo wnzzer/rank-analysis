@@ -8,6 +8,7 @@ vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 import { invoke } from '@tauri-apps/api/core'
 import {
   computeBestPicks,
+  computeDualPicks,
   formatCounterLine,
   formatSynergyLine,
   getChampionIntel,
@@ -203,5 +204,111 @@ describe('computeBestPicks（P2 评分）', () => {
   it('空敌方 → 空结果；空候选 → 空结果', () => {
     expect(computeBestPicks([1, 2], new Map())).toEqual([])
     expect(computeBestPicks([], new Map())).toEqual([])
+  })
+})
+
+describe('computeDualPicks（P3 协同 + 对位双维）', () => {
+  function intelOfCounters(counters: CounterItem[]): ChampionIntel {
+    return {
+      region: 'global',
+      tier: 'emerald_plus',
+      fetchedAt: 0,
+      stale: false,
+      counters,
+      synergies: []
+    }
+  }
+
+  function intelOfSynergies(synergies: SynergyItem[]): ChampionIntel {
+    return {
+      region: 'global',
+      tier: 'emerald_plus',
+      fetchedAt: 0,
+      stale: false,
+      counters: [],
+      synergies
+    }
+  }
+
+  it('场景1：纯协同——辅助(300)已亮，返回与其协同最高的 ADC 候选', () => {
+    // 辅助 300 的搭档列表：AD 位候选 1 胜率 0.58、候选 2 胜率 0.52
+    const teammates = new Map<number, ChampionIntel>()
+    teammates.set(
+      300,
+      intelOfSynergies([
+        { synergyChampionId: 1, synergyPosition: 'ADC', winRate: 0.58, play: 890 },
+        { synergyChampionId: 2, synergyPosition: 'ADC', winRate: 0.52, play: 430 },
+        { synergyChampionId: 99, synergyPosition: 'SUPPORT', winRate: 0.6, play: 100 }
+      ])
+    )
+    const picks = computeDualPicks([1, 2], new Map(), teammates)
+    expect(picks).toHaveLength(2)
+    // 候选 1 协同分 +0.08 > 候选 2 +0.02 → 首位
+    expect(picks[0].championId).toBe(1)
+    expect(picks[0].synergyScore).toBeCloseTo(0.08)
+    expect(picks[0].counterScore).toBeCloseTo(0)
+    expect(picks[0].score).toBeCloseTo(0.08)
+    expect(picks[0].synergyEvidences).toEqual([
+      { teammateChampionId: 300, synergyPosition: 'ADC', winRate: 0.58, play: 890 }
+    ])
+    expect(picks[1].championId).toBe(2)
+  })
+
+  it('场景2：位置语义——只统计命中队友数据的候选，未命中不出现', () => {
+    const teammates = new Map<number, ChampionIntel>()
+    teammates.set(
+      600,
+      intelOfSynergies([
+        { synergyChampionId: 7, synergyPosition: 'JUNGLE', winRate: 0.55, play: 200 }
+      ])
+    )
+    const picks = computeDualPicks([7, 999], new Map(), teammates)
+    // 候选 999 无协同数据 → 出现但零证据零分（不编造）
+    expect(picks).toHaveLength(2)
+    const hit = picks.find(p => p.championId === 7)!
+    expect(hit.synergyScore).toBeCloseTo(0.05)
+    const miss = picks.find(p => p.championId === 999)!
+    expect(miss.synergyScore).toBeCloseTo(0)
+    expect(miss.synergyEvidences).toEqual([])
+    expect(miss.score).toBeCloseTo(0)
+  })
+
+  it('场景3：协同 + 克制融合——敌方对位与队友协同同分相加', () => {
+    const enemies = new Map<number, ChampionIntel>()
+    // 敌方 100 打候选 1 胜率 0.45 → 候选 1 打 100 = 0.55（counter +0.05）
+    enemies.set(100, intelOfCounters([counter(1, 0.45, 400), counter(2, 0.45, 400)]))
+    const teammates = new Map<number, ChampionIntel>()
+    // 队友 300 与候选 2 协同 0.6（synergy +0.10）；与候选 1 无搭档数据
+    teammates.set(
+      300,
+      intelOfSynergies([{ synergyChampionId: 2, synergyPosition: 'ADC', winRate: 0.6, play: 300 }])
+    )
+    const picks = computeDualPicks([1, 2], enemies, teammates)
+    // 候选 1：counter +0.05 + syn 0 = 0.05
+    // 候选 2：counter +0.05 + syn +0.10 = 0.15 → 双维融合后候选 2 反超
+    expect(picks[0].championId).toBe(2)
+    expect(picks[0].score).toBeCloseTo(0.15)
+    expect(picks[0].counterScore).toBeCloseTo(0.05)
+    expect(picks[0].synergyScore).toBeCloseTo(0.1)
+    expect(picks[1].championId).toBe(1)
+    expect(picks[1].score).toBeCloseTo(0.05)
+  })
+
+  it('敌方与队友皆空 → 空结果；空候选 → 空结果', () => {
+    expect(computeDualPicks([1], new Map(), new Map())).toEqual([])
+    expect(computeDualPicks([], new Map(), new Map())).toEqual([])
+  })
+
+  it('同分同场次按 championId 升序（双维 tie-break）', () => {
+    const teammates = new Map<number, ChampionIntel>()
+    teammates.set(
+      300,
+      intelOfSynergies([
+        { synergyChampionId: 5, synergyPosition: 'ADC', winRate: 0.5, play: 100 },
+        { synergyChampionId: 7, synergyPosition: 'ADC', winRate: 0.5, play: 100 }
+      ])
+    )
+    const picks = computeDualPicks([7, 5], new Map(), teammates)
+    expect(picks.map(p => p.championId)).toEqual([5, 7])
   })
 })

@@ -3,8 +3,8 @@
     <n-popover trigger="click" :width="460" :show-arrow="false">
       <template #trigger>
         <div class="bp-bar" role="button" tabindex="0">
-          <span class="bp-label">对敌方</span>
-          <span class="bp-enemy-avatars">
+          <span class="bp-label">{{ barLabel }}</span>
+          <span v-if="enemyPicks.length > 0" class="bp-enemy-avatars">
             <img
               v-for="e in enemyPicks"
               :key="e.championId"
@@ -13,7 +13,7 @@
               :alt="championName(e.championId)"
             />
           </span>
-          <span class="bp-arrow-label">最优应对</span>
+          <span class="bp-arrow-label">{{ barArrowLabel }}</span>
           <span v-if="isLoading" class="bp-loading">分析中…</span>
           <span v-else-if="picks.length > 0" class="bp-pick-avatars">
             <img
@@ -26,13 +26,13 @@
             />
           </span>
           <span v-else-if="error" class="bp-error-text">OP.GG 数据未就绪</span>
-          <span v-else class="bp-empty-text">暂无正面对位优势英雄</span>
+          <span v-else class="bp-empty-text">{{ emptyText }}</span>
           <span class="bp-expand-hint">▼ 展开 Top5</span>
         </div>
       </template>
       <div class="bp-panel-content">
         <div class="bp-panel-title">
-          敌方已锁阵容下的最优应对
+          {{ titleText }}
           <span class="bp-panel-count">{{ picks.length }} 个候选</span>
         </div>
         <div v-if="allNonPositive" class="bp-none-warning">
@@ -47,11 +47,28 @@
                 <span class="bp-pick-card-score" :class="scoreClass(p.score)"
                   >分数 {{ scoreText(p.score) }}</span
                 >
+                <template v-if="hasSynergy">
+                  <span
+                    class="bp-pick-card-subscore"
+                    :class="p.synergyScore > 0 ? 'score-positive' : 'score-zero'"
+                    >协同 {{ scoreText(p.synergyScore) }}</span
+                  >
+                  <span class="bp-pick-card-subscore" :class="subScoreClass(p.counterScore)"
+                    >对位 {{ scoreText(p.counterScore) }}</span
+                  >
+                </template>
               </div>
               <div class="bp-pick-card-bar">
                 <span class="bp-pick-card-bar-fill" :style="{ width: scoreBarWidth(p.score) }" />
               </div>
               <div class="bp-pick-card-evidence">
+                <template v-for="e in p.synergyEvidences" :key="`syn-${e.teammateChampionId}`">
+                  <span class="bp-evidence-line ev-synergy">
+                    协同 {{ championName(e.teammateChampionId) }}（{{
+                      formatCounterLine(e.winRate, e.play)
+                    }}）
+                  </span>
+                </template>
                 <template v-for="e in p.evidences" :key="e.againstChampionId">
                   <span
                     class="bp-evidence-line"
@@ -63,18 +80,21 @@
                     }}）
                   </span>
                 </template>
-                <span v-if="p.evidences.length === 0" class="bp-evidence-none">
-                  其余敌方对位无 OP.GG 数据
+                <span
+                  v-if="p.evidences.length === 0 && p.synergyEvidences.length === 0"
+                  class="bp-evidence-none"
+                >
+                  其余对位/协同无 OP.GG 数据
                 </span>
               </div>
             </div>
           </div>
         </n-scrollbar>
         <div v-else-if="!error && !isLoading" class="bp-panel-empty">
-          {{ allNonPositive ? '当前无正面对位优势英雄' : '敌方尚未锁定英雄' }}
+          {{ emptyText }}
         </div>
         <div class="bp-panel-footer">
-          <span>按敌方已锁定英雄计算</span>
+          <span>按敌方已锁{{ hasSynergy ? ' + 队友已亮协同' : '' }}计算</span>
           <span class="bp-panel-source">OP.GG {{ region }} · {{ tier }}</span>
         </div>
       </div>
@@ -84,18 +104,19 @@
 
 <script setup lang="ts">
 /**
- * 敌方已锁阵容 → 我方最优应对推荐条（P2）。
+ * 已亮阵容 → 我方最优推荐条（P2 对位 + P3 协同双维）。
  *
- * 敌方锁定 ≥2 人时显示在敌方 SubteamCard 正上方；常驻条展示敌方已锁头像 + Top3 应对，
- * 点击展开 Top5 卡（头像/名字/分数 bar/逐条对位证据）。数据来自 [`useBestPicks`]：
- * 反查敌方 intel 评分（请求数 = |已锁敌方| ≤ 5），未知对位记 0 不编造。
+ * 展示条件：敌方锁定 ≥2，或我方队友已亮 ≥1（纯协同场景）。常驻条展示
+ * 敌方/队友头像 + Top3 推荐；点击展开 Top5 卡（头像/名字/总分 bar/
+ * 协同子分/对位子分/逐条证据）。数据来自 [`useBestPicks`]：反查敌方
+ * counters + 命中队友 synergies 融合评分，未知对位/协同记 0 不编造。
  *
  * 隐藏规则由父组件控制（仅 ranked && ChampSelect 渲染本组件）。
  */
 import { computed } from 'vue'
 import { NPopover, NScrollbar } from 'naive-ui'
 import { useAssetUrl } from '@renderer/composables/useAssetUrl'
-import { formatCounterLine, type BestPick } from '@renderer/services/counterIntel'
+import { formatCounterLine, type DualPick } from '@renderer/services/counterIntel'
 import { useBestPicks } from '@renderer/composables/useCounterIntel'
 import { getChampionName } from '@renderer/services/ai/champion-names'
 
@@ -109,8 +130,12 @@ const props = withDefaults(
     tier: string
     /** 区域 */
     region?: string
+    /** 我方已亮队友英雄 ID（含 intent/picking/locked；空 = 纯对位推荐） */
+    teammateIds?: number[]
+    /** 我本局分路（LCU 命名；空 = 不过滤候选位置） */
+    myPosition?: string
   }>(),
-  { region: 'global' }
+  { region: 'global', teammateIds: () => [], myPosition: '' }
 )
 
 const { getChampionUrl } = useAssetUrl()
@@ -119,15 +144,43 @@ const { picks, isLoading, error } = useBestPicks(
   computed(() => props.enemyIds),
   computed(() => props.candidateIds),
   computed(() => props.tier),
-  computed(() => props.region)
+  computed(() => props.region),
+  computed(() => props.teammateIds),
+  computed(() => props.myPosition)
 )
 
 const enemyPicks = computed(() =>
   props.enemyIds.filter(id => id > 0).map(id => ({ championId: id }))
 )
 
-/** 敌方锁定 ≥2 人才显示（1 人时弹窗/单卡已够用，避免视觉噪音） */
-const visible = computed(() => enemyPicks.value.length >= 2)
+const teammatePicks = computed(() =>
+  props.teammateIds.filter(id => id > 0).map(id => ({ championId: id }))
+)
+
+/** 是否有协同维度参与（队友已亮） */
+const hasSynergy = computed(() => teammatePicks.value.length > 0)
+
+/** 敌方锁定 ≥2 人，或队友已亮 ≥1 人时显示（纯协同场景在选人前期即可推荐） */
+const visible = computed(() => enemyPicks.value.length >= 2 || teammatePicks.value.length >= 1)
+
+const titleText = computed(() => {
+  if (hasSynergy.value && enemyPicks.value.length > 0) return '协同队友 + 应对敌方'
+  if (hasSynergy.value) return '与已亮队友协同的最佳选择'
+  return '敌方已锁阵容下的最优应对'
+})
+
+const emptyText = computed(() => {
+  if (allNonPositive.value) return '当前无正面对位优势英雄'
+  if (hasSynergy.value) return '暂无协同/对位数据'
+  return '敌方尚未锁定英雄'
+})
+
+/** 对位子分不能用总分色彩（总分可能为正）——用次级中性色 */
+function subScoreClass(score: number): string {
+  if (score > 0) return 'score-positive'
+  if (score < 0) return 'score-negative'
+  return 'score-zero'
+}
 
 /** 分数柱宽度：[-1, +1] 映射到 [8%, 100%]（负分也给最小可见条） */
 function scoreBarWidth(score: number): string {
@@ -145,9 +198,19 @@ function scoreText(score: number): string {
   return score > 0 ? `+${score.toFixed(2)}` : score.toFixed(2)
 }
 
-function pickTitle(p: BestPick): string {
+function pickTitle(p: DualPick): string {
   return `${championName(p.championId)} 分数 ${scoreText(p.score)}`
 }
+
+/** 常驻条左侧标签：协同场景 vs 纯对位场景 */
+const barLabel = computed(() => (hasSynergy.value ? '与队友' : '对敌方'))
+
+/** 常驻条箭头文案 */
+const barArrowLabel = computed(() => {
+  if (hasSynergy.value && enemyPicks.value.length > 0) return '双维最优'
+  if (hasSynergy.value) return '最优协同'
+  return '最优应对'
+})
 
 /** 全部候选分数 ≤ 0：顶部提示「无正面对位优势」 */
 const allNonPositive = computed(
@@ -287,6 +350,12 @@ function championName(id: number): string {
   font-variant-numeric: tabular-nums;
 }
 
+.bp-pick-card-subscore {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+
 .score-positive {
   color: var(--semantic-win, #18a058);
 }
@@ -333,6 +402,10 @@ function championName(id: number): string {
 
 .ev-bad {
   color: var(--semantic-loss, #d03050);
+}
+
+.ev-synergy {
+  color: var(--accent-blue, #59b5ff);
 }
 
 .bp-evidence-none {

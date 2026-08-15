@@ -11,16 +11,16 @@
 
 import { getCurrentScope, onScopeDispose, ref, watch, type Ref } from 'vue'
 import {
-  computeBestPicks,
+  computeDualPicks,
   getChampionIntel,
   positionToOpgg,
   sortCounters,
   sortSynergies,
-  type BestPick,
   type ChampionIntel,
   type CounterItem,
   type CounterSortDir,
   type CounterSortKey,
+  type DualPick,
   type SynergyItem,
   type SynergySortDir,
   type SynergySortKey
@@ -156,62 +156,88 @@ export function useCounterIntel(
 let lastRevision = opggRevision.value
 
 /**
- * 敌方已锁阵容 → 我方候选最优推荐（P2 数据源）。
+ * 已亮阵容 → 我方候选最优推荐（P2 对位 + P3 协同双维数据源）。
  *
- * 拉取每个敌方已锁英雄的对位情报（请求数 = |已锁敌方| ≤ 5，候选池不增加请求），
- * 用 [`computeBestPicks`] 对候选评分排序。敌方英雄位置取快照主分路（敌方
- * assignedPosition 恒空，主分路是唯一可靠近似）。
+ * 拉取每个敌方已锁英雄（请求数 = |已锁敌方| ≤ 5）与我方已亮队友（≤ 4）的
+ * 对位情报（同模块级缓存），用 [`computeDualPicks`] 融合评分排序：对位分
+ * （反查敌方 counters）+ 协同分（队友 synergies 命中）。
  *
  * @param enemyIds - 敌方已锁英雄 ID（≤0 过滤）
  * @param candidateIds - 排除 ban/锁定/intent 后的候选英雄 ID（为空则无推荐）
  * @param tier - 段位分段
  * @param region - 区域（默认 "global"）
+ * @param teammateIds - 我方已亮队友英雄 ID（含 intent/picking/locked；
+ *   为空数组则纯对位推荐，行为与旧版一致）
+ * @param myPosition - 我自己本局的 LCU 分路（TOP/JUNGLE/MIDDLE/BOTTOM/UTILITY，
+ *   空串不过滤）；非空时候选池按 OP.GG 主分路收敛到同位置英雄
  */
 export function useBestPicks(
   enemyIds: Ref<number[]>,
   candidateIds: Ref<number[]>,
   tier: Ref<string>,
-  region: Ref<string> = ref('global')
+  region: Ref<string> = ref('global'),
+  teammateIds: Ref<number[]> = ref<number[]>([]),
+  myPosition: Ref<string> = ref('')
 ): {
-  picks: Ref<BestPick[]>
+  picks: Ref<DualPick[]>
   isLoading: Ref<boolean>
   error: Ref<boolean>
 } {
-  const picks = ref<BestPick[]>([])
+  const picks = ref<DualPick[]>([])
   const isLoading = ref(false)
   const error = ref(false)
 
   let timer: ReturnType<typeof setTimeout> | null = null
   let disposed = false
 
-  /** 敌方英雄主分路缓存：快照 meta 只在会话内稳定，revision 变化后重查 */
+  /** 英雄主分路缓存：快照 meta 只在会话内稳定，revision 变化后重查 */
   const mainPositionCache = new Map<number, string>()
 
-  const run = async (ids: number[], candidates: number[], t: string, r: string): Promise<void> => {
+  const run = async (
+    ids: number[],
+    candidates: number[],
+    t: string,
+    r: string,
+    teammates: number[],
+    myPos: string
+  ): Promise<void> => {
     isLoading.value = true
     error.value = false
     try {
       // 每个敌方已锁英雄：快照主分路 → 对位情报
       const enemyIntelById = new Map<number, ChampionIntel>()
       for (const enemyId of ids) {
-        let pos = mainPositionCache.get(enemyId)
-        if (!pos) {
-          const meta = await getChampionMeta('ranked', enemyId)
-          if (!meta) continue // 快照无该英雄：整队缺席评分（无数据不编造）
-          pos = positionToOpgg(meta.position) ?? ''
-          mainPositionCache.set(enemyId, pos)
-        }
-        if (!pos) continue
-        const key = cacheKey(r, enemyId, pos, t)
-        let intel: ChampionIntel | null | undefined = intelCache.get(key)
-        if (!intel) {
-          intel = await getChampionIntel(r, enemyId, pos, t)
-          if (intel) intelCache.set(key, intel)
-        }
+        const intel = await intelFor(enemyId, t, r)
         if (intel) enemyIntelById.set(enemyId, intel)
       }
       if (disposed) return
-      picks.value = computeBestPicks(candidates, enemyIntelById)
+
+      // 每个队友已亮英雄：快照主分路 → 对位情报（synergies 同源返回，供协同分）
+      const teammateIntelById = new Map<number, ChampionIntel>()
+      for (const teammateId of teammates) {
+        const intel = await intelFor(teammateId, t, r)
+        if (intel) teammateIntelById.set(teammateId, intel)
+      }
+      if (disposed) return
+
+      // 位置收敛：仅当我方分路已知时，把候选池过滤到同主分路英雄
+      let pool = candidates
+      if (myPos) {
+        const target = positionToOpgg(myPos)
+        if (target) {
+          const kept: number[] = []
+          for (const c of candidates) {
+            const meta = await getChampionMeta('ranked', c)
+            if (!meta) continue
+            const pos = positionToOpgg(meta.position) ?? ''
+            mainPositionCache.set(c, pos)
+            if (pos === target) kept.push(c)
+          }
+          pool = kept
+        }
+      }
+
+      picks.value = computeDualPicks(pool, enemyIntelById, teammateIntelById)
       error.value = false
     } catch {
       if (disposed) return
@@ -222,9 +248,32 @@ export function useBestPicks(
     }
   }
 
+  /** 单英雄 intel：主分路缓存定位 → 模块级缓存命中或拉取 */
+  const intelFor = async (
+    championId: number,
+    t: string,
+    r: string
+  ): Promise<ChampionIntel | null> => {
+    let pos = mainPositionCache.get(championId)
+    if (!pos) {
+      const meta = await getChampionMeta('ranked', championId)
+      if (!meta) return null // 快照无该英雄：缺席评分（无数据不编造）
+      pos = positionToOpgg(meta.position) ?? ''
+      mainPositionCache.set(championId, pos)
+    }
+    if (!pos) return null
+    const key = cacheKey(r, championId, pos, t)
+    let intel: ChampionIntel | null | undefined = intelCache.get(key)
+    if (!intel) {
+      intel = await getChampionIntel(r, championId, pos, t)
+      if (intel) intelCache.set(key, intel)
+    }
+    return intel
+  }
+
   watch(
-    [enemyIds, candidateIds, tier, region, opggRevision],
-    async ([ids, candidates, t, r, rev]) => {
+    [enemyIds, candidateIds, tier, region, teammateIds, myPosition, opggRevision],
+    async ([ids, candidates, t, r, teammates, myPos, rev]) => {
       if (timer) {
         clearTimeout(timer)
         timer = null
@@ -235,13 +284,15 @@ export function useBestPicks(
         mainPositionCache.clear()
       }
       const validIds = ids.filter(id => id > 0)
-      if (validIds.length === 0 || candidates.length === 0) {
+      const validTeammates = teammates.filter(id => id > 0)
+      // 敌方与队友均未亮时无推荐（纯协同场景允许"敌方 0 + 队友 ≥1"）
+      if ((validIds.length === 0 && validTeammates.length === 0) || candidates.length === 0) {
         picks.value = []
         return
       }
       timer = setTimeout(() => {
         timer = null
-        void run(validIds, candidates, t, r)
+        void run(validIds, candidates, t, r, validTeammates, myPos)
       }, DEBOUNCE_MS)
     },
     { immediate: true }
