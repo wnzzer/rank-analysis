@@ -511,7 +511,11 @@ mod mvp_score_tests {
 
     #[test]
     fn calculate_group_rate_zero_when_team_has_no_kills() {
-        let me = part(9, 300, stats((0, 7, 0), (5_000, 8_000, 6_000, 60, 0), false));
+        let me = part(
+            9,
+            300,
+            stats((0, 7, 0), (5_000, 8_000, 6_000, 60, 0), false),
+        );
         let mut game = Game {
             game_mode: "CLASSIC".to_string(),
             participants: vec![me],
