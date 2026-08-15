@@ -23,8 +23,8 @@ pub struct RegionOption {
 /// 大区展示顺序：腾讯官方习惯（艾欧尼亚→黑玫→联盟一至五区→峡谷之巅），
 /// 随后国际区（对齐 LeagueAkari builtin 配置的顺序），而非 platformId 字典序。
 const REGION_ORDER: [&str; 24] = [
-    "HN1", "HN10", "NJ100", "GZ100", "CQ100", "TJ100", "TJ101", "BGP2", "TW2", "SG2", "PH2",
-    "VN2", "PBE", "EUW", "JP", "RU", "BR1", "OC1", "TR1", "LA1", "LA2", "NA1", "TH2", "KR",
+    "HN1", "HN10", "NJ100", "GZ100", "CQ100", "TJ100", "TJ101", "BGP2", "TW2", "SG2", "PH2", "VN2",
+    "PBE", "EUW", "JP", "RU", "BR1", "OC1", "TR1", "LA1", "LA2", "NA1", "TH2", "KR",
 ];
 
 /// 支持跨区查询的大区列表（有 SGP 主机映射的腾讯大区），按官方习惯顺序排列。
@@ -170,7 +170,10 @@ mod tests {
             "TW2", "SG2", "PH2", "VN2", "PBE", "EUW", "JP", "RU", "BR1", "OC1", "TR1", "LA1",
             "LA2", "NA1", "TH2", "KR",
         ] {
-            let opt = regions.iter().find(|r| r.value == pid).unwrap_or_else(|| panic!("缺国际区 {pid}"));
+            let opt = regions
+                .iter()
+                .find(|r| r.value == pid)
+                .unwrap_or_else(|| panic!("缺国际区 {pid}"));
             assert!(!opt.label.is_empty(), "国际区 {pid} 中文名为空");
         }
     }

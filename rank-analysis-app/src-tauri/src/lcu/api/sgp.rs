@@ -122,10 +122,7 @@ fn is_sgp_not_found(err: &str) -> bool {
 /// 用 **league-session token**（非战绩用的 entitlements token），走 common 主机
 /// （腾讯区与战绩同主机；国际区为 `{region}-red.lol.sgp.pvp.net`）。
 /// 404（未定级/该大区无记录）返回空结构，前端自然显示「无段位」。
-pub async fn fetch_ranked_stats(
-    platform_id: &str,
-    puuid: &str,
-) -> Result<SgpRankedStats, String> {
+pub async fn fetch_ranked_stats(platform_id: &str, puuid: &str) -> Result<SgpRankedStats, String> {
     let key = format!("{platform_id}:{puuid}");
     if let Some(cached) = SGP_RANKED_CACHE.get(&key).await {
         return Ok(cached);
@@ -157,7 +154,9 @@ pub fn map_sgp_ranked_stats_to_rank(stats: &SgpRankedStats) -> Rank {
         },
     };
     for q in &stats.queues {
-        let Some(queue_type) = q.queue_type.as_deref() else { continue };
+        let Some(queue_type) = q.queue_type.as_deref() else {
+            continue;
+        };
         let info = match queue_type {
             "RANKED_SOLO_5x5" => &mut rank.queue_map.ranked_solo_5x5,
             "RANKED_FLEX_SR" => &mut rank.queue_map.ranked_flex_sr,

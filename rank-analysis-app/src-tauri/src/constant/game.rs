@@ -617,20 +617,16 @@ mod tests {
     #[test]
     fn sgp_hosts_cover_all_tencent_and_international_regions() {
         // 腾讯 8 区 + 国际 16 区全部有战绩主机与 common 主机
-        let tencent = ["HN1", "HN10", "NJ100", "GZ100", "CQ100", "TJ100", "TJ101", "BGP2"];
+        let tencent = [
+            "HN1", "HN10", "NJ100", "GZ100", "CQ100", "TJ100", "TJ101", "BGP2",
+        ];
         let international = [
-            "TW2", "SG2", "PH2", "VN2", "OC1", "TH2", "KR", "JP", "EUW", "RU", "TR1", "BR1",
-            "LA1", "LA2", "NA1", "PBE",
+            "TW2", "SG2", "PH2", "VN2", "OC1", "TH2", "KR", "JP", "EUW", "RU", "TR1", "BR1", "LA1",
+            "LA2", "NA1", "PBE",
         ];
         for pid in tencent.iter().chain(international.iter()) {
-            assert!(
-                get_sgp_host(pid).is_some(),
-                "战绩主机缺失: {pid}"
-            );
-            assert!(
-                get_sgp_common_host(pid).is_some(),
-                "common 主机缺失: {pid}"
-            );
+            assert!(get_sgp_host(pid).is_some(), "战绩主机缺失: {pid}");
+            assert!(get_sgp_common_host(pid).is_some(), "common 主机缺失: {pid}");
         }
         assert_eq!(get_sgp_host("XX99"), None);
         assert_eq!(get_sgp_common_host("XX99"), None);
@@ -664,8 +660,8 @@ mod tests {
     fn sgp_international_regions_have_cn_names() {
         // 国际区必须在名称表里有中文名（大区下拉直接消费）
         for pid in [
-            "TW2", "SG2", "PH2", "VN2", "OC1", "TH2", "KR", "JP", "EUW", "RU", "TR1", "BR1",
-            "LA1", "LA2", "NA1", "PBE",
+            "TW2", "SG2", "PH2", "VN2", "OC1", "TH2", "KR", "JP", "EUW", "RU", "TR1", "BR1", "LA1",
+            "LA2", "NA1", "PBE",
         ] {
             assert!(
                 get_sgp_server_id_to_name(pid).is_some(),
