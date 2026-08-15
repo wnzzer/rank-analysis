@@ -51,6 +51,7 @@ pub mod launcher;
 pub mod match_history;
 pub mod meet;
 pub mod opgg;
+pub mod owned;
 pub mod rank;
 pub mod replay;
 pub mod rule_config;

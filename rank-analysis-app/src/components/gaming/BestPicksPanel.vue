@@ -62,6 +62,42 @@
             @update:value="onChangeCount"
           />
         </div>
+        <div class="bp-filter-row">
+          <n-checkbox
+            v-model:checked="onlyOwned"
+            size="small"
+            :disabled="ownedUnavailable"
+            class="bp-filter-check"
+            >仅已拥有</n-checkbox
+          >
+          <n-checkbox
+            v-model:checked="poolOnly"
+            size="small"
+            :disabled="!poolUsable"
+            class="bp-filter-check"
+            >仅英雄池</n-checkbox
+          >
+          <span v-if="poolLoading" class="bp-filter-hint">英雄池统计中…</span>
+          <template v-else-if="poolOnly">
+            <span class="bp-filter-label">胜率≥</span>
+            <n-input-number
+              v-model:value="poolMinWinRate"
+              :min="0"
+              :max="100"
+              size="small"
+              class="bp-filter-num"
+            />
+            <span class="bp-filter-label">% 场次≥</span>
+            <n-input-number
+              v-model:value="poolMinGames"
+              :min="1"
+              :max="200"
+              size="small"
+              class="bp-filter-num"
+            />
+          </template>
+          <span v-if="filterHint" class="bp-filter-hint">{{ filterHint }}</span>
+        </div>
         <div v-if="allNonPositive" class="bp-none-warning">
           敌方当前阵容下无正面对位优势英雄（以下为相对最不劣）
         </div>
@@ -122,6 +158,7 @@
         </div>
         <div class="bp-panel-footer">
           <span>按敌方已锁{{ hasSynergy ? ' + 队友已亮协同' : '' }}计算</span>
+          <span v-if="filterStatusLabel" class="bp-filter-status">{{ filterStatusLabel }}</span>
           <span class="bp-panel-source">OP.GG {{ region }} · {{ tier }}</span>
         </div>
       </div>
@@ -138,10 +175,17 @@
  * 协同子分/对位子分/逐条证据）。数据来自 [`useBestPicks`]：反查敌方
  * counters + 命中队友 synergies 融合评分，未知对位/协同记 0 不编造。
  *
+ * 候选池细粒度筛选（弹层内控制、配置持久化）：
+ * - 「仅已拥有」：`lol-champions/v1/owned-champions-minimal`，排位只能选已拥有
+ *   英雄故默认开；LCU 失败时降级为不筛该维度并提示。
+ * - 「仅英雄池」：我的最近 50 场战绩聚合（`get_match_history_by_name` +
+ *   `aggregateChampionPool`，与 Record 页英雄池同源），胜率/场次门槛可调。
+ *
  * 隐藏规则由父组件控制（仅 ranked && ChampSelect 渲染本组件）。
  */
-import { computed, onMounted, ref } from 'vue'
-import { NPopover, NScrollbar, NSelect } from 'naive-ui'
+import { computed, onMounted, ref, watch } from 'vue'
+import { NCheckbox, NInputNumber, NPopover, NScrollbar, NSelect } from 'naive-ui'
+import { invoke } from '@tauri-apps/api/core'
 import { useAssetUrl } from '@renderer/composables/useAssetUrl'
 import {
   formatCounterLine,
@@ -154,6 +198,13 @@ import { useBestPicks } from '@renderer/composables/useCounterIntel'
 import { getChampionName } from '@renderer/services/ai/champion-names'
 import { TIER_OPTIONS, type OpggTier } from '@renderer/services/opgg'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
+import { getOwnedChampionIds } from '@renderer/services/ownedChampions'
+import {
+  aggregateChampionPool,
+  filterChampionPoolByThresholds,
+  type ChampionPoolEntry
+} from '@renderer/components/record/championPool'
+import type { MatchHistory } from '@renderer/types/domain/match'
 
 const props = withDefaults(
   defineProps<{
@@ -171,8 +222,16 @@ const props = withDefaults(
     teammateIds?: number[]
     /** 我本局分路（LCU 命名，大小写均可；空 = 不过滤候选位置） */
     myPosition?: string
+    /** 我自己的召唤师名（格式 名称#标签；空 = 英雄池筛选不可用） */
+    mySummonerName?: string
   }>(),
-  { tierLoading: false, region: 'global', teammateIds: () => [], myPosition: '' }
+  {
+    tierLoading: false,
+    region: 'global',
+    teammateIds: () => [],
+    myPosition: '',
+    mySummonerName: ''
+  }
 )
 
 const emit = defineEmits<{ 'switch-tier': [next: OpggTier] }>()
@@ -201,6 +260,135 @@ const effectivePosition = computed(() =>
   resolvePanelPosition(positionFilter.value, props.myPosition)
 )
 
+// ---- 候选池细粒度筛选：仅已拥有 / 仅英雄池（胜率·场次门槛） ----
+// 排位选人只能选已拥有的英雄，「仅已拥有」默认开；英雄池数据源与 Record 页同款
+// （get_match_history_by_name 最近 50 场 + aggregateChampionPool）。两种筛选任一
+// 数据不可用（LCU 失败/无召唤师名）时降级为不筛该维度，绝不把候选池清空。
+
+/** 英雄池模块级缓存：召唤师名 → 聚合结果（同一次启动内不重复拉取 50 场战绩） */
+const myPoolCache = new Map<string, ChampionPoolEntry[]>()
+
+const OWNED_KEY = 'bestPicksOnlyOwned'
+const POOL_ONLY_KEY = 'bestPicksPoolOnly'
+const POOL_WIN_RATE_KEY = 'bestPicksPoolMinWinRate'
+const POOL_GAMES_KEY = 'bestPicksPoolMinGames'
+
+/** 仅已拥有（默认开：排位池子里的未拥有英雄本来就选不了） */
+const onlyOwned = ref(true)
+/** 已拥有列表：null = 尚未拉取或拉取失败 */
+const ownedIds = ref<number[] | null>(null)
+const ownedUnavailable = ref(false)
+
+/** 仅英雄池 */
+const poolOnly = ref(false)
+/** 我的英雄池：null = 尚未拉取或拉取失败 */
+const poolEntries = ref<ChampionPoolEntry[] | null>(null)
+const poolLoading = ref(false)
+const poolUnavailable = ref(false)
+/** 胜率门槛（整数百分比）与场次门槛 */
+const poolMinWinRate = ref(50)
+const poolMinGames = ref(5)
+
+/** 英雄池维度是否可用（有召唤师名 + 未失败） */
+const poolUsable = computed(() => !!props.mySummonerName && !poolUnavailable.value)
+
+/** 筛选不可用时的提示文案（降级为不筛该维度） */
+const filterHint = computed(() => {
+  if (onlyOwned.value && ownedUnavailable.value) return '已拥有数据未就绪，该筛选未生效'
+  if (poolOnly.value && poolUnavailable.value) return '英雄池数据未就绪，该筛选未生效'
+  if (poolOnly.value && !props.mySummonerName) return '本局无召唤师信息，英雄池不可用'
+  return ''
+})
+
+async function loadOwned(): Promise<void> {
+  if (ownedUnavailable.value || ownedIds.value !== null) return
+  const ids = await getOwnedChampionIds()
+  if (ids === null) {
+    ownedUnavailable.value = true
+    return
+  }
+  ownedIds.value = ids
+}
+
+async function loadMyPool(): Promise<void> {
+  if (
+    !props.mySummonerName ||
+    poolLoading.value ||
+    poolUnavailable.value ||
+    poolEntries.value !== null
+  ) {
+    return
+  }
+  poolLoading.value = true
+  try {
+    const cached = myPoolCache.get(props.mySummonerName)
+    if (cached) {
+      poolEntries.value = cached
+      return
+    }
+    const mh = await invoke<MatchHistory>('get_match_history_by_name', {
+      name: props.mySummonerName,
+      begIndex: 0,
+      endIndex: 49
+    })
+    const entries = aggregateChampionPool(mh?.games?.games ?? [])
+    myPoolCache.set(props.mySummonerName, entries)
+    poolEntries.value = entries
+  } catch (e) {
+    console.warn('[bestPicks] 英雄池拉取失败，降级为不筛英雄池:', e)
+    poolUnavailable.value = true
+  } finally {
+    poolLoading.value = false
+  }
+}
+
+/** 筛选后候选池：已拥有 ∩ 英雄池门槛（各自数据不可用时跳过该维度） */
+const filteredCandidates = computed(() => {
+  let ids = props.candidateIds
+  if (onlyOwned.value && ownedIds.value && ownedIds.value.length > 0) {
+    const owned = new Set(ownedIds.value)
+    ids = ids.filter(id => owned.has(id))
+  }
+  if (poolOnly.value && poolEntries.value && poolEntries.value.length > 0) {
+    const kept = new Set(
+      filterChampionPoolByThresholds(
+        poolEntries.value,
+        poolMinWinRate.value,
+        poolMinGames.value
+      ).map(e => e.championId)
+    )
+    ids = ids.filter(id => kept.has(id))
+  }
+  return ids
+})
+
+// 首次挂载即拉已拥有列表（默认开启，排位场景小请求）
+onMounted(async () => {
+  void loadOwned()
+})
+
+watch(onlyOwned, checked => {
+  if (checked) void loadOwned()
+})
+
+watch(poolOnly, checked => {
+  if (checked) void loadMyPool()
+})
+
+// 筛选状态落配置持久化（与 displayCount 同模式，失败静默）
+async function persistFilter(key: string, value: boolean | number): Promise<void> {
+  try {
+    await putConfigByIpc(key, value)
+  } catch (e) {
+    console.warn('[bestPicks] 筛选配置保存失败:', e)
+  }
+}
+
+watch(onlyOwned, v => void persistFilter(OWNED_KEY, v))
+watch(poolOnly, v => void persistFilter(POOL_ONLY_KEY, v))
+watch(poolMinWinRate, v => void persistFilter(POOL_WIN_RATE_KEY, v))
+watch(poolMinGames, v => void persistFilter(POOL_GAMES_KEY, v))
+
 /** 展示用推荐列表：按显示数量截断（'all' 时全量） */
 const shownPicks = computed(() =>
   picks.value.slice(0, displayCount.value === 'all' ? picks.value.length : displayCount.value)
@@ -215,7 +403,7 @@ const expandHint = computed(() => {
 
 const { picks, isLoading, error } = useBestPicks(
   computed(() => props.enemyIds),
-  computed(() => props.candidateIds),
+  filteredCandidates,
   computed(() => props.tier),
   computed(() => props.region),
   computed(() => props.teammateIds),
@@ -245,6 +433,22 @@ onMounted(async () => {
     }
   } catch (e) {
     console.warn('[bestPicks] 显示数量配置读取失败:', e)
+  }
+  try {
+    const [owned, poolOnlySaved, winRateSaved, gamesSaved] = await Promise.all([
+      getConfigByIpc<boolean>(OWNED_KEY),
+      getConfigByIpc<boolean>(POOL_ONLY_KEY),
+      getConfigByIpc<number>(POOL_WIN_RATE_KEY),
+      getConfigByIpc<number>(POOL_GAMES_KEY)
+    ])
+    if (typeof owned === 'boolean') onlyOwned.value = owned
+    if (typeof poolOnlySaved === 'boolean') poolOnly.value = poolOnlySaved
+    if (typeof winRateSaved === 'number' && winRateSaved >= 0 && winRateSaved <= 100) {
+      poolMinWinRate.value = winRateSaved
+    }
+    if (typeof gamesSaved === 'number' && gamesSaved >= 1) poolMinGames.value = gamesSaved
+  } catch (e) {
+    console.warn('[bestPicks] 筛选配置读取失败，使用默认值:', e)
   }
 })
 
@@ -315,6 +519,16 @@ const barArrowLabel = computed(() => {
 const allNonPositive = computed(
   () => picks.value.length > 0 && picks.value.every(p => p.score <= 0)
 )
+
+/** 底部来源行附注：当前生效的候选池筛选（供用户核对推荐口径） */
+const filterStatusLabel = computed(() => {
+  const parts: string[] = []
+  if (onlyOwned.value && ownedIds.value && ownedIds.value.length > 0) parts.push('仅已拥有')
+  if (poolOnly.value && poolEntries.value && poolEntries.value.length > 0) {
+    parts.push(`英雄池≥${poolMinWinRate.value}%·≥${poolMinGames.value}场`)
+  }
+  return parts.length > 0 ? `筛选：${parts.join('，')}` : ''
+})
 
 function championName(id: number): string {
   return getChampionName(id) || `英雄 ${id}`
@@ -424,6 +638,41 @@ function championName(id: number): string {
 
 .bp-control {
   width: 118px;
+}
+
+/* ---- 候选池细粒度筛选行：仅已拥有 / 仅英雄池（胜率·场次门槛） ---- */
+.bp-filter-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin-bottom: 8px;
+  padding: 4px 8px;
+  border: 1px solid rgba(128, 128, 128, 0.12);
+  border-radius: 6px;
+}
+
+.bp-filter-check {
+  margin-right: 2px;
+}
+
+.bp-filter-label {
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.bp-filter-num {
+  width: 64px;
+}
+
+.bp-filter-hint {
+  font-size: 11px;
+  color: var(--semantic-warn, #d08770);
+}
+
+.bp-filter-status {
+  font-size: 11px;
+  opacity: 0.9;
 }
 
 .bp-none-warning {

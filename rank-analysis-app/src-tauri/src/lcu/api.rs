@@ -12,6 +12,7 @@ pub mod live_game;
 pub mod lobby;
 pub mod match_history;
 pub mod model;
+pub mod owned;
 pub mod perks;
 pub mod phase;
 pub mod rank;

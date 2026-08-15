@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { aggregateChampionPool, championWinRate, type ChampionPoolEntry } from './championPool'
+import {
+  aggregateChampionPool,
+  championWinRate,
+  filterChampionPoolByThresholds,
+  type ChampionPoolEntry
+} from './championPool'
 import type { Game, Participant, ParticipantStats } from '@renderer/types/domain/match'
 
 function makeGame(championId: number, win: boolean): Game {
@@ -113,5 +118,25 @@ describe('championPool', () => {
     }
     expect(championWinRate(entry)).toBe(67)
     expect(championWinRate({ ...entry, count: 0, wins: 0 })).toBe(0)
+  })
+
+  it('filterChampionPoolByThresholds 同时满足胜率与场次门槛', () => {
+    const pool: ChampionPoolEntry[] = [
+      { championId: 1, count: 10, wins: 7, losses: 3, winRate: 0, games: [] }, // 70% ✓
+      { championId: 2, count: 6, wins: 3, losses: 3, winRate: 0, games: [] }, // 50% ✗ (<55)
+      { championId: 3, count: 3, wins: 3, losses: 0, winRate: 0, games: [] }, // 100% 但场次 ✗ (<5)
+      { championId: 4, count: 8, wins: 4, losses: 4, winRate: 0, games: [] }, // 50% ✗
+      { championId: 5, count: 20, wins: 12, losses: 8, winRate: 0, games: [] } // 60% ✓
+    ]
+    const kept = filterChampionPoolByThresholds(pool, 55, 5)
+    expect(kept.map(e => e.championId)).toEqual([1, 5])
+  })
+
+  it('filterChampionPoolByThresholds 门槛为零时不筛除任何条目', () => {
+    const pool: ChampionPoolEntry[] = [
+      { championId: 1, count: 2, wins: 1, losses: 1, winRate: 0, games: [] },
+      { championId: 2, count: 0, wins: 0, losses: 0, winRate: 0, games: [] }
+    ]
+    expect(filterChampionPoolByThresholds(pool, 0, 0)).toHaveLength(2)
   })
 })

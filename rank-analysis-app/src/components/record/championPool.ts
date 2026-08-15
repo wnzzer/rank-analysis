@@ -46,3 +46,21 @@ export function championWinRate(entry: ChampionPoolEntry): number {
   if (entry.count === 0) return 0
   return Math.round((entry.wins / entry.count) * 100)
 }
+
+/**
+ * 英雄池阈值筛选：保留「胜率 ≥ minWinRatePct 且 场次 ≥ minGames」的英雄。
+ *
+ * 胜率口径与 `championWinRate` 一致（wins/count 四舍五入为整数百分比），
+ * 保证筛选结果和列表展示的百分比严格同源。保持聚合排序（出现次数降序）。
+ *
+ * @param pool - 聚合后的英雄池（通常来自 `aggregateChampionPool`）
+ * @param minWinRatePct - 最低胜率（0-100 整数百分比）
+ * @param minGames - 最低场次
+ */
+export function filterChampionPoolByThresholds(
+  pool: ChampionPoolEntry[],
+  minWinRatePct: number,
+  minGames: number
+): ChampionPoolEntry[] {
+  return pool.filter(e => championWinRate(e) >= minWinRatePct && e.count >= minGames)
+}

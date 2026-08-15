@@ -224,6 +224,7 @@
             :tier="opggTier"
             :tier-loading="opggTierLoading"
             :region="'global'"
+            :my-summoner-name="mySummonerName"
             @switch-tier="onTierChange"
           />
           <SubteamCard
@@ -300,6 +301,12 @@ const { isConnected, summoner: mySummoner } = useGameState()
 
 /** 自己的 puuid，用于在玩家卡上标出「我」 */
 const mySummonerPuuid = computed(() => mySummoner.value?.puuid ?? '')
+
+/** 自己的召唤师名（格式 名称#标签），供推荐面板拉取我的英雄池；无召唤师信息时为空 */
+const mySummonerName = computed(() => {
+  const s = mySummoner.value
+  return s?.gameName ? `${s.gameName}#${s.tagLine ?? ''}` : ''
+})
 
 const density = computed<'normal' | 'compact'>(() =>
   sessionData.isMultiTeam ? 'compact' : 'normal'
