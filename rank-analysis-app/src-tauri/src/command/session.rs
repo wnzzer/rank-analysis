@@ -277,14 +277,19 @@ fn champ_select_to_one_player(
 const SELECT_SESSION_ATTEMPTS: usize = 3;
 const SELECT_SESSION_RETRY_DELAY: Duration = Duration::from_millis(300);
 
-/// 清空 gameflow 会话中可能残留的上一局数据（队伍 + selections）。
+/// 清空 gameflow 会话中残留的上一局数据（队伍 + selections）。
 ///
-/// 选人阶段开始瞬间，`lol-gameflow/v1/session` 可能仍返回上一局的会话快照
-/// （项目内真机复现过其 `playerChampionSelections` 残留，见
-/// [`build_classic_subteams`] 的 `in_champ_select` 守卫注释；队伍数据同源残留）。
-/// 此时若选人会话拉取失败，绝不能用这份快照当本局数据推送——否则用户会在
-/// 选人阶段看到上一局的人。经典分支直用 team_one/team_two，斗魂分支会退到
-/// selections 兜底，两处一并清空。
+/// 仅当 gameflow 会话仍停留在上一局（`phase` 非 "ChampSelect"，如 EndOfGame）
+/// 时调用——见 `process_session_data` 选人分支的 Err 分支。选人阶段开始瞬间，
+/// `lol-gameflow/v1/session` 可能仍返回上一局的会话快照（项目内真机复现过其
+/// `playerChampionSelections` 残留，见 [`build_classic_subteams`] 的
+/// `in_champ_select` 守卫注释；队伍数据同源残留）。此时若选人会话拉取失败，
+/// 绝不能用这份快照当本局数据推送——否则用户会在选人阶段看到上一局的人。
+/// 经典分支直用 team_one/team_two，斗魂分支会退到 selections 兜底，两处一并清空。
+///
+/// **反向回归教训**：会话已切换到本局（phase == "ChampSelect"）时 gameflow 队伍
+/// 即使暂时为空也是本局的，绝不能清空——无条件清空会把正确数据抹掉，表现为
+/// 选人期永远空面板「等待选人…」（见 Err 分支的条件调用）。
 fn clear_stale_gameflow_session(session: &mut Session) {
     session.game_data.team_one.clear();
     session.game_data.team_two.clear();
@@ -373,12 +378,16 @@ async fn process_session_data(app_handle: AppHandle, seq: u64) -> Result<(), Str
             }
             Err(e) => {
                 log::warn!("Failed to get champion select session: {}", e);
-                // 选人会话不可用：gameflow 会话此刻可能仍指向上一局（真机复现过其
-                // selections 残留，队伍数据同源残留，见 build_classic_subteams 的
-                // in_champ_select 守卫注释）。绝不能把它当本局数据推送——否则用户会
-                // 在选人阶段看到上一局的人。清空后本轮推送空小队，由后续 LCU 事件
-                // 触发的新任务补上。
-                clear_stale_gameflow_session(&mut session);
+                // 选人会话不可用时的回退数据是 gameflow 会话的队伍。只有它仍
+                // 停留在上一局（phase != "ChampSelect"，如 EndOfGame）时才需要
+                // 清空——此刻它的队伍是上一局的人，绝不能当本局推送。会话已
+                // 切换到本局（phase == "ChampSelect"）时，gameflow 队伍即便暂时
+                // 为空也是本局的，清空反而会抹掉正确数据（回归教训：无条件
+                // 清空表现为选人期永远空面板「等待选人…」）。经典分支直用
+                // team_one/team_two，斗魂分支会退到 selections 兜底，两处一并清空。
+                if session.phase != "ChampSelect" {
+                    clear_stale_gameflow_session(&mut session);
+                }
             }
         }
     }
@@ -387,7 +396,10 @@ async fn process_session_data(app_handle: AppHandle, seq: u64) -> Result<(), Str
     let is_multi_team = game_mode == "CHERRY";
 
     let mut session_data = SessionData {
-        phase: session.phase.clone(),
+        // 推送的 phase 用 gameflow-phase 端点值（当前权威阶段），不用 gameflow
+        // 会话对象里的 phase——新选人刚开时后者可能仍停留上一局（如 EndOfGame），
+        // 会把对局页误导成「上一局结算」视图。
+        phase: phase.clone(),
         queue_type: session.game_data.queue.queue_type.clone(),
         type_cn: QUEUE_TYPE_TO_CN
             .get(session.game_data.queue.queue_type.as_str())

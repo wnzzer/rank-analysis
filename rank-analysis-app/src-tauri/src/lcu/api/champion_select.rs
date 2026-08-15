@@ -6,24 +6,60 @@ use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, Instant};
 
 use crate::lcu::util::http::{lcu_get, lcu_patch, lcu_post, lcu_put};
+use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
+
+/// null / 缺失 → 默认值的反序列化辅助族。
+///
+/// LCU 选人会话在真实响应里常用显式 `null` 表达「无值」（如敌方
+/// `assignedPosition`、`championPickIntent`、`trades`、`benchChampions`），而
+/// serde 的 `#[serde(default)]` 只兜「字段缺失」、不兜显式 `null`——一旦命中
+/// 整包反序列化失败，表现为选人会话永远拉不到（对局页选人面板/分路全瘫）。
+/// 这些辅助配合 `#[serde(default, deserialize_with = "...")]` 把两种形态统一归一。
+fn de_str<'de, D: Deserializer<'de>>(d: D) -> Result<String, D::Error> {
+    Ok(Option::<String>::deserialize(d)?.unwrap_or_default())
+}
+
+fn de_i32<'de, D: Deserializer<'de>>(d: D) -> Result<i32, D::Error> {
+    Ok(Option::<i32>::deserialize(d)?.unwrap_or(0))
+}
+
+fn de_f64<'de, D: Deserializer<'de>>(d: D) -> Result<f64, D::Error> {
+    Ok(Option::<f64>::deserialize(d)?.unwrap_or(0.0))
+}
+
+fn de_bool<'de, D: Deserializer<'de>>(d: D) -> Result<bool, D::Error> {
+    Ok(Option::<bool>::deserialize(d)?.unwrap_or(false))
+}
+
+fn de_vec<'de, D: Deserializer<'de>, T: Deserialize<'de>>(d: D) -> Result<Vec<T>, D::Error> {
+    Ok(Option::<Vec<T>>::deserialize(d)?.unwrap_or_default())
+}
+
+fn de_timer<'de, D: Deserializer<'de>>(d: D) -> Result<Timer, D::Error> {
+    Ok(Option::<Timer>::deserialize(d)?.unwrap_or_default())
+}
 
 /// 选人会话：己方队伍、行动列表、计时器、本地玩家格子 ID。
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SelectSession {
+    #[serde(default, deserialize_with = "de_vec")]
     pub my_team: Vec<OnePlayer>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_vec")]
     pub their_team: Vec<OnePlayer>,
+    #[serde(default, deserialize_with = "de_vec")]
     pub actions: Vec<Vec<Action>>,
+    #[serde(default, deserialize_with = "de_timer")]
     pub timer: Timer,
+    #[serde(default, deserialize_with = "de_i32")]
     pub local_player_cell_id: i32,
     /// 选人期可换入的英雄池（bench）：LCU 在换人窗口推送，`swap_bench_champion`
     /// 配合使用；非换人阶段/旧接口为空。
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_vec")]
     pub bench_champions: Vec<i32>,
     /// 我方正在进行的交易请求（换英雄），驱动 trade 自动确认。
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_vec")]
     pub trades: Vec<Trade>,
 }
 
@@ -34,61 +70,72 @@ pub struct SelectSession {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Trade {
+    #[serde(default, deserialize_with = "de_i32")]
     pub id: i32,
+    #[serde(default, deserialize_with = "de_i32")]
     pub cell_id: i32,
+    #[serde(default, deserialize_with = "de_i32")]
     pub champion_id: i32,
     /// "AVAILABLE" | "ACCEPTED" | "DECLINED" | "SWAPPING" | "INVALID"
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_str")]
     pub state: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_bool")]
     pub is_trade_accepted: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Action {
+    #[serde(default, deserialize_with = "de_i32")]
     pub actor_cell_id: i32,
+    #[serde(default, deserialize_with = "de_i32")]
     pub id: i32,
+    #[serde(default, deserialize_with = "de_i32")]
     pub champion_id: i32,
+    #[serde(default, deserialize_with = "de_bool")]
     pub completed: bool,
+    #[serde(default, deserialize_with = "de_bool")]
     pub is_ally_action: bool,
+    #[serde(default, deserialize_with = "de_bool")]
     pub is_in_progress: bool,
-    #[serde(rename = "type")]
+    #[serde(rename = "type", default, deserialize_with = "de_str")]
     pub action_type: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Timer {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_f64")]
     pub adjusted_time_left_in_phase: f64,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_f64")]
     pub internal_now_in_phase: f64,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_bool")]
     pub is_infinite: bool,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_str")]
     pub phase: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_f64")]
     pub total_time_in_phase: f64,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct OnePlayer {
+    #[serde(default, deserialize_with = "de_i32")]
     pub champion_id: i32,
+    #[serde(default, deserialize_with = "de_str")]
     pub puuid: String,
     /// LCU 选人期下发的混淆 PUUID（部分对局/接口可能不返回，缺失时默认为空串）。
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_str")]
     pub obfuscated_puuid: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_str")]
     pub assigned_position: String,
     /// 选人格子 ID（0~4 我方、5~9 敌方；旧接口无此字段时默认 0）
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_i32")]
     pub cell_id: i32,
     /// 悬停中（未锁定）的意向英雄 ID。LCU 在队友「正在选用」但还未点击锁定时
     /// 通过 myTeam[].championPickIntent 推送；敌方通常为 0（隐藏）。
     /// 旧接口/字段缺失时默认 0。
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_i32")]
     pub champion_pick_intent: i32,
 }
 
@@ -467,6 +514,43 @@ mod tests {
         let raw2 = r#"{"championId": 0, "puuid": "p1", "championPickIntent": 157}"#;
         let p2: OnePlayer = serde_json::from_str(raw2).unwrap();
         assert_eq!(p2.champion_pick_intent, 157);
+    }
+
+    #[test]
+    fn should_survive_real_world_nulls() {
+        // 真实 LCU 响应里 null 与缺失混用（敌方 assignedPosition/championPickIntent/
+        // puuid、trades、benchChampions 都可能显式 null）——整包必须反序列化成功。
+        // 历史回归：`#[serde(default)]` 只兜「缺失」不兜 `null`，命中即整包失败，
+        // 表现为选人会话永远拉不到（对局页选人面板一直空着）。
+        let raw = r#"{
+            "actions": [[{
+                "actorCellId": 0, "id": 1, "championId": null,
+                "completed": false, "isAllyAction": true, "isInProgress": true, "type": "pick"
+            }]],
+            "benchChampions": null,
+            "localPlayerCellId": 0,
+            "myTeam": [{
+                "assignedPosition": null, "cellId": 0, "championId": 0,
+                "championPickIntent": null, "obfuscatedPuuid": null, "puuid": "p1"
+            }],
+            "theirTeam": [{
+                "assignedPosition": null, "cellId": null, "championId": null,
+                "championPickIntent": null, "obfuscatedPuuid": null, "puuid": null
+            }],
+            "timer": {
+                "adjustedTimeLeftInPhase": 90.0, "internalNowInPhase": 0.0,
+                "isInfinite": false, "phase": "BAN_PICK", "totalTimeInPhase": 90.0
+            },
+            "trades": null
+        }"#;
+        let s: SelectSession = serde_json::from_str(raw).expect("真实响应（含 null）必须能解析");
+        assert_eq!(s.my_team[0].assigned_position, "");
+        assert_eq!(s.my_team[0].champion_pick_intent, 0);
+        assert!(s.their_team[0].puuid.is_empty());
+        assert!(s.trades.is_empty());
+        assert!(s.bench_champions.is_empty());
+        assert_eq!(s.actions[0][0].champion_id, 0);
+        assert_eq!(s.timer.phase, "BAN_PICK");
     }
 
     fn mk_player(champion_id: i32, champion_pick_intent: i32) -> OnePlayer {
