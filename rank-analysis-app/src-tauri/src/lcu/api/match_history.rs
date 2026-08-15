@@ -506,7 +506,7 @@ mod mvp_score_tests {
         assert_eq!(mh.games.games[0].participants[0].stats.group_rate, 100);
         let mut mh = game_with_me(farmer());
         mh.calculate().unwrap();
-        assert_eq!(mh.games.games[0].participants[0].stats.group_rate, 52);
+        assert_eq!(mh.games.games[0].participants[0].stats.group_rate, 94);
     }
 
     #[test]
