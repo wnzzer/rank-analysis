@@ -60,8 +60,14 @@ mod tests {
     fn filters_to_owned_ids() {
         let champions = vec![
             OwnedChampion { id: 1, owned: true },
-            OwnedChampion { id: 86, owned: false },
-            OwnedChampion { id: 103, owned: true },
+            OwnedChampion {
+                id: 86,
+                owned: false,
+            },
+            OwnedChampion {
+                id: 103,
+                owned: true,
+            },
         ];
         let ids: Vec<i32> = champions
             .into_iter()
