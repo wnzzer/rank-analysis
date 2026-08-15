@@ -1,10 +1,15 @@
 //! BP 决策快照的进程内存储。
 //!
 //! 会话级单例：常驻求值任务每 tick 覆盖写入，命令层只读。
-//! 同时保管两项跨 tick 的状态：我们最后一次主动 hover 的英雄、
-//! 以及已判定「用户接管」的 action id（按 action 作用域，阶段切换自动失效）。
 //!
-//! 锁毒化处理：锁内只存三个独立的 Option 字段，无跨字段不变量。
+//! 快照分三份：展示用的「当前」决策，以及 ban / pick 两条执行轨道各自的决策。
+//! 后两者必须分开——ban 阶段「当前」是 ban 决策，若 pick 任务也读它就会整段
+//! 空转，hover 只能等 ban 完成后才发生。
+//!
+//! 另外保管两项跨 tick 的状态：我们最后一次主动 hover 的英雄，以及已判定
+//! 「用户接管」的 action id（按 action 作用域，阶段切换自动失效）。
+//!
+//! 锁毒化处理：锁内只存彼此独立的 Option 字段，无跨字段不变量。
 //! 任何写入 panic 导致毒化时，取回数据继续用——快照是纯展示数据，
 //! 一帧旧值不值得让功能永久失能。
 
@@ -13,7 +18,16 @@ use std::sync::{OnceLock, PoisonError, RwLock};
 
 #[derive(Default)]
 struct StoreState {
+    /// 展示用的「当前」决策——对应 `find_my_pending_action` 选中的那个动作
     decision: Option<BpDecision>,
+    /// 我的 ban 动作的决策，供 ban 执行任务使用
+    ban: Option<BpDecision>,
+    /// 我的 pick 动作的决策，供 pick 执行任务使用。
+    ///
+    /// 与 `decision` 分开保存的理由：ban 阶段 `decision` 是 ban 决策，pick 任务
+    /// 若也读它就会整段空转，hover 只能等 ban 完成后才发生——真机上表现为
+    /// 「预选期不预选」。两条轨道各读各的，pick 的 hover 才能一开始就做。
+    pick: Option<BpDecision>,
     /// 我们最后一次主动 hover 的英雄 ID
     last_hovered: Option<i32>,
     /// 已判定接管的 action id。每个 ban/pick action 的 id 唯一，
@@ -37,12 +51,33 @@ pub fn read() -> Option<BpDecision> {
         .clone()
 }
 
-/// 覆盖写入快照。
-pub fn write(decision: Option<BpDecision>) {
+/// 读取我的 ban 动作的决策（执行侧用）。
+pub fn read_ban() -> Option<BpDecision> {
     store()
-        .write()
+        .read()
         .unwrap_or_else(PoisonError::into_inner)
-        .decision = decision;
+        .ban
+        .clone()
+}
+
+/// 读取我的 pick 动作的决策（执行侧用）。ban 阶段也会有值——预选期就要 hover。
+pub fn read_pick() -> Option<BpDecision> {
+    store()
+        .read()
+        .unwrap_or_else(PoisonError::into_inner)
+        .pick
+        .clone()
+}
+
+/// 覆盖写入三份快照（展示用 + 两条执行轨道）。
+///
+/// 一次写入而非三个 setter：三者由同一个求值 tick 产出，分开写会让执行侧
+/// 读到跨 tick 的混合状态。
+pub fn write(decision: Option<BpDecision>, ban: Option<BpDecision>, pick: Option<BpDecision>) {
+    let mut s = store().write().unwrap_or_else(PoisonError::into_inner);
+    s.decision = decision;
+    s.ban = ban;
+    s.pick = pick;
 }
 
 pub fn last_hovered() -> Option<i32> {
