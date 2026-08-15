@@ -196,6 +196,7 @@ fn query_summary_in(conn: &Connection, puuid: &str) -> rusqlite::Result<MeetSumm
         while let Some(row) = rows.next()? {
             recent.push(OneGamePlayer {
                 index: 0,
+                puuid: puuid.clone(),
                 game_id: row.get(0)?,
                 game_created_at: row.get(1)?,
                 is_my_team: row.get::<_, i32>(2)? != 0,
