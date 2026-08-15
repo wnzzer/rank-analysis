@@ -673,15 +673,15 @@ async fn load_ban_pool() -> Vec<i32> {
 async fn load_execute_at_secs() -> f64 {
     const FLOOR: f64 = 3.0;
     const CEIL: f64 = 35.0;
-    // serde_yaml::Value：整数走 Integer，小数为 Number(→as_f64)；
+    // config::Value：整数走 Integer，小数为 Float；
     // 兼容前端 putConfigByIpc 的 { "value": ... } 包装与后端裸值两种形态。
     let extract = |v: &Value| -> Option<f64> {
         match v {
             Value::Integer(i) => Some(*i as f64),
-            Value::Number(n) => n.as_f64(),
+            Value::Float(f) => Some(*f),
             Value::Map(m) => m.get("value").and_then(|inner| match inner {
                 Value::Integer(i) => Some(*i as f64),
-                Value::Number(n) => n.as_f64(),
+                Value::Float(f) => Some(*f),
                 _ => None,
             }),
             _ => None,
