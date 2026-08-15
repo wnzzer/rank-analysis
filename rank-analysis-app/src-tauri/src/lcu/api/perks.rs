@@ -42,7 +42,7 @@ pub async fn get_current_perk_page_id() -> Result<i64, String> {
 /// LCU 端点 `PUT lol-perks/v1/currentpage/{id}`，body 为空。
 pub async fn set_current_perk_page(page_id: i64) -> Result<(), String> {
     let uri = format!("lol-perks/v1/currentpage/{}", page_id);
-    crate::lcu::util::http::lcu_put::<(), &()>(&uri, &()).await?;
+    crate::lcu::util::http::lcu_put::<(), ()>(&uri, &()).await?;
     Ok(())
 }
 
