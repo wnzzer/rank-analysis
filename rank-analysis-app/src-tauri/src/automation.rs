@@ -560,6 +560,8 @@ async fn start_trade_automation() {
 fn reset_execution_state() {
     let mut guard = last_bench_swap().lock().unwrap_or_else(|e| e.into_inner());
     *guard = None;
+    let mut applied = last_rune_applied().lock().unwrap_or_else(|e| e.into_inner());
+    *applied = None;
 }
 
 /// 自动禁用英雄任务。
@@ -622,6 +624,174 @@ static LAST_BENCH_SWAP: std::sync::OnceLock<std::sync::Mutex<Option<std::time::I
 /// 取 bench 换人冷却状态：不存在时惰性创建。
 fn last_bench_swap() -> &'static std::sync::Mutex<Option<std::time::Instant>> {
     LAST_BENCH_SWAP.get_or_init(|| std::sync::Mutex::new(None))
+}
+
+/// 自动符文（P1-3）：依据「英雄 → 符文页」映射自动切换。
+///
+/// # 规则
+///
+/// 配置 `settings.auto.runeRules` 为映射数组：
+/// ```json
+/// [{ "championId": 429, "pageName": "凯莎-常规" }]
+/// ```
+/// 命中条件：我方（`local_player_cell_id`）已锁定该英雄且 LCU 当前页不是目标页。
+///
+/// # 时机
+///
+/// 只影响下次进游戏用的符文页，切换后 LCU 持久化；因此选人早期轮询即可，
+/// 2s 周期与 trade 任务错峰。离场（非 CHAMPSELECT）清空已应用标记，避免跨局失效。
+async fn start_rune_automation() {
+    log::info!("Starting rune page automation");
+    let mut ticker = interval(Duration::from_secs(2));
+
+    loop {
+        ticker.tick().await;
+
+        let cur_phase = match get_phase().await {
+            Ok(phase) => phase,
+            Err(e) => {
+                log::error!("Get phase error: {}", e);
+                continue;
+            }
+        };
+        if cur_phase != CHAMPSELECT {
+            continue;
+        }
+
+        if let Err(e) = apply_rune_page_if_needed().await {
+            log::debug!("Rune page check error (非致命): {}", e);
+        }
+    }
+}
+
+/// 符文页规则：英雄 ID → 目标页名。
+#[derive(Debug, Clone, PartialEq)]
+pub struct RuneRule {
+    pub champion_id: i32,
+    pub page_name: String,
+}
+
+/// 纯函数：从 `config::Value` 解析符文规则列表。
+///
+/// 兼容 `{ "value": [...] }` 包装与裸数组；非法条目静默跳过（缺字段/类型不符）。
+fn parse_rune_rules_value(value: &Value) -> Vec<RuneRule> {
+    let json = match serde_json::to_value(value) {
+        Ok(j) => j,
+        Err(e) => {
+            log::warn!("Failed to bridge runeRules config Value -> JSON: {}", e);
+            return vec![];
+        }
+    };
+    let inner = json.get("value").cloned().unwrap_or(json);
+    let Some(rows) = inner.as_array() else {
+        return vec![];
+    };
+    let mut rules = Vec::new();
+    for row in rows {
+        let Some(champion_id) = row.get("championId").and_then(|v| v.as_i64()) else {
+            continue;
+        };
+        let Some(page_name) = row.get("pageName").and_then(|v| v.as_str()) else {
+            continue;
+        };
+        let page_name = page_name.trim().to_string();
+        if page_name.is_empty() || champion_id <= 0 {
+            continue;
+        }
+        rules.push(RuneRule {
+            champion_id: champion_id as i32,
+            page_name,
+        });
+    }
+    rules
+}
+
+async fn load_rune_rules() -> Vec<RuneRule> {
+    match get_config("settings.auto.runeRules").await {
+        Ok(v) => parse_rune_rules_value(&v),
+        Err(_) => vec![],
+    }
+}
+
+/// 已应用的符文切换（None = 本局未应用/已离场重置）。
+///
+/// 记录 `(champion_id, page_id)`：同一个英雄在同一次选人里只切一次，
+/// 避免 `pages` 列表在 LCU 侧偶发抖动时反复 PUT。
+static LAST_RUNE_APPLIED: std::sync::OnceLock<std::sync::Mutex<Option<(i32, i64)>>> =
+    std::sync::OnceLock::new();
+
+fn last_rune_applied() -> &'static std::sync::Mutex<Option<(i32, i64)>> {
+    LAST_RUNE_APPLIED.get_or_init(|| std::sync::Mutex::new(None))
+}
+
+/// 锁定英雄已确定时按规则切符文页；不可用（无规则/页面不匹配/已切过）静默跳过。
+async fn apply_rune_page_if_needed() -> Result<(), String> {
+    let session = crate::lcu::api::champion_select::get_champion_select_session().await?;
+    let Some(my_champion) = my_locked_champion(&session) else {
+        return Ok(());
+    };
+
+    let rules = load_rune_rules().await;
+    if rules.is_empty() {
+        return Ok(());
+    }
+    let Some(rule) = rules.iter().find(|r| r.champion_id == my_champion) else {
+        return Ok(());
+    };
+
+    let pages = crate::lcu::api::perks::get_perk_pages().await?;
+    let Some(page) = crate::lcu::api::perks::find_page_by_name(&pages, &rule.page_name) else {
+        log::info!(
+            "Rune rule for champion {} wants page '{}' but no such page exists",
+            my_champion,
+            rule.page_name
+        );
+        return Ok(());
+    };
+
+    {
+        let guard = last_rune_applied().lock().unwrap_or_else(|e| e.into_inner());
+        if *guard == Some((my_champion, page.id)) {
+            return Ok(());
+        }
+    }
+
+    let current_id = crate::lcu::api::perks::get_current_perk_page_id().await?;
+    if current_id == page.id {
+        let mut guard = last_rune_applied().lock().unwrap_or_else(|e| e.into_inner());
+        *guard = Some((my_champion, page.id));
+        return Ok(());
+    }
+
+    log::info!(
+        "Rune page switch: champion {} -> page {} ('{}', was {})",
+        my_champion,
+        page.id,
+        page.name,
+        current_id
+    );
+    crate::lcu::api::perks::set_current_perk_page(page.id).await?;
+    let mut guard = last_rune_applied().lock().unwrap_or_else(|e| e.into_inner());
+    *guard = Some((my_champion, page.id));
+    Ok(())
+}
+
+/// 我方已锁定英雄：本地玩家格子的已完成 pick 动作。
+///
+/// 与执行侧（`find_my_pending_action`）关注点不同：符文只看「已确定」，不关心
+/// 是否轮到手动补刀（LCU 里锁定即生效）。无锁定（在选/未轮到我）返回 None。
+fn my_locked_champion(session: &crate::lcu::api::champion_select::SelectSession) -> Option<i32> {
+    session.actions.iter().flatten().find_map(|a| {
+        if a.actor_cell_id == session.local_player_cell_id
+            && a.action_type == "pick"
+            && a.completed
+            && a.champion_id > 0
+        {
+            Some(a.champion_id)
+        } else {
+            None
+        }
+    })
 }
 
 /// 根据分路信息推断该用哪份 OP.GG 数据。
@@ -1126,6 +1296,19 @@ async fn init_run_automation(app: tauri::AppHandle) {
         }
     }
 
+    match get_config("settings.auto.runeSwitch").await {
+        Ok(value) => {
+            log::info!("Auto-rune config value: {:?}", value);
+            if let Some(true) = extract_bool(&value) {
+                log::info!("Auto-rune is enabled, starting task");
+                manager.start_task("rune_apply", start_rune_automation());
+            }
+        }
+        Err(e) => {
+            log::error!("Failed to get runeSwitch config: {}", e);
+        }
+    }
+
     log::info!("Automation tasks initialization completed");
 }
 
@@ -1243,6 +1426,19 @@ pub async fn start_automation(app: tauri::AppHandle) {
                     log::warn!("Invalid value for tradeConfirmSwitch: {:?}", new_value);
                 }
             }
+            "settings.auto.runeSwitch" => {
+                if let Some(enabled) = extract_bool(new_value) {
+                    if enabled {
+                        log::info!("Config: Enabling rune page automation");
+                        manager.start_task("rune_apply", start_rune_automation());
+                    } else {
+                        log::info!("Config: Disabling rune page automation");
+                        manager.stop_task("rune_apply");
+                    }
+                } else {
+                    log::warn!("Invalid value for runeSwitch: {:?}", new_value);
+                }
+            }
             _ => {
                 log::debug!("Config changed for unmonitored key: {}", key);
             }
@@ -1340,6 +1536,115 @@ mod tests {
         assert_eq!(rules.len(), 1);
         assert_eq!(rules[0].id, "b1");
         assert_eq!(rules[0].action.champion_id, 55);
+    }
+
+    // ──────────────────── parse_rune_rules_value ────────────────────
+
+    #[test]
+    fn parse_rune_rules_handles_value_envelope() {
+        let mut map = HashMap::new();
+        map.insert(
+            "value".to_string(),
+            Value::List(vec![
+                serde_json::from_value::<Value>(serde_json::json!({
+                    "championId": 429, "pageName": "凯莎-常规"
+                }))
+                .unwrap(),
+                serde_json::from_value::<Value>(serde_json::json!({
+                    "championId": 103, "pageName": "阿狸-炽热"
+                }))
+                .unwrap(),
+            ]),
+        );
+        let rules = parse_rune_rules_value(&Value::Map(map));
+        assert_eq!(rules.len(), 2);
+        assert_eq!(rules[0].champion_id, 429);
+        assert_eq!(rules[0].page_name, "凯莎-常规");
+        assert_eq!(rules[1].champion_id, 103);
+    }
+
+    #[test]
+    fn parse_rune_rules_handles_bare_list_and_trims_name() {
+        let item: Value = serde_json::from_value(serde_json::json!({
+            "championId": 64, "pageName": "  剑姬-主流  "
+        }))
+        .unwrap();
+        let rules = parse_rune_rules_value(&Value::List(vec![item]));
+        assert_eq!(rules.len(), 1);
+        assert_eq!(rules[0].page_name, "剑姬-主流");
+    }
+
+    #[test]
+    fn parse_rune_rules_skips_invalid_rows() {
+        // 缺 championId / 缺 pageName / 空名 / 空数组 → 全部跳过
+        let rows = vec![
+            serde_json::json!({ "pageName": "只有页名" }),
+            serde_json::json!({ "championId": 1 }),
+            serde_json::json!({ "championId": 2, "pageName": "   " }),
+            serde_json::json!({ "championId": 0, "pageName": "非法英雄" }),
+        ];
+        let rules = parse_rune_rules_value(&Value::List(
+            rows
+                .into_iter()
+                .map(|r| serde_json::from_value::<Value>(r).unwrap())
+                .collect(),
+        ));
+        assert!(rules.is_empty());
+    }
+
+    // ──────────────────── my_locked_champion ────────────────────
+
+    fn action(
+        actor_cell_id: i32,
+        champion_id: i32,
+        completed: bool,
+        action_type: &str,
+    ) -> crate::lcu::api::champion_select::Action {
+        crate::lcu::api::champion_select::Action {
+            actor_cell_id,
+            id: actor_cell_id,
+            champion_id,
+            completed,
+            is_ally_action: true,
+            is_in_progress: false,
+            action_type: action_type.to_string(),
+        }
+    }
+
+    fn session_with(actions: Vec<crate::lcu::api::champion_select::Action>) -> crate::lcu::api::champion_select::SelectSession {
+        crate::lcu::api::champion_select::SelectSession {
+            my_team: vec![],
+            their_team: vec![],
+            actions: vec![actions],
+            timer: crate::lcu::api::champion_select::Timer::default(),
+            local_player_cell_id: 0,
+            trades: Vec::new(),
+            bench_champions: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn locked_champion_is_picked_from_completed_local_pick() {
+        let s = session_with(vec![
+            action(0, 429, true, "pick"),
+            action(1, 0, false, "pick"),
+        ]);
+        assert_eq!(my_locked_champion(&s), Some(429));
+    }
+
+    #[test]
+    fn locked_champion_ignores_ban_and_uncompleted_actions() {
+        let s = session_with(vec![
+            action(0, 5, true, "ban"),
+            action(0, 0, false, "pick"),
+        ]);
+        assert_eq!(my_locked_champion(&s), None);
+    }
+
+    #[test]
+    fn locked_champion_is_none_without_local_actions() {
+        let s = session_with(vec![action(3, 429, true, "pick")]);
+        assert_eq!(my_locked_champion(&s), None);
     }
 }
 

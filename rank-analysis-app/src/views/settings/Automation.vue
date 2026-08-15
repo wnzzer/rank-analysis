@@ -283,6 +283,54 @@
         </n-text>
       </n-space>
     </n-card>
+
+    <!-- 自动符文（P1-3） -->
+    <n-card>
+      <template #header>
+        <span class="setting-label">
+          <n-icon size="20" color="#f0a020">
+            <ColorWandOutline />
+          </n-icon>
+          自动符文
+        </span>
+      </template>
+      <template #header-extra>
+        <n-switch v-model:value="autoRune" @update:value="updateRuneSwitch" />
+      </template>
+
+      <div :class="{ 'rules-inactive': !autoRune }">
+        <div class="section-title">
+          英雄 → 符文页映射（选人锁定该英雄后自动切换 LCU 当前页）
+          <n-button size="small" type="primary" ghost @click="addRuneRule()">+ 添加映射</n-button>
+        </div>
+        <div v-if="runeRules.length === 0" class="no-target-hint">
+          未配置映射：开启后也不会自动切换符文页
+        </div>
+        <div v-for="(rule, idx) in runeRules" :key="idx" class="rule-row">
+          <n-select
+            v-model:value="rule.championId"
+            filterable
+            :filter="filterChampionFunc"
+            placeholder="选择英雄"
+            :options="options"
+            size="small"
+            style="width: 170px"
+          />
+          <n-input
+            v-model:value="rule.pageName"
+            placeholder="符文页名称（与客户端一致）"
+            size="small"
+            style="flex: 1"
+          />
+          <n-button quaternary type="error" size="small" @click="deleteRuneRule(idx)"
+            >删除</n-button
+          >
+        </div>
+        <n-text depth="3" style="font-size: var(--font-size-sm)">
+          符文页名称需与客户端「收藏」里的页名完全一致（不含首尾空格）；切换在选人阶段自动执行。
+        </n-text>
+      </div>
+    </n-card>
   </n-space>
 </template>
 <script setup lang="ts">
@@ -295,13 +343,19 @@ import {
   FlashOutline,
   Close,
   PlayCircleOutline,
-  BulbOutline
+  BulbOutline,
+  ColorWandOutline
 } from '@vicons/ionicons5'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import { assetPrefix } from '@renderer/services/http'
 import type { championOption } from '@renderer/types/domain/champion'
 import { invoke } from '@tauri-apps/api/core'
-import { usePickRules, useBanRules } from '@renderer/composables/useRules'
+import {
+  usePickRules,
+  useBanRules,
+  useRuneRules,
+  type RuneRule
+} from '@renderer/composables/useRules'
 import { useOpggTier } from '@renderer/composables/useOpggTier'
 import type { OpggTier } from '@renderer/services/opgg'
 import RuleEditModal from '@renderer/components/automation/RuleEditModal.vue'
@@ -312,6 +366,7 @@ import type { PickRule, BanRule, PickAction } from '@renderer/types/rules'
 const message = useMessage()
 const { rules: pickRules, reload: reloadPickRules, save: savePickRules } = usePickRules()
 const { rules: banRules, reload: reloadBanRules, save: saveBanRules } = useBanRules()
+const { rules: runeRules, reload: reloadRuneRules, save: saveRuneRules } = useRuneRules()
 
 const pickModalShow = ref(false)
 const pickEditing = ref<PickRule | undefined>(undefined)
@@ -355,9 +410,11 @@ onMounted(async () => {
   autoTradeConfirm.value =
     (await getConfigByIpc<boolean>('settings.auto.tradeConfirmSwitch')) ?? false
   executeAtSecs.value = (await getConfigByIpc<number>('settings.auto.executeAtSecs')) ?? 5
+  autoRune.value = (await getConfigByIpc<boolean>('settings.auto.runeSwitch')) ?? false
   await loadOpggTier()
   await reloadPickRules()
   await reloadBanRules()
+  await reloadRuneRules()
   configLoaded.value = true
 })
 
@@ -369,6 +426,21 @@ async function saveExecuteAtSecs() {
   const v = executeAtSecs.value
   if (v == null) return
   await putConfigByIpc('settings.auto.executeAtSecs', Math.min(35, Math.max(3, v)))
+}
+
+const updateRuneSwitch = async () => {
+  await putConfigByIpc('settings.auto.runeSwitch', autoRune.value)
+}
+
+/** 新映射行：championId 占位让列表非空，待用户选择后即保存 */
+async function addRuneRule() {
+  const next: RuneRule[] = [...runeRules.value, { championId: 0, pageName: '' }]
+  await saveRuneRules(next)
+}
+
+async function deleteRuneRule(idx: number) {
+  const next = runeRules.value.filter((_, i) => i !== idx)
+  await saveRuneRules(next)
 }
 
 function openPickEdit(rule?: PickRule) {
@@ -449,6 +521,8 @@ const autoStart = ref(false)
 const autoTradeConfirm = ref(false)
 /** 锁定执行时刻（剩余秒数，3~35） */
 const executeAtSecs = ref(5)
+/** 自动符文（P1-3）：选人锁定后按「英雄 → 符文页」切换 LCU 当前页 */
+const autoRune = ref(false)
 
 const selectPickChampionId = ref(null)
 const selectBanChampionId = ref(null)
