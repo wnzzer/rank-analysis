@@ -244,7 +244,7 @@ pub async fn force_refresh() -> Arc<KnowledgeSnapshot> {
             let disk = load_from_path(&default_path());
             KnowledgeSnapshot {
                 checked_at: now,
-                data: disk.and_then(|d| d.data).or_else(|| fallback_base()),
+                data: disk.and_then(|d| d.data).or_else(fallback_base),
             }
         }
     };
