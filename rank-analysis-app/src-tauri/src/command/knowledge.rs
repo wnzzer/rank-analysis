@@ -36,7 +36,7 @@ fn build_status(data: Option<&KnowledgeBase>) -> KnowledgeStatus {
 
 /// 强制刷新知识库（启动时 + 设置页手动刷新触发）
 #[tauri::command]
-pub async fn update_knowledge(_state: State<'_, crate::AppState>) -> Result<String, String> {
+pub async fn update_knowledge(_state: State<'_, crate::state::AppState>) -> Result<String, String> {
     let snap = knowledge::force_refresh().await;
     match snap.data.as_ref() {
         Some(k) => Ok(format!("patch={} rules={}", k.patch, k.signal_rules.len())),
@@ -47,7 +47,7 @@ pub async fn update_knowledge(_state: State<'_, crate::AppState>) -> Result<Stri
 /// 读取知识库（含内置兜底，通常不会返回 None）
 #[tauri::command]
 pub async fn get_knowledge(
-    _state: State<'_, crate::AppState>,
+    _state: State<'_, crate::state::AppState>,
 ) -> Result<Option<KnowledgeBase>, String> {
     let snap = knowledge::get_or_fetch().await;
     Ok(snap.data.clone())
@@ -56,7 +56,7 @@ pub async fn get_knowledge(
 /// 知识库状态：版本 / 更新时间 / 数据来源（远程 or 兜底）
 #[tauri::command]
 pub async fn get_knowledge_status(
-    _state: State<'_, crate::AppState>,
+    _state: State<'_, crate::state::AppState>,
 ) -> Result<KnowledgeStatus, String> {
     let snap = knowledge::get_or_fetch().await;
     Ok(build_status(snap.data.as_ref()))
