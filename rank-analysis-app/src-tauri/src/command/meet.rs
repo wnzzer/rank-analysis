@@ -9,10 +9,8 @@
 use crate::lcu::api::match_history::Game;
 use crate::meet_db::{
     clear_collected_games as db_clear_collected_games,
-    load_collected_games as db_load_collected_games,
-    query_summary,
-    save_collected_games as db_save_collected_games,
-    MeetSummary,
+    load_collected_games as db_load_collected_games, query_summary,
+    save_collected_games as db_save_collected_games, MeetSummary,
 };
 
 /// 查询某玩家（puuid）的累计相遇聚合与最近明细。
