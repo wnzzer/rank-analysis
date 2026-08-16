@@ -56,8 +56,8 @@ import { InformationCircleOutline, BookmarksOutline } from '@vicons/ionicons5'
 import { usePlayerNotesStore } from '@renderer/pinia/playerNotes'
 import { getNoteLabelMeta } from '@renderer/types/domain/playerNote'
 import PlayerNoteBadge from '@renderer/components/common/PlayerNoteBadge.vue'
-import MettingPlayersCard from '@renderer/components/gaming/MettingPlayersCard.vue'
 import { searchSummoner } from '@renderer/utils/navigation'
+import PlayerMeetDetail from '@renderer/components/settings/PlayerMeetDetail.vue'
 
 const store = usePlayerNotesStore()
 const message = useMessage()
@@ -93,9 +93,10 @@ const columns = computed<DataTableColumns<Row>>(() => [
     type: 'expand',
     expandable: row => (row.encounters?.length ?? 0) > 0,
     renderExpand: row =>
-      h('div', { style: 'padding:var(--space-4) 0 var(--space-8)' }, [
-        h(MettingPlayersCard, { meetGames: row.encounters ?? [] })
-      ])
+      h(PlayerMeetDetail, {
+        puuid: row.puuid,
+        fallbackGames: row.encounters ?? []
+      })
   },
   {
     title: '标记',
