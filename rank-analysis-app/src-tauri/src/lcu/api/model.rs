@@ -36,12 +36,29 @@ pub struct Participant {
     pub spell1_id: i32,
     #[serde(rename = "spell2Id")]
     pub spell2_id: i32,
+    /// 分路/角色。`lol-match-history` 摘要与详情若携带即解析（LCU 版本不定，
+    /// 也可能为空对象），缺失为 None——PUGG 分路维度据此降级为全分路聚合。
+    #[serde(rename = "timeline", default)]
+    pub timeline: Option<ParticipantTimeline>,
     /// 完整符文页：主/副系 styles（各含 3/2 个 selections）+ statPerks。
     /// LCU match-details 提供；SGP match-v5 同构（map_participant 透传）。
     /// 旧缓存/缺失时为 None，前端回退扁平 perk0/perkPrimaryStyle/perkSubStyle。
     #[serde(rename = "perks", default)]
     pub perks: Option<Perks>,
     pub stats: Stats,
+}
+
+/// LCU `participants[].timeline`：分路与角色。
+///
+/// 值域参照 match-v5 惯例：`lane` TOP/JUNGLE/MIDDLE/BOTTOM/UTILITY（国服
+/// 摘要可能给 MID/ADC/SUPPORT 别名），`role` SOLO/DUO_CARRY/DUO_SUPPORT/NONE。
+/// 两端字段都可能缺失或为空串，消费方一律按 Option 兜底。
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+pub struct ParticipantTimeline {
+    #[serde(default)]
+    pub lane: String,
+    #[serde(default)]
+    pub role: String,
 }
 
 /// 完整符文页：LCU match-details `participants[].perks`（SGP match-v5 同构）。

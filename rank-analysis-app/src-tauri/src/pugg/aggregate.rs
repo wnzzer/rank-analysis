@@ -12,6 +12,24 @@ pub const ITEM_SLOTS: usize = 7;
 /// 样本数下限：少于该场次不输出（防小样本噪声）。
 pub const MIN_SAMPLES: u32 = 5;
 
+/// 五路标准命名（LCU `timeline.lane` 值域；前端按此渲染分路筛选项）。
+pub const POSITIONS: [&str; 5] = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"];
+
+/// 把 `timeline.lane` 规范化为五路标准名；值域外/缺失返回 `None`。
+///
+/// LCU 摘要会给别名（`MID`/`ADC`/`SUPPORT`），大小写与前后空白一律兜底；
+/// 无法归一的分数不归类——只进「全部分路」统计，不污染任何分路桶。
+pub fn normalize_lane(lane: &str) -> Option<&'static str> {
+    match lane.trim().to_ascii_uppercase().as_str() {
+        "TOP" => Some("TOP"),
+        "JUNGLE" => Some("JUNGLE"),
+        "MIDDLE" | "MID" => Some("MIDDLE"),
+        "BOTTOM" | "ADC" => Some("BOTTOM"),
+        "UTILITY" | "SUPPORT" => Some("UTILITY"),
+        _ => None,
+    }
+}
+
 /// 不计入出装的饰品（守卫/眼类）物品 ID。
 const WARD_ITEMS: [i32; 6] = [3330, 3340, 3341, 3363, 3364, 3513];
 
@@ -50,7 +68,8 @@ pub struct SpellStat {
 #[serde(rename_all = "camelCase")]
 pub struct BuildStats {
     pub champion_id: i32,
-    /// 分路（LCU 摘要无可靠 lane 字段，恒为空串；留给 OP.GG 合并层补齐）
+    /// 实际生效的分路（TOP/JUNGLE/MIDDLE/BOTTOM/UTILITY）；
+    /// 空串 = 未指定分路，或指定分路的样本不足已自动回退全部分路
     pub position: String,
     /// 模式（queue_id；0 = 未过滤的全模式）
     pub mode: i32,
@@ -88,12 +107,30 @@ fn finalize_freq<T>(mut stats: Vec<(i32, u32, u32)>, map: impl Fn(i32, u32, u32)
         .collect()
 }
 
-/// 把对局摘要聚合成指定英雄的 BuildStats。
+/// 取「我」在该局的 participant 引用。
+///
+/// 身份数组按 puuid 匹配；无身份信息（异常数据）时回退参与者[0]（SGP 映射层
+/// 与 LCU 摘要的既有约定）；身份数组存在但匹配不到我的 puuid → 本局没有我。
+fn my_participant<'a>(game: &'a Game, my_puuid: &str) -> Option<&'a Participant> {
+    let me_idx = if game.participant_identities.is_empty() {
+        0
+    } else {
+        game.participant_identities
+            .iter()
+            .position(|i| i.player.puuid == my_puuid)?
+    };
+    game.participants.get(me_idx)
+}
+
+/// 把对局摘要聚合成指定英雄、指定分路的 BuildStats。
 ///
 /// # 规则
 /// - 只统计「我」的对局：先按 `my_puuid` 匹配 identities，回退 `participants[0]`；
-/// - `mode` 非 0 时只统计 `queue_id == mode` 的对局；
-/// - 英雄不匹配的对局跳过；
+/// - `mode` 非 0 时只统计 `queue_id == mode` 的对局；英雄不匹配的对局跳过；
+/// - `position` 非空时分路桶只取 `timeline.lane` 归一为该分路的对局；该分路
+///   样本 < [`MIN_SAMPLES`] 时**自动回退全部分路**（结果 `position` 为空串，
+///   前端据此显示「已降级为全部分路」）；
+/// - lane 无法归一 / timeline 缺失的对局只进全部分路桶，不污染任何分路；
 /// - 胜场权重 2x（排序键 `wins*2 + (count-wins)`）；
 /// - 样本 < [`MIN_SAMPLES`] 返回 `None`（调用方按"无推荐"降级）；
 /// - 空槽与饰品（守卫类）不计入出装。
@@ -103,6 +140,7 @@ fn finalize_freq<T>(mut stats: Vec<(i32, u32, u32)>, map: impl Fn(i32, u32, u32)
 /// - `champion_id`: 目标英雄
 /// - `my_puuid`: 「我」的 puuid，用于匹配身份
 /// - `mode`: queue_id 过滤（0 = 全部）
+/// - `position`: 分路过滤（TOP/JUNGLE/MIDDLE/BOTTOM/UTILITY；空串 = 全部，样本不足自动回退）
 ///
 /// # 返回值
 /// 样本达标时 `Some(BuildStats)`，否则 `None`。
@@ -111,7 +149,37 @@ pub fn aggregate_build_stats(
     champion_id: i32,
     my_puuid: &str,
     mode: i32,
+    position: &str,
 ) -> Option<BuildStats> {
+    // 「我」且英雄匹配的对局（champion + mode 过滤后的全体样本）
+    let mine: Vec<&Participant> = games
+        .iter()
+        .filter(|g| mode == 0 || g.queue_id == mode)
+        .filter_map(|g| my_participant(g, my_puuid))
+        .filter(|p| p.champion_id == champion_id)
+        .collect();
+
+    // 分路桶：指定分路时按 lane 归一收敛；样本不足自动回退全部分路
+    let (selected, effective_position): (Vec<&Participant>, &str) = if position.is_empty() {
+        (mine.clone(), "")
+    } else {
+        let lanes: Vec<&Participant> = mine
+            .iter()
+            .copied()
+            .filter(|p| {
+                p.timeline
+                    .as_ref()
+                    .and_then(|t| normalize_lane(&t.lane))
+                    == Some(position)
+            })
+            .collect();
+        if lanes.len() as u32 >= MIN_SAMPLES {
+            (lanes, position)
+        } else {
+            (mine.clone(), "")
+        }
+    };
+
     // 频率表原始累加：(id, count, win_count)
     let mut items: Vec<Vec<(i32, u32, u32)>> = vec![Vec::new(); ITEM_SLOTS];
     let mut rune_main: Vec<(i32, u32, u32)> = Vec::new();
@@ -122,32 +190,7 @@ pub fn aggregate_build_stats(
     let mut samples: u32 = 0;
     let mut win_count: u32 = 0;
 
-    for game in games {
-        if mode != 0 && game.queue_id != mode {
-            continue;
-        }
-        // 「我」的定位：身份数组按 puuid 匹配；无身份信息（异常数据）时
-        // 回退参与者[0]（SGP 映射层与 LCU 摘要的既有约定）。身份数组存在
-        // 但匹配不到我的 puuid → 本局没有我，跳过。
-        let me_idx = if game.participant_identities.is_empty() {
-            0
-        } else {
-            match game
-                .participant_identities
-                .iter()
-                .position(|i| i.player.puuid == my_puuid)
-            {
-                Some(idx) => idx,
-                None => continue,
-            }
-        };
-        let Some(me) = game.participants.get(me_idx) else {
-            continue;
-        };
-        if me.champion_id != champion_id {
-            continue;
-        }
-
+    for me in selected {
         samples += 1;
         if me.stats.win {
             win_count += 1;
@@ -183,7 +226,7 @@ pub fn aggregate_build_stats(
 
     Some(BuildStats {
         champion_id,
-        position: String::new(),
+        position: effective_position.to_string(),
         mode,
         samples,
         win_count,
@@ -245,6 +288,16 @@ mod tests {
     const MY_PUUID: &str = "me-puuid";
 
     fn participant(champion_id: i32, raw_items: &[i32; ITEM_SLOTS], win: bool) -> Participant {
+        participant_lane(champion_id, raw_items, win, None)
+    }
+
+    /// 带分路的参与者（`lane` 为 Some 时写进 timeline）。
+    fn participant_lane(
+        champion_id: i32,
+        raw_items: &[i32; ITEM_SLOTS],
+        win: bool,
+        lane: Option<&str>,
+    ) -> Participant {
         Participant {
             participant_id: 1,
             team_id: 100,
@@ -252,6 +305,10 @@ mod tests {
             spell1_id: 4,
             spell2_id: 7,
             perks: None,
+            timeline: lane.map(|l| crate::lcu::api::model::ParticipantTimeline {
+                lane: l.to_string(),
+                role: String::new(),
+            }),
             stats: Stats {
                 win,
                 item0: raw_items[0],
@@ -310,7 +367,7 @@ mod tests {
         let g = game_with(1, 86, 420, &full_items(), true, MY_PUUID);
         let mh = history_of(vec![g; 4]);
         // 4 场 < 5 → None（即使全是同一英雄同一出装）
-        let got = aggregate_build_stats(&mh.games.games, 86, MY_PUUID, 0);
+        let got = aggregate_build_stats(&mh.games.games, 86, MY_PUUID, 0, "");
         assert!(got.is_none(), "样本不足应返回 None");
     }
 
@@ -319,7 +376,7 @@ mod tests {
         let games: Vec<Game> = (0..6)
             .map(|i| game_with(i, 86, 420, &full_items(), i % 2 == 0, MY_PUUID))
             .collect();
-        let got = aggregate_build_stats(&games, 86, MY_PUUID, 0).expect("样本 6 ≥ 5");
+        let got = aggregate_build_stats(&games, 86, MY_PUUID, 0, "").expect("样本 6 ≥ 5");
 
         assert_eq!(got.samples, 6);
         assert_eq!(got.win_count, 3);
@@ -358,7 +415,7 @@ mod tests {
         let mut games = g1;
         games.extend(g2);
 
-        let got = aggregate_build_stats(&games, 86, MY_PUUID, 0).unwrap();
+        let got = aggregate_build_stats(&games, 86, MY_PUUID, 0, "").unwrap();
         assert_eq!(got.win_count, 3);
         assert_eq!(got.items[0].len(), 2);
         assert_eq!(
@@ -376,7 +433,7 @@ mod tests {
         let games: Vec<Game> = (0..6)
             .map(|i| game_with(i, 86, 420, &items, true, MY_PUUID))
             .collect();
-        let got = aggregate_build_stats(&games, 86, MY_PUUID, 0).unwrap();
+        let got = aggregate_build_stats(&games, 86, MY_PUUID, 0, "").unwrap();
         assert!(got.items[1].is_empty(), "空槽不应计入");
         assert!(got.items[2].is_empty(), "饰品不应计入");
         assert_eq!(got.items[0].len(), 1);
@@ -393,11 +450,11 @@ mod tests {
         games.extend(vec![g_aram; 5]);
 
         // 全部：只统计 86 的九场
-        let got = aggregate_build_stats(&games, 86, MY_PUUID, 0).unwrap();
+        let got = aggregate_build_stats(&games, 86, MY_PUUID, 0, "").unwrap();
         assert_eq!(got.samples, 9, "英雄过滤：其他英雄的对局不计入");
 
         // 模式过滤 450：只留大乱斗五场
-        let got = aggregate_build_stats(&games, 86, MY_PUUID, 450).unwrap();
+        let got = aggregate_build_stats(&games, 86, MY_PUUID, 450, "").unwrap();
         assert_eq!(got.samples, 5);
         assert_eq!(got.mode, 450);
     }
@@ -407,7 +464,94 @@ mod tests {
         // 身份数组里没有我的 puuid：participants[0] 回退也拿不到匹配英雄
         let g = game_with(1, 86, 420, &full_items(), true, "someone-else");
         let games = vec![g; 6];
-        let got = aggregate_build_stats(&games, 86, MY_PUUID, 0);
+        let got = aggregate_build_stats(&games, 86, MY_PUUID, 0, "");
         assert!(got.is_none(), "非我参与的对局应全部跳过（样本 0）");
+    }
+
+    /// 造 n 场同英雄同 lane 的对局。
+    fn games_with_lane(n: u32, lane: &str, win: bool) -> Vec<Game> {
+        (0..n)
+            .map(|i| {
+                Game {
+                    game_id: i64::from(i),
+                    queue_id: 420,
+                    participants: vec![participant_lane(86, &full_items(), win, Some(lane))],
+                    participant_identities: vec![ParticipantIdentity {
+                        player: Player {
+                            puuid: MY_PUUID.to_string(),
+                            ..Default::default()
+                        },
+                    }],
+                    ..Default::default()
+                }
+            })
+            .collect()
+    }
+
+    #[test]
+    fn mixes_all_lanes_without_position() {
+        let mut games = games_with_lane(3, "TOP", true);
+        games.extend(games_with_lane(3, "JUNGLE", true));
+        let got = aggregate_build_stats(&games, 86, MY_PUUID, 0, "").unwrap();
+        assert_eq!(got.position, "");
+        assert_eq!(got.samples, 6, "分路混合下全部分路含所有样本");
+    }
+
+    #[test]
+    fn groups_by_lane_when_position_requested() {
+        let mut games = games_with_lane(6, "TOP", true);
+        games.extend(games_with_lane(6, "JUNGLE", false));
+        let got = aggregate_build_stats(&games, 86, MY_PUUID, 0, "TOP").unwrap();
+        assert_eq!(got.samples, 6, "分路桶只含 lane 归一为该分路的对局");
+        assert_eq!(got.win_count, 6);
+        assert_eq!(got.position, "TOP");
+    }
+
+    #[test]
+    fn fallbacks_to_all_lanes_below_min_samples() {
+        let mut games = games_with_lane(2, "TOP", true);
+        games.extend(games_with_lane(6, "JUNGLE", false));
+        let got = aggregate_build_stats(&games, 86, MY_PUUID, 0, "TOP").unwrap();
+        assert_eq!(got.samples, 8, "分路样本 < 5 自动回退全部分路");
+        assert_eq!(got.position, "", "回退后 position 标注为空串，供前端展示降级提示");
+    }
+
+    #[test]
+    fn lane_aliases_normalize_to_canonical() {
+        assert_eq!(normalize_lane("TOP"), Some("TOP"));
+        assert_eq!(normalize_lane("top "), Some("TOP"));
+        assert_eq!(normalize_lane("JUNGLE"), Some("JUNGLE"));
+        assert_eq!(normalize_lane("MID"), Some("MIDDLE"));
+        assert_eq!(normalize_lane("ADC"), Some("BOTTOM"));
+        assert_eq!(normalize_lane("SUPPORT"), Some("UTILITY"));
+        assert_eq!(normalize_lane("NONE"), None);
+        assert_eq!(normalize_lane(""), None);
+        assert_eq!(normalize_lane("TOP_LANE"), None);
+    }
+
+    #[test]
+    fn unknown_lane_only_enters_all_lanes_bucket() {
+        // 两场 lane="NONE"（无法归一）：指定任意分路都 0 样本 → 回退全部分路
+        let games = games_with_lane(6, "NONE", true);
+        let got = aggregate_build_stats(&games, 86, MY_PUUID, 0, "TOP").unwrap();
+        assert_eq!(got.samples, 6, "无法归一的 lane 不进任何分路桶，但仍计入全部分路");
+        assert_eq!(got.position, "");
+    }
+
+    #[test]
+    fn position_filter_combines_with_mode() {
+        let mut games = games_with_lane(6, "TOP", true);
+        // 同英雄同 lane 但模式不同（420 → 450）
+        games.extend(
+            (0..6).map(|i| {
+                let mut g = games_with_lane(1, "TOP", false).remove(0);
+                g.game_id = 100 + i64::from(i);
+                g.queue_id = 450;
+                g
+            }),
+        );
+        let got = aggregate_build_stats(&games, 86, MY_PUUID, 420, "TOP").unwrap();
+        assert_eq!(got.samples, 6, "mode + position 双过滤收敛到交集");
+        assert_eq!(got.win_count, 6);
     }
 }

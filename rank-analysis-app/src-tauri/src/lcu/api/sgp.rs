@@ -20,7 +20,7 @@
 use crate::constant;
 use crate::lcu::api::game_detail::GameDetail;
 use crate::lcu::api::match_history::{Game, GamesWrapper, MatchHistory};
-use crate::lcu::api::model::{Participant, ParticipantIdentity, Perks, Player, Stats};
+use crate::lcu::api::model::{Participant, ParticipantIdentity, ParticipantTimeline, Perks, Player, Stats};
 use crate::lcu::api::rank::{QueueInfo, QueueMap, Rank};
 use crate::lcu::api::summoner::Summoner;
 use crate::lcu::util::http::{lcu_get, riot_client_get, sgp_get};
@@ -505,6 +505,10 @@ fn map_participant(p: &Value) -> Participant {
         perks: p
             .get("perks")
             .and_then(|v| serde_json::from_value::<Perks>(v.clone()).ok()),
+        // 分路透传（match-v5 的 timeline.lane/role；缺失或解析失败按 None 降级）
+        timeline: p
+            .get("timeline")
+            .and_then(|v| serde_json::from_value::<ParticipantTimeline>(v.clone()).ok()),
         stats,
     }
 }
