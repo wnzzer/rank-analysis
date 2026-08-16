@@ -95,6 +95,45 @@
           </n-text>
         </n-space>
       </n-form-item>
+      <n-form-item label="战术情报">
+        <n-space vertical :size="4" style="width: 100%">
+          <n-space align="center" :size="12">
+            <n-switch v-model:value="intelEnabled" @update:value="handleIntelUpdate" />
+            <n-badge
+              :type="
+                intelStatus ? (intelStatus.source === 'remote' ? 'success' : 'info') : 'default'
+              "
+              :processing="intelRefreshing"
+            >
+              <n-tag :bordered="false" size="small">
+                {{
+                  intelStatus
+                    ? intelStatus.source === 'remote'
+                      ? `远程知识库 v${intelStatus.patch}`
+                      : `内置知识库 v${intelStatus.patch}`
+                    : '知识库未就绪'
+                }}
+              </n-tag>
+            </n-badge>
+            <n-text v-if="intelStatus" :depth="3" style="font-size: var(--font-size-sm)">
+              {{ formatTime(new Date(intelStatus.updatedAt).getTime()) }} 更新
+            </n-text>
+            <n-button
+              size="tiny"
+              secondary
+              :loading="intelRefreshing"
+              :disabled="!intelEnabled"
+              @click="handleIntelRefresh"
+            >
+              刷新知识库
+            </n-button>
+          </n-space>
+          <n-text :depth="3" style="font-size: var(--font-size-sm)">
+            开启后，整队 / 对局 AI
+            分析会附带本局英雄版本情报、对线克制、近期战绩关联信号与模式知识（数据来自周期性更新的知识库）。关闭后分析不再携带此类情报。
+          </n-text>
+        </n-space>
+      </n-form-item>
       <n-form-item label="AI 用量统计">
         <n-space vertical :size="4" style="width: 100%">
           <n-space align="center" :size="12">
@@ -146,6 +185,11 @@ import {
   type AiUsageEntry
 } from '@renderer/services/ai/shared/usage'
 import { getAiProviderConfig, type AiProviderKind } from '@renderer/services/ai/stream'
+import {
+  getKnowledgeStatus,
+  forceUpdateKnowledge,
+  type KnowledgeStatus
+} from '@renderer/services/knowledge'
 import { invoke } from '@tauri-apps/api/core'
 import { useMessage } from 'naive-ui'
 
@@ -159,6 +203,11 @@ const aiModel = ref('')
 const aiApiKey = ref('')
 /** AI 分析是否携带玩家备注（默认开：键不存在时视为 true） */
 const aiUseNotes = ref(true)
+/** 战术情报开关（默认开：键不存在或非 false 均视为开） */
+const intelEnabled = ref(true)
+/** 知识库状态（版本 / 更新时间 / 来源） */
+const intelStatus = ref<KnowledgeStatus | null>(null)
+const intelRefreshing = ref(false)
 /** D-P1：AI 用量台账（每次完整分析一条，倒序展示） */
 const usageLog = ref<AiUsageEntry[]>([])
 const usageTotal = computed(() => sumAiUsage(usageLog.value))
@@ -262,6 +311,16 @@ onMounted(async () => {
   } catch (e) {
     console.error(e)
   }
+  try {
+    const enabled = await getConfigByIpc<boolean>(CONFIG_KEYS.opggEnabled)
+    // 键不存在视为默认开（!== false 语义）；仅显式 false 才关闭
+    if (typeof enabled === 'boolean') {
+      intelEnabled.value = enabled !== false
+    }
+  } catch (e) {
+    console.error(e)
+  }
+  loadIntelStatus()
   loadUsageLog()
 })
 
@@ -290,6 +349,37 @@ const handleAiUseNotesUpdate = async (value: boolean) => {
     message.success('设置已保存')
   } catch (e) {
     message.error('保存失败')
+  }
+}
+
+const handleIntelUpdate = async (value: boolean) => {
+  try {
+    await putConfigByIpc(CONFIG_KEYS.opggEnabled, value)
+    message.success('设置已保存')
+  } catch (e) {
+    message.error('保存失败')
+  }
+}
+
+const loadIntelStatus = async () => {
+  intelStatus.value = await getKnowledgeStatus()
+}
+
+const handleIntelRefresh = async () => {
+  if (intelRefreshing.value) return
+  intelRefreshing.value = true
+  try {
+    const data = await forceUpdateKnowledge()
+    if (data) {
+      message.success(`知识库已更新至 v${data.patch}`)
+    } else {
+      message.warning('知识库更新失败，当前使用内置数据')
+    }
+    await loadIntelStatus()
+  } catch (e) {
+    message.error(String(e) || '刷新失败')
+  } finally {
+    intelRefreshing.value = false
   }
 }
 

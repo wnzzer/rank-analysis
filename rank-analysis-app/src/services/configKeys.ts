@@ -29,6 +29,8 @@ export const CONFIG_KEYS = {
   aiApiKey: 'ai.apiKey',
   /** 玩家备注是否随 AI 分析请求发送到云端模型（默认开） */
   aiUsePlayerNotes: 'aiUsePlayerNotes',
+  /** 战术情报开关：整队/对局 AI 分析是否注入版本情报+克制+信号+模式知识（默认开，显式 false 关闭） */
+  opggEnabled: 'opgg.enabled',
   /** 云同步开关（默认关，开启需经风险告知弹窗） */
   cloudSyncEnabled: 'cloudSyncEnabled',
   /** 本设备是否已完成过首次配置同步(首次确认弹窗只出现一次;设备级,不入备份) */
