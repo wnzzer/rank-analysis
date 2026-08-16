@@ -7,11 +7,6 @@ export interface AssetDetail {
   rarity?: string
 }
 
-export async function getImgBase64ByIpc(typeString: string, id: number) {
-  const base64 = await invoke<string>('get_asset_base64', { typeString, id })
-  return base64
-}
-
 /**
  * 写入配置。
  *

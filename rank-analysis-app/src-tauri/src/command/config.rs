@@ -1,11 +1,10 @@
 //! # Config 命令模块
 //!
-//! 提供配置读写、HTTP 服务端口查询、英雄/队列等选项数据。
+//! 提供配置读写、英雄/队列等选项数据。
 //!
 //! ## 主要功能
 //!
 //! - **配置读写**: 通过 Tauri 命令暴露给前端
-//! - **端口查询**: 获取 HTTP 静态资源服务器端口
 //! - **选项数据**: 提供英雄列表、游戏模式列表等选项数据
 //!
 //! ## 使用示例
@@ -25,7 +24,6 @@
 //! ```
 
 use crate::lcu::api::asset;
-use crate::state::AppState;
 use crate::{config, constant};
 use serde::Serialize;
 
@@ -58,26 +56,6 @@ pub async fn put_config(key: String, value: config::Value) -> Result<(), String>
 #[tauri::command]
 pub async fn get_config(key: String) -> Result<config::Value, String> {
     config::get_config(&key).await
-}
-
-/// 获取当前 HTTP 服务端口（用于前端请求静态资源等）。
-///
-/// # 参数
-///
-/// - `state`: Tauri 应用状态
-///
-/// # 返回值
-///
-/// - `Ok(i32)`: HTTP 服务端口
-/// - `Err(String)`: 端口未设置时的错误信息
-#[tauri::command]
-pub async fn get_http_server_port(state: tauri::State<'_, AppState>) -> Result<i32, String> {
-    state
-        .http_port
-        .get()
-        .copied()
-        .map(|p| p as i32)
-        .ok_or_else(|| "http_server_port not set".to_string())
 }
 
 /// 英雄选项，用于下拉/选择器：显示名、ID、真实名、昵称。

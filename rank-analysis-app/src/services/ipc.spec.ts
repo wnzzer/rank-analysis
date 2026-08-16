@@ -5,7 +5,6 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
-  getImgBase64ByIpc,
   putConfigByIpc,
   getConfigByIpc,
   getGameModesByIpc,
@@ -23,53 +22,6 @@ import { invoke } from '@tauri-apps/api/core'
 describe('ipc', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-  })
-
-  describe('getImgBase64ByIpc', () => {
-    /**
-     * 测试：当调用时应使用正确的参数调用 invoke
-     */
-    it('should call invoke with correct parameters when fetching image', async () => {
-      const mockBase64 = 'data:image/png;base64,iVBORw0KGgo='
-      vi.mocked(invoke).mockResolvedValue(mockBase64)
-
-      const result = await getImgBase64ByIpc('champion', 1)
-
-      expect(invoke).toHaveBeenCalledWith('get_asset_base64', {
-        typeString: 'champion',
-        id: 1
-      })
-      expect(result).toBe(mockBase64)
-    })
-
-    /**
-     * 测试：当传入不同类型时应正确处理
-     */
-    it('should handle different asset types correctly', async () => {
-      vi.mocked(invoke).mockResolvedValue('base64data')
-
-      await getImgBase64ByIpc('item', 3153)
-      expect(invoke).toHaveBeenCalledWith('get_asset_base64', {
-        typeString: 'item',
-        id: 3153
-      })
-
-      await getImgBase64ByIpc('spell', 4)
-      expect(invoke).toHaveBeenCalledWith('get_asset_base64', {
-        typeString: 'spell',
-        id: 4
-      })
-    })
-
-    /**
-     * 测试：当 invoke 抛出错误时应传播错误
-     */
-    it('should propagate error when invoke throws', async () => {
-      const error = new Error('Network error')
-      vi.mocked(invoke).mockRejectedValue(error)
-
-      await expect(getImgBase64ByIpc('champion', 1)).rejects.toThrow('Network error')
-    })
   })
 
   describe('putConfigByIpc', () => {
