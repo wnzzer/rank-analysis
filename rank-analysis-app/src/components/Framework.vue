@@ -45,6 +45,7 @@ import Header from './Header.vue'
 import SideNavigation from './SideNavigation.vue'
 import ErrorReportingConsentDialog from '@renderer/components/common/ErrorReportingConsentDialog.vue'
 import { useGameState } from '@renderer/composables/useGameState'
+import { useWindowShortcuts } from '@renderer/composables/useWindowShortcuts'
 import { useZoom } from '@renderer/composables/useZoom'
 import { useStartupDialogs } from '@renderer/composables/useStartupDialogs'
 
@@ -77,6 +78,9 @@ useGameState()
 
 // 浏览器式缩放（Ctrl+滚轮 / Ctrl±0）：页面级缩放，全窗口生效
 useZoom()
+
+// 多窗口快捷键（Ctrl+W 关子窗 / Ctrl+Tab 切窗）：主窗与战绩子窗共用
+useWindowShortcuts()
 
 const message = useMessage()
 

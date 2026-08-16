@@ -158,10 +158,13 @@ import { useRoute } from 'vue-router'
 import { renderSingleSelectTag, renderLabel, filterChampionFunc } from '../composition'
 import { modeOptions, initModeOptions } from './composition'
 import { invoke } from '@tauri-apps/api/core'
+import { getGameById } from '@renderer/services/gameById'
 import {
   getSgpMatchHistoryByName,
   mergeGamesByGameId,
-  collectSgpHistoryAll
+  collectSgpHistoryAll,
+  loadCollectedGames,
+  saveCollectedGames
 } from '@renderer/services/sgp'
 import { championOption } from '../type'
 import type { Game, MatchHistory } from './match'
@@ -347,13 +350,11 @@ watch(
  */
 async function focusGame(gameId: number): Promise<void> {
   if (!allGames.value.some(g => g.gameId === gameId)) {
-    try {
-      const fetched = await invoke<Game | null>('get_game_by_id', { gameId })
-      if (fetched && !allGames.value.some(g => g.gameId === gameId)) {
-        allGames.value = [fetched, ...allGames.value]
-      }
-    } catch (err) {
-      console.error('[MatchHistory] focusGame 补拉失败', err)
+    const fetched = await getGameById(gameId)
+    if (fetched && !allGames.value.some(g => g.gameId === gameId)) {
+      allGames.value = [fetched, ...allGames.value]
+    }
+    if (!fetched) {
       emit('focus-handled')
       return
     }
@@ -431,7 +432,14 @@ const getHistoryMatch = async (name: string) => {
     if (region.value) {
       result = await getSgpMatchHistoryByName(region.value, name, 0, 50)
       if (!result) throw new Error('SGP 跨区查询失败')
-      sgpStartIndex.value = 50
+      // 恢复上次「收集全部」的持久化成果：已存集合（上次收集到的全量）比本次 50 场窗口
+      // 更全，直接合并展示；续收游标对齐到恢复后的总数，从上次收尾处继续拉取
+      const saved = await loadCollectedGames(region.value, name)
+      if (saved) {
+        const merged = mergeGamesByGameId(result.games?.games ?? [], saved)
+        result = { ...result, games: { ...result.games, games: merged } }
+      }
+      sgpStartIndex.value = result.games?.games?.length ?? 50
     } else {
       result = await invoke<MatchHistory>('get_match_history_by_name', {
         name,
@@ -551,6 +559,8 @@ const toggleCollectAll = async () => {
     sgpStartIndex.value = result.nextStartIndex
     collectDone.value = result.reachedEnd
     page.value = pageCount.value
+    // 收集完成（或中途取消的已有成果）落库，重启后可恢复，无需重新拉取
+    void saveCollectedGames(region.value, name.value, result.games)
   } catch (err) {
     console.error('[MatchHistory] toggleCollectAll failed', err)
     loadingBar.error()

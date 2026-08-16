@@ -335,3 +335,30 @@ export async function collectSgpHistoryAll(opts: SgpCollectOptions): Promise<Sgp
   }
   return { games, reachedEnd: false, cancelled: false, nextStartIndex: begIndex }
 }
+
+/**
+ * 持久化跨区「收集全部」结果（Rust SQLite 一行，`(region, name)` 主键，覆盖写入）。
+ * 对局数据不可变，重启后恢复即可续收/直接看全量，无需重新拉取。
+ */
+export async function saveCollectedGames(
+  region: string,
+  name: string,
+  games: Game[]
+): Promise<void> {
+  try {
+    await invoke('save_collected_games', { region, name, games })
+  } catch (err) {
+    console.error('[sgp] saveCollectedGames failed:', err)
+  }
+}
+
+/** 读取已持久化的跨区收集结果；无记录或读取失败返回 null */
+export async function loadCollectedGames(region: string, name: string): Promise<Game[] | null> {
+  try {
+    const games = await invoke<Game[]>('load_collected_games', { region, name })
+    return games && games.length > 0 ? games : null
+  } catch (err) {
+    console.error('[sgp] loadCollectedGames failed:', err)
+    return null
+  }
+}

@@ -169,6 +169,30 @@ describe('RecordCard 行卡增强（CS/模式/技能/日期）', () => {
     expect(wrapper.find('.tooltip-content').text()).toMatch(/^\d{2}-\d{2} \d{2}:\d{2}$/)
   })
 
+  it('ISO 字符串日期按本地时区格式化（不显示 UTC 原文）', () => {
+    const iso = new Date(Date.UTC(2026, 7, 16, 4, 13, 14)).toISOString()
+    const wrapper = mountCard(gameOf({ gameCreationDate: iso }))
+    const d = new Date(iso)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const expected = `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+    expect(wrapper.find('.tooltip-content').text()).toBe(expected)
+  })
+
+  it('数值毫秒戳与 ISO 字符串解析结果一致（同为本地时区）', () => {
+    const iso = new Date(Date.UTC(2026, 7, 16, 4, 13, 14)).toISOString()
+    const ms = String(new Date(iso).getTime())
+    const isoWrapper = mountCard(gameOf({ gameCreationDate: iso }))
+    const msWrapper = mountCard(gameOf({ gameCreationDate: ms }))
+    expect(isoWrapper.find('.tooltip-content').text()).toBe(
+      msWrapper.find('.tooltip-content').text()
+    )
+  })
+
+  it('无法解析的日期显示原文', () => {
+    const wrapper = mountCard(gameOf({ gameCreationDate: 'not-a-date' }))
+    expect(wrapper.find('.tooltip-content').text()).toBe('not-a-date')
+  })
+
   it('参团率透传：55 → 55%参团', () => {
     const wrapper = mountCard(gameOf())
     expect(wrapper.find('.record-card-group-rate').text()).toBe('55%参团')

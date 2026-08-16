@@ -15,6 +15,7 @@
 //! 库损坏/无法打开时静默降级（会话仍走实时聚合），只打一条 warn。
 
 use crate::command::user_tag::OneGamePlayer;
+use crate::lcu::api::match_history::Game;
 use crate::paths::{data_file, ensure_parent_dir};
 use rusqlite::{params, Connection};
 use std::sync::{LazyLock, Mutex};
@@ -65,7 +66,14 @@ fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
              PRIMARY KEY (other_puuid, game_id)
          );
          CREATE INDEX IF NOT EXISTS idx_meet_recency
-             ON meet_matches(other_puuid, game_created_at DESC);",
+             ON meet_matches(other_puuid, game_created_at DESC);
+         CREATE TABLE IF NOT EXISTS collected_games (
+             region     TEXT    NOT NULL,
+             name       TEXT    NOT NULL,
+             games_json TEXT    NOT NULL,
+             updated_at TEXT    NOT NULL,
+             PRIMARY KEY (region, name)
+         );",
     )
 }
 
@@ -227,6 +235,86 @@ fn query_summary_in(conn: &Connection, puuid: &str) -> rusqlite::Result<MeetSumm
     })
 }
 
+/// 当前 epoch 毫秒，做 collected_games 的 updated_at 时间戳。
+fn now_millis() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
+}
+
+/// 跨区「收集全部」结果持久化：整包对局 JSON 存一行，`(region, name)` 主键覆盖写入。
+/// 对局数据不可变，重启后恢复即可直接看全量 / 续收，零重复拉取。失败静默降级。
+pub fn save_collected_games(region: &str, name: &str, games: &[Game]) {
+    let updated_at = now_millis().to_string();
+    with_db(|conn| save_collected_games_in(conn, region, name, games, &updated_at));
+}
+
+/// 在指定连接上保存（测试可注入内存连接）。serde 失败映射为 rusqlite 错误。
+fn save_collected_games_in(
+    conn: &Connection,
+    region: &str,
+    name: &str,
+    games: &[Game],
+    updated_at: &str,
+) -> rusqlite::Result<()> {
+    let json = serde_json::to_string(games).map_err(serde_to_sqlite_err)?;
+    conn.execute(
+        "INSERT INTO collected_games (region, name, games_json, updated_at)
+         VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT(region, name) DO UPDATE SET
+             games_json = excluded.games_json,
+             updated_at = excluded.updated_at",
+        params![region, name, json, updated_at],
+    )?;
+    Ok(())
+}
+
+/// 读取已持久化的跨区收集结果；无记录返回空数组，读取失败同样按空处理。
+pub fn load_collected_games(region: &str, name: &str) -> Vec<Game> {
+    let guard = CONN.lock().unwrap_or_else(|e| e.into_inner());
+    let Some(conn) = guard.as_ref() else {
+        return Vec::new();
+    };
+    match load_collected_games_in(conn, region, name) {
+        Ok(games) => games,
+        Err(rusqlite::Error::QueryReturnedNoRows) => Vec::new(),
+        Err(e) => {
+            log::warn!("meet.db 读取收集结果失败: {e}");
+            Vec::new()
+        }
+    }
+}
+
+/// 在指定连接上读取（测试可注入内存连接）。
+fn load_collected_games_in(
+    conn: &Connection,
+    region: &str,
+    name: &str,
+) -> rusqlite::Result<Vec<Game>> {
+    let json: String = conn.query_row(
+        "SELECT games_json FROM collected_games WHERE region = ?1 AND name = ?2",
+        params![region, name],
+        |row| row.get(0),
+    )?;
+    serde_json::from_str(&json).map_err(serde_to_sqlite_err)
+}
+
+/// 清除某玩家的跨区收集结果。失败静默降级。
+pub fn clear_collected_games(region: &str, name: &str) {
+    with_db(|conn| {
+        conn.execute(
+            "DELETE FROM collected_games WHERE region = ?1 AND name = ?2",
+            params![region, name],
+        )
+        .map(|_| ())
+    });
+}
+
+fn serde_to_sqlite_err(e: serde_json::Error) -> rusqlite::Error {
+    rusqlite::Error::ToSqlConversionFailure(Box::new(e))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -339,5 +427,50 @@ mod tests {
         );
         let p1 = query_summary_in(&conn, "P-1").unwrap();
         assert_eq!(p1.total, 0);
+    }
+
+    #[test]
+    fn collected_games_roundtrip_and_overwrite() {
+        let conn = mem_conn();
+        let g = Game::default();
+        save_collected_games_in(&conn, "na", "Kill#NA1", &[g.clone()], "t1").unwrap();
+        let loaded = load_collected_games_in(&conn, "na", "Kill#NA1").unwrap();
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded[0].game_id, g.game_id);
+        // 同一 (region, name) 覆盖写入
+        save_collected_games_in(&conn, "na", "Kill#NA1", &[], "t2").unwrap();
+        let loaded2 = load_collected_games_in(&conn, "na", "Kill#NA1").unwrap();
+        assert!(loaded2.is_empty());
+    }
+
+    #[test]
+    fn collected_games_is_scoped_by_region_and_name() {
+        let conn = mem_conn();
+        save_collected_games_in(&conn, "na", "A#NA1", &[Game::default()], "t").unwrap();
+        // 同玩家不同区：无记录
+        assert!(matches!(
+            load_collected_games_in(&conn, "kr", "A#NA1"),
+            Err(rusqlite::Error::QueryReturnedNoRows)
+        ));
+        // 同区不同玩家：无记录
+        assert!(matches!(
+            load_collected_games_in(&conn, "na", "B#NA1"),
+            Err(rusqlite::Error::QueryReturnedNoRows)
+        ));
+    }
+
+    #[test]
+    fn collected_games_clear_removes_row() {
+        let conn = mem_conn();
+        save_collected_games_in(&conn, "na", "A#NA1", &[Game::default()], "t").unwrap();
+        conn.execute(
+            "DELETE FROM collected_games WHERE region = 'na' AND name = 'A#NA1'",
+            [],
+        )
+        .unwrap();
+        assert!(matches!(
+            load_collected_games_in(&conn, "na", "A#NA1"),
+            Err(rusqlite::Error::QueryReturnedNoRows)
+        ));
     }
 }

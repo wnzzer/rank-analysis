@@ -42,6 +42,7 @@
 
 <script lang="ts" setup>
 import { NTooltip } from 'naive-ui'
+import { formatGameDate } from '@renderer/utils/format'
 import type { Game } from '@renderer/types/domain/match'
 import type { championOption } from '@renderer/types/domain/champion'
 
@@ -84,7 +85,7 @@ const championName = (game: Game) => {
   return props.championOptions.find(option => option.value === id)?.label ?? `英雄 ${id}`
 }
 
-const tooltipDate = (game: Game) => new Date(game.gameCreationDate).toLocaleString()
+const tooltipDate = (game: Game) => formatGameDate(game.gameCreationDate, 'full')
 
 const tooltipKda = (game: Game) => {
   const s = game.participants[0]?.stats

@@ -173,7 +173,7 @@
 import { ChevronDownOutline } from '@vicons/ionicons5'
 import { computed, inject } from 'vue'
 import { NEllipsis, NIcon, NTooltip } from 'naive-ui'
-import { formatCompactNumber } from '@renderer/utils/format'
+import { formatCompactNumber, formatGameDate } from '@renderer/utils/format'
 import { useTheme } from '@renderer/composables/useTheme'
 import { groupRateColor } from '@renderer/utils/colors'
 import { assetPrefix } from '@renderer/services/http'
@@ -236,16 +236,12 @@ const modeShortText = computed(() => {
   return fallback || '对局'
 })
 
-/** 对局日期（hover 时长列）：MM-DD HH:mm；格式不明的值显示原样 */
-const dateText = computed(() => {
-  const raw = props.games.gameCreationDate
-  if (!raw) return ''
-  const ts = Number(raw)
-  if (!Number.isFinite(ts) || ts <= 0) return String(raw)
-  const d = new Date(ts)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
-})
+/**
+ * 对局日期（hover 时长列）：MM-DD HH:mm，本地时区。
+ * LCU 下发数值毫秒戳（"1755200000000"），SGP 跨区下发 ISO 字符串（"…Z"）——
+ * 两种统一走 formatGameDate 按本地时区格式化；都解析不了的值才显示原样。
+ */
+const dateText = computed(() => formatGameDate(props.games.gameCreationDate))
 
 const spell1Id = computed(() => props.games.participants[0]?.spell1Id ?? 0)
 const spell2Id = computed(() => props.games.participants[0]?.spell2Id ?? 0)

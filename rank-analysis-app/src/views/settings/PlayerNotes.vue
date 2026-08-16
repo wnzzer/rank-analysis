@@ -57,6 +57,7 @@ import { usePlayerNotesStore } from '@renderer/pinia/playerNotes'
 import { getNoteLabelMeta } from '@renderer/types/domain/playerNote'
 import PlayerNoteBadge from '@renderer/components/common/PlayerNoteBadge.vue'
 import MettingPlayersCard from '@renderer/components/gaming/MettingPlayersCard.vue'
+import { searchSummoner } from '@renderer/utils/navigation'
 
 const store = usePlayerNotesStore()
 const message = useMessage()
@@ -120,9 +121,26 @@ const columns = computed<DataTableColumns<Row>>(() => [
         { style: 'display:flex;align-items:baseline;gap:var(--space-2);min-width:0' },
         [
           h(
-            NEllipsis,
-            { style: 'max-width:220px;font-weight:600' },
-            { default: () => row.gameName || '(未知)' }
+            'span',
+            {
+              class: 'player-link',
+              role: 'button',
+              tabindex: 0,
+              onClick: () => {
+                if (row.gameName) searchSummoner(`${row.gameName}#${row.tagLine}`)
+              },
+              onKeyup: (e: KeyboardEvent) => {
+                if (e.key === 'Enter' && row.gameName)
+                  searchSummoner(`${row.gameName}#${row.tagLine}`)
+              }
+            },
+            [
+              h(
+                NEllipsis,
+                { style: 'max-width:220px;font-weight:600' },
+                { default: () => row.gameName || '(未知)' }
+              )
+            ]
           ),
           h(
             'span',
@@ -186,3 +204,16 @@ const columns = computed<DataTableColumns<Row>>(() => [
   }
 ])
 </script>
+
+<style lang="css" scoped>
+.player-link {
+  cursor: pointer;
+  color: inherit;
+  transition: color var(--dur-fast) var(--ease-expo);
+  border-radius: var(--radius-xs);
+}
+
+.player-link:hover {
+  color: var(--semantic-win);
+}
+</style>

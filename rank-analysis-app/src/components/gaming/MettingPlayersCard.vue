@@ -63,7 +63,7 @@ import { OneGamePlayer } from '../record/type'
 import type { Game } from '../record/match'
 import { assetPrefix } from '../../services/http'
 import MatchDetailInline from '../record/MatchDetailInline.vue'
-import { invoke } from '@tauri-apps/api/core'
+import { getGameById } from '@renderer/services/gameById'
 import { computed, ref } from 'vue'
 import LazyImg from '@renderer/components/common/LazyImg.vue'
 
@@ -88,8 +88,8 @@ async function openGameDetail(gameId: number): Promise<void> {
     return
   }
   try {
-    // 通过 gameId 获取完整对局信息
-    const game = await invoke<Game>('get_game_by_id', { gameId })
+    // 通过 gameId 获取完整对局信息（带模块级 LRU 缓存，重复打开零额外 IPC）
+    const game = await getGameById(gameId)
     if (game) {
       selectedGame.value = game
       showDetail.value = true

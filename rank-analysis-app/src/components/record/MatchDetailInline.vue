@@ -213,7 +213,7 @@ import type { Summoner } from '@renderer/types/domain/player'
 import MatchAIPanel from './MatchAIPanel.vue'
 import LazyImg from '@renderer/components/common/LazyImg.vue'
 import { deathsColor, kdaColor } from '@renderer/utils/colors'
-import { formatCompactNumber } from '@renderer/utils/format'
+import { formatCompactNumber, formatGameDate } from '@renderer/utils/format'
 import { useRecordAssets } from '@renderer/composables/useRecordAssets'
 import { useMatchDetailPlayers } from '@renderer/composables/useMatchDetailPlayers'
 import { useMatchAIAnalysis } from '@renderer/composables/useMatchAIAnalysis'
@@ -287,13 +287,7 @@ function playerAugmentIds(stats: ParticipantStats) {
 
 const formattedDate = computed(() => {
   if (!props.game) return ''
-  return new Intl.DateTimeFormat('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false
-  }).format(new Date(props.game.gameCreationDate))
+  return formatGameDate(props.game.gameCreationDate)
 })
 
 /**

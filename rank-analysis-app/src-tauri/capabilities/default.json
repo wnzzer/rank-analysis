@@ -1,10 +1,11 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main window",
-  "windows": ["main"],
+  "description": "Capability for the main window and player-record child windows (record-*)",
+  "windows": ["main", "record-*"],
   "permissions": [
     "core:default",
+    "core:webview:allow-create-webview-window",
     "opener:default",
     "core:webview:allow-set-webview-zoom",
     "core:window:allow-minimize",
@@ -16,6 +17,9 @@
     "core:window:allow-hide",
     "core:window:allow-set-focus",
     "core:window:allow-set-size",
+    "core:window:allow-set-position",
+    "core:window:allow-outer-position",
+    "core:window:allow-outer-size",
     "core:window:allow-start-dragging",
     "updater:default",
     "process:default",

@@ -1,6 +1,6 @@
 <template>
   <div class="sidenav-wrap">
-    <div class="nav-items">
+    <div class="nav-items" v-if="!isRecordChild">
       <button
         v-if="!!mySummoner?.gameName"
         type="button"
@@ -38,7 +38,7 @@
         />
       </button>
     </div>
-    <div class="status-icons">
+    <div class="status-icons" v-if="!isRecordChild">
       <n-tooltip placement="right" :delay="200">
         <template #trigger>
           <button
@@ -72,6 +72,28 @@
         {{ isInGame ? '游戏中' : '未在游戏中' }}
       </n-tooltip>
     </div>
+
+    <!-- 战绩子窗口（record-*）精简导航：只留「回主窗口」和「并排对比」 -->
+    <div class="nav-items" v-else>
+      <n-tooltip placement="right" :delay="200">
+        <template #trigger>
+          <button type="button" class="nav-item" @click="backToMain">
+            <n-icon :size="18"><AppsOutline /></n-icon>
+            <span class="nav-item-label">主窗口</span>
+          </button>
+        </template>
+        聚焦主窗口
+      </n-tooltip>
+      <n-tooltip placement="right" :delay="200">
+        <template #trigger>
+          <button type="button" class="nav-item" @click="tileSideBySide">
+            <n-icon :size="18"><CopyOutline /></n-icon>
+            <span class="nav-item-label">并排对比</span>
+          </button>
+        </template>
+        主窗口与全部战绩窗口横向并排
+      </n-tooltip>
+    </div>
   </div>
 </template>
 
@@ -82,15 +104,33 @@ import {
   BarChartOutline,
   GameControllerOutline,
   SettingsOutline,
-  LinkOutline
+  LinkOutline,
+  AppsOutline,
+  CopyOutline
 } from '@vicons/ionicons5'
 import { computed, ref, watch } from 'vue'
 import { Summoner } from './record/type'
 import { useGameState } from '@renderer/composables/useGameState'
 import { useCloudSyncStore } from '@renderer/pinia/cloudSync'
+import {
+  isRecordChildWindow,
+  focusMainWindow,
+  tileWindowsSideBySide
+} from '@renderer/utils/windows'
 
 const { summoner: gameStateSummoner, currentPhase } = useGameState()
 const cloudStore = useCloudSyncStore()
+
+/** 战绩子窗口（record-*）精简模式：隐藏全局导航/状态，只留子窗口操作 */
+const isRecordChild = isRecordChildWindow()
+
+const backToMain = () => {
+  void focusMainWindow()
+}
+
+const tileSideBySide = () => {
+  void tileWindowsSideBySide()
+}
 
 /** 云端配置待裁决时为真：驱动「设置」导航项上的呼吸角标，裁决完立即消失 */
 const hasPendingCloudConfig = computed(() => cloudStore.pendingCloudConfig !== null)

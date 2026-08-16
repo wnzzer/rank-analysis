@@ -1,6 +1,7 @@
 import { ref, readonly, onMounted, onUnmounted } from 'vue'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import router from '../router'
+import { isRecordChildWindow } from '@renderer/utils/windows'
 
 export interface GameStateEvent {
   connected: boolean
@@ -69,6 +70,10 @@ let lastPhase = ''
 
 /** 处理连接状态的路由切换。 */
 function handleConnectionRoute(state: GameStateEvent) {
+  // 战绩子窗口（record-*）：不自动跳转，保持打开的是哪页就是哪页
+  if (isRecordChildWindow()) {
+    return
+  }
   const currentPath = router.currentRoute.value.path
 
   if (state.connected && state.summoner) {
@@ -116,7 +121,8 @@ async function setupListeners() {
     if (phase !== lastPhase) {
       if (
         (phase === 'ChampSelect' || phase === 'InProgress' || phase === 'GameStart') &&
-        router.currentRoute.value.name !== 'Gaming'
+        router.currentRoute.value.name !== 'Gaming' &&
+        !isRecordChildWindow()
       ) {
         console.log(`🎮 [Auto-Nav] Phase changed to ${phase}, navigating to Gaming...`)
         router.push('/Gaming')
