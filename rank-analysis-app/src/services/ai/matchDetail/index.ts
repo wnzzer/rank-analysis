@@ -128,7 +128,7 @@ export async function analyzeMatchDetail(
     precomputedStage1: cachedAttribution ?? undefined,
     stage1: {
       systemPrompt: STAGE1_SYSTEM_PROMPT,
-      userPrompt: buildAttributionUserPrompt(snapshot),
+      userPrompt: await buildAttributionUserPrompt(snapshot),
       parse: raw => parseAttribution(raw, snapshot),
       cacheKey: stage1Key,
       retry: 1,

@@ -1,7 +1,11 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { buildStage1Prompt } from '../prompts/stage1-attribution'
 import { classifyMode } from '../../shared/modeContext'
 import type { MatchSnapshot } from '../../shared/snapshot'
+
+vi.mock('@renderer/services/knowledge', () => ({
+  getKnowledgeBase: vi.fn(async () => null)
+}))
 
 function makeSnapshot(opts: { queueId?: number; gameMode?: string } = {}): MatchSnapshot {
   const modeContext = classifyMode(opts.queueId ?? 420, opts.gameMode ?? 'CLASSIC')
@@ -20,20 +24,20 @@ function makeSnapshot(opts: { queueId?: number; gameMode?: string } = {}): Match
 describe('buildStage1Prompt — common skeleton', () => {
   const snap = makeSnapshot()
 
-  it('injects modeContext.description', () => {
-    const prompt = buildStage1Prompt(snap, '')
+  it('injects modeContext.description', async () => {
+    const prompt = await buildStage1Prompt(snap, '')
     expect(prompt).toContain(snap.modeContext.description)
   })
 
-  it('mentions hasLanes / hasItemBuild / championAssignment flags', () => {
-    const prompt = buildStage1Prompt(snap, '')
+  it('mentions hasLanes / hasItemBuild / championAssignment flags', async () => {
+    const prompt = await buildStage1Prompt(snap, '')
     expect(prompt).toContain('hasLanes')
     expect(prompt).toContain('hasItemBuild')
     expect(prompt).toContain('championAssignment')
   })
 
-  it('lists the six labels and quantified criteria', () => {
-    const prompt = buildStage1Prompt(snap, '')
+  it('lists the six labels and quantified criteria', async () => {
+    const prompt = await buildStage1Prompt(snap, '')
     expect(prompt).toContain('尽力')
     expect(prompt).toContain('犯罪')
     expect(prompt).toContain('被爆')
@@ -42,31 +46,31 @@ describe('buildStage1Prompt — common skeleton', () => {
     expect(prompt).toContain('正常')
   })
 
-  it('documents the TS-precomputed flags', () => {
-    const prompt = buildStage1Prompt(snap, '')
+  it('documents the TS-precomputed flags', async () => {
+    const prompt = await buildStage1Prompt(snap, '')
     expect(prompt).toContain('isOffRole')
     expect(prompt).toContain('offRoleSeverity')
     expect(prompt).toContain('isFirstTimeInRecent')
     expect(prompt).toContain('isOnetrick')
   })
 
-  it('declares whom to issue verdicts about (4-7 verdicts)', () => {
-    const prompt = buildStage1Prompt(snap, '')
+  it('declares whom to issue verdicts about (4-7 verdicts)', async () => {
+    const prompt = await buildStage1Prompt(snap, '')
     expect(prompt).toContain('4-7')
     expect(prompt).toContain('击杀')
     expect(prompt).toContain('死亡')
     expect(prompt).toContain('isMe')
   })
 
-  it('appends the mode addon rules at the end', () => {
-    const prompt = buildStage1Prompt(snap, '【MODE_RULES_MARKER】')
+  it('appends the mode addon rules at the end', async () => {
+    const prompt = await buildStage1Prompt(snap, '【MODE_RULES_MARKER】')
     expect(prompt).toContain('【MODE_RULES_MARKER】')
     // addon should appear after the JSON schema section
     expect(prompt.indexOf('【MODE_RULES_MARKER】')).toBeGreaterThan(prompt.indexOf('"verdicts"'))
   })
 
-  it('serializes the snapshot as JSON for the model', () => {
-    const prompt = buildStage1Prompt(snap, '')
+  it('serializes the snapshot as JSON for the model', async () => {
+    const prompt = await buildStage1Prompt(snap, '')
     expect(prompt).toContain('"queueId"')
     expect(prompt).toContain('"modeContext"')
   })
@@ -307,14 +311,14 @@ describe('buildStage2Prompt', () => {
 describe('buildStage1Prompt — 位置感知纪律', () => {
   const snap = makeSnapshot()
 
-  it('exempts UTILITY from damageShare/goldShare 负面证据', () => {
-    const prompt = buildStage1Prompt(snap, '')
+  it('exempts UTILITY from damageShare/goldShare 负面证据', async () => {
+    const prompt = await buildStage1Prompt(snap, '')
     expect(prompt).toContain('UTILITY')
     expect(prompt).toContain('不构成负面证据')
   })
 
-  it('requires finalCall 分路表述以 snapshot.teamPosition 为准', () => {
-    const prompt = buildStage1Prompt(snap, '')
+  it('requires finalCall 分路表述以 snapshot.teamPosition 为准', async () => {
+    const prompt = await buildStage1Prompt(snap, '')
     expect(prompt).toContain('必须以该玩家 snapshot 的 teamPosition 为准')
   })
 })

@@ -12,7 +12,7 @@ import { CONFIG_KEYS } from '../configKeys'
 import type { AIAnalysisResult, AiUsage, StreamCallbacks } from './types'
 
 export const DEFAULT_SYSTEM_PROMPT =
-  '你是一个LOL游戏分析师，擅长分析玩家战绩和给出游戏建议。请用简洁、专业、直接的中文回复。所有结论都必须绑定数据证据，避免空泛。'
+  '你是一个LOL游戏分析师，擅长分析玩家战绩和给出游戏建议。请用简洁、专业、直接的中文回复。所有结论都必须绑定数据证据，避免空泛。若材料中出现【版本情报】/【本版本英雄改动】等版本数据块，一律以块内数据为准，禁止使用训练记忆里的版本认知。'
 
 /**
  * 默认模型（DashScope 兼容 OpenAI 协议）。各 stage 调用方按 use case 覆盖。

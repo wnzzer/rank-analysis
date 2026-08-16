@@ -20,21 +20,23 @@ import {
 import { assignedPositionCn, counterHintText, positionSegment, tierLabel } from './shared/opggIntel'
 import { getChampionMeta, getLaneCounters, findCounterHints } from '@renderer/services/opgg'
 import { getChampionName } from '../champion-names'
+import { buildIntelContext, intelBlockExists, intelBlockToText } from '../shared/intelContext'
+import type { SignalSessionPlayer, SignalSessionData } from '../shared/signals'
+import type { RecentPlayerProfile } from '../shared/types'
 import type { OpggMode, LaneCounter } from '@renderer/services/opgg'
 
-interface SessionPlayerLike {
+/** 会话玩家（信号引擎兼容子集 + 本 prompt 必需字段） */
+export interface SessionPlayerLike extends SignalSessionPlayer {
   championId: number
-  summoner?: { puuid?: string; gameName?: string }
-  assignedPosition?: string
   preGroupMarkers?: { name?: string }
   meetGames?: Array<{ isMyTeam: boolean; win: boolean }>
 }
 
-interface SessionDataLike {
+export interface SessionDataLike extends SignalSessionData {
   typeCn?: string
   isMultiTeam?: boolean
   mySubteamId?: number
-  subteams?: Array<{ subteamId: number; players: any[] }>
+  subteams?: Array<{ subteamId: number; players: SessionPlayerLike[] }>
 }
 
 /** 敌我前缀：CLASSIC 二分；CHERRY 多队时非我方统称"敌方"（版本改动区块用） */
@@ -127,11 +129,21 @@ async function buildEnemyIntelBlock(
  * 构建整队分析 prompt
  * @param sessionData - 对局会话数据（subteams 统一模型）
  * @param opts.useNotes - 是否注入使用者手动备注（隐私开关，默认 false，fail-closed）
- * @param opts.opggMode - OP.GG 数据模式；未提供时省略敌方英雄版本情报区块
+ * @param opts.opggMode - OP.GG 数据模式；未提供时省略版本情报块
+ * @param opts.profileMap - 玩家近期画像 map（提供时注入统一版本情报+克制+关联信号+模式知识块，
+ *   覆盖敌方情报块的职责；缺省时保持原【敌方英雄版本情报】区块）
+ * @param opts.modeKind - 模式语义分类（modeContext.kind），决定模式知识 key
+ * @param opts.queueId - 队列 ID（海克斯乱斗 1700 → brawl 模式知识）
  */
 export async function buildTeamAnalysisPrompt(
   sessionData: SessionDataLike,
-  opts: { useNotes?: boolean; opggMode?: OpggMode } = {}
+  opts: {
+    useNotes?: boolean
+    opggMode?: OpggMode
+    profileMap?: ReadonlyMap<string, RecentPlayerProfile | null>
+    modeKind?: string
+    queueId?: number
+  } = {}
 ): Promise<string> {
   const isMulti = !!sessionData.isMultiTeam
   const mySubteamId = sessionData.mySubteamId ?? 0
@@ -174,12 +186,28 @@ export async function buildTeamAnalysisPrompt(
       .filter((p: SessionPlayerLike) => p.championId > 0)
       .map((p: SessionPlayerLike) => ({ side: '敌方', championId: p.championId }))
   ])
-  const enemyIntelBlock = opts.opggMode
-    ? `【敌方英雄版本情报】（OP.GG 版本统计；主分路为推测，非本局实际分路）
+  // 情报区：提供画像时用统一情报块（版本情报含我方+克制+信号+模式知识）覆盖敌方情报块；
+  // 否则保持原【敌方英雄版本情报】区块
+  let intelSection = ''
+  if (opts.profileMap) {
+    const ctx = await buildIntelContext({
+      sessionData,
+      profileMap: opts.profileMap,
+      opggMode: opts.opggMode,
+      modeKind: opts.modeKind,
+      queueId: opts.queueId
+    })
+    if (intelBlockExists(ctx)) {
+      intelSection = `${intelBlockToText(ctx)}
+
+`
+    }
+  } else if (opts.opggMode) {
+    intelSection = `【敌方英雄版本情报】（OP.GG 版本统计；主分路为推测，非本局实际分路）
 ${await buildEnemyIntelBlock(enemyPlayers, myChampionIds, opts.opggMode)}
 
 `
-    : ''
+  }
 
   const prelude = isMulti
     ? `你是LOL资深分析师，本局为 ${subteams.length} 队混战（${sessionData.typeCn || '未知'}），请详细分析这局比赛：`
@@ -197,7 +225,7 @@ ${preGroupBlock}
 【遇见过的玩家】（使用者近期与其同局过的玩家）
 ${meetGamesBlock}
 
-${enemyIntelBlock}${PATCH_NOTES_SECTION_HEADER}
+${intelSection}${PATCH_NOTES_SECTION_HEADER}
 ${patchNotesBlock}
 
 ===== 分析纪律（硬规则，必须遵守）=====
@@ -217,6 +245,10 @@ ${patchNotesBlock}
 
 ## 一句话判断
 {一句话点明这局关键看点：哪边阵容/状态更稳、该围绕谁打。要有网感、别空泛}
+
+## 版本视角
+{一句话：基于【版本情报】/【本版本英雄改动】判断本局英雄的版本强度（如加强/削弱/强势期），
+没有版本数据时写"版本数据不足"}
 
 ## 优势点
 - {我方值得依靠的点：状态好 / 英雄熟练 / 预组队配合 / 版本加强，带数字}

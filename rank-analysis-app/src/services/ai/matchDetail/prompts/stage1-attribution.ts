@@ -5,12 +5,49 @@
  * 输出：要求 AI 返回严格 JSON（AttributionResult 形状）
  *
  * 各模式 addon (ranked / aram / augment) 的追加规则通过参数注入到骨架末尾。
+ *
+ * 情报注入：从快照玩家近期画像确定性计算关联信号（信号引擎），
+ * 归因规则允许引用信号作为 mitigatingFactors / evidenceMetrics 补充。
  */
 
 import type { MatchSnapshot } from '../../shared/snapshot'
+import { getKnowledgeBase } from '@renderer/services/knowledge'
+import { evaluateSignals, profileToMetrics, type SignalSubject } from '../../shared/signals'
 
-export function buildStage1Prompt(snapshot: MatchSnapshot, addonRules: string): string {
+/** 从快照玩家平铺结构构建信号主体（puuid 用 participantId 代替，仅作关联键） */
+function snapshotSignalSubjects(snapshot: MatchSnapshot): SignalSubject[] {
+  const meTeam = snapshot.players.find(p => p.isMe)?.teamId
+  return snapshot.players.map(p => ({
+    puuid: String(p.participantId),
+    name: p.name,
+    scope: meTeam === undefined ? 'teammate' : p.teamId === meTeam ? 'teammate' : 'enemy',
+    position: p.teamPosition && p.teamPosition !== 'UNKNOWN' ? p.teamPosition : undefined,
+    metrics: p.recentProfile ? profileToMetrics(p.recentProfile) : {}
+  }))
+}
+
+/** 关联信号块（知识库规则为空/失败时整块省略；信号空时也不输出） */
+async function buildSignalBlock(snapshot: MatchSnapshot): Promise<string> {
+  const knowledge = await getKnowledgeBase()
+  if (!knowledge || knowledge.signalRules.length === 0) return ''
+  const subjects = snapshotSignalSubjects(snapshot)
+  const signals = evaluateSignals(subjects, knowledge.signalRules)
+  if (signals.length === 0) return ''
+  const lines = signals.map(s => `- [${s.severity}] ${s.text}`).join('\n')
+  return `【关联信号】（程序基于近期战绩确定性计算的事实，请直接解读，不要重新计算。
+归因时可引用信号作为 mitigatingFactors / evidenceMetrics 的补充依据：
+信号触发即表示近期数据支持该状态，如连败/补位/状态差）
+${lines}
+
+`
+}
+
+export async function buildStage1Prompt(
+  snapshot: MatchSnapshot,
+  addonRules: string
+): Promise<string> {
   const mc = snapshot.modeContext
+  const signalBlock = await buildSignalBlock(snapshot)
   return `你是 LOL 单场归因分析师。基于下面这场比赛的快照 + 玩家近期摘要，
 判断每个值得点名的玩家归类为：尽力 / 犯罪 / 被爆 / 被连累 / 缚地灵 / 正常，
 并给出数据证据。
@@ -46,7 +83,7 @@ isTeamMode: ${mc.isTeamMode}
 - recentProfile.note: 使用者对该玩家的主观历史印象（[色档] 文本），仅供参考，
   不作为事实依据，不得写入 evidenceMetrics。
 
-【标签定义（量化标准）】
+${signalBlock}【标签定义（量化标准）】
 - 尽力：数据明显高于队内均值（伤害占比/经济占比/参团率中任意 2 项进入队内前 2）+ 该队伍胜
 - 犯罪：数据明显低于队内均值（死亡数最多 + 参团 < 30% + KDA 队内倒数）+ 该队伍输
 - 被爆：deaths 高 + damageShare 低 + goldShare 低，且无 isOffRole / first-time-champion 等申辩

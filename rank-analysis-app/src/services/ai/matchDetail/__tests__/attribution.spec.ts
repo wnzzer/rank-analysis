@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 
 import {
   buildAttributionUserPrompt,
@@ -8,6 +8,10 @@ import {
 } from '../attribution'
 import { classifyMode } from '../../shared/modeContext'
 import type { MatchSnapshot } from '../../shared/snapshot'
+
+vi.mock('@renderer/services/knowledge', () => ({
+  getKnowledgeBase: vi.fn(async () => null)
+}))
 
 function snapshotForTest(): MatchSnapshot {
   return {
@@ -46,18 +50,18 @@ function fakeAttributionJson(): string {
 }
 
 describe('buildAttributionUserPrompt', () => {
-  it('uses ranked addon for ranked snapshot (prompt contains "对位")', () => {
-    const prompt = buildAttributionUserPrompt(snapshotForTest())
+  it('uses ranked addon for ranked snapshot (prompt contains "对位")', async () => {
+    const prompt = await buildAttributionUserPrompt(snapshotForTest())
     expect(prompt).toContain('对位')
   })
 
-  it('uses aram addon for aram snapshot (does NOT mention 上中下打野辅助)', () => {
+  it('uses aram addon for aram snapshot (does NOT mention 上中下打野辅助)', async () => {
     const aramSnap = {
       ...snapshotForTest(),
       queueId: 450,
       modeContext: classifyMode(450, 'ARAM')
     } as MatchSnapshot
-    const prompt = buildAttributionUserPrompt(aramSnap)
+    const prompt = await buildAttributionUserPrompt(aramSnap)
     expect(prompt).not.toContain('上中下打野辅助')
   })
 })

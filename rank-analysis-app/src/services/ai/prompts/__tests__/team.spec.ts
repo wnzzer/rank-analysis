@@ -27,6 +27,26 @@ vi.mock('@renderer/services/opgg', () => ({
   findCounterHints: vi.fn(() => [])
 }))
 
+vi.mock('@renderer/services/knowledge', () => ({
+  getKnowledgeBase: vi.fn(async () => ({
+    patch: '26.13',
+    updatedAt: '2026-08-16T00:00:00.000Z',
+    modeKnowledge: { ranked: ['测试模式知识：排位焦点中下路'] },
+    signalRules: [
+      {
+        id: 'test-loss',
+        name: '连败',
+        scope: 'teammate',
+        text: '{name} 最近 {lossStreak} 连败',
+        severity: 'warn',
+        whenAll: [{ metric: 'lossStreak', op: 'gte', value: 3 }]
+      }
+    ],
+    championKnowledge: [],
+    patchNotes: {}
+  }))
+}))
+
 vi.mock('../../shared/noteBrief', () => ({
   buildNoteBrief: vi.fn(() => undefined)
 }))
@@ -181,5 +201,46 @@ describe('buildTeamAnalysisPrompt', () => {
     expect(prompt).toContain('主分路≠职能')
     expect(prompt).toContain('唯一例外')
     expect(prompt).toContain('currentLane')
+  })
+
+  it('输出模板含「## 版本视角」判断小节', async () => {
+    const prompt = await buildTeamAnalysisPrompt(makeSessionData(), { opggMode: 'ranked' })
+    expect(prompt).toContain('## 版本视角')
+  })
+})
+
+describe('buildTeamAnalysisPrompt — profileMap 统一情报块', () => {
+  /** 近期画像最小形状 */
+  function minProfile(partial: { lossStreak?: number; winRate?: number } = {}) {
+    return {
+      recentWinRate: partial.winRate ?? 0.5,
+      recentKda: 2.0,
+      streak: { kind: 'loss', count: partial.lossStreak ?? 0 },
+      isOffRole: false,
+      positionDistribution: [{ position: 'MIDDLE', games: 10 }]
+    }
+  }
+
+  it('提供 profileMap 时用统一情报块替换【敌方英雄版本情报】（版本+信号+模式知识）', async () => {
+    const session = makeSessionData()
+    const profileMap = new Map<string, any>([['p1', minProfile({ lossStreak: 3, winRate: 0.3 })]])
+    const prompt = await buildTeamAnalysisPrompt(session, {
+      opggMode: 'ranked',
+      modeKind: 'ranked',
+      queueId: 420,
+      profileMap
+    })
+    expect(prompt).toContain('【版本情报 · 26.13 · 数据来源OP.GG(外服)】')
+    expect(prompt).toContain('【关联信号】')
+    expect(prompt).toContain('我方甲 最近 3 连败')
+    expect(prompt).toContain('【模式知识】')
+    expect(prompt).toContain('测试模式知识')
+    expect(prompt).not.toContain('【敌方英雄版本情报】')
+  })
+
+  it('profileMap 缺失时保持旧版敌方情报块', async () => {
+    const prompt = await buildTeamAnalysisPrompt(makeSessionData(), { opggMode: 'ranked' })
+    expect(prompt).toContain('【敌方英雄版本情报】')
+    expect(prompt).not.toContain('【模式知识】')
   })
 })

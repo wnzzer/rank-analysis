@@ -21,6 +21,33 @@ import type { LiveGameSnapshot } from '@renderer/services/liveGame'
 import { analyzeMatchDetail } from './matchDetail'
 import type { AIAnalysisReport } from './matchDetail'
 import type { RecentPlayerProfile } from './shared/types'
+import { fetchBatchProfiles } from './shared/recentProfile.batch'
+import { classifyMode } from './shared/modeContext'
+
+/**
+ * 整队分析的玩家近期画像预拉取（best-effort）：失败返回 undefined，
+ * prompt 构建方按「未提供画像」降级到旧版敌方情报块，不影响分析链路。
+ */
+async function buildTeamProfileMap(
+  gameData: any
+): Promise<Map<string, RecentPlayerProfile | null> | undefined> {
+  try {
+    const subteams = gameData?.subteams ?? []
+    const requests = subteams
+      .flatMap((st: any) => st.players ?? [])
+      .map((p: any) => ({
+        puuid: p.summoner?.puuid as string | undefined,
+        teamPosition: (p.assignedPosition || 'UNKNOWN') as any,
+        championId: (p.championId as number) || 0
+      }))
+      .filter((r: any) => r.puuid && r.championId > 0)
+    if (requests.length === 0) return undefined
+    return await fetchBatchProfiles(requests)
+  } catch (error) {
+    console.warn('[ai] team profile prefetch failed, falling back:', error)
+    return undefined
+  }
+}
 
 export type {
   AIAnalysisResult,
@@ -42,9 +69,17 @@ export async function analyzeGameWithAIStream(
     await loadChampionNames()
     // 隐私开关：键不存在视为开（默认开），显式 false 时两条链路都不注入备注
     const useNotes = (await getConfigByIpc<boolean>(CONFIG_KEYS.aiUsePlayerNotes)) !== false
+    // 战术情报开关：默认开，显式 false 时整队分析不再注入版本情报/克制/信号/模式知识
+    const intelEnabled = (await getConfigByIpc<boolean>(CONFIG_KEYS.opggEnabled)) !== false
     const prompt =
       type === 'team'
-        ? await buildTeamAnalysisPrompt(gameData, { useNotes, opggMode: opts.opggMode })
+        ? await buildTeamAnalysisPrompt(gameData, {
+            useNotes,
+            opggMode: intelEnabled ? opts.opggMode : undefined,
+            profileMap: intelEnabled ? await buildTeamProfileMap(gameData) : undefined,
+            modeKind: classifyMode(gameData?.queueId ?? 0, gameData?.gameMode ?? '').kind,
+            queueId: gameData?.queueId as number | undefined
+          })
         : await buildPlayerAnalysisPrompt(gameData, { useNotes })
     // DEFAULT_SYSTEM_PROMPT 带"所有结论都必须绑定数据证据"反幻觉指令，
     // 与 prompt 内纪律区配套（旧的弱版 IN_GAME_SYSTEM_PROMPT 已淘汰）。

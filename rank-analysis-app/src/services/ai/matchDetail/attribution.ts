@@ -29,8 +29,8 @@ export const STAGE1_SYSTEM_PROMPT =
  */
 export const STAGE1_MODEL = 'qwen-flash'
 
-/** Stage 1 user prompt：公共骨架 + 按 modeContext 路由的模式追加规则 */
-export function buildAttributionUserPrompt(snapshot: MatchSnapshot): string {
+/** Stage 1 user prompt：公共骨架 + 按 modeContext 路由的模式追加规则（含关联信号块） */
+export async function buildAttributionUserPrompt(snapshot: MatchSnapshot): Promise<string> {
   const addon = getModePromptAddon(snapshot.modeContext)
   return buildStage1Prompt(snapshot, addon.rules)
 }
