@@ -51,9 +51,13 @@ pub async fn get_build_stats(
     // 复用战绩缓存窗口：首个请求 0..=49 全量，LCU 按 puuid 整包缓存
     let match_history = MatchHistory::get_match_history_by_puuid(&puuid, 0, 49).await?;
 
-    let Some(stats) =
-        aggregate_build_stats(&match_history.games.games, champion_id, &puuid, mode, &position)
-    else {
+    let Some(stats) = aggregate_build_stats(
+        &match_history.games.games,
+        champion_id,
+        &puuid,
+        mode,
+        &position,
+    ) else {
         return Ok(None);
     };
 

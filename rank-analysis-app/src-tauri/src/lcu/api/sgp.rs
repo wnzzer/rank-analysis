@@ -20,7 +20,9 @@
 use crate::constant;
 use crate::lcu::api::game_detail::GameDetail;
 use crate::lcu::api::match_history::{Game, GamesWrapper, MatchHistory};
-use crate::lcu::api::model::{Participant, ParticipantIdentity, ParticipantTimeline, Perks, Player, Stats};
+use crate::lcu::api::model::{
+    Participant, ParticipantIdentity, ParticipantTimeline, Perks, Player, Stats,
+};
 use crate::lcu::api::rank::{QueueInfo, QueueMap, Rank};
 use crate::lcu::api::summoner::Summoner;
 use crate::lcu::util::http::{lcu_get, riot_client_get, sgp_get};

@@ -166,12 +166,7 @@ pub fn aggregate_build_stats(
         let lanes: Vec<&Participant> = mine
             .iter()
             .copied()
-            .filter(|p| {
-                p.timeline
-                    .as_ref()
-                    .and_then(|t| normalize_lane(&t.lane))
-                    == Some(position)
-            })
+            .filter(|p| p.timeline.as_ref().and_then(|t| normalize_lane(&t.lane)) == Some(position))
             .collect();
         if lanes.len() as u32 >= MIN_SAMPLES {
             (lanes, position)
@@ -471,19 +466,17 @@ mod tests {
     /// 造 n 场同英雄同 lane 的对局。
     fn games_with_lane(n: u32, lane: &str, win: bool) -> Vec<Game> {
         (0..n)
-            .map(|i| {
-                Game {
-                    game_id: i64::from(i),
-                    queue_id: 420,
-                    participants: vec![participant_lane(86, &full_items(), win, Some(lane))],
-                    participant_identities: vec![ParticipantIdentity {
-                        player: Player {
-                            puuid: MY_PUUID.to_string(),
-                            ..Default::default()
-                        },
-                    }],
-                    ..Default::default()
-                }
+            .map(|i| Game {
+                game_id: i64::from(i),
+                queue_id: 420,
+                participants: vec![participant_lane(86, &full_items(), win, Some(lane))],
+                participant_identities: vec![ParticipantIdentity {
+                    player: Player {
+                        puuid: MY_PUUID.to_string(),
+                        ..Default::default()
+                    },
+                }],
+                ..Default::default()
             })
             .collect()
     }
@@ -513,7 +506,10 @@ mod tests {
         games.extend(games_with_lane(6, "JUNGLE", false));
         let got = aggregate_build_stats(&games, 86, MY_PUUID, 0, "TOP").unwrap();
         assert_eq!(got.samples, 8, "分路样本 < 5 自动回退全部分路");
-        assert_eq!(got.position, "", "回退后 position 标注为空串，供前端展示降级提示");
+        assert_eq!(
+            got.position, "",
+            "回退后 position 标注为空串，供前端展示降级提示"
+        );
     }
 
     #[test]
@@ -534,7 +530,10 @@ mod tests {
         // 两场 lane="NONE"（无法归一）：指定任意分路都 0 样本 → 回退全部分路
         let games = games_with_lane(6, "NONE", true);
         let got = aggregate_build_stats(&games, 86, MY_PUUID, 0, "TOP").unwrap();
-        assert_eq!(got.samples, 6, "无法归一的 lane 不进任何分路桶，但仍计入全部分路");
+        assert_eq!(
+            got.samples, 6,
+            "无法归一的 lane 不进任何分路桶，但仍计入全部分路"
+        );
         assert_eq!(got.position, "");
     }
 
@@ -542,14 +541,12 @@ mod tests {
     fn position_filter_combines_with_mode() {
         let mut games = games_with_lane(6, "TOP", true);
         // 同英雄同 lane 但模式不同（420 → 450）
-        games.extend(
-            (0..6).map(|i| {
-                let mut g = games_with_lane(1, "TOP", false).remove(0);
-                g.game_id = 100 + i64::from(i);
-                g.queue_id = 450;
-                g
-            }),
-        );
+        games.extend((0..6).map(|i| {
+            let mut g = games_with_lane(1, "TOP", false).remove(0);
+            g.game_id = 100 + i64::from(i);
+            g.queue_id = 450;
+            g
+        }));
         let got = aggregate_build_stats(&games, 86, MY_PUUID, 420, "TOP").unwrap();
         assert_eq!(got.samples, 6, "mode + position 双过滤收敛到交集");
         assert_eq!(got.win_count, 6);
