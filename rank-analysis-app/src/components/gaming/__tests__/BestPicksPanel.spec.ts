@@ -189,6 +189,8 @@ describe('BestPicksPanel', () => {
     expect(wrapper.find('.bp-bar').exists()).toBe(true)
     const enemyAvatars = wrapper.findAll('.bp-enemy-avatar')
     expect(enemyAvatars).toHaveLength(3)
+    // 无队友已亮时不允许出现队友头像（避免误示敌方头像为队友）
+    expect(wrapper.findAll('.bp-teammate-avatar')).toHaveLength(0)
     const pickAvatars = wrapper.findAll('.bp-pick-avatar')
     expect(pickAvatars).toHaveLength(3)
   })
@@ -204,12 +206,23 @@ describe('BestPicksPanel', () => {
     expect(wrapper.find('.bp-label').text()).toBe('与队友')
     expect(wrapper.find('.bp-arrow-label').text()).toBe('最优协同')
     expect(wrapper.find('.bp-panel-title').text()).toContain('与已亮队友协同的最佳选择')
+    // 协同锚点是队友头像：只显示队友头像，不得显示敌方头像
+    const teammateAvatars = wrapper.findAll('.bp-teammate-avatar')
+    expect(teammateAvatars).toHaveLength(1)
+    expect(teammateAvatars[0].attributes('src')).toContain('champion/300')
+    expect(wrapper.findAll('.bp-enemy-avatar')).toHaveLength(0)
   })
 
-  it('敌方 1 锁 + 队友 1 亮也显示（协同维度放宽显示门槛）', async () => {
+  it('敌方 1 锁 + 队友 1 亮也显示（协同维度放宽显示门槛，队友/敌方头像分别呈现）', async () => {
     const wrapper = await mountPanel({ enemyIds: [104], teammateIds: [300] })
     expect(wrapper.find('.bp-bar').exists()).toBe(true)
     expect(wrapper.find('.bp-arrow-label').text()).toBe('双维最优')
+    const teammateAvatars = wrapper.findAll('.bp-teammate-avatar')
+    expect(teammateAvatars).toHaveLength(1)
+    expect(teammateAvatars[0].attributes('src')).toContain('champion/300')
+    const enemyAvatars = wrapper.findAll('.bp-enemy-avatar')
+    expect(enemyAvatars).toHaveLength(1)
+    expect(enemyAvatars[0].attributes('src')).toContain('champion/104')
   })
 
   it('loading 时显示分析中提示', async () => {

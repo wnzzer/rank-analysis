@@ -18,77 +18,106 @@
       <div v-else-if="error" class="counter-hover-hint counter-hover-error">
         OP.GG 数据未就绪（需联网拉取或等待重试）
       </div>
-      <div v-else-if="rows.length === 0 && synergyRows.length === 0" class="counter-hover-hint">
-        该分路对位样本不足（OP.GG 暂无数据）
-      </div>
-      <div
-        v-else
-        class="counter-hover-scroll"
-        :class="{ 'counter-hover-scroll-split': rows.length > 0 && synergyRows.length > 0 }"
-      >
-        <table v-if="rows.length > 0" class="counter-hover-table">
-          <thead>
-            <tr>
-              <th class="ch-col">英雄</th>
-              <th
-                v-for="col in sortableCols"
-                :key="col.key"
-                class="sort-col"
-                :class="{ 'sort-active': sortKey === col.key }"
-                @click="toggleSort(col.key)"
-              >
-                {{ col.label
-                }}<span v-if="sortKey === col.key" class="sort-arrow">{{
-                  sortDir === 'desc' ? ' ▼' : ' ▲'
-                }}</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="c in rows" :key="c.championId">
-              <td class="ch-col">
-                <img class="ch-avatar" :src="getChampionUrl(c.championId)" alt="" />
-                <span class="ch-name">{{ championName(c.championId) }}</span>
-              </td>
-              <td :class="wrClass(c.winRate)">{{ formatWinRate(c.winRate) }}</td>
-              <td>{{ c.play }}</td>
-            </tr>
-          </tbody>
-        </table>
-
-        <div v-if="synergyRows.length > 0" class="counter-hover-section">
-          <div class="counter-hover-subtitle">最佳搭档</div>
-          <table class="counter-hover-table">
-            <thead>
-              <tr>
-                <th class="ch-col">英雄</th>
-                <th
-                  v-for="col in synergySortableCols"
-                  :key="col.key"
-                  class="sort-col"
-                  :class="{ 'sort-active': synergySortKey === col.key }"
-                  @click="toggleSynergySort(col.key)"
-                >
-                  {{ col.label
-                  }}<span v-if="synergySortKey === col.key" class="sort-arrow">{{
-                    synergySortDir === 'desc' ? ' ▼' : ' ▲'
-                  }}</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="s in synergyRows" :key="s.synergyChampionId">
-                <td class="ch-col">
-                  <img class="ch-avatar" :src="getChampionUrl(s.synergyChampionId)" alt="" />
-                  <span class="ch-name">{{ championName(s.synergyChampionId) }}</span>
-                </td>
-                <td :class="wrClass(s.winRate)">{{ formatWinRate(s.winRate) }}</td>
-                <td>{{ s.play }}</td>
-              </tr>
-            </tbody>
-          </table>
+      <template v-else>
+        <!-- 对位 / 协同两个独立标签页（各自排序互不干扰） -->
+        <div class="counter-hover-tabs" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            class="counter-hover-tab"
+            :class="{ 'counter-hover-tab-active': activeTab === 'lanes' }"
+            @click="activeTab = 'lanes'"
+          >
+            对位
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="counter-hover-tab"
+            :class="{ 'counter-hover-tab-active': activeTab === 'synergy' }"
+            @click="activeTab = 'synergy'"
+          >
+            协同
+          </button>
         </div>
-      </div>
+
+        <div v-show="activeTab === 'lanes'" class="counter-hover-tabpane">
+          <div v-if="rows.length === 0" class="counter-hover-hint">
+            该分路对位样本不足（OP.GG 暂无数据）
+          </div>
+          <div v-else class="counter-hover-scroll">
+            <table class="counter-hover-table">
+              <thead>
+                <tr>
+                  <th class="ch-col">英雄</th>
+                  <th
+                    v-for="col in sortableCols"
+                    :key="col.key"
+                    class="sort-col"
+                    :class="{ 'sort-active': sortKey === col.key }"
+                    @click="toggleSort(col.key)"
+                  >
+                    {{ col.label
+                    }}<span v-if="sortKey === col.key" class="sort-arrow">{{
+                      sortDir === 'desc' ? ' ▼' : ' ▲'
+                    }}</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="c in rows" :key="c.championId">
+                  <td class="ch-col">
+                    <img class="ch-avatar" :src="getChampionUrl(c.championId)" alt="" />
+                    <span class="ch-name">{{ championName(c.championId) }}</span>
+                  </td>
+                  <td :class="wrClass(c.winRate)">{{ formatWinRate(c.winRate) }}</td>
+                  <td>{{ c.play }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div
+          v-show="activeTab === 'synergy'"
+          class="counter-hover-tabpane counter-hover-tabpane-synergy"
+        >
+          <div v-if="synergyRows.length === 0" class="counter-hover-hint">
+            暂无搭档数据（OP.GG 暂无协同样本）
+          </div>
+          <div v-else class="counter-hover-scroll">
+            <table class="counter-hover-table">
+              <thead>
+                <tr>
+                  <th class="ch-col">英雄</th>
+                  <th
+                    v-for="col in synergySortableCols"
+                    :key="col.key"
+                    class="sort-col"
+                    :class="{ 'sort-active': synergySortKey === col.key }"
+                    @click="toggleSynergySort(col.key)"
+                  >
+                    {{ col.label
+                    }}<span v-if="synergySortKey === col.key" class="sort-arrow">{{
+                      synergySortDir === 'desc' ? ' ▼' : ' ▲'
+                    }}</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="s in synergyRows" :key="s.synergyChampionId">
+                  <td class="ch-col">
+                    <img class="ch-avatar" :src="getChampionUrl(s.synergyChampionId)" alt="" />
+                    <span class="ch-name">{{ championName(s.synergyChampionId) }}</span>
+                  </td>
+                  <td :class="wrClass(s.winRate)">{{ formatWinRate(s.winRate) }}</td>
+                  <td>{{ s.play }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </template>
 
       <div class="counter-hover-footer">
         OP.GG {{ intel?.region ?? '—' }} · {{ intel?.tier ?? '—' }} · {{ patchText
@@ -101,7 +130,7 @@
 <script setup lang="ts">
 /**
  * 选人期对位弹窗（P1）：悬浮任意已见英雄头像，展示该英雄该位置的全量对位列表
- * 与最佳搭档节（V1.1，synergies 数据同源同命令返回）。
+ * 与最佳搭档，两者分列「对位 / 协同」两个标签页（V1.1，synergies 数据同源同命令返回）。
  *
  * 数据来自后端 `get_champion_intel`（Akari 端点直连，磁盘 12h 缓存 + stale 降级），
  * 取数细节见 `useCounterIntel`（150ms 防抖 + 模块级缓存 + `opggRevision` 失效）。
@@ -149,6 +178,9 @@ const { intel, isLoading, error } = useCounterIntel(
 
 /** 位置未知或英雄无效时禁用弹窗（不产出空壳） */
 const disabled = computed(() => !props.championId || props.championId <= 0 || !props.position)
+
+/** 当前激活的标签页：对位 / 协同（各自独立排序状态） */
+const activeTab = ref<'lanes' | 'synergy'>('lanes')
 
 const sortKey = ref<CounterSortKey>(DEFAULT_COUNTER_SORT.key)
 const sortDir = ref<CounterSortDir>(DEFAULT_COUNTER_SORT.dir)
@@ -259,13 +291,47 @@ onMounted(async () => {
   font-variant-numeric: tabular-nums;
 }
 
-.counter-hover-section {
-  margin-top: 10px;
+/* ---- 对位 / 协同标签页 ---- */
+.counter-hover-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.counter-hover-tab {
+  appearance: none;
+  border: 1px solid rgba(128, 128, 128, 0.22);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-tertiary, rgba(128, 128, 128, 0.8));
+  font-size: 11px;
+  line-height: 1;
+  padding: 4px 12px;
+  cursor: pointer;
+  transition:
+    color 0.18s var(--ease-expo, ease),
+    border-color 0.18s var(--ease-expo, ease),
+    background 0.18s var(--ease-expo, ease);
+}
+
+.counter-hover-tab:hover {
+  color: var(--text-primary, inherit);
+  border-color: rgba(128, 128, 128, 0.4);
+}
+
+.counter-hover-tab-active {
+  color: var(--text-primary, inherit);
+  border-color: color-mix(in srgb, var(--semantic-win, #18a058) 55%, transparent);
+  background: color-mix(in srgb, var(--semantic-win, #18a058) 10%, transparent);
+}
+
+.counter-hover-tabpane {
+  min-height: 40px;
 }
 
 /* 弹层滚动容器：内容超高时上下滚动（原生 overflow，不依赖组件库行为） */
 .counter-hover-scroll {
-  max-height: 400px;
+  max-height: 380px;
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
@@ -278,17 +344,6 @@ onMounted(async () => {
 .counter-hover-scroll::-webkit-scrollbar-thumb {
   background: color-mix(in srgb, var(--text-tertiary, #888) 45%, transparent);
   border-radius: 999px;
-}
-
-.counter-hover-scroll-split .counter-hover-section {
-  margin-top: 12px;
-  padding-top: 8px;
-  border-top: 1px solid rgba(128, 128, 128, 0.18);
-}
-
-.counter-hover-subtitle {
-  font-weight: 700;
-  margin-bottom: 4px;
 }
 
 .counter-hover-table th,

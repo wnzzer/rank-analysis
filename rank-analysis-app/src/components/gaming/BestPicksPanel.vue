@@ -4,6 +4,16 @@
       <template #trigger>
         <div class="bp-bar" role="button" tabindex="0">
           <span class="bp-label">{{ barLabel }}</span>
+          <span v-if="hasSynergy && teammatePicks.length > 0" class="bp-teammate-avatars">
+            <img
+              v-for="t in teammatePicks"
+              :key="`t-${t.championId}`"
+              class="bp-teammate-avatar"
+              :src="getChampionUrl(t.championId)"
+              :alt="championName(t.championId)"
+              :title="championName(t.championId)"
+            />
+          </span>
           <span v-if="enemyPicks.length > 0" class="bp-enemy-avatars">
             <img
               v-for="e in enemyPicks"
@@ -567,19 +577,26 @@ function championName(id: number): string {
 }
 
 .bp-enemy-avatars,
-.bp-pick-avatars {
+.bp-pick-avatars,
+.bp-teammate-avatars {
   display: inline-flex;
   align-items: center;
   gap: 2px;
 }
 
 .bp-enemy-avatar,
-.bp-pick-avatar {
+.bp-pick-avatar,
+.bp-teammate-avatar {
   width: 22px;
   height: 22px;
   border-radius: 50%;
   border: 1px solid rgba(128, 128, 128, 0.3);
   flex-shrink: 0;
+}
+
+/* 队友头像（协同锚点）：浅绿描边与敌方（灰描边）区分，避免两者混淆 */
+.bp-teammate-avatar {
+  border-color: color-mix(in srgb, var(--semantic-win, #18a058) 60%, transparent);
 }
 
 .bp-arrow-label {
@@ -608,6 +625,22 @@ function championName(id: number): string {
 .bp-panel-content {
   font-size: 12px;
   color: var(--text-primary, inherit);
+  /* 固定面板高度 + 内部上下滚动：内容超高时不再被窗口底缘裁切，
+     始终可滚到页脚（含「全部」候选时的长列表）。上限 560px，且不超出视口。 */
+  max-height: min(560px, calc(100vh - 64px));
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  padding-right: 2px;
+}
+
+.bp-panel-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.bp-panel-content::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text-tertiary, #888) 45%, transparent);
+  border-radius: 999px;
 }
 
 .bp-panel-title {

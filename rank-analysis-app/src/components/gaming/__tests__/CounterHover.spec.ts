@@ -205,31 +205,48 @@ describe('CounterHover', () => {
     expect(wrapper.text()).toContain('英雄1')
   })
 
-  it('最佳搭档节：渲染副标题与搭档列表（默认胜率降序）', async () => {
+  it('协同标签页：默认胜率降序渲染搭档列表', async () => {
     composableMock.intel.value = makeIntel()
     const wrapper = await mountHover()
-    expect(wrapper.text()).toContain('最佳搭档')
-    const synergyRows = wrapper.findAll('.counter-hover-section tbody tr')
+    const synergyRows = wrapper.findAll('.counter-hover-tabpane-synergy tbody tr')
     expect(synergyRows).toHaveLength(2)
     const first = synergyRows[0].findAll('td')
     expect(first[1].text()).toContain('58.0')
     expect(first[2].text()).toBe('890')
   })
 
-  it('最佳搭档节：搭档表头点击切换排序（胜率升序）', async () => {
+  it('协同标签页：搭档表头点击切换排序（胜率升序）', async () => {
     composableMock.intel.value = makeIntel()
     const wrapper = await mountHover()
-    const synergyHeaders = wrapper.findAll('.counter-hover-section th')
+    const synergyHeaders = wrapper.findAll('.counter-hover-tabpane-synergy th')
     await synergyHeaders[1].trigger('click') // 搭档胜率列 → 升序
-    const rows = wrapper.findAll('.counter-hover-section tbody tr')
+    const rows = wrapper.findAll('.counter-hover-tabpane-synergy tbody tr')
     const first = rows[0].findAll('td')
     expect(first[1].text()).toContain('52.0')
   })
 
-  it('仅搭档有数据时也渲染（对位表隐藏，搭档节保留）', async () => {
+  it('对位/协同分列两标签页：切换标签只显示对应表格', async () => {
+    composableMock.intel.value = makeIntel()
+    const wrapper = await mountHover()
+    // 默认在对位页：对位表可见，协同表 v-show 隐藏但仍在 DOM
+    const tabTexts = wrapper.findAll('.counter-hover-tab').map(t => t.text())
+    expect(tabTexts).toContain('对位')
+    expect(tabTexts).toContain('协同')
+    expect(wrapper.findAll('.counter-hover-tabpane tbody tr')).toHaveLength(6)
+    // 切到协同标签
+    const tabs = wrapper.findAll('.counter-hover-tab')
+    await tabs[1].trigger('click')
+    expect(wrapper.find('.counter-hover-tab-active').text()).toBe('协同')
+    expect(wrapper.findAll('.counter-hover-tabpane-synergy tbody tr')).toHaveLength(2)
+    // 再切回对位
+    await tabs[0].trigger('click')
+    expect(wrapper.find('.counter-hover-tab-active').text()).toBe('对位')
+  })
+
+  it('仅搭档有数据时也渲染（对位标签空态，协同标签保留）', async () => {
     composableMock.intel.value = makeIntel({ counters: [] })
     const wrapper = await mountHover()
-    expect(wrapper.find('.counter-hover-section').exists()).toBe(true)
     expect(wrapper.findAll('.counter-hover-table').length).toBe(1)
+    expect(wrapper.findAll('.counter-hover-tabpane-synergy tbody tr')).toHaveLength(2)
   })
 })
