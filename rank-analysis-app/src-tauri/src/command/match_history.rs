@@ -318,6 +318,7 @@ pub async fn get_game_by_id(game_id: i64) -> Result<Game, String> {
                 spell2_id: p.spell2_id,
                 perks: None,
                 stats: p.stats.clone(),
+                timeline: None,
             })
             .collect();
     }

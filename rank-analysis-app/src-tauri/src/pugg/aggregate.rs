@@ -4,6 +4,7 @@
 //! 负责取数与缓存。过滤/分组/权重规则全部在这里，单测覆盖。
 
 use crate::lcu::api::match_history::Game;
+use crate::lcu::api::model::Participant;
 use serde::{Deserialize, Serialize};
 
 /// 出装槽位数（`item0..item6`）。

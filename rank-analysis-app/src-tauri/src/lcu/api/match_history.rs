@@ -418,6 +418,7 @@ mod mvp_score_tests {
             spell2_id: 0,
             perks: None,
             stats: s,
+            timeline: None,
         }
     }
 
