@@ -240,6 +240,7 @@
             :opgg-mode="opggMode"
             :my-champion-ids="myChampionIds"
             :my-puuid="mySummonerPuuid"
+            :my-position="teammatesMyPosition"
             :tier="opggTier"
           />
         </div>

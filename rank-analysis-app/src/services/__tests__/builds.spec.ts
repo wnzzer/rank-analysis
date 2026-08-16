@@ -32,22 +32,24 @@ function sampleBuild(): BuildStats {
 describe('builds service', () => {
   it('getBuildStats 透传 invoke 参数并返回聚合结果', async () => {
     vi.mocked(invoke).mockResolvedValueOnce(sampleBuild())
-    const b = await getBuildStats('me-puuid', 86, 420)
+    const b = await getBuildStats('me-puuid', 86, 420, 'TOP')
     expect(invoke).toHaveBeenCalledWith('get_build_stats', {
       puuid: 'me-puuid',
       championId: 86,
-      mode: 420
+      mode: 420,
+      position: 'TOP'
     })
     expect(b?.samples).toBe(8)
   })
 
-  it('getBuildStats 缺省 mode=0（不限制模式）', async () => {
+  it('getBuildStats 缺省 mode=0、position 空串（不限制模式与分路）', async () => {
     vi.mocked(invoke).mockResolvedValueOnce(sampleBuild())
     await getBuildStats('me-puuid', 86)
     expect(invoke).toHaveBeenCalledWith('get_build_stats', {
       puuid: 'me-puuid',
       championId: 86,
-      mode: 0
+      mode: 0,
+      position: ''
     })
   })
 
@@ -101,6 +103,7 @@ describe('builds service', () => {
       const b = toBuildRecommendation(sampleBuild(), '盖伦')
       expect(b?.source).toBe('pugg')
       expect(b?.samples).toBe(8)
+      expect(b?.position).toBe('')
       expect(b?.items).toHaveLength(2) // 样本 items 只有两槽
       expect(b?.items[0]?.itemId).toBe(3020)
       expect(b?.runes.main?.id).toBe(8100)
@@ -111,6 +114,13 @@ describe('builds service', () => {
       expect(b?.note).toContain('盖伦')
       expect(b?.note).toContain('8 场')
       expect(b?.note).toContain('样本偏少')
+    })
+
+    it('生效分路透传到推荐（含回退后的空串）', () => {
+      const b = toBuildRecommendation({ ...sampleBuild(), position: 'TOP' })
+      expect(b?.position).toBe('TOP')
+      const degraded = toBuildRecommendation({ ...sampleBuild(), position: '' })
+      expect(degraded?.position).toBe('')
     })
 
     it('样本达到门槛时来源为 pugg 且无"样本偏少"标注', () => {

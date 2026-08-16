@@ -58,6 +58,18 @@
           </button>
         </div>
         <div v-if="buildOpen && canShowBuild" class="intel-build">
+          <div class="intel-build-pos" role="group" aria-label="分路筛选">
+            <button
+              v-for="c in POSITION_CHIPS"
+              :key="c.value"
+              type="button"
+              class="intel-build-chip"
+              :class="{ 'intel-build-chip-active': effectiveBuildPosition === c.value }"
+              @click="buildPositionOverride = c.value"
+            >
+              {{ c.label }}
+            </button>
+          </div>
           <template v-if="recommendation">
             <div class="intel-build-row">
               <img
@@ -90,6 +102,9 @@
               </template>
             </div>
             <div class="intel-build-note">{{ recommendation.note }}</div>
+            <div v-if="!buildLoading && buildDegraded" class="intel-build-degraded">
+              该分路样本不足（&lt;5 场），已回退显示全部分路统计
+            </div>
           </template>
           <div v-else-if="!buildLoading" class="intel-build-empty">
             暂无推荐（样本不足或无战绩）
@@ -132,6 +147,8 @@ const props = withDefaults(
     density?: 'normal' | 'compact'
     /** 当前登录玩家 puuid（PUGG 出装聚合的统计主体）；空串 = 不展示出装面板 */
     myPuuid?: string
+    /** 我本局分路（小写 LCU 命名 top/jungle/...；空 = 未知），出装面板分路筛选默认跟随 */
+    myPosition?: string
     /** 本局 queueId（模式过滤）；0 = 不限模式 */
     queueId?: number
     /** OP.GG 段位分段（透传给 CounterHover 对位弹窗） */
@@ -142,6 +159,7 @@ const props = withDefaults(
     myChampionIds: () => [],
     density: 'normal',
     myPuuid: '',
+    myPosition: '',
     queueId: 0,
     tier: 'emerald_plus'
   }
@@ -169,6 +187,39 @@ const winRateClass = computed(() => {
 const buildOpen = ref(false)
 const buildLoading = ref(false)
 const recommendation = ref<BuildRecommendation | null>(null)
+
+/** 分路筛选项：value 为 LCU 大写命名（与后端 `position` 参数一致），空串 = 全部分路。 */
+const POSITION_CHIPS: ReadonlyArray<{ value: string; label: string }> = [
+  { value: '', label: '全部' },
+  { value: 'TOP', label: '上单' },
+  { value: 'JUNGLE', label: '打野' },
+  { value: 'MIDDLE', label: '中单' },
+  { value: 'BOTTOM', label: '下路' },
+  { value: 'UTILITY', label: '辅助' }
+]
+
+/**
+ * 用户手动选择的分路（'' = 全部）。null = 跟随当前对局位置（`myPosition`，
+ * 会话数据可能晚到，用 null 占位让「跟随」在数据到达后自然生效）；一旦手动
+ * 点过 chip 就固定，不再跟随位置变动。
+ */
+const buildPositionOverride = ref<string | null>(null)
+const effectiveBuildPosition = computed(() => {
+  if (buildPositionOverride.value !== null) return buildPositionOverride.value
+  const p = props.myPosition?.trim().toUpperCase()
+  return p === 'TOP' || p === 'JUNGLE' || p === 'MIDDLE' || p === 'BOTTOM' || p === 'UTILITY'
+    ? p
+    : ''
+})
+
+/**
+ * 降级标注：手动/跟随指定了分路，但后端返回的生效分路为空串（指定分路样本
+ * <5 已自动回退全部分路）或与请求不一致（竞态残余）时提示用户。
+ */
+const buildDegraded = computed(() => {
+  if (!effectiveBuildPosition.value || !recommendation.value) return false
+  return recommendation.value.position !== effectiveBuildPosition.value
+})
 
 /** 主系风格名：风格 id → 中文名（8100=精密/8200=主宰/8300=巫术/8400=坚决/8000=启迪）。 */
 function primaryStyleName(rec: BuildRecommendation): string {
@@ -228,8 +279,15 @@ onUnmounted(() => {
 let lastRequestKey = ''
 
 watch(
-  () => [props.championId, props.myChampionIds, opggRevision.value] as const,
-  async ([id, myIds, rev], oldSource) => {
+  () =>
+    [
+      props.championId,
+      props.myChampionIds,
+      opggRevision.value,
+      // NOTE: 函数源 getter 返回的数组不会被 Vue 逐元素解包，必须显式 .value
+      effectiveBuildPosition.value
+    ] as const,
+  async ([id, myIds, rev, pos], oldSource) => {
     // 真换人检测：与请求去重 key 无关，仅比较 championId 本身（oldSource 首次触发为 undefined）
     if (isChampionSwap(oldSource?.[0], id)) {
       triggerSwapFlash()
@@ -237,7 +295,8 @@ watch(
     // 内容级去重：id 与 myIds 拼接后的 key 未变化，说明本次触发只是引用抖动，直接跳过
     // rev 必须进 key：段位切换时 id 与 myIds 都没变，
     // 不带上它就会被内容级去重当成引用抖动而跳过，卡片永远停在旧段位数据
-    const requestKey = `${id}|${myIds.join(',')}|${rev}`
+    // pos 必须进 key：切分路 chip 要重查 PUGG 出装（聚合结果按分路分桶）
+    const requestKey = `${id}|${myIds.join(',')}|${rev}|${pos}`
     if (requestKey === lastRequestKey) return
     lastRequestKey = requestKey
 
@@ -256,7 +315,7 @@ watch(
     name.value = getChampionName(id)
     if (props.myPuuid) {
       buildLoading.value = true
-      const build = await getBuildStats(props.myPuuid, id, props.queueId ?? 0)
+      const build = await getBuildStats(props.myPuuid, id, props.queueId ?? 0, pos)
       if (lastRequestKey !== requestKeySnapshot) {
         buildLoading.value = false
         return
@@ -416,6 +475,39 @@ watch(
   padding: 6px 8px;
   border-radius: 8px;
   background: rgba(128, 128, 128, 0.08);
+}
+.intel-build-pos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.intel-build-chip {
+  padding: 1px 8px;
+  border: 1px solid var(--n-border-color, rgba(128, 128, 128, 0.25));
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font-size: 11px;
+  line-height: 1.7;
+  cursor: pointer;
+  opacity: 0.65;
+  transition:
+    opacity 0.2s,
+    background 0.2s;
+}
+.intel-build-chip:hover {
+  opacity: 1;
+}
+.intel-build-chip-active {
+  opacity: 1;
+  background: rgba(128, 128, 128, 0.18);
+}
+.intel-build-degraded {
+  margin-top: 5px;
+  font-size: 11px;
+  line-height: 1.5;
+  opacity: 0.75;
 }
 .intel-build-row {
   display: flex;

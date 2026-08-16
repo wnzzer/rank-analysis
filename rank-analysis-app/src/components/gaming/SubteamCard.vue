@@ -18,6 +18,7 @@
           :my-champion-ids="isMine ? EMPTY_IDS : myChampionIds"
           :density="density"
           :my-puuid="myPuuid"
+          :my-position="myPosition"
           :queue-id="queueId"
           :tier="tier"
           :style="{ '--stagger-i': i }"
@@ -80,6 +81,8 @@ interface Props {
   myChampionIds?: number[]
   /** 自己的 puuid，用于在对应玩家卡上标「我」（空 = 不标） */
   myPuuid?: string
+  /** 我本局分路（小写 LCU 命名 top/jungle/...；空 = 未知），透传给情报卡做分路跟随 */
+  myPosition?: string
   /** OP.GG 段位分段，透传给 ChampionIntelCard 的对位弹窗 */
   tier?: string
 }
@@ -90,6 +93,7 @@ const props = withDefaults(defineProps<Props>(), {
   opggMode: 'ranked',
   myChampionIds: () => [],
   myPuuid: '',
+  myPosition: '',
   tier: 'emerald_plus'
 })
 const placeholderCount = computed(() =>

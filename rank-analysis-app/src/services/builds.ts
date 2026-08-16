@@ -34,7 +34,7 @@ export interface SpellStat {
 /** 某英雄在某一模式下的出装/符文聚合结果（PUGG）。 */
 export interface BuildStats {
   championId: number
-  /** 分路（LCU 摘要无可靠 lane 字段，恒为空串） */
+  /** 实际生效的分路（TOP/JUNGLE/MIDDLE/BOTTOM/UTILITY）；空串 = 未指定分路或已回退全部分路 */
   position: string
   /** 模式（queueId；0 = 未过滤的全模式） */
   mode: number
@@ -55,23 +55,27 @@ export interface BuildStats {
 }
 
 /**
- * 基于自有战绩窗口聚合指定英雄的出装/符文统计。
+ * 基于自有战绩窗口聚合指定英雄、指定分路的出装/符文统计。
  *
  * @param puuid - 被统计召唤师（当前登录玩家）
  * @param championId - 目标英雄
  * @param mode - queueId 过滤，0 = 不限制模式；缺省 0
+ * @param position - 分路过滤（TOP/JUNGLE/MIDDLE/BOTTOM/UTILITY；空串/缺省 = 全部分路）。
+ *                   指定分路样本 < 5 时后端自动回退全部分路，返回的 position 为空串
  * @returns 聚合结果；样本不足（<5 场）或后端失败时返回 null
  */
 export async function getBuildStats(
   puuid: string,
   championId: number,
-  mode = 0
+  mode = 0,
+  position = ''
 ): Promise<BuildStats | null> {
   try {
     const result = await invoke('get_build_stats', {
       puuid,
       championId,
-      mode
+      mode,
+      position
     })
     return result as BuildStats | null
   } catch (error) {
@@ -139,6 +143,8 @@ export interface BuildRecommendation {
   source: BuildSource
   /** 推荐依据的样本数（PUGG 为聚合场次；OP.GG 来源为 0） */
   samples: number
+  /** PUGG 实际生效分路（TOP/JUNGLE/MIDDLE/BOTTOM/UTILITY）；空串 = 全部分路/样本不足回退 */
+  position: string
   /** 7 个出装槽位推荐（每槽取频率第一名） */
   items: (ItemStat | null)[]
   /** 主系风格 + 副系风格 + 基石符文（各取频率第一名） */
@@ -176,6 +182,7 @@ export function toBuildRecommendation(
   return {
     source,
     samples: build.samples,
+    position: build.position,
     items: build.items.map(slot => slot[0] ?? null),
     runes: {
       main: build.runeMain[0] ?? null,
