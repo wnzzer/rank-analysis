@@ -13,6 +13,7 @@ import {
   type AIAnalysisReport
 } from '@renderer/services/ai'
 import { renderAnalysisReport } from '@renderer/services/ai/matchDetail/renderReport'
+import { sampleCritiqueVocab } from '@renderer/services/ai/matchDetail/vocab'
 import {
   fetchBatchProfiles,
   injectNoteBriefs
@@ -151,7 +152,9 @@ export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
           participantId:
             aiMode.value === 'player' ? (aiTargetParticipantId.value ?? undefined) : undefined
         },
-        { profileMap }
+        // 词库样本：每次发起分析现采样（好+坏词库跨类别 30-50 词），
+        // 供 Stage 2 锐评【词库提示】采用；缓存命中时不再采样，无副作用
+        { profileMap, vocabSamples: sampleCritiqueVocab() }
       )
     } catch (error: any) {
       if (token !== runToken) return

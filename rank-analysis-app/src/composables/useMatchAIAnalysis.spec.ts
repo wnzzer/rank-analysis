@@ -81,6 +81,20 @@ describe('useMatchAIAnalysis', () => {
     unmount()
   })
 
+  it('发起分析时注入锐评词库样本（好+坏词库采样，非空字符串数组）', async () => {
+    const { result, unmount } = setup()
+
+    result.openOverviewAnalysis(1)
+    await flush()
+
+    const extras = mockAnalyze.mock.calls[0][3] as { vocabSamples?: string[] }
+    expect(extras.vocabSamples).toBeDefined()
+    expect(Array.isArray(extras.vocabSamples)).toBe(true)
+    expect(extras.vocabSamples!.length).toBeGreaterThanOrEqual(30)
+    expect(extras.vocabSamples!.every(w => typeof w === 'string' && w.length > 0)).toBe(true)
+    unmount()
+  })
+
   it('分析中关掉面板后再点触发按钮：面板重开，不发起第二次请求', async () => {
     const { result, unmount } = setup()
     result.openOverviewAnalysis(1)
