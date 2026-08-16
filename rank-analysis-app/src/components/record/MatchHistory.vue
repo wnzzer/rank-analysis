@@ -32,6 +32,9 @@
           size="small"
           class="filter-select filter-time"
         />
+        <n-button size="small" class="toolbar-expand-all" @click="toggleExpandAll">
+          {{ anyExpanded ? '收起全部' : '展开全部' }}
+        </n-button>
         <n-button size="small" class="toolbar-more" @click="nextPage">收集更多</n-button>
         <n-button
           v-if="region"
@@ -180,6 +183,19 @@ const emit = defineEmits<{
   'leave-champion': []
   'pool-change': [entries: ChampionPoolEntry[]]
   'games-change': [games: Game[]]
+  /** 外部请求聚焦某场对局（宿敌/胜率弹窗点击）：已定位并就地展开后回执 */
+  'focus-handled': []
+  /** 外部请求按英雄筛选（英雄池点击）：已应用后回执 */
+  'champion-filter-handled': []
+  /** 筛选状态变化（英雄筛选生效/清除），供左栏英雄池同步选中态 */
+  'filter-change': [filter: MatchFilterState]
+}>()
+
+const props = defineProps<{
+  /** 宿敌/胜率弹窗点击对局：非 null 时定位该对局并就地展开（一次性命令） */
+  focusGameId?: number | null
+  /** 英雄池点击：非 0 时按该英雄筛选，与当前选中相同则取消（一次性命令） */
+  championFilter?: number
 }>()
 
 /**
@@ -295,6 +311,83 @@ const resetFilter = () => {
   page.value = 1
 }
 
+/** 筛选生效/清除时同步给父级（左栏英雄池选中态跟随英雄筛选） */
+watch(
+  () => [
+    filterQueueId.value,
+    filterChampionId.value,
+    filterResult.value,
+    filterTimeWindowHours.value
+  ],
+  () => emit('filter-change', activeFilter.value),
+  { immediate: true }
+)
+
+/**
+ * 英雄池点击（一次性命令）：与当前选中英雄相同则取消，否则按该英雄筛选。
+ * 应用后立即回执，让父级清空命令位以便再次点击同一英雄可切换。
+ */
+watch(
+  () => props.championFilter,
+  id => {
+    if (!id || id <= 0) return
+    if (filterChampionId.value === id) {
+      filterChampionId.value = 0
+    } else {
+      filterChampionId.value = id
+    }
+    page.value = 1
+    emit('champion-filter-handled')
+  }
+)
+
+/**
+ * 聚焦某场对局（宿敌/胜率弹窗点击）：清空筛选保证可见 → 定位所在页 →
+ * 就地展开 → 平滑滚动并闪烁高亮。目标不在已拉取的窗口内时按 gameId 补拉并前置。
+ */
+async function focusGame(gameId: number): Promise<void> {
+  if (!allGames.value.some(g => g.gameId === gameId)) {
+    try {
+      const fetched = await invoke<Game | null>('get_game_by_id', { gameId })
+      if (fetched && !allGames.value.some(g => g.gameId === gameId)) {
+        allGames.value = [fetched, ...allGames.value]
+      }
+    } catch (err) {
+      console.error('[MatchHistory] focusGame 补拉失败', err)
+      emit('focus-handled')
+      return
+    }
+  }
+  resetFilter()
+  const idx = filteredGames.value.findIndex(g => g.gameId === gameId)
+  if (idx < 0) {
+    emit('focus-handled')
+    return
+  }
+  page.value = Math.floor(idx / PAGE_SIZE) + 1
+  expandedGameIds.value.add(gameId)
+  expandedGameIds.value = new Set(expandedGameIds.value)
+  nextTick(() => {
+    const el = document.querySelector<HTMLElement>(`[data-game-id="${gameId}"]`)
+    if (!el) return
+    highlightedGameId.value = gameId
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    setTimeout(() => {
+      if (highlightedGameId.value === gameId) highlightedGameId.value = null
+    }, 1600)
+  })
+  emit('focus-handled')
+}
+
+/** 宿敌/胜率弹窗点击对局（一次性命令） */
+watch(
+  () => props.focusGameId,
+  id => {
+    if (id == null || id <= 0) return
+    void focusGame(id)
+  }
+)
+
 /** 行卡点击：已展开则收起，未展开则就地展开（允许多开） */
 function toggleDetail(game: Game) {
   if (expandedGameIds.value.has(game.gameId)) {
@@ -308,6 +401,21 @@ function toggleDetail(game: Game) {
 function collapseDetail(gameId: number) {
   expandedGameIds.value.delete(gameId)
   expandedGameIds.value = new Set(expandedGameIds.value)
+}
+
+/** 是否已有任意对局就地展开（控制「展开全部 / 收起全部」按钮文案） */
+const anyExpanded = computed(() => expandedGameIds.value.size > 0)
+
+/**
+ * 一键展开全部 / 收起全部：对当前筛选命中的所有对局批量就地展开，
+ * 再点一次全部收起（含此前手动单开的）。
+ */
+function toggleExpandAll() {
+  if (anyExpanded.value) {
+    expandedGameIds.value = new Set()
+    return
+  }
+  expandedGameIds.value = new Set(filteredGames.value.map(g => g.gameId))
 }
 
 // 获取最近 50 场（一次拉取，列表分页/趋势条/英雄池共用）
@@ -617,6 +725,21 @@ watch(
   background: var(--glass-bg-low) !important;
   border: 1px solid var(--glass-border) !important;
   color: var(--text-secondary);
+}
+
+.toolbar-expand-all {
+  font-size: var(--font-size-2xs);
+  background: var(--glass-bg-low) !important;
+  border: 1px solid var(--glass-border) !important;
+  color: var(--text-secondary);
+  transition:
+    color var(--dur-fast) var(--ease-expo),
+    border-color var(--dur-fast) var(--ease-expo);
+}
+
+.toolbar-expand-all:hover {
+  color: var(--text-primary);
+  border-color: var(--accent-gold-deep) !important;
 }
 
 .toolbar-more:hover {

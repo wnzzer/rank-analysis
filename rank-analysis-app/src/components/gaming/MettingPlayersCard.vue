@@ -81,6 +81,12 @@ function getFormattedDate(dateString: string) {
 const selectedGame = ref<Game | null>(null)
 const showDetail = ref(false)
 async function openGameDetail(gameId: number): Promise<void> {
+  // 跳转模式：不再弹模态框，交回战绩页定位并就地展开（避免 hover 弹窗下
+  // 模态框闪退，也让查看路径与战绩列表一致）
+  if (props.jumpToRecord) {
+    emit('select-game', gameId)
+    return
+  }
   try {
     // 通过 gameId 获取完整对局信息
     const game = await invoke<Game>('get_game_by_id', { gameId })
@@ -102,6 +108,15 @@ const props = defineProps<{
   meetGames: OneGamePlayer[]
   /** 累计相遇总场次（meet.db 全量聚合）；大于明细条数时说明还有更早的历史 */
   meetTotal?: number
+  /**
+   * 点击对局时不再就地弹模态框，而是把 gameId 上抛（由外部在战绩页定位并展开该对局）。
+   * 记录页侧栏的「好友/胜率 / 宿敌/胜率」弹窗用它跳转；其余场景保持原模态框。
+   */
+  jumpToRecord?: boolean
+}>()
+
+const emit = defineEmits<{
+  'select-game': [gameId: number]
 }>()
 
 /** 库里累计数大于本屏明细数时，提示「还有更早的历史」，避免玩家误以为只有这么多 */

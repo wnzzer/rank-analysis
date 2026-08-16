@@ -18,11 +18,13 @@
         variant="friend"
         :summoners="recentData.friendAndDispute.friendsSummoner"
         :is-dark="isDark"
+        @open-game="emit('open-game', $event)"
       />
       <RelationshipPanel
         variant="dispute"
         :summoners="recentData.friendAndDispute.disputeSummoner"
         :is-dark="isDark"
+        @open-game="emit('open-game', $event)"
       />
     </n-flex>
     <div v-else-if="!isCrossRegion" class="relationship-empty-row">
@@ -44,10 +46,12 @@
           class="hero-pool-row"
           :class="{
             'hero-pool-row-hovered': hoveredLocal === entry.championId,
-            'hero-pool-row-dimmed': hoveredLocal !== null && hoveredLocal !== entry.championId
+            'hero-pool-row-dimmed': hoveredLocal !== null && hoveredLocal !== entry.championId,
+            'hero-pool-row-active': activeChampion === entry.championId
           }"
           @mouseenter="hoveredLocal = entry.championId"
           @mouseleave="hoveredLocal = null"
+          @click="onPoolClick(entry.championId)"
         >
           <img
             :src="`${assetPrefix}/champion/${entry.championId}`"
@@ -123,10 +127,16 @@ const props = defineProps<{
   games: Game[]
   /** 本人 puuid（跨区为空时趋势卡用 games[0] 兜底） */
   myPuuid: string
+  /** 当前战绩列表生效的英雄筛选（0 = 全部），用于英雄池行的选中态 */
+  activeChampion?: number
 }>()
 
 const emit = defineEmits<{
   'mode-change': [value: string | number, option: { label?: string }]
+  /** 英雄池行点击：上抛英雄 id，由战绩列表按该英雄筛选（再次点击同一英雄可取消） */
+  'select-champion': [championId: number]
+  /** 好友/宿敌弹窗内点击对局：上抛 gameId，由战绩列表定位并就地展开 */
+  'open-game': [gameId: number]
 }>()
 
 const settingsStore = useSettingsStore()
@@ -166,6 +176,11 @@ watch(
 
 const championName = (id: number) =>
   championOptions.value.find(option => option.value === id)?.label ?? `英雄 ${id}`
+
+/** 英雄池点击：上抛给战绩列表按该英雄筛选（切换/取消逻辑由列表侧处理） */
+function onPoolClick(championId: number) {
+  emit('select-champion', championId)
+}
 </script>
 
 <style lang="css" scoped>
@@ -272,6 +287,12 @@ const championName = (id: number) =>
 
 .hero-pool-row-hovered {
   background: var(--glass-bg-low);
+  box-shadow: inset 2px 0 0 var(--accent-gold-deep);
+}
+
+/* 战绩列表当前英雄筛选的选中态（点击英雄池行后保持） */
+.hero-pool-row-active {
+  background: var(--glass-bg-mid);
   box-shadow: inset 2px 0 0 var(--accent-gold-deep);
 }
 

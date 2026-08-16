@@ -3,7 +3,7 @@ import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
 import type { Game, Participant, ParticipantStats } from '@renderer/types/domain/match'
 import type { ChampionPoolEntry } from '../championPool'
 import { aggregateChampionPool } from '../championPool'
-import { TIME_WINDOW_HOURS } from '../matchFilters'
+import { TIME_WINDOW_HOURS, type MatchFilterState } from '../matchFilters'
 
 /**
  * M1 B-测试(单元部分):MatchHistory 数据流与交互验收
@@ -365,6 +365,53 @@ describe('MatchHistory 数据流(M1 B-测试)', () => {
     const detailsAfter = wrapper.findAllComponents(MatchDetailInline)
     expect(detailsAfter).toHaveLength(1)
     expect(detailsAfter[0].props('game')?.gameId).toBe(cards[1].props('games')?.gameId)
+    wrapper.unmount()
+  })
+
+  it('一键展开全部:当前页 10 张全部就地展开,再点收起全部', async () => {
+    const { wrapper } = await mountWithData()
+    const MatchDetailInline = (await import('../MatchDetailInline.vue')).default
+    expect(wrapper.find('.toolbar-expand-all').text()).toContain('展开全部')
+    await wrapper.find('.toolbar-expand-all').trigger('click')
+    await flushPromises()
+    expect(wrapper.findAllComponents(MatchDetailInline)).toHaveLength(10)
+    expect(wrapper.find('.toolbar-expand-all').text()).toContain('收起全部')
+    await wrapper.find('.toolbar-expand-all').trigger('click')
+    await flushPromises()
+    expect(wrapper.findAllComponents(MatchDetailInline)).toHaveLength(0)
+    expect(wrapper.find('.toolbar-expand-all').text()).toContain('展开全部')
+    wrapper.unmount()
+  })
+
+  it('聚焦对局(focusGameId):清除筛选、翻到所在页并就地展开目标对局', async () => {
+    const { wrapper } = await mountWithData()
+    const MatchDetailInline = (await import('../MatchDetailInline.vue')).default
+    // 先设一个英雄筛选(103 只有 25 场,不含 1049),验证聚焦时会清掉
+    await setFilter(wrapper, 1, 103)
+    expect(wrapper.text()).toContain('1/3')
+    await wrapper.setProps({ focusGameId: 1049 })
+    await flushPromises()
+    expect(wrapper.emitted('focus-handled')).toBeTruthy()
+    expect(wrapper.text()).toContain('5/5')
+    const detail = wrapper.findComponent(MatchDetailInline)
+    expect(detail.exists()).toBe(true)
+    expect(detail.props('game')?.gameId).toBe(1049)
+    wrapper.unmount()
+  })
+
+  it('英雄池点击命令(championFilter):按英雄筛选;再点同一英雄取消并同步选中态', async () => {
+    const { wrapper } = await mountWithData()
+    await wrapper.setProps({ championFilter: 103 })
+    await flushPromises()
+    expect(wrapper.emitted('champion-filter-handled')).toBeTruthy()
+    expect(wrapper.text()).toContain('1/3')
+    expect((wrapper.emitted('filter-change')!.at(-1)![0] as MatchFilterState).championId).toBe(103)
+    // 父级收到回执后会先把命令位复位为 0，再点同一英雄才能触发「取消」切换
+    await wrapper.setProps({ championFilter: 0 })
+    await wrapper.setProps({ championFilter: 103 })
+    await flushPromises()
+    expect(wrapper.text()).toContain('1/5')
+    expect((wrapper.emitted('filter-change')!.at(-1)![0] as MatchFilterState).championId).toBe(0)
     wrapper.unmount()
   })
 })

@@ -16,7 +16,14 @@
         placement="right"
       >
         <template #trigger>
-          <div class="relationship-item">
+          <div
+            class="relationship-item"
+            role="button"
+            tabindex="0"
+            @click="onPlayerClick(entry)"
+            @keydown.enter="onPlayerClick(entry)"
+            @keydown.space.prevent="onPlayerClick(entry)"
+          >
             <n-avatar
               round
               :size="24"
@@ -30,7 +37,11 @@
             </span>
           </div>
         </template>
-        <MettingPlayersCard :meet-games="entry.OneGamePlayer" />
+        <MettingPlayersCard
+          :meet-games="entry.OneGamePlayer"
+          jump-to-record
+          @select-game="openGame"
+        />
       </n-popover>
     </div>
   </div>
@@ -40,6 +51,7 @@
 import { AccessibilityOutline, FlashOutline } from '@vicons/ionicons5'
 import { NIcon, NEmpty, NPopover, NAvatar, NEllipsis } from 'naive-ui'
 import MettingPlayersCard from '@renderer/components/gaming/MettingPlayersCard.vue'
+import { searchSummoner } from '@renderer/utils/navigation'
 import { assetPrefix } from '@renderer/services/http'
 import { winRateColor } from '@renderer/utils/colors'
 import type { OneGamePlayerSummoner } from '@renderer/types/domain/analysis'
@@ -49,6 +61,22 @@ defineProps<{
   summoners: OneGamePlayerSummoner[]
   isDark: boolean
 }>()
+
+const emit = defineEmits<{
+  /** 弹窗内点击某场对局：上抛 gameId，由记录页在当前位置定位并展开 */
+  'open-game': [gameId: number]
+}>()
+
+/** 点击玩家行：跳到该玩家自己的战绩页 */
+function onPlayerClick(entry: OneGamePlayerSummoner) {
+  const s = entry.Summoner
+  if (!s?.gameName) return
+  searchSummoner(`${s.gameName}#${s.tagLine}`)
+}
+
+function openGame(gameId: number) {
+  emit('open-game', gameId)
+}
 </script>
 
 <style scoped>

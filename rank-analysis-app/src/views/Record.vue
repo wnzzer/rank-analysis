@@ -23,16 +23,24 @@
           :hovered-champion="hoveredChampion"
           :games="games"
           :my-puuid="summoner.puuid"
+          :active-champion="activeChampion"
           @mode-change="updateMode"
+          @select-champion="championFilterCmd = $event"
+          @open-game="focusGameId = $event"
         />
       </aside>
       <main class="record-content">
         <div class="record-content-inner">
           <MatchHistory
+            :focus-game-id="focusGameId"
+            :champion-filter="championFilterCmd"
             @hover-champion="hoveredChampion = $event"
             @leave-champion="hoveredChampion = null"
             @pool-change="championPool = $event"
             @games-change="games = $event"
+            @focus-handled="focusGameId = null"
+            @champion-filter-handled="championFilterCmd = 0"
+            @filter-change="activeChampion = $event.championId"
           />
         </div>
       </main>
@@ -68,6 +76,12 @@ const championPool = ref<ChampionPoolEntry[]>([])
 const hoveredChampion = ref<number | null>(null)
 /** 近期对局全量（由 MatchHistory 上抛，D-P3 分时曲线数据源） */
 const games = ref<Game[]>([])
+/** 好友/宿敌弹窗点击对局：交给 MatchHistory 定位并就地展开（处理后清空） */
+const focusGameId = ref<number | null>(null)
+/** 英雄池点击：作为一次性命令下发给 MatchHistory 设置英雄筛选（处理后清空） */
+const championFilterCmd = ref(0)
+/** 战绩列表当前生效的英雄筛选（MatchHistory 上抛，用于英雄池选中态） */
+const activeChampion = ref(0)
 </script>
 <style scoped>
 /* 整页 token 覆盖:所有子组件 var(--font-size-*) 自动跟随 viewport 缩放 (1100→2200) */
