@@ -17,10 +17,15 @@
 //! - 样本 < 5 场不输出（防小样本噪声）；
 //! - 跳过空槽与饰品（守卫类物品不计入出装）。
 //!
-//! 分路(位置)维度暂不支持：LCU 摘要无 lane 字段（国服 lane 不可信，见
-//! `command/bp_suggest.rs` 的既有结论），`BuildStats.position` 恒为空串，
-//! 留给 OP.GG 合并层（方向 C 的 C3）补齐。
-//!
+//! 分路(位置)维度：`lol-match-history` 摘要的 `participants[].timeline.lane`
+//! 由 LCU 决定是否携带（版本不定），模型已按 Option 解析（见模型层的
+//! `ParticipantTimeline`）。携带时按 lane 归一为五路（TOP/JUNGLE/MIDDLE/
+//! BOTTOM/UTILITY，容忍 MID/ADC/SUPPORT 别名）分组；缺失或无法归一的对局
+//! 只进全部分路统计。指定分路的样本 < 5 时自动回退全部分路（结果
+//! `position` 为空串，前端显示「已降级为全部分路」）。
+//! 真机验证待办：确认国服摘要实际携带 timeline 后再启用 UI 分路筛选的默认
+//! 跟随；若确认不携带，前端分路筛选会恒回退，不影响其他功能。
+
 //! 消费方：对局中 `ChampionIntelCard` 的推荐出装/符文页签（C-2-UI）。
 //!
 //! `stat_mods` / `skill_order` 字段 LCU 摘要不提供（仅 SGP DETAILS 有），
