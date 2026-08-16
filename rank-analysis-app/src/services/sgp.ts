@@ -375,3 +375,18 @@ export async function loadCollectedGames(region: string, name: string): Promise<
     return null
   }
 }
+
+/**
+ * 清除已持久化的跨区收集结果（下次加载回到 50 场窗口）。
+ *
+ * @returns 是否清除成功（失败返回 false，调用方应保留现有数据与按钮）
+ */
+export async function clearCollectedGames(region: string, name: string): Promise<boolean> {
+  try {
+    await invoke('clear_collected_games', { region, name })
+    return true
+  } catch (err) {
+    console.error('[sgp] clearCollectedGames failed:', err)
+    return false
+  }
+}

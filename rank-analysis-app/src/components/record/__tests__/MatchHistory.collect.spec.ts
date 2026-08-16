@@ -29,6 +29,11 @@ vi.mock('naive-ui', async () => {
 type InvokeLike = (cmd: string, args?: Record<string, unknown>) => Promise<unknown>
 type InvokeMock = { mockImplementation: (fn: InvokeLike) => void } & ReturnType<typeof vi.fn>
 
+/** 已持久化的跨区收集成果（模拟上次收集落库），默认空数组 = 无已存数据 */
+const { savedCollected } = vi.hoisted(() => ({
+  savedCollected: vi.fn<[], Game[]>(() => [])
+}))
+
 /** routeQuery 由 vi.hoisted 声明：mock 工厂与用例内都能安全引用；region 可选（本地模式用例置空） */
 const { routeQuery } = vi.hoisted(() => ({
   routeQuery: vi.fn<[], { name: string; region?: string }>(() => ({
@@ -135,6 +140,8 @@ function mockSgpFetch(invoke: InvokeMock, delayMs = 5) {
       return new Promise(resolve => setTimeout(() => resolve(result), delayMs))
     }
     if (cmd === 'get_champion_options') return Promise.resolve([])
+    if (cmd === 'load_collected_games') return Promise.resolve(savedCollected())
+    if (cmd === 'clear_collected_games') return Promise.resolve(null)
     return Promise.resolve(null)
   })
 }
@@ -174,6 +181,10 @@ const stubs = {
   NTooltip: {
     name: 'NTooltip',
     template: '<div class="n-tooltip-stub"><slot name="trigger" /></div>'
+  },
+  NPopconfirm: {
+    name: 'NPopconfirm',
+    template: '<div class="n-popconfirm-stub"><slot name="trigger" /><slot /></div>'
   }
 }
 
@@ -199,6 +210,7 @@ describe('MatchHistory collectMode（跨区全量收集）', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     routeQuery.mockImplementation(() => ({ name: 'Tester#0001', region: 'HN10' }))
+    savedCollected.mockReturnValue([])
   })
 
   it('跨区模式渲染「收集全部」按钮', async () => {
@@ -235,6 +247,63 @@ describe('MatchHistory collectMode（跨区全量收集）', () => {
     await flushPromises()
     expect(collectButton(wrapper).text()).toContain('继续收集')
     expect(collectButton(wrapper).attributes('disabled')).toBeUndefined()
+    wrapper.unmount()
+  })
+})
+
+describe('MatchHistory 清空跨区收集', () => {
+  // 冷加载组件依赖，放宽超时（同 collectMode 块）
+  vi.setConfig({ testTimeout: 30000 })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    routeQuery.mockImplementation(() => ({ name: 'Tester#0001', region: 'HN10' }))
+  })
+
+  function clearButton(wrapper: VueWrapper) {
+    return wrapper.find('.toolbar-clear-collected')
+  }
+
+  it('已有持久化成果时渲染「清空已收」按钮', async () => {
+    savedCollected.mockReturnValue([makeGame(0), makeGame(1)])
+    const { wrapper } = await mountHistory()
+    expect(clearButton(wrapper).exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('无持久化成果时不渲染「清空已收」按钮', async () => {
+    savedCollected.mockReturnValue([])
+    const { wrapper } = await mountHistory()
+    expect(clearButton(wrapper).exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('本地模式即使有持久化记录也不渲染「清空已收」', async () => {
+    savedCollected.mockReturnValue([makeGame(0)])
+    routeQuery.mockReturnValue({ name: 'Tester#0001' })
+    const { wrapper } = await mountHistory()
+    expect(clearButton(wrapper).exists()).toBe(false)
+    expect(collectButton(wrapper).exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('确认清空：调用 clear_collected_games 并回到 50 场窗口（按钮消失、可重新收集）', async () => {
+    savedCollected.mockReturnValue([makeGame(0), makeGame(1), makeGame(2)])
+    const { wrapper, invoke } = await mountHistory()
+    expect(clearButton(wrapper).exists()).toBe(true)
+
+    // 确认 popconfirm → 清空落库 → 重新加载（load 已置空）
+    savedCollected.mockReturnValue([])
+    wrapper.findComponent({ name: 'NPopconfirm' }).vm.$emit('positive-click')
+    await new Promise(r => setTimeout(r, 20))
+    await flushPromises()
+
+    expect(invoke).toHaveBeenCalledWith('clear_collected_games', {
+      region: 'HN10',
+      name: 'Tester#0001'
+    })
+    expect(clearButton(wrapper).exists()).toBe(false)
+    expect(collectButton(wrapper).text()).toContain('收集全部')
     wrapper.unmount()
   })
 })

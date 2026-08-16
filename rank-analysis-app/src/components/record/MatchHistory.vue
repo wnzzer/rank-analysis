@@ -45,6 +45,14 @@
         >
           {{ collectLabel }}
         </n-button>
+        <n-popconfirm v-if="region && hasCollected" @positive-click="handleClearCollected">
+          <template #trigger>
+            <n-button size="small" class="toolbar-clear-collected" :disabled="isCollectingAll">
+              清空已收
+            </n-button>
+          </template>
+          将删除该区/该召唤师已收集的全部对局缓存，列表回到最近 50 场窗口。确定清空？
+        </n-popconfirm>
         <n-tooltip trigger="hover">
           <template #trigger>
             <n-button quaternary circle size="small" class="toolbar-reset" @click="resetFilter">
@@ -164,7 +172,8 @@ import {
   mergeGamesByGameId,
   collectSgpHistoryAll,
   loadCollectedGames,
-  saveCollectedGames
+  saveCollectedGames,
+  clearCollectedGames
 } from '@renderer/services/sgp'
 import { championOption } from '../type'
 import type { Game, MatchHistory } from './match'
@@ -435,6 +444,7 @@ const getHistoryMatch = async (name: string) => {
       // 恢复上次「收集全部」的持久化成果：已存集合（上次收集到的全量）比本次 50 场窗口
       // 更全，直接合并展示；续收游标对齐到恢复后的总数，从上次收尾处继续拉取
       const saved = await loadCollectedGames(region.value, name)
+      hasCollected.value = !!saved
       if (saved) {
         const merged = mergeGamesByGameId(result.games?.games ?? [], saved)
         result = { ...result, games: { ...result.games, games: merged } }
@@ -523,6 +533,8 @@ const loadMoreCrossRegion = async () => {
 const isCollectingAll = ref(false)
 /** 自然收尾（拉空批次）后按钮禁用；上限截断可再点续收 */
 const collectDone = ref(false)
+/** 是否有已持久化的跨区收集成果（决定「清空已收」按钮显隐） */
+const hasCollected = ref(false)
 /** 手动取消请求：收集循环每轮检查，下一页前退出 */
 const collectCancelRequested = ref(false)
 /** 世代号：切换玩家/卸载时 +1，使进行中的收集作废（结果丢弃、循环退出） */
@@ -561,12 +573,25 @@ const toggleCollectAll = async () => {
     page.value = pageCount.value
     // 收集完成（或中途取消的已有成果）落库，重启后可恢复，无需重新拉取
     void saveCollectedGames(region.value, name.value, result.games)
+    hasCollected.value = result.games.length > 0
   } catch (err) {
     console.error('[MatchHistory] toggleCollectAll failed', err)
     loadingBar.error()
   } finally {
     isCollectingAll.value = false
   }
+}
+
+/** 清空已收集：删掉落库成果后回到 50 场窗口（失败时保留现状，可重试） */
+async function handleClearCollected() {
+  if (isCollectingAll.value) return
+  const ok = await clearCollectedGames(region.value, name.value)
+  if (!ok) {
+    loadingBar.error()
+    return
+  }
+  hasCollected.value = false
+  await getHistoryMatch(name.value)
 }
 
 const prevPage = () => {
