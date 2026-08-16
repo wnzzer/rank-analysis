@@ -1,0 +1,61 @@
+# 关联信号规则
+
+前端信号引擎（src/services/ai/shared/signals.ts）按本文件规则
+确定性计算跨位置联动信号（打野摆烂、连败、补位等），AI 只负责解读表达。
+远程改阈值/文案即可调整判定口径，不发版。
+
+## 指标白名单（引擎实现支持的指标，远程规则只能使用这些）
+
+| metric | 说明 | 来源 |
+|--------|------|------|
+| lossStreak | 当前连败场数（0 = 非连败） | RecentPlayerProfile.streak |
+| winRate10 | 近 10 场胜率（0~1） | RecentPlayerProfile.recentWinRate |
+| games10 | 近 10 场样本场数（不足 10 时按实际场数） | 历史拉取 |
+| isOffRole | 是否补位（1 / 0） | RecentPlayerProfile.isOffRole |
+| recentKda | 近 10 场平均 KDA | RecentPlayerProfile.recentKda |
+
+未知指标 / 畸形规则会被引擎静默跳过并 log，不影响其余信号。
+
+## 规则
+
+- id: loser-streak
+  scope: teammate
+  whenAll:
+    - metric: lossStreak
+      op: gte
+      value: 4
+  text: "{name}正在{lossStreak}连败，注意心态与对线保守"
+  severity: warn
+
+- id: ice-cold-carry
+  scope: enemy
+  whenAll:
+    - metric: winRate10
+      op: gte
+      value: 0.7
+    - metric: games10
+      op: gte
+      value: 5
+  text: "敌方{name}近10场胜率{winRate10}（样本{games10}场），重点盯防"
+  severity: danger
+
+- id: rusted-hand
+  scope: teammate
+  whenAll:
+    - metric: isOffRole
+      op: eq
+      value: 1
+  text: "{name}本局可能补位（近期主玩位置占比低），前期多给支援"
+  severity: info
+
+- id: kda-collapse
+  scope: teammate
+  whenAll:
+    - metric: recentKda
+      op: lte
+      value: 1.0
+    - metric: games10
+      op: gte
+      value: 5
+  text: "{name}近期KDA仅{recentKda}，状态存疑"
+  severity: warn
