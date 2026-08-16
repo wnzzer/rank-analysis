@@ -4,10 +4,9 @@ import { BAD_VOCAB } from '../../tagSuggest/vocab/bad'
 import { PERMANENT_BANNED_NAMES } from '../../tagSuggest/validator'
 import { sampleCritiqueVocab } from '../vocab'
 
-const ALL_WORDS: Set<string> = new Set([
-  ...Object.values(GOOD_VOCAB),
-  ...Object.values(BAD_VOCAB)
-].flat())
+const ALL_WORDS: Set<string> = new Set(
+  [...Object.values(GOOD_VOCAB), ...Object.values(BAD_VOCAB)].flat()
+)
 
 describe('sampleCritiqueVocab', () => {
   it('默认采样 30-50 词，全部来自好+坏词库', () => {
