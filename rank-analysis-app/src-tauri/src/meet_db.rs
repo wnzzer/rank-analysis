@@ -433,7 +433,7 @@ mod tests {
     fn collected_games_roundtrip_and_overwrite() {
         let conn = mem_conn();
         let g = Game::default();
-        save_collected_games_in(&conn, "na", "Kill#NA1", &[g.clone()], "t1").unwrap();
+        save_collected_games_in(&conn, "na", "Kill#NA1", std::slice::from_ref(&g), "t1").unwrap();
         let loaded = load_collected_games_in(&conn, "na", "Kill#NA1").unwrap();
         assert_eq!(loaded.len(), 1);
         assert_eq!(loaded[0].game_id, g.game_id);
