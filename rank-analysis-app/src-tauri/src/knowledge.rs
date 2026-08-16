@@ -201,12 +201,10 @@ pub async fn get_or_fetch() -> Arc<KnowledgeSnapshot> {
         // 拉取失败：过期磁盘续命 → 内置兜底；负缓存仅内存持有
         None => KnowledgeSnapshot {
             checked_at: now,
-            data: disk
-                .and_then(|d| d.data)
-                .or_else(|| {
-                    log::warn!("knowledge fallback to built-in copy");
-                    fallback_base()
-                }),
+            data: disk.and_then(|d| d.data).or_else(|| {
+                log::warn!("knowledge fallback to built-in copy");
+                fallback_base()
+            }),
         },
     };
     let arc = Arc::new(snapshot);
@@ -246,9 +244,7 @@ pub async fn force_refresh() -> Arc<KnowledgeSnapshot> {
             let disk = load_from_path(&default_path());
             KnowledgeSnapshot {
                 checked_at: now,
-                data: disk
-                    .and_then(|d| d.data)
-                    .or_else(|| fallback_base()),
+                data: disk.and_then(|d| d.data).or_else(|| fallback_base()),
             }
         }
     };

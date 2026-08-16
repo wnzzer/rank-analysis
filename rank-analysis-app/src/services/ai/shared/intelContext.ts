@@ -166,7 +166,10 @@ export function intelBlockToText(ctx: IntelContext): string {
     parts.push('【对线克制】', ...ctx.counterLines)
   }
   if (ctx.signalLines.length > 0) {
-    parts.push('【关联信号】（程序基于近期战绩计算的事实，请直接解读，不要重新计算）', ...ctx.signalLines)
+    parts.push(
+      '【关联信号】（程序基于近期战绩计算的事实，请直接解读，不要重新计算）',
+      ...ctx.signalLines
+    )
   }
   if (ctx.modeKnowledgeLines.length > 0) {
     parts.push('【模式知识】', ...ctx.modeKnowledgeLines)
