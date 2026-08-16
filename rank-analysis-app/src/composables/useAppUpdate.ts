@@ -21,6 +21,8 @@ import { useDialog, useNotification, NProgress } from 'naive-ui'
 import { check, type Update } from '@tauri-apps/plugin-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { openUrl } from '@tauri-apps/plugin-opener'
+import { CONFIG_KEYS } from '@renderer/services/configKeys'
+import { getConfigByIpc } from '@renderer/services/ipc'
 import MarkdownIt from 'markdown-it'
 
 const md = new MarkdownIt()
@@ -70,6 +72,22 @@ export interface UseAppUpdateReturn {
 // 追踪，不深度代理其内容，`.value` 拿到的还是原始 Update 实例，方法可正常调用。
 const checking = ref(false)
 const availableUpdate = shallowRef<Update | null>(null)
+
+/**
+ * 「启动时自动检查更新」开关（设置页-关于页）。
+ *
+ * 只约束 silent（启动静默探测）：关闭后 Header 不再自动外查；manual（用户
+ * 主动点击「检查更新」）不受限——用户显式发起的行为不应被开关锁死。
+ * 读配置失败按默认开处理，不因配置异常静默跳过检查。
+ */
+async function isAutoCheckEnabled(): Promise<boolean> {
+  try {
+    return (await getConfigByIpc<boolean>(CONFIG_KEYS.updateCheckEnabled)) !== false
+  } catch (error) {
+    console.error('读取更新检测开关失败，按开启处理:', error)
+    return true
+  }
+}
 
 /**
  * 应用更新检查 + 升级编排 composable
@@ -196,6 +214,10 @@ export function useAppUpdate(): UseAppUpdateReturn {
   }
 
   async function checkForUpdates(mode: UpdateCheckMode = 'manual'): Promise<Update | null> {
+    // 静默检查受开关约束：关闭时直接跳过，不发查询请求
+    if (mode === 'silent' && !(await isAutoCheckEnabled())) {
+      return null
+    }
     checking.value = true
     try {
       const update = await check({

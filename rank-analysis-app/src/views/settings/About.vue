@@ -33,10 +33,13 @@
           </div>
         </div>
 
-        <!-- <div class="update-check-option">
-            <span>关闭更新检测</span>
-            <n-switch v-model:value="updateCheckEnabled" />
-          </div> -->
+        <div class="update-check-option">
+          <span class="update-check-label">
+            启动时自动检查更新
+            <span class="update-check-hint">仅影响启动后的自动检测，手动「检查更新」不受影响</span>
+          </span>
+          <n-switch v-model:value="updateCheckEnabled" />
+        </div>
 
         <n-divider />
 
@@ -127,11 +130,13 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useMessage } from 'naive-ui'
 import { invoke } from '@tauri-apps/api/core'
 import { getVersion } from '@tauri-apps/api/app'
 import { openUrl } from '@tauri-apps/plugin-opener'
+import { CONFIG_KEYS } from '@renderer/services/configKeys'
+import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import { useAppUpdate } from '@renderer/composables/useAppUpdate'
 
 // Component state
@@ -140,6 +145,15 @@ const currentVersion = ref('')
 /** 匿名设备 ID：用户报障时附上，可在 Sentry 按 user.id 精确定位其事件/日志 */
 const deviceId = ref('')
 const message = useMessage()
+
+/** 「启动时自动检查更新」开关（默认开；换挡即落盘，Header 静默检查按此执行） */
+const updateCheckEnabled = ref(true)
+
+watch(updateCheckEnabled, v => {
+  void putConfigByIpc(CONFIG_KEYS.updateCheckEnabled, v).catch(e =>
+    console.error('保存更新检测开关失败:', e)
+  )
+})
 
 const copyDeviceId = () => {
   navigator.clipboard
@@ -153,6 +167,9 @@ onMounted(() => {
   invoke<string>('get_device_id')
     .then(id => (deviceId.value = id))
     .catch(e => console.error('获取设备标识失败:', e))
+  getConfigByIpc<boolean>(CONFIG_KEYS.updateCheckEnabled)
+    .then(v => (updateCheckEnabled.value = v !== false))
+    .catch(e => console.error('读取更新检测开关失败:', e))
 })
 async function fetchAppVersion() {
   try {
@@ -252,6 +269,17 @@ const sendEmail = () => {
   justify-content: space-between;
   align-items: center;
   margin: var(--space-16) 0;
+}
+
+.update-check-label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.update-check-hint {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
 }
 
 .nav-options {
