@@ -2,8 +2,9 @@
  * 数据对比透视表的统计行定义与装配（纯函数，零副作用）
  *
  * 行 = 一条统计（击杀/伤害/金钱…），列 = 10 名玩家。
- * 数据源：`ParticipantStats`（LCU game_detail.participants 已含的字段），
- * 全部前端装配，无后端改动。SGP 增强字段（视野/超细统计）后续在此追加行配置，
+ * 数据源：`ParticipantStats`（LCU game_detail.participants 已含的字段，
+ * 含 SGP 增强的视野/插眼字段，见「其他」组），全部前端装配，无后端改动。
+ * SGP DETAILS 帧流独有统计（控制时间/终局属性）见 `sgpFrameStats.ts`，
  * 未识别/缺失字段走兜底显示「—」，不会崩 UI。
  *
  * C-3-UI：额外提供「出装对比行」——每人 7 件 vs 该英雄推荐 7 件，
@@ -14,28 +15,39 @@
 import type { ParticipantStats } from '@renderer/types/domain/match'
 import type { ItemStat } from '@renderer/services/builds'
 
-export type StatGroup = '基础' | '击杀' | '伤害' | '经济' | '参团' | '其他'
+export type StatGroup = '基础' | '击杀' | '伤害' | '经济' | '参团' | '其他' | 'SGP 帧流'
 
 /** 饰品装备 id 集合（与后端 pugg/aggregate.rs 的 WARD_ITEMS 同源） */
 export const WARD_ITEM_IDS: ReadonlySet<number> = new Set([3330, 3340, 3341, 3363, 3364, 3513])
 
-export interface StatRowDef {
+/** 行定义与数据源无关的公共部分（透视表展示/过滤只用这部分） */
+export interface StatRowDefBase {
   /** 唯一标识（用于过滤匹配与测试断言） */
   key: string
   /** 中文名（过滤/表头展示） */
   label: string
   group: StatGroup
-  /** 从玩家 stats 取原始值；可选字段缺失时返回 NaN 以走「—」兜底 */
-  value: (stats: ParticipantStats) => number
   /** 展示格式 */
   format: (value: number) => string
 }
 
+/** 行定义（默认数据源为 LCU `ParticipantStats`；SGP 帧流行用 `SgpFrameRowSource`） */
+export interface StatRowDef<T = ParticipantStats> extends StatRowDefBase {
+  /** 从行数据源取原始值；可选字段缺失时返回 NaN 以走「—」兜底 */
+  value: (source: T) => number
+}
+
 export const STAT_GROUPS: StatGroup[] = ['基础', '击杀', '伤害', '经济', '参团', '其他']
 
-const fmtInt = (v: number) => Math.round(v).toLocaleString('en-US')
-const fmtPct = (v: number) => `${Math.round(v)}%`
-const fmtKda = (v: number) => v.toFixed(1)
+export const fmtInt = (v: number) => Math.round(v).toLocaleString('en-US')
+export const fmtPct = (v: number) => `${Math.round(v)}%`
+export const fmtKda = (v: number) => v.toFixed(1)
+export const fmtSpeed = (v: number) => v.toFixed(2)
+/** 秒 → 分:秒（如 431 → 7:11）；负值按 0 处理 */
+export const fmtDuration = (v: number) => {
+  const s = Math.max(0, Math.round(v))
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+}
 
 /** 统计行定义表：顺序即展示顺序（按组连续排列） */
 export const STAT_ROWS: StatRowDef[] = [
@@ -142,18 +154,54 @@ export const STAT_ROWS: StatRowDef[] = [
     format: fmtInt
   },
   { key: 'healRate', label: '治疗占比', group: '经济', value: s => s.healRate, format: fmtPct },
-  // 其他（SGP 增强前的兜底组：LCU 无字段的行统一在此标注）
+  // 其他（SGP 增强：LCU game_detail 与 SGP SUMMARY 同名字段，D3-1 画像字段；
+  // 旧缓存/残缺数据缺失时返回 NaN 走「—」，防 0 值误读为"没做视野"）
   {
     key: 'visionScore',
-    label: '视野得分（SGP 增强）',
+    label: '视野得分',
     group: '其他',
-    value: () => NaN,
+    value: s => s.visionScore ?? NaN,
     format: fmtInt
+  },
+  {
+    key: 'wardsPlaced',
+    label: '插眼',
+    group: '其他',
+    value: s => s.wardsPlaced ?? NaN,
+    format: fmtInt
+  },
+  {
+    key: 'wardsKilled',
+    label: '排眼',
+    group: '其他',
+    value: s => s.wardsKilled ?? NaN,
+    format: fmtInt
+  },
+  {
+    key: 'visionWardsBoughtInGame',
+    label: '真眼购买',
+    group: '其他',
+    value: s => s.visionWardsBoughtInGame ?? NaN,
+    format: fmtInt
+  },
+  {
+    key: 'sightWardsBoughtInGame',
+    label: '假眼购买',
+    group: '其他',
+    value: s => s.sightWardsBoughtInGame ?? NaN,
+    format: fmtInt
+  },
+  {
+    key: 'longestTimeSpentLiving',
+    label: '最长存活',
+    group: '其他',
+    value: s => s.longestTimeSpentLiving ?? NaN,
+    format: fmtDuration
   }
 ]
 
 export interface StatsTableRow {
-  def: StatRowDef
+  def: StatRowDefBase
   /** 与列对齐的 10 人原始值（NaN = 缺失） */
   values: number[]
   /** 全场最大值（NaN 过滤后），用于 hover 条形图刻度；全缺失时为 0 */
@@ -176,6 +224,23 @@ export interface StatsTablePlayer {
 }
 
 /**
+ * 装配透视表数据：行定义 × 数据源列表 → 每行的 N 个值 + 刻度最大值。
+ * 供 `buildStatsTable`（LCU `ParticipantStats`）与 `sgpFrameStats.ts`
+ * （SGP 帧流聚合源）共用，保证「NaN 缺失过滤 + max 刻度」口径一致。
+ */
+export function buildRowsFromSources<T>(
+  rows: readonly StatRowDef<T>[],
+  sources: T[]
+): StatsTableRow[] {
+  return rows.map(def => {
+    const values = sources.map(s => def.value(s))
+    const numeric = values.filter(v => Number.isFinite(v))
+    const max = numeric.length ? Math.max(...numeric) : 0
+    return { def, values, max }
+  })
+}
+
+/**
  * 装配透视表数据：行定义 × 10 人玩家 → 每行的 10 个值 + 刻度最大值
  * @param rows - 行定义（默认 STAT_ROWS）
  * @param players - 已排序（蓝→红）的 10 人玩家
@@ -185,12 +250,10 @@ export function buildStatsTable(
   players: StatsTablePlayer[],
   rows: StatRowDef[] = STAT_ROWS
 ): StatsTableRow[] {
-  return rows.map(def => {
-    const values = players.map(p => def.value(p.stats))
-    const numeric = values.filter(v => Number.isFinite(v))
-    const max = numeric.length ? Math.max(...numeric) : 0
-    return { def, values, max }
-  })
+  return buildRowsFromSources(
+    rows,
+    players.map(p => p.stats)
+  )
 }
 
 /**

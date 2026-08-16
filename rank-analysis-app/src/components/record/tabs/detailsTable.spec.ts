@@ -120,12 +120,38 @@ describe('detailsTable', () => {
       expect(row.max).toBe(2)
     })
 
-    it('全缺失（视野得分）时 max 为 0', () => {
-      const players = [makePlayer(0, 100, {}), makePlayer(1, 200, {})]
+    it('SGP 增强行：字段缺失时该列为 NaN，max 忽略 NaN', () => {
+      const players = [makePlayer(0, 100, { visionScore: 42 }), makePlayer(1, 200, {})]
       const table = buildStatsTable(players)
       const row = table.find(r => r.def.key === 'visionScore')!
-      expect(Number.isNaN(row.values[0])).toBe(true)
-      expect(row.max).toBe(0)
+      expect(Number.isNaN(row.values[0])).toBe(false)
+      expect(row.values[0]).toBe(42)
+      expect(Number.isNaN(row.values[1])).toBe(true)
+      expect(row.max).toBe(42)
+    })
+
+    it('SGP 增强六行（视野/插眼/排眼/真假眼购买/最长存活）取值与展示格式', () => {
+      const players = [
+        makePlayer(0, 100, {
+          visionScore: 42,
+          wardsPlaced: 21,
+          wardsKilled: 2,
+          visionWardsBoughtInGame: 8,
+          sightWardsBoughtInGame: 12,
+          longestTimeSpentLiving: 431
+        })
+      ]
+      const table = buildStatsTable(players)
+      const pick = (key: string) => table.find(r => r.def.key === key)!
+      expect(pick('visionScore').values[0]).toBe(42)
+      expect(pick('wardsPlaced').values[0]).toBe(21)
+      expect(pick('wardsKilled').values[0]).toBe(2)
+      expect(pick('visionWardsBoughtInGame').values[0]).toBe(8)
+      expect(pick('sightWardsBoughtInGame').values[0]).toBe(12)
+      expect(pick('longestTimeSpentLiving').values[0]).toBe(431)
+      // 秒 → 分:秒
+      expect(pick('longestTimeSpentLiving').def.format(431)).toBe('7:11')
+      expect(pick('longestTimeSpentLiving').def.format(59)).toBe('0:59')
     })
 
     it('自定义行定义可覆盖默认（SGP 增强追加行）', () => {

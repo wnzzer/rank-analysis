@@ -59,6 +59,21 @@ export interface ParticipantStats {
   playerSubteamId: number
   /** CHERRY/斗魂模式：1~8 小队最终名次（1=冠军）；非 CHERRY 局为 0 */
   subteamPlacement: number
+  /**
+   * 视野得分（LCU game_detail / SGP SUMMARY 同名字段；旧缓存/残缺数据缺失时未定义，
+   * 消费方 `?? NaN` 走「—」兜底，防 0 值误读为"没做视野"）。
+   */
+  visionScore?: number
+  /** 插眼数（同上来源） */
+  wardsPlaced?: number
+  /** 排眼数（同上来源） */
+  wardsKilled?: number
+  /** 真眼购买数（同上来源） */
+  visionWardsBoughtInGame?: number
+  /** 假眼购买数（同上来源） */
+  sightWardsBoughtInGame?: number
+  /** 最长存活时间（秒，同上来源） */
+  longestTimeSpentLiving?: number
 }
 
 export interface GamePerkSelection {
