@@ -55,17 +55,50 @@
                       decoding="async"
                     />
                   </template>
-                  {{ perkName(perksOf(player).primary!.selections[0]?.perk ?? 0) }}
+                  <div class="match-detail-runes-perk-pop">
+                    <span class="match-detail-runes-perk-pop-name">{{
+                      perkName(perksOf(player).primary!.selections[0]?.perk ?? 0)
+                    }}</span>
+                    <span
+                      v-if="
+                        perkDesc(
+                          perksOf(player).primary!.selections[0]?.perk ?? 0,
+                          perksOf(player).primary!.selections[0]
+                        )
+                      "
+                      class="match-detail-runes-perk-pop-desc"
+                      >{{
+                        perkDesc(
+                          perksOf(player).primary!.selections[0]?.perk ?? 0,
+                          perksOf(player).primary!.selections[0]
+                        )
+                      }}</span
+                    >
+                  </div>
                 </n-tooltip>
                 <span class="match-detail-runes-style">
                   {{ styleName(perksOf(player).primary!.style) }}
                 </span>
                 <div class="match-detail-runes-perk-list">
-                  <img
+                  <n-tooltip
                     v-for="sel in perksOf(player).primary!.selections.slice(1)"
                     :key="sel.perk"
-                    v-bind="perkImgAttrs(sel.perk)"
-                  />
+                    trigger="hover"
+                    placement="top"
+                  >
+                    <template #trigger>
+                      <img v-if="sel.perk > 0" v-bind="perkImgAttrs(sel.perk)" />
+                      <span v-else class="match-detail-runes-perk match-detail-runes-perk--empty" />
+                    </template>
+                    <div class="match-detail-runes-perk-pop">
+                      <span class="match-detail-runes-perk-pop-name">{{ perkName(sel.perk) }}</span>
+                      <span
+                        v-if="perkDesc(sel.perk, sel)"
+                        class="match-detail-runes-perk-pop-desc"
+                        >{{ perkDesc(sel.perk, sel) }}</span
+                      >
+                    </div>
+                  </n-tooltip>
                 </div>
               </div>
 
@@ -76,11 +109,25 @@
                   {{ styleName(perksOf(player).sub!.style) }}
                 </span>
                 <div class="match-detail-runes-perk-list">
-                  <img
+                  <n-tooltip
                     v-for="sel in perksOf(player).sub!.selections"
                     :key="sel.perk"
-                    v-bind="perkImgAttrs(sel.perk)"
-                  />
+                    trigger="hover"
+                    placement="top"
+                  >
+                    <template #trigger>
+                      <img v-if="sel.perk > 0" v-bind="perkImgAttrs(sel.perk)" />
+                      <span v-else class="match-detail-runes-perk match-detail-runes-perk--empty" />
+                    </template>
+                    <div class="match-detail-runes-perk-pop">
+                      <span class="match-detail-runes-perk-pop-name">{{ perkName(sel.perk) }}</span>
+                      <span
+                        v-if="perkDesc(sel.perk, sel)"
+                        class="match-detail-runes-perk-pop-desc"
+                        >{{ perkDesc(sel.perk, sel) }}</span
+                      >
+                    </div>
+                  </n-tooltip>
                 </div>
               </div>
 
@@ -88,7 +135,23 @@
               <div class="match-detail-runes-slot" v-if="perksOf(player).statIds.length">
                 <span class="match-detail-runes-slot-label">属性</span>
                 <div class="match-detail-runes-perk-list">
-                  <img v-for="id in perksOf(player).statIds" :key="id" v-bind="perkImgAttrs(id)" />
+                  <n-tooltip
+                    v-for="id in perksOf(player).statIds"
+                    :key="id"
+                    trigger="hover"
+                    placement="top"
+                  >
+                    <template #trigger>
+                      <img v-if="id > 0" v-bind="perkImgAttrs(id)" />
+                      <span v-else class="match-detail-runes-perk match-detail-runes-perk--empty" />
+                    </template>
+                    <div class="match-detail-runes-perk-pop">
+                      <span class="match-detail-runes-perk-pop-name">{{ perkName(id) }}</span>
+                      <span v-if="perkDesc(id)" class="match-detail-runes-perk-pop-desc">{{
+                        perkDesc(id)
+                      }}</span>
+                    </div>
+                  </n-tooltip>
                 </div>
               </div>
             </template>
@@ -145,8 +208,9 @@ import { NTag, NTooltip } from 'naive-ui'
 import { searchSummoner } from '@renderer/utils/navigation'
 import { assetPrefix } from '@renderer/services/http'
 import LazyImg from '@renderer/components/common/LazyImg.vue'
-import type { GamePerks } from '@renderer/types/domain/match'
+import type { GamePerks, GamePerkSelection } from '@renderer/types/domain/match'
 import { matchDetailContextKey } from '../matchDetailContext'
+import { fillPerkDescription } from './runesTable'
 
 const injected = inject(matchDetailContextKey)
 if (!injected) throw new Error('MatchDetailRunesTab 必须在 MatchDetailInline 容器内使用')
@@ -163,6 +227,12 @@ function perkSrc(perkId: number) {
 function perkName(perkId: number) {
   if (perkId <= 0) return ''
   return ctx.assets.detailOf('perk', perkId)?.name ?? `符文 #${perkId}`
+}
+
+/** 符文描述：资源长描述 + @eogvarN@ → 对局终局数值（无描述/无数据返回 ''，不渲染） */
+function perkDesc(perkId: number, selection?: GamePerkSelection) {
+  if (perkId <= 0) return ''
+  return fillPerkDescription(ctx.assets.detailOf('perk', perkId)?.description, selection)
 }
 
 /** 主/副系风格名（风格 id 也在 perk 缓存中，未命中回退编号） */
@@ -365,5 +435,23 @@ function perkImgAttrs(perkId: number) {
   text-align: center;
   color: var(--text-tertiary);
   font-size: var(--font-size-sm);
+}
+
+.match-detail-runes-perk-pop {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 320px;
+}
+
+.match-detail-runes-perk-pop-name {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.match-detail-runes-perk-pop-desc {
+  color: var(--text-secondary);
+  line-height: 1.6;
+  white-space: pre-line;
 }
 </style>

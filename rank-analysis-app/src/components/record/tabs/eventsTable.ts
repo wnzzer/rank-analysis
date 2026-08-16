@@ -67,3 +67,69 @@ export function countEventKinds(
   }
   return out
 }
+
+/**
+ * 事件涉及的全部玩家 id（操作者/击杀者/受害者/助攻者），去重保序。
+ * 「我」参与高亮与按英雄筛选共用同一口径。
+ */
+export function involvedParticipantIds(ev: SgpFrameEvent): number[] {
+  const ids = new Set<number>()
+  if (ev.participantId && ev.participantId > 0) ids.add(ev.participantId)
+  if (ev.killerId && ev.killerId > 0) ids.add(ev.killerId)
+  if (ev.victimId && ev.victimId > 0) ids.add(ev.victimId)
+  for (const aid of ev.assistingParticipantIds ?? []) {
+    if (aid > 0) ids.add(aid)
+  }
+  return [...ids]
+}
+
+/**
+ * 事件是否涉及指定玩家（操作者/击杀者/受害者/助攻者）。
+ * 「我」参与高亮与按英雄筛选共用同一判定口径。
+ */
+export function eventInvolves(ev: SgpFrameEvent, participantId: number): boolean {
+  if (!participantId || participantId <= 0) return false
+  return involvedParticipantIds(ev).includes(participantId)
+}
+
+export interface EventSummary {
+  /** 普通击杀（CHAMPION_KILL）总数 */
+  kills: number
+  /** 特殊击杀（一血/多杀/团灭）总数 */
+  specialKills: number
+  /** teamId → 摧毁塔皮数 */
+  plates: Record<number, number>
+  /** teamId → 摧毁建筑数 */
+  buildings: Record<number, number>
+  /** 中立生物击杀统计：优先 monsterSubType（龙族细分），否则 monsterType */
+  monsters: Record<string, number>
+}
+
+/** 事件流汇总（统计条纯函数层）：塔皮/建筑按队伍、中立生物按类型、击杀计数 */
+export function summarizeEvents(
+  events: Pick<SgpFrameEvent, 'type' | 'teamId' | 'monsterType' | 'monsterSubType'>[]
+): EventSummary {
+  const out: EventSummary = { kills: 0, specialKills: 0, plates: {}, buildings: {}, monsters: {} }
+  for (const ev of events) {
+    switch (ev.type) {
+      case 'CHAMPION_KILL':
+        out.kills++
+        break
+      case 'CHAMPION_SPECIAL_KILL':
+        out.specialKills++
+        break
+      case 'TURRET_PLATE_DESTROYED':
+        if (ev.teamId) out.plates[ev.teamId] = (out.plates[ev.teamId] ?? 0) + 1
+        break
+      case 'BUILDING_KILL':
+        if (ev.teamId) out.buildings[ev.teamId] = (out.buildings[ev.teamId] ?? 0) + 1
+        break
+      case 'ELITE_MONSTER_KILL': {
+        const key = ev.monsterSubType ?? ev.monsterType ?? 'MONSTER'
+        out.monsters[key] = (out.monsters[key] ?? 0) + 1
+        break
+      }
+    }
+  }
+  return out
+}

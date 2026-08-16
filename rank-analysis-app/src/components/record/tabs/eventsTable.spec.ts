@@ -3,7 +3,14 @@
  * 覆盖：类型归组、筛选选项命中、计数、未知类型容错。
  */
 import { describe, expect, it } from 'vitest'
-import { EVENT_FILTER_OPTIONS, EVENT_KIND_LABEL, countEventKinds, kindOfEvent } from './eventsTable'
+import {
+  EVENT_FILTER_OPTIONS,
+  EVENT_KIND_LABEL,
+  countEventKinds,
+  eventInvolves,
+  kindOfEvent,
+  summarizeEvents
+} from './eventsTable'
 
 const kill = { type: 'CHAMPION_KILL' }
 const building = { type: 'BUILDING_KILL' }
@@ -77,5 +84,80 @@ describe('countEventKinds', () => {
     const counts = countEventKinds([])
     expect(counts.all).toBe(0)
     for (const v of Object.values(counts)) expect(v).toBe(0)
+  })
+})
+
+describe('eventInvolves', () => {
+  it('操作者/击杀者/受害者/助攻者任一命中即为涉及', () => {
+    const kill = {
+      type: 'CHAMPION_KILL',
+      killerId: 1,
+      victimId: 2,
+      assistingParticipantIds: [3, 4]
+    }
+    expect(eventInvolves(kill, 1)).toBe(true)
+    expect(eventInvolves(kill, 2)).toBe(true)
+    expect(eventInvolves(kill, 3)).toBe(true)
+    expect(eventInvolves(kill, 4)).toBe(true)
+    expect(eventInvolves(kill, 5)).toBe(false)
+  })
+
+  it('普通事件按 participantId 判定', () => {
+    expect(eventInvolves({ type: 'ITEM_PURCHASED', participantId: 7 }, 7)).toBe(true)
+    expect(eventInvolves({ type: 'ITEM_PURCHASED', participantId: 7 }, 8)).toBe(false)
+  })
+
+  it('无效 participantId（0/负/null）恒不涉及', () => {
+    expect(eventInvolves({ type: 'CHAMPION_KILL', killerId: 1 }, 0)).toBe(false)
+    expect(eventInvolves({ type: 'CHAMPION_KILL', killerId: 1 }, -1)).toBe(false)
+    expect(eventInvolves({ type: 'CHAMPION_KILL', killerId: 1 }, null as unknown as number)).toBe(
+      false
+    )
+  })
+
+  it('缺助攻数组时不抛错', () => {
+    expect(eventInvolves({ type: 'CHAMPION_KILL', killerId: 1, victimId: 2 }, 3)).toBe(false)
+  })
+})
+
+describe('summarizeEvents', () => {
+  it('统计击杀/特殊击杀/塔皮（按队伍）/建筑（按队伍）/中立（龙族细分优先）', () => {
+    const events = [
+      { type: 'CHAMPION_KILL' },
+      { type: 'CHAMPION_KILL' },
+      { type: 'CHAMPION_SPECIAL_KILL' },
+      { type: 'TURRET_PLATE_DESTROYED', teamId: 100 },
+      { type: 'TURRET_PLATE_DESTROYED', teamId: 100 },
+      { type: 'TURRET_PLATE_DESTROYED', teamId: 200 },
+      { type: 'BUILDING_KILL', teamId: 100 },
+      { type: 'ELITE_MONSTER_KILL', monsterType: 'DRAGON', monsterSubType: 'FIRE_DRAGON' },
+      { type: 'ELITE_MONSTER_KILL', monsterType: 'DRAGON', monsterSubType: 'FIRE_DRAGON' },
+      { type: 'ELITE_MONSTER_KILL', monsterType: 'BARON_NASHOR' }
+    ]
+    const summary = summarizeEvents(events)
+    expect(summary.kills).toBe(2)
+    expect(summary.specialKills).toBe(1)
+    expect(summary.plates).toEqual({ 100: 2, 200: 1 })
+    expect(summary.buildings).toEqual({ 100: 1 })
+    expect(summary.monsters).toEqual({ FIRE_DRAGON: 2, BARON_NASHOR: 1 })
+  })
+
+  it('无关类型不进入统计', () => {
+    const summary = summarizeEvents([
+      { type: 'ITEM_PURCHASED' },
+      { type: 'GAME_END' },
+      { type: 'SKILL_LEVEL_UP' }
+    ])
+    expect(summary).toEqual({ kills: 0, specialKills: 0, plates: {}, buildings: {}, monsters: {} })
+  })
+
+  it('空数组返回全零统计', () => {
+    expect(summarizeEvents([])).toEqual({
+      kills: 0,
+      specialKills: 0,
+      plates: {},
+      buildings: {},
+      monsters: {}
+    })
   })
 })

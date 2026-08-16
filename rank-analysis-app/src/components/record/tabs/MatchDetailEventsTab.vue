@@ -28,7 +28,18 @@
     </div>
 
     <template v-else>
-      <!-- 类型筛选 -->
+      <!-- 统计条：击杀 / 塔皮（按队伍）/ 中立生物（按类型） -->
+      <div v-if="statsChips.length" class="match-detail-events-stats">
+        <span
+          v-for="chip in statsChips"
+          :key="chip.key"
+          class="match-detail-events-stats-chip"
+          :class="`match-detail-events-stats-chip--${chip.tone}`"
+          >{{ chip.label }}</span
+        >
+      </div>
+
+      <!-- 类型筛选 + 只看我 -->
       <div class="match-detail-events-filters">
         <button
           v-for="opt in filterOptions"
@@ -41,6 +52,44 @@
           {{ opt.label }}
           <span class="match-detail-events-filter-count">{{ counts[opt.value] }}</span>
         </button>
+        <button
+          type="button"
+          class="match-detail-events-filter"
+          :class="{ 'match-detail-events-filter--active': meOnly }"
+          :disabled="!myParticipantId"
+          @click="meOnly = !meOnly"
+        >
+          只看我
+        </button>
+      </div>
+
+      <!-- 按英雄筛选（本局出场英雄） -->
+      <div v-if="championOptions.length" class="match-detail-events-champions">
+        <button
+          type="button"
+          class="match-detail-events-champion"
+          :class="{ 'match-detail-events-champion--active': selectedChampionId === 0 }"
+          @click="selectedChampionId = 0"
+        >
+          全部英雄
+        </button>
+        <button
+          v-for="opt in championOptions"
+          :key="opt.championId"
+          type="button"
+          class="match-detail-events-champion"
+          :class="{ 'match-detail-events-champion--active': selectedChampionId === opt.championId }"
+          @click="selectedChampionId = opt.championId"
+        >
+          <img
+            class="match-detail-events-champion-img"
+            :src="`${assetPrefix}/champion/${opt.championId}`"
+            alt=""
+            loading="lazy"
+            decoding="async"
+          />
+          {{ opt.name }}
+        </button>
       </div>
 
       <!-- 时间线 -->
@@ -50,13 +99,17 @@
             v-for="ev in visibleEvents"
             :key="ev.key"
             class="match-detail-events-item"
-            :class="[`match-detail-events-item--${ev.kind}`]"
+            :class="[
+              `match-detail-events-item--${ev.kind}`,
+              { 'match-detail-events-item--mine': ev.involvesMe }
+            ]"
           >
             <div class="match-detail-events-time">{{ ev.minuteLabel }}</div>
             <div class="match-detail-events-node" />
             <div class="match-detail-events-card">
               <div class="match-detail-events-card-head">
                 <span class="match-detail-events-kind">{{ ev.kindLabel }}</span>
+                <span v-if="ev.involvesMe" class="match-detail-events-mine">我</span>
                 <span class="match-detail-events-team">{{ ev.teamLabel }}</span>
               </div>
               <div class="match-detail-events-text">{{ ev.text }}</div>
@@ -99,12 +152,17 @@ import { computed, inject, onMounted, ref } from 'vue'
 import { NScrollbar, NSpin, NTooltip } from 'naive-ui'
 import type { SgpFrameEvent } from '@renderer/services/sgp'
 import type { DetailPlayer } from '@renderer/composables/useMatchDetailPlayers'
+import { loadChampionNames, getChampionName } from '@renderer/services/ai/champion-names'
+import { assetPrefix } from '@renderer/services/http'
 import { matchDetailContextKey } from '../matchDetailContext'
 import {
   EVENT_FILTER_OPTIONS,
   EVENT_KIND_LABEL,
   countEventKinds,
+  eventInvolves,
+  involvedParticipantIds,
   kindOfEvent,
+  summarizeEvents,
   type EventKind
 } from './eventsTable'
 
@@ -114,6 +172,7 @@ const ctx = injected as NonNullable<typeof injected>
 
 onMounted(() => {
   void ctx.loadSgpDetail()
+  void loadChampionNames()
 })
 
 const loading = computed(
@@ -141,6 +200,74 @@ const filterOptions = EVENT_FILTER_OPTIONS
 
 const filter = ref<EventKind | 'all'>('all')
 
+// ── 「我」参与高亮 / 按英雄筛选 ──
+
+/** 自己的 participantId（无身份信息时为 0，只看我/高亮自动关闭） */
+const myParticipantId = computed(
+  () => ctx.players.detailPlayers.value.find(p => p.isMe)?.participantId ?? 0
+)
+
+/** 只看我：仅显示我参与（击杀/助攻/被击杀/操作）的事件 */
+const meOnly = ref(false)
+
+/** 本局出场英雄筛选（0 = 全部）；按英雄筛选 = 事件涉及该英雄 */
+const selectedChampionId = ref(0)
+
+const championToPid = computed(() => {
+  const map = new Map<number, number>()
+  for (const p of ctx.players.detailPlayers.value) map.set(p.championId, p.participantId)
+  return map
+})
+
+/** 按英雄筛选选项（本局出场英雄，去重） */
+const championOptions = computed(() => {
+  const seen = new Set<number>()
+  const out: { championId: number; name: string }[] = []
+  for (const p of ctx.players.detailPlayers.value) {
+    if (seen.has(p.championId)) continue
+    seen.add(p.championId)
+    out.push({ championId: p.championId, name: getChampionName(p.championId) })
+  }
+  return out
+})
+
+// ── 事件统计条（塔皮/中立/击杀汇总，纯函数层 eventsTable.ts）──
+
+const statsChips = computed(() => {
+  const detail = ctx.sgpDetail.value
+  if (!detail?.frames?.length) return []
+  const summary = summarizeEvents(detail.frames.flatMap(f => f.events ?? []))
+  const chips: { key: string; label: string; tone: 'kill' | 'plate' | 'monster' }[] = []
+  if (summary.kills > 0) {
+    chips.push({
+      key: 'kills',
+      label:
+        summary.specialKills > 0
+          ? `击杀 ${summary.kills}（特殊 ${summary.specialKills}）`
+          : `击杀 ${summary.kills}`,
+      tone: 'kill'
+    })
+  }
+  for (const [teamId, n] of Object.entries(summary.plates)) {
+    if (n > 0)
+      chips.push({
+        key: `plate-${teamId}`,
+        label: `${teamLabel(Number(teamId))} 塔皮 ×${n}`,
+        tone: 'plate'
+      })
+  }
+  for (const [key, n] of Object.entries(summary.monsters)) {
+    if (n > 0) {
+      chips.push({
+        key: `mon-${key}`,
+        label: `${MONSTER_SUB_LABEL[key] ?? MONSTER_LABEL[key] ?? key} ×${n}`,
+        tone: 'monster'
+      })
+    }
+  }
+  return chips
+})
+
 // ── 事件 → 可渲染行 ──
 
 interface DamageBar {
@@ -158,6 +285,10 @@ interface EventRow {
   text: string
   details: { source: string; bars: DamageBar[] }[] | null
   detailsLabel: string
+  /** 事件涉及的全部玩家 id（纯函数 involvedParticipantIds）——「我」高亮与按英雄筛选共用 */
+  involvedPids: number[]
+  /** 事件是否涉及「我」 */
+  involvesMe: boolean
 }
 
 const BUILDING_LABEL: Record<string, string> = {
@@ -335,7 +466,9 @@ function buildEventRow(ev: SgpFrameEvent, index: number, frameTs: number): Event
     teamLabel: team,
     text,
     details,
-    detailsLabel
+    detailsLabel,
+    involvedPids: involvedParticipantIds(ev),
+    involvesMe: eventInvolves(ev, myParticipantId.value)
   }
 }
 
@@ -365,7 +498,15 @@ const counts = computed(() => {
 
 const visibleEvents = computed(() => {
   const opt = filterOptions.find(o => o.value === filter.value) ?? filterOptions[0]
-  return events.value.filter(ev => opt.match({ type: ev.rawType }))
+  const myPid = myParticipantId.value
+  const selChampion = selectedChampionId.value
+  const selPid = selChampion ? (championToPid.value.get(selChampion) ?? 0) : 0
+  return events.value.filter(ev => {
+    if (!opt.match({ type: ev.rawType })) return false
+    if (meOnly.value && !ev.involvedPids.includes(myPid)) return false
+    if (selPid > 0 && !ev.involvedPids.includes(selPid)) return false
+    return true
+  })
 })
 </script>
 
@@ -420,6 +561,97 @@ const visibleEvents = computed(() => {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-6);
+}
+
+.match-detail-events-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+}
+
+.match-detail-events-stats-chip {
+  font-size: var(--font-size-2xs);
+  font-variant-numeric: tabular-nums;
+  padding: var(--space-2) var(--space-8);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-subtle);
+  background: var(--glass-bg-low);
+  color: var(--text-secondary);
+}
+
+.match-detail-events-stats-chip--kill {
+  color: var(--semantic-loss-bright, #e2686c);
+  border-color: color-mix(in srgb, var(--semantic-loss) 45%, transparent);
+}
+
+.match-detail-events-stats-chip--plate {
+  color: var(--accent-gold);
+  border-color: color-mix(in srgb, var(--accent-gold) 45%, transparent);
+}
+
+.match-detail-events-stats-chip--monster {
+  color: var(--accent-blue);
+  border-color: color-mix(in srgb, var(--accent-blue) 45%, transparent);
+}
+
+.match-detail-events-champions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+  align-items: center;
+}
+
+.match-detail-events-champion {
+  appearance: none;
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  border-radius: var(--radius-pill);
+  padding: 2px var(--space-8);
+  font-size: var(--font-size-2xs);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  transition:
+    color var(--dur-fast) var(--ease-expo),
+    border-color var(--dur-fast) var(--ease-expo),
+    background var(--dur-fast) var(--ease-expo);
+}
+
+.match-detail-events-champion:hover {
+  color: var(--text-primary);
+  border-color: color-mix(in srgb, var(--text-secondary) 40%, transparent);
+}
+
+.match-detail-events-champion--active {
+  color: var(--accent-blue);
+  border-color: color-mix(in srgb, var(--accent-blue) 55%, transparent);
+  background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
+}
+
+.match-detail-events-champion-img {
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-control);
+  display: block;
+}
+
+.match-detail-events-mine {
+  font-size: var(--font-size-2xs);
+  font-weight: 700;
+  color: var(--semantic-win-bright);
+  background: color-mix(in srgb, var(--semantic-win) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--semantic-win) 45%, transparent);
+  border-radius: var(--radius-pill);
+  padding: 0 var(--space-4);
+  line-height: 1.5;
+}
+
+/* 「我」参与的事件卡片高亮 */
+.match-detail-events-item--mine .match-detail-events-card {
+  border-color: color-mix(in srgb, var(--semantic-win) 55%, transparent);
+  box-shadow: inset 3px 0 0 0 var(--semantic-win);
 }
 
 .match-detail-events-filter {
