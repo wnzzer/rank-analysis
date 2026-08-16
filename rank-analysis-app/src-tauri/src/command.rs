@@ -47,6 +47,7 @@ pub mod cloud_sync;
 pub mod config;
 pub mod fandom;
 pub mod info;
+pub mod knowledge;
 pub mod launcher;
 pub mod match_history;
 pub mod meet;
