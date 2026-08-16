@@ -43,6 +43,18 @@ export interface SgpFrameDamageStats {
   totalDamageTaken?: number | null
 }
 
+/** 该分钟玩家核心属性（SGP 独有，LCU 无；终局值取末帧） */
+export interface SgpFrameChampionStats {
+  attackDamage?: number | null
+  attackSpeed?: number | null
+  armor?: number | null
+  magicResist?: number | null
+  health?: number | null
+  healthMax?: number | null
+  movementSpeed?: number | null
+  power?: number | null
+}
+
 export interface SgpFrameParticipantStats {
   currentGold?: number
   totalGold?: number
@@ -54,6 +66,7 @@ export interface SgpFrameParticipantStats {
   position?: SgpFramePosition | null
   damageStats?: SgpFrameDamageStats | null
   timeEnemySpentControlled?: number | null
+  championStats?: SgpFrameChampionStats | null
 }
 
 export interface SgpFrameEvent {

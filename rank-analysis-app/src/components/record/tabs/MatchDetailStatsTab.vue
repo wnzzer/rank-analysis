@@ -147,7 +147,7 @@
         </div>
       </div>
 
-      <div v-for="group in STAT_GROUPS" :key="group" class="match-detail-stats-group">
+      <div v-for="group in ALL_GROUPS" :key="group" class="match-detail-stats-group">
         <div v-if="groupedRows[group].length" class="match-detail-stats-group-title">
           {{ group }}
         </div>
@@ -240,6 +240,7 @@ import {
 } from './detailsTable'
 import { getBuildStats } from '@renderer/services/builds'
 import type { ItemStat } from '@renderer/services/builds'
+import { buildSgpFrameRows, aggregateSgpFrameStats, SGP_FRAME_GROUP } from './sgpFrameStats'
 
 const injected = inject(matchDetailContextKey)
 if (!injected) throw new Error('MatchDetailStatsTab 必须在 MatchDetailInline 容器内使用')
@@ -262,7 +263,17 @@ const players = computed<StatsTablePlayer[]>(() =>
     }))
 )
 
-const table = computed(() => buildStatsTable(players.value))
+/** SGP 帧流行：仅 SGP 详情就绪时并入（LCU 模式 sgpDetailStatus 恒 idle，不显示） */
+const sgpFrameRows = computed<StatsTableRow[]>(() =>
+  ctx.sgpDetailStatus.value === 'ready'
+    ? buildSgpFrameRows(players.value, aggregateSgpFrameStats(ctx.sgpDetail.value))
+    : []
+)
+
+const table = computed(() => [...buildStatsTable(players.value), ...sgpFrameRows.value])
+
+/** 展示组序：基础 6 组 + SGP 帧流（末尾） */
+const ALL_GROUPS = [...STAT_GROUPS, SGP_FRAME_GROUP]
 
 /** 行过滤：debounce 250ms（LCU 版仅名称过滤） */
 const keyword = ref('')
@@ -282,7 +293,7 @@ const visibleRows = computed(() => filterStatsRows(table.value, debouncedKeyword
 
 const groupedRows = computed<Record<string, StatsTableRow[]>>(() => {
   const map: Record<string, StatsTableRow[]> = {}
-  for (const group of STAT_GROUPS) map[group] = []
+  for (const group of ALL_GROUPS) map[group] = []
   for (const row of visibleRows.value) map[row.def.group].push(row)
   return map
 })
