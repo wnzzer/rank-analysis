@@ -341,4 +341,75 @@ describe('buildRecentProfile', () => {
       expect(profile.recentWinRate).toBe(0)
     })
   })
+
+  describe('分位置英雄池（P2-3）', () => {
+    it('只统计玩家在本局位置上打过的英雄', () => {
+      const games: RecentGameRaw[] = [
+        // 打野：李青 6 场，嘉文 2 场
+        ...Array(6)
+          .fill(0)
+          .map(() => game({ championId: 64, win: true, teamPosition: 'JUNGLE' })),
+        ...Array(2)
+          .fill(0)
+          .map(() => game({ championId: 86, win: false, teamPosition: 'JUNGLE' })),
+        // 中单：卡牌 20 场（与打野无关）
+        ...Array(20)
+          .fill(0)
+          .map(() => game({ championId: 30, win: true, teamPosition: 'MIDDLE' }))
+      ]
+      const profile = buildRecentProfile({
+        currentTeamPosition: 'JUNGLE',
+        currentChampionId: 64,
+        recentGames: games
+      })
+      const pool = profile.positionChampionDistribution ?? []
+      const ids = pool.map(c => c.championId)
+      // 中单英雄不进打野英雄池
+      expect(ids).not.toContain(30)
+      expect(ids).toContain(64)
+      expect(pool.find(c => c.championId === 64)?.games).toBe(6)
+      expect(pool.find(c => c.championId === 64)?.winRate).toBeCloseTo(1)
+    })
+
+    it('本局位置场次 < 2 时回退全位置口径（防离子真空）', () => {
+      const games: RecentGameRaw[] = [
+        // 打野只打过 1 场
+        ...Array(1)
+          .fill(0)
+          .map(() => game({ championId: 64, win: true, teamPosition: 'JUNGLE' })),
+        // 中单 12 场
+        ...Array(12)
+          .fill(0)
+          .map(() => game({ championId: 30, win: true, teamPosition: 'MIDDLE' }))
+      ]
+      const profile = buildRecentProfile({
+        currentTeamPosition: 'JUNGLE',
+        currentChampionId: 64,
+        recentGames: games
+      })
+      // 回退后英雄池 = 全位置口径（含中单卡牌；最多 5 个）
+      const pool = profile.positionChampionDistribution ?? []
+      expect(pool.some(c => c.championId === 30)).toBe(true)
+      expect(pool).toEqual(profile.championDistribution)
+    })
+
+    it('分位置口径与前两个单测在同一实体内一致', () => {
+      const games: RecentGameRaw[] = [
+        ...Array(4)
+          .fill(0)
+          .map(() => game({ championId: 64, win: true, teamPosition: 'JUNGLE' })),
+        ...Array(6)
+          .fill(0)
+          .map(() => game({ championId: 64, win: false, teamPosition: 'BOTTOM' }))
+      ]
+      const profile = buildRecentProfile({
+        currentTeamPosition: 'JUNGLE',
+        currentChampionId: 64,
+        recentGames: games
+      })
+      const pool = profile.positionChampionDistribution ?? []
+      expect(pool.find(c => c.championId === 64)?.games).toBe(4)
+      expect(pool.find(c => c.championId === 64)?.winRate).toBeCloseTo(1)
+    })
+  })
 })

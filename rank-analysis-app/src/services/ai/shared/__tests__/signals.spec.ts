@@ -224,6 +224,7 @@ describe('buildSignalSubjects', () => {
       mainPosition: 'JUNGLE',
       currentLanePlayedRatio: 0.9,
       championDistribution: [],
+  positionChampionDistribution: [],
       currentChampionMastery: null,
       recentWinRate: 0.5,
       recentKda: 2.0,

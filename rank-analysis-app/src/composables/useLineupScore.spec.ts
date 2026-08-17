@@ -448,6 +448,7 @@ describe('useLineupScore with player profiles', () => {
       mainPosition: 'JUNGLE',
       currentLanePlayedRatio: 1,
       championDistribution: [],
+  positionChampionDistribution: [],
       currentChampionMastery: null,
       recentWinRate: 0.6,
       recentKda: 3.5,

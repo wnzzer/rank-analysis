@@ -30,7 +30,11 @@ const PROFILE: RecentPlayerProfile = {
   recentKda: 3.2,
   streak: { kind: 'win', count: 3 },
   isOffRole: false,
-  offRoleSeverity: 'none'
+  offRoleSeverity: 'none',
+  positionChampionDistribution: [
+    { championId: 64, name: '李青', games: 12, winRate: 0.66, avgKda: 3.1 },
+    { championId: 86, name: '嘉文四世', games: 4, winRate: 0.5, avgKda: 2.2 }
+  ]
 }
 
 describe('PlayerProfileCard', () => {

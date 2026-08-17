@@ -77,12 +77,12 @@
         </div>
       </div>
 
-      <!-- 英雄池 -->
-      <div v-if="profile.championDistribution.length > 0" class="profile-section">
+      <!-- 英雄池（分位置口径：只看玩家在这场位置上打过的英雄，防位置切换误导） -->
+      <div v-if="profile.positionChampionDistribution.length > 0" class="profile-section">
         <div class="profile-section-title">常用英雄</div>
         <div class="profile-heroes">
           <div
-            v-for="c in profile.championDistribution"
+            v-for="c in profile.positionChampionDistribution"
             :key="c.championId"
             class="profile-hero"
             :class="{ 'hero-current': c.championId === championId }"

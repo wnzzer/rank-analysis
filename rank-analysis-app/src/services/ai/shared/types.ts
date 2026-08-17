@@ -34,6 +34,18 @@ export interface RecentPlayerProfile {
     winRate: number
     avgKda: number
   }>
+  /**
+   * 分位置英雄池：只统计玩家在本局位置（currentTeamPosition）打过的英雄，
+   * 该位置场次 < 2 时回退为全位置口径（同 championDistribution 内容）。
+   * 画像卡「常用英雄」小节渲染此字段——不看你中单 100 场，看你这场位置的场次。
+   */
+  positionChampionDistribution: Array<{
+    championId: number
+    name: string
+    games: number
+    winRate: number
+    avgKda: number
+  }>
   currentChampionMastery: {
     gamesInRecent: number
     winRate: number

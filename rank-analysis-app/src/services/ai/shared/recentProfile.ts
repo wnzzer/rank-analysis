@@ -101,12 +101,20 @@ export function buildRecentProfile(input: BuildRecentProfileInput): RecentPlayer
           : 'none'
 
   // — Champion distribution —
+  type LaneAgg = {
+    games: number
+    weightedWins: number
+    weightSum: number
+    kdaSum: number
+  }
   type ChampAgg = {
     championId: number
     games: number
     weightedWins: number
     weightSum: number
     kdaSum: number
+    /** 按位置拆分的英雄统计（分位置英雄池的原料） */
+    byLane: Map<TeamPosition, LaneAgg>
   }
   const champMap = new Map<number, ChampAgg>()
   games.forEach((g, idx) => {
@@ -116,13 +124,21 @@ export function buildRecentProfile(input: BuildRecentProfileInput): RecentPlayer
       games: 0,
       weightedWins: 0,
       weightSum: 0,
-      kdaSum: 0
+      kdaSum: 0,
+      byLane: new Map()
     }
     c.games += 1
     c.weightSum += w
     if (g.win) c.weightedWins += w
     const dForRatio = g.deaths === 0 ? 1 : g.deaths
     c.kdaSum += (g.kills + g.assists) / dForRatio
+    const lane = KNOWN_POSITIONS.has(g.teamPosition) ? (g.teamPosition as TeamPosition) : 'UNKNOWN'
+    const l = c.byLane.get(lane) ?? { games: 0, weightedWins: 0, weightSum: 0, kdaSum: 0 }
+    l.games += 1
+    l.weightSum += w
+    if (g.win) l.weightedWins += w
+    l.kdaSum += (g.kills + g.assists) / dForRatio
+    c.byLane.set(lane, l)
     champMap.set(g.championId, c)
   })
   const championDistribution = Array.from(champMap.values())
@@ -135,6 +151,31 @@ export function buildRecentProfile(input: BuildRecentProfileInput): RecentPlayer
     }))
     .sort((a, b) => b.games - a.games)
     .slice(0, 5)
+
+  // — Position-specific champion pool —
+  // 分位置口径：只统计玩家在当前局位置上打过的英雄（位置切换场景下，
+  // 「他中单 100 场」对他这场打野毫无参考价值）。该位置场次 < 2 时
+  // （样本不足以信）回退全位置口径，防英雄池小节的真空。
+  const POSITION_CHAMP_POOL_MIN_GAMES = 2
+  const positionChampPool = Array.from(champMap.values())
+    .flatMap(c => {
+      const l = c.byLane.get(currentTeamPosition)
+      return l
+        ? [
+            {
+              championId: c.championId,
+              name: getChampionName(c.championId),
+              games: l.games,
+              winRate: l.weightSum > 0 ? l.weightedWins / l.weightSum : 0,
+              avgKda: l.games > 0 ? l.kdaSum / l.games : 0
+            }
+          ]
+        : []
+    })
+    .sort((a, b) => b.games - a.games)
+  const positionPoolGames = positionChampPool.reduce((acc, c) => acc + c.games, 0)
+  const positionChampionDistribution =
+    positionPoolGames >= POSITION_CHAMP_POOL_MIN_GAMES ? positionChampPool.slice(0, 5) : championDistribution
 
   const currentChampGames = champMap.get(currentChampionId)
   const currentChampionMastery =
@@ -177,6 +218,7 @@ export function buildRecentProfile(input: BuildRecentProfileInput): RecentPlayer
     mainPosition,
     currentLanePlayedRatio,
     championDistribution,
+    positionChampionDistribution,
     currentChampionMastery,
     recentWinRate,
     recentKda,

@@ -154,6 +154,7 @@ describe('buildIntelContext', () => {
       mainPosition: 'JUNGLE',
       currentLanePlayedRatio: 1,
       championDistribution: [],
+  positionChampionDistribution: [],
       currentChampionMastery: null,
       recentWinRate: 0.2,
       recentKda: 1.1,
