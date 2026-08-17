@@ -217,6 +217,16 @@
           :mine="lineupScores.scores.value.mine"
           :enemy="lineupScores.scores.value.enemy"
         />
+        <!-- 对位分析（同分路画像均值差 ≥2%，确定性计算） -->
+        <div v-if="lineupScores.scores.value.matchupHints.length > 0" class="matchup-hints">
+          <div
+            v-for="(hint, i) in lineupScores.scores.value.matchupHints"
+            :key="i"
+            class="matchup-hint"
+          >
+            {{ hint }}
+          </div>
+        </div>
       </div>
 
       <div class="gaming-grid" :class="{ 'gaming-grid-multi': sessionData.isMultiTeam }">
@@ -575,7 +585,8 @@ const ai = useGamingAIAnalysis(sessionData, opggMode, {
     lineup: {
       mine: lineupScores.scores.value.mine,
       enemy: lineupScores.scores.value.enemy
-    }
+    },
+    matchup: lineupScores.scores.value.matchupHints
   })
 })
 
@@ -990,5 +1001,20 @@ onMounted(async () => {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 480px), 1fr));
   grid-auto-rows: minmax(220px, auto);
   max-width: 2600px;
+}
+
+.matchup-hints {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+}
+
+.matchup-hint {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  padding: 1px 8px;
+  border-radius: 6px;
+  background: var(--glass-bg-mid);
 }
 </style>

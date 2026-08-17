@@ -10,9 +10,12 @@
 import { ref, toValue, watch, type MaybeRefOrGetter, type Ref } from 'vue'
 import {
   computeLineupScore,
+  computeMatchupHints,
   EMPTY_LINEUP_SCORE,
+  playerLineupAdjustment,
   type LineupScore,
-  type LineupScoreInput
+  type LineupScoreInput,
+  type MatchupHeroInput
 } from '@renderer/services/lineupScore'
 import { getChampionMeta, type OpggMode } from '@renderer/services/opgg'
 import {
@@ -24,6 +27,17 @@ import type { SessionData } from '@renderer/types/domain/gaming'
 export interface LineupScores {
   mine: LineupScore
   enemy: LineupScore
+  /** 对位分析提示行（同分路玩家画像均值差 ≥2%，UI/AI 均可引用） */
+  matchupHints: string[]
+}
+
+/** 画像加权输入 → 对位分析输入（OP.GG 英雄主分路配对；无画像按 0.5 中性计） */
+function toMatchupHero(input: LineupScoreInput): MatchupHeroInput {
+  const rate = input.profile ? playerLineupAdjustment(input.profile).playerRate : null
+  return {
+    position: input.meta?.position ?? '',
+    rate
+  }
 }
 
 export interface UseLineupScoreOptions {
@@ -79,7 +93,11 @@ export function useLineupScore(
   const debounceMs = options.debounceMs ?? 300
   const includePlayerProfiles = options.includePlayerProfiles ?? false
   const prefetchProfiles = options.prefetchProfiles ?? false
-  const scores = ref<LineupScores>({ mine: EMPTY_LINEUP_SCORE, enemy: EMPTY_LINEUP_SCORE })
+  const scores = ref<LineupScores>({
+    mine: EMPTY_LINEUP_SCORE,
+    enemy: EMPTY_LINEUP_SCORE,
+    matchupHints: []
+  })
   const loading = ref(false)
 
   let requestSeq = 0
@@ -146,9 +164,14 @@ export function useLineupScore(
       ])
       // 竞态防护：取数期间锁定集合又变了，丢弃本次结果，等 watch 下一次触发。
       if (seq !== requestSeq) return
+      const matchupHints = computeMatchupHints(
+        mineInputs.map(toMatchupHero),
+        enemyInputs.map(toMatchupHero)
+      )
       scores.value = {
         mine: computeLineupScore(mineInputs),
-        enemy: computeLineupScore(enemyInputs)
+        enemy: computeLineupScore(enemyInputs),
+        matchupHints
       }
     } catch {
       // 取数失败保持上次分数；score 为 null 时下游自动省略整小节。

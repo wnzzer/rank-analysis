@@ -144,6 +144,70 @@ export function playerLineupAdjustment(profile: RecentPlayerProfile): PlayerAdju
 const RATE_MIN = 0.3
 const RATE_MAX = 0.7
 
+/**
+ * 对位分析输入：单英雄的玩家收缩胜率（0-1；无画像依据时按 0.5 计）。
+ * position 取 OP.GG 英雄主分路——敌方 LCU 不提供分路，英雄分路是对位配对的唯一依据。
+ */
+export interface MatchupHeroInput {
+  /** OP.GG 英雄主分路（如 'JUNGLE'；空值不参与配对） */
+  position: string
+  /** 玩家收缩后近期胜率（0-1），无画像依据时 null */
+  rate: number | null
+}
+
+const MATCHUP_POSITION_LABEL: Record<string, string> = {
+  TOP: '上单',
+  JUNGLE: '打野',
+  MIDDLE: '中单',
+  BOTTOM: '下路',
+  UTILITY: '辅助'
+}
+
+const MATCHUP_GAP_THRESHOLD = 2
+
+/**
+ * 对位分析（远期能力）：按英雄分路把双方配对，比较同一分路下玩家收缩胜率的
+ * 均值差，产出人类可读提示行。只有差距 ≥ ±2% 才输出（相当的对位不制造噪音），
+ * 按差距绝对值降序最多 3 条。纯函数幂等，UI 与 AI prompt 均可引用。
+ */
+export function computeMatchupHints(
+  myTeam: MatchupHeroInput[],
+  enemyTeam: MatchupHeroInput[]
+): string[] {
+  const group = (team: MatchupHeroInput[]): Map<string, number[]> => {
+    const map = new Map<string, number[]>()
+    for (const h of team) {
+      if (!h.position) continue
+      const list = map.get(h.position) ?? []
+      list.push(h.rate ?? 0.5)
+      map.set(h.position, list)
+    }
+    return map
+  }
+  const mine = group(myTeam)
+  const enemy = group(enemyTeam)
+  const diffs: Array<{ position: string; myAvg: number; enAvg: number; diff: number }> = []
+  for (const [pos, myRates] of mine) {
+    const enRates = enemy.get(pos)
+    if (!enRates || enRates.length === 0) continue
+    const myAvg = myRates.reduce((a, b) => a + b, 0) / myRates.length
+    const enAvg = enRates.reduce((a, b) => a + b, 0) / enRates.length
+    const diff = Math.round((myAvg - enAvg) * 100)
+    if (Math.abs(diff) >= MATCHUP_GAP_THRESHOLD) {
+      diffs.push({ position: pos, myAvg, enAvg, diff })
+    }
+  }
+  diffs.sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff))
+  return diffs.slice(0, 3).map(d => {
+    const label = MATCHUP_POSITION_LABEL[d.position] ?? d.position
+    const myPct = Math.round(d.myAvg * 100)
+    const enPct = Math.round(d.enAvg * 100)
+    return d.diff > 0
+      ? `对位·${label}：我方画像 ${myPct}% vs 敌方 ${enPct}%（我方优势 +${d.diff}%）`
+      : `对位·${label}：我方画像 ${myPct}% vs 敌方 ${enPct}%（敌方优势 ${d.diff}%）`
+  })
+}
+
 function clamp(rate: number): number {
   return Math.min(RATE_MAX, Math.max(RATE_MIN, rate))
 }

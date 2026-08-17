@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 
 import {
   computeLineupScore,
+  computeMatchupHints,
   EMPTY_LINEUP_SCORE,
   playerLineupAdjustment,
   toLineupInputs,
@@ -289,5 +290,65 @@ describe('toLineupInputs', () => {
 
   it('空 id 数组 → 空输入', () => {
     expect(toLineupInputs([], new Map())).toEqual([])
+  })
+})
+
+describe('computeMatchupHints', () => {
+  it('同分路画像均值差 ≥2%：输出优势/劣势行', () => {
+    const hints = computeMatchupHints(
+      [
+        { position: 'JUNGLE', rate: 0.58 },
+        { position: 'TOP', rate: 0.45 }
+      ],
+      [
+        { position: 'JUNGLE', rate: 0.5 },
+        { position: 'TOP', rate: 0.55 }
+      ]
+    )
+    expect(hints).toHaveLength(2)
+    expect(hints.some(h => h.includes('打野') && h.includes('我方优势 +8%'))).toBe(true)
+    expect(hints.some(h => h.includes('上单') && h.includes('敌方优势 -10%'))).toBe(true)
+  })
+
+  it('差距 <2% 时不输出（对位相当不制造噪音）', () => {
+    const hints = computeMatchupHints(
+      [{ position: 'MIDDLE', rate: 0.51 }],
+      [{ position: 'MIDDLE', rate: 0.5 }]
+    )
+    expect(hints).toEqual([])
+  })
+
+  it('无画像（rate null）按 0.5 中性计；敌方缺该分路时跳过', () => {
+    const hints = computeMatchupHints(
+      [{ position: 'JUNGLE', rate: null }],
+      [{ position: 'BOTTOM', rate: 0.7 }]
+    )
+    expect(hints).toEqual([])
+  })
+
+  it('分路为空/未知不参与配对；最多 3 行且按差距降序', () => {
+    const hints = computeMatchupHints(
+      [
+        { position: 'JUNGLE', rate: 0.8 },
+        { position: 'TOP', rate: 0.2 },
+        { position: 'MIDDLE', rate: 0.7 },
+        { position: 'BOTTOM', rate: 0.65 },
+        { position: '', rate: 0.9 }
+      ],
+      [
+        { position: 'JUNGLE', rate: 0.5 },
+        { position: 'TOP', rate: 0.5 },
+        { position: 'MIDDLE', rate: 0.5 },
+        { position: 'BOTTOM', rate: 0.5 },
+        { position: 'UNKNOWN', rate: 0.9 }
+      ]
+    )
+    expect(hints).toHaveLength(3)
+    const joined = hints.join('\n')
+    expect(joined).toContain('上单')
+    expect(joined).toContain('敌方优势 -30%')
+    expect(joined).toContain('打野')
+    expect(joined).toContain('我方优势 +30%')
+    expect(joined).not.toContain('BOTTOM')
   })
 })

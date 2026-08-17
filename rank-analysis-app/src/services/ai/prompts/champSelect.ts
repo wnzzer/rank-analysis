@@ -104,6 +104,8 @@ export interface ChampSelectPromptExtras {
   bpDecision?: BpDecision | null
   /** 双方阵容强度分（确定性计算，lineupScore.ts） */
   lineup?: { mine: LineupScore; enemy: LineupScore } | null
+  /** 对位分析提示行（computeMatchupHints 输出，随 lineup 一起注入） */
+  matchup?: string[] | null
 }
 
 /**
@@ -208,6 +210,9 @@ export async function buildChampSelectPrompt(
     factsBlocks.push(
       `【阵容强度（确定性计算，只可引用）】\n${lineupText(extras.lineup.mine, extras.lineup.enemy)}`
     )
+  }
+  if (extras.matchup && extras.matchup.length > 0) {
+    factsBlocks.push(`【对位分析（画像均值差，确定性计算）】\n${extras.matchup.join('\n')}`)
   }
   const factsSection =
     factsBlocks.length > 0

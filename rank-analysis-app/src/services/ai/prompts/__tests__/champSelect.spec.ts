@@ -459,10 +459,34 @@ describe('buildChampSelectPrompt extras（D-P2 确定性事实注入）', () => 
     expect(prompt).toContain('禁止改写分数或自创其他强度数值')
   })
 
+  it('注入对位分析：画像均值差提示行随阵容强度一起进 prompt', async () => {
+    const prompt = await buildChampSelectPrompt(makeSessionData({}), 'ranked', {
+      lineup: {
+        mine: { score: 53.3, covered: 3, total: 5, bestTier: 1, playerAdjusted: false, breakdown: [] },
+        enemy: { score: 55.0, covered: 2, total: 5, bestTier: 2, playerAdjusted: false, breakdown: [] }
+      },
+      matchup: ['对位·打野：我方画像 58% vs 敌方 50%（我方优势 +8%）']
+    })
+    expect(prompt).toContain('【对位分析（画像均值差，确定性计算）】')
+    expect(prompt).toContain('对位·打野：我方画像 58% vs 敌方 50%（我方优势 +8%）')
+  })
+
+  it('对位分析为空数组时不写小节', async () => {
+    const prompt = await buildChampSelectPrompt(makeSessionData({}), 'ranked', {
+      lineup: {
+        mine: { score: 53.3, covered: 3, total: 5, bestTier: 1, playerAdjusted: false, breakdown: [] },
+        enemy: { score: null, covered: 0, total: 5, bestTier: null, playerAdjusted: false, breakdown: [] }
+      },
+      matchup: []
+    })
+    expect(prompt).not.toContain('【对位分析')
+  })
+
   it('普通模式（无 extras）不出现任何确定性小节与纪律行', async () => {
     const prompt = await buildChampSelectPrompt(makeSessionData({}), 'ranked')
     expect(prompt).not.toContain('确定性事实')
     expect(prompt).not.toContain('【规则引擎决策】')
     expect(prompt).not.toContain('【阵容强度')
+    expect(prompt).not.toContain('【对位分析')
   })
 })
