@@ -35,6 +35,29 @@ const RANKED_QUEUE_IDS: ReadonlySet<number> = new Set([420, 440])
 /** 排位场次达到该阈值才只用排位；不足时回退全量（防 ARAM/匹配玩家画像真空） */
 const RANKED_MIN_GAMES = 5
 
+/**
+ * 时间衰减权重：场次数组 `games[0] = 最近一场`（LCU/SGP 均最新在前）。
+ * 近 5 场权重 2、更早场次权重 1——「状态趋势」优先于「长期均值」，
+ * 近 5 场 2 连败 vs 半年前 10 连胜的加权胜率如实反映当前状态。
+ */
+export const RECENT_WEIGHT_LEADING = 5
+
+function gameWeight(index: number): number {
+  return index < RECENT_WEIGHT_LEADING ? 2 : 1
+}
+
+/** 按时间衰减权重的比例（如加权胜率）：Σ(pick × w) / Σ(w)；空数组返回 0 */
+function weightedRatio(games: RecentGameRaw[], pick: (g: RecentGameRaw) => number): number {
+  let hits = 0
+  let total = 0
+  games.forEach((g, idx) => {
+    const w = gameWeight(idx)
+    total += w
+    hits += pick(g) * w
+  })
+  return total > 0 ? hits / total : 0
+}
+
 export function buildRecentProfile(input: BuildRecentProfileInput): RecentPlayerProfile {
   const { currentTeamPosition, currentChampionId, recentGames } = input
 
@@ -78,27 +101,36 @@ export function buildRecentProfile(input: BuildRecentProfileInput): RecentPlayer
           : 'none'
 
   // — Champion distribution —
-  type ChampAgg = { championId: number; games: number; wins: number; kdaSum: number }
+  type ChampAgg = {
+    championId: number
+    games: number
+    weightedWins: number
+    weightSum: number
+    kdaSum: number
+  }
   const champMap = new Map<number, ChampAgg>()
-  for (const g of games) {
+  games.forEach((g, idx) => {
+    const w = gameWeight(idx)
     const c = champMap.get(g.championId) ?? {
       championId: g.championId,
       games: 0,
-      wins: 0,
+      weightedWins: 0,
+      weightSum: 0,
       kdaSum: 0
     }
     c.games += 1
-    if (g.win) c.wins += 1
+    c.weightSum += w
+    if (g.win) c.weightedWins += w
     const dForRatio = g.deaths === 0 ? 1 : g.deaths
     c.kdaSum += (g.kills + g.assists) / dForRatio
     champMap.set(g.championId, c)
-  }
+  })
   const championDistribution = Array.from(champMap.values())
     .map(c => ({
       championId: c.championId,
       name: getChampionName(c.championId),
       games: c.games,
-      winRate: c.wins / c.games,
+      winRate: c.weightSum > 0 ? c.weightedWins / c.weightSum : 0,
       avgKda: c.kdaSum / c.games
     }))
     .sort((a, b) => b.games - a.games)
@@ -111,7 +143,10 @@ export function buildRecentProfile(input: BuildRecentProfileInput): RecentPlayer
       : currentChampGames
         ? {
             gamesInRecent: currentChampGames.games,
-            winRate: currentChampGames.wins / currentChampGames.games,
+            winRate:
+              currentChampGames.weightSum > 0
+                ? currentChampGames.weightedWins / currentChampGames.weightSum
+                : 0,
             avgKda: currentChampGames.kdaSum / currentChampGames.games,
             isOnetrick: currentChampGames.games / total > 0.5,
             isFirstTimeInRecent: false
@@ -125,8 +160,9 @@ export function buildRecentProfile(input: BuildRecentProfileInput): RecentPlayer
           }
 
   // — Recent rates & streak —
-  const wins = games.filter(g => g.win).length
-  const recentWinRate = total > 0 ? wins / total : 0
+  // 近期胜率为时间加权口径：近 5 场权重 2、更早权重 1（状态趋势 > 长期均值）。
+  // 与本函数其余胜率字段同口径，仅此处是主消费面（画像卡/阵容评分共同引用）。
+  const recentWinRate = weightedRatio(games, g => (g.win ? 1 : 0))
 
   const kdaSum = games.reduce((acc, g) => {
     const d = g.deaths === 0 ? 1 : g.deaths

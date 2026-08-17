@@ -221,7 +221,7 @@ describe('buildRecentProfile', () => {
   })
 
   describe('recent metrics', () => {
-    it('recentWinRate counts win=true / total', () => {
+    it('recentWinRate 为时间加权口径：6 胜 4 负，近 5 场全胜权重 2 → 11/15', () => {
       const games: RecentGameRaw[] = [
         ...Array(6)
           .fill(0)
@@ -235,7 +235,27 @@ describe('buildRecentProfile', () => {
         currentChampionId: 1,
         recentGames: games
       })
-      expect(profile.recentWinRate).toBeCloseTo(0.6, 2)
+      // 近 5 场（全胜）权重 2 → 10；第 6 场胜权重 1 → 1；4 负权重 1
+      expect(profile.recentWinRate).toBeCloseTo(11 / 15)
+    })
+
+    it('时间衰减：近 5 场战绩主导加权胜率（同胜负比不同顺序结果不同）', () => {
+      // 同样 6 胜 4 负，但 4 负全在最近：加权大幅低于简单比例
+      const games: RecentGameRaw[] = [
+        ...Array(4)
+          .fill(0)
+          .map(() => game({ championId: 1, win: false })),
+        ...Array(6)
+          .fill(0)
+          .map(() => game({ championId: 1, win: true }))
+      ]
+      const profile = buildRecentProfile({
+        currentTeamPosition: 'MIDDLE',
+        currentChampionId: 1,
+        recentGames: games
+      })
+      // 近 5 场：4 负 ×2 + 1 胜 ×2 → 2/10；剩余 5 胜 ×1 → 5/15
+      expect(profile.recentWinRate).toBeCloseTo(7 / 15)
     })
     it('empty recentGames → safe zeros', () => {
       const profile = buildRecentProfile({
@@ -274,10 +294,10 @@ describe('buildRecentProfile', () => {
         currentChampionId: 64,
         recentGames: games
       })
-      // 只统计 8 场排位
+      // 只统计 8 场排位；近 5 场全胜权重 2、3 负权重 1 → 10/13
       const totalGames = (profile.positionDistribution ?? []).reduce((acc, p) => acc + p.games, 0)
       expect(totalGames).toBe(8)
-      expect(profile.recentWinRate).toBeCloseTo(5 / 8)
+      expect(profile.recentWinRate).toBeCloseTo(10 / 13)
       // 英雄池不含 ARAM 英雄
       const champs = profile.championDistribution ?? []
       expect(champs.some(c => c.championId === 86)).toBe(false)
