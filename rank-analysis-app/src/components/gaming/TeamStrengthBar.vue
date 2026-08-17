@@ -5,9 +5,13 @@
  * 数据来自 useLineupScore：全局 OP.GG meta + 玩家近期画像加权后的确定性分数。
  * 只在双方都有有效分数（score != null）时渲染；无数据/数据不足时整块隐藏，
  * 绝不编造数字。playerAdjusted 时给「含玩家画像加权」提示。
+ *
+ * 明细：对比条下方常驻双方逐英雄列表（全局胜率 → 调整后胜率），调整过的英雄
+ * 金色高亮并附理由（贝叶斯收缩后的近期胜率/绝活/补位等），让分数可解释。
  */
 import { computed } from 'vue'
-import type { LineupScore } from '@renderer/services/lineupScore'
+import { getChampionName } from '@renderer/services/ai/champion-names'
+import type { LineupScore, LineupHeroDetail } from '@renderer/services/lineupScore'
 
 const props = defineProps<{
   mine: LineupScore
@@ -54,6 +58,19 @@ const deltaClass = computed(() => {
 function scoreText(s: LineupScore): string {
   return s.score === null ? '--' : s.score.toFixed(1)
 }
+
+/** 某英雄明细行主文本：全局 → 调整后（无画像时只有全局） */
+function detailLabel(d: LineupHeroDetail): string {
+  const base = d.baseWinRate === null ? '--' : d.baseWinRate.toFixed(1)
+  if (d.playerWinRate === null && d.reasons.length === 0) {
+    return `${getChampionName(d.championId)} ${base}`
+  }
+  return `${getChampionName(d.championId)} ${base} → ${d.adjustedWinRate.toFixed(1)}`
+}
+
+function detailHasChange(d: LineupHeroDetail): boolean {
+  return d.reasons.length > 0 || d.adjustedWinRate !== d.baseWinRate
+}
 </script>
 
 <template>
@@ -71,13 +88,44 @@ function scoreText(s: LineupScore): string {
       <div class="ls-bar-segment ls-bar-enemy" :style="{ width: `${enemyFill * 100}%` }"></div>
     </div>
 
+    <div class="ls-detail">
+      <div class="ls-detail-col">
+        <div class="ls-detail-col-title ls-detail-mine-title">我方</div>
+        <div v-for="d in mine.breakdown" :key="`m-${d.championId}`">
+          <div
+            class="ls-detail-row"
+            :class="{ 'ls-detail-changed': detailHasChange(d) }"
+            :title="d.reasons.join(' · ')"
+          >
+            {{ detailLabel(d) }}
+          </div>
+        </div>
+      </div>
+      <div class="ls-detail-col">
+        <div class="ls-detail-col-title ls-detail-enemy-title">敌方</div>
+        <div v-for="d in enemy.breakdown" :key="`e-${d.championId}`">
+          <div
+            class="ls-detail-row"
+            :class="{ 'ls-detail-changed': detailHasChange(d) }"
+            :title="d.reasons.join(' · ')"
+          >
+            {{ detailLabel(d) }}
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="ls-foot">
-      <span v-if="mine.playerAdjusted || enemy.playerAdjusted" class="ls-note">
-        已按玩家近期画像加权
+      <span class="ls-note">
+        <template v-if="mine.playerAdjusted || enemy.playerAdjusted">
+          已按玩家近期画像加权
+        </template>
+        <template v-else>OP.GG 全球 meta</template>
       </span>
-      <span v-else class="ls-note">OP.GG 全球 meta</span>
       <span class="ls-covered">
-        覆盖 {{ mine.covered }}/{{ mine.total }} 我方 · {{ enemy.covered }}/{{ enemy.total }} 敌方
+        覆盖 {{ mine.covered }}/{{ mine.total }} 我方 · {{ enemy.covered }}/{{
+          enemy.total
+        }} 敌方
       </span>
     </div>
   </div>
@@ -168,6 +216,41 @@ function scoreText(s: LineupScore): string {
 
 .ls-bar-enemy {
   background: linear-gradient(90deg, var(--semantic-loss), var(--semantic-loss-bright));
+}
+
+.ls-detail {
+  display: flex;
+  gap: var(--space-16);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+.ls-detail-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 120px;
+}
+
+.ls-detail-col-title {
+  font-weight: var(--font-weight-semibold);
+  margin-bottom: var(--space-2);
+}
+
+.ls-detail-mine-title {
+  color: var(--accent-blue);
+}
+
+.ls-detail-enemy-title {
+  color: var(--semantic-loss-bright);
+}
+
+.ls-detail-row {
+  white-space: nowrap;
+}
+
+.ls-detail-changed {
+  color: var(--accent-gold);
 }
 
 .ls-foot {

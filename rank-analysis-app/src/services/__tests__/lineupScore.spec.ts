@@ -53,7 +53,14 @@ describe('computeLineupScore', () => {
       { championId: 1, meta: null },
       { championId: 2, meta: null }
     ])
-    expect(s).toEqual({ score: null, covered: 0, total: 2, bestTier: null, playerAdjusted: false })
+    expect(s).toEqual({
+      score: null,
+      covered: 0,
+      total: 2,
+      bestTier: null,
+      playerAdjusted: false,
+      breakdown: []
+    })
   })
 
   it('空阵容 → EMPTY_LINEUP_SCORE 等价结果', () => {
@@ -85,57 +92,89 @@ describe('playerLineupAdjustment', () => {
     }
   }
 
-  it('60% 胜率 → +0.02；45% 胜率 → -0.01', () => {
-    expect(playerLineupAdjustment(profile({ recentWinRate: 0.6 }))).toBeCloseTo(0.02, 3)
-    expect(playerLineupAdjustment(profile({ recentWinRate: 0.45 }))).toBeCloseTo(-0.01, 3)
+  it('20 场 60% 胜率（收缩后 56.7%）→ +0.02；45% → -0.01', () => {
+    const hot = playerLineupAdjustment(profile({ recentWinRate: 0.6 }))
+    expect(hot.adjustment).toBeCloseTo(0.02, 3)
+    expect(hot.playerRate).toBeCloseTo(17 / 30, 3) // (12+5)/(20+10)
+    expect(hot.reasons).toContain('近期胜率 57%')
+
+    const cold = playerLineupAdjustment(profile({ recentWinRate: 0.45 }))
+    expect(cold.adjustment).toBeCloseTo(-0.01, 3)
+    expect(cold.reasons).toContain('近期胜率 47%')
+  })
+
+  it('小样本收缩：5 场全胜只 +0.05（旧版 +0.10），不放大噪声', () => {
+    const r = playerLineupAdjustment(
+      profile({ positionDistribution: [{ pos: 'JUNGLE', ratio: 1, games: 5 }], recentWinRate: 1 })
+    )
+    expect(r.playerRate).toBeCloseTo(10 / 15, 3) // (5+5)/(5+10) ≈ 0.667
+    expect(r.adjustment).toBeCloseTo(0.05, 3)
+  })
+
+  it('样本越大越接近原始胜率：50 场 60% 收缩后 ≈ 58.3%', () => {
+    const r = playerLineupAdjustment(
+      profile({ positionDistribution: [{ pos: 'JUNGLE', ratio: 1, games: 50 }], recentWinRate: 0.6 })
+    )
+    expect(r.playerRate).toBeCloseTo(35 / 60, 3) // (30+5)/(50+10)
+    expect(r.adjustment).toBeCloseTo(0.025, 3)
   })
 
   it('绝活 +0.02；近期首次使用 -0.02（叠加在胜率偏移上）', () => {
-    const onetrick = profile({
-      recentWinRate: 0.5,
-      currentChampionMastery: {
-        gamesInRecent: 12,
-        winRate: 0.6,
-        avgKda: 4,
-        isOnetrick: true,
-        isFirstTimeInRecent: false
-      }
-    })
-    expect(playerLineupAdjustment(onetrick)).toBeCloseTo(0.02, 3)
+    const onetrick = playerLineupAdjustment(
+      profile({
+        recentWinRate: 0.5,
+        currentChampionMastery: {
+          gamesInRecent: 12,
+          winRate: 0.6,
+          avgKda: 4,
+          isOnetrick: true,
+          isFirstTimeInRecent: false
+        }
+      })
+    )
+    expect(onetrick.adjustment).toBeCloseTo(0.02, 3)
+    expect(onetrick.reasons).toContain('绝活')
 
-    const first = profile({
-      recentWinRate: 0.5,
-      currentChampionMastery: {
-        gamesInRecent: 0,
-        winRate: 0,
-        avgKda: 0,
-        isOnetrick: false,
-        isFirstTimeInRecent: true
-      }
-    })
-    expect(playerLineupAdjustment(first)).toBeCloseTo(-0.02, 3)
+    const first = playerLineupAdjustment(
+      profile({
+        recentWinRate: 0.5,
+        currentChampionMastery: {
+          gamesInRecent: 0,
+          winRate: 0,
+          avgKda: 0,
+          isOnetrick: false,
+          isFirstTimeInRecent: true
+        }
+      })
+    )
+    expect(first.adjustment).toBeCloseTo(-0.02, 3)
+    expect(first.reasons).toContain('近期首次使用')
   })
 
   it('补位 severe -0.02 / mild -0.01 / none 0', () => {
-    expect(
-      playerLineupAdjustment(
-        profile({ recentWinRate: 0.5, isOffRole: true, offRoleSeverity: 'severe' })
-      )
-    ).toBeCloseTo(-0.02, 3)
-    expect(
-      playerLineupAdjustment(profile({ recentWinRate: 0.5, offRoleSeverity: 'mild' }))
-    ).toBeCloseTo(-0.01, 3)
-    expect(
-      playerLineupAdjustment(profile({ recentWinRate: 0.5, offRoleSeverity: 'none' }))
-    ).toBeCloseTo(0, 3)
+    const severe = playerLineupAdjustment(
+      profile({ recentWinRate: 0.5, isOffRole: true, offRoleSeverity: 'severe' })
+    )
+    expect(severe.adjustment).toBeCloseTo(-0.02, 3)
+    expect(severe.reasons).toContain('严重补位')
+
+    const mild = playerLineupAdjustment(profile({ recentWinRate: 0.5, offRoleSeverity: 'mild' }))
+    expect(mild.adjustment).toBeCloseTo(-0.01, 3)
+    expect(mild.reasons).toContain('补位')
+
+    const none = playerLineupAdjustment(profile({ recentWinRate: 0.5, offRoleSeverity: 'none' }))
+    expect(none.adjustment).toBeCloseTo(0, 3)
+    expect(none.reasons).toEqual([])
   })
 
-  it('无近期对局（total 0）→ 0，不按 recentWinRate 0 惩罚', () => {
-    const empty = profile({
-      positionDistribution: [],
-      recentWinRate: 0
-    })
-    expect(playerLineupAdjustment(empty)).toBe(0)
+  it('无近期对局（total 0）→ 空结果，不按 recentWinRate 0 惩罚', () => {
+    const empty = playerLineupAdjustment(
+      profile({
+        positionDistribution: [],
+        recentWinRate: 0
+      })
+    )
+    expect(empty).toEqual({ playerRate: null, adjustment: 0, reasons: [] })
   })
 })
 
@@ -160,7 +199,7 @@ describe('computeLineupScore with player profiles', () => {
       { championId: 1, meta: meta(1, 0.5).meta, profile: profile(0.6) }
     ]
     const s = computeLineupScore(input)
-    expect(s.score).toBe(52.0) // (50 + 2) / 1
+    expect(s.score).toBe(52.0) // base 50 + 收缩后 56.7% 偏离的 30% 权重 = 2 分
     expect(s.playerAdjusted).toBe(true)
   })
 
@@ -179,11 +218,11 @@ describe('computeLineupScore with player profiles', () => {
       }
     ]
     const s = computeLineupScore(input)
-    // base 50 + (0.9-0.5)*0.2*100(8) + 绝活 2 = 60；clamp 防止推到 90+ 的失真区间
+    // base 50 + (0.7667-0.5)*0.3*100(8) + 绝活 2 = 60；clamp 防止推到 90+ 的失真区间
     expect(s.score).toBe(60.0)
   })
 
-  it('clamp 生效：极端 meta 胜率被限制在 [25, 85]', () => {
+  it('clamp 生效：极端 meta 胜率被限制在 [30, 70]', () => {
     const input: LineupScoreInput[] = [
       {
         championId: 1,
@@ -198,7 +237,7 @@ describe('computeLineupScore with player profiles', () => {
       }
     ]
     const s = computeLineupScore(input)
-    expect(s.score).toBe(25.0)
+    expect(s.score).toBe(30.0)
   })
 
   it('无画像（profile null / 缺省）→ 原行为不变', () => {
@@ -207,6 +246,29 @@ describe('computeLineupScore with player profiles', () => {
     expect(withProfile).toEqual(withNull)
     expect(withProfile.score).toBe(50.0)
     expect(withProfile.playerAdjusted).toBe(false)
+  })
+
+  it('breakdown：覆盖英雄带 base/玩家/调整后胜率与理由；未覆盖不在明细里', () => {
+    const s = computeLineupScore([
+      { championId: 1, meta: meta(1, 0.5).meta, profile: profile(0.6) },
+      { championId: 2, meta: meta(2, 0.53).meta },
+      { championId: 3, meta: null }
+    ])
+    expect(s.breakdown).toHaveLength(2)
+    expect(s.breakdown[0]).toEqual({
+      championId: 1,
+      baseWinRate: 50,
+      playerWinRate: 56.7, // 17/30
+      adjustedWinRate: 52,
+      reasons: ['近期胜率 57%']
+    })
+    expect(s.breakdown[1]).toEqual({
+      championId: 2,
+      baseWinRate: 53,
+      playerWinRate: null,
+      adjustedWinRate: 53,
+      reasons: []
+    })
   })
 })
 

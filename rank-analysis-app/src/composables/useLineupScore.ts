@@ -34,6 +34,11 @@ export interface UseLineupScoreOptions {
    * 默认 false（纯全局 meta 出分）；开启后分数按玩家近期表现平移。
    */
   includePlayerProfiles?: boolean
+  /**
+   * 进入即预取全部玩家（含未锁定）的画像，把选人期首次锁定后的请求峰值
+   * 提前错峰。仅 includePlayerProfiles=true 时生效。默认 false。
+   */
+  prefetchProfiles?: boolean
 }
 
 interface LockEntry {
@@ -73,12 +78,41 @@ export function useLineupScore(
 ): { scores: Ref<LineupScores>; loading: Ref<boolean> } {
   const debounceMs = options.debounceMs ?? 300
   const includePlayerProfiles = options.includePlayerProfiles ?? false
+  const prefetchProfiles = options.prefetchProfiles ?? false
   const scores = ref<LineupScores>({ mine: EMPTY_LINEUP_SCORE, enemy: EMPTY_LINEUP_SCORE })
   const loading = ref(false)
 
   let requestSeq = 0
   let timer: ReturnType<typeof setTimeout> | undefined
   let lastSnapshot: LockSnapshot = { mine: [], enemy: [] }
+
+  /**
+   * 预取全部玩家画像（含未锁定）：选人期一进入就开始拉，避开首次锁定后的
+   * 请求峰值。fire-and-forget——失败静默，锁定后 compute 仍会按需兜底。
+   */
+  async function prefetchAll(): Promise<void> {
+    const subteams = sessionData.subteams ?? []
+    const players = subteams.flatMap(s => s.players)
+    try {
+      await fetchBatchProfiles(
+        players
+          .filter(p => p.summoner?.puuid)
+          .map(p => ({
+            puuid: p.summoner.puuid,
+            teamPosition: (p.assignedPosition && p.assignedPosition.length > 0
+              ? p.assignedPosition
+              : 'UNKNOWN') as ProfileRequest['teamPosition'],
+            championId: p.championId || 0
+          }))
+      )
+    } catch {
+      // 预取失败不抛：锁定后的正常取数会重试
+    }
+  }
+
+  if (includePlayerProfiles && prefetchProfiles) {
+    void prefetchAll()
+  }
 
   async function compute(snapshot: LockSnapshot): Promise<void> {
     const seq = ++requestSeq

@@ -566,7 +566,8 @@ let hasShownAITip = false
  * 引用这些数字，不得改写。
  */
 const lineupScores = useLineupScore(sessionData, opggMode, {
-  includePlayerProfiles: true
+  includePlayerProfiles: true,
+  prefetchProfiles: true
 })
 const ai = useGamingAIAnalysis(sessionData, opggMode, {
   champSelectExtras: () => ({

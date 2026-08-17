@@ -111,14 +111,16 @@ describe('useLineupScore', () => {
       covered: 0,
       total: 0,
       bestTier: null,
-      playerAdjusted: false
+      playerAdjusted: false,
+      breakdown: []
     })
     expect(scores.value.enemy).toEqual({
       score: null,
       covered: 0,
       total: 0,
       bestTier: null,
-      playerAdjusted: false
+      playerAdjusted: false,
+      breakdown: []
     })
   })
 
@@ -155,14 +157,39 @@ describe('useLineupScore', () => {
       covered: 2,
       total: 2,
       bestTier: 1,
-      playerAdjusted: false
+      playerAdjusted: false,
+      breakdown: [
+        {
+          championId: 100,
+          baseWinRate: 54.5,
+          playerWinRate: null,
+          adjustedWinRate: 54.5,
+          reasons: []
+        },
+        {
+          championId: 101,
+          baseWinRate: 48.3,
+          playerWinRate: null,
+          adjustedWinRate: 48.3,
+          reasons: []
+        }
+      ]
     })
     expect(scores.value.enemy).toEqual({
       score: 45.0,
       covered: 1,
       total: 1,
       bestTier: 2,
-      playerAdjusted: false
+      playerAdjusted: false,
+      breakdown: [
+        {
+          championId: 200,
+          baseWinRate: 45.0,
+          playerWinRate: null,
+          adjustedWinRate: 45.0,
+          reasons: []
+        }
+      ]
     })
     expect(mockedGetChampionMeta).toHaveBeenCalledTimes(3)
   })
@@ -190,7 +217,16 @@ describe('useLineupScore', () => {
       covered: 1,
       total: 1,
       bestTier: 1,
-      playerAdjusted: false
+      playerAdjusted: false,
+      breakdown: [
+        {
+          championId: 100,
+          baseWinRate: 54.5,
+          playerWinRate: null,
+          adjustedWinRate: 54.5,
+          reasons: []
+        }
+      ]
     })
     expect(mockedGetChampionMeta).toHaveBeenCalledTimes(1)
   })
@@ -234,7 +270,23 @@ describe('useLineupScore', () => {
       covered: 2,
       total: 2,
       bestTier: 1,
-      playerAdjusted: false
+      playerAdjusted: false,
+      breakdown: [
+        {
+          championId: 100,
+          baseWinRate: 50.0,
+          playerWinRate: null,
+          adjustedWinRate: 50.0,
+          reasons: []
+        },
+        {
+          championId: 102,
+          baseWinRate: 70.0,
+          playerWinRate: null,
+          adjustedWinRate: 70.0,
+          reasons: []
+        }
+      ]
     })
     expect(mockedGetChampionMeta).toHaveBeenCalledTimes(2)
     expect(mockedGetChampionMeta.mock.calls.map(c => c[1]).sort()).toEqual([100, 102])
@@ -295,7 +347,16 @@ describe('useLineupScore', () => {
       covered: 1,
       total: 1,
       bestTier: 1,
-      playerAdjusted: false
+      playerAdjusted: false,
+      breakdown: [
+        {
+          championId: 100,
+          baseWinRate: 54.5,
+          playerWinRate: null,
+          adjustedWinRate: 54.5,
+          reasons: []
+        }
+      ]
     })
 
     mockedGetChampionMeta.mockRejectedValueOnce(new Error('network'))
@@ -308,7 +369,16 @@ describe('useLineupScore', () => {
       covered: 1,
       total: 1,
       bestTier: 1,
-      playerAdjusted: false
+      playerAdjusted: false,
+      breakdown: [
+        {
+          championId: 100,
+          baseWinRate: 54.5,
+          playerWinRate: null,
+          adjustedWinRate: 54.5,
+          reasons: []
+        }
+      ]
     })
     expect(loading.value).toBe(false)
   })
@@ -335,7 +405,8 @@ describe('useLineupScore', () => {
       covered: 0,
       total: 2,
       bestTier: null,
-      playerAdjusted: false
+      playerAdjusted: false,
+      breakdown: []
     })
   })
 
@@ -468,5 +539,74 @@ describe('useLineupScore with player profiles', () => {
 
     expect(mockedFetchBatchProfiles).not.toHaveBeenCalled()
     expect(scores.value.mine.score).toBe(50.0)
+  })
+
+  it('prefetchProfiles=true 时进入即预取全部玩家（含未锁定），位置/英雄按当前值', async () => {
+    const session = reactive(
+      makeSession([
+        {
+          id: 0,
+          players: [
+            { id: 100, pickState: 'locked', puuid: 'p1', position: 'top' },
+            { id: 101, pickState: 'intent', puuid: 'p2' }, // 未锁定也预取
+            { id: 0, pickState: 'none', puuid: '' } // 无 puuid 跳过
+          ]
+        },
+        { id: 1, players: [{ id: 200, pickState: 'locked', puuid: 'p3' }] }
+      ])
+    )
+    mockedGetChampionMeta.mockResolvedValue(meta(100, 0.5, 1))
+
+    useLineupScore(session, 'ranked', { includePlayerProfiles: true, prefetchProfiles: true })
+    await flush()
+
+    // 第一次调用 = 进入即预取（含未锁定的 p2），随后锁定取数再拉一次
+    const first = mockedFetchBatchProfiles.mock.calls[0][0]
+    expect(first).toContainEqual({ puuid: 'p1', teamPosition: 'top', championId: 100 })
+    expect(first).toContainEqual({ puuid: 'p2', teamPosition: 'UNKNOWN', championId: 101 })
+    expect(first).toContainEqual({ puuid: 'p3', teamPosition: 'UNKNOWN', championId: 200 })
+    expect(first).toHaveLength(3) // 无 puuid 的玩家被跳过
+  })
+
+  it('预取失败静默降级：不抛错，锁定后的正常取数仍走', async () => {
+    const session = reactive(
+      makeSession([
+        { id: 0, players: [{ id: 100, pickState: 'locked', puuid: 'p1' }] },
+        { id: 1, players: [] }
+      ])
+    )
+    mockedGetChampionMeta.mockResolvedValue(meta(100, 0.545, 1))
+    mockedFetchBatchProfiles
+      .mockRejectedValueOnce(new Error('prefetch boom')) // 预取失败
+      .mockResolvedValueOnce(new Map()) // 锁定后的正常取数正常
+
+    const { scores } = useLineupScore(session, 'ranked', {
+      includePlayerProfiles: true,
+      prefetchProfiles: true
+    })
+    await flush()
+
+    expect(scores.value.mine.score).toBe(54.5) // 锁定后取数不受预取失败影响
+    expect(mockedFetchBatchProfiles).toHaveBeenCalledTimes(2)
+  })
+
+  it('prefetchProfiles 缺省时不预取（仅锁定后按需拉取）', async () => {
+    const session = reactive(
+      makeSession([
+        {
+          id: 0,
+          players: [{ id: 100, pickState: 'intent', puuid: 'p1' }] // 未锁定
+        },
+        { id: 1, players: [] }
+      ])
+    )
+    mockedGetChampionMeta.mockResolvedValue(meta(100, 0.5, 1))
+
+    useLineupScore(session, 'ranked', { includePlayerProfiles: true })
+    await flush()
+
+    // 未锁定 → compute 不拉；也不触发预取 → 唯一一次调用是空数组兜底
+    expect(mockedFetchBatchProfiles).toHaveBeenCalledTimes(1)
+    expect(mockedFetchBatchProfiles.mock.calls[0][0]).toEqual([])
   })
 })
