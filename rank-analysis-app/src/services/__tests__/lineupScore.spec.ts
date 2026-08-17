@@ -83,7 +83,7 @@ describe('playerLineupAdjustment', () => {
       mainPosition: 'JUNGLE',
       currentLanePlayedRatio: 1,
       championDistribution: [],
-  positionChampionDistribution: [],
+      positionChampionDistribution: [],
       currentChampionMastery: null,
       recentWinRate: 0.5,
       recentKda: 3,
@@ -115,7 +115,10 @@ describe('playerLineupAdjustment', () => {
 
   it('样本越大越接近原始胜率：50 场 60% 收缩后 ≈ 58.3%', () => {
     const r = playerLineupAdjustment(
-      profile({ positionDistribution: [{ pos: 'JUNGLE', ratio: 1, games: 50 }], recentWinRate: 0.6 })
+      profile({
+        positionDistribution: [{ pos: 'JUNGLE', ratio: 1, games: 50 }],
+        recentWinRate: 0.6
+      })
     )
     expect(r.playerRate).toBeCloseTo(35 / 60, 3) // (30+5)/(50+10)
     expect(r.adjustment).toBeCloseTo(0.025, 3)
@@ -187,7 +190,7 @@ describe('computeLineupScore with player profiles', () => {
       mainPosition: 'JUNGLE' as const,
       currentLanePlayedRatio: 1,
       championDistribution: [] as RecentPlayerProfile['championDistribution'],
-  positionChampionDistribution: [] as RecentPlayerProfile['positionChampionDistribution'],
+      positionChampionDistribution: [] as RecentPlayerProfile['positionChampionDistribution'],
       currentChampionMastery: mastery ?? null,
       recentWinRate,
       recentKda: 3,

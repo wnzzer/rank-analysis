@@ -187,7 +187,13 @@ describe('SGP 跨区战绩兜底（fetchBatchProfiles + region/name）', () => {
     })
 
     const result = await fetchBatchProfiles([
-      { puuid: 'sgp-p', teamPosition: 'JUNGLE', championId: 64, region: 'HN10', name: '跨区玩家#123' }
+      {
+        puuid: 'sgp-p',
+        teamPosition: 'JUNGLE',
+        championId: 64,
+        region: 'HN10',
+        name: '跨区玩家#123'
+      }
     ])
 
     const profile = result.get('sgp-p')

@@ -74,7 +74,7 @@ function profileLine(
   const mainPos =
     profile.mainPosition === 'UNCLEAR'
       ? '位置不明'
-      : POSITION_LABEL[profile.mainPosition] ?? profile.mainPosition
+      : (POSITION_LABEL[profile.mainPosition] ?? profile.mainPosition)
   const pool = (profile.positionChampionDistribution ?? [])
     .slice(0, 2)
     .map(c => `${c.name}${c.games}场${Math.round(c.winRate * 100)}%`)
@@ -223,7 +223,10 @@ export function intelBlockToText(ctx: IntelContext): string {
     )
   }
   if (ctx.profileLines.length > 0) {
-    parts.push('【玩家画像】（近期战绩/主玩位置/英雄池/备注——引用即可，不要重新计算）', ...ctx.profileLines)
+    parts.push(
+      '【玩家画像】（近期战绩/主玩位置/英雄池/备注——引用即可，不要重新计算）',
+      ...ctx.profileLines
+    )
   }
   if (ctx.modeKnowledgeLines.length > 0) {
     parts.push('【模式知识】', ...ctx.modeKnowledgeLines)

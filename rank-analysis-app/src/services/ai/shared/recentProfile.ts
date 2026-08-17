@@ -212,7 +212,9 @@ export function buildRecentProfile(input: BuildRecentProfileInput): RecentPlayer
     .sort((a, b) => b.games - a.games)
   const positionPoolGames = positionChampPool.reduce((acc, c) => acc + c.games, 0)
   const positionChampionDistribution =
-    positionPoolGames >= POSITION_CHAMP_POOL_MIN_GAMES ? positionChampPool.slice(0, 5) : championDistribution
+    positionPoolGames >= POSITION_CHAMP_POOL_MIN_GAMES
+      ? positionChampPool.slice(0, 5)
+      : championDistribution
 
   const currentChampGames = champMap.get(currentChampionId)
   const currentChampionMastery =

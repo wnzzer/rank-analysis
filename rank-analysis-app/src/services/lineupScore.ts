@@ -268,5 +268,12 @@ export function computeLineupScore(champions: LineupScoreInput[]): LineupScore {
     },
     null as number | null
   )
-  return { score, covered: covered.length, total: champions.length, bestTier, playerAdjusted, breakdown }
+  return {
+    score,
+    covered: covered.length,
+    total: champions.length,
+    bestTier,
+    playerAdjusted,
+    breakdown
+  }
 }

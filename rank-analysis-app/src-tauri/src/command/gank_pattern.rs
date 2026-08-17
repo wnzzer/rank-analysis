@@ -49,7 +49,7 @@ pub fn is_jungle_game(game: &Game) -> bool {
     game.participants
         .first()
         .and_then(|p| p.timeline.as_ref())
-        .map(|t| t.lane.trim().to_ascii_uppercase() == "JUNGLE")
+        .map(|t| t.lane.trim().eq_ignore_ascii_case("JUNGLE"))
         .unwrap_or(false)
 }
 
@@ -252,29 +252,37 @@ mod tests {
 
     #[test]
     fn is_jungle_game_only_true_for_jungle_lane() {
-        let mut jungle = Game::default();
-        jungle.participants = vec![participant("JUNGLE")];
+        let jungle = Game {
+            participants: vec![participant("JUNGLE")],
+            ..Default::default()
+        };
         assert!(is_jungle_game(&jungle));
 
-        let mut mid = Game::default();
-        mid.participants = vec![participant("MIDDLE")];
+        let mid = Game {
+            participants: vec![participant("MIDDLE")],
+            ..Default::default()
+        };
         assert!(!is_jungle_game(&mid));
 
         // 摘要 participants 缺失/无 timeline：非打野（不误判）
         assert!(!is_jungle_game(&Game::default()));
 
-        let mut no_tl = Game::default();
-        no_tl.participants = vec![Participant {
-            timeline: None,
+        let no_tl = Game {
+            participants: vec![Participant {
+                timeline: None,
+                ..Default::default()
+            }],
             ..Default::default()
-        }];
+        };
         assert!(!is_jungle_game(&no_tl));
     }
 
     #[test]
     fn target_puuid_comes_from_identities_first() {
-        let mut game = Game::default();
-        game.participant_identities = vec![participant_identity("target-puuid")];
+        let game = Game {
+            participant_identities: vec![participant_identity("target-puuid")],
+            ..Default::default()
+        };
         // 走 fetch 主流程的身份解析路径（这里只验证身份字段映射可用）
         let puuid = game
             .participant_identities

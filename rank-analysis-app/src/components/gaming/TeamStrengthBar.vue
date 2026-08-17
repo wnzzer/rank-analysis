@@ -123,9 +123,7 @@ function detailHasChange(d: LineupHeroDetail): boolean {
         <template v-else>OP.GG 全球 meta</template>
       </span>
       <span class="ls-covered">
-        覆盖 {{ mine.covered }}/{{ mine.total }} 我方 · {{ enemy.covered }}/{{
-          enemy.total
-        }} 敌方
+        覆盖 {{ mine.covered }}/{{ mine.total }} 我方 · {{ enemy.covered }}/{{ enemy.total }} 敌方
       </span>
     </div>
   </div>

@@ -154,7 +154,7 @@ describe('buildIntelContext', () => {
       mainPosition: 'JUNGLE',
       currentLanePlayedRatio: 1,
       championDistribution: [],
-  positionChampionDistribution: [],
+      positionChampionDistribution: [],
       currentChampionMastery: null,
       recentWinRate: 0.2,
       recentKda: 1.1,
@@ -192,8 +192,16 @@ describe('buildIntelContext', () => {
       mainPosition: 'JUNGLE',
       currentLanePlayedRatio: 0.8,
       championDistribution: [],
-      positionChampionDistribution: [{ championId: 64, name: '李青', games: 6, winRate: 0.66, avgKda: 3.1 }],
-      currentChampionMastery: { gamesInRecent: 6, winRate: 0.66, avgKda: 3.1, isOnetrick: true, isFirstTimeInRecent: false },
+      positionChampionDistribution: [
+        { championId: 64, name: '李青', games: 6, winRate: 0.66, avgKda: 3.1 }
+      ],
+      currentChampionMastery: {
+        gamesInRecent: 6,
+        winRate: 0.66,
+        avgKda: 3.1,
+        isOnetrick: true,
+        isFirstTimeInRecent: false
+      },
       recentWinRate: 0.55,
       recentKda: 2.2,
       streak: null,

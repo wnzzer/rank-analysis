@@ -10,12 +10,7 @@
     <template #trigger>
       <slot />
     </template>
-    <PlayerProfileCard
-      :puuid="puuid"
-      :name="name"
-      :champion-id="championId"
-      :region="region"
-    />
+    <PlayerProfileCard :puuid="puuid" :name="name" :champion-id="championId" :region="region" />
   </n-popover>
   <slot v-else />
 </template>

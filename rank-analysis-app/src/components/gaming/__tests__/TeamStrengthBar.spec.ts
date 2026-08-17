@@ -102,7 +102,10 @@ describe('TeamStrengthBar', () => {
 
   it('覆盖度信息：双方 covered/total 都展示', () => {
     const wrapper = mount(TeamStrengthBar, {
-      props: { mine: score(53.0, { covered: 3, total: 5 }), enemy: score(50.0, { covered: 4, total: 5 }) }
+      props: {
+        mine: score(53.0, { covered: 3, total: 5 }),
+        enemy: score(50.0, { covered: 4, total: 5 })
+      }
     })
     expect(wrapper.text()).toContain('3/5')
     expect(wrapper.text()).toContain('4/5')
