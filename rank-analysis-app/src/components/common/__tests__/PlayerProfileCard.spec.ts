@@ -2,11 +2,25 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import PlayerProfileCard from '../PlayerProfileCard.vue'
 import { fetchPlayerProfile } from '@renderer/services/ai/shared/recentProfile.batch'
+import { queryMeetSummary } from '@renderer/services/meet'
 import type { RecentPlayerProfile } from '@renderer/services/ai/shared/types'
 
 vi.mock('@renderer/services/ai/shared/recentProfile.batch', () => ({
   fetchPlayerProfile: vi.fn()
 }))
+
+vi.mock('@renderer/services/meet', () => ({
+  queryMeetSummary: vi.fn()
+}))
+
+const MEET: Awaited<ReturnType<typeof queryMeetSummary>> = {
+  total: 7,
+  myTeamMeets: 4,
+  enemyMeets: 3,
+  myTeamWins: 2,
+  lastSeenAt: '2026-08-10',
+  recent: []
+}
 
 const PROFILE: RecentPlayerProfile = {
   positionDistribution: [
@@ -41,6 +55,8 @@ describe('PlayerProfileCard', () => {
   beforeEach(() => {
     vi.mocked(fetchPlayerProfile).mockReset()
     vi.mocked(fetchPlayerProfile).mockResolvedValue(PROFILE)
+    vi.mocked(queryMeetSummary).mockReset()
+    vi.mocked(queryMeetSummary).mockResolvedValue(null)
   })
 
   it('渲染近期胜率 / KDA / 连胜', async () => {
@@ -124,5 +140,32 @@ describe('PlayerProfileCard', () => {
       championId: 64,
       region: 'HN10'
     })
+  })
+
+  it('遇见过：渲染累计相遇摘要', async () => {
+    vi.mocked(queryMeetSummary).mockResolvedValue(MEET)
+    const wrapper = mount(PlayerProfileCard, { props: { puuid: 'p1' } })
+    await flushPromises()
+    // 模板编译会折叠插值边界的空白（「遇见过7 次」），断言用分段子串
+    const text = wrapper.text().replace(/\s+/g, ' ')
+    expect(text).toContain('遇见过')
+    expect(text).toContain('7 次')
+    expect(text).toContain('同队2/4胜')
+    expect(text).toContain('2026-08-10')
+    expect(vi.mocked(queryMeetSummary)).toHaveBeenCalledWith('p1')
+  })
+
+  it('遇见过：无记录（null）时不渲染该小节', async () => {
+    const wrapper = mount(PlayerProfileCard, { props: { puuid: 'p1' } })
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('遇见过')
+  })
+
+  it('遇见过：查询失败降级不阻塞画像卡', async () => {
+    vi.mocked(queryMeetSummary).mockRejectedValue(new Error('meet.db down'))
+    const wrapper = mount(PlayerProfileCard, { props: { puuid: 'p1', name: '测试玩家' } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('测试玩家')
+    expect(wrapper.text()).not.toContain('遇见过')
   })
 })

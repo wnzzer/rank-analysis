@@ -101,6 +101,15 @@
         </div>
       </div>
 
+      <!-- 遇见过（本机 meet.db 累计相遇，无记录不显示） -->
+      <div v-if="meet" class="profile-section profile-meet">
+        <span class="profile-note-label">遇见过</span>
+        <span class="profile-note-text"
+          >{{ meet.total }} 次 · 同队{{ meet.myTeamWins }}/{{ meet.myTeamMeets }}胜 · 最近
+          {{ meet.lastSeenAt }}</span
+        >
+      </div>
+
       <!-- 手动备注（隐私开关开启且有备注时） -->
       <div v-if="profile.note" class="profile-section profile-note">
         <span class="profile-note-label">备注</span>
@@ -124,6 +133,8 @@ import { NEllipsis, NSpin } from 'naive-ui'
 import { assetPrefix } from '@renderer/services/http'
 import LazyImg from '@renderer/components/common/LazyImg.vue'
 import { fetchPlayerProfile } from '@renderer/services/ai/shared/recentProfile.batch'
+import { queryMeetSummary } from '@renderer/services/meet'
+import type { MeetSummary } from '@renderer/types/domain/meet'
 import type { RecentPlayerProfile } from '@renderer/services/ai/shared/types'
 
 const props = withDefaults(
@@ -142,6 +153,8 @@ const props = withDefaults(
 const profile = ref<RecentPlayerProfile | null>(null)
 const loading = ref(true)
 const error = ref(false)
+/** 遇见过摘要（meet.db 查询失败/无记录为 null，不阻塞画像卡） */
+const meet = ref<MeetSummary | null>(null)
 
 /**
  * 请求序号竞态保护：hover 快速滑过多个玩家名时，慢的旧请求结果不得
@@ -168,6 +181,15 @@ watchEffect(async () => {
     profile.value = null
   } finally {
     if (seq === requestSeq) loading.value = false
+  }
+  // 遇见过摘要独立降级：失败/无记录不阻断画像
+  try {
+    const m = await queryMeetSummary(props.puuid)
+    if (seq !== requestSeq) return
+    meet.value = m
+  } catch {
+    if (seq !== requestSeq) return
+    meet.value = null
   }
 })
 
