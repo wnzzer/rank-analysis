@@ -30,6 +30,7 @@ interface RawHistoryResponse {
 }
 
 interface RawMatch {
+  queueId: number
   participants: RawParticipant[]
   participantIdentities: Array<{
     participantId: number
@@ -185,7 +186,8 @@ function sgpGameToRecentGame(g: RawSgpGame): RecentGameRaw | null {
     win: p.stats?.win ?? false,
     kills: p.stats?.kills ?? 0,
     deaths: p.stats?.deaths ?? 0,
-    assists: p.stats?.assists ?? 0
+    assists: p.stats?.assists ?? 0,
+    queueId: g.queueId ?? 0
   }
 }
 
@@ -200,12 +202,15 @@ function rawMatchToRecentGame(m: RawMatch, puuid: string): RecentGameRaw | null 
     win: participant.stats.win,
     kills: participant.stats.kills,
     deaths: participant.stats.deaths,
-    assists: participant.stats.assists
+    assists: participant.stats.assists,
+    queueId: m.queueId ?? 0
   }
 }
 
 /** SGP 对局的最小形状（复用现有 MatchHistory 结构，只声明画像用到的字段） */
 type RawSgpGame = {
+  /** 队列 id（排位过滤用；缺失按 0=未知处理） */
+  queueId?: number
   gameDetail?: {
     participants?: Array<{
       participantId: number

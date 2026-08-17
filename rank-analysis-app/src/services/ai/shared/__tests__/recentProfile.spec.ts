@@ -9,6 +9,8 @@ function game(opts: {
   k?: number
   d?: number
   a?: number
+  /** 队列 id（默认 420 排位——现网覆盖用例都是排位） */
+  queueId?: number
 }): RecentGameRaw {
   return {
     teamPosition: opts.teamPosition ?? 'JUNGLE',
@@ -16,7 +18,8 @@ function game(opts: {
     win: opts.win,
     kills: opts.k ?? 5,
     deaths: opts.d ?? 3,
-    assists: opts.a ?? 7
+    assists: opts.a ?? 7,
+    queueId: opts.queueId ?? 420
   }
 }
 
@@ -245,6 +248,77 @@ describe('buildRecentProfile', () => {
       expect(profile.mainPosition).toBe('UNCLEAR')
       expect(profile.isOffRole).toBe(false)
       expect(profile.currentChampionMastery).toBeNull()
+    })
+  })
+
+  describe('模式过滤（ranked only）', () => {
+    it('排位场次 ≥ 5 时只统计排位（420/440），ARAM/匹配被排除', () => {
+      const games: RecentGameRaw[] = [
+        // 排位：5 胜 3 负 = 8 场
+        ...Array(5)
+          .fill(0)
+          .map(() => game({ championId: 64, win: true, queueId: 420 })),
+        ...Array(3)
+          .fill(0)
+          .map(() => game({ championId: 64, win: false, queueId: 440 })),
+        // 大乱斗/匹配：12 场全胜（若混入会把胜率顶到 100%）
+        ...Array(8)
+          .fill(0)
+          .map(() => game({ championId: 86, win: true, queueId: 450 })),
+        ...Array(4)
+          .fill(0)
+          .map(() => game({ championId: 86, win: true, queueId: 430 }))
+      ]
+      const profile = buildRecentProfile({
+        currentTeamPosition: 'JUNGLE',
+        currentChampionId: 64,
+        recentGames: games
+      })
+      // 只统计 8 场排位
+      const totalGames = (profile.positionDistribution ?? []).reduce((acc, p) => acc + p.games, 0)
+      expect(totalGames).toBe(8)
+      expect(profile.recentWinRate).toBeCloseTo(5 / 8)
+      // 英雄池不含 ARAM 英雄
+      const champs = profile.championDistribution ?? []
+      expect(champs.some(c => c.championId === 86)).toBe(false)
+    })
+
+    it('排位不足 5 场时回退全量（防画像真空），胜率按全部场次', () => {
+      const games: RecentGameRaw[] = [
+        ...Array(3)
+          .fill(0)
+          .map(() => game({ championId: 64, win: true, queueId: 420 })),
+        ...Array(2)
+          .fill(0)
+          .map(() => game({ championId: 86, win: false, queueId: 450 }))
+      ]
+      const profile = buildRecentProfile({
+        currentTeamPosition: 'JUNGLE',
+        currentChampionId: 64,
+        recentGames: games
+      })
+      const totalGames = (profile.positionDistribution ?? []).reduce((acc, p) => acc + p.games, 0)
+      expect(totalGames).toBe(5)
+      expect(profile.recentWinRate).toBeCloseTo(3 / 5)
+    })
+
+    it('竞技场/人机等非排位场次全量时同样被排位优先规则排除', () => {
+      const games: RecentGameRaw[] = [
+        ...Array(5)
+          .fill(0)
+          .map(() => game({ championId: 64, win: false, queueId: 420 })),
+        ...Array(15)
+          .fill(0)
+          .map(() => game({ championId: 86, win: true, queueId: 1700 }))
+      ]
+      const profile = buildRecentProfile({
+        currentTeamPosition: 'JUNGLE',
+        currentChampionId: 64,
+        recentGames: games
+      })
+      const totalGames = (profile.positionDistribution ?? []).reduce((acc, p) => acc + p.games, 0)
+      expect(totalGames).toBe(5)
+      expect(profile.recentWinRate).toBe(0)
     })
   })
 })

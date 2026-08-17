@@ -150,6 +150,7 @@ describe('SGP 跨区战绩兜底（fetchBatchProfiles + region/name）', () => {
   /** SGP 战绩响应的最小形状（Rust map_sgp_to_match_history 输出，[0]=被查玩家） */
   function sgpGame(opts: { championId: number; lane: string; win: boolean }) {
     return {
+      queueId: 420,
       gameDetail: {
         participants: [
           {

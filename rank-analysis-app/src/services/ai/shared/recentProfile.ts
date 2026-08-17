@@ -12,6 +12,8 @@ export interface RecentGameRaw {
   kills: number
   deaths: number
   assists: number
+  /** 队列 id（420 单双排 / 440 灵活排位；0 = 未知）——画像按排位过滤的依据 */
+  queueId: number
 }
 
 export interface BuildRecentProfileInput {
@@ -28,13 +30,24 @@ const KNOWN_POSITIONS: ReadonlySet<string> = new Set([
   'UTILITY'
 ])
 
+/** 排位队列集合：选人期调权重的「近期胜率」只认排位才有强度含义 */
+const RANKED_QUEUE_IDS: ReadonlySet<number> = new Set([420, 440])
+/** 排位场次达到该阈值才只用排位；不足时回退全量（防 ARAM/匹配玩家画像真空） */
+const RANKED_MIN_GAMES = 5
+
 export function buildRecentProfile(input: BuildRecentProfileInput): RecentPlayerProfile {
   const { currentTeamPosition, currentChampionId, recentGames } = input
-  const total = recentGames.length
+
+  // — 模式过滤（ranked only） —
+  // 排位胜率是选人期加权画像的依据；ARAM/匹配场次混入会稀释强度含义。
+  // 排位样本不足（< 5 场）时回退全量对局——宁可数据带点噪声，也不要整卡空白。
+  const rankedOnly = recentGames.filter(g => RANKED_QUEUE_IDS.has(g.queueId))
+  const games = rankedOnly.length >= RANKED_MIN_GAMES ? rankedOnly : recentGames
+  const total = games.length
 
   // — Position distribution —
   const positionCount = new Map<TeamPosition, number>()
-  for (const g of recentGames) {
+  for (const g of games) {
     const pos = KNOWN_POSITIONS.has(g.teamPosition) ? (g.teamPosition as TeamPosition) : 'UNKNOWN'
     positionCount.set(pos, (positionCount.get(pos) ?? 0) + 1)
   }
@@ -67,7 +80,7 @@ export function buildRecentProfile(input: BuildRecentProfileInput): RecentPlayer
   // — Champion distribution —
   type ChampAgg = { championId: number; games: number; wins: number; kdaSum: number }
   const champMap = new Map<number, ChampAgg>()
-  for (const g of recentGames) {
+  for (const g of games) {
     const c = champMap.get(g.championId) ?? {
       championId: g.championId,
       games: 0,
@@ -112,16 +125,16 @@ export function buildRecentProfile(input: BuildRecentProfileInput): RecentPlayer
           }
 
   // — Recent rates & streak —
-  const wins = recentGames.filter(g => g.win).length
+  const wins = games.filter(g => g.win).length
   const recentWinRate = total > 0 ? wins / total : 0
 
-  const kdaSum = recentGames.reduce((acc, g) => {
+  const kdaSum = games.reduce((acc, g) => {
     const d = g.deaths === 0 ? 1 : g.deaths
     return acc + (g.kills + g.assists) / d
   }, 0)
   const recentKda = total > 0 ? kdaSum / total : 0
 
-  const streak = computeStreak(recentGames)
+  const streak = computeStreak(games)
 
   return {
     positionDistribution,
