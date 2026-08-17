@@ -49,8 +49,48 @@ export interface IntelContext {
   counterLines: string[]
   /** 关联信号行（来自信号引擎） */
   signalLines: string[]
+  /** 玩家画像明细行（近期胜率/主玩位置/英雄池/备注——AI 引用事实的原料） */
+  profileLines: string[]
   /** 模式知识行（知识库，最多 4 条） */
   modeKnowledgeLines: string[]
+}
+
+const POSITION_LABEL: Record<string, string> = {
+  TOP: '上单',
+  JUNGLE: '打野',
+  MIDDLE: '中单',
+  BOTTOM: '下路',
+  UTILITY: '辅助'
+}
+
+/**
+ * 玩家画像明细行（单行紧凑，控制 token）：
+ * 画像卡展示的事实原样注入 prompt，AI 直接解读引用，不重新计算。
+ */
+function profileLine(
+  subject: { name: string; position?: string },
+  profile: RecentPlayerProfile
+): string {
+  const mainPos =
+    profile.mainPosition === 'UNCLEAR'
+      ? '位置不明'
+      : POSITION_LABEL[profile.mainPosition] ?? profile.mainPosition
+  const pool = (profile.positionChampionDistribution ?? [])
+    .slice(0, 2)
+    .map(c => `${c.name}${c.games}场${Math.round(c.winRate * 100)}%`)
+    .join('、')
+  const mastery =
+    profile.currentChampionMastery && profile.currentChampionMastery.gamesInRecent > 0
+      ? `，本局英雄${Math.round(profile.currentChampionMastery.winRate * 100)}%（${profile.currentChampionMastery.gamesInRecent}场${profile.currentChampionMastery.isOnetrick ? '·绝活' : ''}）`
+      : ''
+  const offRole =
+    profile.offRoleSeverity === 'severe'
+      ? '，严重补位'
+      : profile.offRoleSeverity === 'mild'
+        ? '，补位'
+        : ''
+  const note = profile.note ? `，备注【${profile.note}】` : ''
+  return `- ${subject.name}（${subject.position ?? mainPos}）: 近${Math.round(profile.recentWinRate * 100)}%胜率，KDA ${profile.recentKda.toFixed(1)}，主玩${mainPos}，常用【${pool}】${mastery}${offRole}${note}`
 }
 
 function metaLine(id: number, mode: OpggMode): Promise<string | null> {
@@ -93,6 +133,7 @@ export async function buildIntelContext(input: IntelContextInput): Promise<Intel
     championLines: [],
     counterLines: [],
     signalLines: [],
+    profileLines: [],
     modeKnowledgeLines: []
   }
   const knowledge = await getKnowledgeBase()
@@ -135,6 +176,15 @@ export async function buildIntelContext(input: IntelContextInput): Promise<Intel
     const subjects = buildSignalSubjects(input.sessionData, input.profileMap, input.myPuuid)
     const signals: Signal[] = evaluateSignals(subjects, knowledge.signalRules)
     ctx.signalLines = signals.map(s => `- [${s.severity}] ${s.text}`)
+    // 画像明细：有画像的玩家每人一行（最多 6 行控制 token），
+    // AI 直接引用画像卡同源事实（近胜率/主玩/英雄池/备注），不重新计算。
+    ctx.profileLines = subjects
+      .map(s => {
+        const profile = input.profileMap.get(s.puuid)
+        return profile ? profileLine(s, profile) : null
+      })
+      .filter((l): l is string => l !== null)
+      .slice(0, 6)
   }
 
   // 模式知识：按 modeKind + queueId 映射，最多 4 条
@@ -152,6 +202,7 @@ export function intelBlockExists(ctx: IntelContext): boolean {
     ctx.championLines.length > 0 ||
     ctx.counterLines.length > 0 ||
     ctx.signalLines.length > 0 ||
+    ctx.profileLines.length > 0 ||
     ctx.modeKnowledgeLines.length > 0
   )
 }
@@ -170,6 +221,9 @@ export function intelBlockToText(ctx: IntelContext): string {
       '【关联信号】（程序基于近期战绩计算的事实，请直接解读，不要重新计算）',
       ...ctx.signalLines
     )
+  }
+  if (ctx.profileLines.length > 0) {
+    parts.push('【玩家画像】（近期战绩/主玩位置/英雄池/备注——引用即可，不要重新计算）', ...ctx.profileLines)
   }
   if (ctx.modeKnowledgeLines.length > 0) {
     parts.push('【模式知识】', ...ctx.modeKnowledgeLines)

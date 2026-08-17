@@ -185,6 +185,54 @@ describe('buildIntelContext', () => {
     expect(ctx.modeKnowledgeLines).toEqual([])
   })
 
+  it('玩家画像明细：有画像的玩家每人一行（近胜率/主玩/英雄池/备注）', async () => {
+    vi.mocked(getKnowledgeBase).mockResolvedValue(knowledgeBase())
+    const profile: RecentPlayerProfile = {
+      positionDistribution: [{ pos: 'JUNGLE', ratio: 0.8, games: 8 }],
+      mainPosition: 'JUNGLE',
+      currentLanePlayedRatio: 0.8,
+      championDistribution: [],
+      positionChampionDistribution: [{ championId: 64, name: '李青', games: 6, winRate: 0.66, avgKda: 3.1 }],
+      currentChampionMastery: { gamesInRecent: 6, winRate: 0.66, avgKda: 3.1, isOnetrick: true, isFirstTimeInRecent: false },
+      recentWinRate: 0.55,
+      recentKda: 2.2,
+      streak: null,
+      isOffRole: false,
+      offRoleSeverity: 'none',
+      note: '[红牌] 爱哭'
+    }
+    const ctx = await buildIntelContext({
+      sessionData: sessionData(),
+      profileMap: new Map([['mate', profile]]),
+      opggMode: undefined,
+      modeKind: 'ranked',
+      queueId: 420
+    })
+    expect(ctx.profileLines).toHaveLength(1)
+    const line = ctx.profileLines[0]
+    expect(line).toContain('Buddy')
+    expect(line).toContain('55%胜率')
+    expect(line).toContain('主玩打野')
+    expect(line).toContain('李青6场66%')
+    expect(line).toContain('绝活')
+    expect(line).toContain('备注【[红牌] 爱哭】')
+  })
+
+  it('玩家画像明细：无画像的玩家不出行；intelBlockToText 含【玩家画像】头', async () => {
+    vi.mocked(getKnowledgeBase).mockResolvedValue(knowledgeBase())
+    const ctx = await buildIntelContext({
+      sessionData: sessionData(),
+      profileMap: new Map(),
+      opggMode: undefined,
+      modeKind: 'ranked',
+      queueId: 420
+    })
+    expect(ctx.profileLines).toEqual([])
+    const text = intelBlockToText({ ...ctx, profileLines: ['- 某人: 60%胜率'] })
+    expect(text).toContain('【玩家画像】')
+    expect(intelBlockExists({ ...ctx, profileLines: ['- 某人'] })).toBe(true)
+  })
+
   it('knowledge 为空：整块降级为空（不抛异常）', async () => {
     vi.mocked(getKnowledgeBase).mockResolvedValue(null)
     vi.mocked(getChampionMeta).mockResolvedValue(null)
@@ -215,12 +263,13 @@ describe('buildIntelContext', () => {
 })
 
 describe('intelBlockToText', () => {
-  it('拼接顺序：版本情报 → 克制 → 信号 → 模式知识', () => {
+  it('拼接顺序：版本情报 → 克制 → 信号 → 画像 → 模式知识', () => {
     const text = intelBlockToText({
       header: '【版本情报 · 26.13 · 数据来源OP.GG(外服)】',
       championLines: ['- A'],
       counterLines: ['- B'],
       signalLines: ['- [warn] C'],
+      profileLines: [],
       modeKnowledgeLines: ['- D']
     })
     const lines = text.split('\n')
