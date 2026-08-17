@@ -50,10 +50,13 @@ export function buildRecentProfile(input: BuildRecentProfileInput): RecentPlayer
   const currentLaneEntry = positionDistribution.find(p => p.pos === currentTeamPosition)
   const currentLanePlayedRatio = currentLaneEntry?.ratio ?? 0
 
+  // 无上下文（hover 画像卡等场景，currentTeamPosition='UNKNOWN'）时不做补位判定——
+  // 「他这场打什么位置」未知，谈不上补位；避免把历史分布里的 UNKNOWN 误判为 off-role。
+  const hasPositionContext = currentTeamPosition !== 'UNKNOWN'
   // 空对局视为"无判定依据"，不算 off-role
-  const isOffRole = total > 0 && currentLanePlayedRatio < 0.2
+  const isOffRole = hasPositionContext && total > 0 && currentLanePlayedRatio < 0.2
   const offRoleSeverity: 'severe' | 'mild' | 'none' =
-    total === 0
+    !hasPositionContext || total === 0
       ? 'none'
       : currentLanePlayedRatio < 0.2
         ? 'severe'

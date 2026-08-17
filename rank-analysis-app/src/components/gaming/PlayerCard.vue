@@ -76,18 +76,24 @@
 
             <div class="info-wrapper">
               <n-flex align="center" :wrap="false" class="name-row">
-                <n-button
-                  text
-                  @click="
-                    searchSummoner(
-                      sessionSummoner?.summoner.gameName + '#' + sessionSummoner?.summoner.tagLine
-                    )
-                  "
+                <PlayerProfilePopover
+                  :puuid="sessionSummoner?.summoner.puuid"
+                  :name="sessionSummoner?.summoner.gameName"
+                  :champion-id="sessionSummoner?.championId"
                 >
-                  <n-ellipsis class="name-ellipsis">
-                    {{ sessionSummoner?.summoner.gameName }}
-                  </n-ellipsis>
-                </n-button>
+                  <n-button
+                    text
+                    @click="
+                      searchSummoner(
+                        sessionSummoner?.summoner.gameName + '#' + sessionSummoner?.summoner.tagLine
+                      )
+                    "
+                  >
+                    <n-ellipsis class="name-ellipsis">
+                      {{ sessionSummoner?.summoner.gameName }}
+                    </n-ellipsis>
+                  </n-button>
+                </PlayerProfilePopover>
                 <n-tag v-if="isSelf" size="small" type="success" round :bordered="false">
                   我
                 </n-tag>
@@ -238,6 +244,7 @@ import PlayerHistoryGrid from './PlayerHistoryGrid.vue'
 import PlayerStatsCard from './PlayerStatsCard.vue'
 import LazyImg from '@renderer/components/common/LazyImg.vue'
 import PlayerNoteBadge from '@renderer/components/common/PlayerNoteBadge.vue'
+import PlayerProfilePopover from '@renderer/components/common/PlayerProfilePopover.vue'
 import PatchNoteBadge from './PatchNoteBadge.vue'
 import CounterHover from './CounterHover.vue'
 import UnifiedTagRow from '@renderer/components/common/UnifiedTagRow.vue'

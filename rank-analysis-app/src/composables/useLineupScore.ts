@@ -10,12 +10,15 @@
 import { ref, toValue, watch, type MaybeRefOrGetter, type Ref } from 'vue'
 import {
   computeLineupScore,
-  toLineupInputs,
   EMPTY_LINEUP_SCORE,
   type LineupScore,
   type LineupScoreInput
 } from '@renderer/services/lineupScore'
 import { getChampionMeta, type OpggMode } from '@renderer/services/opgg'
+import {
+  fetchBatchProfiles,
+  type ProfileRequest
+} from '@renderer/services/ai/shared/recentProfile.batch'
 import type { SessionData } from '@renderer/types/domain/gaming'
 
 export interface LineupScores {
@@ -26,21 +29,41 @@ export interface LineupScores {
 export interface UseLineupScoreOptions {
   /** 锁定集合变化后的取数防抖（ms），默认 300 */
   debounceMs?: number
+  /**
+   * 是否拉取锁定玩家的近期画像（fetchBatchProfiles，LRU 缓存）做加权。
+   * 默认 false（纯全局 meta 出分）；开启后分数按玩家近期表现平移。
+   */
+  includePlayerProfiles?: boolean
+}
+
+interface LockEntry {
+  championId: number
+  /** 玩家 puuid（隐藏战绩/无有效 summoner 时为空串，跳过画像） */
+  puuid: string
+  /** 官方分配分路（敌方 LCU 恒为空 → UNKNOWN，不判补位） */
+  position: string
 }
 
 interface LockSnapshot {
-  mine: number[]
-  enemy: number[]
+  mine: LockEntry[]
+  enemy: LockEntry[]
 }
 
-function lockedIds(players: Array<{ championId: number; pickState?: string }>): number[] {
-  return players.filter(p => p.championId > 0 && p.pickState === 'locked').map(p => p.championId)
+function lockedPlayers(players: Array<{ championId: number; pickState?: string }>): LockEntry[] {
+  return players
+    .filter(p => p.championId > 0 && p.pickState === 'locked')
+    .map(p => ({
+      championId: p.championId,
+      puuid: (p as { summoner?: { puuid?: string } }).summoner?.puuid ?? '',
+      position: (p as { assignedPosition?: string }).assignedPosition ?? ''
+    }))
 }
 
-function sameSet(a: number[], b: number[]): boolean {
+function sameSnapshot(a: LockEntry[], b: LockEntry[]): boolean {
   if (a.length !== b.length) return false
-  const bSet = new Set(b)
-  return a.every(x => bSet.has(x))
+  const key = (e: LockEntry) => `${e.championId}:${e.puuid}`
+  const bSet = new Set(b.map(key))
+  return a.every(e => bSet.has(key(e)))
 }
 
 export function useLineupScore(
@@ -49,6 +72,7 @@ export function useLineupScore(
   options: UseLineupScoreOptions = {}
 ): { scores: Ref<LineupScores>; loading: Ref<boolean> } {
   const debounceMs = options.debounceMs ?? 300
+  const includePlayerProfiles = options.includePlayerProfiles ?? false
   const scores = ref<LineupScores>({ mine: EMPTY_LINEUP_SCORE, enemy: EMPTY_LINEUP_SCORE })
   const loading = ref(false)
 
@@ -61,8 +85,26 @@ export function useLineupScore(
     const modeValue = toValue(mode)
     loading.value = true
     try {
-      const fetchMeta = async (id: number): Promise<LineupScoreInput> => {
-        return { championId: id, meta: await getChampionMeta(modeValue, id) }
+      // 画像加权（best-effort）：取数失败/无 puuid 的玩家保持纯 meta，绝不阻塞分数
+      const profileMap = includePlayerProfiles
+        ? await fetchBatchProfiles(
+            [...snapshot.mine, ...snapshot.enemy]
+              .filter(e => e.puuid.length > 0)
+              .map(e => ({
+                puuid: e.puuid,
+                teamPosition: (e.position.length > 0
+                  ? e.position
+                  : 'UNKNOWN') as ProfileRequest['teamPosition'],
+                championId: e.championId
+              }))
+          )
+        : new Map()
+      const fetchMeta = async (entry: LockEntry): Promise<LineupScoreInput> => {
+        return {
+          championId: entry.championId,
+          meta: await getChampionMeta(modeValue, entry.championId),
+          profile: profileMap.get(entry.puuid) ?? null
+        }
       }
       const [mineInputs, enemyInputs] = await Promise.all([
         Promise.all(snapshot.mine.map(fetchMeta)),
@@ -70,11 +112,9 @@ export function useLineupScore(
       ])
       // 竞态防护：取数期间锁定集合又变了，丢弃本次结果，等 watch 下一次触发。
       if (seq !== requestSeq) return
-      const metaById = (inputs: LineupScoreInput[]) =>
-        new Map(inputs.map(i => [i.championId, i.meta]))
       scores.value = {
-        mine: computeLineupScore(toLineupInputs(snapshot.mine, metaById(mineInputs))),
-        enemy: computeLineupScore(toLineupInputs(snapshot.enemy, metaById(enemyInputs)))
+        mine: computeLineupScore(mineInputs),
+        enemy: computeLineupScore(enemyInputs)
       }
     } catch {
       // 取数失败保持上次分数；score 为 null 时下游自动省略整小节。
@@ -93,16 +133,16 @@ export function useLineupScore(
       const subteams = sessionData.subteams ?? []
       const myId = sessionData.mySubteamId ?? 0
       return {
-        mine: lockedIds(subteams.find(s => s.subteamId === myId)?.players ?? []),
-        enemy: lockedIds(subteams.filter(s => s.subteamId !== myId).flatMap(s => s.players)),
+        mine: lockedPlayers(subteams.find(s => s.subteamId === myId)?.players ?? []),
+        enemy: lockedPlayers(subteams.filter(s => s.subteamId !== myId).flatMap(s => s.players)),
         mode: toValue(mode)
       }
     },
     (snapshot, prev) => {
       if (
         prev?.mode === snapshot.mode &&
-        sameSet(snapshot.mine, prev.mine) &&
-        sameSet(snapshot.enemy, prev.enemy)
+        sameSnapshot(snapshot.mine, prev.mine) &&
+        sameSnapshot(snapshot.enemy, prev.enemy)
       ) {
         return
       }

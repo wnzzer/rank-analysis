@@ -1,4 +1,4 @@
-/**
+﻿/**
  * useLineupScore 单元测试：锁定集合 → 防抖取数 → 确定性强度分。
  *
  * 覆盖：空锁定不发请求；防抖合并；竞态丢弃；取数失败保持旧值；
@@ -13,20 +13,30 @@ import { nextTick, reactive, ref } from 'vue'
 import { useLineupScore } from './useLineupScore'
 import type { SessionData, Subteam } from '@renderer/types/domain/gaming'
 import type { ChampionMeta } from '@renderer/services/opgg'
+import type { RecentPlayerProfile } from '@renderer/services/ai/shared/types'
 
 vi.mock('@renderer/services/opgg', () => ({
   getChampionMeta: vi.fn()
 }))
 
+vi.mock('@renderer/services/ai/shared/recentProfile.batch', () => ({
+  fetchBatchProfiles: vi.fn()
+}))
+
 import { getChampionMeta } from '@renderer/services/opgg'
+import { fetchBatchProfiles } from '@renderer/services/ai/shared/recentProfile.batch'
 
 const mockedGetChampionMeta = vi.mocked(getChampionMeta)
+const mockedFetchBatchProfiles = vi.mocked(fetchBatchProfiles)
 
 const DEBOUNCE = 300
 
 /** 构造 SessionData：mySubteamId=0 的队伍为「我」。players 只给选人期相关字段 */
 function makeSession(
-  subteams: Array<{ id: number; players: Array<{ id: number; pickState?: string }> }>
+  subteams: Array<{
+    id: number
+    players: Array<{ id: number; pickState?: string; puuid?: string; position?: string }>
+  }>
 ): SessionData {
   return {
     phase: 'ChampSelect',
@@ -40,7 +50,9 @@ function makeSession(
       subteamId: s.id,
       players: s.players.map(p => ({
         championId: p.id,
-        pickState: p.pickState
+        pickState: p.pickState,
+        summoner: { puuid: p.puuid ?? '' },
+        assignedPosition: p.position ?? ''
       })) as unknown as Subteam['players']
     }))
   }
@@ -64,6 +76,8 @@ function meta(championId: number, winRate: number, tier: number): ChampionMeta {
 describe('useLineupScore', () => {
   beforeEach(() => {
     mockedGetChampionMeta.mockReset()
+    mockedFetchBatchProfiles.mockReset()
+    mockedFetchBatchProfiles.mockResolvedValue(new Map())
     vi.useFakeTimers()
   })
 
@@ -92,8 +106,20 @@ describe('useLineupScore', () => {
     const { scores } = useLineupScore(session)
     await flush()
     expect(mockedGetChampionMeta).not.toHaveBeenCalled()
-    expect(scores.value.mine).toEqual({ score: null, covered: 0, total: 0, bestTier: null })
-    expect(scores.value.enemy).toEqual({ score: null, covered: 0, total: 0, bestTier: null })
+    expect(scores.value.mine).toEqual({
+      score: null,
+      covered: 0,
+      total: 0,
+      bestTier: null,
+      playerAdjusted: false
+    })
+    expect(scores.value.enemy).toEqual({
+      score: null,
+      covered: 0,
+      total: 0,
+      bestTier: null,
+      playerAdjusted: false
+    })
   })
 
   it('锁定集合出现后防抖取数并算出双方强度分', async () => {
@@ -124,8 +150,20 @@ describe('useLineupScore', () => {
     await flush()
 
     // 我方均值 = (0.545 + 0.483) / 2 = 51.4
-    expect(scores.value.mine).toEqual({ score: 51.4, covered: 2, total: 2, bestTier: 1 })
-    expect(scores.value.enemy).toEqual({ score: 45.0, covered: 1, total: 1, bestTier: 2 })
+    expect(scores.value.mine).toEqual({
+      score: 51.4,
+      covered: 2,
+      total: 2,
+      bestTier: 1,
+      playerAdjusted: false
+    })
+    expect(scores.value.enemy).toEqual({
+      score: 45.0,
+      covered: 1,
+      total: 1,
+      bestTier: 2,
+      playerAdjusted: false
+    })
     expect(mockedGetChampionMeta).toHaveBeenCalledTimes(3)
   })
 
@@ -147,7 +185,13 @@ describe('useLineupScore', () => {
     const { scores } = useLineupScore(session)
     await flush()
 
-    expect(scores.value.mine).toEqual({ score: 54.5, covered: 1, total: 1, bestTier: 1 })
+    expect(scores.value.mine).toEqual({
+      score: 54.5,
+      covered: 1,
+      total: 1,
+      bestTier: 1,
+      playerAdjusted: false
+    })
     expect(mockedGetChampionMeta).toHaveBeenCalledTimes(1)
   })
 
@@ -185,7 +229,13 @@ describe('useLineupScore', () => {
 
     await flush()
     // 只取最终集合 {100, 102}，均值 (0.5+0.7)/2 = 60
-    expect(scores.value.mine).toEqual({ score: 60.0, covered: 2, total: 2, bestTier: 1 })
+    expect(scores.value.mine).toEqual({
+      score: 60.0,
+      covered: 2,
+      total: 2,
+      bestTier: 1,
+      playerAdjusted: false
+    })
     expect(mockedGetChampionMeta).toHaveBeenCalledTimes(2)
     expect(mockedGetChampionMeta.mock.calls.map(c => c[1]).sort()).toEqual([100, 102])
   })
@@ -240,14 +290,26 @@ describe('useLineupScore', () => {
 
     const { scores, loading } = useLineupScore(session)
     await flush()
-    expect(scores.value.mine).toEqual({ score: 54.5, covered: 1, total: 1, bestTier: 1 })
+    expect(scores.value.mine).toEqual({
+      score: 54.5,
+      covered: 1,
+      total: 1,
+      bestTier: 1,
+      playerAdjusted: false
+    })
 
     mockedGetChampionMeta.mockRejectedValueOnce(new Error('network'))
     session.subteams[0].players = [
       { championId: 101, pickState: 'locked' } as unknown as Subteam['players'][number]
     ]
     await flush()
-    expect(scores.value.mine).toEqual({ score: 54.5, covered: 1, total: 1, bestTier: 1 })
+    expect(scores.value.mine).toEqual({
+      score: 54.5,
+      covered: 1,
+      total: 1,
+      bestTier: 1,
+      playerAdjusted: false
+    })
     expect(loading.value).toBe(false)
   })
 
@@ -268,7 +330,13 @@ describe('useLineupScore', () => {
 
     const { scores } = useLineupScore(session)
     await flush()
-    expect(scores.value.mine).toEqual({ score: null, covered: 0, total: 2, bestTier: null })
+    expect(scores.value.mine).toEqual({
+      score: null,
+      covered: 0,
+      total: 2,
+      bestTier: null,
+      playerAdjusted: false
+    })
   })
 
   it('mode 切换（ranked → aram）触发重新取数', async () => {
@@ -298,5 +366,107 @@ describe('useLineupScore', () => {
     await flush()
     expect(mockedGetChampionMeta).not.toHaveBeenCalled()
     expect(scores.value.enemy.total).toBe(0)
+  })
+})
+
+describe('useLineupScore with player profiles', () => {
+  /** 画像：60% 近期胜率 → 每英雄 +2 分（playerLineupAdjustment +0.02） */
+  function hotProfile(): RecentPlayerProfile {
+    return {
+      positionDistribution: [{ pos: 'JUNGLE', ratio: 1, games: 20 }],
+      mainPosition: 'JUNGLE',
+      currentLanePlayedRatio: 1,
+      championDistribution: [],
+      currentChampionMastery: null,
+      recentWinRate: 0.6,
+      recentKda: 3.5,
+      streak: null,
+      isOffRole: false,
+      offRoleSeverity: 'none'
+    }
+  }
+
+  beforeEach(() => {
+    mockedGetChampionMeta.mockReset()
+    mockedFetchBatchProfiles.mockReset()
+    mockedFetchBatchProfiles.mockResolvedValue(new Map())
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  async function flush(): Promise<void> {
+    await vi.advanceTimersByTimeAsync(301)
+    await nextTick()
+  }
+
+  it('includePlayerProfiles=true 时按玩家画像加权（+2/英雄），并传对的位置与英雄', async () => {
+    const session = reactive(
+      makeSession([
+        {
+          id: 0,
+          players: [{ id: 100, pickState: 'locked', puuid: 'p1', position: 'jungle' }]
+        },
+        { id: 1, players: [{ id: 200, pickState: 'locked', puuid: 'p2' }] }
+      ])
+    )
+    mockedGetChampionMeta.mockResolvedValue(meta(100, 0.5, 1))
+    mockedFetchBatchProfiles.mockResolvedValue(new Map([['p1', hotProfile()]]))
+
+    const { scores } = useLineupScore(session, 'ranked', { includePlayerProfiles: true })
+    await flush()
+
+    // 请求：我方带 assignedPosition（jungle），敌方无位置 → UNKNOWN
+    const requests = mockedFetchBatchProfiles.mock.calls[0][0]
+    expect(requests).toContainEqual({
+      puuid: 'p1',
+      teamPosition: 'jungle',
+      championId: 100
+    })
+    expect(requests).toContainEqual({ puuid: 'p2', teamPosition: 'UNKNOWN', championId: 200 })
+
+    // 加权后：50 + 2 = 52；敌方无画像 → 原值
+    expect(scores.value.mine.score).toBe(52.0)
+    expect(scores.value.mine.playerAdjusted).toBe(true)
+    expect(scores.value.enemy.score).toBe(50.0)
+    expect(scores.value.enemy.playerAdjusted).toBe(false)
+  })
+
+  it('画像拉取失败/无 puuid 的玩家 → 纯 meta 出分，不阻塞、不抛错', async () => {
+    const session = reactive(
+      makeSession([
+        { id: 0, players: [{ id: 100, pickState: 'locked', puuid: '' }] },
+        { id: 1, players: [] }
+      ])
+    )
+    mockedGetChampionMeta.mockResolvedValue(meta(100, 0.545, 1))
+
+    const { scores, loading } = useLineupScore(session, 'ranked', {
+      includePlayerProfiles: true
+    })
+    await flush()
+
+    expect(mockedFetchBatchProfiles).toHaveBeenCalledWith([]) // 无 puuid 全部跳过
+    expect(scores.value.mine.score).toBe(54.5)
+    expect(scores.value.mine.playerAdjusted).toBe(false)
+    expect(loading.value).toBe(false)
+  })
+
+  it('includePlayerProfiles 缺省 → 不拉画像，行为与旧版一致', async () => {
+    const session = reactive(
+      makeSession([
+        { id: 0, players: [{ id: 100, pickState: 'locked', puuid: 'p1' }] },
+        { id: 1, players: [] }
+      ])
+    )
+    mockedGetChampionMeta.mockResolvedValue(meta(100, 0.5, 1))
+
+    const { scores } = useLineupScore(session)
+    await flush()
+
+    expect(mockedFetchBatchProfiles).not.toHaveBeenCalled()
+    expect(scores.value.mine.score).toBe(50.0)
   })
 })

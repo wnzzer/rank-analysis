@@ -94,8 +94,15 @@
                       tabindex="0"
                       @click="searchSummoner(`${player.gameName}#${player.tagLine}`)"
                       @keydown.enter="searchSummoner(`${player.gameName}#${player.tagLine}`)"
-                      >{{ player.displayName }}</span
                     >
+                      <PlayerProfilePopover
+                        :puuid="player.puuid"
+                        :name="player.displayName"
+                        :champion-id="player.championId"
+                      >
+                        {{ player.displayName }}
+                      </PlayerProfilePopover>
+                    </span>
                     <span v-else class="match-detail-player-display">{{ player.displayName }}</span>
                     <n-button
                       text
@@ -363,6 +370,7 @@ import type { ParticipantStats } from '@renderer/types/domain/match'
 import AssetTooltipContent from '../AssetTooltipContent.vue'
 import LazyImg from '@renderer/components/common/LazyImg.vue'
 import PlayerNoteBadge from '@renderer/components/common/PlayerNoteBadge.vue'
+import PlayerProfilePopover from '@renderer/components/common/PlayerProfilePopover.vue'
 import { deathsColor, kdaColor } from '@renderer/utils/colors'
 import { formatCompactNumber } from '@renderer/utils/format'
 import { augmentRarityClass } from '@renderer/utils/augment'

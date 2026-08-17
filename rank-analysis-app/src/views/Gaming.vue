@@ -211,6 +211,12 @@
           :display-secs="bp.displaySecs.value"
           @save-rule="handleSaveRule"
         />
+
+        <!-- 双方阵容强度对比条：锁定英雄 ≥1 即出现，数据不足时整块隐藏 -->
+        <TeamStrengthBar
+          :mine="lineupScores.scores.value.mine"
+          :enemy="lineupScores.scores.value.enemy"
+        />
       </div>
 
       <div class="gaming-grid" :class="{ 'gaming-grid-multi': sessionData.isMultiTeam }">
@@ -261,6 +267,7 @@ import LoadingComponent from '@renderer/components/LoadingComponent.vue'
 import SubteamCard from '@renderer/components/gaming/SubteamCard.vue'
 import BestPicksPanel from '@renderer/components/gaming/BestPicksPanel.vue'
 import BpDecisionBar from '@renderer/components/gaming/BpDecisionBar.vue'
+import TeamStrengthBar from '@renderer/components/gaming/TeamStrengthBar.vue'
 import { useGamingAIAnalysis } from '@renderer/composables/useGamingAIAnalysis'
 import { useLiveAIAnalysis } from '@renderer/composables/useLiveAIAnalysis'
 import { renderAnalysisReport } from '@renderer/services/ai/matchDetail/renderReport'
@@ -558,7 +565,9 @@ let hasShownAITip = false
  * 阵容强度分（useLineupScore 按已锁定英雄聚合 OP.GG meta）。AI 只做解释层——
  * 引用这些数字，不得改写。
  */
-const lineupScores = useLineupScore(sessionData, opggMode)
+const lineupScores = useLineupScore(sessionData, opggMode, {
+  includePlayerProfiles: true
+})
 const ai = useGamingAIAnalysis(sessionData, opggMode, {
   champSelectExtras: () => ({
     bpDecision: bp.decision.value,

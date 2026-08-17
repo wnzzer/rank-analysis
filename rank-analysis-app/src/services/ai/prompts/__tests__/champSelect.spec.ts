@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+﻿import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { buildChampSelectPrompt } from '../champSelect'
 import { findCounterHints } from '@renderer/services/opgg'
 import { getChampionPatchNote } from '@renderer/services/patchNotes'
@@ -415,8 +415,8 @@ describe('buildChampSelectPrompt extras（D-P2 确定性事实注入）', () => 
   it('注入阵容强度：双方分数 + 覆盖度 + 最好 T 级', async () => {
     const prompt = await buildChampSelectPrompt(makeSessionData({}), 'ranked', {
       lineup: {
-        mine: { score: 53.3, covered: 3, total: 5, bestTier: 1 },
-        enemy: { score: null, covered: 0, total: 5, bestTier: null }
+        mine: { score: 53.3, covered: 3, total: 5, bestTier: 1, playerAdjusted: false },
+        enemy: { score: null, covered: 0, total: 5, bestTier: null, playerAdjusted: false }
       }
     })
     expect(prompt).toContain('【阵容强度（确定性计算，只可引用）】')
@@ -427,8 +427,8 @@ describe('buildChampSelectPrompt extras（D-P2 确定性事实注入）', () => 
   it('双方均无数据的阵容强度不写小节（宁缺毋滥）', async () => {
     const prompt = await buildChampSelectPrompt(makeSessionData({}), 'ranked', {
       lineup: {
-        mine: { score: null, covered: 0, total: 5, bestTier: null },
-        enemy: { score: null, covered: 0, total: 5, bestTier: null }
+        mine: { score: null, covered: 0, total: 5, bestTier: null, playerAdjusted: false },
+        enemy: { score: null, covered: 0, total: 5, bestTier: null, playerAdjusted: false }
       }
     })
     expect(prompt).not.toContain('【阵容强度')
@@ -451,8 +451,8 @@ describe('buildChampSelectPrompt extras（D-P2 确定性事实注入）', () => 
         user_overridden: false
       },
       lineup: {
-        mine: { score: 53.3, covered: 3, total: 5, bestTier: 1 },
-        enemy: { score: 55.0, covered: 2, total: 5, bestTier: 2 }
+        mine: { score: 53.3, covered: 3, total: 5, bestTier: 1, playerAdjusted: false },
+        enemy: { score: 55.0, covered: 2, total: 5, bestTier: 2, playerAdjusted: false }
       }
     })
     expect(prompt).toContain('禁止给出与之冲突的 ban/pick 目标')

@@ -14,7 +14,15 @@ import { buildNoteBrief } from './noteBrief'
 import type { RecentPlayerProfile, TeamPosition } from './types'
 
 const CACHE_TTL_MS = 10 * 60 * 1000
+/**
+ * 缓存 key = `puuid:championId`——profile 的 currentChampionMastery 依赖请求时的
+ * 当前英雄（championId），选人期玩家换英雄锁定后旧 mastery 必须失效。
+ */
 const CACHE = new Map<string, { profile: RecentPlayerProfile; expireAt: number }>()
+
+function cacheKey(req: ProfileRequest): string {
+  return `${req.puuid}:${req.championId}`
+}
 
 interface RawHistoryResponse {
   games?: { games?: RawMatch[] }
@@ -55,7 +63,7 @@ export async function fetchBatchProfiles(requests: ProfileRequest[]): Promise<Pr
   const toFetch: ProfileRequest[] = []
   const now = Date.now()
   for (const req of requests) {
-    const cached = CACHE.get(req.puuid)
+    const cached = CACHE.get(cacheKey(req))
     if (cached && cached.expireAt > now) {
       result.set(req.puuid, cached.profile)
     } else {
@@ -71,7 +79,7 @@ export async function fetchBatchProfiles(requests: ProfileRequest[]): Promise<Pr
     const profile = fetched[i]
     result.set(req.puuid, profile)
     if (profile !== null) {
-      CACHE.set(req.puuid, { profile, expireAt: now + CACHE_TTL_MS })
+      CACHE.set(cacheKey(req), { profile, expireAt: now + CACHE_TTL_MS })
     }
   }
 
@@ -143,4 +151,30 @@ function rawMatchToRecentGame(m: RawMatch, puuid: string): RecentGameRaw | null 
 /** Test-only: clears the LRU cache. */
 export function __resetCacheForTests(): void {
   CACHE.clear()
+}
+
+/**
+ * 单玩家画像查询（hover 画像卡用）：走批量链路的 LRU 缓存 + 备注注入。
+ *
+ * 与批量入口的差异：上下文（本局位置/英雄）可缺省——hover 场景不要求
+ * 知道「他这场打什么位置」，此时位置分布照常聚合，但补位判定不生效。
+ *
+ * @param query - puuid 必填；teamPosition/championId 缺省时按「无上下文」处理
+ * @returns 画像（含手动备注注入）；拉取失败/无数据返回 null
+ */
+export async function fetchPlayerProfile(query: {
+  puuid: string
+  teamPosition?: TeamPosition
+  championId?: number
+}): Promise<RecentPlayerProfile | null> {
+  const req: ProfileRequest = {
+    puuid: query.puuid,
+    teamPosition: query.teamPosition ?? 'UNKNOWN',
+    championId: query.championId ?? 0
+  }
+  const map = await fetchBatchProfiles([req])
+  const profile = map.get(query.puuid) ?? null
+  if (profile === null) return null
+  const withNotes = await injectNoteBriefs(new Map([[query.puuid, profile]]))
+  return withNotes.get(query.puuid) ?? profile
 }

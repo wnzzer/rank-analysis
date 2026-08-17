@@ -134,6 +134,24 @@ describe('buildRecentProfile', () => {
       expect(profile.isOffRole).toBe(false)
       expect(profile.offRoleSeverity).toBe('mild')
     })
+    it('无位置上下文（hover 场景 UNKNOWN）不算补位', () => {
+      const games: RecentGameRaw[] = [
+        ...Array(2)
+          .fill(0)
+          .map(() => game({ teamPosition: 'TOP', championId: 86, win: true })),
+        ...Array(18)
+          .fill(0)
+          .map(() => game({ teamPosition: 'JUNGLE', championId: 64, win: true }))
+      ]
+      const profile = buildRecentProfile({
+        currentTeamPosition: 'UNKNOWN',
+        currentChampionId: 0,
+        recentGames: games
+      })
+      expect(profile.isOffRole).toBe(false)
+      expect(profile.offRoleSeverity).toBe('none')
+      expect(profile.currentLanePlayedRatio).toBe(0)
+    })
   })
 
   describe('currentChampionMastery', () => {
