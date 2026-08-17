@@ -93,8 +93,17 @@ jobs:
 
       # macos-latest runner 本身即 Apple Silicon，原生构建就是 aarch64，无需 --target
       # （指定 --target 会把产物路径改成 target/<triple>/release/，反而要多改一处路径）。
-      - name: 🔨 Build Tauri App (dmg, ad-hoc signed)
-        run: npm run tauri build -- --bundles dmg
+      #
+      # --bundles 必须同时含 app：Tauri 的 macOS updater 消费的是 .app.tar.gz（由 app
+      # bundle 派生），不是 dmg——dmg 只是给首次安装用的磁盘镜像，不是 gzip 格式。
+      # 只出 dmg 会导致 tauri build 压根不产出 .app.tar.gz/.sig，此前的 fallback（对 dmg
+      # 本身签名）签出的签名/文件类型都是错的，客户端更新时对着 dmg 解 gzip 直接报
+      # "invalid gzip header"（2026-08-17 排查确认）。
+      # createUpdaterArtifacts 必须放在 tauri.conf.json 的 bundle 顶层（不是 plugins.updater
+      # 里）才会被 bundler 读到——放错位置时这个开关等效于 false，构建不会报错但静默
+      # 不产出 updater 产物，非常隐蔽。
+      - name: 🔨 Build Tauri App (app + dmg, ad-hoc signed)
+        run: npm run tauri build -- --bundles app,dmg
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_KEY_PASSWORD }}
@@ -103,34 +112,50 @@ jobs:
           # 选人期混淆 puuid 还原 key；未配置时该功能自动关闭（见 lcu/util/uuid.rs）
           PUUID_KEY: ${{ secrets.PUUID_KEY }}
 
-      - name: 📝 Rename dmg & generate updater signature
+      - name: 📝 Rename macOS assets (dmg for install, app.tar.gz for updater)
         id: prepare_assets
         shell: bash
         env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_KEY_PASSWORD }}
           CLEAN: ${{ steps.get_version.outputs.clean_version }}
         run: |
           set -euo pipefail
           DMG_DIR="src-tauri/target/release/bundle/dmg"
-          SRC=$(find "$DMG_DIR" -maxdepth 1 -name '*.dmg' | head -1)
-          if [ -z "$SRC" ]; then
+          DMG_SRC=$(find "$DMG_DIR" -maxdepth 1 -name '*.dmg' | head -1)
+          if [ -z "$DMG_SRC" ]; then
             echo "::error::No .dmg produced under $DMG_DIR"
             exit 1
           fi
-          DEST="$DMG_DIR/rank-analysis-${CLEAN}-macos-aarch64.dmg"
-          mv "$SRC" "$DEST"
-          # dmg 目录不会自动产出 updater 用的 minisign .sig，显式签一次
-          npx tauri signer sign "$DEST"
-          ls -la "$DMG_DIR"
+          mv "$DMG_SRC" "$DMG_DIR/rank-analysis-${CLEAN}-macos-aarch64.dmg"
+
+          # updater 真正消费的产物：createUpdaterArtifacts=true 时 tauri build 会在 macos/
+          # 目录下自动生成 <App>.app.tar.gz 及其 .sig（用 TAURI_SIGNING_PRIVATE_KEY 签），
+          # 无需再手动调用 tauri signer sign。
+          MACOS_DIR="src-tauri/target/release/bundle/macos"
+          TARGZ_SRC=$(find "$MACOS_DIR" -maxdepth 1 -name '*.app.tar.gz' | head -1)
+          if [ -z "$TARGZ_SRC" ]; then
+            echo "::error::No .app.tar.gz produced under $MACOS_DIR — check bundle.createUpdaterArtifacts in tauri.conf.json"
+            exit 1
+          fi
+          if [ ! -f "$TARGZ_SRC.sig" ]; then
+            echo "::error::No .sig found next to $TARGZ_SRC"
+            exit 1
+          fi
+          mv "$TARGZ_SRC" "$MACOS_DIR/rank-analysis-${CLEAN}-macos-aarch64.app.tar.gz"
+          mv "$TARGZ_SRC.sig" "$MACOS_DIR/rank-analysis-${CLEAN}-macos-aarch64.app.tar.gz.sig"
+
+          # 汇总成一个扁平目录再上传：dmg/ 和 macos/ 两个源目录混在一起上传会让
+          # upload-artifact 按最小公共父目录保留子目录结构，破坏下游按平铺文件名读取的假设。
+          mkdir -p macos-out
+          cp "$DMG_DIR"/rank-analysis-*.dmg macos-out/
+          cp "$MACOS_DIR"/rank-analysis-*.app.tar.gz macos-out/
+          cp "$MACOS_DIR"/rank-analysis-*.app.tar.gz.sig macos-out/
+          ls -la macos-out
 
       - name: ⬆️ Upload macOS artifacts
         uses: actions/upload-artifact@v4
         with:
           name: macos-dmg
-          path: |
-            rank-analysis-app/src-tauri/target/release/bundle/dmg/*.dmg
-            rank-analysis-app/src-tauri/target/release/bundle/dmg/*.sig
+          path: rank-analysis-app/macos-out/*
           if-no-files-found: error
           retention-days: 7
 
@@ -384,7 +409,7 @@ jobs:
               Set-Content -Path RELEASE_BODY.md -Value $changelog
           }
 
-      # --- 取回 macOS 产物（build-macos 任务的 dmg + .sig）---
+      # --- 取回 macOS 产物（build-macos 任务的 dmg + app.tar.gz + .sig，扁平目录）---
       # build-macos 是 continue-on-error：它失败时这里也拿不到产物，故本步骤同样容错。
       # 后续 latest.json 会据 macos-dist 目录是否有内容决定要不要写 darwin 条目。
       - name: 📥 Download macOS artifacts
@@ -428,26 +453,29 @@ jobs:
                 console.warn("WARNING: Signature file missing or empty.");
             }
             
-            // macOS 条目：仅当 build-macos 成功且产物齐全（dmg + 同名 .sig）时才写入。
+            // macOS 条目：仅当 build-macos 成功且产物齐全（app.tar.gz + 同名 .sig）时才写入。
             // 缺任一则整个 darwin 条目省略——宁可 mac 端暂不推送更新，也不能写出
             // 签名为空的条目（updater 会因验签失败而彻底卡住，比没有条目更糟）。
+            // 注意：updater 用的必须是 .app.tar.gz，不能是 .dmg——dmg 不是 gzip 格式，
+            // 客户端更新时会报 "invalid gzip header"（2026-08-17 排查确认）。dmg 仅用于
+            // 首次手动安装，单独随 release 附件分发，不进 latest.json。
             const macDir = "macos-dist";
             let macPlatform = {};
             try {
                 if (fs.existsSync(macDir)) {
                     const files = fs.readdirSync(macDir);
-                    const dmg = files.find(f => f.endsWith(".dmg"));
-                    const sig = dmg && files.find(f => f === `${dmg}.sig`);
-                    if (dmg && sig) {
+                    const targz = files.find(f => f.endsWith(".app.tar.gz"));
+                    const sig = targz && files.find(f => f === `${targz}.sig`);
+                    if (targz && sig) {
                         const macSignature = fs.readFileSync(path.join(macDir, sig), "utf8").trim();
                         if (macSignature) {
                             macPlatform = {
                                 "darwin-aarch64": {
                                     signature: macSignature,
-                                    url: `https://github.com/wnzzer/rank-analysis/releases/download/${version}/${dmg}`
+                                    url: `https://github.com/wnzzer/rank-analysis/releases/download/${version}/${targz}`
                                 }
                             };
-                            console.log(`macOS entry added: ${dmg}`);
+                            console.log(`macOS entry added: ${targz}`);
                         }
                     }
                 }
@@ -491,6 +519,7 @@ jobs:
             ${{ steps.prepare_assets.outputs.setup_path }}
             ${{ steps.prepare_assets.outputs.portable_path }}
             rank-analysis-app/macos-dist/*.dmg
+            rank-analysis-app/macos-dist/*.app.tar.gz
             rank-analysis-app/latest.json
           draft: false
           prerelease: false
