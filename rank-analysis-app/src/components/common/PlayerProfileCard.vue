@@ -143,22 +143,31 @@ const profile = ref<RecentPlayerProfile | null>(null)
 const loading = ref(true)
 const error = ref(false)
 
+/**
+ * 请求序号竞态保护：hover 快速滑过多个玩家名时，慢的旧请求结果不得
+ * 覆盖新玩家（watcher 重新执行时丢弃过期 resolve）。
+ */
+let requestSeq = 0
 watchEffect(async () => {
   if (!props.puuid) return
+  const seq = ++requestSeq
   loading.value = true
   error.value = false
   try {
-    profile.value = await fetchPlayerProfile({
+    const p = await fetchPlayerProfile({
       puuid: props.puuid,
       championId: props.championId,
       region: props.region,
       name: props.name
     })
+    if (seq !== requestSeq) return
+    profile.value = p
   } catch {
+    if (seq !== requestSeq) return
     error.value = true
     profile.value = null
   } finally {
-    loading.value = false
+    if (seq === requestSeq) loading.value = false
   }
 })
 

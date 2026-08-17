@@ -4,6 +4,7 @@
     trigger="hover"
     placement="right"
     :delay="250"
+    :flip="true"
     :style="{ padding: '0', background: 'var(--bg-elevated)' }"
   >
     <template #trigger>
@@ -29,6 +30,7 @@
  * - region 非空（跨区战绩页等 SGP 来源场景）时画像卡启用 SGP 战绩兜底
  */
 import PlayerProfileCard from '@renderer/components/common/PlayerProfileCard.vue'
+import { NPopover } from 'naive-ui'
 import { computed } from 'vue'
 
 const props = withDefaults(

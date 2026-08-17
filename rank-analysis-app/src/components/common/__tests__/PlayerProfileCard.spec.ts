@@ -85,4 +85,40 @@ describe('PlayerProfileCard', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('暂无近期战绩数据')
   })
+
+  it('竞态：慢的旧请求不得覆盖新玩家画像（快速滑过两个玩家名）', async () => {
+    let resolveA!: (v: RecentPlayerProfile | null) => void
+    vi.mocked(fetchPlayerProfile)
+      .mockImplementationOnce(() => new Promise<RecentPlayerProfile | null>(r => (resolveA = r)))
+      .mockResolvedValueOnce({ ...PROFILE, recentWinRate: 0.4 })
+
+    const wrapper = mount(PlayerProfileCard, { props: { puuid: 'pA' } })
+    // 立刻滑到下一个玩家：触发第二次请求
+    await wrapper.setProps({ puuid: 'pB' })
+    await flushPromises()
+    // B 的快请求先返回（胜率 40%）
+    expect(wrapper.text()).toContain('40%')
+
+    // A 的慢请求迟到
+    resolveA(PROFILE)
+    await flushPromises()
+    // 仍显示 B 的胜率，A 的过期结果被丢弃
+    expect(wrapper.text()).toContain('40%')
+    expect(wrapper.text()).not.toContain('60%')
+    expect(vi.mocked(fetchPlayerProfile)).toHaveBeenCalledTimes(2)
+    expect(vi.mocked(fetchPlayerProfile).mock.calls[1][0]).toMatchObject({ puuid: 'pB' })
+  })
+
+  it('region + name 透传给 fetchPlayerProfile（SGP 兜底）', async () => {
+    mount(PlayerProfileCard, {
+      props: { puuid: 'p1', name: '跨区玩家#123', championId: 64, region: 'HN10' }
+    })
+    await flushPromises()
+    expect(vi.mocked(fetchPlayerProfile).mock.calls[0][0]).toMatchObject({
+      puuid: 'p1',
+      name: '跨区玩家#123',
+      championId: 64,
+      region: 'HN10'
+    })
+  })
 })
