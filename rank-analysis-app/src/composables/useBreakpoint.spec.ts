@@ -56,4 +56,29 @@ describe('useBreakpoint', () => {
     expect(result.isMobile.value).toBe(true)
     unmount()
   })
+
+  it('reports compact when window < 1064 (left drawer breakpoint)', () => {
+    setWidth(1000)
+    const { result, unmount } = withSetup(() => useBreakpoint())
+    expect(result.isCompact.value).toBe(true)
+    expect(result.isDesktop.value).toBe(true)
+    unmount()
+  })
+
+  it('reports non-compact when window >= 1064', () => {
+    setWidth(1280)
+    const { result, unmount } = withSetup(() => useBreakpoint())
+    expect(result.isCompact.value).toBe(false)
+    unmount()
+  })
+
+  it('reacts to resize across the compact breakpoint', async () => {
+    setWidth(1280)
+    const { result, unmount } = withSetup(() => useBreakpoint())
+    expect(result.isCompact.value).toBe(false)
+    setWidth(900)
+    await nextTick()
+    expect(result.isCompact.value).toBe(true)
+    unmount()
+  })
 })

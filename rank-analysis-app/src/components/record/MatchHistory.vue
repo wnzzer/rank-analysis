@@ -1,7 +1,7 @@
 <template>
   <div class="ratio-container">
     <n-flex vertical class="content-wrapper match-history-wrap">
-      <n-flex class="match-history-toolbar" align="center" :size="8" :wrap="false">
+      <n-flex class="match-history-toolbar" align="center" :size="8" :wrap="true">
         <n-select
           v-model:value="filterQueueId"
           placeholder="按模式筛选"
@@ -70,6 +70,41 @@
         @select-game="selectTrendGame"
       />
 
+      <!-- 顶部浮动分页：滚动列表中始终可见（Akari 式），sticky top 固定于列表上方 -->
+      <div class="pagination">
+        <n-pagination>
+          <template #prev>
+            <n-button
+              size="tiny"
+              :disabled="page == 1 || isRequestingMatchHostory"
+              @click="prevPage"
+            >
+              <template #icon>
+                <n-icon>
+                  <ArrowBack></ArrowBack>
+                </n-icon>
+              </template>
+            </n-button>
+          </template>
+          <template #label>
+            <span>{{ page }}/{{ pageCount }}</span>
+          </template>
+          <template #next>
+            <n-button
+              size="tiny"
+              @click="nextPage"
+              :disabled="noMoreMatches || isRequestingMatchHostory"
+            >
+              <template #icon>
+                <n-icon>
+                  <ArrowForward></ArrowForward>
+                </n-icon>
+              </template>
+            </n-button>
+          </template>
+        </n-pagination>
+      </div>
+
       <template v-if="isRequestingMatchHostory && !matchHistory">
         <div class="match-history-list">
           <RecordCardSkeleton v-for="i in 10" :key="`skel-${i}`" />
@@ -117,40 +152,6 @@
           </Transition>
         </div>
       </TransitionGroup>
-
-      <div class="pagination">
-        <n-pagination>
-          <template #prev>
-            <n-button
-              size="tiny"
-              :disabled="page == 1 || isRequestingMatchHostory"
-              @click="prevPage"
-            >
-              <template #icon>
-                <n-icon>
-                  <ArrowBack></ArrowBack>
-                </n-icon>
-              </template>
-            </n-button>
-          </template>
-          <template #label>
-            <span>{{ page }}/{{ pageCount }}</span>
-          </template>
-          <template #next>
-            <n-button
-              size="tiny"
-              @click="nextPage"
-              :disabled="noMoreMatches || isRequestingMatchHostory"
-            >
-              <template #icon>
-                <n-icon>
-                  <ArrowForward></ArrowForward>
-                </n-icon>
-              </template>
-            </n-button>
-          </template>
-        </n-pagination>
-      </div>
     </n-flex>
   </div>
 </template>
@@ -166,6 +167,7 @@ import { useRoute } from 'vue-router'
 import { renderSingleSelectTag, renderLabel, filterChampionFunc } from '../composition'
 import { modeOptions, initModeOptions } from './composition'
 import { invoke } from '@tauri-apps/api/core'
+import { getConfigByIpc } from '@renderer/services/ipc'
 import { getGameById } from '@renderer/services/gameById'
 import {
   getSgpMatchHistoryByName,
@@ -188,6 +190,8 @@ import {
   type MatchFilterState
 } from './matchFilters'
 import { aggregateChampionPool, type ChampionPoolEntry } from './championPool'
+import { computePageSize, DEFAULT_PAGE_SIZE, type MatchPageMode } from './pageSize'
+import { CONFIG_KEYS } from '@renderer/services/configKeys'
 
 /** 英雄池联动：hover 行卡时把当前英雄 id 上抛给父级（左栏 HeroPool 高亮/展开） */
 const emit = defineEmits<{
@@ -280,14 +284,23 @@ const loadingBar = useLoadingBar()
 const isRequestingMatchHostory = ref(false)
 const loadError = ref(false)
 
-/** 客户端分页：过滤后切片，每页 10 条（50 场窗口 = 最多 5 页） */
+/** 客户端分页：过滤后切片；每页条数由设置决定（auto=按窗口高度动态 / fixed=手动固定，默认 10） */
 const page = ref(1)
-const PAGE_SIZE = 10
+const pageMode = ref<MatchPageMode>('fixed')
+const fixedPageSize = ref(DEFAULT_PAGE_SIZE)
+/** 可视高度：auto 模式动态条数的输入（resize 时更新） */
+const viewportHeight = ref(typeof window !== 'undefined' ? window.innerHeight : 800)
+/** 每页条数：auto 模式下随窗口高度变化，触发分页切片自动重算 */
+const PAGE_SIZE = computed(() =>
+  computePageSize(viewportHeight.value, pageMode.value, fixedPageSize.value)
+)
 
 const filteredGames = computed(() => filterMatches(allGames.value, activeFilter.value))
-const pageCount = computed(() => Math.max(1, Math.ceil(filteredGames.value.length / PAGE_SIZE)))
+const pageCount = computed(() =>
+  Math.max(1, Math.ceil(filteredGames.value.length / PAGE_SIZE.value))
+)
 const games = computed(() =>
-  filteredGames.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE)
+  filteredGames.value.slice((page.value - 1) * PAGE_SIZE.value, page.value * PAGE_SIZE.value)
 )
 
 /** 已到最后一页（按过滤后的命中总数判断） */
@@ -374,7 +387,7 @@ async function focusGame(gameId: number): Promise<void> {
     emit('focus-handled')
     return
   }
-  page.value = Math.floor(idx / PAGE_SIZE) + 1
+  page.value = Math.floor(idx / PAGE_SIZE.value) + 1
   expandedGameIds.value.add(gameId)
   expandedGameIds.value = new Set(expandedGameIds.value)
   nextTick(() => {
@@ -599,6 +612,33 @@ const prevPage = () => {
 }
 
 /**
+ * 加载每页条数设置（mode + fixed 条数），失败时保持默认（fixed 10）
+ */
+async function loadPageSizeConfig() {
+  try {
+    const mode = await getConfigByIpc<MatchPageMode>(CONFIG_KEYS.matchPageMode)
+    if (mode === 'auto' || mode === 'fixed') pageMode.value = mode
+  } catch (err) {
+    console.error('[MatchHistory] load page mode failed', err)
+  }
+  try {
+    const size = await getConfigByIpc<number>(CONFIG_KEYS.matchPageSize)
+    if (typeof size === 'number' && size >= 1) fixedPageSize.value = size
+  } catch (err) {
+    console.error('[MatchHistory] load page size failed', err)
+  }
+  if (pageMode.value === 'auto') {
+    viewportHeight.value = window.innerHeight
+    window.addEventListener('resize', onViewportResize)
+  }
+}
+
+/** auto 模式跟随窗口高度变化，动态调整每页条数（切片随 PAGE_SIZE 重算） */
+function onViewportResize() {
+  viewportHeight.value = window.innerHeight
+}
+
+/**
  * 趋势格点击：目标局在当前页列表 → 平滑滚动并闪烁高亮；
  * 不在当前页（更早的对局）→ 翻到所在页并就地展开详情，待渲染后回滚定位。
  */
@@ -616,7 +656,7 @@ function selectTrendGame(gameId: number) {
   if (!game) return
   const idx = filteredGames.value.findIndex(g => g.gameId === gameId)
   if (idx < 0) return
-  page.value = Math.floor(idx / PAGE_SIZE) + 1
+  page.value = Math.floor(idx / PAGE_SIZE.value) + 1
   expandedGameIds.value.add(gameId)
   expandedGameIds.value = new Set(expandedGameIds.value)
   nextTick(() => {
@@ -633,11 +673,13 @@ function selectTrendGame(gameId: number) {
 onMounted(async () => {
   await initModeOptions()
   championOptions.value = await invoke<championOption[]>('get_champion_options')
+  await loadPageSizeConfig()
   await getHistoryMatch(name.value)
 })
 
 onBeforeUnmount(() => {
   collectGeneration.value++ // 卸载即作废进行中的全量收集
+  window.removeEventListener('resize', onViewportResize)
 })
 
 // 切换玩家（路由 name 变化）时列表与趋势条一起刷新
@@ -754,6 +796,25 @@ watch(
   width: 100px;
 }
 
+/* 窄窗：筛选器与按钮压缩宽度，配合工具栏 wrap 防止溢出 */
+@media (max-width: 700px) {
+  .filter-select.filter-mode {
+    width: 88px;
+  }
+
+  .filter-select.filter-champion {
+    width: 120px;
+  }
+
+  .filter-select.filter-result {
+    width: 68px;
+  }
+
+  .filter-select.filter-time {
+    width: 88px;
+  }
+}
+
 .toolbar-more {
   margin-left: auto;
   font-size: var(--font-size-2xs);
@@ -822,20 +883,18 @@ watch(
 }
 
 .content-wrapper {
-  aspect-ratio: 1.1 / 1;
   width: 100%;
-  max-width: calc(100vh * 1.1);
-  max-height: calc(100vw / 1.1);
   margin: auto;
   position: relative;
 }
 
 .pagination {
   position: sticky;
-  bottom: 0;
+  top: 0;
+  z-index: 10;
   background: var(--bg-base);
   padding: var(--space-8) 0;
-  margin-top: var(--space-8);
+  margin-bottom: var(--space-8);
 }
 
 .pagination :deep(.n-button) {

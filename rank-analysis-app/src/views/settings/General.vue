@@ -9,6 +9,33 @@
           @update:value="handleUpdate"
         />
       </n-form-item>
+      <n-form-item label="战绩每页条数">
+        <n-space vertical :size="4" style="width: 100%">
+          <n-space align="center" :size="12">
+            <n-select
+              :value="matchPageMode"
+              :options="matchPageModeOptions"
+              style="width: 220px"
+              @update:value="handleMatchPageModeUpdate"
+            />
+            <n-input-number
+              v-if="matchPageMode === 'fixed'"
+              :value="matchPageSize"
+              :min="1"
+              :max="50"
+              style="width: 120px"
+              @update:value="handleMatchPageSizeUpdate"
+            />
+          </n-space>
+          <n-text :depth="3" style="font-size: var(--font-size-sm)">
+            {{
+              matchPageMode === 'auto'
+                ? '按窗口高度自动计算（约 6~15 条），窗口缩放时实时调整。'
+                : '固定每页显示条数（1~50，默认 10）。'
+            }}
+          </n-text>
+        </n-space>
+      </n-form-item>
       <n-form-item label="匿名错误上报">
         <n-space vertical :size="4">
           <n-switch v-model:value="errorReporting" @update:value="handleReportingUpdate" />
@@ -177,6 +204,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import { CONFIG_KEYS } from '@renderer/services/configKeys'
+import { DEFAULT_PAGE_SIZE, type MatchPageMode } from '@renderer/components/record/pageSize'
 import {
   clearAiUsageLog,
   estimateCost,
@@ -212,6 +240,14 @@ const intelRefreshing = ref(false)
 const usageLog = ref<AiUsageEntry[]>([])
 const usageTotal = computed(() => sumAiUsage(usageLog.value))
 const message = useMessage()
+
+/** 战绩每页条数模式（auto=动态 / fixed=固定）与固定条数 */
+const matchPageMode = ref<MatchPageMode>('fixed')
+const matchPageSize = ref(DEFAULT_PAGE_SIZE)
+const matchPageModeOptions = [
+  { label: '按窗口高度自动', value: 'auto' },
+  { label: '固定条数', value: 'fixed' }
+]
 
 const providerOptions = [
   { label: 'DashScope（通义千问，内置 Key 可用）', value: 'dashscope' },
@@ -275,6 +311,22 @@ onMounted(async () => {
     console.error(e)
   }
   try {
+    const mode = await getConfigByIpc<MatchPageMode>(CONFIG_KEYS.matchPageMode)
+    if (mode === 'auto' || mode === 'fixed') {
+      matchPageMode.value = mode
+    }
+  } catch (e) {
+    console.error(e)
+  }
+  try {
+    const size = await getConfigByIpc<number>(CONFIG_KEYS.matchPageSize)
+    if (typeof size === 'number' && size >= 1) {
+      matchPageSize.value = size
+    }
+  } catch (e) {
+    console.error(e)
+  }
+  try {
     const enabled = await getConfigByIpc<boolean>(CONFIG_KEYS.errorReportingEnabled)
     if (typeof enabled === 'boolean') {
       errorReporting.value = enabled
@@ -329,6 +381,27 @@ const handleUpdate = async (value: number | null) => {
   try {
     await putConfigByIpc('matchHistoryCount', value)
     message.success('设置已保存，下次获取数据时生效')
+  } catch (e) {
+    message.error('保存失败')
+  }
+}
+
+const handleMatchPageModeUpdate = async (value: MatchPageMode) => {
+  matchPageMode.value = value
+  try {
+    await putConfigByIpc(CONFIG_KEYS.matchPageMode, value)
+    message.success('设置已保存，战绩页刷新时生效')
+  } catch (e) {
+    message.error('保存失败')
+  }
+}
+
+const handleMatchPageSizeUpdate = async (value: number | null) => {
+  if (!value || value < 1) return
+  matchPageSize.value = value
+  try {
+    await putConfigByIpc(CONFIG_KEYS.matchPageSize, value)
+    message.success('设置已保存，战绩页刷新时生效')
   } catch (e) {
     message.error('保存失败')
   }

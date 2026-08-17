@@ -337,21 +337,24 @@ function openDetail() {
 
 .record-card-grid {
   display: grid;
+  /* 固定列收窄 + 可伸缩列 minmax：窄窗下整体收缩而非溢出（列间 gap 同步收紧） */
   grid-template-columns:
     34px
     54px
     36px
     minmax(56px, 1fr)
-    80px
-    118px
-    64px
-    92px
+    minmax(60px, 80px)
+    minmax(72px, 118px)
+    minmax(48px, 64px)
+    minmax(56px, 92px)
     20px;
   align-items: center;
   justify-content: start;
   gap: var(--space-8);
   height: 100%;
   padding: 0 var(--space-12);
+  min-width: 0;
+  overflow: hidden;
 }
 
 /* 胜负字 */

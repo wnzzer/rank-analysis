@@ -47,5 +47,9 @@ export const CONFIG_KEYS = {
   /** 页面缩放比例（Ctrl+滚轮调节，0.7~1.5；见 composables/useZoom） */
   zoomFactor: 'settings.ui.zoomFactor',
   /** 启动时是否自动检查更新（默认开；关闭后仅影响 header 静默检查，手动检查不受限） */
-  updateCheckEnabled: 'updateCheckEnabled'
+  updateCheckEnabled: 'updateCheckEnabled',
+  /** 战绩列表每页条数模式：auto=按窗口高度动态计算 / fixed=手动固定（见 components/record/pageSize） */
+  matchPageMode: 'record.pageMode',
+  /** 战绩列表 fixed 模式的固定条数（默认 10） */
+  matchPageSize: 'record.pageSize'
 } as const

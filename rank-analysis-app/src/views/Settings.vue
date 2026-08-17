@@ -32,9 +32,10 @@
 </template>
 
 <script setup lang="ts">
-import { h, ref, computed } from 'vue'
+import { h, ref, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { NIcon } from 'naive-ui'
+import { useBreakpoint } from '@renderer/composables/useBreakpoint'
 import {
   FlashOutline,
   // BulbOutline
@@ -50,6 +51,16 @@ const collapsed = ref(false)
 const router = useRouter()
 const route = useRoute()
 const cloudStore = useCloudSyncStore()
+
+/** 窄窗（<1064）自动折叠侧栏，避免 240px 常驻挤压内容区 */
+const { isCompact } = useBreakpoint()
+watch(
+  isCompact,
+  compact => {
+    if (compact) collapsed.value = true
+  },
+  { immediate: true }
+)
 
 const contentStyle = computed(() => ({
   padding: 'var(--space-24)',

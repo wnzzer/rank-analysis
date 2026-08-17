@@ -11,7 +11,8 @@
       :is-cross-region="isCrossRegion"
     />
     <div class="record-main">
-      <aside v-if="!isMobile" class="record-side">
+      <!-- 宽窗（>=1064）：左栏常驻；窄窗：隐藏并改用 NDrawer 抽屉 -->
+      <aside v-if="!isMobile && !isCompact" class="record-side">
         <UserSidePanel
           :rank="rank"
           :solo5v5="solo5v5"
@@ -29,7 +30,47 @@
           @open-game="focusGameId = $event"
         />
       </aside>
-      <main class="record-content">
+      <!-- 窄窗抽屉触发：内容区左上角悬浮按钮（左栏入口） -->
+      <n-button
+        v-if="isCompact"
+        circle
+        quaternary
+        class="record-side-trigger"
+        :title="sideOpen ? '收起侧栏' : '打开侧栏'"
+        @click="sideOpen = !sideOpen"
+      >
+        <template #icon>
+          <n-icon><MenuOutline /></n-icon>
+        </template>
+      </n-button>
+      <n-drawer
+        v-if="isCompact"
+        v-model:show="sideOpen"
+        placement="left"
+        :width="320"
+        :auto-focus="false"
+        :show-mask="false"
+      >
+        <n-drawer-content closable :native-scrollbar="false" class="record-side-drawer">
+          <UserSidePanel
+            :rank="rank"
+            :solo5v5="solo5v5"
+            :flex="flex"
+            :recent-data="recentData"
+            :mode="mode"
+            :is-cross-region="isCrossRegion"
+            :champion-pool="championPool"
+            :hovered-champion="hoveredChampion"
+            :games="games"
+            :my-puuid="summoner.puuid"
+            :active-champion="activeChampion"
+            @mode-change="updateMode"
+            @select-champion="championFilterCmd = $event"
+            @open-game="focusGameId = $event"
+          />
+        </n-drawer-content>
+      </n-drawer>
+      <main :ref="el => bindContentScroll(el)" class="record-content">
         <div class="record-content-inner">
           <MatchHistory
             :focus-game-id="focusGameId"
@@ -44,11 +85,27 @@
           />
         </div>
       </main>
+      <!-- 回到顶部 FAB：内容区滚动超过阈值后显示，点击平滑回顶 -->
+      <Transition name="fab">
+        <n-button
+          v-if="showBackTop"
+          circle
+          class="record-back-top"
+          title="回到顶部"
+          @click="scrollToTop"
+        >
+          <template #icon>
+            <n-icon><ArrowUpOutline /></n-icon>
+          </template>
+        </n-button>
+      </Transition>
     </div>
   </div>
 </template>
 <script lang="ts" setup>
-import { ref } from 'vue'
+import { onBeforeUnmount, ref, watch, type ComponentPublicInstance } from 'vue'
+import { NButton, NIcon, NDrawer, NDrawerContent } from 'naive-ui'
+import { ArrowUpOutline, MenuOutline } from '@vicons/ionicons5'
 import MatchHistory from '../components/record/MatchHistory.vue'
 import PlayerBar from '../components/record/PlayerBar.vue'
 import UserSidePanel from '../components/record/UserSidePanel.vue'
@@ -57,7 +114,40 @@ import type { ChampionPoolEntry } from '../components/record/championPool'
 import { useBreakpoint } from '@renderer/composables/useBreakpoint'
 import { usePlayerRecordData } from '@renderer/composables/usePlayerRecordData'
 
-const { isMobile } = useBreakpoint()
+const { isMobile, isCompact } = useBreakpoint()
+/** 窄窗左栏抽屉开关（进入宽窗时自动关闭，避免跨断点残留） */
+const sideOpen = ref(false)
+
+/** 断点回到宽窗（左栏常驻）时关闭抽屉，避免残留遮罩/状态 */
+watch(isCompact, compact => {
+  if (!compact) sideOpen.value = false
+})
+
+/** 回到顶部 FAB：内容区滚动超过阈值显示，点击平滑回顶 */
+const BACK_TOP_THRESHOLD = 400
+const showBackTop = ref(false)
+const contentEl = ref<HTMLElement | null>(null)
+
+function onContentScroll() {
+  showBackTop.value = (contentEl.value?.scrollTop ?? 0) > BACK_TOP_THRESHOLD
+}
+
+function scrollToTop() {
+  contentEl.value?.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+function bindContentScroll(el: Element | ComponentPublicInstance | null) {
+  const target = el instanceof HTMLElement ? el : null
+  if (contentEl.value === target) return
+  contentEl.value?.removeEventListener('scroll', onContentScroll)
+  contentEl.value = target
+  target?.addEventListener('scroll', onContentScroll)
+  showBackTop.value = (target?.scrollTop ?? 0) > BACK_TOP_THRESHOLD
+}
+
+onBeforeUnmount(() => {
+  contentEl.value?.removeEventListener('scroll', onContentScroll)
+})
 const {
   summoner,
   rank,
@@ -104,6 +194,7 @@ const activeChampion = ref(0)
   flex: 1;
   min-height: 0;
   gap: var(--space-16);
+  position: relative;
 }
 
 /* 左栏：独立滚动 + sticky 聚合内容（长列表滚动时左栏不丢） */
@@ -117,6 +208,72 @@ const activeChampion = ref(0)
 
 .record-side::-webkit-scrollbar {
   display: none;
+}
+
+/* 窄窗左栏抽屉：与常驻左栏同宽、同视觉（glass 卡片列） */
+.record-side-drawer :deep(.n-drawer-body) {
+  padding: var(--space-12);
+}
+
+.record-side-drawer :deep(.n-drawer-content-wrapper) {
+  background: color-mix(in srgb, var(--bg-base) 96%, transparent);
+}
+
+/* 窄窗抽屉触发按钮：内容区左上角悬浮，hover 高亮 */
+.record-side-trigger {
+  position: absolute;
+  top: var(--space-8);
+  left: var(--space-8);
+  z-index: 20;
+  color: var(--text-secondary);
+  background: var(--glass-bg-mid);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-sm), var(--glass-highlight);
+  transition:
+    color var(--dur-fast) var(--ease-expo),
+    border-color var(--dur-fast) var(--ease-expo),
+    transform var(--dur-fast) var(--ease-spring);
+}
+
+.record-side-trigger:hover {
+  color: var(--text-primary);
+  border-color: var(--accent-gold-deep);
+  transform: scale(1.05);
+}
+
+/* 回到顶部 FAB：右下角悬浮，glass 视觉与抽屉触发钮一致 */
+.record-back-top {
+  position: absolute;
+  right: var(--space-8);
+  bottom: var(--space-16);
+  z-index: 30;
+  color: var(--text-secondary);
+  background: var(--glass-bg-mid);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-md), var(--glass-highlight);
+  transition:
+    color var(--dur-fast) var(--ease-expo),
+    border-color var(--dur-fast) var(--ease-expo),
+    transform var(--dur-fast) var(--ease-spring);
+}
+
+.record-back-top:hover {
+  color: var(--text-primary);
+  border-color: var(--accent-gold-deep);
+  transform: translateY(-2px);
+}
+
+.fab-enter-active,
+.fab-leave-active {
+  transition:
+    opacity var(--dur-fast) var(--ease-expo),
+    transform var(--dur-fast) var(--ease-spring);
+}
+
+.fab-enter-from,
+.fab-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
 }
 
 .record-content {

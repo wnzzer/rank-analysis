@@ -263,4 +263,22 @@ const copyName = () => {
 .player-bar-tags {
   flex-shrink: 0;
 }
+
+/* 窄窗：隐藏次要统计（灵活/近20场），保留段位与单双胜率，防止横向溢出 */
+@media (max-width: 900px) {
+  .player-bar-rate:nth-of-type(2),
+  .player-bar-recent {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .player-bar-rank-text {
+    display: none;
+  }
+
+  .player-bar-tags {
+    display: none;
+  }
+}
 </style>
