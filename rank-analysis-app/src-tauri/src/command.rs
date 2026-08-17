@@ -46,6 +46,7 @@ pub mod build_stats;
 pub mod cloud_sync;
 pub mod config;
 pub mod fandom;
+pub mod gank_pattern;
 pub mod info;
 pub mod knowledge;
 pub mod launcher;

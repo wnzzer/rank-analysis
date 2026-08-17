@@ -227,6 +227,10 @@
             {{ hint }}
           </div>
         </div>
+        <!-- 敌方打野节奏（SGP 战绩前 10 分钟击杀分布，确定性计算） -->
+        <div v-if="lineupScores.scores.value.junglePatternLine" class="jungle-pattern">
+          {{ lineupScores.scores.value.junglePatternLine }}
+        </div>
       </div>
 
       <div class="gaming-grid" :class="{ 'gaming-grid-multi': sessionData.isMultiTeam }">
@@ -586,7 +590,10 @@ const ai = useGamingAIAnalysis(sessionData, opggMode, {
       mine: lineupScores.scores.value.mine,
       enemy: lineupScores.scores.value.enemy
     },
-    matchup: lineupScores.scores.value.matchupHints
+    matchup: lineupScores.scores.value.matchupHints,
+    junglePatternLines: lineupScores.scores.value.junglePatternLine
+      ? [lineupScores.scores.value.junglePatternLine]
+      : null
   })
 })
 
@@ -1016,5 +1023,15 @@ onMounted(async () => {
   padding: 1px 8px;
   border-radius: 6px;
   background: var(--glass-bg-mid);
+}
+
+.jungle-pattern {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  padding: 1px 8px;
+  margin-top: 4px;
+  border-radius: 6px;
+  background: var(--glass-bg-mid);
+  border-left: 2px solid var(--accent, rgba(255, 200, 80, 0.6));
 }
 </style>

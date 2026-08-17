@@ -181,6 +181,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             command::fandom::update_fandom_data,
             command::fandom::get_aram_balance,
             command::fandom::get_champion_patch_note,
+            command::gank_pattern::get_jungle_gank_pattern,
             command::opgg::update_opgg_data,
             command::opgg::get_champion_meta,
             command::opgg::get_lane_counters,

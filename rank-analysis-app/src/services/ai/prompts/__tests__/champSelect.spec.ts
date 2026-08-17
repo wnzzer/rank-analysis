@@ -415,8 +415,22 @@ describe('buildChampSelectPrompt extras（D-P2 确定性事实注入）', () => 
   it('注入阵容强度：双方分数 + 覆盖度 + 最好 T 级', async () => {
     const prompt = await buildChampSelectPrompt(makeSessionData({}), 'ranked', {
       lineup: {
-        mine: { score: 53.3, covered: 3, total: 5, bestTier: 1, playerAdjusted: false, breakdown: [] },
-        enemy: { score: null, covered: 0, total: 5, bestTier: null, playerAdjusted: false, breakdown: [] }
+        mine: {
+          score: 53.3,
+          covered: 3,
+          total: 5,
+          bestTier: 1,
+          playerAdjusted: false,
+          breakdown: []
+        },
+        enemy: {
+          score: null,
+          covered: 0,
+          total: 5,
+          bestTier: null,
+          playerAdjusted: false,
+          breakdown: []
+        }
       }
     })
     expect(prompt).toContain('【阵容强度（确定性计算，只可引用）】')
@@ -427,8 +441,22 @@ describe('buildChampSelectPrompt extras（D-P2 确定性事实注入）', () => 
   it('双方均无数据的阵容强度不写小节（宁缺毋滥）', async () => {
     const prompt = await buildChampSelectPrompt(makeSessionData({}), 'ranked', {
       lineup: {
-        mine: { score: null, covered: 0, total: 5, bestTier: null, playerAdjusted: false, breakdown: [] },
-        enemy: { score: null, covered: 0, total: 5, bestTier: null, playerAdjusted: false, breakdown: [] }
+        mine: {
+          score: null,
+          covered: 0,
+          total: 5,
+          bestTier: null,
+          playerAdjusted: false,
+          breakdown: []
+        },
+        enemy: {
+          score: null,
+          covered: 0,
+          total: 5,
+          bestTier: null,
+          playerAdjusted: false,
+          breakdown: []
+        }
       }
     })
     expect(prompt).not.toContain('【阵容强度')
@@ -451,8 +479,22 @@ describe('buildChampSelectPrompt extras（D-P2 确定性事实注入）', () => 
         user_overridden: false
       },
       lineup: {
-        mine: { score: 53.3, covered: 3, total: 5, bestTier: 1, playerAdjusted: false, breakdown: [] },
-        enemy: { score: 55.0, covered: 2, total: 5, bestTier: 2, playerAdjusted: false, breakdown: [] }
+        mine: {
+          score: 53.3,
+          covered: 3,
+          total: 5,
+          bestTier: 1,
+          playerAdjusted: false,
+          breakdown: []
+        },
+        enemy: {
+          score: 55.0,
+          covered: 2,
+          total: 5,
+          bestTier: 2,
+          playerAdjusted: false,
+          breakdown: []
+        }
       }
     })
     expect(prompt).toContain('禁止给出与之冲突的 ban/pick 目标')
@@ -462,8 +504,22 @@ describe('buildChampSelectPrompt extras（D-P2 确定性事实注入）', () => 
   it('注入对位分析：画像均值差提示行随阵容强度一起进 prompt', async () => {
     const prompt = await buildChampSelectPrompt(makeSessionData({}), 'ranked', {
       lineup: {
-        mine: { score: 53.3, covered: 3, total: 5, bestTier: 1, playerAdjusted: false, breakdown: [] },
-        enemy: { score: 55.0, covered: 2, total: 5, bestTier: 2, playerAdjusted: false, breakdown: [] }
+        mine: {
+          score: 53.3,
+          covered: 3,
+          total: 5,
+          bestTier: 1,
+          playerAdjusted: false,
+          breakdown: []
+        },
+        enemy: {
+          score: 55.0,
+          covered: 2,
+          total: 5,
+          bestTier: 2,
+          playerAdjusted: false,
+          breakdown: []
+        }
       },
       matchup: ['对位·打野：我方画像 58% vs 敌方 50%（我方优势 +8%）']
     })
@@ -474,12 +530,46 @@ describe('buildChampSelectPrompt extras（D-P2 确定性事实注入）', () => 
   it('对位分析为空数组时不写小节', async () => {
     const prompt = await buildChampSelectPrompt(makeSessionData({}), 'ranked', {
       lineup: {
-        mine: { score: 53.3, covered: 3, total: 5, bestTier: 1, playerAdjusted: false, breakdown: [] },
-        enemy: { score: null, covered: 0, total: 5, bestTier: null, playerAdjusted: false, breakdown: [] }
+        mine: {
+          score: 53.3,
+          covered: 3,
+          total: 5,
+          bestTier: 1,
+          playerAdjusted: false,
+          breakdown: []
+        },
+        enemy: {
+          score: null,
+          covered: 0,
+          total: 5,
+          bestTier: null,
+          playerAdjusted: false,
+          breakdown: []
+        }
       },
       matchup: []
     })
     expect(prompt).not.toContain('【对位分析')
+  })
+
+  it('注入敌方打野节奏：SGP 战绩击杀分布作为确定性事实块', async () => {
+    const prompt = await buildChampSelectPrompt(makeSessionData({}), 'ranked', {
+      junglePatternLines: ['敌方打野近 8 局前 10 分钟参与击杀 3 次：下路 67%（2次），首杀 4:10']
+    })
+    expect(prompt).toContain('【敌方打野节奏（SGP 战绩确定性计算，历史前 10 分钟击杀分布）】')
+    expect(prompt).toContain('下路 67%（2次）')
+  })
+
+  it('敌方打野节奏为 null/空数组时不写小节', async () => {
+    const a = await buildChampSelectPrompt(makeSessionData({}), 'ranked', {
+      junglePatternLines: null
+    })
+    expect(a).not.toContain('【敌方打野节奏')
+
+    const b = await buildChampSelectPrompt(makeSessionData({}), 'ranked', {
+      junglePatternLines: []
+    })
+    expect(b).not.toContain('【敌方打野节奏')
   })
 
   it('普通模式（无 extras）不出现任何确定性小节与纪律行', async () => {
@@ -488,5 +578,6 @@ describe('buildChampSelectPrompt extras（D-P2 确定性事实注入）', () => 
     expect(prompt).not.toContain('【规则引擎决策】')
     expect(prompt).not.toContain('【阵容强度')
     expect(prompt).not.toContain('【对位分析')
+    expect(prompt).not.toContain('【敌方打野节奏')
   })
 })

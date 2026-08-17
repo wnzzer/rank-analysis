@@ -106,6 +106,8 @@ export interface ChampSelectPromptExtras {
   lineup?: { mine: LineupScore; enemy: LineupScore } | null
   /** 对位分析提示行（computeMatchupHints 输出，随 lineup 一起注入） */
   matchup?: string[] | null
+  /** 敌方打野节奏提示行（formatGankPatternLine 输出，SGP 战绩确定性计算） */
+  junglePatternLines?: string[] | null
 }
 
 /**
@@ -213,6 +215,11 @@ export async function buildChampSelectPrompt(
   }
   if (extras.matchup && extras.matchup.length > 0) {
     factsBlocks.push(`【对位分析（画像均值差，确定性计算）】\n${extras.matchup.join('\n')}`)
+  }
+  if (extras.junglePatternLines && extras.junglePatternLines.length > 0) {
+    factsBlocks.push(
+      `【敌方打野节奏（SGP 战绩确定性计算，历史前 10 分钟击杀分布）】\n${extras.junglePatternLines.join('\n')}`
+    )
   }
   const factsSection =
     factsBlocks.length > 0

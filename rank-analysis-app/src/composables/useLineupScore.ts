@@ -19,6 +19,12 @@ import {
 } from '@renderer/services/lineupScore'
 import { getChampionMeta, type OpggMode } from '@renderer/services/opgg'
 import {
+  fetchJungleGankPattern,
+  aggregateGankPattern,
+  formatGankPatternLine
+} from '@renderer/services/gankPattern'
+import { getCurrentSgpRegion } from '@renderer/services/sgp'
+import {
   fetchBatchProfiles,
   type ProfileRequest
 } from '@renderer/services/ai/shared/recentProfile.batch'
@@ -29,6 +35,8 @@ export interface LineupScores {
   enemy: LineupScore
   /** 对位分析提示行（同分路玩家画像均值差 ≥2%，UI/AI 均可引用） */
   matchupHints: string[]
+  /** 敌方打野节奏提示行（SGP 战绩前 10 分钟击杀分布；无数据为 null，UI 隐藏） */
+  junglePatternLine: string | null
 }
 
 /** 画像加权输入 → 对位分析输入（OP.GG 英雄主分路配对；无画像按 0.5 中性计） */
@@ -96,7 +104,8 @@ export function useLineupScore(
   const scores = ref<LineupScores>({
     mine: EMPTY_LINEUP_SCORE,
     enemy: EMPTY_LINEUP_SCORE,
-    matchupHints: []
+    matchupHints: [],
+    junglePatternLine: null
   })
   const loading = ref(false)
 
@@ -171,12 +180,46 @@ export function useLineupScore(
       scores.value = {
         mine: computeLineupScore(mineInputs),
         enemy: computeLineupScore(enemyInputs),
-        matchupHints
+        matchupHints,
+        junglePatternLine: null
       }
+      void refreshJunglePattern(seq, snapshot, mineInputs, enemyInputs)
     } catch {
       // 取数失败保持上次分数；score 为 null 时下游自动省略整小节。
     } finally {
       if (seq === requestSeq) loading.value = false
+    }
+  }
+
+  /**
+   * 敌方打野节奏（SGP 战绩行为模式）：只分析敌方 JUNGLE 玩家，fire-and-forget。
+   *
+   * 敌方打野在 LCU 无战绩，SGP 是唯一可行源；region 取当前登录大区（选人期敌方
+   * 必与本场同区）。失败/样本不足（Rust 返回 null）静默——行为模式数据缺失时不
+   * 制造噪音，也不阻塞阵容分。
+   */
+  async function refreshJunglePattern(
+    seq: number,
+    snapshot: LockSnapshot,
+    mineInputs: LineupScoreInput[],
+    enemyInputs: LineupScoreInput[]
+  ): Promise<void> {
+    const enemyJungleIdx = enemyInputs.findIndex(i => i.meta?.position?.toUpperCase() === 'JUNGLE')
+    const junglePuuid = enemyJungleIdx >= 0 ? (snapshot.enemy[enemyJungleIdx]?.puuid ?? '') : ''
+    if (!junglePuuid) return
+    try {
+      const region = await getCurrentSgpRegion()
+      if (!region || seq !== requestSeq) return
+      const raw = await fetchJungleGankPattern({ region, puuid: junglePuuid })
+      if (!raw || seq !== requestSeq) return
+      const metaOf = new Map(
+        [...mineInputs, ...enemyInputs].map(i => [i.championId, i.meta?.position])
+      )
+      const summary = aggregateGankPattern(raw, id => metaOf.get(id))
+      if (seq !== requestSeq) return
+      scores.value = { ...scores.value, junglePatternLine: formatGankPatternLine(summary) }
+    } catch {
+      // 静默：旋律分析失败不影响阵容分
     }
   }
 

@@ -23,11 +23,33 @@ vi.mock('@renderer/services/ai/shared/recentProfile.batch', () => ({
   fetchBatchProfiles: vi.fn()
 }))
 
+vi.mock('@renderer/services/gankPattern', () => ({
+  fetchJungleGankPattern: vi.fn(),
+  aggregateGankPattern: (raw: { jungleGames: number; killEvents: unknown[] }) => ({
+    jungleGames: raw.jungleGames,
+    totalKills: raw.killEvents.length,
+    firstKillMs: 250_000,
+    laneDistribution: { BOTTOM: 2, TOP: 1 },
+    topLane: 'BOTTOM' as const,
+    topLaneRatio: 67
+  }),
+  formatGankPatternLine: (s: { jungleGames: number; totalKills: number }) =>
+    `敌方打野近 ${s.jungleGames} 局前 10 分钟参与击杀 ${s.totalKills} 次：下路 67%（2次），首杀 4:10`
+}))
+
+vi.mock('@renderer/services/sgp', () => ({
+  getCurrentSgpRegion: vi.fn()
+}))
+
 import { getChampionMeta } from '@renderer/services/opgg'
 import { fetchBatchProfiles } from '@renderer/services/ai/shared/recentProfile.batch'
+import { fetchJungleGankPattern } from '@renderer/services/gankPattern'
+import { getCurrentSgpRegion } from '@renderer/services/sgp'
 
 const mockedGetChampionMeta = vi.mocked(getChampionMeta)
 const mockedFetchBatchProfiles = vi.mocked(fetchBatchProfiles)
+const mockedFetchJungleGankPattern = vi.mocked(fetchJungleGankPattern)
+const mockedGetCurrentSgpRegion = vi.mocked(getCurrentSgpRegion)
 
 const DEBOUNCE = 300
 
@@ -78,6 +100,8 @@ describe('useLineupScore', () => {
     mockedGetChampionMeta.mockReset()
     mockedFetchBatchProfiles.mockReset()
     mockedFetchBatchProfiles.mockResolvedValue(new Map())
+    mockedFetchJungleGankPattern.mockReset()
+    mockedGetCurrentSgpRegion.mockReset()
     vi.useFakeTimers()
   })
 
@@ -88,6 +112,11 @@ describe('useLineupScore', () => {
   async function flush(): Promise<void> {
     await vi.advanceTimersByTimeAsync(DEBOUNCE + 1)
     await nextTick()
+    // 让 fire-and-forget 的 refreshJunglePattern 异步链（mock 均为 resolved promise，
+    // 每个 await 恢复消耗一轮微任务）在当前用例内跑完，避免跨用例污染 spy 计数
+    for (let i = 0; i < 40; i++) {
+      await Promise.resolve()
+    }
   }
 
   it('无锁定英雄时不发任何请求，分数保持 EMPTY', async () => {
@@ -448,7 +477,7 @@ describe('useLineupScore with player profiles', () => {
       mainPosition: 'JUNGLE',
       currentLanePlayedRatio: 1,
       championDistribution: [],
-  positionChampionDistribution: [],
+      positionChampionDistribution: [],
       currentChampionMastery: null,
       recentWinRate: 0.6,
       recentKda: 3.5,
@@ -609,5 +638,97 @@ describe('useLineupScore with player profiles', () => {
     // 未锁定 → compute 不拉；也不触发预取 → 唯一一次调用是空数组兜底
     expect(mockedFetchBatchProfiles).toHaveBeenCalledTimes(1)
     expect(mockedFetchBatchProfiles.mock.calls[0][0]).toEqual([])
+  })
+
+  it('敌方 JUNGLE 锁定：拉取 SGP 打野节奏并写入 junglePatternLine', async () => {
+    const session = reactive(
+      makeSession([
+        {
+          id: 0,
+          players: [{ id: 100, pickState: 'locked', puuid: 'me-1' }]
+        },
+        {
+          id: 1,
+          players: [{ id: 200, pickState: 'locked', puuid: 'enemy-jg-1' }]
+        }
+      ])
+    )
+    mockedGetChampionMeta.mockImplementation(async (_mode, championId) => {
+      if (championId === 200) return { ...meta(200, 0.5, 2), position: 'jungle' }
+      return meta(championId, 0.5, 2)
+    })
+    mockedGetCurrentSgpRegion.mockResolvedValue('TJ100')
+    mockedFetchJungleGankPattern.mockResolvedValue({
+      analyzedGames: 20,
+      jungleGames: 8,
+      firstKillMs: 250_000,
+      killEvents: [{ timestampMs: 250_000, victimChampionId: 202 }]
+    })
+
+    const { scores } = useLineupScore(session)
+    await flush()
+
+    expect(mockedFetchJungleGankPattern).toHaveBeenCalledWith({
+      region: 'TJ100',
+      puuid: 'enemy-jg-1'
+    })
+    expect(scores.value.junglePatternLine).toContain('参与击杀 1 次')
+    expect(scores.value.junglePatternLine).toContain('下路 67%')
+  })
+
+  it('敌方无 JUNGLE 时不触发打野节奏拉取（静默）', async () => {
+    const session = reactive(
+      makeSession([
+        {
+          id: 0,
+          players: [{ id: 100, pickState: 'locked', puuid: 'me-1' }]
+        },
+        {
+          id: 1,
+          players: [{ id: 200, pickState: 'locked', puuid: 'enemy-mid-1' }]
+        }
+      ])
+    )
+    mockedGetChampionMeta.mockResolvedValue(meta(200, 0.5, 2)) // position 恒为 top
+
+    const { scores } = useLineupScore(session)
+    await flush()
+
+    // 本用例敌方是 mid：不得以敌方打野参数触发拉取。注意用参数过滤而非
+    // not.toHaveBeenCalled()——前一用例 fire-and-forget 链的残余调用可能跨用例
+    // 才落地（fake timers + 微任务时序），spy 计数对跨用例调用不具隔离性。
+    expect(mockedFetchJungleGankPattern).not.toHaveBeenCalledWith({
+      region: 'TJ100',
+      puuid: 'enemy-mid-1'
+    })
+    expect(scores.value.junglePatternLine).toBeNull()
+  })
+
+  it('打野节奏取数失败：静默降级，junglePatternLine 保持 null', async () => {
+    const session = reactive(
+      makeSession([
+        {
+          id: 0,
+          players: [{ id: 100, pickState: 'locked', puuid: 'me-1' }]
+        },
+        {
+          id: 1,
+          players: [{ id: 200, pickState: 'locked', puuid: 'enemy-jg-1' }]
+        }
+      ])
+    )
+    mockedGetChampionMeta.mockImplementation(async (_mode, championId) => {
+      if (championId === 200) return { ...meta(200, 0.5, 2), position: 'jungle' }
+      return meta(championId, 0.5, 2)
+    })
+    mockedGetCurrentSgpRegion.mockResolvedValue('TJ100')
+    mockedFetchJungleGankPattern.mockRejectedValue(new Error('sgp down'))
+
+    const { scores } = useLineupScore(session)
+    await flush()
+
+    expect(scores.value.junglePatternLine).toBeNull()
+    // 阵容分不受影响
+    expect(scores.value.enemy.score).toBe(50)
   })
 })
