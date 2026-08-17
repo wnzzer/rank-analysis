@@ -364,7 +364,8 @@ D3/方向D AI 增强(独立推进,可与 C 并行)
 | P3-1 | 版本窗口过滤 | 以最新对局版本为锚,剔除落后 ≥2 大版本的对局;窗口内 <5 场回退全量(`parseMajorVersion`,LCU/SGP 均带 gameVersion) |
 | P3-2 | 画像卡融合遇见过/备注 | 画像卡新增「遇见过」小节(本机 meet.db 累计/同队胜率/最近时间),查询失败独立降级;备注小节既有 |
 | P3-3 | prompt 注入画像明细 | intelContext 新增【玩家画像】子块:近胜率/主玩/英雄池/备注逐行注入(≤6 行控 token),AI 引用同源事实不重算 |
-| 远期 | 对位分析 | `computeMatchupHints`:按 OP.GG 英雄分路配对(敌方 LCU 无分路),同分路画像收缩胜率均值差 ≥2% 输出提示行(≤3 条,避噪),注入选人 prompt【对位分析】块 + Gaming UI 提示行 |
+| 远期 | 对位分析·强度对比 | `computeMatchupHints`:按 OP.GG 英雄分路配对(敌方 LCU 无分路),同分路画像收缩胜率均值差 ≥2% 输出提示行(≤3 条,避噪),注入选人 prompt【对位分析】块 + Gaming UI 提示行 |
+| 远期 | 对位分析·行为模式 | 补做原版意图「敌方打野 80% 前 10 分钟抓下」:Rust `command/gank_pattern.rs` 走 SGP(敌方 LCU 无战绩,SGP 是唯一可行源;按 puuid 或 name#TAG),近 20 局筛打野局(摘要 timeline.lane,<3 局样本不足返回 None),逐局 DETAILS 帧事件(CHAMPION_KILL 且 killer/助攻含目标玩家、前 10 分钟窗口,复用 SGP_DETAIL_CACHE),产出击杀时间+ victim 英雄;前端 `gankPattern.ts` 按 OP.GG 主分路归路(辅助并入下路),占比 ≥60% 且 ≥2 次才标倾向,`formatGankPatternLine` 一行文案(分布+首杀),注入 prompt【敌方打野节奏】块 + Gaming UI 左侧提示行 |
 
 全量门禁:131 文件 / 1317 用例绿,`vue-tsc --noEmit` 0 错误。(注:全量 vitest 偶发 1 个并发时序 flake——BpSuggestModal/useLiveAIAnalysis 的 fake-timer 用例,单跑均绿,重跑全量即过。)
 
