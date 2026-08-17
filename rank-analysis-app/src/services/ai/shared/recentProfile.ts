@@ -14,6 +14,8 @@ export interface RecentGameRaw {
   assists: number
   /** 队列 id（420 单双排 / 440 灵活排位；0 = 未知）——画像按排位过滤的依据 */
   queueId: number
+  /** 对局游戏版本（如 "25.14.0.877"；未知时缺省）——版本窗口过滤的依据 */
+  gameVersion?: string
 }
 
 export interface BuildRecentProfileInput {
@@ -58,6 +60,36 @@ function weightedRatio(games: RecentGameRaw[], pick: (g: RecentGameRaw) => numbe
   return total > 0 ? hits / total : 0
 }
 
+/**
+ * 版本窗口：允许对局版本比列表最新版本落后的大版本数。
+ * 版本漂移的对局（重做/回调后的旧数据）对当前强度的参考价值低。
+ * "25.14.0.877" 与 "25.13.1.1" 同为一大版本内（diff = 1），
+ * "25.2.x"（diff = 12）属于上古数据，应剔除。
+ */
+const VERSION_WINDOW_MAJOR_DIFF = 1
+
+/** 解析 "25.14.0.877" → 2514（可比较整数）；无法解析返回 null */
+export function parseMajorVersion(v?: string): number | null {
+  if (!v) return null
+  const m = /^(\d+)\.(\d+)/.exec(v.trim())
+  if (!m) return null
+  return Number(m[1]) * 100 + Number(m[2])
+}
+
+/**
+ * 版本窗口过滤：以最近一场的版本为锚点，剔除落后 ≥ 2 个大版本的对局。
+ * 版本信息缺失的对局保留（防误杀）；锚点缺失（无版本数据）时不过滤。
+ */
+function applyVersionWindow(games: RecentGameRaw[]): RecentGameRaw[] {
+  const anchor = parseMajorVersion(games[0]?.gameVersion)
+  if (anchor === null) return games
+  return games.filter(g => {
+    const v = parseMajorVersion(g.gameVersion)
+    if (v === null) return true
+    return anchor - v <= VERSION_WINDOW_MAJOR_DIFF
+  })
+}
+
 export function buildRecentProfile(input: BuildRecentProfileInput): RecentPlayerProfile {
   const { currentTeamPosition, currentChampionId, recentGames } = input
 
@@ -65,7 +97,12 @@ export function buildRecentProfile(input: BuildRecentProfileInput): RecentPlayer
   // 排位胜率是选人期加权画像的依据；ARAM/匹配场次混入会稀释强度含义。
   // 排位样本不足（< 5 场）时回退全量对局——宁可数据带点噪声，也不要整卡空白。
   const rankedOnly = recentGames.filter(g => RANKED_QUEUE_IDS.has(g.queueId))
-  const games = rankedOnly.length >= RANKED_MIN_GAMES ? rankedOnly : recentGames
+  const base = rankedOnly.length >= RANKED_MIN_GAMES ? rankedOnly : recentGames
+  // — 版本窗口过滤 —
+  // 版本过滤后再校验样本量：窗口内不足 5 场时回退未过滤版本的全量
+  // （与排位过滤同哲学：防画像真空，宁可留点旧数据）。
+  const versionWindowed = applyVersionWindow(base)
+  const games = versionWindowed.length >= RANKED_MIN_GAMES ? versionWindowed : base
   const total = games.length
 
   // — Position distribution —

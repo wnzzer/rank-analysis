@@ -31,6 +31,8 @@ interface RawHistoryResponse {
 
 interface RawMatch {
   queueId: number
+  /** LCU 战绩每局带游戏版本（如 "25.14.0.877"；缺失时 undefined） */
+  gameVersion?: string
   participants: RawParticipant[]
   participantIdentities: Array<{
     participantId: number
@@ -187,7 +189,8 @@ function sgpGameToRecentGame(g: RawSgpGame): RecentGameRaw | null {
     kills: p.stats?.kills ?? 0,
     deaths: p.stats?.deaths ?? 0,
     assists: p.stats?.assists ?? 0,
-    queueId: g.queueId ?? 0
+    queueId: g.queueId ?? 0,
+    gameVersion: g.gameVersion ?? undefined
   }
 }
 
@@ -203,7 +206,8 @@ function rawMatchToRecentGame(m: RawMatch, puuid: string): RecentGameRaw | null 
     kills: participant.stats.kills,
     deaths: participant.stats.deaths,
     assists: participant.stats.assists,
-    queueId: m.queueId ?? 0
+    queueId: m.queueId ?? 0,
+    gameVersion: m.gameVersion ?? undefined
   }
 }
 
@@ -211,6 +215,8 @@ function rawMatchToRecentGame(m: RawMatch, puuid: string): RecentGameRaw | null 
 type RawSgpGame = {
   /** 队列 id（排位过滤用；缺失按 0=未知处理） */
   queueId?: number
+  /** SGP match-v5 每局带 gameVersion（如 "25.14.0.877"） */
+  gameVersion?: string
   gameDetail?: {
     participants?: Array<{
       participantId: number

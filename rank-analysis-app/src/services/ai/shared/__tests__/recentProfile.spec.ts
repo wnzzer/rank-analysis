@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildRecentProfile } from '../recentProfile'
+import { buildRecentProfile, parseMajorVersion } from '../recentProfile'
 import type { RecentGameRaw } from '../recentProfile'
 
 function game(opts: {
@@ -11,6 +11,8 @@ function game(opts: {
   a?: number
   /** 队列 id（默认 420 排位——现网覆盖用例都是排位） */
   queueId?: number
+  /** 游戏版本（默认 "25.14.0.877"；传入 null 表示缺省） */
+  gameVersion?: string | null
 }): RecentGameRaw {
   return {
     teamPosition: opts.teamPosition ?? 'JUNGLE',
@@ -19,7 +21,8 @@ function game(opts: {
     kills: opts.k ?? 5,
     deaths: opts.d ?? 3,
     assists: opts.a ?? 7,
-    queueId: opts.queueId ?? 420
+    queueId: opts.queueId ?? 420,
+    gameVersion: opts.gameVersion === null ? undefined : (opts.gameVersion ?? '25.14.0.877')
   }
 }
 
@@ -339,6 +342,79 @@ describe('buildRecentProfile', () => {
       const totalGames = (profile.positionDistribution ?? []).reduce((acc, p) => acc + p.games, 0)
       expect(totalGames).toBe(5)
       expect(profile.recentWinRate).toBe(0)
+    })
+  })
+
+  describe('版本窗口过滤（P3-1）', () => {
+    it('parseMajorVersion 解析 "25.14.0.877" → 2514，垃圾输入 → null', () => {
+      expect(parseMajorVersion('25.14.0.877')).toBe(2514)
+      expect(parseMajorVersion('25.9.0.1')).toBe(2509)
+      expect(parseMajorVersion('')).toBeNull()
+      expect(parseMajorVersion(undefined)).toBeNull()
+      expect(parseMajorVersion('abc')).toBeNull()
+    })
+
+    it('落后 ≥ 2 个大版本的对局被剔除（版本漂移数据无参考价值）', () => {
+      const games: RecentGameRaw[] = [
+        // 最新 10 场：25.14 版本
+        ...Array(10)
+          .fill(0)
+          .map(() => game({ championId: 64, win: true, gameVersion: '25.14.0.877' })),
+        // 25.13 与 25.14 同窗口（diff=1）保留
+        ...Array(4)
+          .fill(0)
+          .map(() => game({ championId: 86, win: false, gameVersion: '25.13.1.1' })),
+        // 25.2 是上古数据（diff=12）剔除
+        ...Array(6)
+          .fill(0)
+          .map(() => game({ championId: 30, win: true, gameVersion: '25.2.0.1' }))
+      ]
+      const profile = buildRecentProfile({
+        currentTeamPosition: 'JUNGLE',
+        currentChampionId: 64,
+        recentGames: games
+      })
+      const totalGames = (profile.positionDistribution ?? []).reduce((acc, p) => acc + p.games, 0)
+      expect(totalGames).toBe(14)
+      // 25.2 卡牌不在任何池子里
+      const poolIds = (profile.championDistribution ?? []).map(c => c.championId)
+      expect(poolIds).not.toContain(30)
+    })
+
+    it('版本信息缺失的对局保留（防误杀）；全部缺省时不过滤', () => {
+      const games: RecentGameRaw[] = [
+        ...Array(10)
+          .fill(0)
+          .map(() => game({ championId: 64, win: true })),
+        ...Array(4)
+          .fill(0)
+          .map(() => game({ championId: 86, win: false, gameVersion: null }))
+      ]
+      const profile = buildRecentProfile({
+        currentTeamPosition: 'JUNGLE',
+        currentChampionId: 64,
+        recentGames: games
+      })
+      const totalGames = (profile.positionDistribution ?? []).reduce((acc, p) => acc + p.games, 0)
+      expect(totalGames).toBe(14)
+    })
+
+    it('版本过滤后不足 5 场时回退全量（防画像真空）', () => {
+      const games: RecentGameRaw[] = [
+        ...Array(4)
+          .fill(0)
+          .map(() => game({ championId: 64, win: true, gameVersion: '25.14.0.877' })),
+        ...Array(12)
+          .fill(0)
+          .map(() => game({ championId: 30, win: true, gameVersion: '25.2.0.1' }))
+      ]
+      const profile = buildRecentProfile({
+        currentTeamPosition: 'JUNGLE',
+        currentChampionId: 64,
+        recentGames: games
+      })
+      const totalGames = (profile.positionDistribution ?? []).reduce((acc, p) => acc + p.games, 0)
+      expect(totalGames).toBe(16)
     })
   })
 
