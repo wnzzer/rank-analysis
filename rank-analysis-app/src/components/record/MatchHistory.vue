@@ -37,7 +37,7 @@
         </n-button>
         <n-button size="small" class="toolbar-more" @click="nextPage">收集更多</n-button>
         <n-button
-          v-if="region"
+          v-if="sgpRegion"
           size="small"
           class="toolbar-collect"
           :disabled="collectDone"
@@ -45,7 +45,7 @@
         >
           {{ collectLabel }}
         </n-button>
-        <n-popconfirm v-if="region && hasCollected" @positive-click="handleClearCollected">
+        <n-popconfirm v-if="sgpRegion && hasCollected" @positive-click="handleClearCollected">
           <template #trigger>
             <n-button size="small" class="toolbar-clear-collected" :disabled="isCollectingAll">
               清空已收
@@ -171,6 +171,7 @@ import { getConfigByIpc } from '@renderer/services/ipc'
 import { getGameById } from '@renderer/services/gameById'
 import {
   getSgpMatchHistoryByName,
+  getCurrentSgpRegion,
   mergeGamesByGameId,
   collectSgpHistoryAll,
   loadCollectedGames,
@@ -327,6 +328,11 @@ const route = useRoute()
 const name = computed(() => (route.query.name as string) ?? '')
 /** 跨区查询目标大区 platformId（空 = 当前区，走本地 LCU；非空走 SGP 跨区） */
 const region = computed(() => (route.query.region as string) ?? '')
+/** 当前登录客户端所在大区 platformId（如 `HN10`）：本区 50 场窗口翻完后续拉 SGP 用 */
+const currentRegion = ref('')
+
+/** 实际使用的 SGP 目标大区：显式跨区优先，否则退回当前登录区（本区深翻页） */
+const sgpRegion = computed(() => region.value || currentRegion.value)
 
 const resetFilter = () => {
   filterQueueId.value = 0
@@ -469,6 +475,14 @@ const getHistoryMatch = async (name: string) => {
         begIndex: 0,
         endIndex: 49
       })
+      // 本区（LCU 50 场窗口）也恢复「收集全部」的持久化成果，续收游标对齐
+      const saved = await loadCollectedGames(sgpRegion.value, name)
+      hasCollected.value = !!saved
+      if (saved) {
+        const merged = mergeGamesByGameId(result.games?.games ?? [], saved)
+        result = { ...result, games: { ...result.games, games: merged } }
+      }
+      sgpStartIndex.value = result.games?.games?.length ?? 50
     }
     matchHistory.value = result
     allGames.value = matchHistory.value?.games?.games ?? []
@@ -505,22 +519,25 @@ watch(
   }
 )
 
-// 下一页 / 上一页（纯客户端切片，50 场窗口内翻页；跨区模式下「收集更多」先追加拉取）
+// 下一页 / 上一页（纯客户端切片，50 场窗口内翻页；窗口末尾时跨区/本区都转 SGP 追加拉取）
 const nextPage = () => {
-  if (region.value) {
+  if (region.value || noMoreMatches.value) {
+    if (!sgpRegion.value || isRequestingSgpMore.value || isCollectingAll.value) return
     loadMoreCrossRegion()
     return
   }
-  if (!noMoreMatches.value) page.value += 1
+  page.value += 1
 }
 
-/** 跨区深翻页：SGP 无 50 场上限，「收集更多」按 startIndex 追加拉取，gameId 去重合并 */
+/** 深翻页：SGP 无 50 场上限，「收集更多」按 startIndex 追加拉取，gameId 去重合并。
+ * 跨区查目标区；本区 50 场窗口翻完后也转 SGP（用当前登录区 platformId）。 */
 const isRequestingSgpMore = ref(false)
 const loadMoreCrossRegion = async () => {
-  if (isRequestingSgpMore.value) return
+  if (isRequestingSgpMore.value || isCollectingAll.value) return
+  if (!sgpRegion.value) return
   isRequestingSgpMore.value = true
   try {
-    const mh = await getSgpMatchHistoryByName(region.value, name.value, sgpStartIndex.value, 50)
+    const mh = await getSgpMatchHistoryByName(sgpRegion.value, name.value, sgpStartIndex.value, 50)
     if (!mh) throw new Error('SGP 跨区追加拉取失败')
     const incoming = mh.games?.games ?? []
     if (incoming.length === 0) {
@@ -565,12 +582,13 @@ const toggleCollectAll = async () => {
     collectCancelRequested.value = true // 收集中再次点击 = 取消
     return
   }
+  if (!sgpRegion.value) return
   collectCancelRequested.value = false
   isCollectingAll.value = true
   const gen = collectGeneration.value
   try {
     const result = await collectSgpHistoryAll({
-      region: region.value,
+      region: sgpRegion.value,
       name: name.value,
       startIndex: sgpStartIndex.value,
       initialGames: allGames.value,
@@ -585,7 +603,7 @@ const toggleCollectAll = async () => {
     collectDone.value = result.reachedEnd
     page.value = pageCount.value
     // 收集完成（或中途取消的已有成果）落库，重启后可恢复，无需重新拉取
-    void saveCollectedGames(region.value, name.value, result.games)
+    void saveCollectedGames(sgpRegion.value, name.value, result.games)
     hasCollected.value = result.games.length > 0
   } catch (err) {
     console.error('[MatchHistory] toggleCollectAll failed', err)
@@ -598,7 +616,7 @@ const toggleCollectAll = async () => {
 /** 清空已收集：删掉落库成果后回到 50 场窗口（失败时保留现状，可重试） */
 async function handleClearCollected() {
   if (isCollectingAll.value) return
-  const ok = await clearCollectedGames(region.value, name.value)
+  const ok = await clearCollectedGames(sgpRegion.value, name.value)
   if (!ok) {
     loadingBar.error()
     return
@@ -674,6 +692,8 @@ onMounted(async () => {
   await initModeOptions()
   championOptions.value = await invoke<championOption[]>('get_champion_options')
   await loadPageSizeConfig()
+  // 本区深翻页依赖当前登录大区 platformId（SGP 网关支持本区查询）
+  currentRegion.value = (await getCurrentSgpRegion()) ?? ''
   await getHistoryMatch(name.value)
 })
 

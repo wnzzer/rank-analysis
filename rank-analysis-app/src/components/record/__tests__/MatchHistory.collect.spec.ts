@@ -42,6 +42,11 @@ const { routeQuery } = vi.hoisted(() => ({
   }))
 }))
 
+/** 本区（无 region）时 get_current_sgp_region 的返回值；默认返回本区 platformId（LCU 已连接） */
+const { currentRegion } = vi.hoisted(() => ({
+  currentRegion: vi.fn<[], string | null>(() => 'HN10')
+}))
+
 vi.mock('naive-ui', async () => {
   const actual = await vi.importActual<typeof import('naive-ui')>('naive-ui')
   return {
@@ -140,6 +145,7 @@ function mockSgpFetch(invoke: InvokeMock, delayMs = 5) {
       return new Promise(resolve => setTimeout(() => resolve(result), delayMs))
     }
     if (cmd === 'get_champion_options') return Promise.resolve([])
+    if (cmd === 'get_current_sgp_region') return Promise.resolve(currentRegion())
     if (cmd === 'load_collected_games') return Promise.resolve(savedCollected())
     if (cmd === 'clear_collected_games') return Promise.resolve(null)
     return Promise.resolve(null)
@@ -211,6 +217,7 @@ describe('MatchHistory collectMode（跨区全量收集）', () => {
     vi.clearAllMocks()
     routeQuery.mockImplementation(() => ({ name: 'Tester#0001', region: 'HN10' }))
     savedCollected.mockReturnValue([])
+    currentRegion.mockReturnValue('HN10')
   })
 
   it('跨区模式渲染「收集全部」按钮', async () => {
@@ -220,8 +227,18 @@ describe('MatchHistory collectMode（跨区全量收集）', () => {
     wrapper.unmount()
   })
 
-  it('本地模式（无 region）不渲染收集按钮', async () => {
+  it('本区模式（无 region，LCU 已连接）：渲染「收集全部」（SGP 支持本区深翻页）', async () => {
     routeQuery.mockReturnValue({ name: 'Tester#0001' })
+    currentRegion.mockReturnValue('HN10')
+    const { wrapper } = await mountHistory()
+    expect(collectButton(wrapper).exists()).toBe(true)
+    expect(collectButton(wrapper).text()).toContain('收集全部')
+    wrapper.unmount()
+  })
+
+  it('LCU 未连接（currentRegion 为空）时不渲染收集按钮', async () => {
+    routeQuery.mockReturnValue({ name: 'Tester#0001' })
+    currentRegion.mockReturnValue(null)
     const { wrapper } = await mountHistory()
     expect(collectButton(wrapper).exists()).toBe(false)
     wrapper.unmount()
@@ -258,6 +275,8 @@ describe('MatchHistory 清空跨区收集', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     routeQuery.mockImplementation(() => ({ name: 'Tester#0001', region: 'HN10' }))
+    savedCollected.mockReturnValue([])
+    currentRegion.mockReturnValue('HN10')
   })
 
   function clearButton(wrapper: VueWrapper) {
@@ -278,9 +297,10 @@ describe('MatchHistory 清空跨区收集', () => {
     wrapper.unmount()
   })
 
-  it('本地模式即使有持久化记录也不渲染「清空已收」', async () => {
+  it('LCU 未连接（currentRegion 为空）即使有持久化记录也不渲染收集/清空按钮', async () => {
     savedCollected.mockReturnValue([makeGame(0)])
     routeQuery.mockReturnValue({ name: 'Tester#0001' })
+    currentRegion.mockReturnValue(null)
     const { wrapper } = await mountHistory()
     expect(clearButton(wrapper).exists()).toBe(false)
     expect(collectButton(wrapper).exists()).toBe(false)
