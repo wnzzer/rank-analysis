@@ -133,8 +133,10 @@ const props = withDefaults(
     name?: string
     /** 本局英雄 id（有则显示熟练度小节） */
     championId?: number
+    /** 跨区大区 platformId：本区无战绩时画像走 SGP 战绩兜底（需配合 name） */
+    region?: string
   }>(),
-  { name: '', championId: 0 }
+  { name: '', championId: 0, region: '' }
 )
 
 const profile = ref<RecentPlayerProfile | null>(null)
@@ -146,7 +148,12 @@ watchEffect(async () => {
   loading.value = true
   error.value = false
   try {
-    profile.value = await fetchPlayerProfile({ puuid: props.puuid, championId: props.championId })
+    profile.value = await fetchPlayerProfile({
+      puuid: props.puuid,
+      championId: props.championId,
+      region: props.region,
+      name: props.name
+    })
   } catch {
     error.value = true
     profile.value = null

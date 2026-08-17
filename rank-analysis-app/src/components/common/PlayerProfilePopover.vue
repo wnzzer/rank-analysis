@@ -9,7 +9,12 @@
     <template #trigger>
       <slot />
     </template>
-    <PlayerProfileCard :puuid="puuid" :name="name" :champion-id="championId" />
+    <PlayerProfileCard
+      :puuid="puuid"
+      :name="name"
+      :champion-id="championId"
+      :region="region"
+    />
   </n-popover>
   <slot v-else />
 </template>
@@ -21,6 +26,7 @@
  *
  * - active=false（无 puuid / 隐藏战绩）时原样渲染 trigger，不包弹层
  * - 走 fetchPlayerProfile（LRU 缓存），hover 才触发查询
+ * - region 非空（跨区战绩页等 SGP 来源场景）时画像卡启用 SGP 战绩兜底
  */
 import PlayerProfileCard from '@renderer/components/common/PlayerProfileCard.vue'
 import { computed } from 'vue'
@@ -32,8 +38,10 @@ const props = withDefaults(
     name?: string
     /** 本局英雄 id（有则画像卡显示熟练度小节） */
     championId?: number
+    /** 跨区大区 platformId（SGP 战绩兜底用） */
+    region?: string
   }>(),
-  { puuid: '', name: '', championId: 0 }
+  { puuid: '', name: '', championId: 0, region: '' }
 )
 
 const active = computed(() => props.puuid.length > 0)

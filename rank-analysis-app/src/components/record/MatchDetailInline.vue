@@ -248,6 +248,7 @@ const currentPlayerKey = computed(() => {
 })
 
 const gameRef = toRef(() => props.game)
+const regionRef = toRef(() => props.region ?? '')
 const players = useMatchDetailPlayers(gameRef, currentPlayerKey)
 const { detailPlayers, mySummary } = players
 const ai = useMatchAIAnalysis(gameRef)
@@ -416,6 +417,7 @@ async function loadSgpDetail() {
 
 provide(matchDetailContextKey, {
   game: gameRef,
+  region: regionRef,
   players,
   ranks,
   assets,

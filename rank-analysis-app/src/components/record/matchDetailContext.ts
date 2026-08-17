@@ -27,6 +27,8 @@ export type SgpDetailStatus = 'idle' | 'loading' | 'ready' | 'error'
 export interface MatchDetailContext {
   /** 当前对局（可为 null 的空态由容器统一处理，tab 内无需再判） */
   game: Readonly<Ref<Game | null>>
+  /** 跨区查询目标大区 platformId（空 = 本区 LCU 数据源）；画像卡据此启用 SGP 战绩兜底 */
+  region: Readonly<Ref<string>>
   /** 10 人玩家数据 + 派生的队伍分节（useMatchDetailPlayers 全量返回） */
   players: DetailPlayersApi
   /** 段位查询结果（puuid → 段位），tab 需要段位时直接读 */

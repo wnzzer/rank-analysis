@@ -99,6 +99,7 @@
                         :puuid="player.puuid"
                         :name="player.displayName"
                         :champion-id="player.championId"
+                        :region="ctx.region.value"
                       >
                         {{ player.displayName }}
                       </PlayerProfilePopover>

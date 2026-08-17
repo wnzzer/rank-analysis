@@ -107,6 +107,7 @@ function makeContext(overrides: Partial<MatchDetailContext> = {}): MatchDetailCo
   const players = [playerOf(1, true), playerOf(2, false)]
   return {
     game: ref(null),
+    region: ref(''),
     players: {
       detailPlayers: computed(() => players),
       teamSections: computed(() => [

@@ -13,7 +13,12 @@ vi.mock('@tauri-apps/api/event', () => ({
 }))
 
 import { invoke } from '@tauri-apps/api/core'
-import { fetchBatchProfiles, injectNoteBriefs, __resetCacheForTests } from '../recentProfile.batch'
+import {
+  fetchBatchProfiles,
+  injectNoteBriefs,
+  __resetCacheForTests,
+  type ProfileRequest
+} from '../recentProfile.batch'
 import { usePlayerNotesStore } from '@renderer/pinia/playerNotes'
 
 const mockInvoke = invoke as ReturnType<typeof vi.fn>
@@ -138,6 +143,120 @@ describe('fetchBatchProfiles', () => {
 
     expect(result.get('p1')).not.toBeNull()
     expect(result.get('p1')?.note).toBeUndefined()
+  })
+})
+
+describe('SGP 跨区战绩兜底（fetchBatchProfiles + region/name）', () => {
+  /** SGP 战绩响应的最小形状（Rust map_sgp_to_match_history 输出，[0]=被查玩家） */
+  function sgpGame(opts: { championId: number; lane: string; win: boolean }) {
+    return {
+      gameDetail: {
+        participants: [
+          {
+            participantId: 1,
+            championId: opts.championId,
+            stats: { win: opts.win, kills: 3, deaths: 1, assists: 2 },
+            timeline: { lane: opts.lane, role: 'SOLO' }
+          }
+        ]
+      }
+    }
+  }
+
+  const sgpCallCount = () =>
+    mockInvoke.mock.calls.filter(c => c[0] === 'get_sgp_match_history_by_name').length
+
+  it('本区无战绩 + region/name → 走 SGP 战绩兜底并聚合（含 timeline.lane 位置）', async () => {
+    mockInvoke.mockImplementation(async (cmd, args: any) => {
+      if (cmd === 'get_match_history_by_puuid') return { games: { games: [] } }
+      if (cmd === 'get_sgp_match_history_by_name') {
+        expect(args.region).toBe('HN10')
+        expect(args.name).toBe('跨区玩家#123')
+        return {
+          games: {
+            games: [
+              sgpGame({ championId: 64, lane: 'JUNGLE', win: true }),
+              sgpGame({ championId: 64, lane: 'JUNGLE', win: false }),
+              sgpGame({ championId: 86, lane: 'TOP', win: true })
+            ]
+          }
+        }
+      }
+      return null
+    })
+
+    const result = await fetchBatchProfiles([
+      { puuid: 'sgp-p', teamPosition: 'JUNGLE', championId: 64, region: 'HN10', name: '跨区玩家#123' }
+    ])
+
+    const profile = result.get('sgp-p')
+    expect(profile).not.toBeNull()
+    // 位置分布来自 timeline.lane：2/3 打野
+    expect(profile?.positionDistribution[0]).toMatchObject({ pos: 'JUNGLE', games: 2 })
+    // 英雄池：64 两场、86 一场
+    const champs = profile?.championDistribution ?? []
+    expect(champs[0]).toMatchObject({ championId: 64, games: 2 })
+    expect(profile?.recentWinRate).toBeCloseTo(2 / 3)
+    expect(sgpCallCount()).toBe(1)
+  })
+
+  it('本区无战绩但无 region → 不启用 SGP 兜底（返回空画像，不编造）', async () => {
+    mockInvoke.mockImplementation(async (cmd, _args: any) => {
+      if (cmd === 'get_match_history_by_puuid') return { games: { games: [] } }
+      return null
+    })
+
+    const result = await fetchBatchProfiles([
+      { puuid: 'p1', teamPosition: 'JUNGLE', championId: 64 }
+    ])
+
+    expect(sgpCallCount()).toBe(0)
+    // 空画像：无位置分布
+    expect(result.get('p1')?.positionDistribution).toHaveLength(0)
+  })
+
+  it('SGP 兜底失败 → 该玩家空画像（不编造），不阻塞其他玩家', async () => {
+    mockInvoke.mockImplementation(async (cmd, args: any) => {
+      if (cmd === 'get_match_history_by_puuid') {
+        return args.puuid === 'p_bad'
+          ? { games: { games: [] } }
+          : rawHistory(args.puuid, [
+              rawMatch({ puuid: args.puuid, teamPosition: 'TOP', championId: 86, win: true })
+            ])
+      }
+      if (cmd === 'get_sgp_match_history_by_name') throw new Error('SGP network')
+      return null
+    })
+
+    const result = await fetchBatchProfiles([
+      { puuid: 'p_bad', teamPosition: 'JUNGLE', championId: 64, region: 'NA1', name: 'x#000' },
+      { puuid: 'p_ok', teamPosition: 'TOP', championId: 86 }
+    ])
+
+    expect(result.get('p_bad')?.positionDistribution).toHaveLength(0)
+    expect(result.get('p_ok')?.positionDistribution.length ?? 0).toBeGreaterThan(0)
+  })
+
+  it('SGP 兜底结果同样进 LRU 缓存：二次查询不重复调 SGP', async () => {
+    mockInvoke.mockImplementation(async (cmd, _args: any) => {
+      if (cmd === 'get_match_history_by_puuid') return { games: { games: [] } }
+      if (cmd === 'get_sgp_match_history_by_name') {
+        return { games: { games: [sgpGame({ championId: 64, lane: 'JUNGLE', win: true })] } }
+      }
+      return null
+    })
+
+    const req: ProfileRequest = {
+      puuid: 'sgp-p',
+      teamPosition: 'JUNGLE',
+      championId: 64,
+      region: 'HN10',
+      name: 'A#1'
+    }
+    await fetchBatchProfiles([req])
+    await fetchBatchProfiles([req])
+
+    expect(sgpCallCount()).toBe(1)
   })
 })
 

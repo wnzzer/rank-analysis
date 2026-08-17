@@ -9,6 +9,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { getConfigByIpc } from '@renderer/services/ipc'
 import { CONFIG_KEYS } from '@renderer/services/configKeys'
+import { getSgpMatchHistoryByName } from '@renderer/services/sgp'
 import { buildRecentProfile, type RecentGameRaw } from './recentProfile'
 import { buildNoteBrief } from './noteBrief'
 import type { RecentPlayerProfile, TeamPosition } from './types'
@@ -52,6 +53,13 @@ export interface ProfileRequest {
   puuid: string
   teamPosition: TeamPosition
   championId: number
+  /**
+   * 跨区来源（SGP fallback 用）：目标大区 platformId（如 `HN10`）。缺省时
+   * 无法定位玩家所在大区（SGP 战绩按大区分存），跨区画像 fallback 不启用。
+   */
+  region?: string
+  /** 玩家名字#TAG（SGP fallback 用，按名字解析全局 puuid 后拉战绩） */
+  name?: string
 }
 
 export type ProfileMap = Map<string, RecentPlayerProfile | null>
@@ -122,6 +130,13 @@ async function fetchSingleProfile(req: ProfileRequest): Promise<RecentPlayerProf
       .map(m => rawMatchToRecentGame(m, req.puuid))
       .filter((g): g is RecentGameRaw => g !== null)
 
+    // 本区无战绩（跨区玩家/新号）且调用方给了大区上下文时，走 SGP 战绩兜底：
+    // SGP 战绩按大区分存，必须知道目标大区才能查；无 region 时保持现语义
+    // （返回全空画像，不编造任何数字）。
+    if (recentGames.length === 0 && req.region && req.name) {
+      return fetchSgpProfile(req)
+    }
+
     return buildRecentProfile({
       currentTeamPosition: req.teamPosition,
       currentChampionId: req.championId,
@@ -130,6 +145,47 @@ async function fetchSingleProfile(req: ProfileRequest): Promise<RecentPlayerProf
   } catch (err) {
     console.warn(`recentProfile fetch failed for ${req.puuid}`, err)
     return null
+  }
+}
+
+/**
+ * SGP 跨区战绩兜底：按「名字#TAG」在目标大区拉近期对局并聚合。
+ *
+ * Rust 侧 `map_sgp_to_match_history` 会把被查玩家排到每局 `participants[0]`；
+ * SGP 是 match-v5 扁平结构，天然带 `timeline.lane`（比 LCU 摘要更全的分路数据）。
+ * 失败返回 null（调用方按「无数据」降级，不阻塞其他玩家）。
+ */
+async function fetchSgpProfile(req: ProfileRequest): Promise<RecentPlayerProfile | null> {
+  try {
+    const mh = await getSgpMatchHistoryByName(req.region ?? '', req.name ?? '', 0, 19)
+    const games = mh?.games?.games ?? []
+    const recentGames: RecentGameRaw[] = games
+      .map(g => sgpGameToRecentGame(g))
+      .filter((g): g is RecentGameRaw => g !== null)
+
+    return buildRecentProfile({
+      currentTeamPosition: req.teamPosition,
+      currentChampionId: req.championId,
+      recentGames
+    })
+  } catch (err) {
+    console.warn(`recentProfile SGP fallback failed for ${req.puuid}`, err)
+    return null
+  }
+}
+
+/** SGP 对局 → 画像聚合原始行（被查玩家在 participants[0]，Rust 侧已排序） */
+function sgpGameToRecentGame(g: RawSgpGame): RecentGameRaw | null {
+  const p = g.gameDetail?.participants?.[0]
+  if (!p) return null
+  const timeline = (p as unknown as { timeline?: { lane?: string } }).timeline
+  return {
+    teamPosition: timeline?.lane ?? '',
+    championId: p.championId,
+    win: p.stats?.win ?? false,
+    kills: p.stats?.kills ?? 0,
+    deaths: p.stats?.deaths ?? 0,
+    assists: p.stats?.assists ?? 0
   }
 }
 
@@ -145,6 +201,17 @@ function rawMatchToRecentGame(m: RawMatch, puuid: string): RecentGameRaw | null 
     kills: participant.stats.kills,
     deaths: participant.stats.deaths,
     assists: participant.stats.assists
+  }
+}
+
+/** SGP 对局的最小形状（复用现有 MatchHistory 结构，只声明画像用到的字段） */
+type RawSgpGame = {
+  gameDetail?: {
+    participants?: Array<{
+      participantId: number
+      championId: number
+      stats?: { win?: boolean; kills?: number; deaths?: number; assists?: number }
+    }>
   }
 }
 
@@ -166,11 +233,17 @@ export async function fetchPlayerProfile(query: {
   puuid: string
   teamPosition?: TeamPosition
   championId?: number
+  /** 跨区大区 platformId：本区无战绩时走 SGP 战绩兜底（需配合 name） */
+  region?: string
+  /** 玩家名字#TAG：SGP 兜底按名字解析全局 puuid */
+  name?: string
 }): Promise<RecentPlayerProfile | null> {
   const req: ProfileRequest = {
     puuid: query.puuid,
     teamPosition: query.teamPosition ?? 'UNKNOWN',
-    championId: query.championId ?? 0
+    championId: query.championId ?? 0,
+    region: query.region,
+    name: query.name
   }
   const map = await fetchBatchProfiles([req])
   const profile = map.get(query.puuid) ?? null
