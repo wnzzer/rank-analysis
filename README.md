@@ -252,4 +252,4 @@ This project is open-sourced under the [MIT License](./LICENSE).
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=wnzzer/rank-analysis&type=Date)](https://star-history.com/#wnzzer/rank-analysis&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=wnzzer/rank-analysis&type=Date)](https://star-history.dera.page/#wnzzer/rank-analysis&Date)
