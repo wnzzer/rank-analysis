@@ -168,9 +168,10 @@ describe('useLiveAIAnalysis', () => {
     )
     await flushPromises()
     expect(mockPoll).toHaveBeenCalledTimes(1)
-    // 真实计时器等 200ms → 50/100/150/200 共 4 次周期轮询
-    await new Promise(r => setTimeout(r, 200))
-    expect(mockPoll.mock.calls.length).toBeGreaterThanOrEqual(4)
+    // 50ms 间隔轮询：waitFor 轮询等待（固定 200ms 在全量并行负载大时会不足）
+    await vi.waitFor(() => {
+      expect(mockPoll.mock.calls.length).toBeGreaterThanOrEqual(4)
+    })
     unmount()
   })
 
