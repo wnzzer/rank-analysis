@@ -166,7 +166,7 @@ mod tests {
             }
         }
         assert!(
-            allowed >= 15 && allowed <= 18,
+            (15..=18).contains(&allowed),
             "20s 应回填 ~16.7 个，实际 {allowed}"
         );
     }
