@@ -69,7 +69,7 @@ impl SgpGateway for DefaultSgpGateway {
 }
 
 /// 进程级默认网关（业务层唯一访问点）。
-static DEFAULT_GATEWAY: LazyLock<DefaultSgpGateway> = LazyLock::new(DefaultSgpGateway);
+static DEFAULT_GATEWAY: LazyLock<DefaultSgpGateway> = LazyLock::new(|| DefaultSgpGateway);
 
 /// 获取当前网关（默认实现；测试/多后端场景可在此替换）。
 pub fn gateway() -> &'static dyn SgpGateway {
