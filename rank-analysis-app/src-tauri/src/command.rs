@@ -40,6 +40,8 @@
 pub mod ai;
 pub mod ai_cache;
 pub mod asset;
+
+pub mod backtest;
 pub mod bp;
 pub mod bp_suggest;
 pub mod build_stats;

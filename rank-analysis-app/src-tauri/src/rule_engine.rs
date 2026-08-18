@@ -16,7 +16,7 @@ pub fn detect_my_position(session: &SelectSession, my_puuid: &str) -> Option<Pos
     parse_position(&me.assigned_position)
 }
 
-fn parse_position(s: &str) -> Option<Position> {
+pub(crate) fn parse_position(s: &str) -> Option<Position> {
     match s.to_ascii_lowercase().as_str() {
         "top" => Some(Position::Top),
         "jungle" => Some(Position::Jungle),

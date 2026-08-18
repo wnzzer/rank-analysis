@@ -311,6 +311,36 @@ pub fn clear_collected_games(region: &str, name: &str) {
     });
 }
 
+/// 遍历全部跨区收集结果（M2 样本沉淀入口；解析失败的单条跳过，不整批失败）。
+pub fn all_collected_games() -> Vec<(String, String, Vec<Game>)> {
+    with_db(|conn| {
+        let mut stmt = conn.prepare("SELECT region, name, games_json FROM collected_games")?;
+        let rows = stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+            ))
+        })?;
+        let mut out = Vec::new();
+        for row in rows {
+            let (region, name, json) = match row {
+                Ok(v) => v,
+                Err(e) => {
+                    log::warn!("meet.db 读取收集结果失败: {e}");
+                    continue;
+                }
+            };
+            match serde_json::from_str::<Vec<Game>>(&json) {
+                Ok(games) => out.push((region, name, games)),
+                Err(e) => log::warn!("收集结果 JSON 解析失败({region}#{name}): {e}"),
+            }
+        }
+        Ok(out)
+    })
+    .unwrap_or_default()
+}
+
 fn serde_to_sqlite_err(e: serde_json::Error) -> rusqlite::Error {
     rusqlite::Error::ToSqlConversionFailure(Box::new(e))
 }

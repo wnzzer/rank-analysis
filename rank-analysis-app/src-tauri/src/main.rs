@@ -185,6 +185,8 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             command::score::get_player_scores,
             command::score::compute_player_scores,
             score::get_score_drilldown,
+            command::backtest::get_decision_backtest,
+            command::backtest::get_adoption_stats,
             command::opgg::update_opgg_data,
             command::opgg::get_champion_meta,
             command::opgg::get_lane_counters,

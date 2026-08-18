@@ -980,8 +980,64 @@ async fn start_bp_decision_automation(app: tauri::AppHandle) {
         if let (Some(d), Some(p)) = (decision.as_mut(), pending) {
             d.user_overridden = d.user_overridden || store::is_overridden(p.action_id);
         }
+        // M2 数据飞轮：Pick 建议落 pending_suggestions（ban 不进飞轮）。
+        // 每 2s tick 重复产出由 store 按 (position, 英雄) 幂等去重，
+        // 保留首次建议时间——它是赛后对账的关联键，必须稳定。
+        record_pending_for(decision.as_ref(), my_position, &session);
         store::write(decision);
     }
+}
+
+/// 建议的 position 键（与赛后 timeline 归一化口径一致：SGP 五档大写）。
+fn position_key(p: crate::command::rule_config::Position) -> &'static str {
+    use crate::command::rule_config::Position;
+    match p {
+        Position::Top => "TOP",
+        Position::Jungle => "JUNGLE",
+        Position::Middle => "MIDDLE",
+        Position::Bottom => "BOTTOM",
+        Position::Utility => "UTILITY",
+    }
+}
+
+/// 把 Pick 决策落到赛前建议缓存（M2 对账数据源）。
+///
+/// 只记 Pick；ban 不进入对账飞轮（避免产生误导性的"ban 采纳率"）。
+/// 敌方同位置已选英雄赛前可见则记录，否则留 None（赛后对账用真值）。
+fn record_pending_for(
+    decision: Option<&crate::bp_decision::types::BpDecision>,
+    my_position: Option<crate::command::rule_config::Position>,
+    session: &crate::lcu::api::champion_select::SelectSession,
+) {
+    use crate::backtest::store::{record_pending_suggestion, PendingSuggestion};
+    use crate::bp_decision::types::BpActionType;
+    let Some(decision) = decision else { return };
+    let Some(target) = decision.target.as_ref() else {
+        return;
+    };
+    if decision.action_type != BpActionType::Pick {
+        return;
+    }
+    let Some(position) = my_position else { return };
+    let enemy = session
+        .their_team
+        .iter()
+        .find(|p| {
+            p.champion_id != 0
+                && crate::rule_engine::parse_position(&p.assigned_position) == Some(position)
+        })
+        .map(|p| p.champion_id);
+    let suggested_at_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0);
+    record_pending_suggestion(&PendingSuggestion {
+        suggested_at_ms,
+        suggestion_champion_id: target.champion_id,
+        position: position_key(position).to_string(),
+        enemy_champion_id: enemy,
+        game_id: None,
+    });
 }
 
 /// ban 阶段能否 hover 尚未在真机验证——`BanAction` 类型里从来没有 `lock` 字段，

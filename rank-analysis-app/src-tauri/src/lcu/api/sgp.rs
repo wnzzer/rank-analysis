@@ -483,7 +483,8 @@ pub async fn resolve_puuid_by_riot_id(game_name: &str, tag_line: &str) -> Result
 ///
 /// SGP 的 `gameCreation` 是毫秒时间戳，而现有 `Game.game_creation_date` 是 ISO 字符串
 /// （前端按 `new Date(str)` 解析）。无 chrono 依赖，用 Howard Hinnant 的历法算法手算。
-fn epoch_ms_to_iso(ms: i64) -> String {
+/// pub(crate)：决策对账（command/backtest）反向解析复用同一历法。
+pub(crate) fn epoch_ms_to_iso(ms: i64) -> String {
     let secs = ms.div_euclid(1000);
     let millis = ms.rem_euclid(1000);
     let days = secs.div_euclid(86_400);
