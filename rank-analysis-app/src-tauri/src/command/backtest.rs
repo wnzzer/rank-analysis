@@ -83,6 +83,7 @@ fn iso_to_epoch_ms(s: &str) -> Option<i64> {
     }
     let mut millis: i64 = 0;
     let mut idx = 19;
+    let mut offset_min = 0i64;
     if b.len() > idx && b[idx] == b'.' {
         idx += 1;
         let mut ndigits = 0usize;
@@ -95,24 +96,21 @@ fn iso_to_epoch_ms(s: &str) -> Option<i64> {
             millis *= 10;
         }
     }
-    // 时区偏移：默认 UTC，遇 ±HH:MM 转回 UTC。
-    let mut offset_min = 0i64;
-    if idx < b.len() {
-        let c = b[idx];
-        if c == b'Z' || c == b'z' {
-            idx += 1;
-        } else if c == b'+' || c == b'-' {
-            let sign = if c == b'-' { -1 } else { 1 };
-            if idx + 6 > b.len() || b[idx + 3] != b':' {
-                return None;
-            }
-            let oh = num(idx + 1, 2)?;
-            let om = num(idx + 4, 2)?;
-            offset_min = sign * (oh * 60 + om);
-            idx += 6;
-        } else {
+    // 时区偏移：必须有显式后缀（Z / ±HH:MM），缺后缀视为格式错误。
+    let c = *b.get(idx)?;
+    if c == b'Z' || c == b'z' {
+        idx += 1;
+    } else if c == b'+' || c == b'-' {
+        let sign = if c == b'-' { -1 } else { 1 };
+        if idx + 6 > b.len() || b[idx + 3] != b':' {
             return None;
         }
+        let oh = num(idx + 1, 2)?;
+        let om = num(idx + 4, 2)?;
+        offset_min = sign * (oh * 60 + om);
+        idx += 6;
+    } else {
+        return None;
     }
     if idx != b.len() {
         return None;
