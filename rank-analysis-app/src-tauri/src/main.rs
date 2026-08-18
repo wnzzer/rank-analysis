@@ -5,7 +5,6 @@ use log::info;
 use rank_analysis_lib::command;
 use rank_analysis_lib::lcu::api::asset as asset_api;
 use rank_analysis_lib::state::AppState;
-use tauri::Manager;
 
 // NOTE: main is no longer async
 fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
@@ -270,14 +269,15 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     }
 
     app_builder
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
         .run(|_app_handle, event| {
             // 进程退出前逆序 dispose 所有 shard（Fandom 循环等长驻任务收敛停止）
             if let tauri::RunEvent::Exit = event {
                 info!("Shutting down: disposing shards...");
                 rank_analysis_lib::shard::dispose_all();
             }
-        })
-        .expect("error while building tauri application");
+        });
 
     Ok(())
 }
