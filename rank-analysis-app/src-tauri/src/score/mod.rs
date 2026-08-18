@@ -29,8 +29,7 @@ pub async fn get_score_drilldown(game_id: i64) -> Result<Vec<ScoreBreakdownDrill
     }
     let game = crate::command::match_history::get_game_by_id(game_id).await?;
 
-    let detail_resp =
-        crate::lcu::api::sgp::fetch_match_detail(&game.platform_id, game_id).await;
+    let detail_resp = crate::lcu::api::sgp::fetch_match_detail(&game.platform_id, game_id).await;
     let (timeline_ok, detail) = match detail_resp {
         Ok(resp) => match resp.json {
             Some(d) if !d.frames.is_empty() => (true, Some(d)),

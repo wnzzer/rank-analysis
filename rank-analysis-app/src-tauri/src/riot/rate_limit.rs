@@ -31,7 +31,9 @@ impl TokenBucket {
 
     /// 按 `now` 回填后尝试取 1 个令牌。
     pub fn try_acquire(&mut self, now: Instant) -> bool {
-        let elapsed = now.saturating_duration_since(self.last_refill).as_secs_f64();
+        let elapsed = now
+            .saturating_duration_since(self.last_refill)
+            .as_secs_f64();
         self.tokens = (self.tokens + elapsed * self.refill_per_sec).min(self.capacity);
         self.last_refill = now;
         if self.tokens >= 1.0 {
@@ -164,6 +166,9 @@ mod tests {
                 allowed += 1;
             }
         }
-        assert!(allowed >= 15 && allowed <= 18, "20s 应回填 ~16.7 个，实际 {allowed}");
+        assert!(
+            allowed >= 15 && allowed <= 18,
+            "20s 应回填 ~16.7 个，实际 {allowed}"
+        );
     }
 }

@@ -172,12 +172,11 @@ pub fn query_ledger(limit: usize) -> Vec<LedgerEntry> {
 /// 采纳 vs 未采纳的结果分布（防幸存者偏差的对账视图）。
 pub fn adoption_stats() -> Option<AdoptionStats> {
     with_db(|conn| {
-        let (adopted_total, adopted_wins) =
-            conn.query_row(
-                "SELECT COUNT(*), COALESCE(SUM(result_win), 0) FROM decision_ledger WHERE adopted = 1",
-                [],
-                |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
-            )?;
+        let (adopted_total, adopted_wins) = conn.query_row(
+            "SELECT COUNT(*), COALESCE(SUM(result_win), 0) FROM decision_ledger WHERE adopted = 1",
+            [],
+            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
+        )?;
         let (not_total, not_wins) = conn.query_row(
             "SELECT COUNT(*), COALESCE(SUM(result_win), 0) FROM decision_ledger WHERE adopted = 0",
             [],

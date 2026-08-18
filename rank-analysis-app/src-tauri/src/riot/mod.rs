@@ -26,8 +26,10 @@ pub const RIOT_API_KEY_CONFIG: &str = "settings.riot.apiKey";
 /// 双层限流器（dev key 官方限速：20 req/s + 100 req/2min）。
 static LIMITER: LazyLock<Mutex<RateLimiter>> = LazyLock::new(|| {
     Mutex::new(RateLimiter::new(
-        20, 20.0,        // burst：20 req/s
-        100, 100.0 / 120.0, // sustained：100 req / 2min
+        20,
+        20.0, // burst：20 req/s
+        100,
+        100.0 / 120.0, // sustained：100 req / 2min
     ))
 });
 
@@ -43,7 +45,10 @@ pub struct RiotMatchDetail {
 ///
 /// - key 未配置 → 明确报错（提示去开发者后台生成 personal key），不静默。
 /// - 超限 → 报"限流"错误，调用方转降级链（不阻塞、不排队）。
-pub async fn get_match_detail(platform_id: &str, match_id: &str) -> Result<RiotMatchDetail, String> {
+pub async fn get_match_detail(
+    platform_id: &str,
+    match_id: &str,
+) -> Result<RiotMatchDetail, String> {
     let key = crate::config::get_config(RIOT_API_KEY_CONFIG)
         .await
         .map_err(|e| format!("读取 Riot API key 失败: {e}"))?;
@@ -59,11 +64,13 @@ pub async fn get_match_detail(platform_id: &str, match_id: &str) -> Result<RiotM
         }
     }
 
-    let url = format!(
-        "https://{platform_id}.api.riotgames.com/lol/match/v5/matches/{match_id}"
-    );
+    let url = format!("https://{platform_id}.api.riotgames.com/lol/match/v5/matches/{match_id}");
     let mut headers = HeaderMap::new();
-    headers.insert("X-Riot-Token", key.parse().map_err(|_| "Riot API key 格式非法".to_string())?);
+    headers.insert(
+        "X-Riot-Token",
+        key.parse()
+            .map_err(|_| "Riot API key 格式非法".to_string())?,
+    );
 
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(15))
