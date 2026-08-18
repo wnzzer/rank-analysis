@@ -128,6 +128,7 @@ pub fn aggregate_habit_tags(games: &[Game], my_puuid: &str) -> Vec<HabitTag> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lcu::api::game_detail::GameDetail;
     use crate::lcu::api::model::{Participant, ParticipantIdentity, Player};
 
     fn participant(
@@ -160,6 +161,10 @@ mod tests {
         }
     }
 
+    use crate::lcu::api::match_history::GameDetail;
+    use crate::lcu::api::model::ParticipantIdentity;
+    use crate::lcu::api::model::Player;
+
     /// 一局：蓝 5 人 vs 红 5 人，全部 MID；p1 = 本机，其余 peer。
     fn mid_game(id: i64, stamp: &str, my_vision: i32) -> Game {
         let mut participants = Vec::new();
@@ -167,11 +172,7 @@ mod tests {
             let vision = if i == 1 { my_vision } else { 40 };
             participants.push(participant(i, "MID", "SOLO", vision, 200, 5, 8));
         }
-        let mut game = Game::default();
-        game.game_id = id;
-        game.game_creation_date = stamp.to_string();
-        game.game_detail.participants = participants;
-        game.game_detail.participant_identities = (1..=10)
+        let identities: Vec<ParticipantIdentity> = (1..=10)
             .map(|i| ParticipantIdentity {
                 player: Player {
                     puuid: if i == 1 {
@@ -183,7 +184,16 @@ mod tests {
                 },
             })
             .collect();
-        game
+        Game {
+            game_id: id,
+            game_creation_date: stamp.to_string(),
+            game_detail: GameDetail {
+                participants,
+                participant_identities: identities,
+                ..Default::default()
+            },
+            ..Default::default()
+        }
     }
 
     #[test]
