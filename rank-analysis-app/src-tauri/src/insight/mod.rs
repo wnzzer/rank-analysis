@@ -213,7 +213,7 @@ mod tests {
         let v = vision.unwrap();
         assert!(v.avg_vs_peer < 0.0);
         assert_eq!(v.avg_vs_peer, -13.33, "(20*5+60)/6 - 40 = -13.33");
-        assert_eq!(v.streak, 1, "最近一局已回正");
+        assert_eq!(v.streak, 0, "最近一局已回正，连续落后中断");
         assert_eq!(v.first_seen, "2026-08-01T00:00:00Z");
         assert_eq!(v.last_seen, "2026-08-06T00:00:00Z");
         assert!(
