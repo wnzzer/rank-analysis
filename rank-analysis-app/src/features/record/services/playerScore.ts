@@ -58,6 +58,42 @@ export interface PlayerScoreInput {
 /** 总分 17 的色阶语义（供 UI 使用） */
 export const PLAYER_SCORE_MAX = 17
 
+/** L3 归因事件维度（camelCase 与 Rust `ScoreDimension` 对齐） */
+export type ScoreDimension =
+  'kda' | 'win' | 'damage' | 'damageTaken' | 'heal' | 'cs' | 'gold' | 'participation' | 'vision'
+
+/** L3 归因事件（一条证据：维度 + 时间点 + 说明 + 分差） */
+export interface ScoreEvent {
+  dimension: ScoreDimension
+  /** 对局内时间（秒） */
+  timestampSecs: number
+  description: string
+  /** 事件对该维度评分的正向/负向贡献 */
+  delta: number
+}
+
+/** L3 事件级下钻（单名玩家；timeline 不可用时事件为空） */
+export interface ScoreBreakdownDrilldown {
+  participantId: number
+  championId: number
+  total: number
+  breakdown: PlayerScoreBreakdown
+  events: ScoreEvent[]
+  timelineAvailable: boolean
+}
+
+/** 请求 L3 事件级下钻（走 SGP timeline 四级降级链，失败返回 null 静默降级） */
+export async function fetchScoreDrilldown(
+  gameId: number
+): Promise<ScoreBreakdownDrilldown[] | null> {
+  try {
+    return await invoke<ScoreBreakdownDrilldown[]>('get_score_drilldown', { gameId })
+  } catch (err) {
+    console.warn('[score] get_score_drilldown failed', err)
+    return null
+  }
+}
+
 /** 由 LCU `Game`（gameDetail.participants 优先）组装 10 人评分输入 */
 export function buildScoreInputsFromGame(game: Game): PlayerScoreInput[] {
   const participants =

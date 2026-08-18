@@ -1,4 +1,5 @@
 pub mod automation;
+pub mod backtest;
 pub mod bp_decision;
 pub mod cn_patch_notes;
 pub mod command;
@@ -14,6 +15,8 @@ pub mod observability;
 pub mod opgg;
 pub mod paths;
 pub mod pugg;
+pub mod riot;
 pub mod rule_engine;
+pub mod score;
 pub mod shard;
 pub mod state;

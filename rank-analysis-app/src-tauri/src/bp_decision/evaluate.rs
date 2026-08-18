@@ -171,6 +171,7 @@ pub fn worst_matchup(
     Some(BpEvidence {
         win_rate: picked.subject_win_rate,
         against_champion_id: picked.opponent_id,
+        matchup_delta: None,
     })
 }
 
@@ -501,7 +502,8 @@ mod tests {
             ev,
             Some(BpEvidence {
                 win_rate: 0.447,
-                against_champion_id: 60
+                against_champion_id: 60,
+                matchup_delta: None,
             })
         );
         assert!(rejected.is_empty(), "被硬选中的不应同时出现在落选里");
@@ -625,7 +627,8 @@ mod tests {
             t.evidence,
             Some(BpEvidence {
                 win_rate: 0.447,
-                against_champion_id: 60
+                against_champion_id: 60,
+                matchup_delta: None,
             })
         );
     }
@@ -654,7 +657,8 @@ mod tests {
             t.evidence,
             Some(BpEvidence {
                 win_rate: 0.447,
-                against_champion_id: 60
+                against_champion_id: 60,
+                matchup_delta: None,
             })
         );
     }

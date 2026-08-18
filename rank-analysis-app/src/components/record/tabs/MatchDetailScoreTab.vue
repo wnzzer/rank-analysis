@@ -20,6 +20,8 @@
           v-for="(row, i) in team.rows"
           :key="row.score.participantId"
           class="match-detail-score-row"
+          :class="{ 'match-detail-score-row--open': selectedPid === row.score.participantId }"
+          @click="toggleSelect(row.score.participantId)"
         >
           <span class="match-detail-score-rank font-number">{{ i + 1 }}</span>
           <span v-if="row.mvpTag" class="match-detail-score-mvp">{{ row.mvpTag }}</span>
@@ -50,6 +52,55 @@
               }}</span>
             </div>
           </div>
+          <span class="match-detail-score-drill-hint">▼</span>
+        </div>
+
+        <div
+          v-if="selectedPid !== null && team.rows.some(r => r.score.participantId === selectedPid)"
+          class="match-detail-score-drilldown"
+        >
+          <div v-if="drilldownLoading" class="match-detail-score-drilldown-note">
+            L3 事件归因加载中…
+          </div>
+          <div v-else-if="!drilldowns" class="match-detail-score-drilldown-note">
+            事件归因暂不可用（timeline 未就绪）
+          </div>
+          <template v-else>
+            <div
+              v-for="dd in team.rows
+                .filter(r => r.score.participantId === selectedPid)
+                .map(r => drilldownOf(r.score.participantId))
+                .filter((d): d is NonNullable<typeof d> => !!d)"
+              :key="dd.participantId"
+            >
+              <div v-if="!dd.timelineAvailable" class="match-detail-score-drilldown-note">
+                timeline 不可用（LCU→SGP→OP.GG 四级链均未取到），仅展示 L1/L2 汇总分
+              </div>
+              <div v-else-if="dd.events.length === 0" class="match-detail-score-drilldown-note">
+                本局无显著事件（或事件数超上限被截断）
+              </div>
+              <ul v-else class="match-detail-score-drilldown-list">
+                <li
+                  v-for="(ev, idx) in dd.events"
+                  :key="idx"
+                  class="match-detail-score-drilldown-item"
+                >
+                  <span class="match-detail-score-drilldown-time font-number">{{
+                    formatClock(ev.timestampSecs)
+                  }}</span>
+                  <span class="match-detail-score-drilldown-dim">{{
+                    DIMENSION_LABELS[ev.dimension] ?? ev.dimension
+                  }}</span>
+                  <span class="match-detail-score-drilldown-desc">{{ ev.description }}</span>
+                  <span
+                    class="match-detail-score-drilldown-delta font-number"
+                    :class="ev.delta < 0 ? 'is-neg' : 'is-pos'"
+                    >{{ ev.delta > 0 ? `+${ev.delta.toFixed(2)}` : ev.delta.toFixed(2) }}</span
+                  >
+                </li>
+              </ul>
+            </div>
+          </template>
         </div>
       </section>
     </div>
@@ -68,11 +119,26 @@ import type { DetailPlayer } from '@renderer/composables/useMatchDetailPlayers'
 import {
   buildScoreInputsFromGame,
   computePlayerScores,
+  fetchScoreDrilldown,
   sortScoresDesc,
   PLAYER_SCORE_MAX,
   type PlayerScore,
-  type PlayerScoreBreakdown
+  type PlayerScoreBreakdown,
+  type ScoreBreakdownDrilldown,
+  type ScoreDimension
 } from '@renderer/features/record/services/playerScore'
+
+const DIMENSION_LABELS: Partial<Record<ScoreDimension, string>> = {
+  kda: 'KDA',
+  win: '胜场',
+  damage: '输出',
+  damageTaken: '承伤',
+  heal: '治疗',
+  cs: '补刀',
+  gold: '经济',
+  participation: '参团',
+  vision: '视野'
+}
 
 const DIMENSIONS: { key: keyof PlayerScoreBreakdown; label: string; full: number; hint: string }[] =
   [
@@ -93,6 +159,9 @@ const ctx = injected as NonNullable<typeof injected>
 
 const scores = ref<PlayerScore[] | null>(null)
 const scoreError = ref('')
+const drilldowns = ref<ScoreBreakdownDrilldown[] | null>(null)
+const drilldownLoading = ref(false)
+const selectedPid = ref<number | null>(null)
 
 onMounted(async () => {
   const game = ctx.game.value
@@ -104,7 +173,29 @@ onMounted(async () => {
   })
   scores.value = result && result.length > 0 ? result : null
   if (result && result.length === 0) scoreError.value = '对局无参与者数据'
+
+  drilldownLoading.value = true
+  const dd = await fetchScoreDrilldown(game.gameId).catch((err: unknown) => {
+    console.warn('[score] drilldown failed', err)
+    return null
+  })
+  drilldowns.value = dd && dd.length > 0 ? dd : null
+  drilldownLoading.value = false
 })
+
+function toggleSelect(pid: number) {
+  selectedPid.value = selectedPid.value === pid ? null : pid
+}
+
+function drilldownOf(pid: number) {
+  return drilldowns.value?.find(d => d.participantId === pid) ?? null
+}
+
+function formatClock(secs: number) {
+  const m = Math.floor(secs / 60)
+  const s = Math.floor(secs % 60)
+  return `${m}:${s.toString().padStart(2, '0')}`
+}
 
 interface ScoreRow {
   score: PlayerScore
@@ -204,9 +295,71 @@ function scoreLevel(total: number) {
   gap: 8px;
   padding: 5px 0;
   border-bottom: 1px dashed rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+}
+.match-detail-score-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+.match-detail-score-row--open {
+  background: rgba(99, 226, 183, 0.06);
 }
 .match-detail-score-row:last-child {
   border-bottom: none;
+}
+.match-detail-score-drill-hint {
+  flex: 0 0 14px;
+  font-size: 9px;
+  color: var(--n-text-color-3, #999);
+  text-align: center;
+}
+.match-detail-score-row--open .match-detail-score-drill-hint {
+  color: var(--n-primary-color, #63e2b7);
+}
+.match-detail-score-drilldown {
+  margin: 2px 0 8px 24px;
+  padding: 6px 10px;
+  border-left: 2px solid rgba(99, 226, 183, 0.4);
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 0 6px 6px 0;
+}
+.match-detail-score-drilldown-note {
+  font-size: 11px;
+  color: var(--n-text-color-3, #999);
+  padding: 2px 0;
+}
+.match-detail-score-drilldown-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.match-detail-score-drilldown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 11px;
+}
+.match-detail-score-drilldown-time {
+  flex: 0 0 42px;
+  color: var(--n-text-color-3, #999);
+}
+.match-detail-score-drilldown-dim {
+  flex: 0 0 34px;
+  color: var(--n-primary-color, #63e2b7);
+}
+.match-detail-score-drilldown-desc {
+  flex: 1;
+  min-width: 0;
+}
+.match-detail-score-drilldown-delta {
+  flex: 0 0 46px;
+  text-align: right;
+}
+.match-detail-score-drilldown-delta.is-neg {
+  color: #e07a7a;
+}
+.match-detail-score-drilldown-delta.is-pos {
+  color: #57d9a3;
 }
 .match-detail-score-rank {
   width: 16px;

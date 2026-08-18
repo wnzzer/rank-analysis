@@ -68,6 +68,10 @@ pub struct BpEvidence {
     pub win_rate: f64,
     /// 造成该劣势的敌方英雄 ID
     pub against_champion_id: i32,
+    /// 描述性对位差异（建议 vs 实选英雄的历史表现差，ADR-6 回测输出）。
+    /// 未做过回测 / 数据不足时为 `None`（serde 缺省兼容旧缓存）。
+    #[serde(default)]
+    pub matchup_delta: Option<f64>,
 }
 
 /// 决策选中的目标。
