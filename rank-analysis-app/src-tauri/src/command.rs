@@ -49,6 +49,7 @@ pub mod cloud_sync;
 pub mod config;
 pub mod fandom;
 pub mod gank_pattern;
+pub mod import;
 pub mod info;
 pub mod knowledge;
 pub mod launcher;

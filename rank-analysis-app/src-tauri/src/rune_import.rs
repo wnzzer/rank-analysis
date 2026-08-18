@@ -144,7 +144,6 @@ mod tests {
     fn participant(
         id: i32,
         champ: i32,
-        puuid: &str,
         build: Option<&RunePageBuild>,
         spells: (i32, i32),
     ) -> Participant {
@@ -203,7 +202,7 @@ mod tests {
         Game {
             game_id,
             game_detail: GameDetail {
-                participants: vec![participant(1, champ, my_puuid, build, spells)],
+                participants: vec![participant(1, champ, build, spells)],
                 participant_identities: vec![identity(my_puuid)],
                 ..Default::default()
             },

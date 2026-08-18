@@ -12,8 +12,8 @@
 //! 凑不出一套完整页/技能对时如实报错，不编造。
 
 use crate::lcu::api::champion_select::SelectSession;
-use crate::lcu::api::summoner::Summoner;
 use crate::lcu::api::perks::{self, NewPerkPage};
+use crate::lcu::api::summoner::Summoner;
 use crate::rune_import::{most_common_perk_page, most_common_spells, AGGREGATE_LIMIT};
 
 /// 一键导入的符文页命名前缀：`RA-{champion_id}`（如 `RA-64`）。
@@ -61,16 +61,15 @@ pub async fn import_rune_page(champion_id: i32) -> Result<ImportRuneResult, Stri
     };
 
     let pages = perks::get_perk_pages().await?;
-    let (page_id, created) =
-        if let Some(existing) = perks::find_page_by_name(&pages, &page_name) {
-            perks::update_perk_page(existing.id, &page).await?;
-            log::info!("[import] 覆盖符文页 {} (id={})", page_name, existing.id);
-            (existing.id, false)
-        } else {
-            let id = perks::create_perk_page(&page).await?;
-            log::info!("[import] 新建符文页 {} (id={})", page_name, id);
-            (id, true)
-        };
+    let (page_id, created) = if let Some(existing) = perks::find_page_by_name(&pages, &page_name) {
+        perks::update_perk_page(existing.id, &page).await?;
+        log::info!("[import] 覆盖符文页 {} (id={})", page_name, existing.id);
+        (existing.id, false)
+    } else {
+        let id = perks::create_perk_page(&page).await?;
+        log::info!("[import] 新建符文页 {} (id={})", page_name, id);
+        (id, true)
+    };
     perks::set_current_perk_page(page_id).await?;
     log::info!("[import] 已切换当前符文页 {} (id={})", page_name, page_id);
 
@@ -84,16 +83,12 @@ pub async fn import_rune_page(champion_id: i32) -> Result<ImportRuneResult, Stri
 
 /// 找「我」在选人会话里的 pick 动作（cellId 对齐 + 未完成 + type=pick）。
 fn my_pick_action(session: &SelectSession) -> Option<&crate::lcu::api::champion_select::Action> {
-    session
-        .actions
-        .iter()
-        .flatten()
-        .find(|a| {
-            a.is_ally_action
-                && a.actor_cell_id == session.local_player_cell_id
-                && a.action_type == "pick"
-                && !a.completed
-        })
+    session.actions.iter().flatten().find(|a| {
+        a.is_ally_action
+            && a.actor_cell_id == session.local_player_cell_id
+            && a.action_type == "pick"
+            && !a.completed
+    })
 }
 
 /// 一键导入召唤师技能：把本机该英雄最常用的一对技能写入我的选人动作。
