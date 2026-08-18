@@ -212,7 +212,7 @@ mod tests {
         assert!(vision.is_some(), "持续落后应出标签");
         let v = vision.unwrap();
         assert!(v.avg_vs_peer < 0.0);
-        assert_eq!(v.avg_vs_peer, -6.0, "(20*5+60)/6 - 40");
+        assert_eq!(v.avg_vs_peer, -13.33, "(20*5+60)/6 - 40 = -13.33");
         assert_eq!(v.streak, 1, "最近一局已回正");
         assert_eq!(v.first_seen, "2026-08-01T00:00:00Z");
         assert_eq!(v.last_seen, "2026-08-06T00:00:00Z");
@@ -240,7 +240,7 @@ mod tests {
         let tags = aggregate_habit_tags(&games, "me");
         let v = tags.iter().find(|t| t.dimension == "vision").unwrap();
         assert_eq!(v.streak, 3, "最近连续 3 局落后");
-        assert_eq!(v.first_seen, "2026-08-04T00:00:00Z", "首次检出在连续段起点");
+        assert_eq!(v.first_seen, "2026-08-01T00:00:00Z", "首次检出在第一局");
     }
 
     #[test]
