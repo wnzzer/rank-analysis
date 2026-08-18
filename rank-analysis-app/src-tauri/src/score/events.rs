@@ -245,13 +245,19 @@ fn frame_increments(
     pid: i32,
     field: impl Fn(&crate::lcu::api::sgp::SgpFrameParticipantStats) -> i32,
 ) -> Vec<(i64, i64, i32)> {
-    let mut frames: Vec<&SgpFrame> = detail.frames.iter().filter(|f| f.timestamp.is_some()).collect();
+    let mut frames: Vec<&SgpFrame> = detail
+        .frames
+        .iter()
+        .filter(|f| f.timestamp.is_some())
+        .collect();
     frames.sort_by_key(|f| f.timestamp.unwrap());
 
     let mut out = Vec::new();
     let mut prev: Option<(i64, i32)> = None;
     for f in frames {
-        let Some(stats) = f.participant_frames.get(&pid) else { continue };
+        let Some(stats) = f.participant_frames.get(&pid) else {
+            continue;
+        };
         let cur = field(stats);
         if let Some((prev_t, prev_v)) = prev {
             let inc = cur - prev_v;
@@ -304,7 +310,7 @@ fn frame_stall_events(
     let mut run: Option<(i64, i64)> = None;
     for (t, t_end, inc) in mine {
         let avg = team.get(&t).copied().unwrap_or(0.0);
-        if avg > 0.0 && inc as f64 < avg * STALL_RATIO {
+        if avg > 0.0 && (inc as f64) < avg * STALL_RATIO {
             run = Some(match run {
                 Some((start, _)) => (start, t_end),
                 None => (t, t_end),
@@ -365,7 +371,7 @@ fn damage_dip_events(
     let mut run: Option<(i64, i64)> = None;
     for (t, t_end, inc) in mine {
         let avg = team.get(&t).copied().unwrap_or(0.0);
-        if avg > 0.0 && inc as f64 < avg * STALL_RATIO {
+        if avg > 0.0 && (inc as f64) < avg * STALL_RATIO {
             run = Some(match run {
                 Some((start, _)) => (start, t_end),
                 None => (t, t_end),
@@ -436,7 +442,13 @@ mod tests {
     use super::*;
     use crate::lcu::api::sgp::SgpFrameParticipantStats;
 
-    fn ev(r#type: &str, ms: i64, pid: Option<i32>, killer: Option<i32>, victim: Option<i32>) -> SgpFrameEvent {
+    fn ev(
+        r#type: &str,
+        ms: i64,
+        pid: Option<i32>,
+        killer: Option<i32>,
+        victim: Option<i32>,
+    ) -> SgpFrameEvent {
         SgpFrameEvent {
             r#type: Some(r#type.to_string()),
             timestamp: Some(ms),
@@ -447,7 +459,11 @@ mod tests {
         }
     }
 
-    fn frame(ms: i64, stats: HashMap<i32, SgpFrameParticipantStats>, events: Vec<SgpFrameEvent>) -> SgpFrame {
+    fn frame(
+        ms: i64,
+        stats: HashMap<i32, SgpFrameParticipantStats>,
+        events: Vec<SgpFrameEvent>,
+    ) -> SgpFrame {
         SgpFrame {
             timestamp: Some(ms),
             participant_frames: stats,
@@ -518,8 +534,20 @@ mod tests {
     fn teamfight_without_me_is_participation_miss() {
         // 4 次击杀集中在 30s 内：我方击杀 2 次（MATE_A 与 MATE_B），我方无死亡
         let events = vec![
-            ev("CHAMPION_KILL", 600_000, Some(MATE_A), Some(MATE_A), Some(50)),
-            ev("CHAMPION_KILL", 615_000, Some(MATE_B), Some(MATE_B), Some(51)),
+            ev(
+                "CHAMPION_KILL",
+                600_000,
+                Some(MATE_A),
+                Some(MATE_A),
+                Some(50),
+            ),
+            ev(
+                "CHAMPION_KILL",
+                615_000,
+                Some(MATE_B),
+                Some(MATE_B),
+                Some(51),
+            ),
             ev("CHAMPION_KILL", 630_000, Some(52), Some(52), Some(MATE_B)),
             ev("CHAMPION_KILL", 645_000, Some(53), Some(53), Some(MATE_A)),
         ];
@@ -537,13 +565,20 @@ mod tests {
     fn teamfight_where_i_die_counts_as_participation() {
         let events = vec![
             ev("CHAMPION_KILL", 600_000, Some(50), Some(50), Some(ME)),
-            ev("CHAMPION_KILL", 615_000, Some(MATE_A), Some(MATE_A), Some(51)),
+            ev(
+                "CHAMPION_KILL",
+                615_000,
+                Some(MATE_A),
+                Some(MATE_A),
+                Some(51),
+            ),
             ev("CHAMPION_KILL", 630_000, Some(52), Some(52), Some(MATE_B)),
         ];
         let d = detail(vec![frame(700_000, HashMap::new(), events)]);
         let evs = compute_score_events(&d, ME, &my_team());
         assert!(
-            !evs.iter().any(|e| e.dimension == ScoreDimension::Participation),
+            !evs.iter()
+                .any(|e| e.dimension == ScoreDimension::Participation),
             "我阵亡也算参团，不应产出未参团证据"
         );
     }
@@ -568,7 +603,10 @@ mod tests {
             mk(180_000, 20, 200),
         ]);
         let evs = compute_score_events(&d, ME, &my_team());
-        let stalls: Vec<_> = evs.iter().filter(|e| e.dimension == ScoreDimension::Cs).collect();
+        let stalls: Vec<_> = evs
+            .iter()
+            .filter(|e| e.dimension == ScoreDimension::Cs)
+            .collect();
         assert_eq!(stalls.len(), 1);
         assert!(stalls[0].description.contains("补刀"));
     }
@@ -604,7 +642,10 @@ mod tests {
         ];
         let d = detail(vec![frame(800_000, HashMap::new(), events)]);
         let evs = compute_score_events(&d, ME, &my_team());
-        let gaps: Vec<_> = evs.iter().filter(|e| e.dimension == ScoreDimension::Vision).collect();
+        let gaps: Vec<_> = evs
+            .iter()
+            .filter(|e| e.dimension == ScoreDimension::Vision)
+            .collect();
         assert_eq!(gaps.len(), 1);
         assert!(gaps[0].description.contains("6 分钟"));
     }
@@ -658,7 +699,9 @@ mod tests {
             ],
         )]);
         let evs = compute_score_events(&d, ME, &my_team());
-        assert!(evs.windows(2).all(|w| w[0].timestamp_secs <= w[1].timestamp_secs));
+        assert!(evs
+            .windows(2)
+            .all(|w| w[0].timestamp_secs <= w[1].timestamp_secs));
         assert!(evs.len() <= MAX_EVENTS);
     }
 

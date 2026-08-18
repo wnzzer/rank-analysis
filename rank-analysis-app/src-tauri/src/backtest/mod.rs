@@ -103,21 +103,28 @@ pub fn compute_backtest(input: &BacktestInput) -> BacktestResult {
         || input.suggestion_samples.len() < MIN_MATCHUP_SAMPLES
         || input.actual_samples.len() < MIN_MATCHUP_SAMPLES;
 
-    let (win_rate_gap, score_gap, matchup_delta, confidence) = match (suggestion_win, actual_win, suggestion_score, actual_score) {
-        (Some(s_win), Some(a_win), Some(s_score), Some(a_score)) if !insufficient => {
-            let wr_gap = s_win - a_win;
-            let sc_gap = s_score - a_score;
-            // 综合差异：胜率差为主、表现分差为辅（都归一化到 ±1 内）。
-            let delta = wr_gap * 0.7 + (sc_gap / 17.0) * 0.3;
-            let confidence = (CONFIDENCE_CAP * total_samples as f64 / (MIN_LOCAL_SAMPLES * 2) as f64).min(CONFIDENCE_CAP);
-            (wr_gap, sc_gap, delta, confidence)
-        }
-        _ => (0.0, 0.0, 0.0, 0.0),
-    };
+    let (win_rate_gap, score_gap, matchup_delta, confidence) =
+        match (suggestion_win, actual_win, suggestion_score, actual_score) {
+            (Some(s_win), Some(a_win), Some(s_score), Some(a_score)) if !insufficient => {
+                let wr_gap = s_win - a_win;
+                let sc_gap = s_score - a_score;
+                // 综合差异：胜率差为主、表现分差为辅（都归一化到 ±1 内）。
+                let delta = wr_gap * 0.7 + (sc_gap / 17.0) * 0.3;
+                let confidence = (CONFIDENCE_CAP * total_samples as f64
+                    / (MIN_LOCAL_SAMPLES * 2) as f64)
+                    .min(CONFIDENCE_CAP);
+                (wr_gap, sc_gap, delta, confidence)
+            }
+            _ => (0.0, 0.0, 0.0, 0.0),
+        };
 
     let mut caveats = vec![
         "基于分段平均的历史表现差异，非因果推断".to_string(),
-        format!("样本：建议 {} 局 / 实际 {} 局", input.suggestion_samples.len(), input.actual_samples.len()),
+        format!(
+            "样本：建议 {} 局 / 实际 {} 局",
+            input.suggestion_samples.len(),
+            input.actual_samples.len()
+        ),
     ];
     if insufficient {
         caveats.push(format!(
@@ -151,10 +158,7 @@ mod tests {
         }
     }
 
-    fn input(
-        suggestion: Vec<MatchupSample>,
-        actual: Vec<MatchupSample>,
-    ) -> BacktestInput {
+    fn input(suggestion: Vec<MatchupSample>, actual: Vec<MatchupSample>) -> BacktestInput {
         BacktestInput {
             suggestion_champion_id: 1,
             actual_champion_id: 2,
