@@ -152,10 +152,11 @@ mod tests {
 
     #[test]
     fn sustained_refill_is_proportional_to_window() {
-        // 100/2min 的持续速率 ≈ 0.833/s：20s 回填 ~16.7 → 可放行 16 次
+        // 100/2min 的持续速率 ≈ 0.833/s：先把两桶打空，20s 后 sustained
+        // 只回填 ~16.7 → 恰好放行 16 次（burst 已满不构成瓶颈）
         let limiter = RateLimiter::new(100, 100.0, 100, 100.0 / 120.0);
         let t0 = start();
-        for _ in 0..30 {
+        for _ in 0..100 {
             assert!(limiter.try_acquire(t0));
         }
         let t1 = t0 + std::time::Duration::from_secs(20);
