@@ -410,25 +410,10 @@ pub async fn riot_client_get<T: DeserializeOwned>(
     serde_json::from_str::<T>(&body).map_err(|e| format!("Riot Client 反序列化失败: {}", e))
 }
 
-/// 向腾讯 SGP 网关发起带 Bearer 鉴权的 GET，并反序列化为 `T`。
-///
-/// # 参数
-/// - `host`: 目标大区 SGP 主机（含端口，如 `tj100-sgp.lol.qq.com:21019`，见
-///   [`crate::constant::game::get_sgp_host`]）
-/// - `uri`: 端点路径（相对，如 `match-history-query/v1/...`）
-/// - `bearer`: 鉴权 token（战绩用 LCU `entitlements/v1/token` 的 `accessToken`）
-///
-/// 正常 TLS + 拟真 UA。非 2xx 时把状态码与截断的 body 一并返回，便于区分
-/// 「网络/证书失败」「token 失效(401)」「玩家/大区不存在」。
-///
-/// 网络错误与 5xx 自动重试（共 3 次尝试，指数退避 300ms/600ms，对齐 LeagueAkari
-/// 的 axios-retry 语义——重试只覆盖「可能瞬时失败」的传输层错误，4xx 业务错误
-/// 原样返回避免放大无效请求）。
-pub async fn sgp_get<T: DeserializeOwned>(
-    host: &str,
-    uri: &str,
-    bearer: &str,
-) -> Result<T, String> {
+/// SGP 请求原始文本版：网络错误与 5xx 自动重试（共 3 次尝试，指数退避
+/// 300ms/600ms），返回响应 body 文本（非 2xx 报错）。供 `SgpGateway` 接口消费，
+/// 类型化解析由调用方按目标结构做。
+pub async fn sgp_get_text(host: &str, uri: &str, bearer: &str) -> Result<String, String> {
     let uri = uri.trim_start_matches('/');
     let url = format!("https://{}/{}", host, uri);
 
@@ -456,8 +441,7 @@ pub async fn sgp_get<T: DeserializeOwned>(
                     }
                     return Err(format!("SGP 非 2xx（{}）: {}", status, snippet));
                 }
-                return serde_json::from_str::<T>(&body)
-                    .map_err(|e| format!("SGP 反序列化失败: {}", e));
+                return Ok(body);
             }
             Err(e) => {
                 // 网络/TLS 失败属「可能瞬时」的传输层错误，未用尽次数则重试
@@ -471,6 +455,29 @@ pub async fn sgp_get<T: DeserializeOwned>(
         }
     }
     Err(last_err.unwrap_or_else(|| "SGP 请求失败（重试次数用尽）".to_string()))
+}
+
+/// 向腾讯 SGP 网关发起带 Bearer 鉴权的 GET，并反序列化为 `T`。
+///
+/// # 参数
+/// - `host`: 目标大区 SGP 主机（含端口，如 `tj100-sgp.lol.qq.com:21019`，见
+///   [`crate::constant::game::get_sgp_host`]）
+/// - `uri`: 端点路径（相对，如 `match-history-query/v1/...`）
+/// - `bearer`: 鉴权 token（战绩用 LCU `entitlements/v1/token` 的 `accessToken`）
+///
+/// 正常 TLS + 拟真 UA。非 2xx 时把状态码与截断的 body 一并返回，便于区分
+/// 「网络/证书失败」「token 失效(401)」「玩家/大区不存在」。
+///
+/// 网络错误与 5xx 自动重试（共 3 次尝试，指数退避 300ms/600ms，对齐 LeagueAkari
+/// 的 axios-retry 语义——重试只覆盖「可能瞬时失败」的传输层错误，4xx 业务错误
+/// 原样返回避免放大无效请求）。内部复用 [`sgp_get_text`] 的传输层逻辑。
+pub async fn sgp_get<T: DeserializeOwned>(
+    host: &str,
+    uri: &str,
+    bearer: &str,
+) -> Result<T, String> {
+    let body = sgp_get_text(host, uri, bearer).await?;
+    serde_json::from_str::<T>(&body).map_err(|e| format!("SGP 反序列化失败: {}", e))
 }
 
 /// SGP 最大重试次数（共 `SGP_MAX_RETRIES + 1` 次尝试）。

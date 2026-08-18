@@ -145,13 +145,17 @@ async fn sgp_get_resilient<T: serde::de::DeserializeOwned>(
             format!("未知大区 {platform_id}，无对应 SGP 主机")
         }
     })?;
-    match gw.request::<T>(&host, uri, token).await {
-        Ok(value) => Ok(value),
+    match gw.request(host, uri, token).await {
+        Ok(body) => serde_json::from_str::<T>(&body).map_err(|e| format!("SGP 反序列化失败: {e}")),
         Err(err) if is_host_refreshable(&err) => {
             log::warn!("SGP 请求失败，刷新主机映射后重试一次: {err}");
             sgp_league_servers::force_refresh().await;
             match gw.resolve_host(platform_id, common).await {
-                Some(new_host) => gw.request::<T>(&new_host, uri, token).await,
+                Some(new_host) => match gw.request(&new_host, uri, token).await {
+                    Ok(body) => serde_json::from_str::<T>(&body)
+                        .map_err(|e| format!("SGP 反序列化失败: {e}")),
+                    Err(retry_err) => Err(retry_err),
+                },
                 None => Err(err),
             }
         }

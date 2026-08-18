@@ -9,13 +9,16 @@
 //! LCU（`command/match_history.rs`），跨区查询与 SGP 帧流走本网关（`command/sgp.rs`），
 //! 前端按 feature 合并（`mergeGamesByGameId`）。本接口让 SGP 侧自身可替换、可测试。
 
-use serde::de::DeserializeOwned;
 use std::sync::LazyLock;
 
 use crate::lcu::api::sgp_league_servers;
-use crate::lcu::util::http::sgp_get;
+use crate::lcu::util::http::sgp_get_text;
 
 /// SGP 数据通道契约。
+///
+/// 注意：`request` 返回响应**文本**而非泛型 `T`——泛型方法不满足 trait object
+/// 的 dyn 兼容性（`SgpGateway` 以 `&dyn` 形式被业务层持有），类型化解析由调用方
+/// 按目标结构完成（`serde_json::from_str`）。
 pub trait SgpGateway: Send + Sync {
     /// 实现标识（日志/排障用）。
     fn name(&self) -> &'static str;
@@ -24,13 +27,8 @@ pub trait SgpGateway: Send + Sync {
     /// 主机。动态表 miss 时内部会触发一次远程拉取（见 [`sgp_league_servers`]）。
     async fn resolve_host(&self, platform_id: &str, common: bool) -> Option<String>;
 
-    /// 发送带 Bearer 的 GET（默认实现含 3 次指数退避重试）。
-    async fn request<T: DeserializeOwned>(
-        &self,
-        host: &str,
-        uri: &str,
-        bearer: &str,
-    ) -> Result<T, String>;
+    /// 发送带 Bearer 的 GET（默认实现含 3 次指数退避重试），成功返回响应 body 文本。
+    async fn request(&self, host: &str, uri: &str, bearer: &str) -> Result<String, String>;
 }
 
 /// 默认实现：动态 league-servers 映射 + 标准 SGP HTTP。
@@ -45,13 +43,8 @@ impl SgpGateway for DefaultSgpGateway {
         sgp_league_servers::resolve_sgp_host(platform_id, common).await
     }
 
-    async fn request<T: DeserializeOwned>(
-        &self,
-        host: &str,
-        uri: &str,
-        bearer: &str,
-    ) -> Result<T, String> {
-        sgp_get::<T>(host, uri, bearer).await
+    async fn request(&self, host: &str, uri: &str, bearer: &str) -> Result<String, String> {
+        sgp_get_text(host, uri, bearer).await
     }
 }
 
