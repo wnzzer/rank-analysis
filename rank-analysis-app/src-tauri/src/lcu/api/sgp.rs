@@ -17,13 +17,13 @@
 //! 的 match-v4 `Game` 结构不同），此模块先返回原始 `serde_json::Value`，映射到前端
 //! 消费的结构由上层完成/后续补齐（需对照真实响应，避免盲猜字段）。
 
-use crate::constant;
 use crate::lcu::api::game_detail::GameDetail;
 use crate::lcu::api::match_history::{Game, GamesWrapper, MatchHistory};
 use crate::lcu::api::model::{
     Participant, ParticipantIdentity, ParticipantTimeline, Perks, Player, Stats,
 };
 use crate::lcu::api::rank::{QueueInfo, QueueMap, Rank};
+use crate::lcu::api::sgp_league_servers;
 use crate::lcu::api::summoner::Summoner;
 use crate::lcu::util::http::{lcu_get, riot_client_get, sgp_get};
 use moka::future::Cache;
@@ -115,6 +115,50 @@ fn is_sgp_not_found(err: &str) -> bool {
     err.contains("非 2xx（404）")
 }
 
+/// 错误是否可能源于「主机映射过期」（P1-3 刷新触发条件）：
+/// - 401：token 每次现取，不会过期——401 说明旧 host 拒绝新 token（映射过期）
+/// - 5xx：上游主机抖动/迁移中，换映射后重试合理
+/// - 网络/TLS：旧 host 已下线时表现为连接失败
+/// 其余（404 无记录、反序列化失败等）不刷新。
+fn is_host_refreshable(err: &str) -> bool {
+    err.contains("SGP 非 2xx（401")
+        || err.contains("SGP 非 2xx（5")
+        || err.contains("SGP 请求失败（网络/TLS）")
+}
+
+/// 带主机映射自愈的 SGP GET（P1-3 加固）：
+/// `sgp_get` 内置 3 次指数退避重试后仍失败（401/5xx/网络），则强制刷新
+/// league-servers 映射（无视 2h 节流）并用新主机重试一次。token 每次现取，
+/// 无需在请求层处理 token 轮换。
+async fn sgp_get_resilient<T: serde::de::DeserializeOwned>(
+    platform_id: &str,
+    uri: &str,
+    token: &str,
+    common: bool,
+) -> Result<T, String> {
+    let host = sgp_league_servers::resolve_sgp_host(platform_id, common)
+        .await
+        .ok_or_else(|| {
+            if common {
+                format!("未知大区 {platform_id}，无对应 SGP common 主机")
+            } else {
+                format!("未知大区 {platform_id}，无对应 SGP 主机")
+            }
+        })?;
+    match sgp_get::<T>(host, uri, token).await {
+        Ok(value) => Ok(value),
+        Err(err) if is_host_refreshable(&err) => {
+            log::warn!("SGP 请求失败，刷新主机映射后重试一次: {err}");
+            sgp_league_servers::force_refresh().await;
+            match sgp_league_servers::resolve_sgp_host(platform_id, common).await {
+                Some(new_host) => sgp_get::<T>(new_host, uri, token).await,
+                None => Err(err),
+            }
+        }
+        Err(err) => Err(err),
+    }
+}
+
 /// 拉取指定大区某玩家的段位（`leagues-ledge/v2/rankedStats`）。
 ///
 /// # 参数
@@ -129,11 +173,9 @@ pub async fn fetch_ranked_stats(platform_id: &str, puuid: &str) -> Result<SgpRan
     if let Some(cached) = SGP_RANKED_CACHE.get(&key).await {
         return Ok(cached);
     }
-    let host = constant::game::get_sgp_common_host(platform_id)
-        .ok_or_else(|| format!("未知大区 {}，无对应 SGP common 主机", platform_id))?;
     let token = get_league_session_token().await?;
     let uri = format!("leagues-ledge/v2/rankedStats/puuid/{}", puuid);
-    match sgp_get::<SgpRankedStats>(host, &uri, &token).await {
+    match sgp_get_resilient::<SgpRankedStats>(platform_id, &uri, &token, true).await {
         Ok(stats) => {
             SGP_RANKED_CACHE.insert(key, stats.clone()).await;
             Ok(stats)
@@ -212,14 +254,12 @@ pub async fn fetch_match_history_summary(
     if let Some(cached) = SGP_SUMMARY_CACHE.get(&key).await {
         return Ok(cached);
     }
-    let host = constant::game::get_sgp_host(platform_id)
-        .ok_or_else(|| format!("未知大区 {}，无对应 SGP 主机", platform_id))?;
     let token = get_entitlements_access_token().await?;
     let uri = format!(
         "match-history-query/v1/products/lol/player/{}/SUMMARY?startIndex={}&count={}",
         puuid, start, count
     );
-    let raw = sgp_get::<Value>(host, &uri, &token).await?;
+    let raw = sgp_get_resilient::<Value>(platform_id, &uri, &token, false).await?;
     SGP_SUMMARY_CACHE.insert(key, raw.clone()).await;
     Ok(raw)
 }
@@ -387,14 +427,12 @@ pub async fn fetch_match_detail(
     if let Some(cached) = SGP_DETAIL_CACHE.get(&key).await {
         return Ok(cached);
     }
-    let host = constant::game::get_sgp_host(platform_id)
-        .ok_or_else(|| format!("未知大区 {},无对应 SGP 主机", platform_id))?;
     let token = get_entitlements_access_token().await?;
     let uri = format!(
         "match-history-query/v1/products/lol/{}_{}/DETAILS",
         platform_id, game_id
     );
-    let raw = sgp_get::<SgpGameDetailResponse>(host, &uri, &token).await?;
+    let raw = sgp_get_resilient::<SgpGameDetailResponse>(platform_id, &uri, &token, false).await?;
     SGP_DETAIL_CACHE.insert(key, raw.clone()).await;
     Ok(raw)
 }
