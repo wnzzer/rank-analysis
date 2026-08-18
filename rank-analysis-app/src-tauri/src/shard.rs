@@ -37,7 +37,7 @@ pub trait AppShard: Send + Sync {
     /// （一个 shard 失败不应拖垮整个启动）。
     fn on_init<'a>(
         &'a self,
-        app: &'a tauri::AppHandle,
+        _app: &'a tauri::AppHandle,
     ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
         Box::pin(async move {})
     }
@@ -85,6 +85,8 @@ pub fn dispose_all() {
 pub struct StartupShard;
 
 impl StartupShard {
+    /// 构造即装箱（`Arc<dyn AppShard>`），调用端直接交给注册表，无需二次包装。
+    #[allow(clippy::new_ret_no_self)]
     pub fn new() -> Arc<dyn AppShard> {
         Arc::new(Self)
     }
@@ -128,6 +130,8 @@ impl AppShard for StartupShard {
 pub struct GameStateShard;
 
 impl GameStateShard {
+    /// 构造即装箱（`Arc<dyn AppShard>`），调用端直接交给注册表，无需二次包装。
+    #[allow(clippy::new_ret_no_self)]
     pub fn new() -> Arc<dyn AppShard> {
         Arc::new(Self)
     }
@@ -160,6 +164,8 @@ pub struct FandomShard {
 }
 
 impl FandomShard {
+    /// 构造即装箱（`Arc<dyn AppShard>`），调用端直接交给注册表，无需二次包装。
+    #[allow(clippy::new_ret_no_self)]
     pub fn new() -> Arc<dyn AppShard> {
         Arc::new(Self {
             stop: Arc::new(AtomicBool::new(false)),

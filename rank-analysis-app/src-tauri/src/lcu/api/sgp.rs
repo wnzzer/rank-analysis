@@ -116,9 +116,11 @@ fn is_sgp_not_found(err: &str) -> bool {
 }
 
 /// 错误是否可能源于「主机映射过期」（P1-3 刷新触发条件）：
+///
 /// - 401：token 每次现取，不会过期——401 说明旧 host 拒绝新 token（映射过期）
 /// - 5xx：上游主机抖动/迁移中，换映射后重试合理
 /// - 网络/TLS：旧 host 已下线时表现为连接失败
+///
 /// 其余（404 无记录、反序列化失败等）不刷新。
 fn is_host_refreshable(err: &str) -> bool {
     err.contains("SGP 非 2xx（401")
