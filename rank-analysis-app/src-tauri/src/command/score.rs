@@ -29,7 +29,7 @@ use moka::future::Cache;
 use serde::{Deserialize, Serialize};
 
 use crate::command::match_history::get_game_by_id;
-use crate::lcu::api::model::{Participant, ParticipantIdentity, Stats};
+use crate::lcu::api::model::{Participant, ParticipantIdentity};
 
 /// Akari 总分上限（9 维满分之和）。
 pub const AKARI_MAX_SCORE: f64 = 17.0;
@@ -69,8 +69,8 @@ const KP_MAX: f64 = 1.0;
 const RATIO_MIN_VISION: f64 = 1.0;
 const RATIO_MAX_VISION: f64 = 2.0;
 
-/// 队总承伤为 0 且治疗>0 时治疗维的兜底：仍按满价值记 0（无基准），
-/// 不编造任何分数（纪律）。`linear` 的 min==max 时输出 0。
+// 队总承伤为 0 且治疗>0 时治疗维的兜底：仍按满价值记 0（无基准），
+// 不编造任何分数（纪律）。`linear` 的 min==max 时输出 0。
 
 /// 单名玩家的 9 维明细（输出给前端/AI，camelCase）。
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -301,7 +301,6 @@ pub fn score_participants(inputs: &[PlayerScoreInput]) -> Vec<PlayerScore> {
         }
         m
     };
-    let duration = inputs.iter().map(|s| s.game_duration).max().unwrap_or(0);
 
     inputs
         .iter()
@@ -379,6 +378,9 @@ pub fn compute_player_scores(inputs: Vec<PlayerScoreInput>) -> Vec<PlayerScore> 
 mod tests {
     use super::*;
 
+    /// 测试数据构造器：12 个位置参数直通 `PlayerScoreInput` 字段，
+    /// 单行可读性优先（clippy::too_many_arguments 对测试 helper 让步）。
+    #[allow(clippy::too_many_arguments)]
     fn input(
         team: i32,
         wins: bool,
@@ -611,13 +613,15 @@ mod tests {
     /// LCU participant → 输入映射：cs 含野怪、名称与 puuid 透传（身份按索引对应）。
     #[test]
     fn lcu_participant_mapping_includes_neutral_cs() {
-        let mut stats = Stats::default();
-        stats.kills = 5;
-        stats.deaths = 2;
-        stats.assists = 8;
-        stats.total_minions_killed = 160;
-        stats.neutral_minions_killed = 40;
-        stats.win = true;
+        let stats = crate::lcu::api::model::Stats {
+            kills: 5,
+            deaths: 2,
+            assists: 8,
+            total_minions_killed: 160,
+            neutral_minions_killed: 40,
+            win: true,
+            ..Default::default()
+        };
         let p = Participant {
             participant_id: 3,
             champion_id: 103,
