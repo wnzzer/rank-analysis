@@ -39,7 +39,7 @@ fn dim_value(stats: &Stats, dim: &str) -> Option<i32> {
 }
 
 /// 定位本机参与者（口径同 samples.rs：identity 按 participantId 对齐，找不到退回同索引）。
-fn my_participant(game: &Game, my_puuid: &str) -> Option<&Participant> {
+fn my_participant<'a>(game: &'a Game, my_puuid: &str) -> Option<&'a Participant> {
     let identities = &game.game_detail.participant_identities;
     let idx = identities.iter().position(|i| i.player.puuid == my_puuid)?;
     game.game_detail
@@ -80,7 +80,7 @@ fn game_deltas(game: &Game, my_puuid: &str) -> Option<[f64; 6]> {
             .map(|p| dim_value(&p.stats, dim).unwrap_or_default() as f64)
             .sum::<f64>()
             / peers.len() as f64;
-        deltas[i] = if dim == "deaths" {
+        deltas[i] = if *dim == "deaths" {
             peer_mean - my_v
         } else {
             my_v - peer_mean
@@ -173,7 +173,6 @@ mod tests {
         game.game_detail.participants = participants;
         game.game_detail.participant_identities = (1..=10)
             .map(|i| ParticipantIdentity {
-                participant_id: i,
                 player: Player {
                     puuid: if i == 1 {
                         "me".to_string()
