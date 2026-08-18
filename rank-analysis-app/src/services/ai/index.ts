@@ -23,6 +23,7 @@ import type { AIAnalysisReport } from './matchDetail'
 import type { RecentPlayerProfile } from './shared/types'
 import { fetchBatchProfiles } from './shared/recentProfile.batch'
 import { classifyMode } from './shared/modeContext'
+import type { PlayerScore } from '@renderer/services/playerScore'
 
 /**
  * 整队分析的玩家近期画像预拉取（best-effort）：失败返回 undefined，
@@ -192,6 +193,8 @@ export async function analyzeMatchDetailWithAIStream(
   extras?: {
     profileMap?: Map<string, RecentPlayerProfile | null> | null
     vocabSamples?: string[]
+    /** 确定性评分（Rust 侧 17 分制事实，best-effort；缺失时 AI 不引用评分） */
+    playerScores?: PlayerScore[] | null
   }
 ): Promise<void> {
   try {
@@ -199,7 +202,8 @@ export async function analyzeMatchDetailWithAIStream(
     const out = await analyzeMatchDetail(game, extras?.profileMap ?? null, callbacks, {
       vocabSamples: extras?.vocabSamples,
       mode: options.mode,
-      participantId: options.participantId
+      participantId: options.participantId,
+      playerScores: extras?.playerScores ?? null
     })
     if (out.ok) {
       callbacks.onStructured?.(out.report)

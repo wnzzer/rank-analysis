@@ -229,6 +229,7 @@ import MatchDetailRunesTab from './tabs/MatchDetailRunesTab.vue'
 import MatchDetailEventsTab from './tabs/MatchDetailEventsTab.vue'
 import MatchDetailBuildsTab from './tabs/MatchDetailBuildsTab.vue'
 import MatchDetailTimelineTab from './tabs/MatchDetailTimelineTab.vue'
+import MatchDetailScoreTab from './tabs/MatchDetailScoreTab.vue'
 
 const props = defineProps<{ game: Game | null; region?: string }>()
 const emit = defineEmits<{ close: [] }>()
@@ -434,7 +435,7 @@ provide(matchDetailContextKey, {
   loadSgpDetail
 })
 
-/** tab 定义：6 tab（概览 / 数据对比 / 符文 / 事件 / 出装 / 时间线）全部落地 */
+/** tab 定义：7 tab（概览 / 数据对比 / 符文 / 事件 / 出装 / 时间线 / 评分）全部落地 */
 const tabs = [
   { key: 'summary', label: '概览', component: MatchDetailSummaryTab },
   {
@@ -461,6 +462,11 @@ const tabs = [
     key: 'timeline',
     label: '时间线',
     component: MatchDetailTimelineTab
+  },
+  {
+    key: 'score',
+    label: '评分',
+    component: MatchDetailScoreTab
   }
 ]
 

@@ -15,6 +15,7 @@ import { getModePromptAddon } from './dispatcher'
 import { buildStage1Prompt } from './prompts/stage1-attribution'
 import { validateAttribution } from './validator'
 import type { AttributionResult } from './types'
+import type { PlayerScore } from '@renderer/services/playerScore'
 
 export const STAGE1_SYSTEM_PROMPT =
   '你是 LOL 单场归因分析师。严格按照用户给定的 JSON schema 返回结果，' +
@@ -30,9 +31,12 @@ export const STAGE1_SYSTEM_PROMPT =
 export const STAGE1_MODEL = 'qwen-flash'
 
 /** Stage 1 user prompt：公共骨架 + 按 modeContext 路由的模式追加规则（含关联信号块） */
-export async function buildAttributionUserPrompt(snapshot: MatchSnapshot): Promise<string> {
+export async function buildAttributionUserPrompt(
+  snapshot: MatchSnapshot,
+  playerScores?: PlayerScore[] | null
+): Promise<string> {
   const addon = getModePromptAddon(snapshot.modeContext)
-  return buildStage1Prompt(snapshot, addon.rules)
+  return buildStage1Prompt(snapshot, addon.rules, playerScores)
 }
 
 /**

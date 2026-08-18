@@ -45,6 +45,7 @@ import {
 } from './critiqueReport'
 import { renderFallbackCritique } from './critiqueTemplate'
 import type { AttributionResult, AIAnalysisReport } from './types'
+import type { PlayerScore } from '@renderer/services/playerScore'
 
 export type { AttributionResult, MatchAIState } from './types'
 export type { AIAnalysisReport } from './types'
@@ -56,6 +57,9 @@ export interface AnalyzeOptions {
   /** 'player' 时 Stage 2 输出单人复盘（需 participantId）；Stage 1 归因两模式共享 */
   mode?: 'overview' | 'player'
   participantId?: number
+  /** 确定性评分（Rust 侧 17 分制事实，best-effort；缺失时 prompt 不引用评分）。
+   *  评分是同一对局数据的纯函数，命中 Stage 1 缓存时无需失效。 */
+  playerScores?: PlayerScore[] | null
 }
 
 export type AnalyzeOutcome =
@@ -128,7 +132,7 @@ export async function analyzeMatchDetail(
     precomputedStage1: cachedAttribution ?? undefined,
     stage1: {
       systemPrompt: STAGE1_SYSTEM_PROMPT,
-      userPrompt: await buildAttributionUserPrompt(snapshot),
+      userPrompt: await buildAttributionUserPrompt(snapshot, options.playerScores),
       parse: raw => parseAttribution(raw, snapshot),
       cacheKey: stage1Key,
       retry: 1,

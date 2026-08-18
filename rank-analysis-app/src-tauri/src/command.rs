@@ -57,6 +57,7 @@ pub mod owned;
 pub mod rank;
 pub mod replay;
 pub mod rule_config;
+pub mod score;
 pub mod session;
 pub mod sgp;
 pub mod system;

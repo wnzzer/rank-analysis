@@ -13,6 +13,7 @@
 import type { MatchSnapshot } from '../../shared/snapshot'
 import { getKnowledgeBase } from '@renderer/services/knowledge'
 import { evaluateSignals, profileToMetrics, type SignalSubject } from '../../shared/signals'
+import { sortScoresDesc, type PlayerScore } from '@renderer/services/playerScore'
 
 /** 从快照玩家平铺结构构建信号主体（puuid 用 participantId 代替，仅作关联键） */
 function snapshotSignalSubjects(snapshot: MatchSnapshot): SignalSubject[] {
@@ -42,12 +43,35 @@ ${lines}
 `
 }
 
+/** 10 人确定性评分块（Akari 式 17 分制，Rust 侧程序计算的事实；未提供时整块省略） */
+function buildScoreBlock(playerScores?: PlayerScore[] | null): string {
+  if (!playerScores || playerScores.length === 0) return ''
+  const ranked = sortScoresDesc(playerScores)
+  const lines = ranked
+    .map((s, i) => {
+      const d = s.breakdown
+      const tag = i === 0 ? '（全场最高）' : i === ranked.length - 1 ? '（全场最低）' : ''
+      return `- ${s.summonerName || `玩家${s.participantId}`} ${s.win ? '胜' : '负'} | 总分 ${s.total.toFixed(1)}/17${tag} | kda ${d.kda.toFixed(1)} win ${d.win.toFixed(1)} dmg ${d.damage.toFixed(1)} taken ${d.damageTaken.toFixed(1)} heal ${d.heal.toFixed(1)} cs ${d.cs.toFixed(1)} gold ${d.gold.toFixed(1)} kp ${d.participation.toFixed(1)} vision ${d.vision.toFixed(1)}`
+    })
+    .join('\n')
+  return `【10 人确定性评分】（程序按 Akari 式 17 分制确定性计算的事实：
+kda≥9 满分、输出/承伤达 2 倍人均贡献满分、治疗达队均承伤 1.4 倍满分、
+补刀 10/min 满分、经济 1.5 倍人均满分、参团率 100% 满分、视野 2 倍人均满分；
+总分为九维加权和，缺字段计 0 不编造）
+归因时直接引用总分与维度分作为证据，禁止重新计算或质疑该分数（这是事实层）：
+${lines}
+
+`
+}
+
 export async function buildStage1Prompt(
   snapshot: MatchSnapshot,
-  addonRules: string
+  addonRules: string,
+  playerScores?: PlayerScore[] | null
 ): Promise<string> {
   const mc = snapshot.modeContext
   const signalBlock = await buildSignalBlock(snapshot)
+  const scoreBlock = buildScoreBlock(playerScores)
   return `你是 LOL 单场归因分析师。基于下面这场比赛的快照 + 玩家近期摘要，
 判断每个值得点名的玩家归类为：尽力 / 犯罪 / 被爆 / 被连累 / 缚地灵 / 正常，
 并给出数据证据。
@@ -83,7 +107,7 @@ isTeamMode: ${mc.isTeamMode}
 - recentProfile.note: 使用者对该玩家的主观历史印象（[色档] 文本），仅供参考，
   不作为事实依据，不得写入 evidenceMetrics。
 
-${signalBlock}【标签定义（量化标准）】
+${signalBlock}${scoreBlock}【标签定义（量化标准）】
 - 尽力：数据明显高于队内均值（伤害占比/经济占比/参团率中任意 2 项进入队内前 2）+ 该队伍胜
 - 犯罪：数据明显低于队内均值（死亡数最多 + 参团 < 30% + KDA 队内倒数）+ 该队伍输
 - 被爆：deaths 高 + damageShare 低 + goldShare 低，且无 isOffRole / first-time-champion 等申辩

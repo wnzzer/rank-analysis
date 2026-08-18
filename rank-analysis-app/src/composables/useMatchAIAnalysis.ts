@@ -19,6 +19,7 @@ import {
   injectNoteBriefs
 } from '@renderer/services/ai/shared/recentProfile.batch'
 import type { RecentPlayerProfile, TeamPosition } from '@renderer/services/ai/shared/types'
+import { scoreGame } from '@renderer/services/playerScore'
 
 export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
   const message = useMessage()
@@ -116,6 +117,9 @@ export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
       profileMap = null
     }
 
+    // 确定性评分（best-effort）：Rust 侧纯计算秒出；失败静默降级，不阻塞 AI 主流程
+    const playerScores = await scoreGame(g)
+
     aiState.value = 'attribution'
 
     try {
@@ -154,7 +158,8 @@ export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
         },
         // 词库样本：每次发起分析现采样（好+坏词库跨类别 30-50 词），
         // 供 Stage 2 锐评【词库提示】采用；缓存命中时不再采样，无副作用
-        { profileMap, vocabSamples: sampleCritiqueVocab() }
+        // playerScores：确定性评分（17 分制）事实，供归因/锐评引用
+        { profileMap, vocabSamples: sampleCritiqueVocab(), playerScores }
       )
     } catch (error: any) {
       if (token !== runToken) return

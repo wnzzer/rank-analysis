@@ -76,6 +76,69 @@ describe('buildStage1Prompt — common skeleton', () => {
   })
 })
 
+describe('buildStage1Prompt — 确定性评分块', () => {
+  const snap = makeSnapshot()
+  const scores = [
+    {
+      participantId: 1,
+      championId: 101,
+      teamId: 100,
+      puuid: 'p1',
+      summonerName: 'Player1#TAG',
+      win: true,
+      total: 14.2,
+      breakdown: {
+        kda: 1,
+        win: 1,
+        damage: 3,
+        damageTaken: 1.5,
+        heal: 0.5,
+        cs: 2,
+        gold: 1.2,
+        participation: 2,
+        vision: 0.8
+      }
+    },
+    {
+      participantId: 2,
+      championId: 102,
+      teamId: 200,
+      puuid: 'p2',
+      summonerName: 'Player2#TAG',
+      win: false,
+      total: 3.1,
+      breakdown: {
+        kda: 0,
+        win: 0,
+        damage: 0.4,
+        damageTaken: 0.6,
+        heal: 0.1,
+        cs: 0.5,
+        gold: 0.6,
+        participation: 0.4,
+        vision: 0.5
+      }
+    }
+  ]
+
+  it('提供 playerScores 时注入 10 人评分块（按总分降序 + 首尾标记）', async () => {
+    const prompt = await buildStage1Prompt(snap, '', scores)
+    expect(prompt).toContain('【10 人确定性评分】')
+    expect(prompt).toContain('14.2/17（全场最高）')
+    expect(prompt).toContain('3.1/17（全场最低）')
+    const first = prompt.indexOf('Player1#TAG')
+    const second = prompt.indexOf('Player2#TAG')
+    expect(first).toBeGreaterThan(-1)
+    expect(second).toBeGreaterThan(first)
+  })
+
+  it('playerScores 为空时不注入评分块', async () => {
+    const prompt = await buildStage1Prompt(snap, '')
+    expect(prompt).not.toContain('【10 人确定性评分】')
+    expect(await buildStage1Prompt(snap, '', null)).not.toContain('【10 人确定性评分】')
+  })
+})
+
 import * as rankedPrompt from '../prompts/ranked'
 
 describe('ranked addon', () => {
