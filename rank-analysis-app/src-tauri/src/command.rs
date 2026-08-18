@@ -51,6 +51,7 @@ pub mod fandom;
 pub mod gank_pattern;
 pub mod import;
 pub mod info;
+pub mod insight;
 pub mod knowledge;
 pub mod launcher;
 pub mod match_history;

@@ -18,6 +18,12 @@ const routes: Array<RouteRecordRaw> = [
     meta: { title: '对局分析' }
   },
   {
+    path: '/Growth',
+    name: 'Growth',
+    component: () => import('@renderer/views/Growth.vue'),
+    meta: { title: '成长' }
+  },
+  {
     path: '/Loading',
     name: 'Loading',
     component: () => import('@renderer/views/Loading.vue'),

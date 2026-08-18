@@ -21,6 +21,16 @@
         <n-icon :size="18"><GameControllerOutline /></n-icon>
         <span class="nav-item-label">对局</span>
       </button>
+      <button
+        v-if="!!mySummoner?.gameName"
+        type="button"
+        class="nav-item"
+        :class="{ 'nav-item--active': getFirstPath(router.currentRoute.value.path) === 'Growth' }"
+        @click="handleMenuClick('Growth')"
+      >
+        <n-icon :size="18"><TrendingUpOutline /></n-icon>
+        <span class="nav-item-label">成长</span>
+      </button>
       <!-- 设置不依赖 LCU 连接，未连接（Loading 页）时也保持可见可进 -->
       <button
         type="button"
@@ -106,7 +116,8 @@ import {
   SettingsOutline,
   LinkOutline,
   AppsOutline,
-  CopyOutline
+  CopyOutline,
+  TrendingUpOutline
 } from '@vicons/ionicons5'
 import { computed, ref, watch } from 'vue'
 import { Summoner } from './record/type'

@@ -7,6 +7,7 @@ pub mod config;
 pub mod constant;
 pub mod fandom;
 pub mod game_state_monitor;
+pub mod insight;
 pub mod knowledge;
 pub mod lcu;
 pub mod meet_db;
