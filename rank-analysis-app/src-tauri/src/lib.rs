@@ -15,4 +15,5 @@ pub mod opgg;
 pub mod paths;
 pub mod pugg;
 pub mod rule_engine;
+pub mod shard;
 pub mod state;

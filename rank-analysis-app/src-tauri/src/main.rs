@@ -2,9 +2,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use log::info;
+use rank_analysis_lib::command;
 use rank_analysis_lib::lcu::api::asset as asset_api;
 use rank_analysis_lib::state::AppState;
-use rank_analysis_lib::{automation, command};
 use tauri::Manager;
 
 // NOTE: main is no longer async
@@ -246,60 +246,15 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             }
         });
 
-        // 启动自动化系统
-        let warm_handle = app.handle().clone();
-        let automation_handle = app.handle().clone();
+        // 启动期后台任务统一收编到 shard 管理器（P1-4 生命周期：on_init/on_dispose）。
+        // 注册顺序即初始化顺序：startup（自动化+资源预热）→ 游戏状态监听 → Fandom 循环。
+        rank_analysis_lib::shard::register(rank_analysis_lib::shard::StartupShard::new());
+        rank_analysis_lib::shard::register(rank_analysis_lib::shard::GameStateShard::new());
+        rank_analysis_lib::shard::register(rank_analysis_lib::shard::FandomShard::new());
+
+        let shard_app = app.handle().clone();
         tauri::async_runtime::spawn(async move {
-            log::info!("Starting automation system...");
-            tokio::spawn(async move {
-                automation::start_automation(automation_handle).await;
-            });
-
-            // Initialize asset caches
-            asset_api::init().await;
-
-            // OP.GG 数据预热：失败仅告警，不阻塞启动（对局页/AI 会按需再触发）。
-            let opgg_state = warm_handle.state::<AppState>();
-            for mode in ["ranked", "aram"] {
-                match rank_analysis_lib::command::opgg::ensure_opgg_snapshot(&opgg_state, mode)
-                    .await
-                {
-                    Ok((snap, stale)) => log::info!(
-                        "OP.GG warmup {}: patch {}, stale={}",
-                        mode,
-                        snap.patch,
-                        stale
-                    ),
-                    Err(e) => log::warn!("OP.GG warmup {} failed: {}", mode, e),
-                }
-            }
-        });
-
-        // 启动游戏状态监听器
-        let app_handle = app.handle().clone();
-        tauri::async_runtime::spawn(async move {
-            rank_analysis_lib::game_state_monitor::start_game_state_monitor(app_handle).await;
-        });
-
-        // Start Fandom data update schedule (every 2 hours)
-        let fandom_handle = app.handle().clone();
-        tauri::async_runtime::spawn(async move {
-            loop {
-                match rank_analysis_lib::fandom::api::fetch_aram_balance_data().await {
-                    Ok(data) => {
-                        let state = fandom_handle.state::<AppState>();
-                        let count = data.len();
-                        for (id, balance) in data {
-                            state.fandom_cache.insert(id, balance).await;
-                        }
-                        info!("Updated Fandom ARAM balance data. Count: {}", count);
-                    }
-                    Err(e) => {
-                        log::error!("Failed to update Fandom data: {}", e);
-                    }
-                }
-                tokio::time::sleep(tokio::time::Duration::from_secs(2 * 60 * 60)).await;
-            }
+            rank_analysis_lib::shard::init_all(&shard_app).await;
         });
 
         Ok(())
@@ -315,7 +270,13 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     }
 
     app_builder
-        .run(tauri::generate_context!())
+        .run(|_app_handle, event| {
+            // 进程退出前逆序 dispose 所有 shard（Fandom 循环等长驻任务收敛停止）
+            if let tauri::RunEvent::Exit = event {
+                info!("Shutting down: disposing shards...");
+                rank_analysis_lib::shard::dispose_all();
+            }
+        })
         .expect("error while building tauri application");
 
     Ok(())

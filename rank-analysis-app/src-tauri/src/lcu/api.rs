@@ -19,5 +19,6 @@ pub mod rank;
 pub mod replay;
 pub mod session;
 pub mod sgp;
+pub mod sgp_gateway;
 pub mod sgp_league_servers;
 pub mod summoner;
