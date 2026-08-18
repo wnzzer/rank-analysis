@@ -92,8 +92,8 @@ fn extract_my_sample(game: &Game, my_puuid: &str) -> Option<LocalSample> {
 }
 
 /// 纯函数：从一批对局中挑出尚未入库（不在 `known`）的样本，供调用方落库。
-fn extract_missing_samples<'a>(
-    games: impl Iterator<Item = &'a Game>,
+fn extract_missing_samples(
+    games: impl Iterator<Item = &Game>,
     my_puuid: &str,
     known: &HashSet<i64>,
 ) -> Vec<LocalSample> {
