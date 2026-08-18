@@ -92,8 +92,11 @@ fn extract_my_sample(game: &Game, my_puuid: &str) -> Option<LocalSample> {
 }
 
 /// 纯函数：从一批对局中挑出尚未入库（不在 `known`）的样本，供调用方落库。
-fn extract_missing_samples(
-    games: impl Iterator<Item = &Game>,
+/// `impl Trait` 内匿名生命周期在 CI 固定 toolchain 上不稳定（E0658），
+/// 显式 `'a` 是必要写法，clippy 的省略建议在此不适用。
+#[allow(clippy::needless_lifetimes)]
+fn extract_missing_samples<'a>(
+    games: impl Iterator<Item = &'a Game>,
     my_puuid: &str,
     known: &HashSet<i64>,
 ) -> Vec<LocalSample> {
