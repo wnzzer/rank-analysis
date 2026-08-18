@@ -20,6 +20,7 @@ import {
 } from '@renderer/services/ai/shared/recentProfile.batch'
 import type { RecentPlayerProfile, TeamPosition } from '@renderer/services/ai/shared/types'
 import { scoreGame } from '@renderer/features/record/services/playerScore'
+import { fetchDecisionBacktest } from '@renderer/features/record/services/backtest'
 
 export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
   const message = useMessage()
@@ -119,6 +120,9 @@ export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
 
     // 确定性评分（best-effort）：Rust 侧纯计算秒出；失败静默降级，不阻塞 AI 主流程
     const playerScores = await scoreGame(g)
+    // 决策回测（best-effort）：赛前建议 vs 实际选择的描述性对位（幂等对账）；
+    // 失败静默降级，不阻塞 AI 主流程
+    const decisionBacktest = await fetchDecisionBacktest(g.gameId)
 
     aiState.value = 'attribution'
 
@@ -159,7 +163,8 @@ export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
         // 词库样本：每次发起分析现采样（好+坏词库跨类别 30-50 词），
         // 供 Stage 2 锐评【词库提示】采用；缓存命中时不再采样，无副作用
         // playerScores：确定性评分（17 分制）事实，供归因/锐评引用
-        { profileMap, vocabSamples: sampleCritiqueVocab(), playerScores }
+        // decisionBacktest：本机决策回测事实（描述性对位，非因果）
+        { profileMap, vocabSamples: sampleCritiqueVocab(), playerScores, decisionBacktest }
       )
     } catch (error: any) {
       if (token !== runToken) return

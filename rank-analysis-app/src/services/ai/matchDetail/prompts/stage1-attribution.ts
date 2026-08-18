@@ -14,6 +14,7 @@ import type { MatchSnapshot } from '../../shared/snapshot'
 import { getKnowledgeBase } from '@renderer/services/knowledge'
 import { evaluateSignals, profileToMetrics, type SignalSubject } from '../../shared/signals'
 import { sortScoresDesc, type PlayerScore } from '@renderer/features/record/services/playerScore'
+import type { DecisionBacktest } from '@renderer/features/record/services/backtest'
 
 /** 从快照玩家平铺结构构建信号主体（puuid 用 participantId 代替，仅作关联键） */
 function snapshotSignalSubjects(snapshot: MatchSnapshot): SignalSubject[] {
@@ -64,14 +65,41 @@ ${lines}
 `
 }
 
+/** 决策回测块（本机建议 vs 实际选择的描述性对位对比；未对账/无数据时整块省略） */
+function buildBacktestBlock(decisionBacktest?: DecisionBacktest | null): string {
+  if (!decisionBacktest || !decisionBacktest.aligned) return ''
+  const b = decisionBacktest.backtest
+  if (!b) return ''
+  const adopted = decisionBacktest.adopted ? '已采纳' : '未采纳'
+  const win = decisionBacktest.resultWin ? '胜' : '负'
+  if (b.insufficientData) {
+    return `【决策回测】（程序基于本机历史样本确定性计算的事实；描述性对位对比，非因果推断）
+- 赛前建议英雄 #${b.suggestionChampionId} vs 实际英雄 #${b.actualChampionId}，${adopted}，本局${win}
+- 样本不足（本地对位 ≥5 局且双方各 ≥3 局），未做历史表现对比
+- 引用规则：仅当 verdict 涉及本机玩家（isMe）时可引用此块作背景；禁止据此得出本局胜负归因结论，禁止编造缺失数字。
+
+`
+  }
+  const sign = b.winRateGap > 0 ? '+' : ''
+  return `【决策回测】（程序基于本机历史样本确定性计算的事实；描述性对位对比，非因果推断）
+- 赛前建议英雄 #${b.suggestionChampionId} vs 实际英雄 #${b.actualChampionId}，${adopted}，本局${win}
+- 历史胜率差 ${sign}${(b.winRateGap * 100).toFixed(1)}%（建议相对实际，本机样本均值之差）
+- 表现分差 ${b.scoreGap > 0 ? '+' : ''}${b.scoreGap.toFixed(1)}（17 分制）、置信度 ${(b.confidence * 100).toFixed(0)}%（封顶 40%）
+- 引用规则：仅当 verdict 涉及本机玩家（isMe）时可引用此块作背景（如"未采纳建议但打出效果"）；禁止据此得出本局胜负归因结论（描述性对比非因果），禁止编造缺失数字。
+
+`
+}
+
 export async function buildStage1Prompt(
   snapshot: MatchSnapshot,
   addonRules: string,
-  playerScores?: PlayerScore[] | null
+  playerScores?: PlayerScore[] | null,
+  decisionBacktest?: DecisionBacktest | null
 ): Promise<string> {
   const mc = snapshot.modeContext
   const signalBlock = await buildSignalBlock(snapshot)
   const scoreBlock = buildScoreBlock(playerScores)
+  const backtestBlock = buildBacktestBlock(decisionBacktest)
   return `你是 LOL 单场归因分析师。基于下面这场比赛的快照 + 玩家近期摘要，
 判断每个值得点名的玩家归类为：尽力 / 犯罪 / 被爆 / 被连累 / 缚地灵 / 正常，
 并给出数据证据。
@@ -107,7 +135,7 @@ isTeamMode: ${mc.isTeamMode}
 - recentProfile.note: 使用者对该玩家的主观历史印象（[色档] 文本），仅供参考，
   不作为事实依据，不得写入 evidenceMetrics。
 
-${signalBlock}${scoreBlock}【标签定义（量化标准）】
+${signalBlock}${scoreBlock}${backtestBlock}【标签定义（量化标准）】
 - 尽力：数据明显高于队内均值（伤害占比/经济占比/参团率中任意 2 项进入队内前 2）+ 该队伍胜
 - 犯罪：数据明显低于队内均值（死亡数最多 + 参团 < 30% + KDA 队内倒数）+ 该队伍输
 - 被爆：deaths 高 + damageShare 低 + goldShare 低，且无 isOffRole / first-time-champion 等申辩

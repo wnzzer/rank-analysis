@@ -46,6 +46,7 @@ import {
 import { renderFallbackCritique } from './critiqueTemplate'
 import type { AttributionResult, AIAnalysisReport } from './types'
 import type { PlayerScore } from '@renderer/features/record/services/playerScore'
+import type { DecisionBacktest } from '@renderer/features/record/services/backtest'
 
 export type { AttributionResult, MatchAIState } from './types'
 export type { AIAnalysisReport } from './types'
@@ -60,6 +61,9 @@ export interface AnalyzeOptions {
   /** 确定性评分（Rust 侧 17 分制事实，best-effort；缺失时 prompt 不引用评分）。
    *  评分是同一对局数据的纯函数，命中 Stage 1 缓存时无需失效。 */
   playerScores?: PlayerScore[] | null
+  /** 决策回测（本机建议 vs 实际选择的描述性对位，best-effort；仅 isMe 引用）。
+   *  同局结果确定（ledger 幂等），命中 Stage 1 缓存时无需失效。 */
+  decisionBacktest?: DecisionBacktest | null
 }
 
 export type AnalyzeOutcome =
@@ -132,7 +136,11 @@ export async function analyzeMatchDetail(
     precomputedStage1: cachedAttribution ?? undefined,
     stage1: {
       systemPrompt: STAGE1_SYSTEM_PROMPT,
-      userPrompt: await buildAttributionUserPrompt(snapshot, options.playerScores),
+      userPrompt: await buildAttributionUserPrompt(
+        snapshot,
+        options.playerScores,
+        options.decisionBacktest
+      ),
       parse: raw => parseAttribution(raw, snapshot),
       cacheKey: stage1Key,
       retry: 1,

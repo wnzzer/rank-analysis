@@ -24,6 +24,7 @@ import type { RecentPlayerProfile } from './shared/types'
 import { fetchBatchProfiles } from './shared/recentProfile.batch'
 import { classifyMode } from './shared/modeContext'
 import type { PlayerScore } from '@renderer/features/record/services/playerScore'
+import type { DecisionBacktest } from '@renderer/features/record/services/backtest'
 
 /**
  * 整队分析的玩家近期画像预拉取（best-effort）：失败返回 undefined，
@@ -195,6 +196,8 @@ export async function analyzeMatchDetailWithAIStream(
     vocabSamples?: string[]
     /** 确定性评分（Rust 侧 17 分制事实，best-effort；缺失时 AI 不引用评分） */
     playerScores?: PlayerScore[] | null
+    /** 决策回测（本机建议 vs 实际选择的描述性对位，best-effort；仅 isMe 引用） */
+    decisionBacktest?: DecisionBacktest | null
   }
 ): Promise<void> {
   try {
@@ -203,7 +206,8 @@ export async function analyzeMatchDetailWithAIStream(
       vocabSamples: extras?.vocabSamples,
       mode: options.mode,
       participantId: options.participantId,
-      playerScores: extras?.playerScores ?? null
+      playerScores: extras?.playerScores ?? null,
+      decisionBacktest: extras?.decisionBacktest ?? null
     })
     if (out.ok) {
       callbacks.onStructured?.(out.report)

@@ -230,6 +230,7 @@ import MatchDetailEventsTab from './tabs/MatchDetailEventsTab.vue'
 import MatchDetailBuildsTab from './tabs/MatchDetailBuildsTab.vue'
 import MatchDetailTimelineTab from './tabs/MatchDetailTimelineTab.vue'
 import MatchDetailScoreTab from './tabs/MatchDetailScoreTab.vue'
+import MatchDetailBacktestTab from './tabs/MatchDetailBacktestTab.vue'
 
 const props = defineProps<{ game: Game | null; region?: string }>()
 const emit = defineEmits<{ close: [] }>()
@@ -467,6 +468,11 @@ const tabs = [
     key: 'score',
     label: '评分',
     component: MatchDetailScoreTab
+  },
+  {
+    key: 'backtest',
+    label: '决策回测',
+    component: MatchDetailBacktestTab
   }
 ]
 
