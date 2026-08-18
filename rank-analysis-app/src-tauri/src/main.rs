@@ -4,6 +4,7 @@
 use log::info;
 use rank_analysis_lib::command;
 use rank_analysis_lib::lcu::api::asset as asset_api;
+use rank_analysis_lib::score;
 use rank_analysis_lib::state::AppState;
 
 // NOTE: main is no longer async
