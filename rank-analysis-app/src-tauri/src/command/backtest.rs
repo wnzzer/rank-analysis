@@ -134,7 +134,7 @@ fn days_from_civil(y: i64, m: u32, d: u32) -> i64 {
 }
 
 /// 在局内定位"我"（participantId 从 1 起与 identity 数组对齐，找不到退回同索引）。
-fn find_my_participant<'a>(participants: &'a [Participant], idx: usize) -> Option<&'a Participant> {
+fn find_my_participant(participants: &[Participant], idx: usize) -> Option<&Participant> {
     participants
         .iter()
         .find(|p| p.participant_id == idx as i32 + 1)
