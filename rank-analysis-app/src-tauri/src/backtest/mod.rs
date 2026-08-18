@@ -212,8 +212,8 @@ mod tests {
 
     #[test]
     fn zero_win_rates_still_produce_finite_delta() {
-        let suggestion: Vec<_> = (0..6).map(|i| sample(1, false, 5.0)).collect();
-        let actual: Vec<_> = (0..6).map(|i| sample(2, false, 5.0)).collect();
+        let suggestion: Vec<_> = (0..6).map(|_| sample(1, false, 5.0)).collect();
+        let actual: Vec<_> = (0..6).map(|_| sample(2, false, 5.0)).collect();
         let r = compute_backtest(&input(suggestion, actual));
         assert!(!r.insufficient_data);
         assert_eq!(r.win_rate_gap, 0.0);

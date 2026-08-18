@@ -63,11 +63,8 @@ pub async fn get_score_drilldown(game_id: i64) -> Result<Vec<ScoreBreakdownDrill
     for s in &scores {
         let events = match (&detail, timeline_ok) {
             (Some(d), true) => sgp_pid_of.get(&s.puuid).map_or_else(Vec::new, |spid| {
-                compute_score_events(
-                    d,
-                    *spid,
-                    team_pids.get(&s.team_id).cloned().unwrap_or_default(),
-                )
+                let tpid = team_pids.get(&s.team_id).cloned().unwrap_or_default();
+                compute_score_events(d, *spid, &tpid)
             }),
             _ => Vec::new(),
         };

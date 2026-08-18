@@ -51,7 +51,6 @@ impl TokenBucket {
 }
 
 /// 双层桶：burst 与 sustained 都放行才算通过（防止"还桶"破坏跨层守恒）。
-#[derive(Default)]
 pub struct RateLimiter {
     burst: Mutex<TokenBucket>,
     sustained: Mutex<TokenBucket>,
