@@ -14,6 +14,8 @@
 //! 与 LeagueAkari `akari-shard` 的对应关系：`onInit/onDispose` 契约 + 注册表管理；
 //! 不引入它的反射式 DI——本项目 shard 都是显式构造，反射是过度设计。
 
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
@@ -23,13 +25,22 @@ use tauri::Manager;
 use crate::state::AppState;
 
 /// shard 生命周期契约。默认实现均为空操作，具体 shard 按需覆写。
+///
+/// `on_init` 以 boxed future 暴露：`async fn` 在 trait 中不满足 dyn 兼容
+/// （E0038），手写 `Pin<Box<dyn Future + Send>>` 是当前 rustc 的标准姿势
+/// （等价于 `#[async_trait]` / `#[trait_variant]` 生成物，零额外依赖）。
 pub trait AppShard: Send + Sync {
     /// shard 名称（日志/排障用）。
     fn name(&self) -> &'static str;
 
     /// 启动初始化：在此 spawn 长驻循环或做预热。失败自行记录，不向调用方抛错
     /// （一个 shard 失败不应拖垮整个启动）。
-    async fn on_init(&self, app: &tauri::AppHandle) {}
+    fn on_init<'a>(
+        &'a self,
+        app: &'a tauri::AppHandle,
+    ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
+        Box::pin(async move {})
+    }
 
     /// 退出清理：发停止信号 / 释放资源（同步、立即返回）。
     fn on_dispose(&self) {}
@@ -84,27 +95,32 @@ impl AppShard for StartupShard {
         "startup"
     }
 
-    async fn on_init(&self, app: &tauri::AppHandle) {
-        let automation_handle = app.clone();
-        tokio::spawn(async move {
-            crate::automation::start_automation(automation_handle).await;
-        });
+    fn on_init<'a>(
+        &'a self,
+        app: &'a tauri::AppHandle,
+    ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
+        Box::pin(async move {
+            let automation_handle = app.clone();
+            tokio::spawn(async move {
+                crate::automation::start_automation(automation_handle).await;
+            });
 
-        crate::lcu::api::asset::init().await;
+            crate::lcu::api::asset::init().await;
 
-        // OP.GG 数据预热：失败仅告警，不阻塞启动（对局页/AI 会按需再触发）。
-        let opgg_state = app.state::<AppState>();
-        for mode in ["ranked", "aram"] {
-            match crate::command::opgg::ensure_opgg_snapshot(&opgg_state, mode).await {
-                Ok((snap, stale)) => log::info!(
-                    "OP.GG warmup {}: patch {}, stale={}",
-                    mode,
-                    snap.patch,
-                    stale
-                ),
-                Err(e) => log::warn!("OP.GG warmup {} failed: {}", mode, e),
+            // OP.GG 数据预热：失败仅告警，不阻塞启动（对局页/AI 会按需再触发）。
+            let opgg_state = app.state::<AppState>();
+            for mode in ["ranked", "aram"] {
+                match crate::command::opgg::ensure_opgg_snapshot(&opgg_state, mode).await {
+                    Ok((snap, stale)) => log::info!(
+                        "OP.GG warmup {}: patch {}, stale={}",
+                        mode,
+                        snap.patch,
+                        stale
+                    ),
+                    Err(e) => log::warn!("OP.GG warmup {} failed: {}", mode, e),
+                }
             }
-        }
+        })
     }
 }
 
@@ -122,11 +138,16 @@ impl AppShard for GameStateShard {
         "game-state-monitor"
     }
 
-    async fn on_init(&self, app: &tauri::AppHandle) {
-        let app_handle = app.clone();
-        tokio::spawn(async move {
-            crate::game_state_monitor::start_game_state_monitor(app_handle).await;
-        });
+    fn on_init<'a>(
+        &'a self,
+        app: &'a tauri::AppHandle,
+    ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
+        Box::pin(async move {
+            let app_handle = app.clone();
+            tokio::spawn(async move {
+                crate::game_state_monitor::start_game_state_monitor(app_handle).await;
+            });
+        })
     }
 }
 
@@ -151,29 +172,34 @@ impl AppShard for FandomShard {
         "fandom"
     }
 
-    async fn on_init(&self, app: &tauri::AppHandle) {
-        let stop = self.stop.clone();
-        let handle = app.clone();
-        tokio::spawn(async move {
-            while !stop.load(Ordering::Relaxed) {
-                match crate::fandom::api::fetch_aram_balance_data().await {
-                    Ok(data) => {
-                        let state = handle.state::<AppState>();
-                        let count = data.len();
-                        for (id, balance) in data {
-                            state.fandom_cache.insert(id, balance).await;
+    fn on_init<'a>(
+        &'a self,
+        app: &'a tauri::AppHandle,
+    ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
+        Box::pin(async move {
+            let stop = self.stop.clone();
+            let handle = app.clone();
+            tokio::spawn(async move {
+                while !stop.load(Ordering::Relaxed) {
+                    match crate::fandom::api::fetch_aram_balance_data().await {
+                        Ok(data) => {
+                            let state = handle.state::<AppState>();
+                            let count = data.len();
+                            for (id, balance) in data {
+                                state.fandom_cache.insert(id, balance).await;
+                            }
+                            log::info!("Updated Fandom ARAM balance data. Count: {}", count);
                         }
-                        log::info!("Updated Fandom ARAM balance data. Count: {}", count);
+                        Err(e) => {
+                            log::error!("Failed to update Fandom data: {}", e);
+                        }
                     }
-                    Err(e) => {
-                        log::error!("Failed to update Fandom data: {}", e);
-                    }
+                    // 停止标记在睡眠期间也可能被置位：睡醒后的下一次循环检查兜住
+                    tokio::time::sleep(Duration::from_secs(2 * 60 * 60)).await;
                 }
-                // 停止标记在睡眠期间也可能被置位：睡醒后的下一次循环检查兜住
-                tokio::time::sleep(Duration::from_secs(2 * 60 * 60)).await;
-            }
-            log::info!("[shard] fandom loop stopped");
-        });
+                log::info!("[shard] fandom loop stopped");
+            });
+        })
     }
 
     fn on_dispose(&self) {
@@ -194,8 +220,6 @@ mod tests {
             self.name
         }
 
-        async fn on_init(&self, _app: &tauri::AppHandle) {}
-
         fn on_dispose(&self) {}
     }
 
@@ -212,7 +236,6 @@ mod tests {
             fn name(&self) -> &'static str {
                 self.name
             }
-            async fn on_init(&self, _app: &tauri::AppHandle) {}
             fn on_dispose(&self) {
                 self.order.lock().unwrap().push(self.name);
             }
