@@ -128,8 +128,7 @@ pub fn aggregate_habit_tags(games: &[Game], my_puuid: &str) -> Vec<HabitTag> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lcu::api::game_detail::GameDetail;
-    use crate::lcu::api::model::{Participant, ParticipantIdentity, Player};
+    use crate::lcu::api::model::{ParticipantIdentity, Player};
 
     fn participant(
         id: i32,
@@ -161,10 +160,6 @@ mod tests {
         }
     }
 
-    use crate::lcu::api::match_history::GameDetail;
-    use crate::lcu::api::model::ParticipantIdentity;
-    use crate::lcu::api::model::Player;
-
     /// 一局：蓝 5 人 vs 红 5 人，全部 MID；p1 = 本机，其余 peer。
     fn mid_game(id: i64, stamp: &str, my_vision: i32) -> Game {
         let mut participants = Vec::new();
@@ -187,7 +182,7 @@ mod tests {
         Game {
             game_id: id,
             game_creation_date: stamp.to_string(),
-            game_detail: GameDetail {
+            game_detail: crate::lcu::api::game_detail::GameDetail {
                 participants,
                 participant_identities: identities,
                 ..Default::default()
