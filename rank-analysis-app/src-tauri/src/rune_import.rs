@@ -114,7 +114,7 @@ pub fn most_common_spells(
         if p.champion_id != champion_id {
             continue;
         }
-        let (s1, s2) = (p.stats.spell1_id, p.stats.spell2_id);
+        let (s1, s2) = (p.spell1_id, p.spell2_id);
         if s1 > 0 && s2 > 0 && s1 != s2 {
             *freq.entry((s1, s2)).or_default() += 1;
         }
@@ -130,7 +130,6 @@ mod tests {
     use crate::lcu::api::game_detail::GameDetail;
     use crate::lcu::api::model::{
         Participant, ParticipantIdentity, PerkSelection, PerkStatPerks, PerkStyle, Perks, Player,
-        Stats,
     };
 
     fn identity(puuid: &str) -> ParticipantIdentity {
@@ -152,9 +151,12 @@ mod tests {
         Participant {
             participant_id: id,
             champion_id: champ,
+            spell1_id: spells.0,
+            spell2_id: spells.1,
             perks: build.map(|b| Perks {
                 styles: vec![
                     PerkStyle {
+                        description: None,
                         style: b.primary_style_id,
                         selections: b
                             .selected_perk_ids
@@ -167,6 +169,7 @@ mod tests {
                             .collect(),
                     },
                     PerkStyle {
+                        description: None,
                         style: b.sub_style_id,
                         selections: b
                             .selected_perk_ids
@@ -186,11 +189,6 @@ mod tests {
                     offense: b.offense,
                 }),
             }),
-            stats: Stats {
-                spell1_id: spells.0,
-                spell2_id: spells.1,
-                ..Default::default()
-            },
             ..Default::default()
         }
     }
