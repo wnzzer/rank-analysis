@@ -10,7 +10,7 @@
 //! 隐私纪律：只存维度聚合（无对局明细、无 puuid）。
 
 use crate::paths::{data_file, ensure_parent_dir};
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, Connection};
 use std::sync::{LazyLock, Mutex};
 
 /// 库文件相对配置目录的文件名。
@@ -220,10 +220,10 @@ mod tests {
         let goals = query_goals_in(&conn);
         assert_eq!(goals.len(), 1);
         assert!(!goals[0].done);
-        assert_eq!(toggle_goal_in(&conn, id), true);
+        assert!(toggle_goal_in(&conn, id));
         let goals = query_goals_in(&conn);
         assert!(goals[0].done, "勾选后 done=true");
-        assert_eq!(toggle_goal_in(&conn, id), true);
+        assert!(toggle_goal_in(&conn, id));
         assert!(!query_goals_in(&conn)[0].done, "再点一次取消");
     }
 

@@ -6,8 +6,7 @@
 
 use crate::insight::aggregate_habit_tags;
 use crate::insight::store::{
-    add_habit_goal, query_habit_goals, query_habit_tags, toggle_habit_goal, upsert_habit_tags,
-    HabitGoal, HabitTag,
+    add_habit_goal, query_habit_goals, toggle_habit_goal, upsert_habit_tags, HabitGoal, HabitTag,
 };
 use crate::lcu::api::summoner::Summoner;
 use crate::meet_db;
