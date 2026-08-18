@@ -379,6 +379,33 @@ pub async fn patch_session_action(
     Ok(())
 }
 
+/// 写我的召唤师技能：`PATCH lol-champ-select/v1/session/actions/{id}`，
+/// body 只带 `spell1Id`/`spell2Id`（其余字段不动）。用于 M3 一键导入技能。
+#[derive(Serialize)]
+struct SpellPatchData {
+    #[serde(rename = "spell1Id")]
+    spell1_id: i32,
+    #[serde(rename = "spell2Id")]
+    spell2_id: i32,
+}
+
+pub async fn patch_session_spells(
+    action_id: i32,
+    spell1_id: i32,
+    spell2_id: i32,
+) -> Result<(), String> {
+    let uri = format!("lol-champ-select/v1/session/actions/{}", action_id);
+    lcu_patch::<(), _>(
+        &uri,
+        &SpellPatchData {
+            spell1_id,
+            spell2_id,
+        },
+    )
+    .await?;
+    Ok(())
+}
+
 /// 接受一次英雄交易请求（`trade.id` 来自 `SelectSession.trades`）。
 ///
 /// LCU 端点 `POST lol-champ-select/v1/session/trades/{id}/accept`，成功返回 204。

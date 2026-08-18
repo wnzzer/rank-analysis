@@ -17,6 +17,7 @@ pub mod paths;
 pub mod pugg;
 pub mod riot;
 pub mod rule_engine;
+pub mod rune_import;
 pub mod score;
 pub mod shard;
 pub mod state;
