@@ -85,7 +85,9 @@ pub fn most_common_perk_page(
     let window = games.iter().rev().take(limit).rev();
     let mut freq: HashMap<RunePageBuild, u32> = HashMap::new();
     for game in window {
-        let p = my_participant(game, my_puuid)?;
+        let Some(p) = my_participant(game, my_puuid) else {
+            continue;
+        };
         if p.champion_id != champion_id {
             continue;
         }
@@ -110,7 +112,9 @@ pub fn most_common_spells(
     let window = games.iter().rev().take(limit).rev();
     let mut freq: HashMap<(i32, i32), u32> = HashMap::new();
     for game in window {
-        let p = my_participant(game, my_puuid)?;
+        let Some(p) = my_participant(game, my_puuid) else {
+            continue;
+        };
         if p.champion_id != champion_id {
             continue;
         }
@@ -223,8 +227,8 @@ mod tests {
 
     #[test]
     fn picks_most_common_full_page() {
-        let a = build(8100, 8300, &[8112, 8122, 8135, 8139, 8304, 8316]);
-        let b = build(8200, 8400, &[8212, 8222, 8235, 8239, 8404, 8416]);
+        let a = build(8100, 8300, &[8112, 8122, 8135, 8139, 8304]);
+        let b = build(8200, 8400, &[8212, 8222, 8235, 8239, 8404]);
         let games = vec![
             game(1, "p", 64, Some(&a), (4, 14)),
             game(2, "p", 64, Some(&a), (4, 14)),
@@ -239,7 +243,7 @@ mod tests {
 
     #[test]
     fn skips_games_without_full_perks() {
-        let a = build(8100, 8300, &[8112, 8122, 8135, 8139, 8304, 8316]);
+        let a = build(8100, 8300, &[8112, 8122, 8135, 8139, 8304]);
         let games = vec![
             game(1, "p", 64, None, (4, 14)),
             game(2, "p", 64, Some(&a), (4, 14)),
@@ -254,7 +258,7 @@ mod tests {
     #[test]
     fn empty_or_wrong_champion_returns_none() {
         assert!(most_common_perk_page(&[], "p", 64, AGGREGATE_LIMIT).is_none());
-        let a = build(8100, 8300, &[8112, 8122, 8135, 8139, 8304, 8316]);
+        let a = build(8100, 8300, &[8112, 8122, 8135, 8139, 8304]);
         let games = vec![game(1, "p", 65, Some(&a), (4, 14))];
         assert!(
             most_common_perk_page(&games, "p", 64, AGGREGATE_LIMIT).is_none(),
@@ -268,8 +272,8 @@ mod tests {
 
     #[test]
     fn limit_windows_to_recent_games() {
-        let a = build(8100, 8300, &[8112, 8122, 8135, 8139, 8304, 8316]);
-        let b = build(8200, 8400, &[8212, 8222, 8235, 8239, 8404, 8416]);
+        let a = build(8100, 8300, &[8112, 8122, 8135, 8139, 8304]);
+        let b = build(8200, 8400, &[8212, 8222, 8235, 8239, 8404]);
         let games = vec![
             game(1, "p", 64, Some(&b), (4, 14)),
             game(2, "p", 64, Some(&b), (4, 14)),

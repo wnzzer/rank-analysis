@@ -102,6 +102,30 @@
               </template>
             </div>
             <div class="intel-build-note">{{ recommendation.note }}</div>
+            <div class="intel-build-import">
+              <button
+                type="button"
+                class="intel-build-import-btn"
+                :disabled="importingRune"
+                @click="onImportRune"
+              >
+                {{ importingRune ? '导入中…' : '一键导入符文' }}
+              </button>
+              <button
+                type="button"
+                class="intel-build-import-btn"
+                :disabled="importingSpells"
+                @click="onImportSpells"
+              >
+                {{ importingSpells ? '导入中…' : '导入技能' }}
+              </button>
+              <span
+                v-if="importNote"
+                class="intel-build-import-note"
+                :class="{ 'is-error': importError }"
+                >{{ importNote }}</span
+              >
+            </div>
             <div v-if="!buildLoading && buildDegraded" class="intel-build-degraded">
               该分路样本不足（&lt;5 场），已回退显示全部分路统计
             </div>
@@ -134,6 +158,7 @@ import type { ChampionMeta, CounterHint, OpggMode } from '@renderer/services/opg
 import { pickStateClass, tierBadge, formatWinRate, isChampionSwap } from './championIntel'
 import { getBuildStats, toBuildRecommendation } from '@renderer/services/builds'
 import type { BuildRecommendation } from '@renderer/services/builds'
+import { importRunePage, importSummonerSpells } from '@renderer/services/importRunes'
 import PatchNoteBadge from './PatchNoteBadge.vue'
 import CounterHover from './CounterHover.vue'
 
@@ -245,6 +270,47 @@ function counterText(h: CounterHint): string {
   return h.myWinRate >= 0.5
     ? `怕你方${my} ${formatWinRate(h.myWinRate)}`
     : `克制你方${my} ${formatWinRate(1 - h.myWinRate)}`
+}
+
+/**
+ * 一键导入：把本机历史最流行的完整符文页/召唤师技能对写进客户端。
+ * 反馈内联展示（成功中性色 / 失败红色），不弹窗不打断。
+ */
+const importingRune = ref(false)
+const importingSpells = ref(false)
+const importNote = ref('')
+const importError = ref(false)
+
+async function onImportRune(): Promise<void> {
+  if (importingRune.value) return
+  importingRune.value = true
+  importNote.value = ''
+  importError.value = false
+  try {
+    const r = await importRunePage(props.championId)
+    importNote.value = r.created ? `已新建并启用「${r.pageName}」` : `已覆盖并启用「${r.pageName}」`
+  } catch (err) {
+    importError.value = true
+    importNote.value = String(err)
+  } finally {
+    importingRune.value = false
+  }
+}
+
+async function onImportSpells(): Promise<void> {
+  if (importingSpells.value) return
+  importingSpells.value = true
+  importNote.value = ''
+  importError.value = false
+  try {
+    const [s1, s2] = await importSummonerSpells()
+    importNote.value = `技能已写入（${s1}/${s2}）`
+  } catch (err) {
+    importError.value = true
+    importNote.value = String(err)
+  } finally {
+    importingSpells.value = false
+  }
 }
 
 /**
@@ -547,6 +613,41 @@ watch(
   font-size: 11px;
   opacity: 0.65;
   line-height: 1.5;
+}
+.intel-build-import {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+.intel-build-import-btn {
+  padding: 3px 10px;
+  border: 1px solid var(--n-border-color, rgba(128, 128, 128, 0.3));
+  border-radius: 6px;
+  background: rgba(128, 128, 128, 0.1);
+  color: inherit;
+  font-size: 11px;
+  line-height: 1.5;
+  cursor: pointer;
+  transition:
+    opacity 0.2s,
+    background 0.2s;
+}
+.intel-build-import-btn:hover:not(:disabled) {
+  background: rgba(128, 128, 128, 0.2);
+}
+.intel-build-import-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.intel-build-import-note {
+  font-size: 11px;
+  opacity: 0.8;
+}
+.intel-build-import-note.is-error {
+  color: var(--semantic-loss, #d03050);
+  opacity: 1;
 }
 .intel-build-empty {
   font-size: 11px;
