@@ -276,12 +276,12 @@ mod tests {
         let b = build(8200, 8400, &[8212, 8222, 8235, 8239, 8404]);
         let games = vec![
             game(1, "p", 64, Some(&b), (4, 14)),
-            game(2, "p", 64, Some(&b), (4, 14)),
+            game(2, "p", 64, Some(&a), (4, 14)),
             game(3, "p", 64, Some(&a), (4, 14)),
         ];
-        // 窗口=2：只看最近两局（a 两局）→ a；窗口=3 → b 两局胜出
+        // 窗口=2：只看最近两局（a×2）→ a；窗口=3 → b 只有 1 局，a 两局胜出
         assert_eq!(most_common_perk_page(&games, "p", 64, 2).unwrap(), a);
-        assert_eq!(most_common_perk_page(&games, "p", 64, 3).unwrap(), b);
+        assert_eq!(most_common_perk_page(&games, "p", 64, 3).unwrap(), a);
     }
 
     #[test]
