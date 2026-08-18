@@ -113,10 +113,9 @@ fn extract_missing_samples<'a>(
 /// 返回新增样本数（重复局/无法提取的局不计入）。
 pub fn refresh_local_samples(my_puuid: &str) -> usize {
     let known: HashSet<i64> = store::known_sample_game_ids();
+    let collected = crate::meet_db::all_collected_games();
     let samples = extract_missing_samples(
-        crate::meet_db::all_collected_games()
-            .into_iter()
-            .flat_map(|(_region, _name, games)| games),
+        collected.iter().flat_map(|(_region, _name, games)| games),
         my_puuid,
         &known,
     );

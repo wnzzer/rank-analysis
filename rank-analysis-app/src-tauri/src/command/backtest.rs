@@ -18,8 +18,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::backtest::samples::normalize_position;
 use crate::backtest::store::{self, LocalSample};
+use crate::backtest::MIN_MATCHUP_SAMPLES;
 use crate::backtest::{compute_backtest, BacktestInput, BacktestResult, MatchupSample};
-use crate::backtest::{MIN_LOCAL_SAMPLES, MIN_MATCHUP_SAMPLES};
 use crate::command::match_history::get_game_by_id;
 use crate::lcu::api::model::Participant;
 use crate::lcu::api::summoner::Summoner;
@@ -386,7 +386,7 @@ mod tests {
         // 对位样本各 2 → 应回退全样本；对位样本各 3 → 不回退。
         // （store 查询不可注入，此处验证 to_matchup 转换不 panic + 阈值常量）
         assert_eq!(MIN_MATCHUP_SAMPLES, 3);
-        assert_eq!(MIN_LOCAL_SAMPLES, 5);
+        assert_eq!(crate::backtest::MIN_LOCAL_SAMPLES, 5);
     }
 
     fn participant(id: i32, team: i32, champ: i32) -> Participant {
