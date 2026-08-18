@@ -31,7 +31,7 @@ pub fn query_meet_summary(puuid: String) -> Result<MeetSummary, String> {
 pub fn save_collected_games(region: String, name: String, games: Vec<Game>) -> Result<(), String> {
     db_save_collected_games(&region, &name, &games);
     tauri::async_runtime::spawn(async move {
-        match crate::lcu::api::summoner::get_my_summoner().await {
+        match crate::lcu::api::summoner::Summoner::get_my_summoner().await {
             Ok(s) => {
                 let added = crate::backtest::samples::refresh_local_samples(&s.puuid);
                 log::info!("[backtest] 本地样本库刷新完成，新增 {added} 条");
