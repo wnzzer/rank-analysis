@@ -25,7 +25,7 @@ use crate::lcu::api::model::{
 use crate::lcu::api::rank::{QueueInfo, QueueMap, Rank};
 use crate::lcu::api::sgp_league_servers;
 use crate::lcu::api::summoner::Summoner;
-use crate::lcu::util::http::{lcu_get, riot_client_get, sgp_get};
+use crate::lcu::util::http::{lcu_get, riot_client_get};
 use moka::future::Cache;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -129,29 +129,29 @@ fn is_host_refreshable(err: &str) -> bool {
 /// 带主机映射自愈的 SGP GET（P1-3 加固）：
 /// `sgp_get` 内置 3 次指数退避重试后仍失败（401/5xx/网络），则强制刷新
 /// league-servers 映射（无视 2h 节流）并用新主机重试一次。token 每次现取，
-/// 无需在请求层处理 token 轮换。
+/// 无需在请求层处理 token 轮换。数据通道经 [`crate::lcu::api::sgp_gateway`]
+/// 接口（P1-4 DI），业务层不直接依赖 HTTP/静态表。
 async fn sgp_get_resilient<T: serde::de::DeserializeOwned>(
     platform_id: &str,
     uri: &str,
     token: &str,
     common: bool,
 ) -> Result<T, String> {
-    let host = sgp_league_servers::resolve_sgp_host(platform_id, common)
-        .await
-        .ok_or_else(|| {
-            if common {
-                format!("未知大区 {platform_id}，无对应 SGP common 主机")
-            } else {
-                format!("未知大区 {platform_id}，无对应 SGP 主机")
-            }
-        })?;
-    match sgp_get::<T>(host, uri, token).await {
+    let gw = crate::lcu::api::sgp_gateway::gateway();
+    let host = gw.resolve_host(platform_id, common).await.ok_or_else(|| {
+        if common {
+            format!("未知大区 {platform_id}，无对应 SGP common 主机")
+        } else {
+            format!("未知大区 {platform_id}，无对应 SGP 主机")
+        }
+    })?;
+    match gw.request::<T>(&host, uri, token).await {
         Ok(value) => Ok(value),
         Err(err) if is_host_refreshable(&err) => {
             log::warn!("SGP 请求失败，刷新主机映射后重试一次: {err}");
             sgp_league_servers::force_refresh().await;
-            match sgp_league_servers::resolve_sgp_host(platform_id, common).await {
-                Some(new_host) => sgp_get::<T>(new_host, uri, token).await,
+            match gw.resolve_host(platform_id, common).await {
+                Some(new_host) => gw.request::<T>(&new_host, uri, token).await,
                 None => Err(err),
             }
         }

@@ -16,7 +16,7 @@ use std::path::Path;
 use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, Instant};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::constant;
 use crate::lcu::util::http::external_get_json;
@@ -33,7 +33,7 @@ const CACHE_FILE_NAME: &str = "sgp_league_servers.json";
 const REVALIDATE_INTERVAL: Duration = Duration::from_secs(2 * 60 * 60);
 
 /// 单个服务器的 SGP 端点配置（与远程下发字段一致；未知字段忽略）。
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LeagueServerEndpoint {
     #[serde(rename = "matchHistory")]
     pub match_history: String,
@@ -45,7 +45,7 @@ pub struct LeagueServerEndpoint {
 }
 
 /// 远程下发的整表配置（`servers` 的 key = 服务器 ID，如 `TENCENT_HN10` / `NA1`）。
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LeagueServersConfig {
     #[serde(rename = "updatedAt")]
     pub updated_at: String,
@@ -134,7 +134,7 @@ async fn fetch_remote() -> Result<LeagueServersConfig, String> {
 /// 拉取 + 择优应用。成功与失败都刷新 last_fetch（节流依据），失败保留现有映射。
 async fn refresh_from_remote() {
     let result = fetch_remote().await;
-    *STORE.lock().unwrap().last_fetch = Some(Instant::now());
+    STORE.lock().unwrap().last_fetch = Some(Instant::now());
     match result {
         Ok(config) => apply_config(config),
         Err(e) => log::warn!("SGP league-servers 远程拉取失败（保留现有映射）: {e}"),
@@ -262,7 +262,7 @@ mod tests {
             endpoint_of(&config, "HN10").unwrap().match_history,
             "hn10-k8s-sgp.lol.qq.com:21019"
         );
-        assert_eq!(endpoint_of(&config, "EUW1"), None, "未知大区必须 miss");
+        assert!(endpoint_of(&config, "EUW1").is_none(), "未知大区必须 miss");
         assert_eq!(
             endpoint_of(&config, "HN1")
                 .unwrap()
