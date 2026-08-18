@@ -6,7 +6,7 @@
  * 与 `detailsTable.ts` / `eventsTable.ts` 同层：UI 只消费纯函数结果，可单测。
  */
 
-import type { SgpGameDetail } from '@renderer/services/sgp'
+import type { SgpGameDetail } from '@renderer/features/record/services/sgp'
 
 export type TimelineMetric = 'gold' | 'cs' | 'xp'
 

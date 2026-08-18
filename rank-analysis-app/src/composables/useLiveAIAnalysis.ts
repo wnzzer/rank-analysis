@@ -25,8 +25,8 @@ import {
 import { useMessage } from 'naive-ui'
 import { analyzeLiveGameWithAIStream, type StreamCallbacks } from '@renderer/services/ai'
 import { renderAnalysisReport } from '@renderer/services/ai/matchDetail/renderReport'
-import { getLiveGameData, type LiveGameSnapshot } from '@renderer/services/liveGame'
-import { recommendedItemsOf } from '@renderer/services/liveGameIntel'
+import { getLiveGameData, type LiveGameSnapshot } from '@renderer/features/gaming/services/liveGame'
+import { recommendedItemsOf } from '@renderer/features/gaming/services/liveGameIntel'
 import { getBuildStats } from '@renderer/services/builds'
 import type { SessionData } from '@renderer/types/domain/gaming'
 

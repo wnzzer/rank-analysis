@@ -9,7 +9,7 @@
  * 无该玩家任何帧 / 字段缺失 → NaN，走「—」兜底（与 detailsTable 口径一致）。
  */
 
-import type { SgpGameDetail } from '@renderer/services/sgp'
+import type { SgpGameDetail } from '@renderer/features/record/services/sgp'
 import {
   fmtInt,
   fmtSpeed,

@@ -6,7 +6,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { useTheme } from './useTheme'
 import { createPinia, setActivePinia } from 'pinia'
-import { useSettingsStore } from '@renderer/pinia/setting'
+import { useSettingsStore } from '@renderer/features/settings/stores/setting'
 
 describe('useTheme', () => {
   beforeEach(() => {

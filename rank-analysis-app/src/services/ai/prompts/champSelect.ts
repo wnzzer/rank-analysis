@@ -16,7 +16,7 @@ import { getChampionName } from '../champion-names'
 import { getChampionMeta, getLaneCounters, findCounterHints } from '@renderer/services/opgg'
 import { buildPatchNotesBlock, PATCH_NOTES_SECTION_HEADER } from './shared/patchNotes'
 import type { BpDecision } from '@renderer/types/bpDecision'
-import type { LineupScore } from '@renderer/services/lineupScore'
+import type { LineupScore } from '@renderer/features/gaming/services/lineupScore'
 import {
   LANE_RULE_CHAMP_SELECT,
   metricNameRule,

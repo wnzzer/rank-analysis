@@ -101,7 +101,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { NCard, NFlex, NText } from 'naive-ui'
 import { invoke } from '@tauri-apps/api/core'
-import { useSettingsStore } from '@renderer/pinia/setting'
+import { useSettingsStore } from '@renderer/features/settings/stores/setting'
 import { assetPrefix } from '@renderer/services/http'
 import { winRateColor } from '@renderer/utils/colors'
 import type { Rank, RecentWinRate } from '@renderer/types/domain/player'

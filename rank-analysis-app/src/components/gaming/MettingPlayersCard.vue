@@ -63,7 +63,7 @@ import { OneGamePlayer } from '../record/type'
 import type { Game } from '../record/match'
 import { assetPrefix } from '../../services/http'
 import MatchDetailInline from '../record/MatchDetailInline.vue'
-import { getGameById } from '@renderer/services/gameById'
+import { getGameById } from '@renderer/features/record/services/gameById'
 import { computed, ref } from 'vue'
 import LazyImg from '@renderer/components/common/LazyImg.vue'
 

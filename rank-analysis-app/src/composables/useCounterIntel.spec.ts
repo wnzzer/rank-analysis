@@ -11,11 +11,12 @@ import {
   useBestPicks,
   useCounterIntel
 } from './useCounterIntel'
-import { getChampionIntel } from '@renderer/services/counterIntel'
+import { getChampionIntel } from '@renderer/features/gaming/services/counterIntel'
 import { bumpOpggRevision, getChampionMeta } from '@renderer/services/opgg'
 
-vi.mock('@renderer/services/counterIntel', async importOriginal => {
-  const actual = await importOriginal<typeof import('@renderer/services/counterIntel')>()
+vi.mock('@renderer/features/gaming/services/counterIntel', async importOriginal => {
+  const actual =
+    await importOriginal<typeof import('@renderer/features/gaming/services/counterIntel')>()
   return {
     ...actual,
     getChampionIntel: vi.fn()

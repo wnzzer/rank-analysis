@@ -41,7 +41,7 @@ import { onMounted, ref } from 'vue'
 import { NSpin } from 'naive-ui'
 import type { MeetSummary } from '@renderer/types/domain/meet'
 import type { OneGamePlayer } from '@renderer/types/domain/analysis'
-import { queryMeetSummary } from '@renderer/services/meet'
+import { queryMeetSummary } from '@renderer/features/settings/services/meet'
 import MettingPlayersCard from '@renderer/components/gaming/MettingPlayersCard.vue'
 
 const props = defineProps<{

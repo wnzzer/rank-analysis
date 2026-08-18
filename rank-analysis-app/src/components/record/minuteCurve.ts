@@ -10,7 +10,7 @@
  * 事件只认 `CHAMPION_KILL`（与事件 tab 同口径）。
  */
 
-import type { SgpGameDetail } from '@renderer/services/sgp'
+import type { SgpGameDetail } from '@renderer/features/record/services/sgp'
 export type { SgpGameDetail }
 
 /** 分钟轴封顶：极端长局（青铜乱斗/大乱斗时长）也截到 60 分钟，防野轴 */

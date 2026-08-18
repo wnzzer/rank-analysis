@@ -5,11 +5,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { effectScope, nextTick, ref } from 'vue'
 import { useMinuteCurve, type CurveGameSource } from './useMinuteCurve'
-import { getSgpMatchDetail } from '@renderer/services/sgp'
+import { getSgpMatchDetail } from '@renderer/features/record/services/sgp'
 import { MINUTE_CURVE_LIMIT } from './useMinuteCurve'
 
-vi.mock('@renderer/services/sgp', async importOriginal => {
-  const actual = await importOriginal<typeof import('@renderer/services/sgp')>()
+vi.mock('@renderer/features/record/services/sgp', async importOriginal => {
+  const actual = await importOriginal<typeof import('@renderer/features/record/services/sgp')>()
   return {
     ...actual,
     getSgpMatchDetail: vi.fn()

@@ -2,7 +2,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { invoke } from '@tauri-apps/api/core'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
-import { getSgpRankByName, getSgpRegions } from '@renderer/services/sgp'
+import { getSgpRankByName, getSgpRegions } from '@renderer/features/record/services/sgp'
 import { modeOptions, initModeOptions } from '@renderer/composables/useGameModes'
 import {
   defaultRank,

@@ -17,13 +17,13 @@ import { buildChampSelectPrompt, type ChampSelectPromptExtras } from './prompts/
 import { buildLiveGamePrompt, type LiveGamePromptExtras } from './prompts/liveGame'
 import { buildGrowthReportPrompt } from './prompts/growthReport'
 import type { RecentData } from '@renderer/types/domain/analysis'
-import type { LiveGameSnapshot } from '@renderer/services/liveGame'
+import type { LiveGameSnapshot } from '@renderer/features/gaming/services/liveGame'
 import { analyzeMatchDetail } from './matchDetail'
 import type { AIAnalysisReport } from './matchDetail'
 import type { RecentPlayerProfile } from './shared/types'
 import { fetchBatchProfiles } from './shared/recentProfile.batch'
 import { classifyMode } from './shared/modeContext'
-import type { PlayerScore } from '@renderer/services/playerScore'
+import type { PlayerScore } from '@renderer/features/record/services/playerScore'
 
 /**
  * 整队分析的玩家近期画像预拉取（best-effort）：失败返回 undefined，

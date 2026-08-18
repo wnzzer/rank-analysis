@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { buildLiveGamePrompt } from '../liveGame'
-import type { LiveGameSnapshot, LivePlayer } from '@renderer/services/liveGame'
+import type { LiveGameSnapshot, LivePlayer } from '@renderer/features/gaming/services/liveGame'
 
 function player(name: string, over: Partial<LivePlayer> = {}): LivePlayer {
   return {

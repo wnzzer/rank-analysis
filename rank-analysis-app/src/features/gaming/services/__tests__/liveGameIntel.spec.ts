@@ -3,7 +3,11 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import type { LiveEvent, LiveGameSnapshot, LivePlayer } from '@renderer/services/liveGame'
+import type {
+  LiveEvent,
+  LiveGameSnapshot,
+  LivePlayer
+} from '@renderer/features/gaming/services/liveGame'
 import {
   buildMatch,
   clusterLine,
@@ -17,7 +21,7 @@ import {
   playersOf,
   teamfightClusters,
   teamGold
-} from '@renderer/services/liveGameIntel'
+} from '@renderer/features/gaming/services/liveGameIntel'
 import type { ItemStat } from '@renderer/services/builds'
 
 function player(name: string, over: Partial<LivePlayer> = {}): LivePlayer {

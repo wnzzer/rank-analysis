@@ -44,7 +44,7 @@ vi.mock('naive-ui', async importOriginal => {
   return { ...actual, useMessage: () => messageMock }
 })
 
-import { useCloudSyncStore } from '@renderer/pinia/cloudSync'
+import { useCloudSyncStore } from '@renderer/features/settings/stores/cloudSync'
 import DataSync from '../DataSync.vue'
 
 /**

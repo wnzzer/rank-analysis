@@ -7,7 +7,7 @@
  */
 
 import { WARD_ITEM_IDS } from '@renderer/components/record/tabs/detailsTable'
-import type { BuildStats, ItemStat } from './builds'
+import type { BuildStats, ItemStat } from '@renderer/services/builds'
 import type { LiveEvent, LiveGameSnapshot, LiveItem, LivePlayer } from './liveGame'
 
 /**

@@ -168,7 +168,7 @@ import { renderSingleSelectTag, renderLabel, filterChampionFunc } from '../compo
 import { modeOptions, initModeOptions } from './composition'
 import { invoke } from '@tauri-apps/api/core'
 import { getConfigByIpc } from '@renderer/services/ipc'
-import { getGameById } from '@renderer/services/gameById'
+import { getGameById } from '@renderer/features/record/services/gameById'
 import {
   getSgpMatchHistoryByName,
   getCurrentSgpRegion,
@@ -177,7 +177,7 @@ import {
   loadCollectedGames,
   saveCollectedGames,
   clearCollectedGames
-} from '@renderer/services/sgp'
+} from '@renderer/features/record/services/sgp'
 import { championOption } from '../type'
 import type { Game, MatchHistory } from './match'
 import MatchDetailInline from './MatchDetailInline.vue'

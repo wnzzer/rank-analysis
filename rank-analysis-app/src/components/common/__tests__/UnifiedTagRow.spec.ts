@@ -41,7 +41,7 @@ vi.mock('naive-ui', async importOriginal => {
 })
 
 import UnifiedTagRow from '../UnifiedTagRow.vue'
-import { usePlayerNotesStore } from '../../../pinia/playerNotes'
+import { usePlayerNotesStore } from '../../../features/settings/stores/playerNotes'
 import type { RankTag } from '@renderer/types/domain/analysis'
 
 /**

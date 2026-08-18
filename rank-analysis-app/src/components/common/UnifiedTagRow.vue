@@ -51,7 +51,7 @@
  */
 import { computed } from 'vue'
 import { NPopover, NTag, useMessage } from 'naive-ui'
-import { usePlayerNotesStore } from '@renderer/pinia/playerNotes'
+import { usePlayerNotesStore } from '@renderer/features/settings/stores/playerNotes'
 import { getNoteLabelMeta } from '@renderer/types/domain/playerNote'
 import type { RankTag } from '@renderer/types/domain/analysis'
 import { orderTags, splitVisible } from './unifiedTagRow'

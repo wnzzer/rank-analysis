@@ -16,14 +16,14 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { defineComponent, reactive, ref } from 'vue'
 import { mount, flushPromises } from '@vue/test-utils'
 import type { StreamCallbacks } from '@renderer/services/ai'
-import type { LiveGameSnapshot } from '@renderer/services/liveGame'
+import type { LiveGameSnapshot } from '@renderer/features/gaming/services/liveGame'
 
 const messageStub = { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() }
 vi.mock('naive-ui', () => ({ useMessage: () => messageStub }))
 vi.mock('@renderer/services/ai', () => ({
   analyzeLiveGameWithAIStream: vi.fn()
 }))
-vi.mock('@renderer/services/liveGame', () => ({
+vi.mock('@renderer/features/gaming/services/liveGame', () => ({
   getLiveGameData: vi.fn()
 }))
 vi.mock('@renderer/services/builds', () => ({
@@ -31,7 +31,7 @@ vi.mock('@renderer/services/builds', () => ({
 }))
 
 import { analyzeLiveGameWithAIStream } from '@renderer/services/ai'
-import { getLiveGameData } from '@renderer/services/liveGame'
+import { getLiveGameData } from '@renderer/features/gaming/services/liveGame'
 import { getBuildStats } from '@renderer/services/builds'
 import { useLiveAIAnalysis } from './useLiveAIAnalysis'
 

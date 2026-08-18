@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 
 const mockQueryMeetSummary = vi.fn()
-vi.mock('@renderer/services/meet', () => ({
+vi.mock('@renderer/features/settings/services/meet', () => ({
   queryMeetSummary: (...args: unknown[]) => mockQueryMeetSummary(...args)
 }))
 

@@ -18,7 +18,7 @@
 
 <script lang="ts" setup>
 import Framework from '@renderer/components/Framework.vue'
-import { useSettingsStore } from '@renderer/pinia/setting'
+import { useSettingsStore } from '@renderer/features/settings/stores/setting'
 import { useTheme } from '@renderer/composables/useTheme'
 import { buildThemeOverrides } from '@renderer/theme/overrides'
 import { computed, watch } from 'vue'

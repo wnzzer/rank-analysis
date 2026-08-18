@@ -3,7 +3,7 @@
  * 提供暗黑模式检测和主题相关工具
  */
 import { computed } from 'vue'
-import { useSettingsStore } from '@renderer/pinia/setting'
+import { useSettingsStore } from '@renderer/features/settings/stores/setting'
 
 export function useTheme() {
   const settingsStore = useSettingsStore()

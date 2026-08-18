@@ -53,7 +53,7 @@ import {
   type DataTableColumns
 } from 'naive-ui'
 import { InformationCircleOutline, BookmarksOutline } from '@vicons/ionicons5'
-import { usePlayerNotesStore } from '@renderer/pinia/playerNotes'
+import { usePlayerNotesStore } from '@renderer/features/settings/stores/playerNotes'
 import { getNoteLabelMeta } from '@renderer/types/domain/playerNote'
 import PlayerNoteBadge from '@renderer/components/common/PlayerNoteBadge.vue'
 import { searchSummoner } from '@renderer/utils/navigation'

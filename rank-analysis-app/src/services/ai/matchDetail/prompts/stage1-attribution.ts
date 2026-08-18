@@ -13,7 +13,7 @@
 import type { MatchSnapshot } from '../../shared/snapshot'
 import { getKnowledgeBase } from '@renderer/services/knowledge'
 import { evaluateSignals, profileToMetrics, type SignalSubject } from '../../shared/signals'
-import { sortScoresDesc, type PlayerScore } from '@renderer/services/playerScore'
+import { sortScoresDesc, type PlayerScore } from '@renderer/features/record/services/playerScore'
 
 /** 从快照玩家平铺结构构建信号主体（puuid 用 participantId 代替，仅作关联键） */
 function snapshotSignalSubjects(snapshot: MatchSnapshot): SignalSubject[] {

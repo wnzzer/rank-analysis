@@ -2,14 +2,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import PlayerProfileCard from '../PlayerProfileCard.vue'
 import { fetchPlayerProfile } from '@renderer/services/ai/shared/recentProfile.batch'
-import { queryMeetSummary } from '@renderer/services/meet'
+import { queryMeetSummary } from '@renderer/features/settings/services/meet'
 import type { RecentPlayerProfile } from '@renderer/services/ai/shared/types'
 
 vi.mock('@renderer/services/ai/shared/recentProfile.batch', () => ({
   fetchPlayerProfile: vi.fn()
 }))
 
-vi.mock('@renderer/services/meet', () => ({
+vi.mock('@renderer/features/settings/services/meet', () => ({
   queryMeetSummary: vi.fn()
 }))
 

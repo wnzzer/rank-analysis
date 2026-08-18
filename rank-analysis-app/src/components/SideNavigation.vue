@@ -111,7 +111,7 @@ import {
 import { computed, ref, watch } from 'vue'
 import { Summoner } from './record/type'
 import { useGameState } from '@renderer/composables/useGameState'
-import { useCloudSyncStore } from '@renderer/pinia/cloudSync'
+import { useCloudSyncStore } from '@renderer/features/settings/stores/cloudSync'
 import {
   isRecordChildWindow,
   focusMainWindow,

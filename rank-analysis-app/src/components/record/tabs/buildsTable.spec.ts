@@ -4,7 +4,7 @@
  * 无效字段跳过、空帧容错。
  */
 import { describe, expect, it } from 'vitest'
-import type { SgpFrame } from '@renderer/services/sgp'
+import type { SgpFrame } from '@renderer/features/record/services/sgp'
 import { ANVIL_ITEM_IDS, buildItemTimeline, collectBuildEvents } from './buildsTable'
 
 function frame(events: Record<string, unknown>[], timestamp = 0): SgpFrame {

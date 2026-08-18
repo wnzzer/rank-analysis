@@ -148,7 +148,7 @@ import {
   type CounterSortKey,
   type SynergySortDir,
   type SynergySortKey
-} from '@renderer/services/counterIntel'
+} from '@renderer/features/gaming/services/counterIntel'
 import {
   sortedCounters,
   sortedSynergies,

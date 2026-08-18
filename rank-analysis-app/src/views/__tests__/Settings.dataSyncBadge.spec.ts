@@ -28,7 +28,7 @@ vi.mock('@tauri-apps/api/window', () => ({
   getCurrentWindow: vi.fn(() => ({ label: 'main' }))
 }))
 
-import { useCloudSyncStore } from '@renderer/pinia/cloudSync'
+import { useCloudSyncStore } from '@renderer/features/settings/stores/cloudSync'
 import Settings from '../Settings.vue'
 
 /** 最小路由：Settings.vue 内部用 useRouter/useRoute，挂载需要真实 router 插件 */

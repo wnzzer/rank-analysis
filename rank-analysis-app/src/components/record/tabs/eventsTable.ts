@@ -7,7 +7,7 @@
  * 与 `detailsTable.ts` 同层：UI 组件只消费这里的结果，筛选逻辑可单测。
  */
 
-import type { SgpFrameEvent } from '@renderer/services/sgp'
+import type { SgpFrameEvent } from '@renderer/features/record/services/sgp'
 
 /** 事件归组：决定时间线节点颜色 / 筛选标签 */
 export type EventKind = 'kill' | 'building' | 'monster' | 'plate' | 'special' | 'other'

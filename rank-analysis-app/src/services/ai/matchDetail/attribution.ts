@@ -15,7 +15,7 @@ import { getModePromptAddon } from './dispatcher'
 import { buildStage1Prompt } from './prompts/stage1-attribution'
 import { validateAttribution } from './validator'
 import type { AttributionResult } from './types'
-import type { PlayerScore } from '@renderer/services/playerScore'
+import type { PlayerScore } from '@renderer/features/record/services/playerScore'
 
 export const STAGE1_SYSTEM_PROMPT =
   '你是 LOL 单场归因分析师。严格按照用户给定的 JSON schema 返回结果，' +

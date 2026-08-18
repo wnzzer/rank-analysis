@@ -129,10 +129,10 @@ import { Window } from '@tauri-apps/api/window'
 import { openUrl } from '@tauri-apps/plugin-opener'
 
 import router from '@renderer/router'
-import { useSettingsStore } from '@renderer/pinia/setting'
+import { useSettingsStore } from '@renderer/features/settings/stores/setting'
 import { useGameState, lcuConnected } from '@renderer/composables/useGameState'
 import { closeLeagueByIpc } from '@renderer/services/ipc'
-import { getSgpRegions } from '@renderer/services/sgp'
+import { getSgpRegions } from '@renderer/features/record/services/sgp'
 import { useAppUpdate } from '@renderer/composables/useAppUpdate'
 import { GATE_SETTLE_MS, GATE_FALLBACK_MS } from '@renderer/composables/useStartupDialogs'
 

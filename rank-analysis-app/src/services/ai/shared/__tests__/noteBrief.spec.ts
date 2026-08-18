@@ -19,7 +19,7 @@ vi.mock('@tauri-apps/api/event', () => ({
 }))
 
 import { buildNoteBrief } from '../noteBrief'
-import { usePlayerNotesStore } from '@renderer/pinia/playerNotes'
+import { usePlayerNotesStore } from '@renderer/features/settings/stores/playerNotes'
 import { extractPlayerInsight } from '../../player-insight'
 
 describe('buildNoteBrief', () => {

@@ -72,7 +72,7 @@ import {
   PLAYER_SCORE_MAX,
   type PlayerScore,
   type PlayerScoreBreakdown
-} from '@renderer/services/playerScore'
+} from '@renderer/features/record/services/playerScore'
 
 const DIMENSIONS: { key: keyof PlayerScoreBreakdown; label: string; full: number; hint: string }[] =
   [

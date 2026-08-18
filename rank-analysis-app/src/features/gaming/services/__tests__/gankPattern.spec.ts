@@ -8,7 +8,7 @@ import {
   fetchJungleGankPattern,
   formatGankPatternLine,
   type GankPatternRaw
-} from '@renderer/services/gankPattern'
+} from '@renderer/features/gaming/services/gankPattern'
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn()

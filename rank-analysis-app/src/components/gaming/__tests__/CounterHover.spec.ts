@@ -6,7 +6,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import type { ChampionIntel } from '@renderer/services/counterIntel'
+import type { ChampionIntel } from '@renderer/features/gaming/services/counterIntel'
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 
@@ -19,7 +19,9 @@ vi.mock('naive-ui', async importOriginal => {
 const composableMock = vi.hoisted(() => {
   const { ref } = require('vue') as typeof import('vue')
   return {
-    intel: ref<import('@renderer/services/counterIntel').ChampionIntel | null>(null),
+    intel: ref<import('@renderer/features/gaming/services/counterIntel').ChampionIntel | null>(
+      null
+    ),
     isLoading: ref(false),
     error: ref(false)
   }

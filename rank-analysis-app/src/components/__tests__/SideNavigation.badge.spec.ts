@@ -25,7 +25,7 @@ vi.mock('@tauri-apps/api/window', () => ({
   getCurrentWindow: vi.fn(() => ({ label: 'main' }))
 }))
 
-import { useCloudSyncStore } from '@renderer/pinia/cloudSync'
+import { useCloudSyncStore } from '@renderer/features/settings/stores/cloudSync'
 import SideNavigation from '../SideNavigation.vue'
 
 describe('SideNavigation 设置导航项的待裁决角标', () => {

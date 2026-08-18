@@ -7,7 +7,7 @@
 import type { InjectionKey, Ref } from 'vue'
 import type { Game, ParticipantStats } from '@renderer/types/domain/match'
 import type { OneGamePlayer } from '@renderer/types/domain/analysis'
-import type { SgpGameDetail } from '@renderer/services/sgp'
+import type { SgpGameDetail } from '@renderer/features/record/services/sgp'
 import type {
   useMatchDetailPlayers,
   DetailPlayer

@@ -14,7 +14,7 @@ import {
   buildGameMinuteCurve,
   type AggregatedMinuteCurve
 } from '@renderer/components/record/minuteCurve'
-import { getSgpMatchDetail } from '@renderer/services/sgp'
+import { getSgpMatchDetail } from '@renderer/features/record/services/sgp'
 
 /** 曲线样本上限：近 10 场平均（20 场 × 详情请求过重，10 场足够看趋势） */
 export const MINUTE_CURVE_LIMIT = 10

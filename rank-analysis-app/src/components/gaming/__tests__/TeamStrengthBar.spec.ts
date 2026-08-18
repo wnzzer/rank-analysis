@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import TeamStrengthBar from '../TeamStrengthBar.vue'
-import { EMPTY_LINEUP_SCORE, type LineupScore } from '@renderer/services/lineupScore'
+import {
+  EMPTY_LINEUP_SCORE,
+  type LineupScore
+} from '@renderer/features/gaming/services/lineupScore'
 
 vi.mock('@renderer/services/ai/champion-names', () => ({
   getChampionName: (id: number) => `英雄${id}`

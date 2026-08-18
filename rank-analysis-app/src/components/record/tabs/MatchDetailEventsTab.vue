@@ -150,7 +150,7 @@
 <script lang="ts" setup>
 import { computed, inject, onMounted, ref } from 'vue'
 import { NScrollbar, NSpin, NTooltip } from 'naive-ui'
-import type { SgpFrameEvent } from '@renderer/services/sgp'
+import type { SgpFrameEvent } from '@renderer/features/record/services/sgp'
 import type { DetailPlayer } from '@renderer/composables/useMatchDetailPlayers'
 import { loadChampionNames, getChampionName } from '@renderer/services/ai/champion-names'
 import { assetPrefix } from '@renderer/services/http'

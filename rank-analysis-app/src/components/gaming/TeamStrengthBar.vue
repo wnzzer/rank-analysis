@@ -11,7 +11,7 @@
  */
 import { computed } from 'vue'
 import { getChampionName } from '@renderer/services/ai/champion-names'
-import type { LineupScore, LineupHeroDetail } from '@renderer/services/lineupScore'
+import type { LineupScore, LineupHeroDetail } from '@renderer/features/gaming/services/lineupScore'
 
 const props = defineProps<{
   mine: LineupScore

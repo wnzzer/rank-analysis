@@ -203,12 +203,12 @@ import {
   resolvePanelPosition,
   type DualPick,
   type PickPositionFilter
-} from '@renderer/services/counterIntel'
+} from '@renderer/features/gaming/services/counterIntel'
 import { useBestPicks } from '@renderer/composables/useCounterIntel'
 import { getChampionName } from '@renderer/services/ai/champion-names'
 import { TIER_OPTIONS, type OpggTier } from '@renderer/services/opgg'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
-import { getOwnedChampionIds } from '@renderer/services/ownedChampions'
+import { getOwnedChampionIds } from '@renderer/features/gaming/services/ownedChampions'
 import {
   aggregateChampionPool,
   filterChampionPoolByThresholds,

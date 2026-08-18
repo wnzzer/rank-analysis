@@ -6,7 +6,7 @@
  * 与 `eventsTable.ts` 同层：UI 组件只消费聚合结果，聚合逻辑可单测。
  */
 
-import type { SgpFrame } from '@renderer/services/sgp'
+import type { SgpFrame } from '@renderer/features/record/services/sgp'
 
 /** 一次技能加点（按加点顺序排列；EVOLVE 为进化标记，不占级数） */
 export interface SkillUpgradeEntry {

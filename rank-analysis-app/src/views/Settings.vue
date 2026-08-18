@@ -45,7 +45,7 @@ import {
   BookmarksOutline,
   CloudOutline
 } from '@vicons/ionicons5'
-import { useCloudSyncStore } from '@renderer/pinia/cloudSync'
+import { useCloudSyncStore } from '@renderer/features/settings/stores/cloudSync'
 
 const collapsed = ref(false)
 const router = useRouter()

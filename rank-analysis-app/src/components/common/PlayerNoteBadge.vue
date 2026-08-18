@@ -90,7 +90,7 @@
 import { computed, ref, watch } from 'vue'
 import { NPopover, NIcon, NInput, NButton, NEllipsis, useMessage } from 'naive-ui'
 import { BookmarkOutline } from '@vicons/ionicons5'
-import { usePlayerNotesStore } from '@renderer/pinia/playerNotes'
+import { usePlayerNotesStore } from '@renderer/features/settings/stores/playerNotes'
 import { NOTE_LABELS, getNoteLabelMeta, type NoteLabel } from '@renderer/types/domain/playerNote'
 import type { OneGamePlayer } from '@renderer/types/domain/analysis'
 import MettingPlayersCard from '@renderer/components/gaming/MettingPlayersCard.vue'

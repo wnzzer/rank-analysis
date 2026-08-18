@@ -9,7 +9,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { getConfigByIpc } from '@renderer/services/ipc'
 import { CONFIG_KEYS } from '@renderer/services/configKeys'
-import { getSgpMatchHistoryByName } from '@renderer/services/sgp'
+import { getSgpMatchHistoryByName } from '@renderer/features/record/services/sgp'
 import { buildRecentProfile, type RecentGameRaw } from './recentProfile'
 import { buildNoteBrief } from './noteBrief'
 import type { RecentPlayerProfile, TeamPosition } from './types'

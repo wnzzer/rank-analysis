@@ -301,8 +301,8 @@ import {
   type OpggTier
 } from '@renderer/services/opgg'
 import { useOpggTier } from '@renderer/composables/useOpggTier'
-import { buildRuleDraft } from '@renderer/services/bpRuleDraft'
-import { normalizeLcuPosition } from '@renderer/services/counterIntel'
+import { buildRuleDraft } from '@renderer/features/gaming/services/bpRuleDraft'
+import { normalizeLcuPosition } from '@renderer/features/gaming/services/counterIntel'
 import { getChampionName, loadChampionNames } from '@renderer/services/ai/champion-names'
 import type { Position, PickRule, BanRule } from '@renderer/types/rules'
 import type { ChampSelect, Subteam } from '@renderer/types/domain/gaming'

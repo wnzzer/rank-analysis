@@ -1,4 +1,4 @@
-﻿/**
+/**
  * useLineupScore 单元测试：锁定集合 → 防抖取数 → 确定性强度分。
  *
  * 覆盖：空锁定不发请求；防抖合并；竞态丢弃；取数失败保持旧值；
@@ -23,7 +23,7 @@ vi.mock('@renderer/services/ai/shared/recentProfile.batch', () => ({
   fetchBatchProfiles: vi.fn()
 }))
 
-vi.mock('@renderer/services/gankPattern', () => ({
+vi.mock('@renderer/features/gaming/services/gankPattern', () => ({
   fetchJungleGankPattern: vi.fn(),
   aggregateGankPattern: (raw: { jungleGames: number; killEvents: unknown[] }) => ({
     jungleGames: raw.jungleGames,
@@ -37,14 +37,14 @@ vi.mock('@renderer/services/gankPattern', () => ({
     `敌方打野近 ${s.jungleGames} 局前 10 分钟参与击杀 ${s.totalKills} 次：下路 67%（2次），首杀 4:10`
 }))
 
-vi.mock('@renderer/services/sgp', () => ({
+vi.mock('@renderer/features/record/services/sgp', () => ({
   getCurrentSgpRegion: vi.fn()
 }))
 
 import { getChampionMeta } from '@renderer/services/opgg'
 import { fetchBatchProfiles } from '@renderer/services/ai/shared/recentProfile.batch'
-import { fetchJungleGankPattern } from '@renderer/services/gankPattern'
-import { getCurrentSgpRegion } from '@renderer/services/sgp'
+import { fetchJungleGankPattern } from '@renderer/features/gaming/services/gankPattern'
+import { getCurrentSgpRegion } from '@renderer/features/record/services/sgp'
 
 const mockedGetChampionMeta = vi.mocked(getChampionMeta)
 const mockedFetchBatchProfiles = vi.mocked(fetchBatchProfiles)

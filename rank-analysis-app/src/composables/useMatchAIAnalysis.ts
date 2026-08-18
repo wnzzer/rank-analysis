@@ -19,7 +19,7 @@ import {
   injectNoteBriefs
 } from '@renderer/services/ai/shared/recentProfile.batch'
 import type { RecentPlayerProfile, TeamPosition } from '@renderer/services/ai/shared/types'
-import { scoreGame } from '@renderer/services/playerScore'
+import { scoreGame } from '@renderer/features/record/services/playerScore'
 
 export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
   const message = useMessage()

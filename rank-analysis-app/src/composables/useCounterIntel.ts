@@ -25,7 +25,7 @@ import {
   type SynergyItem,
   type SynergySortDir,
   type SynergySortKey
-} from '@renderer/services/counterIntel'
+} from '@renderer/features/gaming/services/counterIntel'
 import { getChampionMeta, opggRevision } from '@renderer/services/opgg'
 
 /** 防抖窗口：悬浮停顿 150ms 才拉取，避免扫过头像时的请求风暴 */

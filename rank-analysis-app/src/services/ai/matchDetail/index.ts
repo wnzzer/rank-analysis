@@ -45,7 +45,7 @@ import {
 } from './critiqueReport'
 import { renderFallbackCritique } from './critiqueTemplate'
 import type { AttributionResult, AIAnalysisReport } from './types'
-import type { PlayerScore } from '@renderer/services/playerScore'
+import type { PlayerScore } from '@renderer/features/record/services/playerScore'
 
 export type { AttributionResult, MatchAIState } from './types'
 export type { AIAnalysisReport } from './types'

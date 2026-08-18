@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import type { ParticipantStats } from '@renderer/types/domain/match'
-import type { SgpFrame, SgpGameDetail, SgpFrameParticipantStats } from '@renderer/services/sgp'
+import type {
+  SgpFrame,
+  SgpGameDetail,
+  SgpFrameParticipantStats
+} from '@renderer/features/record/services/sgp'
 import {
   SGP_FRAME_ROWS,
   aggregateSgpFrameStats,

@@ -10,10 +10,10 @@ import { defineComponent, ref, nextTick } from 'vue'
 import { mount } from '@vue/test-utils'
 import type { Rank } from '@renderer/types/domain/player'
 
-vi.mock('@renderer/services/rank', () => ({ getRanksByPuuids: vi.fn() }))
-vi.mock('@renderer/services/sgp', () => ({ getSgpRanksByPuuids: vi.fn() }))
-import { getRanksByPuuids } from '@renderer/services/rank'
-import { getSgpRanksByPuuids } from '@renderer/services/sgp'
+vi.mock('@renderer/features/record/services/rank', () => ({ getRanksByPuuids: vi.fn() }))
+vi.mock('@renderer/features/record/services/sgp', () => ({ getSgpRanksByPuuids: vi.fn() }))
+import { getRanksByPuuids } from '@renderer/features/record/services/rank'
+import { getSgpRanksByPuuids } from '@renderer/features/record/services/sgp'
 import { useMatchPlayerRanks } from './useMatchPlayerRanks'
 
 const mockGetRanks = vi.mocked(getRanksByPuuids)

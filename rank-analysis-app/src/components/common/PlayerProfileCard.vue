@@ -133,7 +133,7 @@ import { NEllipsis, NSpin } from 'naive-ui'
 import { assetPrefix } from '@renderer/services/http'
 import LazyImg from '@renderer/components/common/LazyImg.vue'
 import { fetchPlayerProfile } from '@renderer/services/ai/shared/recentProfile.batch'
-import { queryMeetSummary } from '@renderer/services/meet'
+import { queryMeetSummary } from '@renderer/features/settings/services/meet'
 import type { MeetSummary } from '@renderer/types/domain/meet'
 import type { RecentPlayerProfile } from '@renderer/services/ai/shared/types'
 

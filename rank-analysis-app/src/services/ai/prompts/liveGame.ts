@@ -5,8 +5,8 @@
  * （经济差/出装匹配/团战/死亡记录），这里只负责任务与纪律框架。
  */
 
-import { liveIntelText } from '@renderer/services/liveGameIntel'
-import type { LiveGameSnapshot } from '@renderer/services/liveGame'
+import { liveIntelText } from '@renderer/features/gaming/services/liveGameIntel'
+import type { LiveGameSnapshot } from '@renderer/features/gaming/services/liveGame'
 import type { ItemStat } from '@renderer/services/builds'
 
 export interface LiveGamePromptExtras {

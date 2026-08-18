@@ -16,14 +16,14 @@ import {
   type LineupScore,
   type LineupScoreInput,
   type MatchupHeroInput
-} from '@renderer/services/lineupScore'
+} from '@renderer/features/gaming/services/lineupScore'
 import { getChampionMeta, type OpggMode } from '@renderer/services/opgg'
 import {
   fetchJungleGankPattern,
   aggregateGankPattern,
   formatGankPatternLine
-} from '@renderer/services/gankPattern'
-import { getCurrentSgpRegion } from '@renderer/services/sgp'
+} from '@renderer/features/gaming/services/gankPattern'
+import { getCurrentSgpRegion } from '@renderer/features/record/services/sgp'
 import {
   fetchBatchProfiles,
   type ProfileRequest

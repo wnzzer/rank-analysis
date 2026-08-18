@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { TIMELINE_METRICS, buildTimelineSeries, fillSeries } from './timelineData'
-import type { SgpGameDetail } from '@renderer/services/sgp'
+import type { SgpGameDetail } from '@renderer/features/record/services/sgp'
 
 function makeDetail(frames: Record<string, unknown>[]): SgpGameDetail {
   return {

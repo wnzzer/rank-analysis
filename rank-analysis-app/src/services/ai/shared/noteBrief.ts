@@ -9,7 +9,7 @@
  * @module services/ai/shared/noteBrief
  */
 
-import { usePlayerNotesStore } from '@renderer/pinia/playerNotes'
+import { usePlayerNotesStore } from '@renderer/features/settings/stores/playerNotes'
 import { getNoteLabelMeta } from '@renderer/types/domain/playerNote'
 
 /** 备注文本注入 prompt 时的最大长度（字符数） */

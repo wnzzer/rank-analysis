@@ -9,7 +9,7 @@ import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { computed, nextTick } from 'vue'
 import { NSelect } from 'naive-ui'
-import type { DualPick } from '@renderer/services/counterIntel'
+import type { DualPick } from '@renderer/features/gaming/services/counterIntel'
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 

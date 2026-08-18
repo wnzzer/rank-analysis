@@ -9,8 +9,8 @@
  */
 
 import { computed, ref, watch, type MaybeRefOrGetter, toValue } from 'vue'
-import { getRanksByPuuids } from '@renderer/services/rank'
-import { getSgpRanksByPuuids } from '@renderer/services/sgp'
+import { getRanksByPuuids } from '@renderer/features/record/services/rank'
+import { getSgpRanksByPuuids } from '@renderer/features/record/services/sgp'
 import {
   hasRealTier,
   formatTierText,

@@ -8,7 +8,7 @@ import {
   toLineupInputs,
   type LineupScoreInput
 } from '../lineupScore'
-import type { ChampionMeta } from '../opgg'
+import type { ChampionMeta } from '@renderer/services/opgg'
 import type { RecentPlayerProfile } from '@renderer/services/ai/shared/types'
 
 function meta(id: number, winRate: number, tier = 1): { championId: number; meta: ChampionMeta } {

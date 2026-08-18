@@ -19,7 +19,7 @@ import {
   __resetCacheForTests,
   type ProfileRequest
 } from '../recentProfile.batch'
-import { usePlayerNotesStore } from '@renderer/pinia/playerNotes'
+import { usePlayerNotesStore } from '@renderer/features/settings/stores/playerNotes'
 
 const mockInvoke = invoke as ReturnType<typeof vi.fn>
 
