@@ -139,6 +139,78 @@ describe('buildStage1Prompt — 确定性评分块', () => {
   })
 })
 
+describe('buildStage1Prompt — 决策回测块', () => {
+  const snap = makeSnapshot()
+  const alignedBacktest = {
+    aligned: true,
+    reason: 'ok' as const,
+    suggestedAtMs: 123,
+    suggestionChampionId: 64,
+    actualChampionId: 65,
+    enemyChampionId: 66,
+    position: 'MIDDLE',
+    adopted: false,
+    resultWin: false,
+    backtest: {
+      suggestionChampionId: 64,
+      actualChampionId: 65,
+      matchupDelta: -0.12,
+      winRateGap: -0.12,
+      scoreGap: -1.8,
+      confidence: 0.4,
+      caveats: ['对位样本不足 3 局，回退全样本'],
+      insufficientData: false
+    }
+  }
+
+  it('已对账且有数据时注入回测块（含胜率差/表现分差/置信度）', async () => {
+    const prompt = await buildStage1Prompt(snap, '', null, alignedBacktest)
+    expect(prompt).toContain('【决策回测】')
+    expect(prompt).toContain('建议英雄 #64')
+    expect(prompt).toContain('实际英雄 #65')
+    expect(prompt).toContain('未采纳')
+    expect(prompt).toContain('-12.0%')
+    expect(prompt).toContain('表现分差 -1.8')
+    expect(prompt).toContain('置信度 40%')
+  })
+
+  it('数据不足时注入回测块但如实说明且不含编造数字', async () => {
+    const insufficient = {
+      ...alignedBacktest,
+      backtest: {
+        ...alignedBacktest.backtest,
+        matchupDelta: 0,
+        winRateGap: 0,
+        scoreGap: 0,
+        confidence: 0,
+        caveats: [],
+        insufficientData: true
+      }
+    }
+    const prompt = await buildStage1Prompt(snap, '', null, insufficient)
+    expect(prompt).toContain('【决策回测】')
+    expect(prompt).toContain('样本不足')
+    expect(prompt).not.toContain('置信度')
+  })
+
+  it('未对齐（无赛前建议）时不注入回测块', async () => {
+    const unaligned = {
+      ...alignedBacktest,
+      aligned: false,
+      reason: 'no_pending_suggestion' as const,
+      backtest: null
+    }
+    const prompt = await buildStage1Prompt(snap, '', null, unaligned)
+    expect(prompt).not.toContain('【决策回测】')
+  })
+
+  it('回测块声明仅 isMe 可引用且禁止胜负归因', async () => {
+    const prompt = await buildStage1Prompt(snap, '', null, alignedBacktest)
+    expect(prompt).toContain('isMe')
+    expect(prompt).toContain('禁止据此得出本局胜负归因结论')
+  })
+})
+
 import * as rankedPrompt from '../prompts/ranked'
 
 describe('ranked addon', () => {

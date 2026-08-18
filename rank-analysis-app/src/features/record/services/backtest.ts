@@ -47,6 +47,8 @@ export interface AdoptionStats {
   notAdoptedTotal: number
   adoptedWinRate: number | null
   notAdoptedWinRate: number | null
+  /** 尚未对账的赛前建议数（排队等待对账的任务量） */
+  pendingTotal: number
 }
 
 /** 赛后决策对账（失败返回 null 供静默降级；重复调用幂等） */

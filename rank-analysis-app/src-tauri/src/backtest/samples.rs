@@ -112,8 +112,13 @@ fn extract_missing_samples<'a>(
     out
 }
 
+/// 未对账建议的保留期：超过 7 天不可能再对账（对账窗口 = 开赛前 15min），
+/// 顺带清理防表无限膨胀。
+const PENDING_TTL_MS: i64 = 7 * 24 * 60 * 60 * 1000;
+
 /// 增量刷新本地样本库（全局库：meet.db 全量收集 → backtest.db 样本表）。
 /// 返回新增样本数（重复局/无法提取的局不计入）。
+/// 顺带清理 7 天前未对账的陈旧建议（对账机会已永久错过）。
 pub fn refresh_local_samples(my_puuid: &str) -> usize {
     let known: HashSet<i64> = store::known_sample_game_ids();
     let collected = crate::meet_db::all_collected_games();
@@ -126,6 +131,11 @@ pub fn refresh_local_samples(my_puuid: &str) -> usize {
     for sample in samples {
         store::upsert_sample(&sample);
     }
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0);
+    store::prune_stale_pending(now - PENDING_TTL_MS);
     count
 }
 

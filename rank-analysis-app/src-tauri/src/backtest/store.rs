@@ -132,6 +132,8 @@ pub struct AdoptionStats {
     pub adopted_win_rate: Option<f64>,
     /// 未采纳且获胜的占比（0 未采纳时为 None）。
     pub not_adopted_win_rate: Option<f64>,
+    /// 尚未对账的赛前建议数（排队等待消费的对账任务量）。
+    pub pending_total: i64,
 }
 
 /// upsert 一条对账记录（同关联键覆盖，幂等）。
@@ -210,6 +212,11 @@ pub fn adoption_stats() -> Option<AdoptionStats> {
             [],
             |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
         )?;
+        let pending_total: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM pending_suggestions WHERE reconciled_at_ms IS NULL",
+            [],
+            |row| row.get(0),
+        )?;
         let rate = |total: i64, wins: i64| {
             if total > 0 {
                 Some(wins as f64 / total as f64)
@@ -222,6 +229,7 @@ pub fn adoption_stats() -> Option<AdoptionStats> {
             not_adopted_total: not_total,
             adopted_win_rate: rate(adopted_total, adopted_wins),
             not_adopted_win_rate: rate(not_total, not_wins),
+            pending_total,
         })
     })
 }
@@ -535,11 +543,14 @@ mod tests {
         insert(&conn, &entry(301, true, true));
         insert(&conn, &entry(302, true, false));
         insert(&conn, &entry(303, false, true));
+        record_pending_suggestion_in(&conn, &pend(1000, 64, None)).unwrap();
+        record_pending_suggestion_in(&conn, &pend(2000, 65, None)).unwrap();
         let stats = stats_in(&conn).unwrap();
         assert_eq!(stats.adopted_total, 2);
         assert_eq!(stats.not_adopted_total, 1);
         assert_eq!(stats.adopted_win_rate, Some(0.5));
         assert_eq!(stats.not_adopted_win_rate, Some(1.0));
+        assert_eq!(stats.pending_total, 2, "未对账建议应计入待对账数");
     }
 
     #[test]
@@ -550,6 +561,7 @@ mod tests {
         assert_eq!(stats.adopted_total, 0);
         assert!(stats.adopted_win_rate.is_none());
         assert!(stats.not_adopted_win_rate.is_none());
+        assert_eq!(stats.pending_total, 0);
     }
 
     // ── 测试辅助：把 with_db 的查询抽成可注入连接版本 ──
@@ -625,6 +637,11 @@ mod tests {
             [],
             |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
         )?;
+        let pending_total: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM pending_suggestions WHERE reconciled_at_ms IS NULL",
+            [],
+            |row| row.get(0),
+        )?;
         let rate = |total: i64, wins: i64| {
             if total > 0 {
                 Some(wins as f64 / total as f64)
@@ -637,6 +654,7 @@ mod tests {
             not_adopted_total: not_total,
             adopted_win_rate: rate(adopted_total, adopted_wins),
             not_adopted_win_rate: rate(not_total, not_wins),
+            pending_total,
         })
     }
 

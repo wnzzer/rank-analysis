@@ -58,7 +58,8 @@ describe('fetchAdoptionStats', () => {
       adoptedTotal: 10,
       notAdoptedTotal: 5,
       adoptedWinRate: 0.6,
-      notAdoptedWinRate: 0.4
+      notAdoptedWinRate: 0.4,
+      pendingTotal: 3
     }
     invokeMock.mockResolvedValue(payload)
     await expect(fetchAdoptionStats()).resolves.toEqual(payload)

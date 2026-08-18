@@ -2,6 +2,9 @@
   <div class="match-detail-backtest">
     <section v-if="stats" class="match-detail-backtest-stats">
       <div class="match-detail-backtest-stats-title">采纳 vs 未采纳（防幸存者偏差的对账视图）</div>
+      <div v-if="stats.pendingTotal > 0" class="match-detail-backtest-pending">
+        待对账建议 {{ stats.pendingTotal }} 条——打开赛后详情页会自动对账
+      </div>
       <div class="match-detail-backtest-stats-rows">
         <div class="match-detail-backtest-stats-row">
           <span>采纳建议</span>
@@ -176,6 +179,11 @@ function deltaClass(v: number): string {
 .match-detail-backtest-stats-title {
   font-size: 11px;
   color: var(--n-text-color-3, #999);
+  margin-bottom: 6px;
+}
+.match-detail-backtest-pending {
+  font-size: 11px;
+  color: #d9b36a;
   margin-bottom: 6px;
 }
 .match-detail-backtest-stats-rows {

@@ -24,9 +24,21 @@ pub fn query_meet_summary(puuid: String) -> Result<MeetSummary, String> {
 }
 
 /// 持久化跨区「收集全部」结果（SQLite 覆盖写入，`(region, name)` 主键）。
+///
+/// 收集即沉淀：保存后后台异步刷新本地样本库（M2 数据飞轮——收集到的对局
+/// 提取成本机对位样本；拿不到本机 puuid 时静默跳过，宁缺毋滥不编造）。
 #[tauri::command]
 pub fn save_collected_games(region: String, name: String, games: Vec<Game>) -> Result<(), String> {
     db_save_collected_games(&region, &name, &games);
+    tauri::async_runtime::spawn(async move {
+        match crate::lcu::api::summoner::get_my_summoner().await {
+            Ok(s) => {
+                let added = crate::backtest::samples::refresh_local_samples(&s.puuid);
+                log::info!("[backtest] 本地样本库刷新完成，新增 {added} 条");
+            }
+            Err(e) => log::warn!("[backtest] 样本刷新跳过（拿不到本机召唤师）: {e}"),
+        }
+    });
     Ok(())
 }
 
