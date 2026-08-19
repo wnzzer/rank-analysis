@@ -33,7 +33,7 @@ static APP_HANDLE: LazyLock<Mutex<Option<tauri::AppHandle>>> = LazyLock::new(|| 
 /// 窗口初始不可见（`visible(false)`），由 [`show`] 在对局中激活。
 /// 创建失败不 panic——降级为主窗口内 Tab 展示（当前 M5a/M5b 行为）。
 fn create(app: &tauri::AppHandle) -> Result<(), String> {
-    let w = WebviewWindowBuilder::new(app, "overlay", WebviewUrl::App("overlay.html".into()))
+    let _w = WebviewWindowBuilder::new(app, "overlay", WebviewUrl::App("overlay.html".into()))
         .title("")
         .inner_size(320.0, 200.0)
         .transparent(true)
@@ -47,7 +47,7 @@ fn create(app: &tauri::AppHandle) -> Result<(), String> {
         .map_err(|e| format!("overlay 窗口创建失败: {e}"))?;
 
     // TODO: 升级 tao ≥ 0.36 后取消注释以启用鼠标穿透
-    // w.set_ignore_cursor_events(true)
+    // _w.set_ignore_cursor_events(true)
     //     .map_err(|e| format!("overlay 鼠标穿透设置失败: {e}"))?;
     log::info!("[overlay] 窗口创建完成（透明/置顶；鼠标穿透需 tao≥0.36）");
 
