@@ -53,7 +53,8 @@ onUnmounted(() => {
 
 <style>
 /* 全局透明背景：Rust 端 transparent:true + CSS 透明 */
-html, body {
+html,
+body {
   margin: 0;
   padding: 0;
   background: transparent;

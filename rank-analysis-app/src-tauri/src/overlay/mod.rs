@@ -2,7 +2,12 @@
 //!
 //! 管理透明置顶 overlay 窗口的完整生命周期——创建、显示、隐藏、销毁。
 //! 窗口属性：`transparent` / `decorations=false` / `always_on_top` / `focusable=false` /
-//! `skip_taskbar` / `set_ignore_cursor_events(true)`（鼠标穿透，不挡游戏操作）。
+//! `skip_taskbar`。
+//!
+//! ## 鼠标穿透
+//!
+//! `set_ignore_cursor_events` 需要 **tao ≥ 0.36**（当前锁 0.35.3）。
+//! 升级 tao 后取消注释 `create` 函数中的 `w.set_ignore_cursor_events(true)` 即可启用。
 //!
 //! ## 窗口位置
 //!
@@ -12,7 +17,6 @@
 use std::sync::LazyLock;
 use std::sync::Mutex;
 
-use tauri::Manager;
 use tauri::WebviewUrl;
 use tauri::WebviewWindowBuilder;
 
@@ -37,9 +41,10 @@ fn create(app: &tauri::AppHandle) -> Result<tauri::WebviewWindow, String> {
         .build()
         .map_err(|e| format!("overlay 窗口创建失败: {e}"))?;
 
-    w.set_ignore_cursor_events(true)
-        .map_err(|e| format!("overlay 鼠标穿透设置失败: {e}"))?;
-    log::info!("[overlay] 窗口创建完成（透明/置顶/鼠标穿透）");
+    // TODO: 升级 tao ≥ 0.36 后取消注释以启用鼠标穿透
+    // w.set_ignore_cursor_events(true)
+    //     .map_err(|e| format!("overlay 鼠标穿透设置失败: {e}"))?;
+    log::info!("[overlay] 窗口创建完成（透明/置顶；鼠标穿透需 tao≥0.36）");
     Ok(w)
 }
 
@@ -59,8 +64,8 @@ pub fn show(app: &tauri::AppHandle) {
     match get_or_create(app) {
         Ok(w) => {
             let _ = w.show();
-            // 再次确保鼠标穿透（防止窗口重构后属性丢失）
-            let _ = w.set_ignore_cursor_events(true);
+            // TODO: 升级 tao ≥ 0.36 后取消注释以启用鼠标穿透
+            // let _ = w.set_ignore_cursor_events(true);
         }
         Err(e) => log::warn!("[overlay] 显示失败: {e}"),
     }
