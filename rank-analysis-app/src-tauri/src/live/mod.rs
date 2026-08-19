@@ -230,10 +230,7 @@ fn suggest_objective(_snapshot: &LiveGameSnapshot, game_time: f64) -> Option<Nex
         }
     }
 
-    let nearest_name = match nearest_name {
-        Some(n) => n,
-        None => return None,
-    };
+    let nearest_name = nearest_name?;
 
     let remaining = nearest_spawn - game_time;
     if remaining > OBJECTIVE_PREP_SECS {
