@@ -1,6 +1,7 @@
 pub mod automation;
 pub mod backtest;
 pub mod bp_decision;
+pub mod cdragon;
 pub mod cn_patch_notes;
 pub mod command;
 pub mod config;
@@ -20,5 +21,6 @@ pub mod riot;
 pub mod rule_engine;
 pub mod rune_import;
 pub mod score;
+pub mod scouting;
 pub mod shard;
 pub mod state;

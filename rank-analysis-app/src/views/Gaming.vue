@@ -213,10 +213,13 @@
         />
 
         <!-- 双方阵容强度对比条：锁定英雄 ≥1 即出现，数据不足时整块隐藏 -->
-        <TeamStrengthBar
+<TeamStrengthBar
           :mine="lineupScores.scores.value.mine"
           :enemy="lineupScores.scores.value.enemy"
         />
+
+        <EnemyThreatCard :ratings="threatRatings" />
+
         <!-- 对位分析（同分路画像均值差 ≥2%，确定性计算） -->
         <div v-if="lineupScores.scores.value.matchupHints.length > 0" class="matchup-hints">
           <div
@@ -282,6 +285,7 @@ import SubteamCard from '@renderer/components/gaming/SubteamCard.vue'
 import BestPicksPanel from '@renderer/components/gaming/BestPicksPanel.vue'
 import BpDecisionBar from '@renderer/components/gaming/BpDecisionBar.vue'
 import TeamStrengthBar from '@renderer/components/gaming/TeamStrengthBar.vue'
+import EnemyThreatCard from '@renderer/components/gaming/EnemyThreatCard.vue'
 import { useGamingAIAnalysis } from '@renderer/composables/useGamingAIAnalysis'
 import { useLiveAIAnalysis } from '@renderer/composables/useLiveAIAnalysis'
 import { renderAnalysisReport } from '@renderer/services/ai/matchDetail/renderReport'
@@ -304,6 +308,7 @@ import { useOpggTier } from '@renderer/composables/useOpggTier'
 import { buildRuleDraft } from '@renderer/features/gaming/services/bpRuleDraft'
 import { normalizeLcuPosition } from '@renderer/features/gaming/services/counterIntel'
 import { getChampionName, loadChampionNames } from '@renderer/services/ai/champion-names'
+import { getThreatRatings, type ThreatRating } from '@renderer/services/scouting'
 import type { Position, PickRule, BanRule } from '@renderer/types/rules'
 import type { ChampSelect, Subteam } from '@renderer/types/domain/gaming'
 import type { championOption } from '@renderer/types/domain/champion'
@@ -477,6 +482,19 @@ watch(
   () => sessionData.champSelect,
   cs => {
     if (cs !== undefined) lastChampSelect.value = cs
+  }
+)
+
+/** 赛前威胁评级（M4 战场六）：选人阶段拉取敌方威胁数据 */
+const threatRatings = ref<ThreatRating[]>([])
+watch(
+  () => sessionData.phase,
+  (phase) => {
+    if (phase === 'ChampSelect') {
+      void getThreatRatings().then(r => { threatRatings.value = r }).catch(() => {})
+    } else {
+      threatRatings.value = []
+    }
   }
 )
 

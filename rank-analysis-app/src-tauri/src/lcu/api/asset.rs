@@ -633,6 +633,15 @@ pub async fn get_asset_binary(type_string: String, id: i64) -> Result<(Vec<u8>, 
         "spell" => get_spell_binary(id).await,
         "profile" => get_profile_binary(id).await,
         _ => Err("Invalid type string".to_string()),
+    };
+
+    // LCU 失败 → 降级到 CDragon 静态资产
+    let result = match result {
+        Ok(data) => Ok(data),
+        Err(lcu_err) => {
+            log::info!("asset: LCU 取 {type_string}/{id} 失败({lcu_err})，降级到 CDragon");
+            crate::cdragon::fetch_icon_with_mime(&type_string, id).await
+        }
     }?;
 
     // 写入缓存
