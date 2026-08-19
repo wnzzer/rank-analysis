@@ -8,12 +8,7 @@
  */
 import { ref, onMounted, onUnmounted } from 'vue'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
-
-interface NextAction {
-  action: string
-  reason: string
-  priority: string
-}
+import { NEXT_ACTION_LABELS, URGENCY_COLORS, type NextAction } from '@renderer/services/nextAction'
 
 const actions = ref<NextAction[]>([])
 const visible = ref(false)
@@ -40,10 +35,14 @@ onUnmounted(() => {
           v-for="(a, i) in actions"
           :key="i"
           class="overlay-item"
-          :class="`overlay-item-${a.priority}`"
+          :class="`overlay-item-${a.urgency}`"
         >
-          <span class="overlay-priority">{{ a.priority === 'critical' ? '!' : '·' }}</span>
-          <span class="overlay-action">{{ a.action }}</span>
+          <span
+            class="overlay-urgency"
+            :style="{ color: URGENCY_COLORS[a.urgency] ?? 'rgba(255,255,255,0.5)' }"
+            >{{ a.urgency === 'high' ? '!' : '·' }}</span
+          >
+          <span class="overlay-kind">{{ NEXT_ACTION_LABELS[a.kind] ?? a.kind }}</span>
           <span class="overlay-reason">{{ a.reason }}</span>
         </div>
       </div>
@@ -112,21 +111,13 @@ body {
   line-height: 1.4;
 }
 
-.overlay-item-critical .overlay-priority {
-  color: #ef4444;
-}
-
-.overlay-item-warning .overlay-priority {
-  color: #f97316;
-}
-
-.overlay-priority {
+.overlay-urgency {
   flex-shrink: 0;
   font-weight: 700;
   width: 12px;
 }
 
-.overlay-action {
+.overlay-kind {
   font-weight: 600;
   flex-shrink: 0;
   min-width: 60px;

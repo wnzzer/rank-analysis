@@ -153,7 +153,7 @@ async function toggleGoal(g: HabitGoal): Promise<void> {
     await toggleHabitGoal(g.id)
     g.done = !g.done
   } catch {
-    // 忽略：下次刷新恢复
+    // 后端报错，状态不变（不做乐观更新）
   }
 }
 

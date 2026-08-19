@@ -210,6 +210,9 @@ fn suggest_recall(me: &LivePlayer, game_time: f64) -> Option<NextAction> {
 }
 
 /// 资源刷新前提醒站位/视野。
+///
+/// `_snapshot` 当前未使用：资源判断基于固定时间表（龙/男爵刷新周期），
+/// 不依赖实时事件流。后续可通过 liveclientdata events 验证实际击杀状态。
 fn suggest_objective(_snapshot: &LiveGameSnapshot, game_time: f64) -> Option<NextAction> {
     let mut nearest_name: Option<&str> = None;
     let mut nearest_spawn = f64::MAX;

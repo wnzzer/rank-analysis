@@ -90,4 +90,5 @@ pub fn destroy() {
         log::info!("[overlay] 窗口已销毁");
     }
     OVERLAY_CREATED.store(false, Ordering::Relaxed);
+    APP_HANDLE.lock().unwrap().take();
 }
