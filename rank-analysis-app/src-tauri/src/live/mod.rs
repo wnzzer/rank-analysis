@@ -200,7 +200,7 @@ fn suggest_recall(me: &LivePlayer, game_time: f64) -> Option<NextAction> {
 }
 
 /// 资源刷新前提醒站位/视野。
-fn suggest_objective(snapshot: &LiveGameSnapshot, game_time: f64) -> Option<NextAction> {
+fn suggest_objective(_snapshot: &LiveGameSnapshot, game_time: f64) -> Option<NextAction> {
     let mut nearest_name: Option<&str> = None;
     let mut nearest_spawn = f64::MAX;
 
