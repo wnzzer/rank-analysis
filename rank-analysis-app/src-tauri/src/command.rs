@@ -62,6 +62,7 @@ pub mod rank;
 pub mod replay;
 pub mod rule_config;
 pub mod score;
+pub mod scouting;
 pub mod session;
 pub mod sgp;
 pub mod system;
