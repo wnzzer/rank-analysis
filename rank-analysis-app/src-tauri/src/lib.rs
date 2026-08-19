@@ -11,6 +11,7 @@ pub mod game_state_monitor;
 pub mod insight;
 pub mod knowledge;
 pub mod lcu;
+pub mod live;
 pub mod meet_db;
 pub mod migrate;
 pub mod observability;

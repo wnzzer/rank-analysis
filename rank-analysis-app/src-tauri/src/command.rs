@@ -54,6 +54,7 @@ pub mod info;
 pub mod insight;
 pub mod knowledge;
 pub mod launcher;
+pub mod live;
 pub mod match_history;
 pub mod meet;
 pub mod opgg;

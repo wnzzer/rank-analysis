@@ -220,6 +220,8 @@
 
         <EnemyThreatCard :ratings="threatRatings" />
 
+        <NextActionCard :actions="nextActions" />
+
         <!-- 对位分析（同分路画像均值差 ≥2%，确定性计算） -->
         <div v-if="lineupScores.scores.value.matchupHints.length > 0" class="matchup-hints">
           <div
@@ -286,6 +288,7 @@ import BestPicksPanel from '@renderer/components/gaming/BestPicksPanel.vue'
 import BpDecisionBar from '@renderer/components/gaming/BpDecisionBar.vue'
 import TeamStrengthBar from '@renderer/components/gaming/TeamStrengthBar.vue'
 import EnemyThreatCard from '@renderer/components/gaming/EnemyThreatCard.vue'
+import NextActionCard from '@renderer/components/gaming/NextActionCard.vue'
 import { useGamingAIAnalysis } from '@renderer/composables/useGamingAIAnalysis'
 import { useLiveAIAnalysis } from '@renderer/composables/useLiveAIAnalysis'
 import { renderAnalysisReport } from '@renderer/services/ai/matchDetail/renderReport'
@@ -309,6 +312,7 @@ import { buildRuleDraft } from '@renderer/features/gaming/services/bpRuleDraft'
 import { normalizeLcuPosition } from '@renderer/features/gaming/services/counterIntel'
 import { getChampionName, loadChampionNames } from '@renderer/services/ai/champion-names'
 import { getThreatRatings, type ThreatRating } from '@renderer/services/scouting'
+import { getNextActions, type NextAction } from '@renderer/services/nextAction'
 import type { Position, PickRule, BanRule } from '@renderer/types/rules'
 import type { ChampSelect, Subteam } from '@renderer/types/domain/gaming'
 import type { championOption } from '@renderer/types/domain/champion'
@@ -498,6 +502,52 @@ watch(
         .catch(() => {})
     } else {
       threatRatings.value = []
+    }
+  }
+)
+
+/** 对局中下一动作建议（M5a 战场四）：InProgress 阶段轮询 */
+const nextActions = ref<NextAction[]>([])
+let nextActionTimer: ReturnType<typeof setInterval> | null = null
+let lastNextActionAt = 0
+const NEXT_ACTION_THROTTLE_MS = 30_000
+const NEXT_ACTION_POLL_MS = 2_000
+
+async function pollNextActions(): Promise<void> {
+  if (sessionData.phase !== 'InProgress') return
+  const now = Date.now()
+  if (now - lastNextActionAt < NEXT_ACTION_THROTTLE_MS) return
+  lastNextActionAt = now
+  const me = orderedSubteams.value
+    .flatMap(s => s.players)
+    .find(p => p.summoner.puuid === mySummonerPuuid.value)
+  if (!me || me.championId <= 0) return
+  try {
+    const actions = await getNextActions(
+      me.championId,
+      mySummoner.value?.gameName ?? '',
+      mySummonerPuuid.value,
+      sessionData.queueId
+    )
+    nextActions.value = actions
+  } catch {
+    nextActions.value = []
+  }
+}
+
+watch(
+  () => sessionData.phase,
+  phase => {
+    if (phase === 'InProgress') {
+      lastNextActionAt = 0
+      void pollNextActions()
+      nextActionTimer = setInterval(() => void pollNextActions(), NEXT_ACTION_POLL_MS)
+    } else {
+      if (nextActionTimer) {
+        clearInterval(nextActionTimer)
+        nextActionTimer = null
+      }
+      nextActions.value = []
     }
   }
 )
