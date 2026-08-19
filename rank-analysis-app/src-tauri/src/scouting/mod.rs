@@ -17,10 +17,9 @@
 
 use serde::Serialize;
 
-use crate::command::score::PlayerScoreInput;
+use crate::command::score::{score_participants, PlayerScoreInput};
 use crate::lcu::api::match_history::Game;
 use crate::lcu::api::model::Participant;
-use crate::score::score_participants;
 
 /// 最小有效局数阈值。
 pub const MIN_GAMES_FOR_RATING: usize = 5;
