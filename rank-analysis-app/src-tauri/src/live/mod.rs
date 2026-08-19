@@ -491,10 +491,7 @@ mod tests {
     fn appends_habit_tag_suffix_when_tags_present() {
         let snap = snapshot(vec![player("me", 1200, &[3157], false)], 420.0);
         let stats = build_stats();
-        let tags = vec![
-            habit_tag("vision", 3),
-            habit_tag("deaths", 5),
-        ];
+        let tags = vec![habit_tag("vision", 3), habit_tag("deaths", 5)];
         let actions = suggest_next_actions(&snap, 103, "me", Some(&stats), &tags);
         let buy = actions.iter().find(|a| a.kind == "buy_item").unwrap();
         assert!(buy.reason.contains("连续 3 局视野落后"));
@@ -520,10 +517,7 @@ mod tests {
 
     #[test]
     fn build_habit_suffix_multiple_tags() {
-        let tags = vec![
-            habit_tag("vision", 3),
-            habit_tag("cs", 2),
-        ];
+        let tags = vec![habit_tag("vision", 3), habit_tag("cs", 2)];
         let suffix = build_habit_suffix(&tags);
         assert!(suffix.contains("连续 3 局视野落后"));
         assert!(suffix.contains("连续 2 局补刀落后"));
