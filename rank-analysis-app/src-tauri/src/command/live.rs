@@ -1,15 +1,16 @@
-//! # 下一动作推荐命令
+//! # 下一动作推荐命令（M5a 基础版 + M5b 增强版）
 //!
 //! `get_next_actions`：对局中实时下一动作建议。命令层负责取数据
-//! （liveclientdata 快照 + PUGG 出装），引擎层纯计算。
+//! （liveclientdata 快照 + PUGG 出装 + 习惯标签），引擎层纯计算。
 //!
 //! 轮询由前端负责（Gaming.vue 按 2s 间隔 invoke），引擎保证 < 2ms。
 
+use crate::insight::store::query_habit_tags;
 use crate::lcu::api::live_game::get_live_game_snapshot;
 use crate::live::suggest_next_actions;
 use crate::live::NextAction;
 
-/// 获取对局中下一动作建议。
+/// 获取对局中下一动作建议（含习惯标签增强）。
 ///
 /// # 参数
 /// - `my_champion_id`: 本局我方英雄 id
@@ -41,10 +42,13 @@ pub async fn get_next_actions(
     .ok()
     .flatten();
 
+    let habit_tags = query_habit_tags();
+
     Ok(suggest_next_actions(
         &snapshot,
         my_champion_id,
         &my_game_name,
         build_stats.as_ref(),
+        &habit_tags,
     ))
 }

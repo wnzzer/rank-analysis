@@ -1,6 +1,6 @@
-//! # 对局中下一动作推荐引擎（M5a 战场四 4a 基础版）
+//! # 对局中下一动作推荐引擎（M5a 战场四 4a 基础版 + M5b 增强版）
 //!
-//! 基于 liveclientdata 实时快照 + PUGG 出装聚合，生成「下一动作」建议。
+//! 基于 liveclientdata 实时快照 + PUGG 出装聚合 + 习惯标签，生成「下一动作」建议。
 //! reason 全模板化，不调 LLM，满足 < 2s 延迟。
 //!
 //! ## 复用的已有模块
@@ -9,6 +9,7 @@
 //! |------|---------|
 //! | `lcu/api/live_game.rs` | `LiveGameSnapshot` 作为核心输入 |
 //! | `pugg/aggregate.rs` | `BuildStats` 提供推荐出装序列 |
+//! | `insight/store.rs` | `HabitTag` 个性化 reason 后缀 |
 //!
 //! ## 动作类型
 //!
@@ -20,12 +21,14 @@
 //!
 //! - 找不到我方玩家（名字不匹配）→ 返回空
 //! - 无 PUGG 出装数据 → 只产出 objective 建议
+//! - 无习惯标签 → 仅产出基础版 reason（不拼接个性化后缀）
 //! - 数据不足以判断时返回空——不编造
 
 use std::collections::HashSet;
 
 use serde::Serialize;
 
+use crate::insight::store::HabitTag;
 use crate::lcu::api::live_game::{LiveGameSnapshot, LivePlayer};
 use crate::pugg::aggregate::BuildStats;
 
@@ -56,12 +59,15 @@ pub struct NextAction {
     pub valid_until: f64,
 }
 
-/// 基于实时快照和 PUGG 出装生成下一动作建议。
+/// 基于实时快照、PUGG 出装与习惯标签生成下一动作建议。
+///
+/// `habit_tags` 为空时行为同 M5a 基础版——不拼接个性化后缀。
 pub fn suggest_next_actions(
     snapshot: &LiveGameSnapshot,
     my_champion_id: i32,
     my_game_name: &str,
     build_stats: Option<&BuildStats>,
+    habit_tags: &[HabitTag],
 ) -> Vec<NextAction> {
     let mut actions = Vec::new();
 
@@ -72,6 +78,7 @@ pub fn suggest_next_actions(
 
     let game_time = snapshot.game_time;
     let built_ids = built_item_ids(me);
+    let habit_suffix = build_habit_suffix(habit_tags);
 
     // 1. 出装建议
     if let Some(stats) = build_stats {
@@ -85,17 +92,20 @@ pub fn suggest_next_actions(
                 "low"
             };
             action.urgency = urgency.to_string();
+            action.reason.push_str(&habit_suffix);
             actions.push(action);
         }
     }
 
     // 2. 回城建议
-    if let Some(action) = suggest_recall(me, game_time) {
+    if let Some(mut action) = suggest_recall(me, game_time) {
+        action.reason.push_str(&habit_suffix);
         actions.push(action);
     }
 
     // 3. 资源目标建议
-    if let Some(action) = suggest_objective(snapshot, game_time) {
+    if let Some(mut action) = suggest_objective(snapshot, game_time) {
+        action.reason.push_str(&habit_suffix);
         actions.push(action);
     }
 
@@ -270,6 +280,33 @@ fn dragon_spawn_times(game_time: f64) -> Option<f64> {
     Some(next)
 }
 
+/// 将习惯标签拼接为个性化 reason 后缀。
+///
+/// 无标签时返回空字符串，确保 M5a 基础版行为向后兼容。
+fn build_habit_suffix(tags: &[HabitTag]) -> String {
+    let parts: Vec<String> = tags
+        .iter()
+        .map(|t| {
+            let label = match t.dimension.as_str() {
+                "vision" => "视野",
+                "cs" => "补刀",
+                "deaths" => "死亡数",
+                "kills" => "击杀",
+                "assists" => "支援",
+                "damage" => "伤害",
+                _ => &t.dimension,
+            };
+            format!("连续 {} 局{}落后于同位置对手", t.streak, label)
+        })
+        .collect();
+
+    if parts.is_empty() {
+        String::new()
+    } else {
+        format!("，结合你{}", parts.join("、"))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -365,11 +402,21 @@ mod tests {
         }
     }
 
+    fn habit_tag(dim: &str, streak: u32) -> HabitTag {
+        HabitTag {
+            dimension: dim.to_string(),
+            avg_vs_peer: -5.0,
+            streak,
+            first_seen: "2026-08-01T00:00:00Z".to_string(),
+            last_seen: "2026-08-18T00:00:00Z".to_string(),
+        }
+    }
+
     #[test]
     fn returns_empty_when_player_not_found() {
         let snap = snapshot(vec![player("someone", 1000, &[3157], false)], 300.0);
         let stats = build_stats();
-        let actions = suggest_next_actions(&snap, 103, "me", Some(&stats));
+        let actions = suggest_next_actions(&snap, 103, "me", Some(&stats), &[]);
         assert!(actions.is_empty());
     }
 
@@ -377,7 +424,7 @@ mod tests {
     fn suggests_buy_when_missing_item() {
         let snap = snapshot(vec![player("me", 1200, &[3157], false)], 420.0);
         let stats = build_stats();
-        let actions = suggest_next_actions(&snap, 103, "me", Some(&stats));
+        let actions = suggest_next_actions(&snap, 103, "me", Some(&stats), &[]);
         let buy = actions.iter().find(|a| a.kind == "buy_item");
         assert!(buy.is_some(), "应推荐下一件装备");
         let buy = buy.unwrap();
@@ -390,7 +437,7 @@ mod tests {
     fn suggests_recall_when_rich() {
         let snap = snapshot(vec![player("me", 2500, &[3157, 3020], false)], 600.0);
         let stats = build_stats();
-        let actions = suggest_next_actions(&snap, 103, "me", Some(&stats));
+        let actions = suggest_next_actions(&snap, 103, "me", Some(&stats), &[]);
         let recall = actions.iter().find(|a| a.kind == "recall");
         assert!(recall.is_some(), "金币充足应建议回城");
         assert_eq!(recall.unwrap().urgency, "high");
@@ -400,7 +447,7 @@ mod tests {
     fn no_recall_when_dead() {
         let snap = snapshot(vec![player("me", 2500, &[3157, 3020], true)], 600.0);
         let stats = build_stats();
-        let actions = suggest_next_actions(&snap, 103, "me", Some(&stats));
+        let actions = suggest_next_actions(&snap, 103, "me", Some(&stats), &[]);
         let recall = actions.iter().find(|a| a.kind == "recall");
         assert!(recall.is_none(), "阵亡中不应建议回城");
     }
@@ -409,7 +456,7 @@ mod tests {
     fn no_recall_when_poor() {
         let snap = snapshot(vec![player("me", 300, &[3157], false)], 400.0);
         let stats = build_stats();
-        let actions = suggest_next_actions(&snap, 103, "me", Some(&stats));
+        let actions = suggest_next_actions(&snap, 103, "me", Some(&stats), &[]);
         let recall = actions.iter().find(|a| a.kind == "recall");
         assert!(recall.is_none(), "金币不足不应建议回城");
     }
@@ -417,7 +464,7 @@ mod tests {
     #[test]
     fn suggests_objective_before_dragon() {
         let snap = snapshot(vec![player("me", 0, &[], false)], 280.0);
-        let actions = suggest_next_actions(&snap, 103, "me", None);
+        let actions = suggest_next_actions(&snap, 103, "me", None, &[]);
         let obj = actions.iter().find(|a| a.kind == "objective");
         assert!(obj.is_some(), "小龙刷新前应提醒");
         assert!(obj.unwrap().reason.contains("元素龙"));
@@ -426,18 +473,60 @@ mod tests {
     #[test]
     fn no_objective_when_not_near_spawn() {
         let snap = snapshot(vec![player("me", 0, &[], false)], 500.0);
-        let actions = suggest_next_actions(&snap, 103, "me", None);
+        let actions = suggest_next_actions(&snap, 103, "me", None, &[]);
         let obj = actions.iter().find(|a| a.kind == "objective");
         assert!(obj.is_none(), "远离龙刷新时间不应提醒");
     }
 
     #[test]
     fn skips_already_built_items() {
-        // 玩家已出 3157 + 3020 + 3135，下一个应推荐 3089
         let snap = snapshot(vec![player("me", 800, &[3157, 3020, 3135], false)], 500.0);
         let stats = build_stats();
-        let actions = suggest_next_actions(&snap, 103, "me", Some(&stats));
+        let actions = suggest_next_actions(&snap, 103, "me", Some(&stats), &[]);
         let buy = actions.iter().find(|a| a.kind == "buy_item").unwrap();
         assert_eq!(buy.item_id, 3089);
+    }
+
+    #[test]
+    fn appends_habit_tag_suffix_when_tags_present() {
+        let snap = snapshot(vec![player("me", 1200, &[3157], false)], 420.0);
+        let stats = build_stats();
+        let tags = vec![
+            habit_tag("vision", 3),
+            habit_tag("deaths", 5),
+        ];
+        let actions = suggest_next_actions(&snap, 103, "me", Some(&stats), &tags);
+        let buy = actions.iter().find(|a| a.kind == "buy_item").unwrap();
+        assert!(buy.reason.contains("连续 3 局视野落后"));
+        assert!(buy.reason.contains("连续 5 局死亡数落后"));
+        let recall = actions.iter().find(|a| a.kind == "recall").unwrap();
+        assert!(recall.reason.contains("连续 3 局视野落后"));
+        assert!(recall.reason.contains("连续 5 局死亡数落后"));
+    }
+
+    #[test]
+    fn build_habit_suffix_empty_when_no_tags() {
+        let suffix = build_habit_suffix(&[]);
+        assert!(suffix.is_empty());
+    }
+
+    #[test]
+    fn build_habit_suffix_single_tag() {
+        let tags = vec![habit_tag("vision", 4)];
+        let suffix = build_habit_suffix(&tags);
+        assert!(suffix.contains("连续 4 局视野落后"));
+        assert!(!suffix.contains("、"), "单标签不拼接顿号");
+    }
+
+    #[test]
+    fn build_habit_suffix_multiple_tags() {
+        let tags = vec![
+            habit_tag("vision", 3),
+            habit_tag("cs", 2),
+        ];
+        let suffix = build_habit_suffix(&tags);
+        assert!(suffix.contains("连续 3 局视野落后"));
+        assert!(suffix.contains("连续 2 局补刀落后"));
+        assert!(suffix.contains("、"), "多标签用顿号分隔");
     }
 }
