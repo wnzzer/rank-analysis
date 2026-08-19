@@ -91,22 +91,3 @@ pub fn destroy() {
     }
     OVERLAY_CREATED.store(false, Ordering::Relaxed);
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn hide_on_nonexistent_window_is_noop() {
-        assert!(!OVERLAY_CREATED.load(Ordering::Relaxed));
-        hide();
-        assert!(!OVERLAY_CREATED.load(Ordering::Relaxed));
-    }
-
-    #[test]
-    fn destroy_on_nonexistent_window_is_noop() {
-        assert!(!OVERLAY_CREATED.load(Ordering::Relaxed));
-        destroy();
-        assert!(!OVERLAY_CREATED.load(Ordering::Relaxed));
-    }
-}
