@@ -58,10 +58,7 @@ function formatScore(v: number): string {
         :class="{ 'threat-row-low': r.threatLevel === 'Low' }"
       >
         <div class="threat-row-header">
-          <span
-            class="threat-badge"
-            :style="{ background: THREAT_LEVEL_COLORS[r.threatLevel] }"
-          >
+          <span class="threat-badge" :style="{ background: THREAT_LEVEL_COLORS[r.threatLevel] }">
             {{ THREAT_LEVEL_LABELS[r.threatLevel] }}
           </span>
           <span class="threat-pos">{{ r.position || '?' }}</span>
@@ -71,15 +68,9 @@ function formatScore(v: number): string {
         </div>
 
         <div class="threat-row-stats">
-          <span class="threat-stat">
-            表现分 {{ formatScore(r.recentPerformance) }}
-          </span>
-          <span class="threat-stat">
-            胜率 {{ formatPercent(r.mainChampionWinRate) }}
-          </span>
-          <span class="threat-stat">
-            侵略性 {{ formatScore(r.laneAggression) }}
-          </span>
+          <span class="threat-stat"> 表现分 {{ formatScore(r.recentPerformance) }} </span>
+          <span class="threat-stat"> 胜率 {{ formatPercent(r.mainChampionWinRate) }} </span>
+          <span class="threat-stat"> 侵略性 {{ formatScore(r.laneAggression) }} </span>
         </div>
 
         <div v-if="r.styleTags.length > 0" class="threat-tags">

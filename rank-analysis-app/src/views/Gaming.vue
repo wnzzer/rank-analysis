@@ -213,7 +213,7 @@
         />
 
         <!-- 双方阵容强度对比条：锁定英雄 ≥1 即出现，数据不足时整块隐藏 -->
-<TeamStrengthBar
+        <TeamStrengthBar
           :mine="lineupScores.scores.value.mine"
           :enemy="lineupScores.scores.value.enemy"
         />
@@ -489,9 +489,13 @@ watch(
 const threatRatings = ref<ThreatRating[]>([])
 watch(
   () => sessionData.phase,
-  (phase) => {
+  phase => {
     if (phase === 'ChampSelect') {
-      void getThreatRatings().then(r => { threatRatings.value = r }).catch(() => {})
+      void getThreatRatings()
+        .then(r => {
+          threatRatings.value = r
+        })
+        .catch(() => {})
     } else {
       threatRatings.value = []
     }
