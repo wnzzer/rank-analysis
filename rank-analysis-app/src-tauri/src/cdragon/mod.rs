@@ -5,23 +5,35 @@
 //!
 //! ## 数据源
 //!
-//! - CDragon base: `https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default`
-//! - 图标路径格式: `v1/{type}-icons/{id}.png`
+//! - CDragon base: `https://raw.communitydragon.org/{CDRAGON_PATCH}/plugins/rcp-be-lol-game-data/global/default`
+//! - 图标路径格式: `v1/{type}-icons/{id}.png`（profile 为 `.jpg`，CDragon 真实路径）
 //!
 //! ## 缓存策略
 //!
-//! - 磁盘缓存目录: `{cache_dir}/cdragon-assets/`（跨启动持久化）
+//! - 磁盘缓存目录: `{temp}/rank-analysis-cache-cdragon/{CDRAGON_PATCH}/`（跨启动持久化，
+//!   带 patch 段隔离——升级版本时旧缓存不污染新数据，首访自动回源）
 //! - 内存缓存: moka Cache（无界，生存期=进程生命周期）
-//! - 类型: champion, item, spell, perk
+//! - 类型: champion, item, spell, perk, profile
+//! - `prefetch_icons` 批量预下载：启动预热常见图标（英雄/符文/召唤师技能），
+//!   保证客户端离线时战绩/选人界面图标仍可渲染（M4 验收：断网可用）。
 
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::sync::LazyLock;
 
 use moka::future::Cache;
 use reqwest::Client;
+use tokio::sync::Semaphore;
 
-const CDRAGON_BASE: &str =
-    "https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default";
+/// CDragon 当前版本段（`latest` 自动跟随最新正式版本；需钉住某 patch 时改为如 `25.16`）。
+/// 升级 patch 只改这一处——URL 与磁盘缓存目录同时生效。
+pub const CDRAGON_PATCH: &str = "latest";
+
+const CDRAGON_HOST: &str = "https://raw.communitydragon.org";
+const CDRAGON_PLUGIN_PATH: &str = "plugins/rcp-be-lol-game-data/global/default";
+
+/// 批量预下载的并发度（HTTP 连接数）。
+const PREFETCH_CONCURRENCY: usize = 8;
 
 /// 磁盘缓存目录（懒初始化，首次 fetch 时确定）。
 static DISK_CACHE_DIR: LazyLock<std::sync::Mutex<Option<PathBuf>>> =
@@ -31,13 +43,28 @@ static DISK_CACHE_DIR: LazyLock<std::sync::Mutex<Option<PathBuf>>> =
 static MEMORY_CACHE: LazyLock<Cache<String, Vec<u8>>> =
     LazyLock::new(|| Cache::builder().max_capacity(10_000).build());
 
-/// 确保磁盘缓存目录存在并返回路径。
+/// 共享 HTTP 客户端（连接池复用，避免每次请求重建）。
+static HTTP_CLIENT: LazyLock<Client> = LazyLock::new(|| {
+    Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .expect("cdragon: HTTP 客户端构建失败")
+});
+
+/// 构建 CDragon 数据根 URL（含版本段）。
+fn cdn_base() -> String {
+    format!("{CDRAGON_HOST}/{CDRAGON_PATCH}/{CDRAGON_PLUGIN_PATH}")
+}
+
+/// 确保磁盘缓存目录存在并返回路径（带版本段隔离）。
 fn disk_cache_dir() -> PathBuf {
     let mut lock = DISK_CACHE_DIR.lock().unwrap();
     if let Some(ref dir) = *lock {
         return dir.clone();
     }
-    let dir = std::env::temp_dir().join("rank-analysis-cache-cdragon");
+    let dir = std::env::temp_dir()
+        .join("rank-analysis-cache-cdragon")
+        .join(CDRAGON_PATCH);
     if let Err(e) = std::fs::create_dir_all(&dir) {
         log::warn!("cdragon: 无法创建磁盘缓存目录 {:?}: {}", dir, e);
     }
@@ -46,8 +73,11 @@ fn disk_cache_dir() -> PathBuf {
 }
 
 /// 构建 CDragon 图标 URL。
+///
+/// profile 类型真实路径为 `.jpg`，其余为 `.png`（LCU 的 profile 接口同样是 jpg）。
 fn icon_url(kind: &str, id: i64) -> String {
-    format!("{CDRAGON_BASE}/v1/{kind}-icons/{id}.png")
+    let ext = if kind == "profile" { "jpg" } else { "png" };
+    format!("{}/v1/{kind}-icons/{id}.{ext}", cdn_base())
 }
 
 /// 构建内存缓存键。
@@ -88,12 +118,7 @@ pub async fn fetch_icon(kind: &str, id: i64) -> Result<Vec<u8>, String> {
 
     // 3. CDragon HTTP
     let url = icon_url(kind, id);
-    let client = Client::builder()
-        .timeout(std::time::Duration::from_secs(10))
-        .build()
-        .map_err(|e| format!("cdragon: 创建 HTTP 客户端失败: {e}"))?;
-
-    let response = client
+    let response = HTTP_CLIENT
         .get(&url)
         .send()
         .await
@@ -133,6 +158,54 @@ pub async fn fetch_icon_with_mime(kind: &str, id: i64) -> Result<(Vec<u8>, Strin
     Ok((bytes, "image/png".to_string()))
 }
 
+/// 批量预下载图标到磁盘缓存（M4 数据地基：启动预热，保证离线可渲染）。
+///
+/// - 磁盘已存在的图标直接跳过，不重复请求
+/// - 并发 `PREFETCH_CONCURRENCY`，单图标失败不阻断整体（跳过计数）
+/// - 返回实际成功下载数（含内存命中但磁盘缺失后落盘的）
+///
+/// # 参数
+/// - `keys`: 图标清单 `(类型, ID)`，如 `("champion", 1)`、`("perk", 8100)`
+pub async fn prefetch_icons(keys: &[(String, i64)]) -> usize {
+    if keys.is_empty() {
+        return 0;
+    }
+
+    let todo: Vec<(String, i64)> = keys
+        .iter()
+        .filter(|(kind, id)| !disk_cache_path(kind, *id).exists())
+        .cloned()
+        .collect();
+    if todo.is_empty() {
+        return 0;
+    }
+
+    let semaphore = Arc::new(Semaphore::new(PREFETCH_CONCURRENCY));
+    let mut tasks = Vec::with_capacity(todo.len());
+    for (kind, id) in todo {
+        let permit = match semaphore.clone().acquire_owned().await {
+            Ok(p) => p,
+            Err(_) => break,
+        };
+        tasks.push(tokio::spawn(async move {
+            let _permit = permit;
+            match fetch_icon(&kind, id).await {
+                Ok(_) => 1usize,
+                Err(e) => {
+                    log::warn!("cdragon: 预下载 {kind}/{id} 失败: {e}");
+                    0
+                }
+            }
+        }));
+    }
+
+    let mut handled = 0usize;
+    for task in tasks {
+        handled += task.await.unwrap_or(0);
+    }
+    handled
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -142,7 +215,15 @@ mod tests {
         let url = icon_url("champion", 1);
         assert!(url.contains("champion-icons"));
         assert!(url.contains("/1.png"));
-        assert!(url.contains(CDRAGON_BASE));
+        assert!(url.contains(&cdn_base()));
+        assert!(url.contains(CDRAGON_PATCH));
+    }
+
+    #[test]
+    fn should_use_jpg_for_profile_icons() {
+        let url = icon_url("profile", 456);
+        assert!(url.contains("profile-icons"));
+        assert!(url.ends_with("/456.jpg"), "profile 应为 jpg: {url}");
     }
 
     #[test]
@@ -154,6 +235,13 @@ mod tests {
     #[test]
     fn should_build_correct_disk_cache_path() {
         let path = disk_cache_path("champion", 1);
-        assert!(path.to_string_lossy().contains("champion_1.png"));
+        let s = path.to_string_lossy();
+        assert!(s.contains("champion_1.png"));
+        assert!(s.contains(CDRAGON_PATCH), "磁盘缓存目录应带版本段隔离: {s}");
+    }
+
+    #[tokio::test]
+    async fn prefetch_with_empty_list_returns_zero() {
+        assert_eq!(prefetch_icons(&[]).await, 0);
     }
 }

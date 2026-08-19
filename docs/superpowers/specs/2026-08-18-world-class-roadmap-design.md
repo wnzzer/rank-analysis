@@ -488,7 +488,7 @@ OP.GG 靠 Leaderboard 沉淀；Facecheck 靠 RP 抽奖裂变；Mobalytics 靠 GP
 | M1（P0：L3 下钻 + 回测骨架） | 完成 | 2026-08-18 | 无重大偏离；Riot personal key 框架就绪，key 未填入（用户侧） |
 | M2（P0：回测闭环 + 对账 ledger） | 完成 | 2026-08-18 | 无重大偏离；收集即沉淀 + 待对账数可见 + 回测块测试 |
 | M3（P1：一键导入 + 习惯标签） | 完成 | 2026-08-19 | 符文页数据源从 OP.GG → 改为**本地 collected_games 聚合**（OP.GG 无完整符文页数据）；出装后置 P3 已验证 |
-| M4（P2：赛前威胁评级 + CDragon） | 待做 | — | — |
+| M4（P2：赛前威胁评级 + CDragon） | 完成 | 2026-08-19 | 威胁评级首版在 M4 前已落地；本轮修复排位敌方 puuid 匿名滤空 + CDragon 预下载/版本化（见 §17.6） |
 | M5a（P3：下一动作基础版） | 待做 | — | — |
 | M5a′（P3：下一动作个性化增强） | 待做 | — | — |
 | M5b（P3：overlay 窗口评估） | 待做 | — | — |
@@ -560,3 +560,19 @@ OP.GG 靠 Leaderboard 沉淀；Facecheck 靠 RP 抽奖裂变；Mobalytics 靠 GP
 | 后端模块 | score/, backtest/, riot/ | + rune_import.rs, insight/, command/import.rs, command/insight.rs |
 | 前端页面 | Record, Gaming, Settings, Loading | + Growth |
 | 本地数据库 | meet.db, backtest.db | + insight.db |
+
+### 17.6 M4（战场六赛前威胁评级 + CDragon 数据地基）交付清单
+
+> **关键偏离**：威胁评级首版（scouting 引擎 + 前端 EnemyThreatCard）在 M4 正式排期前已随日常开发落地；本轮收口补齐两处实质性缺陷：① 排位下 LCU 对敌方下发**混淆 puuid**，原 `get_threat_ratings` 按 `!puuid.is_empty()` 过滤会把敌方全部滤空——现按 `command::session` 同口径 `deobfuscate_puuid` 还原（还原失败宁可跳过不编造）；② CDragon 图标无版本概念、无预下载——现按 `CDRAGON_PATCH` 常量做磁盘缓存版本段隔离 + 启动后台批量预热。
+
+**后端**：
+- `scouting/mod.rs`（首版已有，沿用）：`assess_team_threats` 跨局聚合（`all_games_for_player` 按 puuid 从 `collected_games` 提取最近 20 局）、`generate_style_tags`（侵略性强/稳健发育/团战核心/单带偏好/视野控制/高KDA，`MIN_GAMES_FOR_RATING=5` 起效）、`compute_aggression`、降级纪律（数据不足→Low+caveats、未交手→caveats）
+- `command/scouting.rs`：`get_threat_ratings` 增加 `resolve_enemy_puuid` 混淆还原（真实 puuid → 混淆还原 → 跳过），3 单测
+- `cdragon/mod.rs`：`CDRAGON_PATCH` 版本常量（URL + 磁盘目录双生效）、共享 HTTP 客户端、`prefetch_icons` 批量预下载（并发 8、磁盘命中跳过、失败计数不阻断）、profile 类型 `.jpg` 路径修复，5 单测
+- `lcu/api/asset.rs`：`init_once` 后台 spawn `prefetch_cdragon_icons`——从元数据缓存生成 champion/perk/spell 清单预热落盘（item 2000+ 按需不预热；LCU 离线清单为空则跳过）
+
+**前端**：
+- `EnemyThreatCard.vue` + `scouting.ts` + `Gaming.vue`（首版已有，沿用）：选人阶段 watch phase 拉取威胁评级，卡片展示最高威胁指示条 + 逐玩家威胁徽章/分路/交手局数/表现分/胜率/侵略性/风格标签/caveats
+- 新增测试：`scouting.spec.ts` 6 测试（invoke 调用/空结果/错误透传/标签与颜色常量覆盖）、`EnemyThreatCard.spec.ts` 10 测试（空数组不渲染/最高威胁头/逐行渲染/交手局数条件/统计/标签/caveats/Low 弱化类/胜率 null 回落）
+
+**测试**：前端 vitest 1365 → **1381**（+16）；Rust 新增 cdragon 5 + scouting 3 单测；`cargo fmt --check` 通过、lint 0 errors（143 既有 warning）、vue-tsc 0 错误。验收达标：威胁评级展示 + CDragon 断网可渲染（磁盘预热 + 版本隔离）。

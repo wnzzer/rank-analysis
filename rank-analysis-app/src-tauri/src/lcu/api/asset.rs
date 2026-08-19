@@ -305,9 +305,37 @@ pub async fn init() {
 
 /// 一次性初始化：先用 LCU 列表填好图标缓存（快、本地，实测 <1s）让图标立刻可用；
 /// 再把耗时的 augment 文字描述补全（cdragon 26MB）丢到后台，绝不挡图标关键路径。
+/// 同时后台预热 CDragon 常见图标磁盘缓存（M4 数据地基：客户端离线时仍可渲染）。
 async fn init_once() {
     init_lcu_assets().await;
     tokio::spawn(enrich_augment_descriptions());
+    tokio::spawn(prefetch_cdragon_icons());
+}
+
+/// 后台预热 CDragon 常见图标（英雄/符文/召唤师技能）到磁盘缓存。
+///
+/// 清单来自本机元数据缓存（LCU 在线时才有；离线时为空则跳过，等客户端连上后
+/// 由 `game_state_monitor` 再次触发 `init` 时自然补全）。item 集合庞大（2000+），
+/// 按需下载不预热。失败仅告警，绝不阻塞启动。
+async fn prefetch_cdragon_icons() {
+    let mut keys: Vec<(String, i64)> = Vec::new();
+    if let Ok(g) = CHAMPION_CACHE.read() {
+        keys.extend(g.keys().map(|id| ("champion".to_string(), *id)));
+    }
+    if let Ok(g) = PERK_CACHE.read() {
+        keys.extend(g.keys().map(|id| ("perk".to_string(), *id)));
+    }
+    if let Ok(g) = SPELL_CACHE.read() {
+        keys.extend(g.keys().map(|id| ("spell".to_string(), *id)));
+    }
+    if keys.is_empty() {
+        return;
+    }
+    let ok = crate::cdragon::prefetch_icons(&keys).await;
+    log::info!(
+        "[cdragon] 启动预下载完成：{ok}/{} 图标落盘（champion/perk/spell）",
+        keys.len()
+    );
 }
 
 /// 从 LCU 拉取静态资源列表并填充各图标缓存（item/champion/spell/perk/augment）。
