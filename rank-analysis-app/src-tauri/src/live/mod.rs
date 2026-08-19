@@ -383,7 +383,7 @@ mod tests {
         let buy = buy.unwrap();
         assert_eq!(buy.item_id, 3020);
         assert!(buy.reason.contains("3020"));
-        assert!(buy.reason.contains("55"));
+        assert!(buy.reason.contains("50"));
     }
 
     #[test]
