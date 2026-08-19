@@ -16,6 +16,7 @@ pub mod meet_db;
 pub mod migrate;
 pub mod observability;
 pub mod opgg;
+pub mod overlay;
 pub mod paths;
 pub mod pugg;
 pub mod riot;

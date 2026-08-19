@@ -58,6 +58,7 @@ pub mod live;
 pub mod match_history;
 pub mod meet;
 pub mod opgg;
+pub mod overlay;
 pub mod owned;
 pub mod rank;
 pub mod replay;

@@ -227,6 +227,9 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             command::cloud_sync::get_cloud_config_snapshot,
             command::cloud_sync::apply_config_snapshot,
             command::cloud_sync::export_backup,
+            command::overlay::show_overlay_window,
+            command::overlay::hide_overlay_window,
+            command::overlay::push_overlay_data,
         ]);
 
     #[cfg(debug_assertions)]

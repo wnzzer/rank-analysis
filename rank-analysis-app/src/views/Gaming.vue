@@ -530,6 +530,8 @@ async function pollNextActions(): Promise<void> {
       sessionData.queueId
     )
     nextActions.value = actions
+    // 推送数据到 overlay 窗口（4b overlay POC）
+    void invoke('push_overlay_data', { actions })
   } catch {
     nextActions.value = []
   }
@@ -542,12 +544,15 @@ watch(
       lastNextActionAt = 0
       void pollNextActions()
       nextActionTimer = setInterval(() => void pollNextActions(), NEXT_ACTION_POLL_MS)
+      // 显示 overlay 窗口（4b overlay POC）
+      void invoke('show_overlay_window')
     } else {
       if (nextActionTimer) {
         clearInterval(nextActionTimer)
         nextActionTimer = null
       }
       nextActions.value = []
+      void invoke('hide_overlay_window')
     }
   }
 )
