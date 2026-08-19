@@ -230,8 +230,9 @@ fn suggest_objective(snapshot: &LiveGameSnapshot, game_time: f64) -> Option<Next
         }
     }
 
-    let Some(name) = nearest_name else {
-        return None;
+    let nearest_name = match nearest_name {
+        Some(n) => n,
+        None => return None,
     };
 
     let remaining = nearest_spawn - game_time;
@@ -241,17 +242,11 @@ fn suggest_objective(snapshot: &LiveGameSnapshot, game_time: f64) -> Option<Next
 
     let reason = format!(
         "{} 将在约 {} 秒后刷新，建议提前站位/布置视野",
-        name,
+        nearest_name,
         remaining.max(0.0) as u32
     );
 
     let urgency = if remaining <= 30.0 { "high" } else { "medium" };
-
-    let events = &snapshot.events;
-    let dragon_deaths = events
-        .iter()
-        .filter(|e| e.event_name == "DragonKill")
-        .count() as f64;
 
     Some(NextAction {
         kind: "objective".to_string(),
