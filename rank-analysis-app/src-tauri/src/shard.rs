@@ -109,6 +109,17 @@ impl AppShard for StartupShard {
 
             crate::lcu::api::asset::init().await;
 
+            // 本地样本库刷新（M2 数据飞轮）：启动时从 meet.db 增量提取对位样本。
+            match crate::lcu::api::summoner::Summoner::get_my_summoner().await {
+                Ok(s) => {
+                    let added = crate::backtest::samples::refresh_local_samples(&s.puuid);
+                    if added > 0 {
+                        log::info!("[backtest] 启动期样本刷新完成，新增 {added} 条");
+                    }
+                }
+                Err(e) => log::warn!("[backtest] 启动期样本刷新跳过（LCU 未就绪）: {e}"),
+            }
+
             // OP.GG 数据预热：失败仅告警，不阻塞启动（对局页/AI 会按需再触发）。
             let opgg_state = app.state::<AppState>();
             for mode in ["ranked", "aram"] {
