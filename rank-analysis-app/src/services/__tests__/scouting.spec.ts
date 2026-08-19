@@ -59,24 +59,14 @@ describe('scouting service', () => {
 
 describe('threat level constants', () => {
   it('should label all four threat levels', () => {
-    expect(Object.keys(THREAT_LEVEL_LABELS).sort()).toEqual([
-      'Critical',
-      'High',
-      'Low',
-      'Medium'
-    ])
+    expect(Object.keys(THREAT_LEVEL_LABELS).sort()).toEqual(['Critical', 'High', 'Low', 'Medium'])
     for (const label of Object.values(THREAT_LEVEL_LABELS)) {
       expect(label.length).toBeGreaterThan(0)
     }
   })
 
   it('should color all four threat levels with hex values', () => {
-    expect(Object.keys(THREAT_LEVEL_COLORS).sort()).toEqual([
-      'Critical',
-      'High',
-      'Low',
-      'Medium'
-    ])
+    expect(Object.keys(THREAT_LEVEL_COLORS).sort()).toEqual(['Critical', 'High', 'Low', 'Medium'])
     for (const color of Object.values(THREAT_LEVEL_COLORS)) {
       expect(color).toMatch(/^#[0-9a-fA-F]{6}$/)
     }
