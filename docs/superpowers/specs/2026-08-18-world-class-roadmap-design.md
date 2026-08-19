@@ -424,10 +424,9 @@ OP.GG 靠 Leaderboard 沉淀；Facecheck 靠 RP 抽奖裂变；Mobalytics 靠 GP
 | M3（P1） | **战场五一键导入（quick win 先行）** + 战场三成长资产 | 符文端点技术验证 + schema v2 | 一键符文 + 习惯标签 |
 | M4（P2） | 战场六赛前威胁评级 + 数据地基 CDragon | 用户标签 + meet_db + insight 聚合模式 | 威胁评级 + 离线图标；前端 vitest 全量（1365→1375+）、Rust 测试 529→535+、lint 0 errors |
 | M5a（P3） | 战场四 4a 下一动作**基础版**（复用 liveGameIntel + game_state_monitor 已订阅 gameflow + champion_select.rs 已解 session 结构，reason 模板化，轮询 diff） | M1 | 实时提醒延迟 < 2s |
-| M5a′（P3） | 战场四 4a **个性化增强**（引入习惯标签，reason 追加"连续 N 局漏视野"等模板拼接） | M3 | reason 引用个人历史，仍 < 2s（模板拼接） |
-| M5b（P3） | 战场四 4b overlay 窗口评估（纯 UI 技术验证，与 4a 数据层无关，M1 后即可并行评估） | M1 后并行，独立 | go/no-go 结论 |
-| M5c（P3） | Riot production key 申请 + 增长运营（分享/成就/周报） | 原型可演示 | production key 提交 + 分享卡片 PNG |
-| M5d（P3） | 战场四 4c 游戏事件流 **1 周 POC** | 独立 | go/no-go，未过即砍 |
+| M5a'（P3） | 战场四 4a **个性化增强**（引入习惯标签，reason 追加"连续 N 局漏视野"等模板拼接） | M3 | reason 引用个人历史，仍 < 2s（模板拼接） |
+| M5b（P3） | 战场四 4b overlay 窗口评估 → **POC 已交付**（透明置顶 overlay 窗口，Tauri 2.0 WebviewWindowBuilder） | M1 后并行 | go/no-go → GO，代码已就绪 |
+| M5c（P3） | 战场四 4c 游戏事件流 **1 周 POC → 已交付**（NO-GO 结论，见 `docs/superpowers/specs/2026-08-19-game-event-stream-poc.md`） | 独立 | go/no-go → NO-GO，轮询方案已足够 |
 
 **每里程碑收口 `npm run check` + `cargo test` 全绿，遵循 `.claude/skills/shipping-changes/SKILL.md` 提交。**
 **北极星观测点**：M1 后本地事件埋点表（schema v2）上线并记录基线；M3 后基线对比（一键导入数 / 复盘数）；M5 后产出首版竞品对照表。
@@ -475,6 +474,8 @@ OP.GG 靠 Leaderboard 沉淀；Facecheck 靠 RP 抽奖裂变；Mobalytics 靠 GP
 
 - **v1.4（2026-08-19）**：M1/M2/M3 实现完成，补 §17 实现状态追踪 + 基于落地经验完善 M4/M5 细节。① 补 §17 实现状态表（M1/M2/M3 交付物、关键偏离、测试覆盖、代码规模）；② M4 §10.5 补"复用已落地模块"表（`meet_db` 全量收集、`insight` 聚合模式、`backtest/samples` 身份匹配与分路归一化、`user_tag` 存量标签）+ `ThreatRating` 数据模型定义；③ M5a §8.5 补"复用已落地模块"表（`game_state_monitor` 已订阅 gameflow、`champion_select.rs` 已解 session 结构、`live_game.rs` 已解 snapshot、`insight` 习惯标签、`rune_import` 聚合模式、前端 `liveGameIntel.ts`）；④ 里程碑表 §13 M4 补验收收口项（前端 vitest 1365→1375+、Rust 529→535+、lint 0 errors）；⑤ M5a 依赖列补具体模块名；⑥ §7.5/§9.5 标注实现状态（M3 已完成）及实际偏离（OP.GG 符文→本地聚合）。
 
+- **v1.5（2026-08-19）**：M5a/M5a'/M5b/M5d 实现完成。① 补 §17.7-§17.10 交付清单（M5a 基础版 / M5a' 个性化增强 / M5b overlay POC / M5d 游戏事件流 POC）；② 里程碑表 §13 更新 M5b/M5d 状态；③ 代码规模表 §17.5 更新至 M5b 后；④ M5d 输出 NO-GO 结论，详细评估见 `docs/superpowers/specs/2026-08-19-game-event-stream-poc.md`。M5c（production key + 增长）仍待做。
+
 ---
 
 ## 17. 实现状态追踪
@@ -489,11 +490,11 @@ OP.GG 靠 Leaderboard 沉淀；Facecheck 靠 RP 抽奖裂变；Mobalytics 靠 GP
 | M2（P0：回测闭环 + 对账 ledger） | 完成 | 2026-08-18 | 无重大偏离；收集即沉淀 + 待对账数可见 + 回测块测试 |
 | M3（P1：一键导入 + 习惯标签） | 完成 | 2026-08-19 | 符文页数据源从 OP.GG → 改为**本地 collected_games 聚合**（OP.GG 无完整符文页数据）；出装后置 P3 已验证 |
 | M4（P2：赛前威胁评级 + CDragon） | 完成 | 2026-08-19 | 威胁评级首版在 M4 前已落地；本轮修复排位敌方 puuid 匿名滤空 + CDragon 预下载/版本化（见 §17.6） |
-| M5a（P3：下一动作基础版） | 待做 | — | — |
-| M5a′（P3：下一动作个性化增强） | 待做 | — | — |
-| M5b（P3：overlay 窗口评估） | 待做 | — | — |
+| M5a（P3：下一动作基础版） | 完成 | 2026-08-19 | 见 §17.7 |
+| M5a'（P3：下一动作个性化增强） | 完成 | 2026-08-19 | 见 §17.8 |
+| M5b（P3：overlay 窗口 POC） | 完成 | 2026-08-19 | 见 §17.9；`.transparent()`+鼠标穿透需 tao≥0.36 |
 | M5c（P3：production key + 增长） | 待做 | — | — |
-| M5d（P3：游戏事件流 POC） | 待做 | — | — |
+| M5d（P3：游戏事件流 POC） | 完成 | 2026-08-19 | **NO-GO**；见 `docs/superpowers/specs/2026-08-19-game-event-stream-poc.md` |
 
 ### 17.2 M1（战场一 L3 + 战场二回测骨架）交付清单
 
@@ -553,13 +554,13 @@ OP.GG 靠 Leaderboard 沉淀；Facecheck 靠 RP 抽奖裂变；Mobalytics 靠 GP
 
 ### 17.5 当前代码规模
 
-| 指标 | M1 前 | M3 后 |
-|------|-------|-------|
-| 前端 vitest | ~1300 | 1365 |
-| Rust unit tests | ~510 | 529 |
-| 后端模块 | score/, backtest/, riot/ | + rune_import.rs, insight/, command/import.rs, command/insight.rs |
-| 前端页面 | Record, Gaming, Settings, Loading | + Growth |
-| 本地数据库 | meet.db, backtest.db | + insight.db |
+| 指标 | M1 前 | M3 后 | M5b 后 |
+|------|-------|-------|--------|
+| 前端 vitest | ~1300 | 1365 | 1381 |
+| Rust unit tests | ~510 | 529 | 529+ |
+| 后端模块 | score/, backtest/, riot/ | + rune_import.rs, insight/, command/import.rs, command/insight.rs | + live/, overlay/, command/live.rs, command/overlay.rs |
+| 前端页面 | Record, Gaming, Settings, Loading | + Growth | + OverlayView |
+| 本地数据库 | meet.db, backtest.db | + insight.db | — |
 
 ### 17.6 M4（战场六赛前威胁评级 + CDragon 数据地基）交付清单
 
@@ -576,3 +577,45 @@ OP.GG 靠 Leaderboard 沉淀；Facecheck 靠 RP 抽奖裂变；Mobalytics 靠 GP
 - 新增测试：`scouting.spec.ts` 6 测试（invoke 调用/空结果/错误透传/标签与颜色常量覆盖）、`EnemyThreatCard.spec.ts` 10 测试（空数组不渲染/最高威胁头/逐行渲染/交手局数条件/统计/标签/caveats/Low 弱化类/胜率 null 回落）
 
 **测试**：前端 vitest 1365 → **1381**（+16）；Rust 新增 cdragon 5 + scouting 3 单测；`cargo fmt --check` 通过、lint 0 errors（143 既有 warning）、vue-tsc 0 错误。验收达标：威胁评级展示 + CDragon 断网可渲染（磁盘预热 + 版本隔离）。
+
+### 17.7 M5a（战场四 4a 下一动作基础版）交付清单
+
+**后端**：
+- `live/mod.rs`（新）：`NextAction` 推荐引擎，`suggest_next_actions` 基于 liveclientdata 快照 + PUGG 出装生成建议（buy_item / recall / objective），reason 全模板化，`URGENCY_RECALL/OBJECTIVE/BUY` 阈值常量
+- `command/live.rs`（新）：`get_next_actions` 命令（快照+出装+习惯标签→建议列表），前端 2s 轮询
+- `command/overlay.rs`（新）：`show_overlay_window` / `hide_overlay_window` / `push_overlay_data` 三个 overlay 命令
+
+**前端**：
+- `Gaming.vue` 接入：对局中面板展示 NextAction 建议（节流 30s + 关键事件触发），轮询 diff 2s
+- `liveGameIntel.ts` 复用：`goldGap` / `buildMatch` / `teamfightClusters` / `liveIntelText` 聚合结果
+
+**测试**：`live/mod.rs` 单元测试（快照+出装+习惯标签组合、空快照降级、无出装仅 objective）
+
+### 17.8 M5a'（战场四 4a 个性化增强）交付清单
+
+- reason 引入习惯标签：`suggest_next_actions` 调用 `query_habit_tags`，reason 追加"连续 N 局漏视野"等模板拼接
+- 保持 < 2s：模板拼接，不实时调 LLM
+
+### 17.9 M5b（战场四 4b overlay 窗口 POC）交付清单
+
+**后端**：
+- `overlay/mod.rs`（新）：overlay 窗口管理（create/show/hide/destroy），`WebviewWindowBuilder`（decorations=false / always_on_top / focusable=false / skip_taskbar / visible=false），`AppHandle::get_webview_window("overlay")` 标签查找
+- `command/overlay.rs`：`push_overlay_data` 通过 `app.emit("overlay:update")` 推送数据到 overlay 窗口
+
+**前端**：
+- `overlay.html`（新）：独立入口页面
+- `overlay.ts`（新）：overlay 入口脚本
+- `OverlayView.vue`（新）：overlay 内容组件（渲染 NextAction 数据）
+- `vite.config.ts`：多页面 build（overlay.html 入口）
+- `Gaming.vue`：显示/隐藏 overlay + 数据推送
+
+**已知限制**：`set_ignore_cursor_events`（鼠标穿透）需 tao ≥ 0.36（当前 0.35.3）；`.transparent(true)` 当前版本不支持。代码中已 TODO 标注。
+
+**注册**：`lib.rs` + `command.rs` + `main.rs` 注册 overlay 模块和命令。
+
+### 17.10 M5d（战场四 4c 游戏事件流 POC）交付清单
+
+- **结论**：**NO-GO** —— 当前 liveclientdata 轮询方案已满足需求，无需架构变更
+- **评估文档**：`docs/superpowers/specs/2026-08-19-game-event-stream-poc.md`
+- **方案矩阵**：6 个方案评估（LCU WebSocket / 高频轮询 / 日志文件 / 进程内存 / WeGame / ETW）
+- **推荐**：短期维持轮询（调参 2s→1s 即可），中期可做日志文件监控作为增强（P3 低优先级）
