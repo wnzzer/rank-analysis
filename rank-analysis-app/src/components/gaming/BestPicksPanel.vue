@@ -9,9 +9,14 @@
               v-for="t in teammatePicks"
               :key="`t-${t.championId}`"
               class="bp-teammate-avatar"
+              :class="{ 'bp-teammate-avatar--dim': !isTeammateLit(t.championId) }"
               :src="getChampionUrl(t.championId)"
               :alt="championName(t.championId)"
-              :title="championName(t.championId)"
+              :title="
+                championName(t.championId) +
+                (isTeammateLit(t.championId) ? '（已点亮）' : '（已熄灭，点击点亮）')
+              "
+              @click.stop="toggleTeammateLit(t.championId)"
             />
           </span>
           <span v-if="enemyPicks.length > 0" class="bp-enemy-avatars">
@@ -86,6 +91,9 @@
             :disabled="!poolUsable"
             class="bp-filter-check"
             >仅英雄池</n-checkbox
+          >
+          <n-checkbox v-model:checked="coverageFirst" size="small" class="bp-filter-check"
+            >优先覆盖</n-checkbox
           >
           <span v-if="poolLoading" class="bp-filter-hint">英雄池统计中…</span>
           <template v-else-if="poolOnly">
@@ -230,6 +238,8 @@ const props = withDefaults(
     region?: string
     /** 我方已亮队友英雄 ID（含 intent/picking/locked；空 = 纯对位推荐） */
     teammateIds?: number[]
+    /** 我方队友本局分路（championId → LCU 命名，如 { 103: 'top' }；空 = 回退英雄主分路） */
+    teammatePositions?: Record<number, string>
     /** 我本局分路（LCU 命名，大小写均可；空 = 不过滤候选位置） */
     myPosition?: string
     /** 我自己的召唤师名（格式 名称#标签；空 = 英雄池筛选不可用） */
@@ -239,6 +249,7 @@ const props = withDefaults(
     tierLoading: false,
     region: 'global',
     teammateIds: () => [],
+    teammatePositions: () => ({}),
     myPosition: '',
     mySummonerName: ''
   }
@@ -282,6 +293,7 @@ const OWNED_KEY = 'bestPicksOnlyOwned'
 const POOL_ONLY_KEY = 'bestPicksPoolOnly'
 const POOL_WIN_RATE_KEY = 'bestPicksPoolMinWinRate'
 const POOL_GAMES_KEY = 'bestPicksPoolMinGames'
+const COVERAGE_FIRST_KEY = 'bestPicksCoverageFirst'
 
 /** 仅已拥有（默认开：排位池子里的未拥有英雄本来就选不了） */
 const onlyOwned = ref(true)
@@ -301,6 +313,40 @@ const poolMinGames = ref(5)
 
 /** 英雄池维度是否可用（有召唤师名 + 未失败） */
 const poolUsable = computed(() => !!props.mySummonerName && !poolUnavailable.value)
+
+/** 优先覆盖：开启后按 counter 敌方人数排序，而非对位分 */
+const coverageFirst = ref(false)
+
+/** 协同队友点亮集合：只有点亮（在此集合中）的队友参与协同计算。
+ *  初始全亮（空集合 = 全部参与）；点击熄灭则移除、再点击点亮则加入。 */
+const litTeammates = ref<Set<number>>(new Set())
+
+function isTeammateLit(championId: number): boolean {
+  // 初始空集合 = 全部点亮
+  if (litTeammates.value.size === 0) return true
+  return litTeammates.value.has(championId)
+}
+
+function toggleTeammateLit(championId: number): void {
+  const next = new Set(litTeammates.value)
+  if (next.size === 0) {
+    // 从全亮状态切换：熄灭当前点击的，其余保持点亮
+    teammatePicks.value.forEach(t => {
+      if (t.championId !== championId) next.add(t.championId)
+    })
+  } else if (next.has(championId)) {
+    next.delete(championId)
+  } else {
+    next.add(championId)
+  }
+  litTeammates.value = next
+}
+
+/** 有效协同队友：仅点亮状态下的队友参与计算 */
+const effectiveTeammateIds = computed(() => {
+  if (litTeammates.value.size === 0) return props.teammateIds
+  return props.teammateIds.filter(id => litTeammates.value.has(id))
+})
 
 /** 筛选不可用时的提示文案（降级为不筛该维度） */
 const filterHint = computed(() => {
@@ -398,6 +444,7 @@ watch(onlyOwned, v => void persistFilter(OWNED_KEY, v))
 watch(poolOnly, v => void persistFilter(POOL_ONLY_KEY, v))
 watch(poolMinWinRate, v => void persistFilter(POOL_WIN_RATE_KEY, v))
 watch(poolMinGames, v => void persistFilter(POOL_GAMES_KEY, v))
+watch(coverageFirst, v => void persistFilter(COVERAGE_FIRST_KEY, v))
 
 /** 展示用推荐列表：按显示数量截断（'all' 时全量） */
 const shownPicks = computed(() =>
@@ -416,8 +463,10 @@ const { picks, isLoading, error } = useBestPicks(
   filteredCandidates,
   computed(() => props.tier),
   computed(() => props.region),
-  computed(() => props.teammateIds),
-  effectivePosition
+  effectiveTeammateIds,
+  effectivePosition,
+  coverageFirst,
+  computed(() => props.teammatePositions)
 )
 
 /** 显示数量变化：落配置持久化（下次打开仍生效） */
@@ -459,6 +508,12 @@ onMounted(async () => {
     if (typeof gamesSaved === 'number' && gamesSaved >= 1) poolMinGames.value = gamesSaved
   } catch (e) {
     console.warn('[bestPicks] 筛选配置读取失败，使用默认值:', e)
+  }
+  try {
+    const saved = await getConfigByIpc<boolean>(COVERAGE_FIRST_KEY)
+    if (typeof saved === 'boolean') coverageFirst.value = saved
+  } catch (e) {
+    console.warn('[bestPicks] 优先覆盖配置读取失败:', e)
   }
 })
 
@@ -597,6 +652,12 @@ function championName(id: number): string {
 /* 队友头像（协同锚点）：浅绿描边与敌方（灰描边）区分，避免两者混淆 */
 .bp-teammate-avatar {
   border-color: color-mix(in srgb, var(--semantic-win, #18a058) 60%, transparent);
+  cursor: pointer;
+}
+
+.bp-teammate-avatar--dim {
+  opacity: 0.3;
+  filter: grayscale(1);
 }
 
 .bp-arrow-label {

@@ -33,9 +33,18 @@ pub const VALID_REGIONS: [&str; 19] = [
     "vn", "th", "sg", "me1", "me2",
 ];
 
-/// tier 白名单：OP.GG 支持的段位分段参数（实测 `ibsg`（铁/青铜/银/金）与
-/// `emerald_plus` 均返回有效数据，`ibsgg` 等非法值返回 422）。
-pub const VALID_TIERS: [&str; 10] = [
+/// tier 白名单：OP.GG 支持的段位分段参数（实测全部单段位 iron/bronze/silver/gold/
+/// platinum/emerald/diamond/master/grandmaster/challenger 与组合段位
+/// ibsg/gold_plus/platinum_plus/emerald_plus/diamond_plus/master_plus/all 均返回有效
+/// 数据，`ibsgg` 等非法值返回 422）。
+pub const VALID_TIERS: [&str; 17] = [
+    "iron",
+    "bronze",
+    "silver",
+    "gold",
+    "platinum",
+    "emerald",
+    "diamond",
     "ibsg",
     "gold_plus",
     "platinum_plus",

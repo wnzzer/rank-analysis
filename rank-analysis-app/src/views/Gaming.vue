@@ -245,6 +245,7 @@
             :enemy-ids="enemyLockedIds"
             :candidate-ids="bestPickCandidates"
             :teammate-ids="teammatePickedIds"
+            :teammate-positions="teammatePositions"
             :my-position="teammatesMyPosition"
             :tier="opggTier"
             :tier-loading="opggTierLoading"
@@ -381,6 +382,27 @@ const teammatePickedIds = computed(() => {
       )
       .map(p => p.championId) ?? []
   )
+})
+
+/**
+ * 我方已亮队友的本局分路（championId → LCU 命名，如 { 103: 'top' }）。
+ * 与 teammatePickedIds 同一批玩家（排除 ban 态与我），供协同计算用实际位置
+ * 拉取 synergies——比英雄主分路更贴近本局打法（如赛娜打辅助）。
+ */
+const teammatePositions = computed<Record<number, string>>(() => {
+  const my = orderedSubteams.value.find(s => s.subteamId === sessionData.mySubteamId)
+  const map: Record<number, string> = {}
+  for (const p of my?.players ?? []) {
+    if (
+      p.championId <= 0 ||
+      p.pickState === 'banning' ||
+      p.summoner.puuid === mySummonerPuuid.value
+    )
+      continue
+    const pos = p.assignedPosition?.toLowerCase()
+    if (pos && normalizeLcuPosition(pos)) map[p.championId] = pos
+  }
+  return map
 })
 
 /** 我本局分路（LCU 命名 top/jungle/...；空 = 位置未知，不过滤候选池） */

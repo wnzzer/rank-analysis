@@ -67,6 +67,17 @@ describe('opgg service', () => {
 
   it('TIER_OPTIONS 与 Rust 侧 VALID_TIERS 同白名单，且含默认段位', () => {
     expect(TIER_OPTIONS.map(o => o.value)).toEqual([
+      'iron',
+      'bronze',
+      'silver',
+      'gold',
+      'platinum',
+      'emerald',
+      'diamond',
+      'master',
+      'grandmaster',
+      'challenger',
+      'ibsg',
       'gold_plus',
       'platinum_plus',
       'emerald_plus',

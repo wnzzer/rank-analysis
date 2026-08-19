@@ -10,13 +10,26 @@ const BASE_URL: &str = "https://lol-api-champion.op.gg/api/global/champions";
 /// 同 fandom::api 风格的浏览器 UA——OP.GG 对无 UA 请求可能拒绝。
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 
-/// 段位白名单：OP.GG 支持的 tier 参数取值（实测均返回有效数据）。
-pub const VALID_TIERS: [&str; 6] = [
+/// 段位白名单：OP.GG 支持的 tier 参数取值（实测全部单段位 iron/bronze/silver/gold/
+/// platinum/emerald/diamond/master/grandmaster/challenger 与组合段位
+/// ibsg/gold_plus/platinum_plus/emerald_plus/diamond_plus/master_plus/all 均返回有效数据）。
+pub const VALID_TIERS: [&str; 17] = [
+    "iron",
+    "bronze",
+    "silver",
+    "gold",
+    "platinum",
+    "emerald",
+    "diamond",
+    "ibsg",
     "gold_plus",
     "platinum_plus",
     "emerald_plus",
     "diamond_plus",
+    "master",
     "master_plus",
+    "grandmaster",
+    "challenger",
     "all",
 ];
 

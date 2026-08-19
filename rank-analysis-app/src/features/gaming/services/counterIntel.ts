@@ -216,12 +216,15 @@ export interface BestPick {
  *
  * @param candidateIds - 排除 ban/锁定/intent 后的候选英雄 ID
  * @param enemyIntelById - 敌方已锁英雄 ID → 其 intel（缺失的敌方整队缺席评分）
+ * @param coverageFirst - 为 true 时优先按 counter 敌方人数排序（覆盖度优先），
+ *   同覆盖度按原始对位分降序；默认 false 按对位分降序
  *
  * @returns 按 score 降序排序的评分结果（同分按总场次降序，再按 championId 升序）
  */
 export function computeBestPicks(
   candidateIds: number[],
-  enemyIntelById: Map<number, ChampionIntel>
+  enemyIntelById: Map<number, ChampionIntel>,
+  coverageFirst = false
 ): BestPick[] {
   // 无敌方数据（未锁定 / 快照缺失）或候选为空：无评分可言，返回空，
   // 前端据此显示「敌方尚未锁定英雄 / 无正面对位优势」空态
@@ -229,6 +232,7 @@ export function computeBestPicks(
 
   const results = candidateIds.map<BestPick>(candidateId => {
     let score = 0
+    let coverage = 0
     const evidences: PickEvidence[] = []
     for (const [enemyId, intel] of enemyIntelById) {
       // 反查：E 的 counters 含 C → wr(E vs C) 已知，反转得 wr(C vs E)
@@ -236,6 +240,7 @@ export function computeBestPicks(
       if (!entry) continue // 未知：不编造，不进证据
       const winRate = 1 - entry.winRate
       score += winRate - 0.5
+      if (winRate >= 0.5) coverage++
       evidences.push({
         againstChampionId: enemyId,
         relation: winRate >= 0.5 ? 'favored' : 'countered',
@@ -243,7 +248,7 @@ export function computeBestPicks(
         play: entry.play
       })
     }
-    return { championId: candidateId, score: round2(score), evidences }
+    return { championId: candidateId, score: coverageFirst ? coverage : round2(score), evidences }
   })
 
   return results.sort((a, b) => {
@@ -309,11 +314,14 @@ export interface DualPick {
  * @param candidateIds - 排除 ban/锁定/intent 后的候选英雄 ID
  * @param enemyIntelById - 敌方已锁英雄 ID → 其 intel（缺测者整队缺席对位分）
  * @param teammateIntelById - 我方已亮队友英雄 ID → 其 intel（缺席者无协同分）
+ * @param coverageFirst - 为 true 时优先按 counter 敌方人数排序（覆盖度优先），
+ *   同覆盖度按融合分降序；默认 false 按融合分降序
  */
 export function computeDualPicks(
   candidateIds: number[],
   enemyIntelById: Map<number, ChampionIntel>,
-  teammateIntelById: Map<number, ChampionIntel>
+  teammateIntelById: Map<number, ChampionIntel>,
+  coverageFirst = false
 ): DualPick[] {
   if (candidateIds.length === 0) return []
   if (enemyIntelById.size === 0 && teammateIntelById.size === 0) return []
@@ -321,6 +329,7 @@ export function computeDualPicks(
   const results = candidateIds.map<DualPick>(candidateId => {
     let counterScore = 0
     let synergyScore = 0
+    let coverage = 0
     const evidences: PickEvidence[] = []
     const synergyEvidences: SynergyEvidence[] = []
 
@@ -329,6 +338,7 @@ export function computeDualPicks(
       if (!entry) continue
       const winRate = 1 - entry.winRate
       counterScore += winRate - 0.5
+      if (winRate >= 0.5) coverage++
       evidences.push({
         againstChampionId: enemyId,
         relation: winRate >= 0.5 ? 'favored' : 'countered',
@@ -349,7 +359,8 @@ export function computeDualPicks(
       })
     }
 
-    const score = round2(counterScore + synergyScore)
+    const rawScore = round2(counterScore + synergyScore)
+    const score = coverageFirst ? coverage : rawScore
     return {
       championId: candidateId,
       score,

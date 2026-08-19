@@ -171,6 +171,9 @@ let lastRevision = opggRevision.value
  *   为空数组则纯对位推荐，行为与旧版一致）
  * @param myPosition - 我自己本局的 LCU 分路（TOP/JUNGLE/MIDDLE/BOTTOM/UTILITY，
  *   空串不过滤）；非空时候选池按 OP.GG 主分路收敛到同位置英雄
+ * @param coverageFirst - 为 true 时优先按 counter 敌方人数排序（覆盖度优先）
+ * @param teammatePositions - 我方队友本局分路（championId → LCU 命名，如
+ *   { 103: 'top' }）；有值用本局位置拉 synergies（更贴近实际），缺失回退主分路
  */
 export function useBestPicks(
   enemyIds: Ref<number[]>,
@@ -178,7 +181,9 @@ export function useBestPicks(
   tier: Ref<string>,
   region: Ref<string> = ref('global'),
   teammateIds: Ref<number[]> = ref<number[]>([]),
-  myPosition: Ref<string> = ref('')
+  myPosition: Ref<string> = ref(''),
+  coverageFirst: Ref<boolean> = ref(false),
+  teammatePositions: Ref<Record<number, string>> = ref({})
 ): {
   picks: Ref<DualPick[]>
   isLoading: Ref<boolean>
@@ -200,7 +205,9 @@ export function useBestPicks(
     t: string,
     r: string,
     teammates: number[],
-    myPos: string
+    myPos: string,
+    coverage: boolean,
+    positions: Record<number, string>
   ): Promise<void> => {
     isLoading.value = true
     error.value = false
@@ -213,10 +220,11 @@ export function useBestPicks(
       }
       if (disposed) return
 
-      // 每个队友已亮英雄：快照主分路 → 对位情报（synergies 同源返回，供协同分）
+      // 每个队友已亮英雄：本局分路优先、主分路回退 → 对位情报
+      // （synergies 同源返回，供协同分；本局位置更贴近实际打法）
       const teammateIntelById = new Map<number, ChampionIntel>()
       for (const teammateId of teammates) {
-        const intel = await intelFor(teammateId, t, r)
+        const intel = await intelFor(teammateId, t, r, positions[teammateId])
         if (intel) teammateIntelById.set(teammateId, intel)
       }
       if (disposed) return
@@ -239,7 +247,7 @@ export function useBestPicks(
         }
       }
 
-      picks.value = computeDualPicks(pool, enemyIntelById, teammateIntelById)
+      picks.value = computeDualPicks(pool, enemyIntelById, teammateIntelById, coverage)
       error.value = false
     } catch {
       if (disposed) return
@@ -250,18 +258,31 @@ export function useBestPicks(
     }
   }
 
-  /** 单英雄 intel：主分路缓存定位 → 模块级缓存命中或拉取 */
+  /**
+   * 单英雄 intel：本局分路优先（队友传入）→ 主分路缓存定位 → 模块级缓存命中或拉取。
+   *
+   * @param championId - 英雄 ID
+   * @param t - 段位分段
+   * @param r - 区域
+   * @param lcuPosition - 本局 LCU 分路（如 'top'；缺省/非法回退英雄主分路）
+   */
   const intelFor = async (
     championId: number,
     t: string,
-    r: string
+    r: string,
+    lcuPosition?: string
   ): Promise<ChampionIntel | null> => {
-    let pos = mainPositionCache.get(championId)
+    let pos: string | undefined
+    if (lcuPosition) {
+      pos = normalizeLcuPosition(lcuPosition) ?? undefined
+    } else {
+      pos = mainPositionCache.get(championId)
+    }
     if (!pos) {
       const meta = await getChampionMeta('ranked', championId)
       if (!meta) return null // 快照无该英雄：缺席评分（无数据不编造）
       pos = positionToOpgg(meta.position) ?? ''
-      mainPositionCache.set(championId, pos)
+      if (!lcuPosition) mainPositionCache.set(championId, pos)
     }
     if (!pos) return null
     const key = cacheKey(r, championId, pos, t)
@@ -274,8 +295,18 @@ export function useBestPicks(
   }
 
   watch(
-    [enemyIds, candidateIds, tier, region, teammateIds, myPosition, opggRevision],
-    async ([ids, candidates, t, r, teammates, myPos, rev]) => {
+    [
+      enemyIds,
+      candidateIds,
+      tier,
+      region,
+      teammateIds,
+      myPosition,
+      opggRevision,
+      coverageFirst,
+      teammatePositions
+    ],
+    async ([ids, candidates, t, r, teammates, myPos, rev, coverage, positions]) => {
       if (timer) {
         clearTimeout(timer)
         timer = null
@@ -294,7 +325,7 @@ export function useBestPicks(
       }
       timer = setTimeout(() => {
         timer = null
-        void run(validIds, candidates, t, r, validTeammates, myPos)
+        void run(validIds, candidates, t, r, validTeammates, myPos, coverage, positions)
       }, DEBOUNCE_MS)
     },
     { immediate: true }

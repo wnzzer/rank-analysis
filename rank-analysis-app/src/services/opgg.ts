@@ -10,15 +10,46 @@ import { ref, type Ref } from 'vue'
 
 export type OpggMode = 'ranked' | 'aram'
 
-/** OP.GG 段位分段。必须与 Rust 侧 `opgg::api::VALID_TIERS` 同白名单。 */
+/**
+ * OP.GG 段位分段。必须与 Rust 侧 `opgg::intel::VALID_TIERS` /
+ * `opgg::api::VALID_TIERS` 同白名单（实测单段位 iron~challenger 与
+ * 组合段位 ibsg / *_plus / all 均返回有效数据）。
+ */
 export type OpggTier =
-  'gold_plus' | 'platinum_plus' | 'emerald_plus' | 'diamond_plus' | 'master_plus' | 'all'
+  | 'iron'
+  | 'bronze'
+  | 'silver'
+  | 'gold'
+  | 'platinum'
+  | 'emerald'
+  | 'diamond'
+  | 'ibsg'
+  | 'gold_plus'
+  | 'platinum_plus'
+  | 'emerald_plus'
+  | 'diamond_plus'
+  | 'master'
+  | 'master_plus'
+  | 'grandmaster'
+  | 'challenger'
+  | 'all'
 
 /** 未配置过段位时的取值，与 Rust 侧 `sanitize_tier` 的兜底一致。 */
 export const DEFAULT_OPGG_TIER: OpggTier = 'emerald_plus'
 
 /** 段位下拉选项。设置页与对局页共用，避免两处各写一份日后漂移。 */
 export const TIER_OPTIONS: ReadonlyArray<{ label: string; value: OpggTier }> = [
+  { label: '黑铁', value: 'iron' },
+  { label: '青铜', value: 'bronze' },
+  { label: '白银', value: 'silver' },
+  { label: '黄金', value: 'gold' },
+  { label: '铂金', value: 'platinum' },
+  { label: '翡翠', value: 'emerald' },
+  { label: '钻石', value: 'diamond' },
+  { label: '大师', value: 'master' },
+  { label: '宗师', value: 'grandmaster' },
+  { label: '王者', value: 'challenger' },
+  { label: '铁铜银金', value: 'ibsg' },
   { label: '黄金以上', value: 'gold_plus' },
   { label: '铂金以上', value: 'platinum_plus' },
   { label: '翡翠以上', value: 'emerald_plus' },
