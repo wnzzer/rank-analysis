@@ -26,7 +26,7 @@
 
 use std::collections::HashSet;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::insight::store::HabitTag;
 use crate::lcu::api::live_game::{LiveGameSnapshot, LivePlayer};
@@ -48,7 +48,7 @@ const OBJECTIVE_PREP_SECS: f64 = 60.0;
 const ACTION_VALID_SECS: f64 = 30.0;
 
 /// 下一动作建议。
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NextAction {
     pub kind: String,

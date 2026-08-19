@@ -36,7 +36,6 @@ fn create(app: &tauri::AppHandle) -> Result<(), String> {
     let _w = WebviewWindowBuilder::new(app, "overlay", WebviewUrl::App("overlay.html".into()))
         .title("")
         .inner_size(320.0, 200.0)
-        .transparent(true)
         .decorations(false)
         .always_on_top(true)
         .focusable(false)
@@ -46,10 +45,10 @@ fn create(app: &tauri::AppHandle) -> Result<(), String> {
         .build()
         .map_err(|e| format!("overlay 窗口创建失败: {e}"))?;
 
-    // TODO: 升级 tao ≥ 0.36 后取消注释以启用鼠标穿透
+    // TODO: 升级 tao ≥ 0.36 后启用透明 + 鼠标穿透
     // _w.set_ignore_cursor_events(true)
     //     .map_err(|e| format!("overlay 鼠标穿透设置失败: {e}"))?;
-    log::info!("[overlay] 窗口创建完成（透明/置顶；鼠标穿透需 tao≥0.36）");
+    log::info!("[overlay] 窗口创建完成（置顶/无边框；透明+鼠标穿透待 tao 升级）");
 
     APP_HANDLE.lock().unwrap().replace(app.clone());
     OVERLAY_CREATED.store(true, Ordering::Relaxed);
