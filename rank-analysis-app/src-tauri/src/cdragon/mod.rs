@@ -141,24 +141,26 @@ pub async fn fetch_icon(kind: &str, id: i64) -> Result<Vec<u8>, String> {
 
     // 3. CDragon HTTP
     let url = icon_url(kind, id);
-    let response = HTTP_CLIENT.get(&url).send().await.map_err(|e| {
-        FAILED_CACHE.insert(key.clone(), ()).await;
-        format!("cdragon: 请求 {url} 失败: {e}")
-    })?;
+    let response = match HTTP_CLIENT.get(&url).send().await {
+        Ok(resp) => resp,
+        Err(e) => {
+            FAILED_CACHE.insert(key.clone(), ()).await;
+            return Err(format!("cdragon: 请求 {url} 失败: {e}"));
+        }
+    };
 
     if !response.status().is_success() {
         FAILED_CACHE.insert(key.clone(), ()).await;
         return Err(format!("cdragon: HTTP {} for {url}", response.status()));
     }
 
-    let bytes = response
-        .bytes()
-        .await
-        .map_err(|e| {
+    let bytes = match response.bytes().await {
+        Ok(b) => b.to_vec(),
+        Err(e) => {
             FAILED_CACHE.insert(key.clone(), ()).await;
-            format!("cdragon: 读取响应失败: {e}")
-        })?
-        .to_vec();
+            return Err(format!("cdragon: 读取响应失败: {e}"));
+        }
+    };
 
     if bytes.is_empty() {
         FAILED_CACHE.insert(key.clone(), ()).await;
@@ -257,12 +259,8 @@ pub async fn prefetch_icons(keys: &[(String, i64)]) -> usize {
 
     // 收尾剩余在飞任务
     while let Some(joined) = in_flight.join_next().await {
-        match joined {
-            Ok(n) if n > 0 => {
-                handled += n;
-                consecutive_failures = 0;
-            }
-            _ => consecutive_failures += 1,
+        if let Ok(n) = joined {
+            handled += n;
         }
     }
     handled
