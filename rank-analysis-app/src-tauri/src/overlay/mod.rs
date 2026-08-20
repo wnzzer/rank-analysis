@@ -68,10 +68,10 @@ fn position_top_right(app: &tauri::AppHandle) {
         return;
     };
     let size = monitor.size();
-    let x = size.width as f64 - OVERLAY_WIDTH - OVERLAY_MARGIN;
-    let y = OVERLAY_MARGIN;
+    let x = size.width as i32 - OVERLAY_WIDTH as i32 - OVERLAY_MARGIN as i32;
+    let y = OVERLAY_MARGIN as i32;
     if let Some(w) = get_window() {
-        let _ = w.set_position(Position::Physical(x as i32, y as i32));
+        let _ = w.set_position(Position::Physical(tauri::PhysicalPosition::new(x, y)));
     }
 }
 
