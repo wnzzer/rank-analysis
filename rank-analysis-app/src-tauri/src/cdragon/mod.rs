@@ -178,12 +178,36 @@ pub async fn fetch_icon(kind: &str, id: i64) -> Result<Vec<u8>, String> {
     Ok(bytes)
 }
 
-/// 从 CDragon 获取图标并返回 (bytes, mime_type)。
+/// 仅读取本地缓存（内存 + 磁盘）的图标，绝不发起网络请求。
 ///
-/// 与 `lcu::api::asset::get_asset_binary` 返回格式一致，
-/// 可作为 LCU 不可用时的降级数据源。
-pub async fn fetch_icon_with_mime(kind: &str, id: i64) -> Result<(Vec<u8>, String), String> {
-    let bytes = fetch_icon(kind, id).await?;
+/// 降级链策略：只有用户手动「一键缓存 CDragon」成功落盘后，
+/// 本地数据才可作 LCU 失败时的兜底；未缓存过的图标直接快速失败，
+/// 避免每次头像请求都等 CDragon 网络超时。
+pub async fn local_fetch_icon(kind: &str, id: i64) -> Result<Vec<u8>, String> {
+    let key = cache_key(kind, id);
+
+    if let Some(hit) = MEMORY_CACHE.get(&key).await {
+        return Ok(hit);
+    }
+
+    let disk_path = disk_cache_path(kind, id);
+    if disk_path.exists() {
+        if let Ok(bytes) = std::fs::read(&disk_path) {
+            if !bytes.is_empty() {
+                MEMORY_CACHE.insert(key, bytes.clone()).await;
+                return Ok(bytes);
+            }
+        }
+    }
+
+    Err(format!(
+        "cdragon: {key} 未缓存（本地无数据，不发起网络请求）"
+    ))
+}
+
+/// 仅本地缓存版本的 `fetch_icon_with_mime`，供 LCU 失败时快速兜底。
+pub async fn local_fetch_icon_with_mime(kind: &str, id: i64) -> Result<(Vec<u8>, String), String> {
+    let bytes = local_fetch_icon(kind, id).await?;
     let mime = if kind == "profile" {
         "image/jpeg"
     } else {

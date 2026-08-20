@@ -305,19 +305,31 @@ pub async fn init() {
 
 /// 一次性初始化：先用 LCU 列表填好图标缓存（快、本地，实测 <1s）让图标立刻可用；
 /// 再把耗时的 augment 文字描述补全（cdragon 26MB）丢到后台，绝不挡图标关键路径。
-/// 同时后台预热 CDragon 常见图标磁盘缓存（M4 数据地基：客户端离线时仍可渲染）。
 async fn init_once() {
     init_lcu_assets().await;
     tokio::spawn(enrich_augment_descriptions());
-    tokio::spawn(prefetch_cdragon_icons());
 }
 
 /// 后台预热 CDragon 常见图标（英雄/符文/召唤师技能）到磁盘缓存。
 ///
-/// 清单来自本机元数据缓存（LCU 在线时才有；离线时为空则跳过，等客户端连上后
-/// 由 `game_state_monitor` 再次触发 `init` 时自然补全）。item 集合庞大（2000+），
-/// 按需下载不预热。失败仅告警，绝不阻塞启动。
-async fn prefetch_cdragon_icons() {
+/// 清单来自本机元数据缓存（LCU 在线时才有；离线时为空则跳过）。item 集合庞大（2000+），
+/// 按需下载不预热。由设置页「一键缓存 CDragon」手动触发；启动期不再自动预热，
+/// 避免 CDragon 不可达时的网络风暴拖慢对局关键路径。
+/// 单飞：同一时刻只允许一个缓存任务在跑，重复触发返回 `Ok((0, 0))` 表示进行中。
+///
+/// # 返回
+/// - `Ok((成功数, 待下载总数))`：成功数 < 总数时前端展示部分成功
+/// - `Err`：缓存清单为空（LCU 未连接等），无数据可缓存
+pub async fn cache_cdragon_icons() -> Result<(usize, usize), String> {
+    static CACHE_LOCK: LazyLock<tokio::sync::Mutex<()>> =
+        LazyLock::new(|| tokio::sync::Mutex::new(()));
+
+    // 非阻塞尝试获取锁：已有任务在跑时直接返回 (0, 0) 表示进行中
+    let Ok(_guard) = CACHE_LOCK.try_lock() else {
+        log::info!("[cdragon] 缓存任务进行中，忽略重复触发");
+        return Ok((0, 0));
+    };
+
     let mut keys: Vec<(String, i64)> = Vec::new();
     if let Ok(g) = CHAMPION_CACHE.read() {
         keys.extend(g.keys().map(|id| ("champion".to_string(), *id)));
@@ -329,13 +341,15 @@ async fn prefetch_cdragon_icons() {
         keys.extend(g.keys().map(|id| ("spell".to_string(), *id)));
     }
     if keys.is_empty() {
-        return;
+        log::warn!("[cdragon] 缓存清单为空（LCU 未连接？），跳过一键缓存");
+        return Err("缓存清单为空（LCU 未连接？请先启动英雄联盟客户端）".to_string());
     }
     let ok = crate::cdragon::prefetch_icons(&keys).await;
     log::info!(
-        "[cdragon] 启动预下载完成：{ok}/{} 图标落盘（champion/perk/spell）",
+        "[cdragon] 一键缓存完成：{ok}/{} 图标落盘（champion/perk/spell）",
         keys.len()
     );
+    Ok((ok, keys.len()))
 }
 
 /// 从 LCU 拉取静态资源列表并填充各图标缓存（item/champion/spell/perk/augment）。
@@ -663,12 +677,13 @@ pub async fn get_asset_binary(type_string: String, id: i64) -> Result<(Vec<u8>, 
         _ => Err("Invalid type string".to_string()),
     };
 
-    // LCU 失败 → 降级到 CDragon 静态资产
+    // LCU 失败 → 降级到 CDragon 本地缓存（仅手动缓存成功的图标才可用，
+    // 未缓存直接快速失败，避免网络超时拖垮头像请求）
     let result = match result {
         Ok(data) => Ok(data),
         Err(lcu_err) => {
-            log::info!("asset: LCU 取 {type_string}/{id} 失败({lcu_err})，降级到 CDragon");
-            crate::cdragon::fetch_icon_with_mime(&type_string, id).await
+            log::info!("asset: LCU 取 {type_string}/{id} 失败({lcu_err})，尝试 CDragon 本地缓存");
+            crate::cdragon::local_fetch_icon_with_mime(&type_string, id).await
         }
     }?;
 

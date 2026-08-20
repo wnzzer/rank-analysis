@@ -161,6 +161,28 @@
           </n-text>
         </n-space>
       </n-form-item>
+      <n-form-item label="图标本地缓存">
+        <n-space vertical :size="4" style="width: 100%">
+          <n-space align="center" :size="12">
+            <n-button
+              size="tiny"
+              secondary
+              :loading="cdragonCaching"
+              :disabled="cdragonCaching"
+              @click="handleCdragonCache"
+            >
+              一键缓存 CDragon 图标
+            </n-button>
+            <n-text v-if="cdragonCacheResult" :depth="3" style="font-size: var(--font-size-sm)">
+              {{ cdragonCacheResult }}
+            </n-text>
+          </n-space>
+          <n-text :depth="3" style="font-size: var(--font-size-sm)">
+            手动下载英雄 / 符文 / 召唤师技能图标到本地。缓存成功后，客户端取图失败时用本地
+            数据兜底（未缓存的图标直接快速失败，不再等待外网超时）。
+          </n-text>
+        </n-space>
+      </n-form-item>
       <n-form-item label="AI 用量统计">
         <n-space vertical :size="4" style="width: 100%">
           <n-space align="center" :size="12">
@@ -240,6 +262,10 @@ const intelRefreshing = ref(false)
 const usageLog = ref<AiUsageEntry[]>([])
 const usageTotal = computed(() => sumAiUsage(usageLog.value))
 const message = useMessage()
+
+/** CDragon 图标一键缓存状态 */
+const cdragonCaching = ref(false)
+const cdragonCacheResult = ref('')
 
 /** 战绩每页条数模式（auto=动态 / fixed=固定）与固定条数 */
 const matchPageMode = ref<MatchPageMode>('fixed')
@@ -534,6 +560,29 @@ const handleTestConnection = async () => {
     message.error(e?.message || String(e) || '连接失败')
   } finally {
     testing.value = false
+  }
+}
+
+const handleCdragonCache = async () => {
+  if (cdragonCaching.value) return
+  cdragonCaching.value = true
+  cdragonCacheResult.value = ''
+  try {
+    const [ok, total] = (await invoke('cache_cdragon_icons')) as [number, number]
+    if (total === 0) {
+      cdragonCacheResult.value = '缓存任务进行中，请稍候…'
+      return
+    }
+    cdragonCacheResult.value =
+      ok >= total
+        ? `缓存完成：${ok}/${total} 图标已落盘`
+        : `缓存完成：${ok}/${total} 成功（部分失败，未成功的将在取图时快速跳过）`
+    message.success(cdragonCacheResult.value)
+  } catch (e: any) {
+    cdragonCacheResult.value = ''
+    message.error(e?.message || String(e) || '缓存失败')
+  } finally {
+    cdragonCaching.value = false
   }
 }
 </script>

@@ -230,6 +230,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             command::overlay::show_overlay_window,
             command::overlay::hide_overlay_window,
             command::overlay::push_overlay_data,
+            command::cache_cdragon_icons,
         ]);
 
     #[cfg(debug_assertions)]

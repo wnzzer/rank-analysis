@@ -2,23 +2,19 @@
 //!
 //! 管理透明置顶 overlay 窗口的完整生命周期——创建、显示、隐藏、销毁。
 //! 窗口属性：`transparent` / `decorations=false` / `always_on_top` / `focusable=false` /
-//! `skip_taskbar`。
-//!
-//! ## 鼠标穿透
-//!
-//! `set_ignore_cursor_events` 需要 **tao ≥ 0.36**（当前锁 0.35.3）。
-//! 升级 tao 后取消注释 `create` 函数中的 `w.set_ignore_cursor_events(true)` 即可启用。
+//! `skip_taskbar` / 鼠标穿透 / 右上角定位。
 //!
 //! ## 窗口位置
 //!
-//! 默认右上角（评估文档 §3.1：320×200）。后续可配置化为左上/右下/左下
-//! （评估文档 §5.2）。
+//! 固定在主显示器右上角（评估文档 §3.1：320×200，边距 16px）。
+//! 后续可配置化为左上/右下/左下（评估文档 §5.2）。
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::LazyLock;
 use std::sync::Mutex;
 
 use tauri::Manager;
+use tauri::Position;
 use tauri::WebviewUrl;
 use tauri::WebviewWindowBuilder;
 
@@ -28,6 +24,12 @@ static OVERLAY_CREATED: LazyLock<AtomicBool> = LazyLock::new(|| AtomicBool::new(
 /// 全局 AppHandle（创建窗口时写入，供后续通过标签查找窗口句柄）。
 static APP_HANDLE: LazyLock<Mutex<Option<tauri::AppHandle>>> = LazyLock::new(|| Mutex::new(None));
 
+/// Overlay 窗口固定尺寸（评估文档 §3.1）。
+const OVERLAY_WIDTH: f64 = 320.0;
+const OVERLAY_HEIGHT: f64 = 200.0;
+/// 窗口与屏幕边缘的间距。
+const OVERLAY_MARGIN: f64 = 16.0;
+
 /// 创建 overlay 窗口（只建一次，幂等）。
 ///
 /// 窗口初始不可见（`visible(false)`），由 [`show`] 在对局中激活。
@@ -35,20 +37,18 @@ static APP_HANDLE: LazyLock<Mutex<Option<tauri::AppHandle>>> = LazyLock::new(|| 
 fn create(app: &tauri::AppHandle) -> Result<(), String> {
     let _w = WebviewWindowBuilder::new(app, "overlay", WebviewUrl::App("overlay.html".into()))
         .title("")
-        .inner_size(320.0, 200.0)
+        .inner_size(OVERLAY_WIDTH, OVERLAY_HEIGHT)
         .decorations(false)
         .always_on_top(true)
         .focusable(false)
         .resizable(false)
         .skip_taskbar(true)
+        .transparent(true)
         .visible(false)
         .build()
         .map_err(|e| format!("overlay 窗口创建失败: {e}"))?;
 
-    // TODO: 升级 tao ≥ 0.36 后启用透明 + 鼠标穿透
-    // _w.set_ignore_cursor_events(true)
-    //     .map_err(|e| format!("overlay 鼠标穿透设置失败: {e}"))?;
-    log::info!("[overlay] 窗口创建完成（置顶/无边框；透明+鼠标穿透待 tao 升级）");
+    log::info!("[overlay] 窗口创建完成（置顶/无边框/透明/鼠标穿透）");
 
     APP_HANDLE.lock().unwrap().replace(app.clone());
     OVERLAY_CREATED.store(true, Ordering::Relaxed);
@@ -61,6 +61,20 @@ fn get_window() -> Option<tauri::WebviewWindow> {
     guard.as_ref()?.get_webview_window("overlay")
 }
 
+/// 将 overlay 窗口定位到主显示器右上角（带边距）。
+fn position_top_right(app: &tauri::AppHandle) {
+    let Some(monitor) = app.primary_monitor().ok().flatten() else {
+        log::warn!("[overlay] 无法获取主显示器，窗口保持默认位置");
+        return;
+    };
+    let size = monitor.size();
+    let x = size.width as f64 - OVERLAY_WIDTH - OVERLAY_MARGIN;
+    let y = OVERLAY_MARGIN;
+    if let Some(w) = get_window() {
+        let _ = w.set_position(Position::Physical(x as i32, y as i32));
+    }
+}
+
 /// 显示 overlay 窗口（对局中调用）。
 pub fn show(app: &tauri::AppHandle) {
     if !OVERLAY_CREATED.load(Ordering::Relaxed) {
@@ -71,9 +85,10 @@ pub fn show(app: &tauri::AppHandle) {
     }
     if let Some(w) = get_window() {
         let _ = w.show();
-        // TODO: 升级 tao ≥ 0.36 后取消注释以启用鼠标穿透
-        // let _ = w.set_ignore_cursor_events(true);
+        // 鼠标穿透：对局内悬浮建议不应拦截玩家对游戏窗口的操作
+        let _ = w.set_ignore_cursor_events(true);
     }
+    position_top_right(app);
 }
 
 /// 隐藏 overlay 窗口（对局结束调用）。

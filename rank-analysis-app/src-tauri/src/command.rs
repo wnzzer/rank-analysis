@@ -131,3 +131,18 @@ pub async fn get_live_game_data() -> Result<Option<LiveGameSnapshot>, String> {
 pub async fn get_my_summoner() -> Result<Summoner, String> {
     Summoner::get_my_summoner().await
 }
+
+/// 一键缓存 CDragon 图标（设置页手动触发）。
+///
+/// 从 LCU 元数据清单拉取英雄/符文/召唤师技能图标到本地磁盘缓存；
+/// 缓存成功后，LCU 取图失败时降级到本地 CDragon 数据（未缓存则快速失败）。
+/// 单飞：重复触发返回 Ok((0, 0)) 表示已有任务进行中。
+///
+/// # 返回值
+///
+/// - `Ok((成功数, 总数))`: 缓存结果，成功数 < 总数表示部分失败（网络不通等）
+/// - `Err(String)`: 缓存清单为空（LCU 未连接）
+#[tauri::command]
+pub async fn cache_cdragon_icons() -> Result<(usize, usize), String> {
+    crate::lcu::api::asset::cache_cdragon_icons().await
+}
