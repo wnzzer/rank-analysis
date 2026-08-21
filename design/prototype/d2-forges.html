@@ -1,0 +1,828 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rank Analysis · D2 高保真原型 · Hextech Forge</title>
+<link rel="stylesheet" href="../spec/tokens.css">
+<style>
+/* ================= 原型控制条 ================= */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body { background: var(--bg-sunken); color: var(--text-primary); font-family: var(--font-stack); font-size: var(--font-size-base); transition: background var(--dur-normal) var(--ease-standard); }
+.num { font-family: var(--font-num); letter-spacing: 0.5px; }
+
+.proto-bar { position: sticky; top: 0; z-index: var(--z-toast); display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  padding: 10px 16px; background: color-mix(in srgb, var(--bg-raised) 88%, transparent); backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border-subtle); }
+.proto-bar .brand { font-size: var(--font-size-xs); font-weight: var(--font-weight-bold); letter-spacing: var(--tracking-label); color: var(--brand); margin-right: 10px; }
+.ptab { font-size: var(--font-size-xs); color: var(--text-secondary); border: 1px solid var(--border-subtle); background: transparent;
+  padding: 5px 12px; cursor: pointer; clip-path: var(--clip-notch); transition: all var(--dur-fast) var(--ease-standard); }
+.ptab:hover { background: var(--bg-hover); color: var(--text-primary); }
+.ptab.on { background: var(--brand-soft); border-color: var(--brand-border); color: var(--brand); font-weight: var(--font-weight-semibold); }
+.pspacer { flex: 1; }
+.ptog { display: inline-flex; align-items: center; gap: 6px; font-size: var(--font-size-xs); color: var(--text-secondary);
+  border: 1px solid var(--border-strong); padding: 5px 12px; cursor: pointer; clip-path: var(--clip-notch); }
+.ptog:hover { color: var(--text-primary); background: var(--bg-hover); }
+.hintline { max-width: 1240px; margin: 10px auto 0; padding: 0 20px; font-size: var(--font-size-xs); color: var(--text-tertiary); line-height: 1.7; }
+.hintline b { color: var(--text-secondary); font-weight: var(--font-weight-semibold); }
+
+/* ================= 应用壳 ================= */
+.scr { display: none; padding-bottom: 60px; }
+.scr.on { display: block; }
+.frame { max-width: 1240px; margin: 18px auto 0; border: 1px solid var(--border-subtle); box-shadow: var(--shadow-2); overflow: hidden; }
+.tbar { height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 14px;
+  background: var(--bg-surface); border-bottom: 1px solid var(--border-subtle); user-select: none; }
+.tbar .ttl { font-size: var(--font-size-xs); font-weight: var(--font-weight-bold); letter-spacing: var(--tracking-label); color: var(--text-secondary); }
+.winb { margin-left: auto; display: flex; gap: 4px; }
+.winb span { width: 40px; height: 28px; display: grid; place-items: center; font-size: 11px; color: var(--text-secondary); cursor: default; }
+.winb span:hover { background: var(--bg-hover); color: var(--text-primary); }
+.winb span.x:hover { background: var(--loss); color: #fff; }
+.shell { display: flex; min-height: 620px; }
+.rail { width: 64px; flex: none; background: var(--bg-surface); border-right: 1px solid var(--border-subtle);
+  display: flex; flex-direction: column; align-items: center; padding: 12px 0; gap: 4px; }
+.rail-i { position: relative; width: 44px; height: 44px; border-radius: var(--radius-md); display: grid; place-items: center;
+  color: var(--text-tertiary); cursor: pointer; font-size: 17px; transition: all var(--dur-fast) var(--ease-standard); }
+.rail-i:hover { background: var(--bg-hover); color: var(--text-secondary); }
+.rail-i.on { background: var(--brand-soft); color: var(--brand); box-shadow: var(--glow-brand); }
+.rail-i.on::before { content: ''; position: absolute; left: -10px; top: 50%; width: 7px; height: 7px;
+  transform: translate(0, -50%) rotate(45deg); background: var(--brand); box-shadow: var(--glow-brand); }
+.rail-spacer { flex: 1; }
+.rail-status { width: 40px; height: 40px; border-radius: var(--radius-pill); display: grid; place-items: center;
+  border: 1px solid var(--win-border); color: var(--win); font-size: 13px; }
+.content { flex: 1; min-width: 0; padding: 20px 22px 26px; background: var(--bg-base); }
+
+/* ================= 基础组件 ================= */
+.kick { font-size: var(--font-size-2xs); font-weight: var(--font-weight-semibold); letter-spacing: var(--tracking-label);
+  text-transform: uppercase; color: var(--brand); margin-bottom: 4px; }
+.ph { display: flex; align-items: flex-end; gap: 14px; margin-bottom: 16px; flex-wrap: wrap; }
+.ph h1 { font-size: var(--font-size-2xl); font-weight: var(--font-weight-bold); letter-spacing: var(--tracking-tight); }
+.ph .meta { font-size: var(--font-size-sm); color: var(--text-tertiary); }
+.ph .acts { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+
+.btn { display: inline-flex; align-items: center; gap: 7px; font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold);
+  padding: 8px 16px; cursor: pointer; border: none; clip-path: var(--clip-notch); transition: all var(--dur-fast) var(--ease-standard); }
+.btn.pri { background: var(--brand-gradient); color: var(--text-on-brand); box-shadow: var(--glow-brand); }
+.btn.pri:hover { filter: brightness(1.08); }
+.btn.gho { background: transparent; color: var(--text-secondary); border: 1px solid var(--border-strong); }
+.btn.gho:hover { color: var(--text-primary); border-color: var(--brand-border); background: var(--bg-hover); }
+.btn.dgr { background: transparent; color: var(--text-secondary); border: 1px solid var(--border-strong); }
+.btn.dgr:hover { background: var(--loss-soft); color: var(--loss); border-color: var(--loss-border); }
+.btn.sm { padding: 5px 11px; font-size: var(--font-size-xs); }
+
+.ccard { --pad: var(--space-16); filter: drop-shadow(var(--shadow-1)); transition: filter var(--dur-fast) var(--ease-standard); }
+.ccard:hover { filter: drop-shadow(var(--shadow-2)); }
+.ccard-in { position: relative; background: var(--bg-surface); border: 1px solid var(--border-subtle);
+  clip-path: var(--clip-corner-md); padding: var(--pad); }
+.ccard.emph .ccard-in { border-color: var(--brand-border);
+  background: linear-gradient(180deg, var(--brand-soft), transparent 42%), var(--bg-surface); }
+.ccard-in::after { content: ''; position: absolute; inset: 0; background-image: var(--noise-img);
+  opacity: 0.03; pointer-events: none; clip-path: inherit; }
+.theme-light .ccard-in::after { opacity: 0.015; }
+.cc-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+.cc-head h3 { font-size: var(--font-size-md); font-weight: var(--font-weight-bold); }
+.cc-head .sub { font-size: var(--font-size-xs); color: var(--text-tertiary); }
+.cc-head .more { margin-left: auto; font-size: var(--font-size-xs); color: var(--text-tertiary); cursor: pointer; }
+.cc-head .more:hover { color: var(--text-secondary); }
+
+.statc { display: inline-flex; align-items: baseline; gap: 7px; }
+.statc .l { font-size: var(--font-size-2xs); color: var(--text-tertiary); }
+.statc .v { font-family: var(--font-num); font-size: var(--font-size-lg); font-weight: var(--font-weight-bold); }
+.statc .v.w { color: var(--win); } .statc .v.l { color: var(--loss); } .statc .v.b { color: var(--brand); } .statc .v.i { color: var(--info); }
+
+.tagp { display: inline-flex; align-items: center; gap: 5px; font-size: var(--font-size-2xs); padding: 3px 9px;
+  border-radius: var(--radius-pill); border: 1px solid var(--border-subtle); color: var(--text-secondary); }
+.tagp.win { background: var(--win-soft); border-color: var(--win-border); color: var(--win); }
+.tagp.loss { background: var(--loss-soft); border-color: var(--loss-border); color: var(--loss); }
+.tagp.info { background: var(--info-soft); border-color: var(--info-border); color: var(--info); }
+.tagp.brand { background: var(--brand-soft); border-color: var(--brand-border); color: var(--brand); }
+.tagp.warn { background: var(--warn-soft); border-color: var(--warn-border); color: var(--warn); }
+
+.kbd { font-family: var(--font-num); font-size: var(--font-size-2xs); color: var(--text-secondary);
+  border: 1px solid var(--border-strong); border-bottom-width: 2px; padding: 1px 6px; background: var(--bg-raised); }
+
+/* VerdictBanner */
+.vb { display: flex; align-items: center; gap: var(--space-16); padding: 14px 18px;
+  background: linear-gradient(90deg, var(--brand-soft), transparent 62%), var(--bg-surface);
+  border: 1px solid var(--brand-border); clip-path: var(--clip-corner-md); position: relative; overflow: hidden; }
+.vb::after { content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(105deg, transparent 40%, rgba(240,201,107,.10) 50%, transparent 60%);
+  animation: sweep 3.4s var(--ease-standard) infinite; }
+@keyframes sweep { 0%, 55% { transform: translateX(-110%);} 100% { transform: translateX(110%);} }
+.ring { width: 52px; height: 52px; flex: none; border-radius: 50%; position: relative; display: grid; place-items: center;
+  background: conic-gradient(var(--ring-col, var(--brand)) calc(var(--deg, 270) * 1deg), var(--bg-active) 0);
+  -webkit-mask: radial-gradient(circle, transparent 58%, #000 61%); mask: radial-gradient(circle, transparent 58%, #000 61%); }
+.ring.urgent { --ring-col: var(--loss); }
+.ring b { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--font-num);
+  font-size: var(--font-size-sm); font-weight: var(--font-weight-bold); color: var(--ring-col, var(--brand)); }
+.vb .concl { font-size: var(--font-size-base); color: var(--text-secondary); }
+.vb .champ { font-size: var(--font-size-xl); font-weight: var(--font-weight-black); color: var(--text-primary); letter-spacing: var(--tracking-tight);
+  background: var(--brand-gradient); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.vb .why { font-size: var(--font-size-xs); color: var(--text-tertiary); margin-top: 3px; }
+.vb .tierbox { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: var(--font-size-xs); color: var(--text-tertiary); flex: none; }
+.vb .tiersel { font-weight: var(--font-weight-semibold); color: var(--info); border: 1px solid var(--info-border);
+  padding: 4px 12px; cursor: pointer; clip-path: var(--clip-notch); }
+.vb.st-fallback { background: var(--bg-surface); border-color: var(--border-subtle); }
+.vb.st-fallback .champ { background: none; -webkit-text-fill-color: currentcolor; color: var(--text-primary); }
+.vb.st-fallback::after { animation: none; opacity: 0; }
+.vb.st-idle { border-style: dashed; }
+.vb.st-idle .champ { background: none; -webkit-text-fill-color: currentcolor; color: var(--text-tertiary); font-weight: var(--font-weight-semibold); }
+.vb-cpt { gap: 10px; padding: 10px 12px; }
+.vb-cpt .ring { width: 34px; height: 34px; } .vb-cpt .ring b { font-size: var(--font-size-2xs); }
+.vb-cpt .champ { font-size: var(--font-size-md); }
+
+/* 阶段轨 + ban 条 */
+.steps { display: flex; align-items: center; gap: 8px; font-size: var(--font-size-xs); color: var(--text-tertiary); }
+.step { display: flex; align-items: center; gap: 5px; }
+.dm { width: 6px; height: 6px; transform: rotate(45deg); background: var(--ink-600, var(--border-strong)); }
+.step.done .dm { background: var(--brand-deep, var(--brand)); opacity: 0.45; }
+.step.on { color: var(--brand); } .step.on .dm { background: var(--brand); box-shadow: var(--glow-brand); }
+.sln { width: 24px; height: 1px; background: var(--border-subtle); }
+.bans { display: flex; gap: 26px; font-size: var(--font-size-xs); color: var(--text-tertiary); }
+.brow { display: flex; gap: 4px; margin-top: 6px; }
+.bsq { width: 22px; height: 22px; background: var(--bg-raised); border: 1px solid var(--loss-border);
+  filter: grayscale(0.6); display: grid; place-items: center; font-size: 9px; color: var(--loss); }
+
+/* 信号 tabs + 强度条 */
+.sigtabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border-subtle); }
+.sig { font-size: var(--font-size-sm); color: var(--text-tertiary); padding: 8px 14px; cursor: pointer;
+  border-bottom: 2px solid transparent; }
+.sig:hover { color: var(--text-secondary); }
+.sig.on { color: var(--brand); border-color: var(--brand); }
+.sig sup { font-size: 9px; color: var(--info); }
+.strwrap { display: flex; align-items: center; gap: 12px; font-size: var(--font-size-sm); }
+.strbar { flex: 1; height: 8px; display: flex; clip-path: var(--clip-notch); overflow: hidden; }
+.strbar i { display: block; height: 100%; }
+.str-me { width: 58%; background: var(--win); }
+.str-en { width: 42%; background: var(--loss); opacity: 0.75; }
+.delta { color: var(--win); font-weight: var(--font-weight-bold); font-size: var(--font-size-xs); }
+
+/* PlayerCard */
+.teams { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-16); margin-top: var(--space-16); }
+.th { display: flex; justify-content: space-between; font-size: var(--font-size-2xs); letter-spacing: var(--tracking-label);
+  color: var(--text-tertiary); text-transform: uppercase; margin-bottom: 8px; }
+.pcard { display: flex; align-items: center; gap: 10px; padding: 9px 12px; margin-bottom: 6px;
+  background: var(--bg-raised); border: 1px solid var(--border-subtle); clip-path: var(--clip-corner-sm); }
+.pcard.me { border-color: var(--brand-border); background: linear-gradient(90deg, var(--brand-soft), transparent 55%), var(--bg-raised); }
+.av { width: 30px; height: 30px; flex: none; display: grid; place-items: center; font-weight: var(--font-weight-black);
+  font-size: 13px; clip-path: var(--clip-corner-sm); background: var(--bg-active); color: var(--text-secondary); }
+.av.b { background: var(--info-soft); color: var(--info); }
+.av.g { background: var(--win-soft); color: var(--win); }
+.pnm { font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); }
+.psub { font-size: var(--font-size-2xs); color: var(--text-tertiary); margin-top: 1px; }
+.hist { margin-left: auto; display: flex; gap: 3px; flex: none; }
+.hist i { width: 8px; height: 16px; display: block; }
+.hist .w { background: var(--win); } .hist .l { background: var(--loss); opacity: 0.65; }
+[data-density="compact"] .pcard { padding: 6px 10px; }
+[data-density="compact"] .hist, [data-density="compact"] .psub { display: none; }
+
+/* 战绩列表 */
+.toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.fsel { font-size: var(--font-size-xs); color: var(--text-secondary); border: 1px solid var(--border-strong);
+  padding: 6px 12px; clip-path: var(--clip-notch); cursor: pointer; background: var(--bg-surface); }
+.fsel:hover { border-color: var(--brand-border); }
+.fsel.dim { color: var(--text-tertiary); }
+.trend { display: flex; gap: 3px; margin-bottom: 12px; }
+.trend i { flex: 1; height: 24px; clip-path: polygon(3px 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%, 0 3px); }
+.trend .w { background: var(--win); } .trend .l { background: var(--loss); opacity: 0.6; }
+.duo { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: var(--space-16); align-items: start; }
+.rc { display: grid; grid-template-columns: 56px 46px 36px 1fr 96px 110px 84px; gap: 10px; align-items: center;
+  padding: 10px 14px; margin-bottom: 6px; background: var(--bg-surface); border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--win); cursor: pointer; transition: background var(--dur-fast) var(--ease-standard); }
+.rc.lo { border-left-color: var(--loss); }
+.rc.sel, .rc:hover { background: var(--bg-raised); }
+.rc .res { font-size: var(--font-size-xs); font-weight: var(--font-weight-black); }
+.rc .res.w { color: var(--win); } .rc .res.l { color: var(--loss); }
+.rc .tm { font-family: var(--font-num); font-size: var(--font-size-2xs); color: var(--text-tertiary); line-height: 1.5; }
+.rc .kda { font-family: var(--font-num); font-size: var(--font-size-base); }
+.rc .kda small { color: var(--text-tertiary); font-size: var(--font-size-2xs); margin-left: 6px; font-family: var(--font-stack); }
+.mini { display: flex; gap: 3px; }
+.mini i { width: 15px; height: 15px; background: var(--bg-active); border: 1px solid var(--border-subtle); display: block; }
+.dmgv { font-size: var(--font-size-2xs); color: var(--text-tertiary); }
+.dmgbar { height: 4px; background: var(--bg-active); margin-top: 4px; }
+.dmgbar i { display: block; height: 100%; background: var(--brand-gradient); }
+.lp { font-family: var(--font-num); font-size: var(--font-size-xs); font-weight: var(--font-weight-bold); }
+.lp.up { color: var(--win); } .lp.dn { color: var(--loss); }
+
+/* 详情栏 / 复盘 */
+.dpane { background: var(--bg-surface); border: 1px solid var(--border-subtle); clip-path: var(--clip-corner-md); }
+.dp-head { position: relative; padding: 16px 18px 14px; overflow: hidden;
+  background: linear-gradient(120deg, var(--win-soft), transparent 70%), var(--bg-raised); border-bottom: 1px solid var(--border-subtle); }
+.dp-head.loss { background: linear-gradient(120deg, var(--loss-soft), transparent 70%), var(--bg-raised); }
+.dp-head::before { content: '杰'; position: absolute; right: -6px; top: -18px; font-size: 92px; font-weight: var(--font-weight-black);
+  color: var(--brand-soft); font-family: var(--font-num); }
+.res-pill { display: inline-block; font-size: var(--font-size-xs); font-weight: var(--font-weight-black); padding: 3px 12px;
+  clip-path: var(--clip-notch); background: var(--win); color: var(--text-on-brand); margin-right: 8px; }
+.res-pill.l { background: var(--loss); }
+.dp-meta { font-size: var(--font-size-2xs); color: var(--text-tertiary); }
+.dp-kda { margin-top: 10px; font-family: var(--font-num); font-size: var(--font-size-xl); }
+.dp-kda small { font-size: var(--font-size-xs); color: var(--text-tertiary); margin-left: 8px; font-family: var(--font-stack); }
+.strip { display: flex; gap: 0; margin-top: 12px; border: 1px solid var(--border-subtle); }
+.strip > div { flex: 1; text-align: center; padding: 8px 0; }
+.strip > div + div { border-left: 1px solid var(--border-subtle); }
+.strip .sl { font-size: 9px; color: var(--text-tertiary); display: block; }
+.strip .sv { font-family: var(--font-num); font-size: var(--font-size-md); font-weight: var(--font-weight-bold); }
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border-subtle); padding: 0 12px; }
+.tab { font-size: var(--font-size-xs); color: var(--text-tertiary); padding: 9px 10px; cursor: pointer; border-bottom: 2px solid transparent; }
+.tab:hover { color: var(--text-secondary); }
+.tab.on { color: var(--brand); border-color: var(--brand); }
+.dp-body { padding: 12px 14px 16px; }
+.trow { display: grid; grid-template-columns: 26px 1fr 64px 48px 66px; gap: 8px; align-items: center;
+  padding: 6px 4px; font-size: var(--font-size-xs); border-bottom: 1px solid var(--border-subtle); }
+.trow:last-child { border-bottom: none; }
+.trow .av { width: 22px; height: 22px; font-size: 10px; }
+.trow .kn { font-family: var(--font-num); }
+.trow .cs, .trow .it { color: var(--text-tertiary); font-size: 10px; }
+
+/* 设置表单行 */
+.frow { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--border-subtle); }
+.frow:last-child { border-bottom: none; }
+.frow .fl { width: 150px; flex: none; font-size: var(--font-size-sm); color: var(--text-secondary); }
+.frow .fv { display: flex; align-items: center; gap: 8px; flex: 1; font-size: var(--font-size-xs); color: var(--text-tertiary); }
+.swx { width: 32px; height: 18px; border-radius: var(--radius-pill); background: var(--brand); position: relative; cursor: pointer; flex: none; }
+.swx::after { content: ''; position: absolute; right: 2px; top: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--text-on-brand); }
+.swx.off { background: var(--bg-active); } .swx.off::after { right: auto; left: 2px; }
+.inpmock { flex: 1; max-width: 260px; font-size: var(--font-size-xs); color: var(--text-tertiary);
+  border: 1px solid var(--border-strong); padding: 7px 10px; background: var(--bg-base); }
+
+/* 浮窗预览 */
+.ovl-stage { max-width: 1240px; margin: 18px auto 0; height: 480px; position: relative; overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  background:
+    repeating-conic-gradient(color-mix(in srgb, var(--text-tertiary) 8%, transparent) 0 25%, transparent 0 50%) 0 0 / 28px 28px,
+    var(--bg-sunken); }
+.ovlcard { position: absolute; top: 18px; right: 18px; width: 300px; padding: 12px;
+  background: color-mix(in srgb, var(--bg-raised) 86%, transparent); backdrop-filter: blur(10px);
+  border: 1px solid var(--brand-border); clip-path: var(--clip-corner-md); box-shadow: var(--shadow-3); }
+.na-row { display: flex; align-items: baseline; gap: 8px; padding: 6px 0; border-top: 1px solid var(--border-subtle);
+  font-size: var(--font-size-xs); }
+.na-row:first-of-type { border-top: none; }
+.na-kind { font-weight: var(--font-weight-semibold); color: var(--text-secondary); flex: none; }
+.na-urg { flex: none; font-family: var(--font-num); font-weight: var(--font-weight-bold); }
+.na-urg.hi { color: var(--warn); } .na-urg.md { color: var(--info); }
+.na-rs { color: var(--text-tertiary); }
+
+/* 指挥舱 */
+#scr-deck .deck { max-width: 1400px; margin: 0 auto; padding: 26px 30px; }
+.deck-vb { margin-bottom: 18px; }
+.deck-vb .vb { padding: 20px 26px; }
+.deck-vb .champ { font-size: var(--font-size-display); }
+.deck-vb .ring { width: 64px; height: 64px; }
+.deck-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-16); }
+.esc-hint { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); z-index: var(--z-toast);
+  font-size: var(--font-size-xs); color: var(--text-tertiary); display: flex; gap: 8px; align-items: center; }
+
+/* 主页布局 */
+.home-g1 { display: grid; grid-template-columns: 1.15fr 1fr; gap: var(--space-16); margin-bottom: var(--space-16); }
+.home-g2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-16); }
+.qentry { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--font-size-sm); cursor: pointer; }
+.qentry:last-child { border-bottom: none; }
+.qentry:hover { color: var(--brand); }
+.qentry .ic { width: 28px; height: 28px; display: grid; place-items: center; background: var(--bg-active);
+  clip-path: var(--clip-corner-sm); font-size: 13px; color: var(--text-secondary); flex: none; }
+.short-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border-subtle); }
+.short-row:last-child { border-bottom: none; }
+.wr-big { display: flex; align-items: center; gap: 16px; }
+.wr-big .num { font-size: var(--font-size-2xl); font-weight: var(--font-weight-bold); }
+.divlab { display: flex; align-items: center; gap: 10px; margin: 22px 0 12px; color: var(--text-tertiary);
+  font-size: var(--font-size-2xs); letter-spacing: var(--tracking-label); }
+.divlab::before, .divlab::after { content: ''; height: 1px; flex: 1; background: var(--border-subtle); }
+
+@media (max-width: 1080px) {
+  .duo { grid-template-columns: 1fr; }
+  .home-g1, .home-g2, .teams, .deck-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body data-density="normal">
+
+<div class="proto-bar">
+  <span class="brand">D2 · HEXTECH FORGE</span>
+  <button class="ptab on" data-go="home">主页</button>
+  <button class="ptab" data-go="record">战绩</button>
+  <button class="ptab" data-go="gaming">对局</button>
+  <button class="ptab" data-go="deck">指挥舱</button>
+  <button class="ptab" data-go="detail">复盘详情</button>
+  <button class="ptab" data-go="growth">成长</button>
+  <button class="ptab" data-go="library">资产库</button>
+  <button class="ptab" data-go="settings">设置</button>
+  <button class="ptab" data-go="overlay">浮窗</button>
+  <span class="pspacer"></span>
+  <button class="ptog" id="togTheme"><span id="thLab">金工暗器</span> ⇄ 羊皮纸</button>
+  <button class="ptog" id="togDensity">密度：<b id="dnLab">normal</b></button>
+</div>
+
+<p class="hintline">走查要点：<b>① 金色只出现在结论/激活/关键数值上</b>　② 切角容器语法全站一致　③ 两主题切换无破相　④ 密度 compact 下 PlayerCard 自动降载。对局页可用状态切换 chips 预览 VerdictBanner 的 decision / fallback / idle 三态。</p>
+
+<!-- ================= 主页 ================= -->
+<section class="scr on frame-w" id="scr-home">
+  <div class="frame">
+    <div class="tbar">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2 L20 5 V11 C20 16.5 16.6 20.4 12 22 C7.4 20.4 4 16.5 4 11 V5 Z" stroke="var(--brand)" stroke-width="1.6"/><polyline points="7.5,14.5 10.5,10.5 12.5,12.5 16.5,7.5" stroke="var(--brand)" stroke-width="1.6"/></svg>
+      <span class="ttl">RANK ANALYSIS</span><span class="winb"><span>─</span><span>□</span><span class="x">✕</span></span>
+    </div>
+    <div class="shell">
+      <div class="rail" data-nav="home"></div>
+      <div class="content">
+        <div class="kick">Home · 晚上好，召唤师</div>
+        <div class="ph">
+          <h1>峡谷诗人<span style="color:var(--text-tertiary)">#5207</span></h1>
+          <span class="meta">翡翠 II · 联盟一区 · 上次对局 昨天 21:47</span>
+          <span class="acts">
+            <span class="btn gho">⌕ 快速查询 <span class="kbd">/</span></span>
+          </span>
+        </div>
+
+        <div class="home-g1">
+          <div class="ccard"><div class="ccard-in">
+            <div class="cc-head"><h3>今日战况</h3><span class="sub">近 5 场 · 单双排</span><span class="more">查看全部 →</span></div>
+            <div class="wr-big">
+              <div class="ring" style="--deg:208"><b>58%</b></div>
+              <div>
+                <div class="statc"><span class="l">战绩</span><span class="v">3W 2L</span></div>
+                <div class="statc" style="margin-left:16px"><span class="l">LP 变化</span><span class="v w num">+46</span></div>
+                <div style="display:flex;gap:3px;margin-top:10px">
+                  <i class="trend" style="flex:none;width:22px;height:14px;display:block;background:var(--win)"></i>
+                  <i style="width:22px;height:14px;display:block;background:var(--win)"></i>
+                  <i style="width:22px;height:14px;display:block;background:var(--loss);opacity:.6"></i>
+                  <i style="width:22px;height:14px;display:block;background:var(--win)"></i>
+                  <i style="width:22px;height:14px;display:block;background:var(--loss);opacity:.6"></i>
+                </div>
+              </div>
+            </div>
+          </div></div>
+          <div class="ccard emph"><div class="ccard-in">
+            <div class="cc-head"><h3>短板提醒</h3><span class="sub">来自成长页 · 近 20 场聚合</span><span class="more">去成长 →</span></div>
+            <div class="short-row"><span class="tagp loss">视野得分 −18%</span><span class="psub" style="margin-left:auto;color:var(--text-tertiary)">持续 3 局</span><button class="btn gho sm">转为目标</button></div>
+            <div class="short-row"><span class="tagp loss">参团率 −9%</span><span style="margin-left:auto"></span><button class="btn gho sm">转为目标</button></div>
+            <div class="short-row"><span class="tagp warn">补刀/分 6.4</span><span style="margin-left:auto"></span><button class="btn gho sm">转为目标</button></div>
+          </div></div>
+        </div>
+
+        <div class="home-g2">
+          <div class="ccard"><div class="ccard-in">
+            <div class="cc-head"><h3>快捷入口</h3></div>
+            <div class="qentry"><span class="ic">▤</span>查询玩家战绩<span style="margin-left:auto" class="kbd">/</span></div>
+            <div class="qentry"><span class="ic">⚡</span>开始收集本区全部对局</div>
+            <div class="qentry"><span class="ic">◈</span>对局浮窗 <span class="tagp brand" style="margin-left:auto">已开启</span></div>
+          </div></div>
+          <div class="ccard"><div class="ccard-in">
+            <div class="cc-head"><h3>客户端状态</h3></div>
+            <div class="qentry"><span class="ic" style="background:var(--win-soft);color:var(--win)">●</span>已连接 · 英雄联盟客户端运行中<span class="tagp win" style="margin-left:auto">在线</span></div>
+            <div class="qentry"><span class="ic">▶</span>当前无进行中的对局 · 选人后自动进入分析</div>
+            <div class="qentry" style="color:var(--text-tertiary)">版本 v0.9.2 · 检查更新</div>
+          </div></div>
+        </div>
+
+        <div class="divlab">未连接态（冷启动 · 原 Loading 页并入此处）</div>
+        <div class="ccard" style="max-width:560px"><div class="ccard-in" style="text-align:center;padding:28px">
+          <div style="font-size:var(--font-size-md);font-weight:var(--font-weight-bold)">未连接客户端</div>
+          <div class="psub" style="margin:6px 0 16px">请确保英雄联盟客户端已启动，连接后将自动进入主页</div>
+          <div style="display:flex;gap:10px;justify-content:center">
+            <button class="btn pri">启动客户端</button>
+            <button class="btn gho">以管理员身份重启</button>
+          </div>
+        </div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 战绩 ================= -->
+<section class="scr" id="scr-record">
+  <div class="frame">
+    <div class="tbar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2 L20 5 V11 C20 16.5 16.6 20.4 12 22 C7.4 20.4 4 16.5 4 11 V5 Z" stroke="var(--brand)" stroke-width="1.6"/><polyline points="7.5,14.5 10.5,10.5 12.5,12.5 16.5,7.5" stroke="var(--brand)" stroke-width="1.6"/></svg><span class="ttl">RANK ANALYSIS</span><span class="winb"><span>─</span><span>□</span><span class="x">✕</span></span></div>
+    <div class="shell">
+      <div class="rail" data-nav="record"></div>
+      <div class="content">
+        <div class="ph">
+          <h1>峡谷诗人<span style="color:var(--text-tertiary);font-weight:500">#5207</span></h1>
+          <span class="meta">翡翠 II · 联盟一区：祖安、皮尔特沃夫…</span>
+          <span class="acts">
+            <button class="btn pri">⚡ 收集全部</button>
+            <button class="btn gho">更多 ⋯</button>
+          </span>
+        </div>
+
+        <div class="toolbar">
+          <span style="display:inline-flex;align-items:center;gap:10px;background:var(--bg-surface);border:1px solid var(--border-strong);padding:6px 12px;clip-path:var(--clip-corner-sm)">
+            <span style="font-size:var(--font-size-xs);color:var(--text-tertiary);border-right:1px solid var(--border-subtle);padding-right:10px">联盟一区 ▾</span>
+            <span style="font-size:var(--font-size-xs);color:var(--text-tertiary)">⌕ 召唤师名称#Tag <span class="kbd">/</span></span>
+          </span>
+        </div>
+        <div class="toolbar">
+          <span class="fsel">全部模式 ▾</span><span class="fsel">全部英雄 ▾</span><span class="fsel">胜负 ▾</span><span class="fsel">近 7 天 ▾</span>
+          <span style="flex:1"></span>
+          <span class="fsel dim">展开 ⌄</span>
+          <span class="fsel dim">复位 ⟲</span>
+          <span class="fsel dim">‹ 3 / 12 ›</span>
+          <span class="fsel">收集菜单 ▾</span>
+        </div>
+
+        <div class="trend">
+          <i class="w"></i><i class="w"></i><i class="l"></i><i class="w"></i><i class="w"></i><i class="w"></i><i class="l"></i><i class="l"></i><i class="w"></i><i class="w"></i><i class="w"></i><i class="l"></i><i class="w"></i><i class="w"></i><i class="l"></i><i class="w"></i><i class="w"></i><i class="w"></i><i class="l"></i><i class="w"></i>
+        </div>
+
+        <div class="duo">
+          <div>
+            <div class="rc sel"><span class="res w">胜利</span><span class="tm">32:41<br>单双排</span><span class="av b">皇</span><span class="kda">8/3/14<small>KDA 7.3 · 312 CS</small></span><div class="mini"><i></i><i></i><i></i><i></i></div><div><div class="dmgv">输出 18.2k · 占全队 31%</div><div class="dmgbar"><i style="width:72%"></i></div></div><span style="text-align:right"><span class="lp up">+42 LP</span><br><span class="tm">昨天 21:47</span></span></div>
+            <div class="rc lo"><span class="res l">失败</span><span class="tm">27:03<br>单双排</span><span class="av">洛</span><span class="kda">2/6/9<small>KDA 1.8 · 44 CS</small></span><div class="mini"><i></i><i></i><i></i><i></i></div><div><div class="dmgv">输出 8.1k · 占全队 14%</div><div class="dmgbar"><i style="width:26%"></i></div></div><span style="text-align:right"><span class="lp dn">−38 LP</span><br><span class="tm">昨天 21:02</span></span></div>
+            <div class="rc"><span class="res w">胜利</span><span class="tm">41:18<br>单双排</span><span class="av b">皇</span><span class="kda">5/4/16<small>KDA 5.3 · 289 CS</small></span><div class="mini"><i></i><i></i><i></i><i></i></div><div><div class="dmgv">输出 15.7k · 占全队 24%</div><div class="dmgbar"><i style="width:54%"></i></div></div><span style="text-align:right"><span class="lp up">+40 LP</span><br><span class="tm">前天 23:30</span></span></div>
+            <div class="rc"><span class="res w">胜利</span><span class="tm">29:55<br>单双排</span><span class="av b">皇</span><span class="kda">6/2/11<small>KDA 8.5 · 240 CS</small></span><div class="mini"><i></i><i></i><i></i><i></i></div><div><div class="dmgv">输出 13.9k · 占全队 27%</div><div class="dmgbar"><i style="width:61%"></i></div></div><span style="text-align:right"><span class="lp up">+41 LP</span><br><span class="tm">前天 22:38</span></span></div>
+            <div class="psub" style="margin-top:8px">&lt;1280px 视口时：右侧详情栏收起，改为行内展开（现有机制保留）。</div>
+          </div>
+
+          <aside class="dpane">
+            <div class="dp-head">
+              <span class="res-pill">胜利</span><span class="dp-meta">单双排 · 昨天 21:47 · 32:41</span>
+              <div class="dp-kda num">8 / 3 / 14 <small>KDA 7.3 · 312 补刀 · 12.4k 金币</small></div>
+              <div class="strip">
+                <div><span class="sl">输出</span><span class="sv">18.2k</span></div>
+                <div><span class="sl">承伤</span><span class="sv">21.0k</span></div>
+                <div><span class="sl">推塔</span><span class="sv">4.1k</span></div>
+              </div>
+              <div style="display:flex;gap:8px;margin-top:12px;position:relative">
+                <button class="btn pri sm">✦ AI 整局复盘</button>
+                <button class="btn gho sm">观看回放</button>
+                <button class="btn gho sm" style="margin-left:auto">×</button>
+              </div>
+            </div>
+            <div class="tabs">
+              <span class="tab on">概览</span><span class="tab">统计</span><span class="tab">符文</span><span class="tab">出装</span><span class="tab">时间线</span><span class="tab">更多 ▾</span>
+            </div>
+            <div class="dp-body">
+              <div class="psub" style="margin-bottom:8px;color:var(--info)">我方 · 胜利</div>
+              <div class="trow"><span class="av b">皇</span><span>峡谷诗人 <span class="tagp brand" style="padding:1px 7px;font-size:9px">我</span></span><span class="kn">8/3/14</span><span class="cs">312</span><div class="mini"><i></i><i></i><i></i></div></div>
+              <div class="trow"><span class="av">剑</span><span>TopLaneDiff</span><span class="kn">6/4/8</span><span class="cs">280</span><div class="mini"><i></i><i></i><i></i></div></div>
+              <div class="trow"><span class="av">洛</span><span>月下递归</span><span class="kn">2/5/18</span><span class="cs">38</span><div class="mini"><i></i><i></i><i></i></div></div>
+              <div class="trow"><span class="av">滑</span><span>中野联动患者</span><span class="kn">9/6/7</span><span class="cs">204</span><div class="mini"><i></i><i></i><i></i></div></div>
+              <div class="trow"><span class="av">寒</span><span>下路躺赢手</span><span class="kn">7/3/9</span><span class="cs">268</span><div class="mini"><i></i><i></i><i></i></div></div>
+              <div class="psub" style="margin:12px 0 8px;color:var(--loss)">敌方 · 失败</div>
+              <div class="trow"><span class="av">凯</span><span>上单只玩凯南 <span class="tagp warn" style="padding:1px 7px;font-size:9px">高威胁</span></span><span class="kn">4/7/5</span><span class="cs">246</span><div class="mini"><i></i><i></i><i></i></div></div>
+              <div class="trow"><span class="av">寡</span><span>野区幽灵</span><span class="kn">3/6/6</span><span class="cs">188</span><div class="mini"><i></i><i></i><i></i></div></div>
+              <div class="trow"><span class="av">岩</span><span>MidOrFeed</span><span class="kn">5/8/4</span><span class="cs">230</span><div class="mini"><i></i><i></i><i></i></div></div>
+              <div class="trow"><span class="av">卢</span><span>AD 带四保一</span><span class="kn">6/6/3</span><span class="cs">290</span><div class="mini"><i></i><i></i><i></i></div></div>
+              <div class="trow"><span class="av">锤</span><span>钩子命中率百分百</span><span class="kn">2/8/8</span><span class="cs">42</span><div class="mini"><i></i><i></i><i></i></div></div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 对局（常态） ================= -->
+<section class="scr" id="scr-gaming">
+  <div class="frame">
+    <div class="tbar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2 L20 5 V11 C20 16.5 16.6 20.4 12 22 C7.4 20.4 4 16.5 4 11 V5 Z" stroke="var(--brand)" stroke-width="1.6"/><polyline points="7.5,14.5 10.5,10.5 12.5,12.5 16.5,7.5" stroke="var(--brand)" stroke-width="1.6"/></svg><span class="ttl">RANK ANALYSIS</span><span class="winb"><span>─</span><span>□</span><span class="x">✕</span></span></div>
+    <div class="shell">
+      <div class="rail" data-nav="gaming"></div>
+      <div class="content">
+        <div style="display:flex;gap:6px;margin-bottom:12px">
+          <span class="fsel dim">VerdictBanner 预览：</span>
+          <span class="fsel on st-chip" data-st="">decision</span>
+          <span class="fsel st-chip" data-st="st-fallback">fallback</span>
+          <span class="fsel st-chip" data-st="st-idle">idle</span>
+        </div>
+
+        <div class="vb" id="gvb">
+          <div class="ring js-timer"><b>17s</b></div>
+          <div>
+            <div><span class="concl">建议</span>&nbsp;&nbsp;<span class="champ">选 杰斯</span></div>
+            <div class="why">对位凯南前期压制力 +2 档 · 与我方皇子有击杀协同 · 敌方已锁 2 个突进，保持 poke 距离</div>
+          </div>
+          <div class="tierbox">推荐依据 梯度 <span class="tiersel">T1 ▾</span></div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin:14px 2px 10px;flex-wrap:wrap;gap:10px">
+          <div class="steps">
+            <span class="step done"><span class="dm"></span>预选</span><span class="sln"></span>
+            <span class="step done"><span class="dm"></span>禁用</span><span class="sln"></span>
+            <span class="step on"><span class="dm"></span>选人</span><span class="sln"></span>
+            <span class="step"><span class="dm"></span>确认</span>
+          </div>
+          <span class="psub">OP.GG 16.13 · 数据新鲜</span>
+        </div>
+        <div class="bans">
+          <div>我方禁用<div class="brow"><span class="bsq">禁</span><span class="bsq">禁</span><span class="bsq">禁</span></div></div>
+          <div>敌方禁用<div class="brow"><span class="bsq">禁</span><span class="bsq">禁</span></div></div>
+        </div>
+
+        <div class="ccard" style="margin-top:14px"><div class="ccard-in" style="padding:12px 16px">
+          <div class="sigtabs" style="margin-bottom:12px">
+            <span class="sig on">强度对比</span><span class="sig">威胁评级 <sup>2</sup></span><span class="sig">下一步</span><span class="sig">对位 / 野区</span>
+          </div>
+          <div class="strwrap">
+            <span>我方 <b class="num">56.2</b></span>
+            <div class="strbar"><i class="str-me"></i><i class="str-en"></i></div>
+            <span>敌方 <b class="num">49.8</b></span>
+            <span class="delta">▲ 我方阵容占优</span>
+          </div>
+        </div></div>
+
+        <div class="teams">
+          <div>
+            <div class="th"><span>我方 · 综合评分 56.2</span><span style="color:var(--brand)">✦ AI 分析</span></div>
+            <div class="ccard emph" style="margin-bottom:6px"><div class="ccard-in" style="padding:10px 12px">
+              <div style="display:flex;align-items:center;gap:8px;font-size:var(--font-size-xs)">
+                <span class="tagp brand">最优解</span><span style="font-weight:var(--font-weight-semibold)">杰斯</span>
+                <span class="psub">对凯南压制 +2 档 · 协同皇子</span>
+                <span class="num" style="margin-left:auto;color:var(--brand);font-weight:var(--font-weight-bold)">+2.4</span>
+              </div>
+            </div></div>
+            <div class="pcard me"><span class="av b">杰</span><div><div class="pnm">你 <span class="tagp brand" style="font-size:9px;padding:1px 7px">选择中</span></div><div class="psub">翡翠 II · 杰斯胜率 61% · T1</div></div><div class="hist"><i class="w"></i><i class="w"></i><i class="l"></i><i class="w"></i><i class="w"></i></div></div>
+            <div class="pcard"><span class="av b">皇</span><div><div class="pnm">峡谷诗人</div><div class="psub">翡翠 I · 打野 · T2</div></div><div class="hist"><i class="l"></i><i class="w"></i><i class="w"></i><i class="l"></i><i class="w"></i></div></div>
+            <div class="pcard"><span class="av">洛</span><div><div class="pnm">月下递归</div><div class="psub">翡翠 III · 辅助 · T3</div></div><div class="hist"><i class="w"></i><i class="l"></i><i class="l"></i><i class="w"></i><i class="w"></i></div></div>
+            <div class="pcard"><span class="av g">剑</span><div><div class="pnm">TopLaneDiff</div><div class="psub">翡翠 II · 上单 · T2</div></div><div class="hist"><i class="w"></i><i class="w"></i><i class="w"></i><i class="l"></i><i class="w"></i></div></div>
+            <div class="pcard"><span class="av">滑</span><div><div class="pnm">中野联动患者</div><div class="psub">翡翠 IV · 中单 · T4</div></div><div class="hist"><i class="l"></i><i class="l"></i><i class="w"></i><i class="w"></i><i class="l"></i></div></div>
+          </div>
+          <div>
+            <div class="th"><span>敌方 · 综合评分 49.8</span><span style="color:var(--warn)">威胁 ⚠ 2</span></div>
+            <div class="pcard"><span class="av">凯</span><div><div class="pnm">上单只玩凯南 <span class="tagp warn" style="font-size:9px;padding:1px 7px">高威胁</span></div><div class="psub">翡翠 I · 上单 · T2</div></div><div class="hist"><i class="w"></i><i class="w"></i><i class="l"></i><i class="w"></i><i class="w"></i></div></div>
+            <div class="pcard"><span class="av">寡</span><div><div class="pnm">野区幽灵</div><div class="psub">翡翠 II · 打野 · T3</div></div><div class="hist"><i class="l"></i><i class="w"></i><i class="w"></i><i class="w"></i><i class="l"></i></div></div>
+            <div class="pcard"><span class="av">岩</span><div><div class="pnm">MidOrFeed</div><div class="psub">翡翠 III · 中单 · T4</div></div><div class="hist"><i class="w"></i><i class="l"></i><i class="l"></i><i class="l"></i><i class="w"></i></div></div>
+            <div class="pcard"><span class="av g">卢</span><div><div class="pnm">AD 带四保一</div><div class="psub">翡翠 II · ADC · T1</div></div><div class="hist"><i class="w"></i><i class="w"></i><i class="w"></i><i class="l"></i><i class="w"></i></div></div>
+            <div class="pcard"><span class="av">锤</span><div><div class="pnm">钩子命中率百分百 <span class="tagp warn" style="font-size:9px;padding:1px 7px">高威胁</span></div><div class="psub">翡翠 I · 辅助 · T2</div></div><div class="hist"><i class="w"></i><i class="l"></i><i class="w"></i><i class="w"></i><i class="w"></i></div></div>
+          </div>
+        </div>
+
+        <div class="dock" style="position:absolute;right:26px;bottom:26px;display:flex;gap:8px;z-index:var(--z-dock)">
+          <button class="btn pri">✦ AI 分析</button>
+          <button class="btn gho">⚙ 显示设置</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 指挥舱 ================= -->
+<section class="scr" id="scr-deck">
+  <div class="deck">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <span class="kick" style="margin:0">Command Deck · 英雄选择</span>
+      <span class="tagp info">OP.GG 16.13</span>
+    </div>
+    <div class="deck-vb vb">
+      <div class="ring js-timer"><b>17s</b></div>
+      <div>
+        <div><span class="concl" style="font-size:var(--font-size-md)">建议</span>&nbsp;&nbsp;<span class="champ">选 杰斯</span></div>
+        <div class="why">对位凯南前期压制力 +2 档 · 与我方皇子有击杀协同 · 敌方已锁 2 个突进，保持 poke 距离</div>
+      </div>
+      <div class="tierbox">梯度 <span class="tiersel">T1 ▾</span></div>
+    </div>
+    <div class="steps" style="margin-bottom:14px">
+      <span class="step done"><span class="dm"></span>预选</span><span class="sln"></span>
+      <span class="step done"><span class="dm"></span>禁用</span><span class="sln"></span>
+      <span class="step on"><span class="dm"></span>选人</span><span class="sln"></span>
+      <span class="step"><span class="dm"></span>确认</span>
+    </div>
+    <div class="deck-grid">
+      <div>
+        <div class="th"><span>我方 · 56.2</span><span>✦ AI</span></div>
+        <div class="pcard me"><span class="av b">杰</span><div><div class="pnm">你</div></div><span class="tagp brand" style="margin-left:auto">T1 · 61%</span></div>
+        <div class="pcard"><span class="av b">皇</span><div><div class="pnm">峡谷诗人</div></div><span class="tagp info" style="margin-left:auto">T2</span></div>
+        <div class="pcard"><span class="av">洛</span><div><div class="pnm">月下递归</div></div><span class="tagp" style="margin-left:auto">T3</span></div>
+        <div class="pcard"><span class="av g">剑</span><div><div class="pnm">TopLaneDiff</div></div><span class="tagp info" style="margin-left:auto">T2</span></div>
+        <div class="pcard"><span class="av">滑</span><div><div class="pnm">中野联动患者</div></div><span class="tagp" style="margin-left:auto">T4</span></div>
+      </div>
+      <div>
+        <div class="th"><span>敌方 · 49.8</span><span style="color:var(--warn)">⚠ 2</span></div>
+        <div class="pcard"><span class="av">凯</span><div><div class="pnm">上单只玩凯南</div></div><span class="tagp warn" style="margin-left:auto">高威胁</span></div>
+        <div class="pcard"><span class="av">寡</span><div><div class="pnm">野区幽灵</div></div><span class="tagp info" style="margin-left:auto">T3</span></div>
+        <div class="pcard"><span class="av">岩</span><div><div class="pnm">MidOrFeed</div></div><span class="tagp" style="margin-left:auto">T4</span></div>
+        <div class="pcard"><span class="av g">卢</span><div><div class="pnm">AD 带四保一</div></div><span class="tagp info" style="margin-left:auto">T1</span></div>
+        <div class="pcard"><span class="av">锤</span><div><div class="pnm">钩子命中率百分百</div></div><span class="tagp warn" style="margin-left:auto">高威胁</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="esc-hint"><span class="kbd">ESC</span> 退出指挥舱 · 选人结束自动返回常态模式</div>
+</section>
+
+<!-- ================= 复盘详情（独立视图） ================= -->
+<section class="scr" id="scr-detail">
+  <div class="frame">
+    <div class="tbar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2 L20 5 V11 C20 16.5 16.6 20.4 12 22 C7.4 20.4 4 16.5 4 11 V5 Z" stroke="var(--brand)" stroke-width="1.6"/><polyline points="7.5,14.5 10.5,10.5 12.5,12.5 16.5,7.5" stroke="var(--brand)" stroke-width="1.6"/></svg><span class="ttl">RANK ANALYSIS</span><span class="winb"><span>─</span><span>□</span><span class="x">✕</span></span></div>
+    <div class="shell">
+      <div class="rail" data-nav="record"></div>
+      <div class="content">
+        <div class="kick">Match Review</div>
+        <div class="ph"><h1>赛后复盘</h1><span class="meta">峡谷诗人 · 昨天 21:47 · 单双排</span></div>
+        <div class="dpane" style="max-width:860px">
+          <div class="dp-head">
+            <span class="res-pill">胜利</span><span class="dp-meta">单双排 · 昨天 21:47 · 32:41 · +42 LP</span>
+            <div class="dp-kda num">8 / 3 / 14 <small>KDA 7.3 · 312 补刀 · 12.4k 金币</small></div>
+            <div class="strip">
+              <div><span class="sl">输出</span><span class="sv">18.2k</span></div>
+              <div><span class="sl">承伤</span><span class="sv">21.0k</span></div>
+              <div><span class="sl">推塔</span><span class="sv">4.1k</span></div>
+              <div><span class="sl">参团</span><span class="sv">78%</span></div>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:12px">
+              <button class="btn pri sm">✦ AI 整局复盘</button>
+              <button class="btn gho sm">观看回放</button>
+            </div>
+          </div>
+          <div class="tabs">
+            <span class="tab on">概览</span><span class="tab">统计</span><span class="tab">符文</span><span class="tab">出装</span><span class="tab">时间线</span><span class="tab">更多 ▾</span>
+          </div>
+          <div class="dp-body">
+            <div class="psub" style="margin-bottom:8px;color:var(--info)">我方 · 胜利 · 团队评分 82</div>
+            <div class="trow"><span class="av b">皇</span><span>峡谷诗人</span><span class="kn">8/3/14</span><span class="cs">312</span><div class="mini"><i></i><i></i><i></i></div></div>
+            <div class="trow"><span class="av">剑</span><span>TopLaneDiff</span><span class="kn">6/4/8</span><span class="cs">280</span><div class="mini"><i></i><i></i><i></i></div></div>
+            <div class="trow"><span class="av">洛</span><span>月下递归</span><span class="kn">2/5/18</span><span class="cs">38</span><div class="mini"><i></i><i></i><i></i></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 成长 ================= -->
+<section class="scr" id="scr-growth">
+  <div class="frame">
+    <div class="tbar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2 L20 5 V11 C20 16.5 16.6 20.4 12 22 C7.4 20.4 4 16.5 4 11 V5 Z" stroke="var(--brand)" stroke-width="1.6"/><polyline points="7.5,14.5 10.5,10.5 12.5,12.5 16.5,7.5" stroke="var(--brand)" stroke-width="1.6"/></svg><span class="ttl">RANK ANALYSIS</span><span class="winb"><span>─</span><span>□</span><span class="x">✕</span></span></div>
+    <div class="shell">
+      <div class="rail" data-nav="growth"></div>
+      <div class="content">
+        <div class="kick">Growth Report</div>
+        <div class="ph">
+          <h1>成长</h1>
+          <span class="meta">跨局聚合的重复性短板与改错清单 · 数据来自本机收集的对局</span>
+          <span class="acts"><button class="btn pri">⟳ 重新分析</button></span>
+        </div>
+        <div class="home-g2" style="grid-template-columns:repeat(3,1fr)">
+          <div class="ccard emph"><div class="ccard-in">
+            <div class="cc-head"><span class="tagp loss">视野</span><span class="statc" style="margin-left:auto"><span class="l">vs 同段位</span><span class="v l num">−18%</span></span></div>
+            <div class="psub">持续落后 <b class="num">3</b> 局 · 最近检出 8月19日</div>
+            <div class="psub" style="margin-top:6px">每局插眼数低于均值，尝试出门带 2 个控制守卫</div>
+            <button class="btn gho sm" style="margin-top:12px">转为本周目标</button>
+          </div></div>
+          <div class="ccard"><div class="ccard-in">
+            <div class="cc-head"><span class="tagp loss">参团率</span><span class="statc" style="margin-left:auto"><span class="l">vs 同段位</span><span class="v l num">−9%</span></span></div>
+            <div class="psub">持续落后 <b class="num">2</b> 局 · 最近检出 8月18日</div>
+            <div class="psub" style="margin-top:6px">中期多跟随打野入侵与抱团推进</div>
+            <button class="btn gho sm" style="margin-top:12px">转为本周目标</button>
+          </div></div>
+          <div class="ccard"><div class="ccard-in">
+            <div class="cc-head"><span class="tagp warn">发育</span><span class="statc" style="margin-left:auto"><span class="l">补刀/分</span><span class="v num">6.4</span></span></div>
+            <div class="psub">最近检出 8月17日</div>
+            <div class="psub" style="margin-top:6px">回城时机偏晚，漏掉塔刀波次</div>
+            <button class="btn gho sm" style="margin-top:12px">转为本周目标</button>
+          </div></div>
+        </div>
+        <div class="ccard" style="margin-top:var(--space-16)"><div class="ccard-in">
+          <div class="cc-head"><h3>改错清单</h3><span class="sub">可勾选 · 跨局追踪</span>
+            <span style="margin-left:auto;display:flex;gap:6px"><span class="inpmock" style="max-width:150px">维度 ▾</span><span class="inpmock" style="max-width:200px">目标（如：排眼数 +1）</span><button class="btn pri sm">添加</button></span>
+          </div>
+          <div class="frow"><span class="swx"></span><span style="font-size:var(--font-size-sm)">每局出门带 2 个控制守卫</span><span class="tagp loss" style="margin-left:auto">视野</span></div>
+          <div class="frow"><span class="swx off"></span><span style="font-size:var(--font-size-sm);color:var(--text-tertiary)">中期 12 分钟后跟团推进</span><span class="tagp loss" style="margin-left:auto">参团</span></div>
+        </div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 资产库 ================= -->
+<section class="scr" id="scr-library">
+  <div class="frame">
+    <div class="tbar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2 L20 5 V11 C20 16.5 16.6 20.4 12 22 C7.4 20.4 4 16.5 4 11 V5 Z" stroke="var(--brand)" stroke-width="1.6"/><polyline points="7.5,14.5 10.5,10.5 12.5,12.5 16.5,7.5" stroke="var(--brand)" stroke-width="1.6"/></svg><span class="ttl">RANK ANALYSIS</span><span class="winb"><span>─</span><span>□</span><span class="x">✕</span></span></div>
+    <div class="shell">
+      <div class="rail" data-nav="library"></div>
+      <div class="content">
+        <div class="kick">Library</div>
+        <div class="ph"><h1>资产库</h1><span class="meta">标签规则 · 我标记过的人</span>
+          <span class="acts"><button class="btn pri">＋ 新建标签</button><button class="btn gho">✦ AI 建议</button></span>
+        </div>
+        <div class="duo" style="grid-template-columns:1fr 1fr">
+          <div class="ccard"><div class="ccard-in">
+            <div class="cc-head"><h3>标签规则</h3><span class="sub">命中条件后在对局中展示</span></div>
+            <div class="frow"><span class="swx"></span><div><div class="pnm">挂机狗</div><div class="psub">近期 20 场内挂机 ≥ 2 次</div></div><span class="tagp loss" style="margin-left:auto">负面</span></div>
+            <div class="frow"><span class="swx"></span><div><div class="pnm">靠谱辅助</div><div class="psub">辅助位 · 视野得分 &gt; 同段位 80%</div></div><span class="tagp win" style="margin-left:auto">正面</span></div>
+            <div class="frow"><span class="swx off"></span><div><div class="pnm">代练小号</div><div class="psub">胜率 &gt; 70% 且场数 &lt; 50</div></div><span class="tagp warn" style="margin-left:auto">观察</span></div>
+            <div class="frow"><span class="swx"></span><div><div class="pnm">开黑车头</div><div class="psub">预组队出现 ≥ 3 次</div></div><span class="tagp info" style="margin-left:auto">中性</span></div>
+          </div></div>
+          <div class="ccard"><div class="ccard-in">
+            <div class="cc-head"><h3>我标记过的人</h3><span class="sub">共 23 人</span><span class="more">⌕ 搜索</span></div>
+            <div class="frow"><div><div class="pnm">上单只玩凯南</div><div class="psub">翡翠 I · 遇见 4 次</div></div><span class="tagp warn" style="margin-left:auto">高威胁</span><button class="btn gho sm">备注</button></div>
+            <div class="frow"><div><div class="pnm">野区幽灵</div><div class="psub">翡翠 II · 遇见 2 次</div></div><span class="tagp loss" style="margin-left:auto">消极游戏</span><button class="btn gho sm">备注</button></div>
+            <div class="frow"><div><div class="pnm">月下递归</div><div class="psub">翡翠 III · 同队 6 次</div></div><span class="tagp win" style="margin-left:auto">老搭档</span><button class="btn gho sm">备注</button></div>
+          </div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 设置 ================= -->
+<section class="scr" id="scr-settings">
+  <div class="frame">
+    <div class="tbar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2 L20 5 V11 C20 16.5 16.6 20.4 12 22 C7.4 20.4 4 16.5 4 11 V5 Z" stroke="var(--brand)" stroke-width="1.6"/><polyline points="7.5,14.5 10.5,10.5 12.5,12.5 16.5,7.5" stroke="var(--brand)" stroke-width="1.6"/></svg><span class="ttl">RANK ANALYSIS</span><span class="winb"><span>─</span><span>□</span><span class="x">✕</span></span></div>
+    <div class="shell">
+      <div class="rail" data-nav="settings"></div>
+      <div class="content">
+        <div class="tabs" style="padding:0;border-bottom:1px solid var(--border-subtle);margin-bottom:18px">
+          <span class="tab on">常规设置</span><span class="tab">自动化</span><span class="tab">数据与同步</span><span class="tab">关于</span>
+        </div>
+        <div class="ccard" style="max-width:720px;margin-bottom:var(--space-16)"><div class="ccard-in">
+          <div class="cc-head"><h3>战绩与显示</h3></div>
+          <div class="frow"><span class="fl">默认战绩场数</span><span class="fv"><span class="inpmock" style="max-width:80px;text-align:center">10</span><span>1 ~ 20 场</span></span></div>
+          <div class="frow"><span class="fl">每页条数</span><span class="fv"><span class="inpmock" style="max-width:180px">按窗口高度自动 ▾</span></span></div>
+        </div></div>
+        <div class="ccard" style="max-width:720px;margin-bottom:var(--space-16)"><div class="ccard-in">
+          <div class="cc-head"><h3>AI 服务</h3><span class="sub">影响选人推荐 / 复盘报告</span></div>
+          <div class="frow"><span class="fl">服务商</span><span class="fv"><span class="inpmock" style="max-width:220px">DashScope（通义千问）▾</span><button class="btn gho sm">测试连接</button></span></div>
+          <div class="frow"><span class="fl">API Key</span><span class="fv"><span class="inpmock">••••••••••••（点击显示）</span></span></div>
+          <div class="frow"><span class="fl">分析携带玩家备注</span><span class="fv"><span class="swx"></span><span>开启后 AI 会参考你给玩家的标签</span></span></div>
+        </div></div>
+        <div class="ccard" style="max-width:720px"><div class="ccard-in">
+          <div class="cc-head"><h3>数据与缓存</h3></div>
+          <div class="frow"><span class="fl">AI 用量</span><span class="fv"><span class="num" style="color:var(--text-secondary)">本月 1.2M tokens</span><button class="btn gho sm">用量明细</button><button class="btn dgr sm" style="margin-left:auto">清空记录</button></span></div>
+          <div class="frow"><span class="fl">图标缓存</span><span class="fv"><button class="btn gho sm">缓存 CDragon 图标</button><span>上次缓存 3 天前</span></span></div>
+          <div class="frow"><span class="fl">匿名错误上报</span><span class="fv"><span class="swx off"></span><span>崩溃与报错（脱敏）用于排查问题</span></span></div>
+        </div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 浮窗 ================= -->
+<section class="scr" id="scr-overlay">
+  <div class="ovl-stage">
+    <div class="ovlcard">
+      <div class="vb vb-cpt" style="margin-bottom:8px">
+        <div class="ring js-timer"><b>17s</b></div>
+        <div><span class="concl" style="font-size:var(--font-size-2xs)">建议</span> <span class="champ">选 杰斯</span></div>
+      </div>
+      <div class="na-row"><span class="na-kind">下一步</span><span class="na-urg hi">!</span><span class="na-rs">小龙即将刷新，提前布控河道视野</span></div>
+      <div class="na-row"><span class="na-kind">对位</span><span class="na-urg md">·</span><span class="na-rs">凯南 6 级后大招威胁高，留位移躲控</span></div>
+      <div class="na-row"><span class="na-kind">节奏</span><span class="na-urg md">·</span><span class="na-rs">我方打野在上方野区，可跟抓上路</span></div>
+    </div>
+  </div>
+</section>
+
+<script>
+const NAV = { home:'主页', record:'战绩', gaming:'对局', deck:'对局', detail:'战绩', growth:'成长', library:'资产库', settings:'设置', overlay:'对局' };
+function buildRail() {
+  const items = ['主页','战绩','对局','成长','资产库','设置'];
+  document.querySelectorAll('.rail').forEach(rail => {
+    const cur = rail.dataset.nav;
+    items.forEach(name => {
+      const el = document.createElement('div');
+      el.className = 'rail-i' + (name === cur ? ' on' : '');
+      el.textContent = name.slice(0, 1);
+      el.title = name;
+      rail.appendChild(el);
+    });
+    if (cur !== '') {
+      const sp = document.createElement('div'); sp.className = 'rail-spacer'; rail.appendChild(sp);
+      const st = document.createElement('div'); st.className = 'rail-status'; st.textContent = '●';
+      rail.appendChild(st);
+    }
+  });
+}
+buildRail();
+
+const tabs = document.querySelectorAll('.ptab');
+function go(name) {
+  document.querySelectorAll('.scr').forEach(s => s.classList.remove('on'));
+  document.getElementById('scr-' + name).classList.add('on');
+  tabs.forEach(t => t.classList.toggle('on', t.dataset.go === name));
+}
+tabs.forEach(t => t.addEventListener('click', () => go(t.dataset.go)));
+
+document.getElementById('togTheme').addEventListener('click', () => {
+  const light = document.documentElement.classList.toggle('theme-light');
+  document.getElementById('thLab').textContent = light ? '羊皮纸金工' : '金工暗器';
+});
+let dense = false;
+document.getElementById('togDensity').addEventListener('click', () => {
+  dense = !dense;
+  document.body.dataset.density = dense ? 'compact' : 'normal';
+  document.getElementById('dnLab').textContent = dense ? 'compact' : 'normal';
+});
+
+const chips = document.querySelectorAll('.st-chip');
+chips.forEach(c => c.addEventListener('click', () => {
+  chips.forEach(x => x.classList.remove('on'));
+  c.classList.add('on');
+  const vb = document.getElementById('gvb');
+  vb.classList.remove('st-fallback', 'st-idle');
+  if (c.dataset.st) vb.classList.add(c.dataset.st);
+}));
+
+let t = 17;
+setInterval(() => {
+  t = t <= 0 ? 24 : t - 1;
+  const pct = t / 24 * 360;
+  document.querySelectorAll('.js-timer').forEach(r => {
+    r.style.setProperty('--deg', pct.toFixed(1));
+    r.classList.toggle('urgent', t <= 5);
+    r.querySelector('b').textContent = t + 's';
+  });
+}, 1000);
+
+go('home');
+</script>
+</body>
+</html>
