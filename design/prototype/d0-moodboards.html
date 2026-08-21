@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rank Analysis · D0 风格探索（三方向 × 2 屏）</title>
+<style>
+/* ================= 基础 ================= */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: #101216; color: #e8ecf2;
+}
+.num { font-family: Bahnschrift, 'Segoe UI', sans-serif; letter-spacing: .5px; }
+.intro { max-width: 1180px; margin: 0 auto; padding: 40px 32px 8px; }
+.intro h1 { font-size: 22px; font-weight: 700; }
+.intro p { margin-top: 8px; color: #9aa4b2; font-size: 13px; line-height: 1.7; }
+.jump { position: sticky; top: 0; z-index: 50; display: flex; gap: 8px; justify-content: center;
+  padding: 12px; background: rgba(16,18,22,.92); backdrop-filter: blur(6px); border-bottom: 1px solid #23262c; }
+.jump a { color: #cfd6df; text-decoration: none; font-size: 12px; padding: 6px 14px; border: 1px solid #33383f; border-radius: 999px; }
+.jump a:hover { border-color: #d4a548; color: #f0c96b; }
+
+.dir { padding: 40px 32px 56px; }
+.dir-head { max-width: 1180px; margin: 0 auto 20px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 14px; }
+.dir-head h2 { font-size: 19px; }
+.dir-head .tagline { color: #9aa4b2; font-size: 13px; }
+.swatches { display: flex; gap: 6px; margin-left: auto; }
+.sw { width: 34px; height: 20px; border-radius: 4px; border: 1px solid rgba(255,255,255,.15); position: relative; }
+.sw i { position: absolute; top: 22px; left: 0; font-style: normal; font-size: 9px; color: #77808d; white-space: nowrap; }
+
+.screen { max-width: 1180px; margin: 26px auto 34px; border-radius: 10px; overflow: hidden; }
+.screen-title { max-width: 1180px; margin: 30px auto -14px; font-size: 12px; color: #8b96a5; letter-spacing: .12em; }
+.chrome { height: 34px; display: flex; align-items: center; gap: 6px; padding: 0 12px; }
+.chrome b { font-size: 11px; font-weight: 600; opacity: .75; margin-left: 6px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: currentColor; opacity: .25; }
+.winbtns { margin-left: auto; display: flex; gap: 14px; opacity: .45; font-size: 11px; }
+
+/* ============================================================
+   方向 A · 奥术金工 Hextech Forge
+============================================================ */
+.dir-a { background: radial-gradient(1200px 500px at 70% -100px, #131a26 0%, #0a0e14 55%); }
+.a-panel { --bg:#0a0e14; --panel:#10161f; --panel2:#151d29; --gold:#f0c96b; --gold-d:#d4a548;
+  --cyan:#4cc2ff; --win:#3fbf8f; --loss:#e05c5c; --text:#e8ecf2; --muted:#8b96a5;
+  --hairline:rgba(212,165,72,.28); --soft:rgba(255,255,255,.06); }
+.dir-a .chrome { background: linear-gradient(180deg,#121924,#0d1219); color: var(--gold); border-bottom: 1px solid var(--hairline); }
+.a-screen { background: var(--panel); border: 1px solid var(--hairline);
+  clip-path: polygon(16px 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%, 0 16px); }
+.a-body { padding: 18px 20px 22px; }
+
+.a-verdict { display: flex; align-items: center; gap: 18px; padding: 14px 18px;
+  background: linear-gradient(90deg, rgba(212,165,72,.12), rgba(212,165,72,.03) 60%, transparent);
+  border: 1px solid var(--hairline); clip-path: polygon(10px 0, 100% 0, 100% 100%, 0 100%, 0 10px); position: relative; overflow: hidden; }
+.a-verdict::after { content:''; position:absolute; inset:0;
+  background: linear-gradient(105deg, transparent 40%, rgba(240,201,107,.14) 50%, transparent 60%);
+  animation: a-sweep 3.2s ease-in-out infinite; }
+@keyframes a-sweep { 0%,55% { transform: translateX(-100%);} 100% { transform: translateX(100%);} }
+.a-ring { width: 52px; height: 52px; border-radius: 50%; flex: none;
+  background: conic-gradient(var(--gold) 0 68%, rgba(212,165,72,.15) 68% 100%);
+  -webkit-mask: radial-gradient(circle, transparent 58%, #000 60%); mask: radial-gradient(circle, transparent 58%, #000 60%);
+  display: grid; place-items: center; position: relative; }
+.a-ring span { position: absolute; font-size: 13px; font-weight: 700; color: var(--gold); }
+.a-verb { font-size: 26px; font-weight: 800; letter-spacing: .04em; }
+.a-verb em { font-style: normal; background: linear-gradient(180deg, var(--gold), var(--gold-d)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.a-champ { font-size: 26px; font-weight: 800; color: var(--text); }
+.a-reason { color: var(--muted); font-size: 12px; margin-top: 3px; }
+.a-tier { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.a-tier b { color: var(--cyan); border: 1px solid rgba(76,194,255,.35); padding: 3px 10px; clip-path: polygon(6px 0,100% 0,100% 100%,0 100%,0 6px); font-weight: 600; cursor: pointer; }
+
+.a-stage { display: flex; align-items: center; gap: 8px; margin: 14px 2px 12px; font-size: 11px; color: var(--muted); }
+.a-step { display: flex; align-items: center; gap: 5px; }
+.a-dot { width: 7px; height: 7px; transform: rotate(45deg); background: #2a3342; }
+.a-step.on { color: var(--gold); } .a-step.on .a-dot { background: var(--gold); box-shadow: 0 0 8px rgba(240,201,107,.7); }
+.a-step.done .a-dot { background: var(--gold-d); opacity: .5; }
+.a-line { width: 26px; height: 1px; background: #2a3342; }
+.a-bans { display: flex; gap: 24px; font-size: 11px; color: var(--muted); margin-bottom: 12px; }
+.a-banrow { display: flex; gap: 4px; margin-top: 5px; }
+.a-ban { width: 24px; height: 24px; border-radius: 4px; filter: grayscale(1) brightness(.75); border: 1px solid rgba(224,92,92,.45); }
+
+.a-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--soft); margin-bottom: 12px; }
+.a-tab { font-size: 12px; color: var(--muted); padding: 7px 14px; cursor: pointer; border-bottom: 2px solid transparent; }
+.a-tab.on { color: var(--gold); border-color: var(--gold); }
+.a-tab .n { color: var(--cyan); font-size: 10px; vertical-align: super; }
+.a-strength { display: flex; align-items: center; gap: 12px; font-size: 12px; }
+.a-bar { flex: 1; height: 8px; display: flex; clip-path: polygon(4px 0,100% 0,calc(100% - 4px) 100%,0 100%); }
+.a-bar i { display: block; height: 100%; }
+.a-me { width: 58%; background: linear-gradient(90deg, var(--win), #2e8f6c); }
+.a-en { width: 42%; background: linear-gradient(90deg, #a34444, var(--loss)); }
+.a-delta { color: var(--win); font-weight: 700; }
+
+.a-teams { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 16px; }
+.a-team-h { font-size: 11px; color: var(--muted); letter-spacing: .1em; margin-bottom: 8px; display:flex; justify-content: space-between;}
+.a-p { display: flex; align-items: center; gap: 10px; padding: 7px 10px; margin-bottom: 6px;
+  background: var(--panel2); border: 1px solid var(--soft); clip-path: polygon(8px 0,100% 0,100% 100%,0 100%,0 8px); }
+.a-p.me { border-color: var(--hairline); background: linear-gradient(90deg, rgba(212,165,72,.08), var(--panel2)); }
+.a-av { width: 30px; height: 30px; flex: none; display: grid; place-items: center; font-weight: 800; font-size: 13px; color: #0a0e14; clip-path: polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px); }
+.a-name { font-size: 12.5px; font-weight: 600; }
+.a-sub { font-size: 10px; color: var(--muted); margin-top: 1px; }
+.a-chip { font-size: 10px; padding: 2px 7px; border: 1px solid var(--soft); color: var(--muted); }
+.a-chip.t { color: var(--cyan); border-color: rgba(76,194,255,.3); }
+.a-hist { margin-left: auto; display: flex; gap: 3px; }
+.a-h { width: 9px; height: 18px; }
+.a-w { background: linear-gradient(180deg,var(--win),#256b51); } .a-l { background: linear-gradient(180deg,var(--loss),#7c3030); }
+
+.a-tb-toolbar { display: flex; gap: 8px; margin-bottom: 12px; }
+.a-inp { flex: 1; max-width: 300px; font-size: 12px; color: var(--muted); background: var(--panel2); border: 1px solid var(--soft); padding: 7px 12px; clip-path: polygon(7px 0,100% 0,100% 100%,0 100%,0 7px); }
+.a-btn { font-size: 12px; color: var(--gold); border: 1px solid var(--hairline); padding: 7px 14px; clip-path: polygon(7px 0,100% 0,100% 100%,0 100%,0 7px); cursor: pointer; }
+.a-btn.ghost { color: var(--muted); border-color: var(--soft); }
+.a-filters { display: flex; gap: 6px; margin-bottom: 10px; }
+.a-f { font-size: 11px; color: var(--muted); border: 1px dashed var(--soft); padding: 4px 10px; }
+.a-f.on { color: var(--gold); border: 1px solid var(--hairline); background: rgba(212,165,72,.07); }
+.a-trend { display: flex; gap: 3px; margin-bottom: 12px; }
+.a-cell { flex: 1; height: 26px; clip-path: polygon(3px 0,100% 0,100% calc(100% - 3px),calc(100% - 3px) 100%,0 100%,0 3px); }
+.a-rc { display: grid; grid-template-columns: 64px 46px 40px 1fr 110px 120px 90px; gap: 10px; align-items: center;
+  padding: 9px 14px; margin-bottom: 6px; background: var(--panel2); border: 1px solid var(--soft); border-left: 3px solid var(--win); }
+.a-rc.lo { border-left-color: var(--loss); }
+.a-res { font-size: 12px; font-weight: 800; } .a-res.w { color: var(--win);} .a-res.l { color: var(--loss);}
+.a-time { font-size: 11px; color: var(--muted); }
+.a-cav { width: 32px; height: 32px; display:grid; place-items:center; font-weight:800; color:#0a0e14; clip-path: polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px); }
+.a-kda { font-size: 13px; } .a-kda small { color: var(--muted); font-size: 10px; margin-left: 6px; }
+.a-mini { display: flex; gap: 3px; } .a-mini i { width: 16px; height: 16px; background: #202a38; display:block; }
+.a-dmg { font-size: 11px; color: var(--muted); }
+.a-dmgbar { height: 4px; background: #202a38; margin-top: 4px; } .a-dmgbar i { display:block; height:100%; width:72%; background: linear-gradient(90deg,var(--gold-d),var(--gold)); }
+
+/* ============================================================
+   方向 B · 战术指挥舱 Tactical Deck
+============================================================ */
+.dir-b { background: #000; }
+.b-panel { --amber:#ffb454; --grn:#59e389; --red:#ff6b57; --txt:#cfe8d6; --dim:#4e6b58;
+  --panel:#050807; --line:rgba(89,227,137,.22); }
+.dir-b .chrome { background: #040806; color: var(--grn); border-bottom: 1px solid var(--line);
+  font-family: Consolas, monospace; }
+.b-screen { background:
+   repeating-linear-gradient(0deg, rgba(89,227,137,.03) 0 1px, transparent 1px 3px),
+   linear-gradient(rgba(89,227,137,.05) 1px, transparent 1px),
+   linear-gradient(90deg, rgba(89,227,137,.05) 1px, transparent 1px),
+   var(--panel);
+  background-size: auto, 44px 44px, 44px 44px, auto;
+  border: 1px solid var(--line); font-family: Consolas, 'Courier New', monospace; }
+.b-body { padding: 18px 20px 22px; position: relative; }
+.b-frame { position: relative; border: 1px solid rgba(89,227,137,.14); padding: 14px 16px; margin-bottom: 14px; }
+.b-frame::before, .b-frame::after { content: ''; position: absolute; width: 14px; height: 14px; }
+.b-frame::before { top: -1px; left: -1px; border-top: 2px solid var(--amber); border-left: 2px solid var(--amber); }
+.b-frame::after { bottom: -1px; right: -1px; border-bottom: 2px solid var(--amber); border-right: 2px solid var(--amber); }
+.b-label { font-size: 10px; letter-spacing: .25em; color: var(--dim); margin-bottom: 8px; }
+.b-verdict { display: flex; align-items: center; gap: 18px; }
+.b-ring { width: 54px; height: 54px; border-radius: 50%; flex: none; position: relative;
+  background: conic-gradient(var(--amber) 0 68%, rgba(255,180,84,.12) 68% 100%);
+  -webkit-mask: radial-gradient(circle, transparent 60%, #000 62%); mask: radial-gradient(circle, transparent 60%, #000 62%); }
+.b-ring span { position: absolute; inset: 0; display: grid; place-items: center; color: var(--amber); font-size: 13px; font-weight: 700; }
+.b-verb { font-size: 24px; font-weight: 700; color: var(--amber); letter-spacing: .06em; }
+.b-champ { font-size: 24px; font-weight: 700; color: var(--txt); }
+.b-reason { color: var(--dim); font-size: 11px; margin-top: 4px; }
+.b-tier { margin-left: auto; font-size: 11px; color: var(--grn); border: 1px dashed var(--line); padding: 4px 10px; }
+.b-stage { display: flex; gap: 10px; font-size: 11px; color: var(--dim); margin: 12px 0; }
+.b-step.on { color: var(--grn); } .b-step.on::before { content: '▸ '; }
+.b-bans { display: flex; gap: 26px; font-size: 11px; color: var(--dim); margin-bottom: 12px; }
+.b-ban { display: inline-block; width: 22px; height: 22px; line-height: 22px; text-align: center;
+  border: 1px solid rgba(255,107,87,.5); color: var(--red); font-size: 10px; margin-right: 3px; background: rgba(255,107,87,.06); }
+.b-tabs { display: flex; gap: 14px; font-size: 11px; color: var(--dim); border-bottom: 1px solid rgba(89,227,137,.14); padding-bottom: 8px; margin-bottom: 10px; }
+.b-tab.on { color: var(--grn); } .b-tab.on::before { content:'[ '; } .b-tab.on::after { content:' ]'; }
+.b-str { display: flex; align-items: center; gap: 10px; font-size: 12px; }
+.b-bar { flex: 1; height: 10px; border: 1px solid rgba(89,227,137,.25); display: flex; }
+.b-bar i { height: 100%; } .b-me { width: 58%; background: repeating-linear-gradient(90deg, var(--grn) 0 6px, #1d5c37 6px 8px); }
+.b-en { width: 42%; background: repeating-linear-gradient(90deg, var(--red) 0 6px, #5c231b 6px 8px); opacity:.85; }
+.b-teams { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.b-p { display: flex; align-items: center; gap: 10px; padding: 6px 10px; margin-bottom: 5px; border: 1px solid rgba(89,227,137,.12); font-size: 12px; }
+.b-p.me { border-color: rgba(255,180,84,.45); background: rgba(255,180,84,.05); }
+.b-av { width: 26px; height: 26px; border: 1px solid var(--line); display: grid; place-items: center; color: var(--grn); font-size: 11px; flex: none; }
+.b-nm { color: var(--txt); } .b-sub { color: var(--dim); font-size: 10px; }
+.b-hist { margin-left: auto; font-size: 10px; color: var(--dim); }
+.b-hist b { color: var(--grn); font-weight: 400; } .b-hist s { color: var(--red); text-decoration: none; }
+.b-tb-toolbar { display: flex; gap: 8px; margin-bottom: 12px; }
+.b-inp { flex: 1; max-width: 300px; font-size: 12px; color: var(--dim); border: 1px dashed rgba(89,227,137,.3); padding: 7px 12px; }
+.b-btn { font-size: 12px; color: var(--amber); border: 1px solid rgba(255,180,84,.5); padding: 7px 14px; cursor: pointer; }
+.b-btn.ghost { color: var(--dim); border-color: rgba(89,227,137,.2); }
+.b-filters { display: flex; gap: 6px; margin-bottom: 10px; }
+.b-f { font-size: 11px; color: var(--dim); border: 1px solid rgba(89,227,137,.15); padding: 4px 10px; }
+.b-f.on { color: var(--grn); border-color: var(--grn); }
+.b-trend { display: flex; gap: 3px; margin-bottom: 12px; }
+.b-cell { flex: 1; height: 24px; border: 1px solid rgba(89,227,137,.2); }
+.b-rc { display: grid; grid-template-columns: 70px 46px 40px 1fr 110px 120px 90px; gap: 10px; align-items: center;
+  padding: 8px 14px; margin-bottom: 5px; border: 1px solid rgba(89,227,137,.12); border-left: 3px solid var(--grn); font-size: 12px; }
+.b-rc.lo { border-left-color: var(--red); }
+.b-res-w { color: var(--grn); } .b-res-l { color: var(--red); }
+.b-time { color: var(--dim); font-size: 11px; }
+.b-kda { color: var(--txt); } .b-kda small { color: var(--dim); margin-left: 6px; }
+.b-mini { display: flex; gap: 3px; } .b-mini i { width: 15px; height: 15px; border: 1px solid rgba(89,227,137,.25); display: block; }
+.b-dmg { color: var(--dim); font-size: 11px; }
+
+/* ============================================================
+   方向 C · 竞技数据志 Editorial Arena
+============================================================ */
+.dir-c { background: #efe9dd; color: #20242a; }
+.c-panel { --paper:#fffdf8; --ink:#20242a; --mut:#7a7466; --red:#d64545; --blue:#3b6fd4;
+  --hair:#e4dcc9; --acc:#c8871f; }
+.dir-c .chrome { background: #fbf8f1; color: #20242a; border-bottom: 1px solid var(--hair); }
+.c-screen { background: var(--paper); border: 1px solid var(--hair); box-shadow: 0 2px 14px rgba(60,50,30,.08); }
+.c-body { padding: 22px 24px 26px; }
+.c-kicker { font-size: 11px; letter-spacing: .3em; color: var(--acc); font-weight: 700; margin-bottom: 6px; }
+.c-verdict { display: flex; align-items: baseline; gap: 14px; border-bottom: 3px solid var(--ink); padding-bottom: 12px; }
+.c-verb { font-size: 15px; color: var(--mut); }
+.c-champ { font-size: 34px; font-weight: 900; letter-spacing: -.01em; }
+.c-champ u { text-decoration: none; box-shadow: inset 0 -10px 0 rgba(200,135,31,.25); }
+.c-reason { font-size: 13px; color: var(--mut); margin-left: auto; max-width: 380px; text-align: right; }
+.c-meta { display: flex; gap: 18px; font-size: 12px; color: var(--mut); margin: 12px 0 14px; align-items: center; }
+.c-meta b { color: var(--ink); }
+.c-pill { border: 1px solid var(--hair); padding: 3px 10px; border-radius: 999px; }
+.c-pill.on { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.c-vs { display: flex; align-items: center; gap: 12px; font-size: 13px; margin-bottom: 16px; }
+.c-vbar { flex: 1; height: 12px; background: linear-gradient(90deg, var(--blue) 0 58%, #eee7d8 58% 58.8%, var(--red) 58.8% 100%); border-radius: 2px; }
+.c-teams { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.c-th { font-size: 12px; font-weight: 800; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+.c-th i { width: 10px; height: 10px; display: inline-block; }
+.c-p { display: flex; align-items: center; gap: 10px; padding: 8px 4px; border-bottom: 1px solid var(--hair); font-size: 12.5px; }
+.c-av { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 12px; flex: none; }
+.c-nm { font-weight: 700; } .c-sub { color: var(--mut); font-size: 11px; }
+.c-wr { margin-left: auto; font-weight: 800; }
+.c-pos { margin-left: auto; color: var(--mut); font-size: 11px; }
+.c-tb-toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; border-bottom: 1px solid var(--hair); padding-bottom: 12px; }
+.c-search { font-size: 13px; color: var(--mut); border-bottom: 2px solid var(--ink); padding: 6px 2px; width: 260px; }
+.c-btn { margin-left: auto; font-size: 12.5px; font-weight: 700; background: var(--ink); color: var(--paper); padding: 8px 18px; border-radius: 999px; cursor: pointer; }
+.c-btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--hair); margin-left: 0; }
+.c-filters { display: flex; gap: 8px; margin-bottom: 14px; }
+.c-f { font-size: 12px; color: var(--mut); padding: 4px 2px; border-bottom: 2px solid transparent; cursor: pointer; }
+.c-f.on { color: var(--ink); border-color: var(--acc); font-weight: 700; }
+.c-trend { display: flex; align-items: flex-end; gap: 4px; height: 44px; margin-bottom: 16px; }
+.c-col { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; }
+.c-col i { display: block; border-radius: 2px 2px 0 0; }
+.c-rc { display: grid; grid-template-columns: 70px 46px 40px 1fr 110px 120px 90px; gap: 10px; align-items: center;
+  padding: 12px 6px; border-bottom: 1px solid var(--hair); }
+.c-rc:hover { background: #faf6ec; }
+.c-date { font-size: 12px; font-weight: 700; } .c-mode { font-size: 11px; color: var(--mut); }
+.c-res { font-size: 13px; font-weight: 900; } .c-res.w { color: var(--blue); } .c-res.l { color: var(--red); }
+.c-kda { font-size: 14px; } .c-kda small { color: var(--mut); font-size: 11px; margin-left: 6px; }
+.c-mini { display: flex; gap: 3px; } .c-mini i { width: 16px; height: 16px; border-radius: 3px; background: #eee7d8; display: block; }
+.c-dmg { font-size: 11px; color: var(--mut); }
+.c-dmgbar { height: 5px; background: #eee7d8; border-radius: 99px; margin-top: 4px; }
+.c-dmgbar i { display: block; height: 100%; width: 72%; background: var(--acc); border-radius: 99px; }
+
+/* 方向头配色微调 */
+.dir-c .dir-head h2, .dir-c .swatches .sw i { color: inherit; }
+.dir-c .tagline { color: #857c68; }
+.dir-c .jumpfix { color: #20242a; }
+footer { max-width: 1180px; margin: 0 auto; padding: 36px 32px 60px; color: #9aa4b2; font-size: 13px; line-height: 1.9; }
+footer b { color: #e8ecf2; }
+@media (max-width: 900px) { .a-teams, .b-teams, .c-teams { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<div class="intro">
+  <h1>Rank Analysis · D0 风格探索</h1>
+  <p>三个候选视觉方向 × 两张关键屏（对局分析 / 战绩查询）。每个方向使用完全相同的布局与数据，只换设计语言——请按「3 秒能否得出结论 / 一眼是否记得住 / 深浅两用潜力」评估。选定后进入 D1 设计语言定稿。</p>
+</div>
+
+<nav class="jump">
+  <a href="#dir-a">A · 奥术金工</a>
+  <a href="#dir-b">B · 战术指挥舱</a>
+  <a href="#dir-c">C · 竞技数据志</a>
+</nav>
+
+<!-- ==================== 方向 A ==================== -->
+<section id="dir-a" class="dir dir-a a-panel">
+  <div class="dir-head">
+    <h2>A · 奥术金工 Hextech Forge</h2>
+    <span class="tagline">海克斯水晶 × 精密仪器 · 金色结论 · 切角卡片 · 充能动效</span>
+    <div class="swatches">
+      <span class="sw" style="background:#0a0e14"><i>#0a0e14</i></span>
+      <span class="sw" style="background:linear-gradient(135deg,#f0c96b,#d4a548)"><i>gold</i></span>
+      <span class="sw" style="background:#4cc2ff"><i>cyan</i></span>
+      <span class="sw" style="background:#3fbf8f"><i>win</i></span>
+      <span class="sw" style="background:#e05c5c"><i>loss</i></span>
+    </div>
+  </div>
+
+  <div class="screen-title">示意屏 1 / 对局分析（选人期）</div>
+  <div class="screen a-screen">
+    <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><b>RANK ANALYSIS — 对局分析</b><span class="winbtns">─ □ ✕</span></div>
+    <div class="a-body">
+      <div class="a-verdict">
+        <div class="a-ring"><span class="num">17s</span></div>
+        <div>
+          <div><span class="a-verb">建议 </span><span class="a-champ">选 杰斯</span></div>
+          <div class="a-reason">对位凯南前期压制力 +2 档 · 与我方皇子有协同 · 敌方已锁 2 个突进，需保持poke距离</div>
+        </div>
+        <div class="a-tier">推荐依据 梯度 <b>T1 ▾</b></div>
+      </div>
+      <div class="a-stage">
+        <span class="a-step done"><span class="a-dot"></span>预选</span><span class="a-line"></span>
+        <span class="a-step done"><span class="a-dot"></span>禁用</span><span class="a-line"></span>
+        <span class="a-step on"><span class="a-dot"></span>选人</span><span class="a-line"></span>
+        <span class="a-step"><span class="a-dot"></span>确认</span>
+        <span style="margin-left:auto">OP.GG 16.13 · 数据新鲜</span>
+      </div>
+      <div class="a-bans">
+        <div>我方禁用<div class="a-banrow"><span class="a-ban" style="background:#5a4a6b"></span><span class="a-ban" style="background:#3d5a4a"></span><span class="a-ban" style="background:#6b4a3d"></span></div></div>
+        <div>敌方禁用<div class="a-banrow"><span class="a-ban" style="background:#4a4a6b"></span><span class="a-ban" style="background:#6b5a3d"></span></div></div>
+      </div>
+      <div class="a-tabs">
+        <span class="a-tab on">强度对比</span><span class="a-tab">威胁评级 <span class="n">2</span></span>
+        <span class="a-tab">下一步</span><span class="a-tab">对位/野区</span>
+      </div>
+      <div class="a-strength">
+        <span>我方 <b class="num">56.2</b></span>
+        <div class="a-bar"><i class="a-me"></i><i class="a-en"></i></div>
+        <span>敌方 <b class="num">49.8</b></span>
+        <span class="a-delta">▲ 我方阵容占优</span>
+      </div>
+      <div class="a-teams">
+        <div>
+          <div class="a-team-h"><span>我方 · 综合评分 56.2</span><span>✦ AI 分析</span></div>
+          <div class="a-p me"><span class="a-av" style="background:linear-gradient(135deg,#f0c96b,#d4a548)">杰</span><div><div class="a-name">你 <span style="color:var(--gold)">← 正在选择</span></div><div class="a-sub">翡翠 II · 杰斯胜率 61%</div></div><span class="a-chip t">T1</span><div class="a-hist"><i class="a-h a-w"></i><i class="a-h a-w"></i><i class="a-h a-l"></i><i class="a-h a-w"></i><i class="a-h a-w"></i></div></div>
+          <div class="a-p"><span class="a-av" style="background:linear-gradient(135deg,#7ec4ff,#3a7bd5)">皇</span><div><div class="a-name">峡谷诗人</div><div class="a-sub">翡翠 I · 打野</div></div><span class="a-chip t">T2</span><div class="a-hist"><i class="a-h a-l"></i><i class="a-h a-w"></i><i class="a-h a-w"></i><i class="a-h a-l"></i><i class="a-h a-w"></i></div></div>
+          <div class="a-p"><span class="a-av" style="background:linear-gradient(135deg,#b28cff,#6b3fd4)">洛</span><div><div class="a-name">月下递归</div><div class="a-sub">翡翠 III · 辅助</div></div><span class="a-chip">T3</span><div class="a-hist"><i class="a-h a-w"></i><i class="a-h a-l"></i><i class="a-h a-l"></i><i class="a-h a-w"></i><i class="a-h a-w"></i></div></div>
+          <div class="a-p"><span class="a-av" style="background:linear-gradient(135deg,#ff9d7e,#d54a3a)">剑</span><div><div class="a-name">TopLaneDiff</div><div class="a-sub">翡翠 II · 上单</div></div><span class="a-chip t">T2</span><div class="a-hist"><i class="a-h a-w"></i><i class="a-h a-w"></i><i class="a-h a-w"></i><i class="a-h a-l"></i><i class="a-h a-w"></i></div></div>
+          <div class="a-p"><span class="a-av" style="background:linear-gradient(135deg,#7effc4,#2e9f6c)">滑</span><div><div class="a-name">中野联动患者</div><div class="a-sub">翡翠 IV · 中单</div></div><span class="a-chip">T4</span><div class="a-hist"><i class="a-h a-l"></i><i class="a-h a-l"></i><i class="a-h a-w"></i><i class="a-h a-w"></i><i class="a-h a-l"></i></div></div>
+        </div>
+        <div>
+          <div class="a-team-h"><span>敌方 · 综合评分 49.8</span><span>威胁 ⚠ 2</span></div>
+          <div class="a-p"><span class="a-av" style="background:linear-gradient(135deg,#ffd47e,#d5943a)">凯</span><div><div class="a-name">上单只玩凯南</div><div class="a-sub">翡翠 I · 上单 · 高威胁</div></div><span class="a-chip t">T2</span><div class="a-hist"><i class="a-h a-w"></i><i class="a-h a-w"></i><i class="a-h a-l"></i><i class="a-h a-w"></i><i class="a-h a-w"></i></div></div>
+          <div class="a-p"><span class="a-av" style="background:linear-gradient(135deg,#ff8ea0,#d53a6b)">寡</span><div><div class="a-name">野区幽灵</div><div class="a-sub">翡翠 II · 打野</div></div><span class="a-chip">T3</span><div class="a-hist"><i class="a-h a-l"></i><i class="a-h a-w"></i><i class="a-h a-w"></i><i class="a-h a-w"></i><i class="a-h a-l"></i></div></div>
+          <div class="a-p"><span class="a-av" style="background:linear-gradient(135deg,#9db4ff,#3a5ad5)">岩</span><div><div class="a-name">MidOrFeed</div><div class="a-sub">翡翠 III · 中单</div></div><span class="a-chip">T4</span><div class="a-hist"><i class="a-h a-w"></i><i class="a-h a-l"></i><i class="a-h a-l"></i><i class="a-h a-l"></i><i class="a-h a-w"></i></div></div>
+          <div class="a-p"><span class="a-av" style="background:linear-gradient(135deg,#c4ff7e,#5cd53a)">卢</span><div><div class="a-name">AD 带四保一</div><div class="a-sub">翡翠 II · ADC</div></div><span class="a-chip t">T1</span><div class="a-hist"><i class="a-h a-w"></i><i class="a-h a-w"></i><i class="a-h a-w"></i><i class="a-h a-l"></i><i class="a-h a-w"></i></div></div>
+          <div class="a-p"><span class="a-av" style="background:linear-gradient(135deg,#7effff,#2ebfd5)">锤</span><div><div class="a-name">钩子命中率百分百</div><div class="a-sub">翡翠 I · 辅助 · 高威胁</div></div><span class="a-chip t">T2</span><div class="a-hist"><i class="a-h a-w"></i><i class="a-h a-l"></i><i class="a-h a-w"></i><i class="a-h a-w"></i><i class="a-h a-w"></i></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="screen-title">示意屏 2 / 战绩查询</div>
+  <div class="screen a-screen">
+    <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><b>RANK ANALYSIS — 战绩 · 峡谷诗人#5207</b><span class="winbtns">─ □ ✕</span></div>
+    <div class="a-body">
+      <div class="a-tb-toolbar">
+        <span class="a-inp">🔍 召唤师名称#Tag（/ 聚焦）</span>
+        <span class="a-btn">⚡ 收集全部</span><span class="a-btn ghost">更多 ⋯</span>
+      </div>
+      <div class="a-filters">
+        <span class="a-f on">全部模式 ▾</span><span class="a-f">全部英雄 ▾</span><span class="a-f">胜负 ▾</span><span class="a-f">近 7 天 ▾</span>
+        <span class="a-f" style="margin-left:auto">‹ 3 / 12 ›</span>
+      </div>
+      <div class="a-trend">
+        <i class="a-cell a-w"></i><i class="a-cell a-w"></i><i class="a-cell a-l"></i><i class="a-cell a-w"></i><i class="a-cell a-w"></i><i class="a-cell a-w"></i><i class="a-cell a-l"></i><i class="a-cell a-l"></i><i class="a-cell a-w"></i><i class="a-cell a-w"></i><i class="a-cell a-w"></i><i class="a-cell a-l"></i><i class="a-cell a-w"></i><i class="a-cell a-w"></i><i class="a-cell a-l"></i><i class="a-cell a-w"></i><i class="a-cell a-w"></i><i class="a-cell a-w"></i><i class="a-cell a-l"></i><i class="a-cell a-w"></i>
+      </div>
+      <div class="a-rc"><span class="a-res w num">胜利</span><span class="a-time num">32:41<br>单双</span><span class="a-cav" style="background:linear-gradient(135deg,#7ec4ff,#3a7bd5)">皇</span><span class="a-kda num">8/3/14<small>KDA 7.3 · 312补刀</small></span><div class="a-mini"><i></i><i></i><i></i><i></i></div><div class="a-dmg">18.2k 输出 · 全队 31%<div class="a-dmgbar"><i></i></div></div><span class="a-time num" style="text-align:right">昨天 21:47<br>翡翠I · 42LP</span></div>
+      <div class="a-rc lo"><span class="a-res l num">失败</span><span class="a-time num">27:03<br>单双</span><span class="a-cav" style="background:linear-gradient(135deg,#b28cff,#6b3fd4)">洛</span><span class="a-kda num">2/6/9<small>KDA 1.8 · 44补刀</small></span><div class="a-mini"><i></i><i></i><i></i><i></i></div><div class="a-dmg">8.1k 输出 · 全队 14%<div class="a-dmgbar"><i style="width:28%;background:linear-gradient(90deg,#a34444,#e05c5c)"></i></div></div><span class="a-time num" style="text-align:right">昨天 21:02<br>翡翠I · -38LP</span></div>
+      <div class="a-rc"><span class="a-res w num">胜利</span><span class="a-time num">41:18<br>单双</span><span class="a-cav" style="background:linear-gradient(135deg,#7ec4ff,#3a7bd5)">皇</span><span class="a-kda num">5/4/16<small>KDA 5.3 · 289补刀</small></span><div class="a-mini"><i></i><i></i><i></i><i></i></div><div class="a-dmg">15.7k 输出 · 全队 24%<div class="a-dmgbar"><i style="width:58%"></i></div></div><span class="a-time num" style="text-align:right">前天 23:30<br>翡翠I · 40LP</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 方向 B ==================== -->
+<section id="dir-b" class="dir dir-b b-panel">
+  <div class="dir-head">
+    <h2>B · 战术指挥舱 Tactical Deck</h2>
+    <span class="tagline">军用 HUD · 琥珀+磷光绿 · 等宽数字 · 角标框线 · 网格底纹</span>
+    <div class="swatches">
+      <span class="sw" style="background:#020403"><i>#020403</i></span>
+      <span class="sw" style="background:#ffb454"><i>amber</i></span>
+      <span class="sw" style="background:#59e389"><i>phosphor</i></span>
+      <span class="sw" style="background:#ff6b57"><i>alert</i></span>
+      <span class="sw" style="background:#0e1512;border-color:rgba(89,227,137,.4)"><i>panel</i></span>
+    </div>
+  </div>
+
+  <div class="screen-title">示意屏 1 / 对局分析（选人期）</div>
+  <div class="screen b-screen">
+    <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><b>// RANK_ANALYSIS :: GAMING_DECK</b><span class="winbtns">─ □ ✕</span></div>
+    <div class="b-body">
+      <div class="b-frame">
+        <div class="b-label">// CURRENT_VERDICT</div>
+        <div class="b-verdict">
+          <div class="b-ring"><span>17s</span></div>
+          <div>
+            <div><span class="b-verb">&gt;&gt; 选_</span><span class="b-champ">杰斯</span></div>
+            <div class="b-reason">counter 凯南 +2档 | 协同: 皇子 | 敌方突进x2 → 保持poke</div>
+          </div>
+          <span class="b-tier">TIER: T1 [切换]</span>
+        </div>
+      </div>
+      <div class="b-stage">
+        <span class="b-step">预选</span><span class="b-step">禁用</span><span class="b-step on">选人</span><span class="b-step">确认</span>
+        <span style="margin-left:auto">OPGG 16.13 // SYNC_OK</span>
+      </div>
+      <div class="b-bans">
+        <div>ALLY_BAN <span class="b-ban">禁</span><span class="b-ban">禁</span><span class="b-ban">禁</span></div>
+        <div>ENEMY_BAN <span class="b-ban">禁</span><span class="b-ban">禁</span></div>
+      </div>
+      <div class="b-tabs"><span class="b-tab on">强度对比</span><span class="b-tab">威胁[2]</span><span class="b-tab">下一步</span><span class="b-tab">对位/野区</span></div>
+      <div class="b-str">
+        <span>ALLY 56.2</span>
+        <div class="b-bar"><i class="b-me"></i><i class="b-en"></i></div>
+        <span>ENEMY 49.8</span><span style="color:var(--grn)">▲ ADV</span>
+      </div>
+      <div class="b-teams" style="margin-top:14px">
+        <div>
+          <div class="b-label">// ALLY_TEAM :: SCORE 56.2</div>
+          <div class="b-p me"><span class="b-av">杰</span><div><div class="b-nm">你 &lt;- picking</div><div class="b-sub">EMR-II · 杰斯 61%</div></div><span class="b-hist"><b>■</b><b>■</b><s>□</s><b>■</b><b>■</b></span></div>
+          <div class="b-p"><span class="b-av">皇</span><div><div class="b-nm">峡谷诗人</div><div class="b-sub">EMR-I · JG</div></div><span class="b-hist"><s>□</s><b>■</b><b>■</b><s>□</s><b>■</b></span></div>
+          <div class="b-p"><span class="b-av">洛</span><div><div class="b-nm">月下递归</div><div class="b-sub">EMR-III · SUP</div></div><span class="b-hist"><b>■</b><s>□</s><s>□</s><b>■</b><b>■</b></span></div>
+          <div class="b-p"><span class="b-av">剑</span><div><div class="b-nm">TopLaneDiff</div><div class="b-sub">EMR-II · TOP</div></div><span class="b-hist"><b>■</b><b>■</b><b>■</b><s>□</s><b>■</b></span></div>
+          <div class="b-p"><span class="b-av">滑</span><div><div class="b-nm">中野联动患者</div><div class="b-sub">EMR-IV · MID</div></div><span class="b-hist"><s>□</s><s>□</s><b>■</b><b>■</b><s>□</s></span></div>
+        </div>
+        <div>
+          <div class="b-label">// ENEMY_TEAM :: SCORE 49.8 :: THREAT x2</div>
+          <div class="b-p"><span class="b-av">凯</span><div><div class="b-nm">上单只玩凯南 !HIGH</div><div class="b-sub">EMR-I · TOP</div></div><span class="b-hist"><b>■</b><b>■</b><s>□</s><b>■</b><b>■</b></span></div>
+          <div class="b-p"><span class="b-av">寡</span><div><div class="b-nm">野区幽灵</div><div class="b-sub">EMR-II · JG</div></div><span class="b-hist"><s>□</s><b>■</b><b>■</b><b>■</b><s>□</s></span></div>
+          <div class="b-p"><span class="b-av">岩</span><div><div class="b-nm">MidOrFeed</div><div class="b-sub">EMR-III · MID</div></div><span class="b-hist"><b>■</b><s>□</s><s>□</s><s>□</s><b>■</b></span></div>
+          <div class="b-p"><span class="b-av">卢</span><div><div class="b-nm">AD 带四保一</div><div class="b-sub">EMR-II · ADC</div></div><span class="b-hist"><b>■</b><b>■</b><b>■</b><s>□</s><b>■</b></span></div>
+          <div class="b-p"><span class="b-av">锤</span><div><div class="b-nm">钩子命中率百分百 !HIGH</div><div class="b-sub">EMR-I · SUP</div></div><span class="b-hist"><b>■</b><s>□</s><b>■</b><b>■</b><b>■</b></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="screen-title">示意屏 2 / 战绩查询</div>
+  <div class="screen b-screen">
+    <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><b>// RANK_ANALYSIS :: RECORD :: 峡谷诗人#5207</b><span class="winbtns">─ □ ✕</span></div>
+    <div class="b-body">
+      <div class="b-tb-toolbar">
+        <span class="b-inp">SEARCH: 召唤师名称#Tag [ / ]</span>
+        <span class="b-btn">COLLECT_ALL</span><span class="b-btn ghost">MORE...</span>
+      </div>
+      <div class="b-filters">
+        <span class="b-f on">MODE:ALL</span><span class="b-f">CHAMP:ALL</span><span class="b-f">RESULT:ALL</span><span class="b-f">7D</span>
+        <span class="b-f" style="margin-left:auto">PAGE 3/12</span>
+      </div>
+      <div class="b-trend">
+        <i class="b-cell" style="background:rgba(89,227,137,.35)"></i><i class="b-cell" style="background:rgba(89,227,137,.35)"></i><i class="b-cell" style="background:rgba(255,107,87,.3)"></i><i class="b-cell" style="background:rgba(89,227,137,.35)"></i><i class="b-cell" style="background:rgba(89,227,137,.35)"></i><i class="b-cell" style="background:rgba(89,227,137,.35)"></i><i class="b-cell" style="background:rgba(255,107,87,.3)"></i><i class="b-cell" style="background:rgba(255,107,87,.3)"></i><i class="b-cell" style="background:rgba(89,227,137,.35)"></i><i class="b-cell" style="background:rgba(89,227,137,.35)"></i><i class="b-cell" style="background:rgba(89,227,137,.35)"></i><i class="b-cell" style="background:rgba(255,107,87,.3)"></i><i class="b-cell" style="background:rgba(89,227,137,.35)"></i><i class="b-cell" style="background:rgba(89,227,137,.35)"></i><i class="b-cell" style="background:rgba(255,107,87,.3)"></i><i class="b-cell" style="background:rgba(89,227,137,.35)"></i><i class="b-cell" style="background:rgba(89,227,137,.35)"></i><i class="b-cell" style="background:rgba(89,227,137,.35)"></i><i class="b-cell" style="background:rgba(255,107,87,.3)"></i><i class="b-cell" style="background:rgba(89,227,137,.35)"></i>
+      </div>
+      <div class="b-rc"><span class="b-res-w">WIN</span><span class="b-time">32:41 RANK</span><span class="b-av">皇</span><span class="b-kda">8/3/14<small>7.3 · CS312</small></span><div class="b-mini"><i></i><i></i><i></i><i></i></div><span class="b-dmg">DMG 18.2k (31%)</span><span class="b-time">+42LP</span></div>
+      <div class="b-rc lo"><span class="b-res-l">LOSS</span><span class="b-time">27:03 RANK</span><span class="b-av">洛</span><span class="b-kda">2/6/9<small>1.8 · CS44</small></span><div class="b-mini"><i></i><i></i><i></i><i></i></div><span class="b-dmg">DMG 8.1k (14%)</span><span class="b-time">-38LP</span></div>
+      <div class="b-rc"><span class="b-res-w">WIN</span><span class="b-time">41:18 RANK</span><span class="b-av">皇</span><span class="b-kda">5/4/16<small>5.3 · CS289</small></span><div class="b-mini"><i></i><i></i><i></i><i></i></div><span class="b-dmg">DMG 15.7k (24%)</span><span class="b-time">+40LP</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 方向 C ==================== -->
+<section id="dir-c" class="dir dir-c c-panel">
+  <div class="dir-head">
+    <h2>C · 竞技数据志 Editorial Arena</h2>
+    <span class="tagline">体育数据媒体风 · 暖纸亮色 · 大标题叙事 · 红蓝队色 · 极简细线</span>
+    <div class="swatches">
+      <span class="sw" style="background:#fffdf8;border-color:#d8cfba"><i>paper</i></span>
+      <span class="sw" style="background:#20242a"><i>ink</i></span>
+      <span class="sw" style="background:#d64545"><i>red</i></span>
+      <span class="sw" style="background:#3b6fd4"><i>blue</i></span>
+      <span class="sw" style="background:#c8871f"><i>accent</i></span>
+    </div>
+  </div>
+
+  <div class="screen-title">示意屏 1 / 对局分析（选人期）</div>
+  <div class="screen c-screen">
+    <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><b>Rank Analysis · 对局分析</b><span class="winbtns">─ □ ✕</span></div>
+    <div class="c-body">
+      <div class="c-kicker">LIVE · 英雄选择 · 剩余 17 秒</div>
+      <div class="c-verdict">
+        <span class="c-verb">我们的建议是——选</span>
+        <span class="c-champ"><u>杰斯</u></span>
+        <span class="c-reason">对位凯南前期压制力更强，与皇子有击杀协同；敌方已锁两个突进，注意保持 poke 距离。</span>
+      </div>
+      <div class="c-meta">
+        <span class="c-pill on">预选</span><span class="c-pill on">禁用</span><span class="c-pill">选人</span><span class="c-pill">确认</span>
+        <span style="margin-left:auto">推荐依据 <b>梯度 T1</b> ▾ · OP.GG 16.13</span>
+      </div>
+      <div class="c-vs">
+        <b style="color:var(--blue)">我方 56.2</b>
+        <div class="c-vbar"></div>
+        <b style="color:var(--red)">敌方 49.8</b>
+      </div>
+      <div class="c-teams">
+        <div>
+          <div class="c-th"><i style="background:var(--blue)"></i>我方阵容 <span style="font-weight:400;color:var(--mut)">· 近期状态</span></div>
+          <div class="c-p"><span class="c-av" style="background:var(--blue)">杰</span><div><div class="c-nm">你</div><div class="c-sub">翡翠 II · 正在选择杰斯</div></div><span class="c-pos">近期 4胜1负</span></div>
+          <div class="c-p"><span class="c-av" style="background:var(--blue)">皇</span><div><div class="c-nm">峡谷诗人</div><div class="c-sub">翡翠 I · 打野</div></div><span class="c-pos">近期 3胜2负</span></div>
+          <div class="c-p"><span class="c-av" style="background:var(--blue)">洛</span><div><div class="c-nm">月下递归</div><div class="c-sub">翡翠 III · 辅助</div></div><span class="c-pos">近期 3胜2负</span></div>
+          <div class="c-p"><span class="c-av" style="background:var(--blue)">剑</span><div><div class="c-nm">TopLaneDiff</div><div class="c-sub">翡翠 II · 上单</div></div><span class="c-pos">近期 4胜1负</span></div>
+          <div class="c-p"><span class="c-av" style="background:var(--blue)">滑</span><div><div class="c-nm">中野联动患者</div><div class="c-sub">翡翠 IV · 中单</div></div><span class="c-pos">近期 2胜3负</span></div>
+        </div>
+        <div>
+          <div class="c-th"><i style="background:var(--red)"></i>敌方阵容 <span style="font-weight:400;color:var(--mut)">· 2 名高威胁</span></div>
+          <div class="c-p"><span class="c-av" style="background:var(--red)">凯</span><div><div class="c-nm">上单只玩凯南</div><div class="c-sub">翡翠 I · 上单 · 高威胁</div></div><span class="c-pos">近期 4胜1负</span></div>
+          <div class="c-p"><span class="c-av" style="background:var(--red)">寡</span><div><div class="c-nm">野区幽灵</div><div class="c-sub">翡翠 II · 打野</div></div><span class="c-pos">近期 3胜2负</span></div>
+          <div class="c-p"><span class="c-av" style="background:var(--red)">岩</span><div><div class="c-nm">MidOrFeed</div><div class="c-sub">翡翠 III · 中单</div></div><span class="c-pos">近期 2胜3负</span></div>
+          <div class="c-p"><span class="c-av" style="background:var(--red)">卢</span><div><div class="c-nm">AD 带四保一</div><div class="c-sub">翡翠 II · ADC</div></div><span class="c-pos">近期 4胜1负</span></div>
+          <div class="c-p"><span class="c-av" style="background:var(--red)">锤</span><div><div class="c-nm">钩子命中率百分百</div><div class="c-sub">翡翠 I · 辅助 · 高威胁</div></div><span class="c-pos">近期 4胜1负</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="screen-title">示意屏 2 / 战绩查询</div>
+  <div class="screen c-screen">
+    <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><b>Rank Analysis · 战绩</b><span class="winbtns">─ □ ✕</span></div>
+    <div class="c-body">
+      <div class="c-kicker">PLAYER REPORT</div>
+      <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:14px">
+        <span style="font-size:30px;font-weight:900">峡谷诗人<span style="color:var(--mut);font-weight:400;font-size:16px">#5207</span></span>
+        <span style="color:var(--mut);font-size:13px">翡翠 I · 联盟一区</span>
+        <span class="c-btn">收集全部对局</span>
+      </div>
+      <div class="c-tb-toolbar">
+        <span class="c-search">搜索召唤师…（/ 聚焦）</span>
+        <span class="c-btn ghost">筛选</span>
+      </div>
+      <div class="c-filters">
+        <span class="c-f on">全部模式</span><span class="c-f">排位</span><span class="c-f">极地</span><span class="c-f">匹配</span>
+        <span class="c-f" style="margin-left:auto;color:var(--ink)">第 3 / 12 页 ‹ ›</span>
+      </div>
+      <div class="c-trend">
+        <span class="c-col"><i style="height:70%;background:var(--blue)"></i></span><span class="c-col"><i style="height:62%;background:var(--blue)"></i></span><span class="c-col"><i style="height:55%;background:var(--red)"></i></span><span class="c-col"><i style="height:74%;background:var(--blue)"></i></span><span class="c-col"><i style="height:66%;background:var(--blue)"></i></span><span class="c-col"><i style="height:80%;background:var(--blue)"></i></span><span class="c-col"><i style="height:48%;background:var(--red)"></i></span><span class="c-col"><i style="height:52%;background:var(--red)"></i></span><span class="c-col"><i style="height:69%;background:var(--blue)"></i></span><span class="c-col"><i style="height:77%;background:var(--blue)"></i></span><span class="c-col"><i style="height:63%;background:var(--blue)"></i></span><span class="c-col"><i style="height:50%;background:var(--red)"></i></span><span class="c-col"><i style="height:71%;background:var(--blue)"></i></span><span class="c-col"><i style="height:65%;background:var(--blue)"></i></span><span class="c-col"><i style="height:54%;background:var(--red)"></i></span><span class="c-col"><i style="height:73%;background:var(--blue)"></i></span><span class="c-col"><i style="height:67%;background:var(--blue)"></i></span><span class="c-col"><i style="height:79%;background:var(--blue)"></i></span><span class="c-col"><i style="height:51%;background:var(--red)"></i></span><span class="c-col"><i style="height:72%;background:var(--blue)"></i></span>
+      </div>
+      <div class="c-rc"><span class="c-date">8月20日<span class="c-mode"> · 单双排</span></span><span class="c-res w">胜</span><span class="c-av" style="background:var(--blue)">皇</span><span class="c-kda">8 / 3 / 14<small>KDA 7.3 · 312 补刀</small></span><div class="c-mini"><i></i><i></i><i></i><i></i></div><div class="c-dmg">输出 18.2k · 占全队 31%<div class="c-dmgbar"><i></i></div></div><span style="font-weight:800;color:var(--blue)">+42 LP</span></div>
+      <div class="c-rc"><span class="c-date">8月20日<span class="c-mode"> · 单双排</span></span><span class="c-res l">负</span><span class="c-av" style="background:var(--red)">洛</span><span class="c-kda">2 / 6 / 9<small>KDA 1.8 · 44 补刀</small></span><div class="c-mini"><i></i><i></i><i></i><i></i></div><div class="c-dmg">输出 8.1k · 占全队 14%<div class="c-dmgbar"><i style="width:28%;background:var(--red)"></i></div></div><span style="font-weight:800;color:var(--red)">−38 LP</span></div>
+      <div class="c-rc"><span class="c-date">8月19日<span class="c-mode"> · 单双排</span></span><span class="c-res w">胜</span><span class="c-av" style="background:var(--blue)">皇</span><span class="c-kda">5 / 4 / 16<small>KDA 5.3 · 289 补刀</small></span><div class="c-mini"><i></i><i></i><i></i><i></i></div><div class="c-dmg">输出 15.7k · 占全队 24%<div class="c-dmgbar"><i style="width:58%"></i></div></div><span style="font-weight:800;color:var(--blue)">+40 LP</span></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <b>D0 选型清单</b>（走查时逐条打分 1~5）：<br>
+  ① 3 秒结论：对局屏第一眼能否立刻得到「现在该选/ban 谁」；　② 记忆点：闭眼能否描述出这个风格；　③ 场景耐久：赛后长文阅读与设置页在此语言下是否舒适；　④ 双主题潜力：该语言转译成浅色主题是否会破相。<br><br>
+  回复选择 <b>A / B / C</b>（可附混搭意见，如「A 的卡片 + C 的战绩排版」），即进入 D1 设计语言定稿。
+</footer>
+
+</body>
+</html>

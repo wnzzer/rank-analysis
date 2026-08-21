@@ -1,0 +1,252 @@
+/* ============================================================
+   Rank Analysis · Design System v3 「奥术金工 Hextech Forge」
+   tokens.css — 单一色彩/几何/动效来源（D1 定稿）
+   ------------------------------------------------------------
+   分层规则：
+   · primitive (--hx-*)  原料，禁止在组件中直接使用
+   · semantic  (--*)     组件唯一可用层
+   · 浅色主题 = .theme-light 作用域整体换值（羊皮纸金工）
+   迁移期映射表见文件末尾注释。
+   ============================================================ */
+
+:root {
+  /* ---------- primitive · 金（brand） ---------- */
+  --hx-gold-100: #faf0d7;
+  --hx-gold-200: #f5e2ae;
+  --hx-gold-300: #f0c96b;
+  --hx-gold-400: #e3b355;
+  --hx-gold-500: #d4a548;
+  --hx-gold-600: #b08434;
+  --hx-gold-700: #8a6420;
+
+  /* ---------- primitive · 青（info） ---------- */
+  --hx-cyan-200: #9adcff;
+  --hx-cyan-300: #4cc2ff;
+  --hx-cyan-400: #2ba3e6;
+  --hx-cyan-600: #1f7ab0;
+
+  /* ---------- primitive · 墨蓝中性（ink） ---------- */
+  --hx-ink-950: #06080c;
+  --hx-ink-900: #0a0e14;
+  --hx-ink-850: #0e131b;
+  --hx-ink-800: #10161f;
+  --hx-ink-750: #151d29;
+  --hx-ink-700: #1c2534;
+  --hx-ink-600: #2a3342;
+  --hx-ink-500: #3a4556;
+  --hx-ink-400: #5a6678;
+  --hx-ink-300: #8b96a5;
+  --hx-ink-200: #b6bfcc;
+  --hx-ink-100: #e8ecf2;
+
+  /* ---------- primitive · 羊皮纸（浅色主题原料） ---------- */
+  --hx-paper-50:  #fffdf8;
+  --hx-paper-100: #fbf8f1;
+  --hx-paper-200: #f5f1e8;
+  --hx-paper-300: #ece5d4;
+  --hx-paper-hair: #e0d7c2;
+
+  /* ============================================================
+     SEMANTIC · 深色主题（默认）「金工暗器」
+     ============================================================ */
+
+  /* 表面 */
+  --bg-base: var(--hx-ink-900);
+  --bg-surface: var(--hx-ink-800);
+  --bg-raised: var(--hx-ink-750);
+  --bg-sunken: var(--hx-ink-950);
+  --bg-hover: rgba(255, 255, 255, 0.05);
+  --bg-active: rgba(255, 255, 255, 0.08);
+
+  /* 品牌（金）——只用于结论/激活/关键强调，禁止当胜负色用 */
+  --brand: var(--hx-gold-300);
+  --brand-strong: var(--hx-gold-500);
+  --brand-deep: var(--hx-gold-600);
+  --brand-soft: rgba(212, 165, 72, 0.12);
+  --brand-border: rgba(212, 165, 72, 0.28);
+  --brand-gradient: linear-gradient(135deg, var(--hx-gold-300), var(--hx-gold-500));
+
+  /* 信息（青） */
+  --info: var(--hx-cyan-300);
+  --info-strong: var(--hx-cyan-400);
+  --info-soft: rgba(76, 194, 255, 0.12);
+  --info-border: rgba(76, 194, 255, 0.3);
+
+  /* 数据语义 */
+  --win: #3fbf8f;
+  --win-bright: #5cd9ab;
+  --win-soft: rgba(63, 191, 143, 0.13);
+  --win-border: rgba(63, 191, 143, 0.32);
+  --loss: #e05c5c;
+  --loss-bright: #ef8080;
+  --loss-soft: rgba(224, 92, 92, 0.12);
+  --loss-border: rgba(224, 92, 92, 0.34);
+  --warn: #ff9f43;
+  --warn-soft: rgba(255, 159, 67, 0.13);
+  --warn-border: rgba(255, 159, 67, 0.35);
+
+  /* 文本 */
+  --text-primary: var(--hx-ink-100);
+  --text-secondary: rgba(232, 236, 242, 0.64);
+  --text-tertiary: rgba(232, 236, 242, 0.44);
+  --text-on-brand: #241a05;
+
+  /* 描边 */
+  --border-subtle: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.14);
+
+  /* 几何 */
+  --radius-xs: 3px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+  /* 切角卡片：左上 + 右下 斜切（Hextech 语法） */
+  --clip-corner-sm: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+  --clip-corner-md: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
+  /* 小控件单角切 */
+  --clip-notch: polygon(6px 0, 100% 0, 100% 100%, 0 100%, 0 6px);
+
+  /* 间距 */
+  --space-2: 2px;  --space-4: 4px;  --space-6: 6px;  --space-8: 8px;
+  --space-10: 10px; --space-12: 12px; --space-16: 16px; --space-20: 20px;
+  --space-24: 24px; --space-28: 28px; --space-32: 32px;
+
+  /* 字阶（下限 10px） */
+  --font-size-2xs: 10px;
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-base: 13px;
+  --font-size-md: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 18px;
+  --font-size-2xl: 22px;
+  --font-size-3xl: 26px;
+  --font-size-display: 34px;
+  --line-height-tight: 1.2;
+  --line-height-normal: 1.5;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-black: 800;
+  --tracking-tight: -0.01em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.04em;
+  --tracking-label: 0.12em;   /* 大写小标签专用 */
+  --font-num: Bahnschrift, 'Segoe UI', sans-serif;          /* 数字 */
+  --font-stack: -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    'PingFang SC', 'Microsoft YaHei', sans-serif;
+
+  /* 阴影与辉光 */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.45);
+  --shadow-3: 0 12px 32px rgba(0, 0, 0, 0.55);
+  --glow-brand: 0 0 12px rgba(240, 201, 107, 0.25);
+  --glow-win: 0 0 10px rgba(63, 191, 143, 0.28);
+
+  /* 动效（唯一双轨） */
+  --dur-instant: 80ms;
+  --dur-fast: 150ms;
+  --dur-normal: 250ms;
+  --dur-spring: 400ms;
+  --dur-slow: 500ms;
+  --ease-standard: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --stagger: 40ms;
+
+  /* 层级 */
+  --z-content: 0;
+  --z-sticky: 10;
+  --z-dock: 50;
+  --z-modal: 100;
+  --z-toast: 200;
+
+  /* 焦点 */
+  --focus-ring-color: rgba(240, 201, 107, 0.85);
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 1px;
+
+  /* 材质：微噪点（叠加于 CornerCard，opacity 由组件控制） */
+  --noise-img: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='0.35'/%3E%3C/svg%3E");
+}
+
+/* ============================================================
+   SEMANTIC · 浅色主题「羊皮纸金工」
+   同一几何语法，换材质：暖纸底 + 深金 + 墨青文字；不做发光
+   ============================================================ */
+:root.theme-light {
+  --bg-base: var(--hx-paper-200);
+  --bg-surface: var(--hx-paper-100);
+  --bg-raised: var(--hx-paper-50);
+  --bg-sunken: var(--hx-paper-300);
+  --bg-hover: rgba(35, 40, 46, 0.04);
+  --bg-active: rgba(35, 40, 46, 0.07);
+
+  --brand: var(--hx-gold-700);
+  --brand-strong: #75541b;
+  --brand-deep: #5e430f;
+  --brand-soft: rgba(138, 100, 32, 0.1);
+  --brand-border: rgba(138, 100, 32, 0.32);
+  --brand-gradient: linear-gradient(135deg, #a67c2e, #8a6420);
+
+  --info: var(--hx-cyan-600);
+  --info-strong: #186a99;
+  --info-soft: rgba(31, 122, 176, 0.09);
+  --info-border: rgba(31, 122, 176, 0.3);
+
+  --win: #2e8f6c;
+  --win-bright: #25795a;
+  --win-soft: rgba(46, 143, 108, 0.1);
+  --win-border: rgba(46, 143, 108, 0.32);
+  --loss: #c04444;
+  --loss-bright: #a83a3a;
+  --loss-soft: rgba(192, 68, 68, 0.09);
+  --loss-border: rgba(192, 68, 68, 0.32);
+  --warn: #b26a12;
+  --warn-soft: rgba(178, 106, 18, 0.1);
+  --warn-border: rgba(178, 106, 18, 0.32);
+
+  --text-primary: #23282e;
+  --text-secondary: rgba(35, 40, 46, 0.64);
+  --text-tertiary: rgba(35, 40, 46, 0.45);
+  --text-on-brand: #fffdf8;
+
+  --border-subtle: rgba(60, 50, 30, 0.1);
+  --border-strong: rgba(60, 50, 30, 0.2);
+
+  --shadow-1: 0 1px 2px rgba(60, 50, 30, 0.08);
+  --shadow-2: 0 4px 12px rgba(60, 50, 30, 0.1);
+  --shadow-3: 0 12px 32px rgba(60, 50, 30, 0.16);
+  --glow-brand: none;
+  --glow-win: none;
+
+  --focus-ring-color: rgba(138, 100, 32, 0.85);
+}
+
+/* ============================================================
+   全局基线
+   ============================================================ */
+:root {
+  font-family: var(--font-stack);
+  -webkit-font-smoothing: antialiased;
+}
+:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-instant: 0ms; --dur-fast: 0ms; --dur-normal: 0ms;
+    --dur-spring: 0ms; --dur-slow: 0ms; --stagger: 0ms;
+  }
+}
+
+/* ============================================================
+   迁移映射（P0 执行后删除旧 token）
+   --semantic-win      → --win        --semantic-loss → --loss
+   --semantic-warn     → --warn       --accent-gold*  → --brand*
+   --accent-blue/sky   → --info       --glass-bg-*    → --bg-hover/-active 或删除
+   --transition-*      → --dur-*      --ease-out-expo → --ease-standard
+   --nav-active-bg     → --brand-soft --decor-glow-win→ --glow-brand
+   z-index: N (ad hoc) → --z-content|sticky|dock|modal|toast
+   ============================================================ */
