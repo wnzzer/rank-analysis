@@ -1,67 +1,102 @@
 <template>
   <div class="ratio-container">
-    <n-flex vertical class="content-wrapper match-history-wrap">
-      <n-flex class="match-history-toolbar" align="center" :size="8" :wrap="true">
-        <n-select
-          v-model:value="filterQueueId"
-          placeholder="按模式筛选"
-          :options="modeOptions"
-          size="small"
-          class="filter-select filter-mode"
-        />
-        <n-select
-          v-model:value="filterChampionId"
-          filterable
-          :filter="filterChampionFunc"
-          placeholder="按英雄筛选"
-          :render-tag="renderSingleSelectTag"
-          :render-label="renderLabel"
-          :options="championOptions"
-          size="small"
-          class="filter-select filter-champion"
-        />
-        <n-select
-          v-model:value="filterResult"
-          :options="RESULT_OPTIONS"
-          size="small"
-          class="filter-select filter-result"
-        />
-        <n-select
-          v-model:value="filterTimeWindowHours"
-          :options="TIME_WINDOW_OPTIONS"
-          size="small"
-          class="filter-select filter-time"
-        />
-        <n-button size="small" class="toolbar-expand-all" @click="toggleExpandAll">
-          {{ anyExpanded ? '收起全部' : '展开全部' }}
-        </n-button>
-        <n-button size="small" class="toolbar-more" @click="nextPage">收集更多</n-button>
-        <n-button
-          v-if="sgpRegion"
-          size="small"
-          class="toolbar-collect"
-          :disabled="collectDone"
-          @click="toggleCollectAll"
-        >
-          {{ collectLabel }}
-        </n-button>
-        <n-popconfirm v-if="sgpRegion && hasCollected" @positive-click="handleClearCollected">
-          <template #trigger>
-            <n-button size="small" class="toolbar-clear-collected" :disabled="isCollectingAll">
-              清空已收
-            </n-button>
-          </template>
-          将删除该区/该召唤师已收集的全部对局缓存，列表回到最近 50 场窗口。确定清空？
-        </n-popconfirm>
-        <n-tooltip trigger="hover">
-          <template #trigger>
-            <n-button quaternary circle size="small" class="toolbar-reset" @click="resetFilter">
-              <n-icon><RepeatOutline /></n-icon>
-            </n-button>
-          </template>
-          复位
-        </n-tooltip>
-      </n-flex>
+   <div class="content-wrapper match-history-wrap">
+      <!-- 工具栏三分区：筛选 / 视图 / 数据管理（设计系统 v3 §7.5） -->
+      <div class="match-history-toolbar">
+        <div class="mt-group mt-group--filters">
+          <n-select
+            v-model:value="filterQueueId"
+            placeholder="按模式筛选"
+            :options="modeOptions"
+            size="small"
+            class="filter-select filter-mode"
+          />
+          <n-select
+            v-model:value="filterChampionId"
+            filterable
+            :filter="filterChampionFunc"
+            placeholder="按英雄筛选"
+            :render-tag="renderSingleSelectTag"
+            :render-label="renderLabel"
+            :options="championOptions"
+            size="small"
+            class="filter-select filter-champion"
+          />
+          <n-select
+            v-model:value="filterResult"
+            :options="RESULT_OPTIONS"
+            size="small"
+            class="filter-select filter-result"
+          />
+          <n-select
+            v-model:value="filterTimeWindowHours"
+            :options="TIME_WINDOW_OPTIONS"
+            size="small"
+            class="filter-select filter-time"
+          />
+        </div>
+
+        <div class="mt-group mt-group--view">
+          <n-button size="small" class="toolbar-expand-all" @click="toggleExpandAll">
+            {{ anyExpanded ? '收起全部' : '展开全部' }}
+          </n-button>
+          <div class="pagination">
+            <n-pagination>
+              <template #prev>
+                <n-button
+                  size="tiny"
+                  :disabled="page == 1 || isRequestingMatchHostory"
+                  @click="prevPage"
+                >
+                  <template #icon>
+                    <n-icon>
+                      <ArrowBack></ArrowBack>
+                    </n-icon>
+                  </template>
+                </n-button>
+              </template>
+              <template #label>
+                <span>{{ page }}/{{ pageCount }}</span>
+              </template>
+              <template #next>
+                <n-button
+                  size="tiny"
+                  @click="nextPage"
+                  :disabled="noMoreMatches || isRequestingMatchHostory"
+                >
+                  <template #icon>
+                    <n-icon>
+                      <ArrowForward></ArrowForward>
+                    </n-icon>
+                  </template>
+                </n-button>
+              </template>
+            </n-pagination>
+          </div>
+          <n-tooltip trigger="hover">
+            <template #trigger>
+              <n-button quaternary circle size="small" class="toolbar-reset" @click="resetFilter">
+                <n-icon><RepeatOutline /></n-icon>
+              </n-button>
+            </template>
+            复位
+          </n-tooltip>
+        </div>
+
+        <div class="mt-group mt-group--data">
+          <n-button v-if="sgpRegion" size="small" class="toolbar-collect" :disabled="collectDone" @click="toggleCollectAll">
+            {{ collectLabel }}
+          </n-button>
+          <n-popconfirm v-if="sgpRegion && hasCollected" @positive-click="handleClearCollected">
+            <template #trigger>
+              <n-button size="small" class="toolbar-clear-collected" :disabled="isCollectingAll">
+                清空已收
+              </n-button>
+            </template>
+            将删除该区/该召唤师已收集的全部对局缓存，列表回到最近 50 场窗口。确定清空？
+          </n-popconfirm>
+        </div>
+      </div>
 
       <TrendBar
         :games="trendFiltered"
@@ -69,41 +104,6 @@
         class="match-history-trend"
         @select-game="selectTrendGame"
       />
-
-      <!-- 顶部浮动分页：滚动列表中始终可见（Akari 式），sticky top 固定于列表上方 -->
-      <div class="pagination">
-        <n-pagination>
-          <template #prev>
-            <n-button
-              size="tiny"
-              :disabled="page == 1 || isRequestingMatchHostory"
-              @click="prevPage"
-            >
-              <template #icon>
-                <n-icon>
-                  <ArrowBack></ArrowBack>
-                </n-icon>
-              </template>
-            </n-button>
-          </template>
-          <template #label>
-            <span>{{ page }}/{{ pageCount }}</span>
-          </template>
-          <template #next>
-            <n-button
-              size="tiny"
-              @click="nextPage"
-              :disabled="noMoreMatches || isRequestingMatchHostory"
-            >
-              <template #icon>
-                <n-icon>
-                  <ArrowForward></ArrowForward>
-                </n-icon>
-              </template>
-            </n-button>
-          </template>
-        </n-pagination>
-      </div>
 
       <template v-if="isRequestingMatchHostory && !matchHistory">
         <div class="match-history-list">
@@ -137,6 +137,7 @@
             :games="game"
             :champion-options="championOptions"
             :expanded="expandedGameIds.has(game.gameId)"
+            :selected="props.selectedId === game.gameId"
             :class="{ 'list-item-flash': highlightedGameId === game.gameId }"
             @open-detail="toggleDetail(game)"
             @hover-champion="emit('hover-champion', $event)"
@@ -152,7 +153,7 @@
           </Transition>
         </div>
       </TransitionGroup>
-    </n-flex>
+   </div>
   </div>
 </template>
 
@@ -206,6 +207,8 @@ const emit = defineEmits<{
   'champion-filter-handled': []
   /** 筛选状态变化（英雄筛选生效/清除），供左栏英雄池同步选中态 */
   'filter-change': [filter: MatchFilterState]
+  /** v2 宽屏详情栏：卡片点选上抛（null = 取消选中） */
+  select: [game: Game | null]
 }>()
 
 const props = defineProps<{
@@ -213,6 +216,10 @@ const props = defineProps<{
   focusGameId?: number | null
   /** 英雄池点击：非 0 时按该英雄筛选，与当前选中相同则取消（一次性命令） */
   championFilter?: number
+  /** v3 宽屏双栏范式开关（父级计算 isCompact 后下发） */
+  v2Wide?: boolean
+  /** v2 宽屏下当前右侧详情栏选中的对局 id（回显选中态） */
+  selectedId?: number | null
 }>()
 
 /**
@@ -417,8 +424,14 @@ watch(
   }
 )
 
-/** 行卡点击：已展开则收起，未展开则就地展开（允许多开） */
+/** 行卡点击：已展开则收起，未展开则就地展开（允许多开）；
+ *  v3 宽屏双栏（v2Wide）下改为单选上抛，不再内嵌展开 */
 function toggleDetail(game: Game) {
+  if (props.v2Wide) {
+    const same = props.selectedId === game.gameId
+    emit('select', same ? null : game)
+    return
+  }
   if (expandedGameIds.value.has(game.gameId)) {
     expandedGameIds.value.delete(game.gameId)
   } else {
@@ -732,6 +745,24 @@ watch(
 
 .match-history-toolbar {
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  flex-wrap: wrap;
+}
+
+/* 三分区：筛选 / 视图 / 数据管理，组间细分隔线（设计系统 v3 §7.5） */
+.mt-group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+.mt-group + .mt-group {
+  padding-left: var(--space-10);
+  border-left: 1px solid var(--border-subtle);
+}
+.mt-group--data .toolbar-collect {
+  font-weight: var(--font-weight-semibold);
 }
 
 .match-history-list {
@@ -909,29 +940,12 @@ watch(
 }
 
 .pagination {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  background: var(--bg-base);
-  padding: var(--space-8) 0;
-  margin-bottom: var(--space-8);
+  display: inline-flex;
+  align-items: center;
 }
 
 .pagination :deep(.n-button) {
   background: var(--glass-bg-low) !important;
   border: 1px solid var(--glass-border) !important;
-  transition:
-    transform var(--dur-fast) var(--ease-spring),
-    background var(--dur-fast) var(--ease-expo) !important;
-}
-
-.pagination :deep(.n-button:hover:not(:disabled)) {
-  transform: scale(1.05);
-  background: var(--glass-bg-mid) !important;
-}
-
-.pagination :deep(.n-button:active:not(:disabled)) {
-  transform: scale(0.97);
-  transition-duration: var(--dur-instant) !important;
 }
 </style>

@@ -75,6 +75,9 @@
           <MatchHistory
             :focus-game-id="focusGameId"
             :champion-filter="championFilterCmd"
+            :v2-wide="widePane"
+            :selected-id="selectedGameId"
+            @select="onSelectGame"
             @hover-champion="hoveredChampion = $event"
             @leave-champion="hoveredChampion = null"
             @pool-change="championPool = $event"
@@ -85,6 +88,11 @@
           />
         </div>
       </main>
+
+      <!-- v3 宽屏右侧详情栏：选中对局在此展示，列表保持节奏（<1064 回退内嵌展开） -->
+      <aside v-if="widePane && selectedGame" class="record-dpane">
+        <MatchDetailInline :game="selectedGame" :region="regionQuery" @close="selectedGame = null" />
+      </aside>
       <!-- 回到顶部 FAB：内容区滚动超过阈值后显示，点击平滑回顶 -->
       <Transition name="fab">
         <n-button
@@ -103,18 +111,32 @@
   </div>
 </template>
 <script lang="ts" setup>
-import { onBeforeUnmount, ref, watch, type ComponentPublicInstance } from 'vue'
+import { onBeforeUnmount, computed, ref, watch, type ComponentPublicInstance } from 'vue'
+import { useRoute } from 'vue-router'
 import { NButton, NIcon, NDrawer, NDrawerContent } from 'naive-ui'
 import { ArrowUpOutline, MenuOutline } from '@vicons/ionicons5'
 import MatchHistory from '../components/record/MatchHistory.vue'
+import MatchDetailInline from '../components/record/MatchDetailInline.vue'
 import PlayerBar from '../components/record/PlayerBar.vue'
 import UserSidePanel from '../components/record/UserSidePanel.vue'
 import type { Game } from '../types/domain/match'
 import type { ChampionPoolEntry } from '../components/record/championPool'
 import { useBreakpoint } from '@renderer/composables/useBreakpoint'
+import { RECORD_V2 } from '../flags'
 import { usePlayerRecordData } from '@renderer/composables/usePlayerRecordData'
 
+const route = useRoute()
 const { isMobile, isCompact } = useBreakpoint()
+
+/** v3 宽屏双栏：详情走右侧常驻栏；窄窗自动回退内嵌展开 */
+const widePane = computed(() => RECORD_V2 && !isCompact.value && !isMobile.value)
+const selectedGameId = ref<number | null>(null)
+const selectedGame = ref<Game | null>(null)
+function onSelectGame(g: Game | null) {
+  selectedGame.value = g
+  selectedGameId.value = g?.gameId ?? null
+}
+const regionQuery = computed(() => (route.query.region as string) ?? '')
 /** 窄窗左栏抽屉开关（进入宽窗时自动关闭，避免跨断点残留） */
 const sideOpen = ref(false)
 
@@ -287,6 +309,19 @@ const activeChampion = ref(0)
 .record-content-inner {
   max-width: 1280px;
   margin: 0 auto;
+}
+
+/* v3 宽屏右侧详情栏：独立滚动 + 切角容器视觉 */
+.record-dpane {
+  width: 400px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  border-left: 1px solid var(--border-subtle);
+  padding-left: var(--space-12);
+  scrollbar-width: none;
+}
+.record-dpane::-webkit-scrollbar {
+  display: none;
 }
 
 /* 战绩列表滚动条细化：6px 圆角细条替代系统默认宽条（与详情页一致） */

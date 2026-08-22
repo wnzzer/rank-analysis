@@ -156,20 +156,25 @@
             </div>
           </div>
 
-          <!-- Tab 栏：6 tab 对标 Akari 详情页，KeepAlive 保活 + 懒加载 -->
+          <!-- Tab 栏：主组（概览/统计/符文/出装/时间线）+ 次组（事件/评分/回测，
+               视觉弱化并加分隔——低频分析不与高频页签抢宽度，KeepAlive 保活 + 懒加载 -->
           <div class="match-detail-tabs" role="tablist">
-            <button
-              v-for="tab in tabs"
-              :key="tab.key"
-              type="button"
-              role="tab"
-              class="match-detail-tab"
-              :class="{ 'match-detail-tab--active': activeTab === tab.key }"
-              :aria-selected="activeTab === tab.key"
-              @click="activeTab = tab.key"
-            >
-              {{ tab.label }}
-            </button>
+            <template v-for="(tab, i) in tabs" :key="tab.key">
+              <span v-if="tab.minor && !(tabs[i - 1] && tabs[i - 1].minor)" class="match-detail-tab-divider" aria-hidden="true"></span>
+              <button
+                type="button"
+                role="tab"
+                class="match-detail-tab"
+                :class="{
+                  'match-detail-tab--active': activeTab === tab.key,
+                  'match-detail-tab--minor': tab.minor
+                }"
+                :aria-selected="activeTab === tab.key"
+                @click="activeTab = tab.key"
+              >
+                {{ tab.label }}
+              </button>
+            </template>
           </div>
 
           <div class="match-detail-tab-pane">
@@ -449,11 +454,7 @@ const tabs = [
     label: '符文',
     component: MatchDetailRunesTab
   },
-  {
-    key: 'events',
-    label: '事件',
-    component: MatchDetailEventsTab
-  },
+  { key: 'events', label: '事件', component: MatchDetailEventsTab, minor: true },
   {
     key: 'builds',
     label: '出装',
@@ -464,16 +465,8 @@ const tabs = [
     label: '时间线',
     component: MatchDetailTimelineTab
   },
-  {
-    key: 'score',
-    label: '评分',
-    component: MatchDetailScoreTab
-  },
-  {
-    key: 'backtest',
-    label: '决策回测',
-    component: MatchDetailBacktestTab
-  }
+  { key: 'score', label: '评分', component: MatchDetailScoreTab, minor: true },
+  { key: 'backtest', label: '决策回测', component: MatchDetailBacktestTab, minor: true }
 ]
 
 const activeTab = ref('summary')
@@ -768,6 +761,18 @@ watch(
   flex-shrink: 0;
 }
 
+/* 次组页签：弱化 + 前置细分隔（R6：低频 tab 不与高频抢宽度） */
+.match-detail-tab--minor {
+  font-size: var(--font-size-2xs);
+  color: var(--text-tertiary);
+}
+.match-detail-tab-divider {
+  width: 1px;
+  height: 14px;
+  align-self: center;
+  background: var(--border-subtle);
+  margin: 0 var(--space-4);
+}
 .match-detail-tab {
   appearance: none;
   border: none;

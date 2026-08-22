@@ -1,7 +1,11 @@
 <template>
   <div
     class="record-card"
-    :class="{ 'record-card-win': isWin, 'record-card-loss': !isWin }"
+    :class="{
+      'record-card-win': isWin,
+      'record-card-loss': !isWin,
+      'record-card--sel': selected
+    }"
     role="button"
     tabindex="0"
     @click="openDetail"
@@ -18,15 +22,11 @@
       >
         {{ resultLabel }}
       </span>
-      <n-tooltip trigger="hover" placement="top">
-        <template #trigger>
-          <span class="record-card-time">
-            <span class="font-number record-card-duration">{{ durationText }}</span>
-            <span class="record-card-mode">{{ modeShortText }}</span>
-          </span>
-        </template>
-        <span>{{ dateText }}</span>
-      </n-tooltip>
+      <!-- 时间/模式/日期：hover 看完整时间戳，模式并入日期行常显（R5：回溯哪天打的不用悬停） -->
+      <span class="record-card-time">
+        <span class="font-number record-card-duration">{{ durationText }}</span>
+        <span class="record-card-mode">{{ dateText }}<template v-if="modeShortText"> · {{ modeShortText }}</template></span>
+      </span>
 
       <!-- 英雄头像 + 召唤师技能 + MVP/SVP 角标 -->
       <div class="record-card-champion">
@@ -191,8 +191,10 @@ const props = withDefaults(
     games: Game
     championOptions?: championOption[]
     expanded?: boolean
+    /** v3 宽屏详情栏：当前行被选中（右侧栏正展示该对局） */
+    selected?: boolean
   }>(),
-  { championOptions: () => [], expanded: false }
+  { championOptions: () => [], expanded: false, selected: false }
 )
 
 const emit = defineEmits<{
@@ -372,13 +374,19 @@ function openDetail() {
   color: var(--semantic-loss);
 }
 
-/* 时长 + 模式短名 */
+/* 时长 + 日期/模式（日期常显：R5 回溯不用悬停） */
 .record-card-time {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
   line-height: 1;
+}
+
+/* v3 宽屏详情栏选中态：品牌描边高亮当前行 */
+.record-card--sel {
+  outline: 1px solid var(--brand-border);
+  background: var(--bg-raised);
 }
 
 .record-card-duration {

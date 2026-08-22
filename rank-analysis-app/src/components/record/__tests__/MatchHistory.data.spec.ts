@@ -217,14 +217,16 @@ describe('MatchHistory 数据流(M1 B-测试)', () => {
     wrapper.unmount()
   })
 
-  it('收集更多 -> 下一页,末页按钮保持禁用', async () => {
+  it('翻页到末页后仍可稳定显示末页（原「收集更多」入口已并入分页）', async () => {
     const { wrapper } = await mountWithData()
-    const more = wrapper.find('.toolbar-more')
+    const btns = wrapper.findAll('.n-pagination-stub button')
+    const next = btns.at(-1)!
     for (let i = 0; i < 4; i++) {
-      await more.trigger('click')
+      await next.trigger('click')
+      await flushPromises()
     }
     expect(wrapper.text()).toContain('5/5')
-    await more.trigger('click')
+    await next.trigger('click')
     expect(wrapper.text()).toContain('5/5')
     expect(wrapper.findAll('.list-item')).toHaveLength(10)
     wrapper.unmount()

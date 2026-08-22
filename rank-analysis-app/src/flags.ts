@@ -20,3 +20,6 @@ export const SHELL_V2 = readFlag('ra.flag.shellV2', true)
 
 /** 对局页情报舱改造（结论带/信号区/dock/AI 抽屉）：P2 引入，P4 移除本开关 */
 export const GAMING_V2 = readFlag('ra.flag.gamingV2', true)
+
+/** 战绩页宽屏右侧详情栏范式：P3 引入，P4 移除本开关 */
+export const RECORD_V2 = readFlag('ra.flag.recordV2', true)

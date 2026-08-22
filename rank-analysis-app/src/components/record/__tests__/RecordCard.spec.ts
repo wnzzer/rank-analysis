@@ -127,27 +127,27 @@ describe('RecordCard 行卡增强（CS/模式/技能/日期）', () => {
     expect(wrapper.find('.record-card-cs').text()).toBe('0.0 CS/分')
   })
 
-  it('模式短名：420 → 单双、450 → 极地、490 → 斗魂', () => {
+  it('模式短名：420 → 含「单双」、450 → 含「极地」、490 → 含「斗魂」（日期常显后为 日期·模式 复合行）', () => {
     expect(
       mountCard(gameOf({ queueId: 420 }))
         .find('.record-card-mode')
         .text()
-    ).toBe('单双')
+    ).toContain('单双')
     expect(
       mountCard(gameOf({ queueId: 450 }))
         .find('.record-card-mode')
         .text()
-    ).toBe('极地')
+    ).toContain('极地')
     expect(
       mountCard(gameOf({ queueId: 490 }))
         .find('.record-card-mode')
         .text()
-    ).toBe('斗魂')
+    ).toContain('斗魂')
   })
 
   it('未知 queueId 退回 queueName 前 4 字', () => {
     const wrapper = mountCard(gameOf({ queueId: 999, queueName: '自定义模式' }))
-    expect(wrapper.find('.record-card-mode').text()).toBe('自定义模')
+    expect(wrapper.find('.record-card-mode').text()).toContain('自定义模')
   })
 
   it('渲染两枚召唤师技能图标（spell1/spell2）', () => {
@@ -164,9 +164,9 @@ describe('RecordCard 行卡增强（CS/模式/技能/日期）', () => {
     expect(wrapper.findAll('.record-card-spell-img')).toHaveLength(0)
   })
 
-  it('hero 头衔 tooltip 含对局日期 MM-DD HH:mm', () => {
+  it('日期常显：模式行以 MM-DD HH:mm 开头（R5：回溯无需悬停）', () => {
     const wrapper = mountCard(gameOf())
-    expect(wrapper.find('.tooltip-content').text()).toMatch(/^\d{2}-\d{2} \d{2}:\d{2}$/)
+    expect(wrapper.find('.record-card-mode').text()).toMatch(/^\d{2}-\d{2} \d{2}:\d{2}/)
   })
 
   it('ISO 字符串日期按本地时区格式化（不显示 UTC 原文）', () => {
@@ -175,7 +175,7 @@ describe('RecordCard 行卡增强（CS/模式/技能/日期）', () => {
     const d = new Date(iso)
     const pad = (n: number) => String(n).padStart(2, '0')
     const expected = `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
-    expect(wrapper.find('.tooltip-content').text()).toBe(expected)
+    expect(wrapper.find('.record-card-mode').text()).toContain(expected)
   })
 
   it('数值毫秒戳与 ISO 字符串解析结果一致（同为本地时区）', () => {
@@ -190,7 +190,7 @@ describe('RecordCard 行卡增强（CS/模式/技能/日期）', () => {
 
   it('无法解析的日期显示原文', () => {
     const wrapper = mountCard(gameOf({ gameCreationDate: 'not-a-date' }))
-    expect(wrapper.find('.tooltip-content').text()).toBe('not-a-date')
+    expect(wrapper.find('.record-card-mode').text()).toContain('not-a-date')
   })
 
   it('参团率透传：55 → 55%参团', () => {
