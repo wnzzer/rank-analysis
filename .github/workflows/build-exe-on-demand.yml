@@ -41,7 +41,9 @@ jobs:
         run: npm ci
 
       # 只在 runner 工作区改 tauri.conf.json，不回写仓库：
-      # updater 插件编译进 app 但无 pubkey、不产 .sig，构建不再要求 TAURI_SIGNING_PRIVATE_KEY。
+      # updater 签名开关在 bundle.createUpdaterArtifacts（Tauri 2 的正确位置，
+      # 曾误放在 plugins.updater 下被静默忽略——见 docs/backend-integration-audit
+      # 一.2）；构建前置 false 让打包不再要求 TAURI_SIGNING_PRIVATE_KEY。
       - name: Disable updater signing requirement
         shell: bash
         run: |
@@ -49,12 +51,13 @@ jobs:
             const fs = require("fs");
             const p = "src-tauri/tauri.conf.json";
             const j = JSON.parse(fs.readFileSync(p, "utf8"));
+            j.bundle = j.bundle || {};
+            j.bundle.createUpdaterArtifacts = false;
             if (j.plugins && j.plugins.updater) {
-              j.plugins.updater.createUpdaterArtifacts = false;
-              j.plugins.updater.pubkey = "";
+              delete j.plugins.updater.createUpdaterArtifacts;
             }
             fs.writeFileSync(p, JSON.stringify(j, null, 2) + "\n");
-            console.log("updater signing disabled for build");
+            console.log("updater signing disabled for build (bundle.createUpdaterArtifacts=false)");
           '
 
       - name: Build Tauri App (nsis, unsigned)
