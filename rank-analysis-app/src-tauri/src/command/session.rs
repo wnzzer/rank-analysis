@@ -897,14 +897,14 @@ async fn process_subteam_parallel(
                             r.enrich_cn_info();
                             r
                         }
-                        Err(e) => {
-                            log::warn!(
-                                "[session seq={seq}] rank 拉取失败，降级默认值: puuid={} err={}",
-                                &puuid_short(&puuid),
-                                e
-                            );
-                            Rank::default()
-                        }
+                            Err(e) => {
+                                log::warn!(
+                                    "[session seq={seq}] rank 拉取失败，降级默认值: puuid={} err={}",
+                                    puuid_short(&puuid),
+                                    e
+                                );
+                                Rank::default()
+                            }
                     }
                 }
             );
