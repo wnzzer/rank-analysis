@@ -10,30 +10,17 @@ export interface GameStateEvent {
   reasonCode: string | null
   /** 未连接时面向用户的失败说明 */
   reasonMessage: string | null
+  /**
+   * 后端 `Summoner`（lcu/api/summoner.rs）的序列化形状，恰好 5 个字段。
+   * 此前声明了 LCU 原始接口的十余个字段——经 GameStateEvent 序列化时它们
+   * 恒为 undefined（类型失真），已对齐后端真实形状。
+   */
   summoner: {
     gameName: string
     tagLine: string
-    platformIdCn: string
-    puuid: string
-    summonerId: number
-    accountId: number
-    displayName: string
-    internalName: string
-    nameChangeFlag: boolean
-    percentCompleteForNextLevel: number
-    privacy: string
-    profileIconId: number
-    rerollPoints: {
-      currentPoints: number
-      maxRolls: number
-      numberOfRolls: number
-      pointsCostToRoll: number
-      pointsToReroll: number
-    }
     summonerLevel: number
-    unnamed: boolean
-    xpSinceLastLevel: number
-    xpUntilNextLevel: number
+    profileIconId: number
+    puuid: string
   } | null
 }
 

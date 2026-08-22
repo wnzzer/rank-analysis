@@ -138,13 +138,20 @@ impl AppShard for StartupShard {
 }
 
 /// 游戏状态监听 shard（常驻 WebSocket 监听，依赖 lcu/listener 的自愈重连）。
-pub struct GameStateShard;
+///
+/// 持有停止标记：`on_dispose` 置位后监控循环在下一次检查点（≤2s）收敛退出，
+/// 不再留下进程退出前无法回收的常驻任务。
+pub struct GameStateShard {
+    stop: Arc<AtomicBool>,
+}
 
 impl GameStateShard {
     /// 构造即装箱（`Arc<dyn AppShard>`），调用端直接交给注册表，无需二次包装。
     #[allow(clippy::new_ret_no_self)]
     pub fn new() -> Arc<dyn AppShard> {
-        Arc::new(Self)
+        Arc::new(Self {
+            stop: Arc::new(AtomicBool::new(false)),
+        })
     }
 }
 
@@ -159,10 +166,15 @@ impl AppShard for GameStateShard {
     ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
         Box::pin(async move {
             let app_handle = app.clone();
+            let stop = self.stop.clone();
             tokio::spawn(async move {
-                crate::game_state_monitor::start_game_state_monitor(app_handle).await;
+                crate::game_state_monitor::start_game_state_monitor(app_handle, stop).await;
             });
         })
+    }
+
+    fn on_dispose(&self) {
+        self.stop.store(true, Ordering::Relaxed);
     }
 }
 

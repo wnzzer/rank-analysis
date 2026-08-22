@@ -394,7 +394,12 @@ fn get_one_game_players(match_history: &MatchHistory) -> HashMap<String, Vec<One
     let mut one_game_player_map = HashMap::new();
 
     for (index, game) in match_history.games.games.iter().enumerate() {
-        let my_team_id = game.participants[0].team_id;
+        // LCU 对重开局等异常局可能返回空 participants，跳过以免 panic
+        // （本队判定依赖首个 participant 的 team_id，缺失时整局无分析价值）
+        let Some(first_participant) = game.participants.first() else {
+            continue;
+        };
+        let my_team_id = first_participant.team_id;
 
         for (i, participant_identity) in game.game_detail.participant_identities.iter().enumerate()
         {
@@ -673,7 +678,11 @@ fn count_win_and_loss(match_history: &MatchHistory, mode: i32) -> (i32, i32) {
         if mode == 0
             || crate::constant::game::queue_ids_same_group(game.queue_id as u32, mode as u32)
         {
-            if game.participants[0].stats.win {
+            // 空 participants 的异常局（重开局）不计入胜负
+            let Some(first_participant) = game.participants.first() else {
+                continue;
+            };
+            if first_participant.stats.win {
                 select_wins += 1;
             } else {
                 select_losses += 1;
@@ -709,9 +718,13 @@ fn count_kda(match_history: &MatchHistory, mode: i32) -> (f64, f64, f64) {
         }
 
         count += 1;
-        kills += game.participants[0].stats.kills;
-        deaths += game.participants[0].stats.deaths;
-        assists += game.participants[0].stats.assists;
+        // 空 participants 的异常局（重开局）按 0/0/0 计入均值分母，与趋势指标口径一致
+        let Some(first_participant) = game.participants.first() else {
+            continue;
+        };
+        kills += first_participant.stats.kills;
+        deaths += first_participant.stats.deaths;
+        assists += first_participant.stats.assists;
     }
 
     (

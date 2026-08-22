@@ -221,7 +221,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             command::sgp::get_sgp_ranks_by_puuids,
             command::cloud_sync::cloud_pull_notes,
             command::cloud_sync::cloud_push_notes,
-            command::cloud_sync::read_text_file,
+            command::cloud_sync::read_backup_file,
             command::cloud_sync::cloud_pull_config,
             command::cloud_sync::cloud_push_config,
             command::cloud_sync::get_cloud_config_snapshot,

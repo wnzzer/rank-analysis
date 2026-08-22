@@ -2,6 +2,7 @@ use crate::fandom::data::{AramBalanceData, FandomBalanceParams};
 use mlua::prelude::*;
 use reqwest::Client;
 use std::collections::HashMap;
+use std::time::Duration;
 
 const DATA_URL: &str = "https://leagueoflegends.fandom.com/api.php?action=query&format=json&prop=revisions&titles=Module:ChampionData/data&rvprop=content&rvslots=main";
 
@@ -9,6 +10,9 @@ pub async fn fetch_aram_balance_data(
 ) -> Result<FandomBalanceParams, Box<dyn std::error::Error + Send + Sync>> {
     let client = Client::builder()
         .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+        // 无超时的客户端在连接挂起时会永久卡死调用方（FandomShard 的 2h 循环
+        // 因此停摆）；与 knowledge/opgg 的 15~20s 口径对齐。
+        .timeout(Duration::from_secs(20))
         .build()?;
 
     log::info!("Fetching Fandom API: {}", DATA_URL);
@@ -50,7 +54,14 @@ pub async fn fetch_aram_balance_data(
         return Err("Extracted content does not look like Lua script".into());
     }
 
-    let lua = Lua::new();
+    // 最小化 Lua 环境：只装 BASE/TABLE/STRING/MATH。`Lua::new()` 会以安全模式
+    // 装载全部标准库（含受限的 os/io）；这里执行的是远端 wiki 内容，环境越
+    // 小，wiki 内容被构造出意外能力（文件/时间/协程面）的空间越小。
+    let lua = Lua::new_with(
+        mlua::StdLib::BASE | mlua::StdLib::TABLE | mlua::StdLib::STRING | mlua::StdLib::MATH,
+        mlua::LuaOptions::new(),
+    )
+    .map_err(|e| format!("Lua 环境初始化失败: {e}"))?;
 
     // The script is typically: return { ... }
     // We can eval it directly.

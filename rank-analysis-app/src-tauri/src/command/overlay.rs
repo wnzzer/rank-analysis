@@ -26,11 +26,12 @@ pub fn hide_overlay_window() -> Result<(), String> {
 
 /// 向 overlay 窗口推送 NextAction 建议数据。
 ///
-/// 主窗口（Gaming.vue）每 2s 轮询一次 `get_next_actions`，
-/// 结果通过此命令推送到 overlay 窗口的 `overlay:update` 事件。
+/// 主窗口（Gaming.vue）轮询 `get_next_actions`（前端 30s 节流），结果通过此命令
+/// 经 `overlay:update` 事件送达 overlay 窗口。定向 [`Emitter::emit_to`] 只发给
+/// overlay：全局广播会把同一份数据冗余投递给主窗与全部 record-* 子窗口。
 #[tauri::command]
 pub fn push_overlay_data(app: tauri::AppHandle, actions: Vec<NextAction>) -> Result<(), String> {
-    if let Err(e) = app.emit("overlay:update", &actions) {
+    if let Err(e) = app.emit_to("overlay", "overlay:update", &actions) {
         return Err(format!("overlay 数据推送失败: {e}"));
     }
     Ok(())

@@ -164,7 +164,11 @@
                 :max-visible="tagMaxVisible"
               />
               <!-- ⓘ 溢出收纳（G5）：版本改动 / ARAM 平衡 / 遇见次数 收进单一 popover -->
-              <n-popover v-if="hasInfoOverflow" trigger="hover" :style="{ padding: 'var(--space-12)' }">
+              <n-popover
+                v-if="hasInfoOverflow"
+                trigger="hover"
+                :style="{ padding: 'var(--space-12)' }"
+              >
                 <template #trigger>
                   <span class="pc-info">ⓘ</span>
                 </template>
@@ -184,7 +188,9 @@
                     </n-flex>
                   </template>
                   <template v-if="meetCount > 0">
-                    <span class="pc-info-h">遇见过 ×{{ meetCount }}（近{{ sessionSummoner.meetTotal }}局）</span>
+                    <span class="pc-info-h"
+                      >遇见过 ×{{ meetCount }}（近{{ sessionSummoner.meetTotal }}局）</span
+                    >
                     <MettingPlayersCard
                       :meet-games="sessionSummoner.meetGames"
                       :meet-total="sessionSummoner.meetTotal"

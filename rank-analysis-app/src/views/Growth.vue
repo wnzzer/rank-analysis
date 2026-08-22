@@ -1,6 +1,10 @@
 <template>
   <div class="growth">
-    <PageHeader kicker="Growth Report" title="成长" subtitle="跨局聚合的重复性短板与改错清单——数据全部来自本机收集的对局">
+    <PageHeader
+      kicker="Growth Report"
+      title="成长"
+      subtitle="跨局聚合的重复性短板与改错清单——数据全部来自本机收集的对局"
+    >
       <template #actions>
         <button class="btn pri" :disabled="refreshingTags" @click="refreshAll">
           {{ refreshingTags ? '分析中…' : '⟳ 重新分析' }}
@@ -10,26 +14,37 @@
 
     <!-- 加载 / 全局错误 -->
     <p v-if="loading" class="psub growth-hint">正在聚合本机对局…</p>
-    <EmptyState v-else-if="tagsMsg && !tags.length" icon="⚠" title="暂时拿不到短板数据" :description="tagsMsg">
+    <EmptyState
+      v-else-if="tagsMsg && !tags.length"
+      icon="⚠"
+      title="暂时拿不到短板数据"
+      :description="tagsMsg"
+    >
       <template #action><button class="btn gho sm" @click="refreshAll">重试</button></template>
     </EmptyState>
 
     <!-- 短板卡：avgVsPeer 升序，最明显在前 -->
     <template v-else-if="tags.length">
       <div class="growth-grid">
-        <CornerCard
-          v-for="t in tags"
-          :key="t.dimension"
-          :emphasis="t.streak >= 3"
-        >
+        <CornerCard v-for="t in tags" :key="t.dimension" :emphasis="t.streak >= 3">
           <template #extra>
-            <span class="statc"><span class="l">vs 同段位</span><span class="v num" :class="deltaClass(t.avgVsPeer)">{{ formatDelta(t.avgVsPeer) }}</span></span>
+            <span class="statc"
+              ><span class="l">vs 同段位</span
+              ><span class="v num" :class="deltaClass(t.avgVsPeer)">{{
+                formatDelta(t.avgVsPeer)
+              }}</span></span
+            >
           </template>
           <div class="tag-head">
             <span class="tagp loss">{{ DIMENSION_LABELS[t.dimension] ?? t.dimension }}</span>
-            <span class="psub">持续落后 <b class="num">{{ t.streak }}</b> 局 · 最近检出 {{ shortDate(t.lastSeen) }}</span>
+            <span class="psub"
+              >持续落后 <b class="num">{{ t.streak }}</b> 局 · 最近检出
+              {{ shortDate(t.lastSeen) }}</span
+            >
           </div>
-          <p class="psub tag-hint">{{ DIMENSION_FIX_HINTS[t.dimension] ?? '对局中主动复盘该维度' }}</p>
+          <p class="psub tag-hint">
+            {{ DIMENSION_FIX_HINTS[t.dimension] ?? '对局中主动复盘该维度' }}
+          </p>
           <button class="btn gho sm tag-fix" @click="turnToGoal(t)">转为本周目标</button>
         </CornerCard>
       </div>
@@ -47,7 +62,9 @@
       <template #extra>
         <div class="goal-add">
           <select v-model="newGoalDimension" class="goal-select">
-            <option v-for="o in dimensionOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
+            <option v-for="o in dimensionOptions" :key="o.value" :value="o.value">
+              {{ o.label }}
+            </option>
           </select>
           <input
             v-model="newGoalTitle"
@@ -55,7 +72,9 @@
             placeholder="目标（如：排眼数 +1）"
             @keyup.enter="submitGoal"
           />
-          <button class="btn pri sm" :disabled="!newGoalTitle.trim()" @click="submitGoal">添加</button>
+          <button class="btn pri sm" :disabled="!newGoalTitle.trim()" @click="submitGoal">
+            添加
+          </button>
         </div>
       </template>
 
@@ -68,7 +87,12 @@
           <span class="tagp info goal-dim">{{ DIMENSION_LABELS[g.dimension] ?? g.dimension }}</span>
         </li>
       </ul>
-      <EmptyState v-else icon="▢" title="还没有目标" description="把上面的短板标签转成一条可执行目标吧。" />
+      <EmptyState
+        v-else
+        icon="▢"
+        title="还没有目标"
+        description="把上面的短板标签转成一条可执行目标吧。"
+      />
     </CornerCard>
   </div>
 </template>

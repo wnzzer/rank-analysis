@@ -17,7 +17,17 @@ use std::path::Path;
 ///
 /// 缓存类（`opgg_cache_*.json` / `cn_patch_notes_cache.json`）不在内：
 /// 它们会自动重建，搬运只是把陈旧数据带进新版本。
-const MIGRATED_FILES: [&str; 2] = ["config.yaml", "device_id"];
+///
+/// 三个本地数据库与 config.yaml 同目录（见 `paths`），同样会因改名成为孤儿：
+/// `meet.db`（遇见过全量库）/ `backtest.db`（回测样本）/ `insight.db`（习惯标签）。
+/// 旧版本可能尚未产生某个库——搬运循环对不存在的源文件静默跳过。
+const MIGRATED_FILES: [&str; 5] = [
+    "config.yaml",
+    "device_id",
+    "meet.db",
+    "backtest.db",
+    "insight.db",
+];
 
 /// 旧安装目录名。NSIS `installMode: currentUser` 下安装目录为
 /// `%LOCALAPPDATA%\{productName}`，这里是改名前的 productName。

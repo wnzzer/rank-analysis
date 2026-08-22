@@ -63,56 +63,58 @@
               重新分析
             </n-button>
           </template>
-        <n-tabs v-model:value="aiTab" type="line" animated>
-          <n-tab-pane name="champSelect" tab="选人期">
-            <div
-              v-if="champSelectRendered"
-              class="ai-result-content ai-report"
-              v-html="champSelectRendered"
-            ></div>
-            <div v-else-if="ai.kindState.champSelect.loading.value" class="ai-result-skeleton">
-              <div class="ai-result-skeleton-label">AI 正在分析选人期阵容...</div>
-              <n-skeleton text :repeat="4" />
-              <n-skeleton text style="width: 60%" />
-            </div>
-            <div v-else class="ai-result-empty">暂无选人期分析结果，点「重新分析」生成。</div>
-          </n-tab-pane>
-          <n-tab-pane name="live" tab="对局中">
-            <div v-if="live.inGame.value" class="ai-live-hint">
-              对局实时数据每 15 秒自动更新<template v-if="liveUpdatedAt">
-                · 最后更新 {{ liveUpdatedAt }}</template
-              >
-            </div>
-            <div
-              v-if="live.renderedResult.value"
-              class="ai-result-content ai-report"
-              v-html="live.renderedResult.value"
-            ></div>
-            <div v-else-if="live.loading.value" class="ai-result-skeleton">
-              <div class="ai-result-skeleton-label">AI 正在分析对局实时数据...</div>
-              <n-skeleton text :repeat="4" />
-              <n-skeleton text style="width: 60%" />
-            </div>
-            <div v-else class="ai-result-empty">
-              {{
-                live.inGame.value ? '暂无对局中分析结果，点「重新分析」生成。' : '当前不在对局中。'
-              }}
-            </div>
-          </n-tab-pane>
-          <n-tab-pane name="game" tab="赛后">
-            <div
-              v-if="gameRendered"
-              class="ai-result-content ai-report"
-              v-html="gameRendered"
-            ></div>
-            <div v-else-if="ai.kindState.game.loading.value" class="ai-result-skeleton">
-              <div class="ai-result-skeleton-label">AI 正在分析整局...</div>
-              <n-skeleton text :repeat="4" />
-              <n-skeleton text style="width: 60%" />
-            </div>
-            <div v-else class="ai-result-empty">暂无赛后分析结果，点「重新分析」生成。</div>
-          </n-tab-pane>
-        </n-tabs>
+          <n-tabs v-model:value="aiTab" type="line" animated>
+            <n-tab-pane name="champSelect" tab="选人期">
+              <div
+                v-if="champSelectRendered"
+                class="ai-result-content ai-report"
+                v-html="champSelectRendered"
+              ></div>
+              <div v-else-if="ai.kindState.champSelect.loading.value" class="ai-result-skeleton">
+                <div class="ai-result-skeleton-label">AI 正在分析选人期阵容...</div>
+                <n-skeleton text :repeat="4" />
+                <n-skeleton text style="width: 60%" />
+              </div>
+              <div v-else class="ai-result-empty">暂无选人期分析结果，点「重新分析」生成。</div>
+            </n-tab-pane>
+            <n-tab-pane name="live" tab="对局中">
+              <div v-if="live.inGame.value" class="ai-live-hint">
+                对局实时数据每 15 秒自动更新<template v-if="liveUpdatedAt">
+                  · 最后更新 {{ liveUpdatedAt }}</template
+                >
+              </div>
+              <div
+                v-if="live.renderedResult.value"
+                class="ai-result-content ai-report"
+                v-html="live.renderedResult.value"
+              ></div>
+              <div v-else-if="live.loading.value" class="ai-result-skeleton">
+                <div class="ai-result-skeleton-label">AI 正在分析对局实时数据...</div>
+                <n-skeleton text :repeat="4" />
+                <n-skeleton text style="width: 60%" />
+              </div>
+              <div v-else class="ai-result-empty">
+                {{
+                  live.inGame.value
+                    ? '暂无对局中分析结果，点「重新分析」生成。'
+                    : '当前不在对局中。'
+                }}
+              </div>
+            </n-tab-pane>
+            <n-tab-pane name="game" tab="赛后">
+              <div
+                v-if="gameRendered"
+                class="ai-result-content ai-report"
+                v-html="gameRendered"
+              ></div>
+              <div v-else-if="ai.kindState.game.loading.value" class="ai-result-skeleton">
+                <div class="ai-result-skeleton-label">AI 正在分析整局...</div>
+                <n-skeleton text :repeat="4" />
+                <n-skeleton text style="width: 60%" />
+              </div>
+              <div v-else class="ai-result-empty">暂无赛后分析结果，点「重新分析」生成。</div>
+            </n-tab-pane>
+          </n-tabs>
         </n-drawer-content>
       </n-drawer>
 
@@ -227,7 +229,8 @@
               :aria-selected="activeSignalTab === t.key"
               @click="activeSignalTab = t.key"
             >
-              {{ t.label }}<sup
+              {{ t.label
+              }}<sup
                 v-if="
                   (t.key === 'threat' && (threatRatings?.length ?? 0) > 0) ||
                   (t.key === 'next' && (nextActions?.length ?? 0) > 0)
@@ -248,10 +251,7 @@
             <NextActionCard v-else-if="activeSignalTab === 'next'" :actions="nextActions" />
             <template v-else>
               <!-- 对位分析（同分路画像均值差 ≥2%，确定性计算） -->
-              <div
-                v-if="lineupScores.scores.value.matchupHints.length > 0"
-                class="matchup-hints"
-              >
+              <div v-if="lineupScores.scores.value.matchupHints.length > 0" class="matchup-hints">
                 <div
                   v-for="(hint, i) in lineupScores.scores.value.matchupHints"
                   :key="i"
@@ -595,7 +595,9 @@ async function pollNextActions(): Promise<void> {
     // 同 threatRatings：归一为数组防 undefined（mock 桩/后端异常都可能返回空）
     nextActions.value = Array.isArray(actions) ? actions : []
     // 推送数据到 overlay 窗口（4b overlay POC）
-    void invoke('push_overlay_data', { actions: nextActions.value })
+    invoke('push_overlay_data', { actions: nextActions.value }).catch(e => {
+      console.warn('push_overlay_data failed:', e)
+    })
   } catch {
     nextActions.value = []
   }
@@ -605,18 +607,19 @@ watch(
   () => sessionData.phase,
   phase => {
     if (phase === 'InProgress') {
+      // 先建/显示窗口再首推：overlay 懒创建，若先 poll 后 show，
+      // 首条 overlay:update 会落在窗口 mount+listen 就绪之前而丢失。
+      void invoke('show_overlay_window').catch(() => {})
       lastNextActionAt = 0
       void pollNextActions()
       nextActionTimer = setInterval(() => void pollNextActions(), NEXT_ACTION_POLL_MS)
-      // 显示 overlay 窗口（4b overlay POC）
-      void invoke('show_overlay_window')
     } else {
       if (nextActionTimer) {
         clearInterval(nextActionTimer)
         nextActionTimer = null
       }
       nextActions.value = []
-      void invoke('hide_overlay_window')
+      void invoke('hide_overlay_window').catch(() => {})
     }
   }
 )

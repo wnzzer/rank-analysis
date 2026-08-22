@@ -89,10 +89,18 @@ fn game_deltas(game: &Game, my_puuid: &str) -> Option<[f64; 6]> {
     Some(deltas)
 }
 
-/// 聚合产出习惯标签（时间升序的 games 输入）：不足 MIN_GAMES 或无落后维度 → 空。
+/// 聚合产出习惯标签：不足 MIN_GAMES 或无落后维度 → 空。
+///
+/// streak / first_seen / last_seen 的语义都依赖**时间升序**输入，但上游可能是
+/// 多条 `(region, name)` 记录的拼接（meet_db 查询无 ORDER BY），顺序不可信；
+/// 这里在入口统一按创建时间排序兜底。`game_creation_date` 是 ISO-8601 字符串，
+/// 字典序即时间序。
 pub fn aggregate_habit_tags(games: &[Game], my_puuid: &str) -> Vec<HabitTag> {
+    let mut sorted: Vec<&Game> = games.iter().collect();
+    sorted.sort_by(|a, b| a.game_creation_date.cmp(&b.game_creation_date));
+
     let mut samples: Vec<Vec<(f64, String)>> = vec![Vec::new(); DIMENSIONS.len()];
-    for game in games {
+    for game in sorted {
         let Some(deltas) = game_deltas(game, my_puuid) else {
             continue;
         };

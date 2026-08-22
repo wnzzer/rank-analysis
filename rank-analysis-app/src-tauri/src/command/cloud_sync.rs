@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::sync::OnceLock;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use tauri_plugin_dialog::DialogExt;
 
 use crate::config::{self, Value};
 
@@ -135,7 +136,15 @@ async fn refresh_session(refresh_token: &str) -> Result<CloudSession, String> {
 }
 
 /// 取可用会话：无会话→匿名注册；临过期→刷新；刷新失败→重新匿名注册（旧行仍可读到）
+///
+/// 全程持 [`SESSION_REFRESH_LOCK`] 串行：refresh_token 是**轮换式**的，并发两个
+/// 请求各带同一枚旧 token 去换新时后到者必败；失败分支回退匿名注册新账号，
+/// 会把数据分裂到两个 owner_id 下且旧账号从此不可写。单飞保证同一时刻至多
+/// 一个刷新流程在途。
+static SESSION_REFRESH_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 async fn ensure_session() -> Result<CloudSession, String> {
+    let _refresh_guard = SESSION_REFRESH_LOCK.lock().await;
     let session = match load_session().await {
         Some(s) if !needs_refresh(s.expires_at, now_unix()) => return Ok(s),
         Some(s) => match refresh_session(&s.refresh_token).await {
@@ -312,9 +321,7 @@ pub async fn apply_config_snapshot(
 /// appConfig 用文件口径快照(含 dashscopeApiKey——文件由用户自己保管);
 /// playerNotes 从 config 读出并解掉 `{value:...}` 包装,与前端 importNotes
 /// 期望的裸 PlayerNotesMap 形状一致。
-#[tauri::command]
-pub async fn export_backup(path: String) -> Result<(), String> {
-    validate_backup_path(&path)?;
+async fn build_backup_json() -> Result<String, String> {
     let notes = match crate::config::get_config("playerNotes").await? {
         crate::config::Value::Map(m) => m
             .get("value")
@@ -329,46 +336,94 @@ pub async fn export_backup(path: String) -> Result<(), String> {
         "playerNotes": notes,
         "appConfig": crate::config::config_snapshot(false).await,
     });
-    let content = serde_json::to_string_pretty(&backup).map_err(|e| e.to_string())?;
-    std::fs::write(&path, content).map_err(|e| format!("写入文件失败 {path}: {e}"))
+    serde_json::to_string_pretty(&backup).map_err(|e| e.to_string())
+}
+
+/// 弹出系统「保存文件」对话框并把全量备份写入用户选定的路径。
+///
+/// 对话框在 Rust 侧执行、路径不经过 webview：此前的 `export_backup(path)`
+/// 把「写任意 `.json` 路径」原语暴露给 webview，一旦被注入即可覆写其他软件的
+/// 配置文件。收敛为「Rust 选路径 → Rust 写入」后，webview 只能触发、无法指认目标。
+///
+/// # 返回值
+/// - `Ok(Some(path))`: 用户选定且已成功写入的路径（前端用于提示）
+/// - `Ok(None)`: 用户取消了对话框
+#[tauri::command]
+pub async fn export_backup(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let (tx, rx) = tokio::sync::oneshot::channel::<Option<tauri_plugin_dialog::FilePath>>();
+    app.dialog()
+        .file()
+        .add_filter("JSON", &["json"])
+        .set_file_name(&format!(
+            "rank-analysis-backup-{}.json",
+            today_iso_from_unix(now_unix())
+        ))
+        .save_file(move |file| {
+            let _ = tx.send(file);
+        });
+    let picked = rx.await.map_err(|_| "文件对话框已关闭".to_string())?;
+    let Some(file) = picked else {
+        return Ok(None);
+    };
+    let path = file.into_path().map_err(|e| e.to_string())?;
+    let display = path.display().to_string();
+    let content = build_backup_json().await?;
+    std::fs::write(&path, content).map_err(|e| format!("写入文件失败 {display}: {e}"))?;
+    Ok(Some(display))
 }
 
 /// 备份文件大小上限（字节）：备注备份远小于此，超限说明选错了文件
 const MAX_BACKUP_FILE_SIZE: u64 = 10 * 1024 * 1024;
 
-/// 校验备份文件路径：只允许 `.json` 扩展名（不区分大小写）
+/// 弹出系统「打开文件」对话框并读取用户选定的备份文件内容。
 ///
-/// # 防御意图
-///
-/// 这两个文件命令暴露给 webview，若前端被注入（本应用 CSP 宽松且存在 v-html
-/// 渲染远程内容的面板），`read_text_file` + `cloud_push_notes` 可组合成
-/// 「读任意本地文件 → 外传云端」的攻击链。限定 `.json` 扩展名把「任意文件
-/// 读写原语」收敛为「仅备份文件读写」，正常导入导出流程（plugin-dialog 过滤
-/// `.json`）完全不受影响。
-fn validate_backup_path(path: &str) -> Result<(), String> {
-    if path.to_lowercase().ends_with(".json") {
-        Ok(())
-    } else {
-        Err("仅支持 .json 备份文件".to_string())
-    }
-}
-
-/// 读取用户经系统对话框选定的文本文件（导入备份用）
-///
-/// # 参数
-/// - `path`: 待读取文件路径（必须以 `.json` 结尾，见 [`validate_backup_path`]）
+/// 与 [`export_backup`] 同理收口路径来源：此前的 `read_text_file(path)` 是
+/// 「读任意本地 `.json` 文件」原语，可与其他命令组合成读取本机敏感配置外传的
+/// 攻击链；现在 webview 只能拿到用户亲手选中的那一份内容。
 ///
 /// # 返回值
-/// - `Ok(String)`: 文件文本内容
-/// - `Err(String)`: 路径非法、文件过大或读取失败（文件不存在/权限/编码问题）
+/// - `Ok(Some(content))`: 用户选定文件并成功读取
+/// - `Ok(None)`: 用户取消对话框
+/// - `Err(String)`: 文件过大或读取失败
 #[tauri::command]
-pub async fn read_text_file(path: String) -> Result<String, String> {
-    validate_backup_path(&path)?;
-    let meta = std::fs::metadata(&path).map_err(|e| format!("读取文件失败 {path}: {e}"))?;
+pub async fn read_backup_file(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let (tx, rx) = tokio::sync::oneshot::channel::<Option<tauri_plugin_dialog::FilePath>>();
+    app.dialog()
+        .file()
+        .add_filter("JSON", &["json"])
+        .pick_file(move |file| {
+            let _ = tx.send(file);
+        });
+    let picked = rx.await.map_err(|_| "文件对话框已关闭".to_string())?;
+    let Some(file) = picked else {
+        return Ok(None);
+    };
+    let path = file.into_path().map_err(|e| e.to_string())?;
+    let display = path.display().to_string();
+    let meta = std::fs::metadata(&path).map_err(|e| format!("读取文件失败 {display}: {e}"))?;
     if meta.len() > MAX_BACKUP_FILE_SIZE {
         return Err("文件过大（>10MB），不是备份文件".to_string());
     }
-    std::fs::read_to_string(&path).map_err(|e| format!("读取文件失败 {path}: {e}"))
+    std::fs::read_to_string(&path).map_err(|e| format!("读取文件失败 {display}: {e}"))
+}
+
+/// 由 Unix 秒得出 `YYYY-MM-DD`（UTC，仅用于默认导出文件名）。
+///
+/// 项目无 chrono 依赖，这里用 Howard Hinnant 的 civil_from_days 纯算法换算，
+/// 避免为一个日期字符串引入新的依赖。
+fn today_iso_from_unix(secs: u64) -> String {
+    let days = (secs / 86_400) as i64;
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = if m <= 2 { y + 1 } else { y };
+    format!("{y:04}-{m:02}-{d:02}")
 }
 
 #[cfg(test)]
@@ -407,19 +462,13 @@ mod tests {
     }
 
     #[test]
-    fn should_accept_json_backup_path_case_insensitive() {
-        assert!(validate_backup_path("C:\\backup\\notes.json").is_ok());
-        assert!(validate_backup_path("/tmp/notes.JSON").is_ok());
-        assert!(validate_backup_path("notes.Json").is_ok());
-    }
-
-    #[test]
-    fn should_reject_non_json_backup_path() {
-        assert!(validate_backup_path("C:\\Windows\\system32\\config\\SAM").is_err());
-        assert!(validate_backup_path("/etc/passwd").is_err());
-        assert!(validate_backup_path("notes.json.exe").is_err());
-        assert!(validate_backup_path("notes.txt").is_err());
-        assert!(validate_backup_path("").is_err());
+    fn today_iso_should_render_known_dates() {
+        // 2026-08-22 00:00:00 UTC = 1_787_356_800
+        assert_eq!(today_iso_from_unix(1_787_356_800), "2026-08-22");
+        // 1970-01-01
+        assert_eq!(today_iso_from_unix(0), "1970-01-01");
+        // 2000-02-29（世纪闰年）
+        assert_eq!(today_iso_from_unix(951_782_400), "2000-02-29");
     }
 
     #[test]

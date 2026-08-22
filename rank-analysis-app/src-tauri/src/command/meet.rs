@@ -5,6 +5,10 @@
 //!
 //! 另含跨区「收集全部」结果持久化命令（读写 SQLite 的 `collected_games` 表，
 //! 供战绩页跨区模式重启后恢复全量收集，见 `meet_db::save/load/clear`）。
+//!
+//! 全部命令都是 **async + `spawn_blocking`**：底层是 rusqlite 同步连接 +
+//! 全局 Mutex（见 meet_db），非 async 命令会整段跑在主线程上，「收集全部」
+//! 数百场 Game 的序列化与覆盖写会让 UI 冻结可感知。
 
 use crate::lcu::api::match_history::Game;
 use crate::meet_db::{
@@ -19,8 +23,12 @@ use crate::meet_db::{
 /// 是「当前用户视角 + 实时 20 场 + 库补历史」，这里是任意路径直接查库。
 /// 库里无记录时返回零值摘要（`total = 0`），不视为错误。
 #[tauri::command]
-pub fn query_meet_summary(puuid: String) -> Result<MeetSummary, String> {
-    query_summary(&puuid).ok_or_else(|| "遇见过数据库未就绪".to_string())
+pub async fn query_meet_summary(puuid: String) -> Result<MeetSummary, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        query_summary(&puuid).ok_or_else(|| "遇见过数据库未就绪".to_string())
+    })
+    .await
+    .map_err(|e| format!("查询任务失败: {e}"))?
 }
 
 /// 持久化跨区「收集全部」结果（SQLite 覆盖写入，`(region, name)` 主键）。
@@ -28,8 +36,14 @@ pub fn query_meet_summary(puuid: String) -> Result<MeetSummary, String> {
 /// 收集即沉淀：保存后后台异步刷新本地样本库（M2 数据飞轮——收集到的对局
 /// 提取成本机对位样本；拿不到本机 puuid 时静默跳过，宁缺毋滥不编造）。
 #[tauri::command]
-pub fn save_collected_games(region: String, name: String, games: Vec<Game>) -> Result<(), String> {
-    db_save_collected_games(&region, &name, &games);
+pub async fn save_collected_games(
+    region: String,
+    name: String,
+    games: Vec<Game>,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || db_save_collected_games(&region, &name, &games))
+        .await
+        .map_err(|e| format!("保存任务失败: {e}"))?;
     tauri::async_runtime::spawn(async move {
         match crate::lcu::api::summoner::Summoner::get_my_summoner().await {
             Ok(s) => {
@@ -44,13 +58,16 @@ pub fn save_collected_games(region: String, name: String, games: Vec<Game>) -> R
 
 /// 读取已持久化的跨区收集结果；无记录返回空数组。
 #[tauri::command]
-pub fn load_collected_games(region: String, name: String) -> Result<Vec<Game>, String> {
-    Ok(db_load_collected_games(&region, &name))
+pub async fn load_collected_games(region: String, name: String) -> Result<Vec<Game>, String> {
+    tauri::async_runtime::spawn_blocking(move || Ok(db_load_collected_games(&region, &name)))
+        .await
+        .map_err(|e| format!("读取任务失败: {e}"))?
 }
 
 /// 清除某玩家的跨区收集结果。
 #[tauri::command]
-pub fn clear_collected_games(region: String, name: String) -> Result<(), String> {
-    db_clear_collected_games(&region, &name);
-    Ok(())
+pub async fn clear_collected_games(region: String, name: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || db_clear_collected_games(&region, &name))
+        .await
+        .map_err(|e| format!("清除任务失败: {e}"))
 }

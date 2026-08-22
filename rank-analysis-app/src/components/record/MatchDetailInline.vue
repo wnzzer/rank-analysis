@@ -160,7 +160,11 @@
                视觉弱化并加分隔——低频分析不与高频页签抢宽度，KeepAlive 保活 + 懒加载 -->
           <div class="match-detail-tabs" role="tablist">
             <template v-for="(tab, i) in tabs" :key="tab.key">
-              <span v-if="tab.minor && !(tabs[i - 1] && tabs[i - 1].minor)" class="match-detail-tab-divider" aria-hidden="true"></span>
+              <span
+                v-if="tab.minor && !(tabs[i - 1] && tabs[i - 1].minor)"
+                class="match-detail-tab-divider"
+                aria-hidden="true"
+              ></span>
               <button
                 type="button"
                 role="tab"

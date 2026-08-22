@@ -516,7 +516,9 @@ mod platform {
                 let slice = std::slice::from_raw_parts(ucs.Buffer, (ucs.Length / 2) as usize);
                 let cmd_line = String::from_utf16_lossy(slice);
 
-                log::info!("成功获取命令行: {}", cmd_line);
+                // 命令行内嵌 `--remoting-auth-token=<密钥>`，**绝不写入日志**，
+                // 只记录「已成功获取」这一事实。
+                log::info!("成功从进程命令行获取 LCU 认证参数");
                 Ok(cmd_line)
             }
         }
@@ -729,11 +731,11 @@ mod platform {
                 // KERN_PROCARGS2 布局：`argc`（int）+ 0x0 填充 + exec 路径（NUL 结尾）+ 空字节
                 // + 参数数组（NUL 分隔）。解析参数时跳过开头的 exec 路径前缀。
                 //
-                // 调试用：打印原始缓冲区（转义成可读形式，避免二进制/控制字符刷屏），
-                // 便于核对 macOS 真实命令行布局是否与解析假设一致。
+                // 注意：命令行内嵌 `--remoting-auth-token=<密钥>`，**绝不写入日志**，
+                // 只记录「已成功获取」这一事实。
                 let raw = String::from_utf8_lossy(bytes);
                 let cmd_line = parse_procargs2(raw.as_ref());
-                log::info!("成功获取命令行: {}", cmd_line);
+                log::info!("成功从 KERN_PROCARGS2 获取 LCU 进程命令行");
                 Ok(cmd_line)
             }
         }

@@ -36,8 +36,9 @@
 //!     tauri::Builder::default()
 //!         .setup(|app| {
 //!             let handle = app.handle().clone();
+//!             let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
 //!             tauri::async_runtime::spawn(async move {
-//!                 start_game_state_monitor(handle).await;
+//!                 start_game_state_monitor(handle, stop).await;
 //!             });
 //!             Ok(())
 //!         })
@@ -45,11 +46,12 @@
 //! }
 //! ```
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 use tauri::{AppHandle, Emitter};
 use tokio::sync::RwLock;
-use tokio::time::interval;
+use tokio::time::{interval, MissedTickBehavior};
 
 use crate::lcu::api::phase::get_phase;
 use crate::lcu::api::summoner::Summoner;
@@ -146,9 +148,18 @@ impl GameStateMonitor {
     /// - 调用 LCU API 获取游戏阶段
     /// - 可能启动 WebSocket 监听任务
     async fn check_and_emit(&mut self) {
-        // 尝试获取 summoner 信息
-        let summoner_result = Summoner::get_my_summoner().await;
-        let phase_result = get_phase().await;
+        // 单请求包一层短超时：LCU HTTP 客户端超时 50s，两次串行最坏 ~100s，
+        // 期间状态事件停发、前端「已连接」判断冻结。本机接口正常亚秒级返回，
+        // 5s 足够；超时按「未连接（OTHER）」归类，下一轮 tick 会自动恢复。
+        let summoner_result =
+            match tokio::time::timeout(Duration::from_secs(5), Summoner::get_my_summoner()).await {
+                Ok(result) => result,
+                Err(_) => Err("状态检测超时".to_string()),
+            };
+        let phase_result = match tokio::time::timeout(Duration::from_secs(5), get_phase()).await {
+            Ok(result) => result,
+            Err(_) => Err("阶段检测超时".to_string()),
+        };
         let connected = summoner_result.is_ok();
 
         // 未连接时进一步归类原因：区分"游戏没开"（正常等待）与"权限不足"
@@ -214,21 +225,12 @@ impl GameStateMonitor {
             }
             log::info!("LCU 已连接，正在启动 WebSocket 监听...");
             let app_handle = self.app_handle.clone();
+            // LcuListener 内部自带代际去重与每轮现取认证：这里只管在
+            // 「未连接 → 已连接」跳变时 spawn，旧实例会自行退出。
             tokio::spawn(async move {
-                match crate::lcu::util::token::get_auth() {
-                    Ok((token, port_str)) => {
-                        if let Ok(port) = port_str.parse::<u16>() {
-                            let listener =
-                                crate::lcu::listener::LcuListener::new(app_handle, port, token);
-                            listener.start().await;
-                        } else {
-                            log::error!("解析端口失败: {}", port_str);
-                        }
-                    }
-                    Err(e) => {
-                        log::error!("获取 LCU 认证信息失败: {}", e);
-                    }
-                }
+                crate::lcu::listener::LcuListener::new(app_handle)
+                    .start()
+                    .await;
             });
         }
 
@@ -261,17 +263,19 @@ impl GameStateMonitor {
 
 /// 初始化并启动游戏状态监听器。
 ///
-/// 这是模块的主要入口函数，应在应用程序启动时调用。
+/// 这是模块的主要入口函数，应在应用程序启动时调用（由 [`crate::shard::GameStateShard`] 驱动）。
 ///
 /// # 参数
 ///
 /// - `app_handle`: Tauri 应用句柄
+/// - `stop`: 停止标记，由 shard `on_dispose` 置位；循环在下一次检查点收敛退出
+///   （最长 2 秒），避免进程退出前留下无法收敛的常驻任务
 ///
 /// # 行为
 ///
 /// 1. 创建全局监听器实例
-/// 2. 启动 Tokio 定时任务（每 2 秒执行一次检测）
-/// 3. 持续监控直到应用程序退出
+/// 2. 启动 Tokio 定时任务（每 2 秒执行一次检测，积压 tick 用 Delay 丢弃而非补帧）
+/// 3. 持续监控直到应用程序退出或收到停止标记
 ///
 /// # 示例
 ///
@@ -280,15 +284,16 @@ impl GameStateMonitor {
 ///     tauri::Builder::default()
 ///         .setup(|app| {
 ///             let handle = app.handle().clone();
+///             let stop = Arc::new(AtomicBool::new(false));
 ///             tauri::async_runtime::spawn(async move {
-///                 start_game_state_monitor(handle).await;
+///                 start_game_state_monitor(handle, stop).await;
 ///             });
 ///             Ok(())
 ///         })
 ///         ...
 /// }
 /// ```
-pub async fn start_game_state_monitor(app_handle: AppHandle) {
+pub async fn start_game_state_monitor(app_handle: AppHandle, stop: Arc<AtomicBool>) {
     log::info!("Starting game state monitor");
 
     let monitor = Arc::new(RwLock::new(GameStateMonitor::new(app_handle)));
@@ -297,10 +302,19 @@ pub async fn start_game_state_monitor(app_handle: AppHandle) {
     // 启动监听循环
     tokio::spawn(async move {
         let mut ticker = interval(Duration::from_secs(2));
+        // 检测耗时超过 2s 时默认 Burst 行为会把积压的 tick 连发补跑，
+        // 造成 LCU 卡顿恢复后的事件风暴；Delay 语义改为「顺延到下一个整周期」。
+        ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
 
         loop {
+            if stop.load(Ordering::Relaxed) {
+                log::info!("[shard] game-state-monitor stopped");
+                return;
+            }
             ticker.tick().await;
 
+            // 写锁只覆盖内存状态更新与事件发射（HTTP 检测在锁内但已限 5s 超时），
+            // 不再出现「持锁等待最长 100s」的窗口。
             let mut monitor = monitor.write().await;
             monitor.check_and_emit().await;
         }

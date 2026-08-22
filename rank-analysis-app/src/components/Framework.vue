@@ -3,7 +3,10 @@
     <!-- 启动弹窗队列：同一时刻至多一个可见，顺序见 useStartupDialogs。
          云端配置拉取裁决（CloudConfigPullDialog）不再走这里自动弹出，改成
          设置页「数据与同步」里的被动角标引导入口，见 views/settings/DataSync.vue -->
-    <ErrorReportingConsentDialog :show="active === 'errorReportingConsent'" @decide="onConsentDecide" />
+    <ErrorReportingConsentDialog
+      :show="active === 'errorReportingConsent'"
+      @decide="onConsentDecide"
+    />
 
     <TopBar @open-palette="paletteShow = true" />
     <div class="shellv2">

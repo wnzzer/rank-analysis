@@ -63,6 +63,7 @@ pub struct ThreatRating {
     pub encounter_count: u32,
     pub lane_aggression: f64,
     pub recent_performance: f64,
+    /// 本命英雄（场次最多）的该英雄胜率；无对局数据时为 None。
     pub main_champion_win_rate: Option<f64>,
     pub caveats: Vec<String>,
     pub puuid: String,
@@ -118,7 +119,7 @@ struct PlayerStyle {
     scores: Vec<f64>,
     wins: u32,
     total: u32,
-    champion_counts: Vec<(i32, u32)>,
+    champion_counts: Vec<(i32, u32, u32)>,
 }
 
 impl PlayerStyle {
@@ -151,14 +152,18 @@ impl PlayerStyle {
         }
         self.total += 1;
 
-        if let Some((_, count)) = self
+        if let Some((_, games, wins)) = self
             .champion_counts
             .iter_mut()
-            .find(|(cid, _)| *cid == p.champion_id)
+            .find(|(cid, _, _)| *cid == p.champion_id)
         {
-            *count += 1;
+            *games += 1;
+            if p.stats.win {
+                *wins += 1;
+            }
         } else {
-            self.champion_counts.push((p.champion_id, 1));
+            self.champion_counts
+                .push((p.champion_id, 1, u32::from(p.stats.win)));
         }
     }
 }
@@ -254,11 +259,20 @@ fn assess_single_threat(style: &PlayerStyle, encounter_count: u32) -> ThreatRati
     let lane_aggression = compute_aggression(style);
     let style_tags = generate_style_tags(style);
 
-    let main_champion_win_rate = if style.total > 0 {
-        Some(style.wins as f64 / style.total as f64)
-    } else {
-        None
-    };
+    // 本命英雄胜率：取场次最多英雄的**该英雄**胜率。此前实现误返回全局胜率
+    // （style.wins/style.total），玩家英雄池分散时明显失真；现在按英雄维度
+    // 记账（champion_counts: (英雄, 场次, 胜场)）后取最常玩英雄的胜率。
+    let main_champion_win_rate = style
+        .champion_counts
+        .iter()
+        .max_by_key(|(_, games, _)| *games)
+        .and_then(|(_, games, wins)| {
+            if *games > 0 {
+                Some(*wins as f64 / *games as f64)
+            } else {
+                None
+            }
+        });
 
     ThreatRating {
         threat_level,

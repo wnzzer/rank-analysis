@@ -275,6 +275,8 @@ async fn fetch_patch_wikitext(
     );
     let client = reqwest::Client::builder()
         .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+        // 无超时的客户端会让 get_or_fetch 的等待方无限排队；对齐 knowledge 的 15s
+        .timeout(std::time::Duration::from_secs(15))
         .build()?;
     log::info!("Fetching patch notes: {}", url);
     // 尽量贴近真实浏览器请求头：Fandom 前面有 Cloudflare，请求特征太"裸"容易吃挑战页
@@ -307,9 +309,16 @@ async fn fetch_patch_wikitext(
     Ok(Some(content.to_string()))
 }
 
-/// 内存缓存 + 单飞锁：同一时间只有一个网络拉取。
+/// 内存快照缓存（读写都在这把锁内完成，**不跨 await 持锁等网络**）。
 static SNAPSHOT: tokio::sync::Mutex<Option<Arc<PatchNotesSnapshot>>> =
     tokio::sync::Mutex::const_new(None);
+
+/// 网络拉取单飞锁：同一时间只有一个 fetch 在途。
+///
+/// 与 SNAPSHOT 锁分离是刻意的：此前网络请求发生在持有 SNAPSHOT 锁的状态下，
+/// 连接挂起时所有等待方在 mutex 上无限排队。现在快照读写与网络互斥各用一把，
+/// 等待网络期间其他调用方仍能命中内存缓存。
+static FETCH_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 /// 取指定 patch 的快照：内存 → 磁盘 → 网络。
 ///
@@ -320,18 +329,33 @@ pub async fn get_or_fetch(patch: &str) -> Arc<PatchNotesSnapshot> {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0);
-    let mut guard = SNAPSHOT.lock().await;
 
-    if let Some(snap) = guard.as_ref() {
-        if is_valid(snap, patch, now) {
-            return snap.clone();
+    // 第一阶段：只读检查（内存 → 磁盘），命中即走，不等网络
+    {
+        let guard = SNAPSHOT.lock().await;
+        if let Some(snap) = guard.as_ref() {
+            if is_valid(snap, patch, now) {
+                return snap.clone();
+            }
         }
     }
     if let Some(disk) = load_from_path(&default_path()) {
         if is_valid(&disk, patch, now) {
             let arc = Arc::new(disk);
+            let mut guard = SNAPSHOT.lock().await;
             *guard = Some(arc.clone());
             return arc;
+        }
+    }
+
+    // 第二阶段：网络单飞 + 双检（拿锁期间可能有别的调用方已完成本次拉取）
+    let _net_guard = FETCH_LOCK.lock().await;
+    {
+        let guard = SNAPSHOT.lock().await;
+        if let Some(snap) = guard.as_ref() {
+            if is_valid(snap, patch, now) {
+                return snap.clone();
+            }
         }
     }
 
@@ -361,6 +385,7 @@ pub async fn get_or_fetch(patch: &str) -> Arc<PatchNotesSnapshot> {
             log::warn!("patch notes fetch V{} failed: {}", patch, e);
             // 降级：同 patch 过期缓存仍可用
             if let Some(stale) = load_from_path(&default_path()).filter(|s| s.patch == patch) {
+                let mut guard = SNAPSHOT.lock().await;
                 let arc = Arc::new(stale);
                 *guard = Some(arc.clone());
                 return arc;
@@ -372,11 +397,13 @@ pub async fn get_or_fetch(patch: &str) -> Arc<PatchNotesSnapshot> {
                 fetched_at: now,
                 champions: HashMap::new(),
             });
+            let mut guard = SNAPSHOT.lock().await;
             *guard = Some(arc.clone());
             return arc;
         }
     };
     save_to_path(&snapshot, &default_path());
+    let mut guard = SNAPSHOT.lock().await;
     let arc = Arc::new(snapshot);
     *guard = Some(arc.clone());
     arc

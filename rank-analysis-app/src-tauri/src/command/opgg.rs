@@ -185,6 +185,20 @@ where
     }
 }
 
+/// 每模式网络单飞锁：缓存过期瞬间多个调用方（启动预热 / bp_decision 任务 /
+/// 前端）同时到达时，只放一个进 HTTP；其余等锁后经双检直接命中新快照。
+///
+/// validate_mode 保证 mode 只可能是 "ranked"/"aram"，两把静态锁按模式分发。
+fn fetch_flight(mode: &str) -> &'static tokio::sync::Mutex<()> {
+    static RANKED: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+    static ARAM: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+    if mode == "aram" {
+        &ARAM
+    } else {
+        &RANKED
+    }
+}
+
 /// 获取某模式快照的核心编排（命令层与启动预热共用）。
 ///
 /// # 返回值
@@ -200,6 +214,16 @@ pub async fn ensure_opgg_snapshot(
         .ok()
         .and_then(|v| crate::config::extract_string(&v));
     let tier = api::sanitize_tier(tier_cfg.as_deref());
+
+    // 单飞 + 双检：等锁期间别的调用方可能已完成拉取，先查内存再决定是否走网络
+    let _flight = fetch_flight(mode).lock().await;
+    if let Some(snap) = state.opgg_cache.get(mode).await {
+        let now = now_secs();
+        let fresh = cache::is_fresh(&snap, now) && (mode != "ranked" || snap.tier == tier);
+        if fresh {
+            return Ok((snap, false));
+        }
+    }
 
     ensure_snapshot_impl(
         &state.opgg_cache,

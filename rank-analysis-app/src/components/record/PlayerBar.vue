@@ -206,7 +206,6 @@ const copyName = () => {
   white-space: nowrap;
 }
 
-
 .player-bar-recent {
   display: inline-flex;
   align-items: baseline;

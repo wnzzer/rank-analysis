@@ -119,7 +119,6 @@
  */
 import { ref, computed } from 'vue'
 import { useMessage } from 'naive-ui'
-import { save, open } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
 import { usePlayerNotesStore } from '@renderer/features/settings/stores/playerNotes'
 import { useCloudSyncStore } from '@renderer/features/settings/stores/cloudSync'
@@ -155,15 +154,14 @@ function formatSyncTime(ts: number): string {
   return sameDay ? d.toLocaleTimeString() : d.toLocaleString()
 }
 
-/** 导出:系统保存对话框选路径 → Rust export_backup 全量写文件(过滤在 Rust 侧) */
+/**
+ * 导出：Rust 侧弹出系统保存对话框并写入备份（路径不经过 webview，
+ * 防注入链见 cloud_sync.rs）。取消对话框返回 null，静默结束。
+ */
 async function handleExport(): Promise<void> {
-  const path = await save({
-    defaultPath: `rank-analysis-backup-${new Date().toISOString().slice(0, 10)}.json`,
-    filters: [{ name: 'JSON', extensions: ['json'] }]
-  })
-  if (!path) return
   try {
-    await invoke('export_backup', { path })
+    const savedPath = await invoke<string | null>('export_backup')
+    if (savedPath === null) return
     message.success('已导出全量备份')
   } catch (e) {
     message.error(String(e))
@@ -171,21 +169,21 @@ async function handleExport(): Promise<void> {
 }
 
 /**
- * 导入：系统打开对话框选文件 → Rust 读文件 → 校验格式 → 并入 store。
+ * 导入：Rust 侧弹出系统打开对话框并读取文件 → 校验格式 → 并入 store。
+ * 路径选择在 Rust 侧完成（防注入），webview 只拿到用户选中的文件内容。
  * 校验要点：parse 结果必须是「普通对象」（排除 null / 数组 / 原始值），
  * 否则 importNotes 的 Object.entries 会拿到垃圾数据。
  */
 async function handleImport(): Promise<void> {
-  const path = await open({ multiple: false, filters: [{ name: 'JSON', extensions: ['json'] }] })
-  if (!path || Array.isArray(path)) return
-  // 读文件与 parse 分开 catch：Rust 侧的「文件过大」「仅支持 .json」等文案需原样透传
-  let content: string
+  let content: string | null
   try {
-    content = await invoke<string>('read_text_file', { path })
+    content = await invoke<string | null>('read_backup_file')
   } catch (e) {
+    // Rust 侧的「文件过大」等文案需原样透传
     message.error(String(e))
     return
   }
+  if (content === null) return
   let parsed: unknown
   try {
     parsed = JSON.parse(content)

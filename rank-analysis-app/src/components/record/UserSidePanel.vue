@@ -7,10 +7,7 @@
 
     <template v-if="!isCrossRegion">
       <!-- ① 段位概览：两张 RankCard 合并进同一 Section（R4） -->
-      <CornerCard
-        v-model:collapsed="sec.rank"
-        title="段位概览"
-      >
+      <CornerCard v-model:collapsed="sec.rank" title="段位概览">
         <div class="rank-stack">
           <RankCard label="单双排" :queue-info="rank.queueMap.RANKED_SOLO_5x5" :recent="solo5v5" />
           <RankCard label="灵活组排" :queue-info="rank.queueMap.RANKED_FLEX_SR" :recent="flex" />

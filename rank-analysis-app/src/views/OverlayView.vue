@@ -22,15 +22,21 @@ let unlistenUpdate: UnlistenFn | null = null
 let unlistenConfig: UnlistenFn | null = null
 
 onMounted(async () => {
-  unlistenUpdate = await listen<NextAction[]>('overlay:update', event => {
-    actions.value = Array.isArray(event.payload) ? event.payload : []
-    visible.value = actions.value.length > 0
-  })
-  unlistenConfig = await listen<Partial<OverlayPrefs>>('overlay:config', event => {
-    const merged = { ...prefs.value, ...(event.payload ?? {}) }
-    prefs.value = { ...merged }
-    saveOverlayPrefs(prefs.value)
-  })
+  // listen 失败（如 capability 缺失被 ACL 拒绝）不能让 Promise 悬空成
+  // unhandled rejection：记日志并保持 UI 可用（后续轮询推送仍会重试投递）。
+  try {
+    unlistenUpdate = await listen<NextAction[]>('overlay:update', event => {
+      actions.value = Array.isArray(event.payload) ? event.payload : []
+      visible.value = actions.value.length > 0
+    })
+    unlistenConfig = await listen<Partial<OverlayPrefs>>('overlay:config', event => {
+      const merged = { ...prefs.value, ...(event.payload ?? {}) }
+      prefs.value = { ...merged }
+      saveOverlayPrefs(prefs.value)
+    })
+  } catch (e) {
+    console.warn('overlay event listen failed:', e)
+  }
 })
 
 onUnmounted(() => {
@@ -50,7 +56,10 @@ onUnmounted(() => {
           class="overlay-item"
           :class="`overlay-item-${a.urgency}`"
         >
-          <span class="overlay-urgency" :style="{ color: URGENCY_COLORS[a.urgency] ?? 'var(--text-tertiary)' }">
+          <span
+            class="overlay-urgency"
+            :style="{ color: URGENCY_COLORS[a.urgency] ?? 'var(--text-tertiary)' }"
+          >
             {{ a.urgency === 'high' ? '!' : '·' }}
           </span>
           <span class="overlay-kind">{{ NEXT_ACTION_LABELS[a.kind] ?? a.kind }}</span>
@@ -70,8 +79,8 @@ body {
   background: transparent;
   overflow: hidden;
   user-select: none;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei',
-    sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
 
 #overlay-app {

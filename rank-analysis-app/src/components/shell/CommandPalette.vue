@@ -15,10 +15,7 @@
           />
           <div class="pal__list" ref="listEl">
             <template v-for="(c, i) in filtered" :key="c.key">
-              <div
-                v-if="i === 0 || filtered[i - 1].group !== c.group"
-                class="pal__group"
-              >
+              <div v-if="i === 0 || filtered[i - 1].group !== c.group" class="pal__group">
                 {{ c.group }}
               </div>
               <button
@@ -54,12 +51,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import KeyHint from '../ui/KeyHint.vue'
-import {
-  filterCommands,
-  nextIndex,
-  parsePlayerQuery,
-  type PaletteCommand
-} from './commandPalette'
+import { filterCommands, nextIndex, parsePlayerQuery, type PaletteCommand } from './commandPalette'
 
 const show = defineModel<boolean>('show', { default: false })
 const router = useRouter()

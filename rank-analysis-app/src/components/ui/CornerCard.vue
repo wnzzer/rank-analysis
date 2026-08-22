@@ -78,9 +78,7 @@ defineEmits<{ 'update:collapsed': [value: boolean] }>()
 }
 .corner-card--emph .corner-card__in {
   border-color: var(--brand-border);
-  background:
-    linear-gradient(180deg, var(--brand-soft), transparent 42%),
-    var(--bg-surface);
+  background: linear-gradient(180deg, var(--brand-soft), transparent 42%), var(--bg-surface);
 }
 .corner-card__head {
   display: flex;
@@ -116,4 +114,3 @@ defineEmits<{ 'update:collapsed': [value: boolean] }>()
   margin-left: auto;
 }
 </style>
-

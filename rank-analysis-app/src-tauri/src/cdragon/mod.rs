@@ -28,6 +28,10 @@ use tokio::task::JoinSet;
 
 /// CDragon 当前版本段（`latest` 自动跟随最新正式版本；需钉住某 patch 时改为如 `25.16`）。
 /// 升级 patch 只改这一处——URL 与磁盘缓存目录同时生效。
+///
+/// 注意：值为 `latest` 时「版本段隔离」只是目录结构上的准备，URL 与缓存目录
+/// 实际恒定——Riot 换版本后旧图标既不回源也不过期（当前有意接受：图标类静态
+/// 资源漂移极小）。要获得真正的隔离效果需把本常量钉到具体 patch 号。
 pub const CDRAGON_PATCH: &str = "latest";
 
 const CDRAGON_HOST: &str = "https://raw.communitydragon.org";
@@ -108,6 +112,35 @@ fn disk_cache_path(kind: &str, id: i64) -> PathBuf {
     disk_cache_dir().join(format!("{kind}_{id}.png"))
 }
 
+/// 校验字节流是否为真实图片（PNG/JPEG magic number）。
+///
+/// 磁盘缓存是「非空即信」的话，写入中断/并发交叠产生的半截文件会被永久
+/// 当作命中（负缓存只保护失败路径，不保护坏成功路径）。读盘时校验 magic，
+/// 坏文件当场删除并回源。
+fn looks_like_image(kind: &str, bytes: &[u8]) -> bool {
+    if kind == "profile" {
+        // JPEG: FF D8 FF
+        bytes.len() >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF
+    } else {
+        // PNG: 89 50 4E 47 0D 0A 1A 0A
+        bytes.len() >= 8 && bytes[..8] == [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
+    }
+}
+
+/// 原子写盘：先写同目录临时文件再 rename，进程中途被杀不会留下半截图片。
+fn write_disk_cache_atomic(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
+    let mut tmp_os = path.as_os_str().to_os_string();
+    tmp_os.push(".tmp");
+    let tmp_path = std::path::PathBuf::from(tmp_os);
+    {
+        use std::io::Write;
+        let mut f = std::fs::File::create(&tmp_path)?;
+        f.write_all(bytes)?;
+        f.flush()?;
+    }
+    std::fs::rename(&tmp_path, path)
+}
+
 /// 从 CDragon 获取图标二进制数据。
 ///
 /// 降级链：内存缓存 → 磁盘缓存 → CDragon HTTP → 磁盘缓存 + 内存缓存。
@@ -128,13 +161,21 @@ pub async fn fetch_icon(kind: &str, id: i64) -> Result<Vec<u8>, String> {
         return Ok(hit);
     }
 
-    // 2. 磁盘缓存
+    // 2. 磁盘缓存（带 magic 校验：坏文件删除后回源，不再「非空即信」）
     let disk_path = disk_cache_path(kind, id);
     if disk_path.exists() {
-        if let Ok(bytes) = std::fs::read(&disk_path) {
-            if !bytes.is_empty() {
+        match std::fs::read(&disk_path) {
+            Ok(bytes) if looks_like_image(kind, &bytes) => {
                 MEMORY_CACHE.insert(key, bytes.clone()).await;
                 return Ok(bytes);
+            }
+            Ok(_) => {
+                // 非空但不是图片（写入中断/交叠损坏）：清掉重新下载
+                log::warn!("cdragon: 磁盘缓存文件损坏，删除重下: {:?}", disk_path);
+                let _ = std::fs::remove_file(&disk_path);
+            }
+            Err(e) => {
+                log::warn!("cdragon: 磁盘缓存读取失败 {:?}: {}", disk_path, e);
             }
         }
     }
@@ -167,8 +208,14 @@ pub async fn fetch_icon(kind: &str, id: i64) -> Result<Vec<u8>, String> {
         return Err(format!("cdragon: 空响应 for {url}"));
     }
 
-    // 写入磁盘缓存
-    if let Err(e) = std::fs::write(&disk_path, &bytes) {
+    // 响应体同样过一遍 magic 校验：CDragon 偶发返回挑战页/HTML 而非图片
+    if !looks_like_image(kind, &bytes) {
+        FAILED_CACHE.insert(key.clone(), ()).await;
+        return Err(format!("cdragon: 响应不是有效图片 for {url}"));
+    }
+
+    // 写入磁盘缓存（原子替换）
+    if let Err(e) = write_disk_cache_atomic(&disk_path, &bytes) {
         log::warn!("cdragon: 磁盘缓存写入失败 {:?}: {}", disk_path, e);
     }
 
@@ -193,7 +240,7 @@ pub async fn local_fetch_icon(kind: &str, id: i64) -> Result<Vec<u8>, String> {
     let disk_path = disk_cache_path(kind, id);
     if disk_path.exists() {
         if let Ok(bytes) = std::fs::read(&disk_path) {
-            if !bytes.is_empty() {
+            if looks_like_image(kind, &bytes) {
                 MEMORY_CACHE.insert(key, bytes.clone()).await;
                 return Ok(bytes);
             }

@@ -1,6 +1,6 @@
 <template>
   <div class="ratio-container">
-   <div class="content-wrapper match-history-wrap">
+    <div class="content-wrapper match-history-wrap">
       <!-- 工具栏三分区：筛选 / 视图 / 数据管理（设计系统 v3 §7.5） -->
       <div class="match-history-toolbar">
         <div class="mt-group mt-group--filters">
@@ -84,7 +84,13 @@
         </div>
 
         <div class="mt-group mt-group--data">
-          <n-button v-if="sgpRegion" size="small" class="toolbar-collect" :disabled="collectDone" @click="toggleCollectAll">
+          <n-button
+            v-if="sgpRegion"
+            size="small"
+            class="toolbar-collect"
+            :disabled="collectDone"
+            @click="toggleCollectAll"
+          >
             {{ collectLabel }}
           </n-button>
           <n-popconfirm v-if="sgpRegion && hasCollected" @positive-click="handleClearCollected">
@@ -153,7 +159,7 @@
           </Transition>
         </div>
       </TransitionGroup>
-   </div>
+    </div>
   </div>
 </template>
 

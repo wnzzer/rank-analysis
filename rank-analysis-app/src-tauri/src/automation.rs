@@ -145,6 +145,59 @@ impl AutomationManager {
 
 use std::future::Future;
 
+/// 轮询类自动化任务的连续失败退避。
+///
+/// 客户端未运行时 `get_phase` 每次必败：按轮询间隔原样打日志（accept 每 100ms、
+/// match 每秒一条），开着开关挂机的用户会持续产出海量 error 且被 SentryLogger
+/// 全量转发。策略：头几次照常报错（瞬时抖动可见），连续失败达到阈值后进入
+/// 指数退避（500ms 起、封顶 30s）并静默，任一次成功立即复位。
+struct FailureBackoff {
+    consecutive_failures: u32,
+    current_backoff: Duration,
+}
+
+impl FailureBackoff {
+    /// 进入退避静默前允许连续报错的次数
+    const START_AFTER: u32 = 3;
+    const BASE: Duration = Duration::from_millis(500);
+    const MAX: Duration = Duration::from_secs(30);
+
+    fn new() -> Self {
+        Self {
+            consecutive_failures: 0,
+            current_backoff: Self::BASE,
+        }
+    }
+
+    /// 记录一次失败，返回调用方应额外睡眠的时长（未进入退避时为零）。
+    fn on_failure(&mut self, err: &str) -> Duration {
+        self.consecutive_failures += 1;
+        if self.consecutive_failures < Self::START_AFTER {
+            log::error!("Get phase error: {}", err);
+            return Duration::ZERO;
+        }
+        if self.consecutive_failures == Self::START_AFTER {
+            log::warn!(
+                "LCU 连续 {} 次不可达（可能未启动），后续错误按指数退避静默: {}",
+                Self::START_AFTER,
+                err
+            );
+        }
+        let wait = self.current_backoff;
+        self.current_backoff = (self.current_backoff * 2).min(Self::MAX);
+        wait
+    }
+
+    /// 记录一次成功，复位退避状态。
+    fn on_success(&mut self) {
+        if self.consecutive_failures >= Self::START_AFTER {
+            log::info!("LCU 已恢复可达，自动化任务退出退避");
+        }
+        self.consecutive_failures = 0;
+        self.current_backoff = Self::BASE;
+    }
+}
+
 /// 自动接受匹配任务。
 ///
 /// 每 100 毫秒检测一次游戏阶段，当检测到 "ReadyCheck" 阶段时自动接受匹配。
@@ -161,21 +214,28 @@ use std::future::Future;
 async fn start_accept_match_automation() {
     log::info!("Starting accept match automation");
     let mut ticker = interval(Duration::from_millis(100));
+    let mut backoff = FailureBackoff::new();
 
     loop {
         ticker.tick().await;
 
         match get_phase().await {
-            Ok(phase) if phase == READYCHECK => {
-                log::info!("Ready check detected, accepting match");
-                if let Err(e) = post_accept_match().await {
-                    log::error!("Accept match error: {}", e);
+            Ok(phase) => {
+                backoff.on_success();
+                if phase == READYCHECK {
+                    log::info!("Ready check detected, accepting match");
+                    if let Err(e) = post_accept_match().await {
+                        log::error!("Accept match error: {}", e);
+                    }
                 }
             }
             Err(e) => {
-                log::error!("Get phase error: {}", e);
+                // 客户端未运行时的错误风暴治理：进入退避后额外睡眠
+                let wait = backoff.on_failure(&e);
+                if !wait.is_zero() {
+                    tokio::time::sleep(wait).await;
+                }
             }
-            _ => {}
         }
     }
 }
@@ -204,12 +264,14 @@ async fn start_match_automation() {
     let mut ticker = interval(Duration::from_secs(1));
     let mut last_search_state = String::new();
     let mut auto_match_enabled = true;
+    let mut backoff = FailureBackoff::new();
 
     loop {
         ticker.tick().await;
 
         let cur_state = match get_phase().await {
             Ok(state) => {
+                backoff.on_success();
                 let trimmed = state.trim().to_string();
                 if state != trimmed {
                     log::warn!(
@@ -222,7 +284,11 @@ async fn start_match_automation() {
                 trimmed
             }
             Err(e) => {
-                log::error!("Get phase error: {}", e);
+                // 客户端未运行时的错误风暴治理：进入退避后额外睡眠
+                let wait = backoff.on_failure(&e);
+                if !wait.is_zero() {
+                    tokio::time::sleep(wait).await;
+                }
                 continue;
             }
         };
@@ -657,6 +723,10 @@ async fn start_rune_automation() {
             }
         };
         if cur_phase != CHAMPSELECT {
+            // 离场清空已应用标记：runeSwitch 开而 pickChampionSwitch 关时，
+            // pick 任务不存在、没人替本任务做离场重置，粘性标记会跨局残留
+            // （同英雄同页面的手动改动不被自动纠正）。
+            reset_execution_state();
             continue;
         }
 

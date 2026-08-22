@@ -89,7 +89,11 @@
 
       <!-- v3 宽屏右侧详情栏：选中对局在此展示，列表保持节奏（<1064 回退内嵌展开） -->
       <aside v-if="widePane && selectedGame" class="record-dpane">
-        <MatchDetailInline :game="selectedGame" :region="regionQuery" @close="selectedGame = null" />
+        <MatchDetailInline
+          :game="selectedGame"
+          :region="regionQuery"
+          @close="selectedGame = null"
+        />
       </aside>
       <!-- 回到顶部 FAB：内容区滚动超过阈值后显示，点击平滑回顶 -->
       <Transition name="fab">

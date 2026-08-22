@@ -25,7 +25,9 @@
       <!-- 时间/模式/日期：hover 看完整时间戳，模式并入日期行常显（R5：回溯哪天打的不用悬停） -->
       <span class="record-card-time">
         <span class="font-number record-card-duration">{{ durationText }}</span>
-        <span class="record-card-mode">{{ dateText }}<template v-if="modeShortText"> · {{ modeShortText }}</template></span>
+        <span class="record-card-mode"
+          >{{ dateText }}<template v-if="modeShortText"> · {{ modeShortText }}</template></span
+        >
       </span>
 
       <!-- 英雄头像 + 召唤师技能 + MVP/SVP 角标 -->

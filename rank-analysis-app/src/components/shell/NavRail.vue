@@ -2,14 +2,30 @@
   <!-- 战绩子窗口：精简模式，只保留「回主窗口 / 并排对比」两个动作 -->
   <aside v-if="isChild" class="rail rail--child">
     <button class="rail-i" title="回主窗口" @click="backMain"><span>◈</span><em>主窗口</em></button>
-    <button class="rail-i" title="并排对比" @click="tileSide"><span>⿴</span><em>并排对比</em></button>
+    <button class="rail-i" title="并排对比" @click="tileSide">
+      <span>⿴</span><em>并排对比</em>
+    </button>
   </aside>
 
-  <aside v-else class="rail" :class="{ 'rail--open': open || pinned }" @mouseenter="open = true" @mouseleave="open = false">
+  <aside
+    v-else
+    class="rail"
+    :class="{ 'rail--open': open || pinned }"
+    @mouseenter="open = true"
+    @mouseleave="open = false"
+  >
     <div class="rail__logo" aria-hidden="true">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-        <path d="M12 2 L20 5 V11 C20 16.5 16.6 20.4 12 22 C7.4 20.4 4 16.5 4 11 V5 Z" stroke="currentColor" stroke-width="1.6"/>
-        <polyline points="7.5,14.5 10.5,10.5 12.5,12.5 16.5,7.5" stroke="currentColor" stroke-width="1.6"/>
+        <path
+          d="M12 2 L20 5 V11 C20 16.5 16.6 20.4 12 22 C7.4 20.4 4 16.5 4 11 V5 Z"
+          stroke="currentColor"
+          stroke-width="1.6"
+        />
+        <polyline
+          points="7.5,14.5 10.5,10.5 12.5,12.5 16.5,7.5"
+          stroke="currentColor"
+          stroke-width="1.6"
+        />
       </svg>
       <em class="rail__brand">RANK ANALYSIS</em>
     </div>
@@ -25,13 +41,19 @@
           :title="it.label"
           @click="go(it.name)"
         >
-          <span>{{ it.icon }}</span><em>{{ it.label }}</em>
+          <span>{{ it.icon }}</span
+          ><em>{{ it.label }}</em>
         </button>
       </template>
     </nav>
 
     <div class="rail__foot">
-      <n-dropdown trigger="click" placement="top-end" :options="statusOptions" @select="onStatusSelect">
+      <n-dropdown
+        trigger="click"
+        placement="top-end"
+        :options="statusOptions"
+        @select="onStatusSelect"
+      >
         <button class="rail-status" :class="{ 'rail-status--on': connected }">
           <span class="dot"></span><em>{{ connected ? statusName : '未连接' }}</em>
         </button>
@@ -104,7 +126,11 @@ const statusName = computed(() =>
 )
 
 const statusOptions = computed(() => [
-  { key: 'state', label: connected.value ? `已连接：${statusName.value}` : '未连接客户端', disabled: true },
+  {
+    key: 'state',
+    label: connected.value ? `已连接：${statusName.value}` : '未连接客户端',
+    disabled: true
+  },
   { type: 'divider' as const, key: 'd1' },
   {
     key: 'close-game',

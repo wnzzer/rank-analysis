@@ -76,8 +76,16 @@ fn position_top_right(app: &tauri::AppHandle) {
 }
 
 /// 显示 overlay 窗口（对局中调用）。
+///
+/// 以 [`get_window`] 的**真实存活**为准决定是否创建：`OVERLAY_CREATED` 只是
+/// 缓存标志，窗口被外部销毁后它仍为 true，若只信标志将永远不再重建。
+/// 并发首次 show 时后到者会因 label 冲突创建失败并告警返回——先到者已完成
+/// 显示与定位，无实际影响。
 pub fn show(app: &tauri::AppHandle) {
-    if !OVERLAY_CREATED.load(Ordering::Relaxed) {
+    if get_window().is_none() {
+        if OVERLAY_CREATED.load(Ordering::Relaxed) {
+            log::info!("[overlay] 标志为已创建但窗口不存在，重建...");
+        }
         if let Err(e) = create(app) {
             log::warn!("[overlay] 创建失败: {e}");
             return;

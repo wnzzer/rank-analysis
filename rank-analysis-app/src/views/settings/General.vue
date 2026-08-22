@@ -186,7 +186,9 @@
       <n-form-item label="对局浮窗">
         <n-space vertical :size="4" style="width: 100%">
           <n-space align="center" :size="12">
-            <span style="font-size: var(--font-size-sm); color: var(--text-secondary)">建议条数</span>
+            <span style="font-size: var(--font-size-sm); color: var(--text-secondary)"
+              >建议条数</span
+            >
             <n-input-number
               v-model:value="overlayPrefs.maxItems"
               size="tiny"
@@ -195,7 +197,9 @@
               style="width: 90px"
               @update:value="persistOverlay"
             />
-            <span style="font-size: var(--font-size-sm); color: var(--text-secondary)">不透明度</span>
+            <span style="font-size: var(--font-size-sm); color: var(--text-secondary)"
+              >不透明度</span
+            >
             <n-slider
               v-model:value="overlayPrefs.opacity"
               :min="0.5"

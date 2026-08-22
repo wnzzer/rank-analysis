@@ -62,6 +62,7 @@ import { useAppUpdate } from '../../composables/useAppUpdate'
 import { lcuConnected } from '../../composables/useGameState'
 import { GATE_SETTLE_MS, GATE_FALLBACK_MS } from '../../composables/useStartupDialogs'
 import { useWindowControls } from '../../composables/useWindowControls'
+import { isMainWindow } from '../../utils/windows'
 import KeyHint from '../ui/KeyHint.vue'
 
 defineEmits<{ openPalette: [] }>()
@@ -90,8 +91,12 @@ function onUpdateClick() {
 /**
  * 启动静默更新检查（自旧 Header 平移——v2 壳层不再挂载旧 Header）。
  * 等 LCU 连接建立后沉淀一小段再查；一直连不上则兜底超时触发。
+ *
+ * 仅主窗口执行：record-* 子窗口同样挂载 TopBar，不拦截会 N 窗并发打
+ * updater endpoint，且更新确认框/relaunch 可能从子窗口发起。
  */
 function scheduleSilentUpdateCheck(): void {
+  if (!isMainWindow()) return
   let scheduled = false
   function fire(): void {
     if (scheduled) return

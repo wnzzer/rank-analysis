@@ -1,7 +1,8 @@
 //! # LCU HTTP 客户端
 //!
 //! 使用本地认证（token + port）向 LCU 发起 HTTPS 请求，支持 GET/POST/PATCH；
-//! 认证失败时自动刷新并重试一次。图片接口支持 Base64 或二进制返回。
+//! 仅连接层错误或 401/403（凭据失效）时自动刷新认证并重试一次，其余状态码
+//! 原样上抛给调用方分类处置。图片接口支持 Base64 或二进制返回。
 
 use crate::lcu::util::token::get_auth;
 use base64::engine::general_purpose;
@@ -76,6 +77,20 @@ fn get_auth_pair() -> Result<(String, String), String> {
     Ok(guard.clone())
 }
 
+/// 当前**已缓存**认证的指纹 `(token 前 8 位, port)`。
+///
+/// 供 phase 缓存等调用方判断「客户端是否重启过（认证换没换）」，只读缓存、
+/// 绝不触发进程扫描；尚未取得过认证时返回 None。token 只取前缀，
+/// 避免完整凭据扩散出本模块。
+pub(crate) fn auth_fingerprint() -> Option<(String, String)> {
+    let auth = AUTH.get()?;
+    let guard = lock_or_recover(auth);
+    if guard.0.is_empty() || guard.1.is_empty() {
+        return None;
+    }
+    Some((guard.0.chars().take(8).collect(), guard.1.clone()))
+}
+
 fn refresh_auth() -> Result<(String, String), String> {
     let last_refresh = LAST_REFRESH_TIME.get_or_init(|| Mutex::new(Instant::now()));
     let mut last_refresh_guard = lock_or_recover(last_refresh);
@@ -87,9 +102,10 @@ fn refresh_auth() -> Result<(String, String), String> {
         return Ok(auth_guard.clone());
     }
 
-    *last_refresh_guard = now;
-
+    // 仅成功才推进节流时间戳：客户端重启瞬间的一次失败刷新若也占坑，
+    // 后续 1s 内的重试会全部复用旧凭据继续失败。
     let (token, port) = get_auth()?;
+    *last_refresh_guard = now;
     let auth = AUTH.get_or_init(|| Mutex::new((String::new(), String::new())));
     let mut guard = lock_or_recover(auth);
     *guard = (token.clone(), port.clone());
@@ -100,26 +116,65 @@ fn build_url(token: &str, uri: &str, port: &str) -> String {
     format!("https://riot:{}@127.0.0.1:{}/{}", token, port, uri)
 }
 
+/// 判断响应是否属于「凭据可能失效」需要刷新认证后重试的情况。
+///
+/// 仅 401/403 代表认证问题；其余 4xx/5xx 是业务或服务端错误，重试只会白打一次
+/// 请求（对 POST 这类非幂等写还有双发风险），必须原样上抛。
+fn is_auth_failure(status: StatusCode) -> bool {
+    status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN
+}
+
+/// 把非 2xx 响应压成带状态码与 body 摘要的错误串。
+///
+/// 此前所有失败都被归一成「…失败或认证失效」，调用方无法区分「资源不存在
+/// （404）」与「参数错误（400）」；保留状态码与原因让上层可分类处置。
+async fn err_with_status(verb: &str, resp: reqwest::Response) -> String {
+    let status = resp.status();
+    let body = resp.text().await.unwrap_or_default();
+    let snippet: String = body.chars().take(200).collect();
+    if snippet.is_empty() {
+        format!("{}请求失败: HTTP {}", verb, status)
+    } else {
+        format!("{}请求失败: HTTP {} - {}", verb, status, snippet)
+    }
+}
+
 /// 内部：发起真实 HTTP GET 请求，返回原始 JSON 字符串。
+///
+/// 注意：URL 内嵌 `riot:{token}` 凭据，**绝不写入日志**（含 debug 级）。
 async fn lcu_get_raw(uri: &str) -> Result<String, String> {
+    let mut last_err = "请求失败或认证失效".to_string();
     for _ in 0..2 {
         let (token, port) = get_auth_pair().map_err(|e| format!("LCU认证失败: {}", e))?;
         let url = build_url(&token, uri, &port);
-        log::debug!("LCU GET URL: {}", url);
         let resp = get_client().get(&url).send().await;
         match resp {
             Ok(r) if r.status() == StatusCode::OK => {
-                let text = r.text().await.map_err(|e| format!("读取响应失败: {}", e))?;
-                return Ok(text);
+                return r.text().await.map_err(|e| format!("读取响应失败: {}", e));
             }
-            _ => {
+            Ok(r) => {
+                let auth_failure = is_auth_failure(r.status());
+                last_err = err_with_status("GET", r).await;
+                // 业务/服务端错误原样上抛，不当认证失效盲目重试
+                if !auth_failure {
+                    return Err(last_err);
+                }
                 if let Err(e) = refresh_auth() {
                     log::info!("刷新LCU认证失败（可先打开游戏再重试）: {}", e);
+                    break;
+                }
+            }
+            Err(e) => {
+                // 连接层错误：客户端未启动 / 端口失效，换新认证后重试一次
+                last_err = format!("连接LCU失败: {}", e);
+                if let Err(e) = refresh_auth() {
+                    log::info!("刷新LCU认证失败（可先打开游戏再重试）: {}", e);
+                    break;
                 }
             }
         }
     }
-    Err("请求失败或认证失效".to_string())
+    Err(last_err)
 }
 
 /// 发起 LCU GET 请求，**保留 HTTP 状态码**，不做重试也不刷新认证。
@@ -207,8 +262,12 @@ pub async fn lcu_get<T: DeserializeOwned + 'static>(uri: &str) -> Result<T, Stri
     deserialize_lcu_body::<T>(&raw_json)
 }
 
-/// 向 LCU 发起 POST 请求，请求体为 JSON。失败时刷新认证并重试一次。
+/// 向 LCU 发起 POST 请求，请求体为 JSON。
+///
+/// 仅连接层错误或 401/403 时刷新认证重试一次；其余状态码立即上抛——POST 是
+/// 非幂等写（如创建符文页），服务端可能已生效但响应丢失，盲目重发会产生重复资源。
 pub async fn lcu_post<T: DeserializeOwned, D: Serialize>(uri: &str, data: &D) -> Result<T, String> {
+    let mut last_err = "POST请求失败或认证失效".to_string();
     for _ in 0..2 {
         let (token, port) = get_auth_pair().map_err(|e| format!("LCU认证失败: {}", e))?;
         let url = build_url(&token, uri, &port);
@@ -219,21 +278,36 @@ pub async fn lcu_post<T: DeserializeOwned, D: Serialize>(uri: &str, data: &D) ->
                 let body = r.text().await.map_err(|e| format!("读取响应失败: {}", e))?;
                 return deserialize_lcu_body::<T>(&body);
             }
-            _ => {
+            Ok(r) => {
+                let auth_failure = is_auth_failure(r.status());
+                last_err = err_with_status("POST", r).await;
+                if !auth_failure {
+                    return Err(last_err);
+                }
                 if let Err(e) = refresh_auth() {
                     log::info!("刷新LCU认证失败（可先打开游戏再重试）: {}", e);
+                    break;
+                }
+            }
+            Err(e) => {
+                last_err = format!("连接LCU失败: {}", e);
+                if let Err(e) = refresh_auth() {
+                    log::info!("刷新LCU认证失败（可先打开游戏再重试）: {}", e);
+                    break;
                 }
             }
         }
     }
-    Err("POST请求失败或认证失效".to_string())
+    Err(last_err)
 }
 
-/// 向 LCU 发起 PUT 请求，请求体为 JSON。失败时刷新认证并重试一次。
+/// 向 LCU 发起 PUT 请求，请求体为 JSON。
 ///
-/// 与 [`lcu_post`] 完全同构；LCU 的「换取 bench 英雄」等接口用 PUT 而非 POST，
-/// 需要独立的动词封装（`reqwest` 客户端按方法区分，无法共用）。
+/// 与 [`lcu_post`] 完全同构（含仅 401/403 重试的非幂等保护）；LCU 的「换取 bench
+/// 英雄」等接口用 PUT 而非 POST，需要独立的动词封装（`reqwest` 客户端按方法区分，
+/// 无法共用）。
 pub async fn lcu_put<T: DeserializeOwned, D: Serialize>(uri: &str, data: &D) -> Result<T, String> {
+    let mut last_err = "PUT请求失败或认证失效".to_string();
     for _ in 0..2 {
         let (token, port) = get_auth_pair().map_err(|e| format!("LCU认证失败: {}", e))?;
         let url = build_url(&token, uri, &port);
@@ -243,21 +317,35 @@ pub async fn lcu_put<T: DeserializeOwned, D: Serialize>(uri: &str, data: &D) -> 
                 let body = r.text().await.map_err(|e| format!("读取响应失败: {}", e))?;
                 return deserialize_lcu_body::<T>(&body);
             }
-            _ => {
+            Ok(r) => {
+                let auth_failure = is_auth_failure(r.status());
+                last_err = err_with_status("PUT", r).await;
+                if !auth_failure {
+                    return Err(last_err);
+                }
                 if let Err(e) = refresh_auth() {
                     log::info!("刷新LCU认证失败（可先打开游戏再重试）: {}", e);
+                    break;
+                }
+            }
+            Err(e) => {
+                last_err = format!("连接LCU失败: {}", e);
+                if let Err(e) = refresh_auth() {
+                    log::info!("刷新LCU认证失败（可先打开游戏再重试）: {}", e);
+                    break;
                 }
             }
         }
     }
-    Err("PUT请求失败或认证失效".to_string())
+    Err(last_err)
 }
 
-/// 向 LCU 发起 PATCH 请求，请求体为 JSON。失败时刷新认证并重试一次。
+/// 向 LCU 发起 PATCH 请求，请求体为 JSON。重试语义与 [`lcu_put`] 一致。
 pub async fn lcu_patch<T: DeserializeOwned, D: Serialize>(
     uri: &str,
     data: &D,
 ) -> Result<T, String> {
+    let mut last_err = "PATCH请求失败或认证失效".to_string();
     for _ in 0..2 {
         let (token, port) = get_auth_pair().map_err(|e| format!("LCU认证失败: {}", e))?;
         let url = build_url(&token, uri, &port);
@@ -268,18 +356,70 @@ pub async fn lcu_patch<T: DeserializeOwned, D: Serialize>(
                 let body = r.text().await.map_err(|e| format!("读取响应失败: {}", e))?;
                 return deserialize_lcu_body::<T>(&body);
             }
-            _ => {
+            Ok(r) => {
+                let auth_failure = is_auth_failure(r.status());
+                last_err = err_with_status("PATCH", r).await;
+                if !auth_failure {
+                    return Err(last_err);
+                }
                 if let Err(e) = refresh_auth() {
                     log::info!("刷新LCU认证失败（可先打开游戏再重试）: {}", e);
+                    break;
+                }
+            }
+            Err(e) => {
+                last_err = format!("连接LCU失败: {}", e);
+                if let Err(e) = refresh_auth() {
+                    log::info!("刷新LCU认证失败（可先打开游戏再重试）: {}", e);
+                    break;
                 }
             }
         }
     }
-    Err("PATCH请求失败或认证失效".to_string())
+    Err(last_err)
+}
+
+/// 向 LCU 发起 DELETE 请求。重试语义与 [`lcu_put`] 一致（仅连接错误/401/403 重试）。
+///
+/// DELETE 是幂等操作，重试双发无副作用；供符文页删除等清理场景使用。
+pub async fn lcu_delete<T: DeserializeOwned>(uri: &str) -> Result<T, String> {
+    let mut last_err = "DELETE请求失败或认证失效".to_string();
+    for _ in 0..2 {
+        let (token, port) = get_auth_pair().map_err(|e| format!("LCU认证失败: {}", e))?;
+        let url = build_url(&token, uri, &port);
+        let resp = get_client().delete(&url).send().await;
+        match resp {
+            Ok(r) if r.status().is_success() => {
+                // 删除类接口常返回 204 空 body：空 body 归一成 null
+                let body = r.text().await.map_err(|e| format!("读取响应失败: {}", e))?;
+                return deserialize_lcu_body::<T>(&body);
+            }
+            Ok(r) => {
+                let auth_failure = is_auth_failure(r.status());
+                last_err = err_with_status("DELETE", r).await;
+                if !auth_failure {
+                    return Err(last_err);
+                }
+                if let Err(e) = refresh_auth() {
+                    log::info!("刷新LCU认证失败（可先打开游戏再重试）: {}", e);
+                    break;
+                }
+            }
+            Err(e) => {
+                last_err = format!("连接LCU失败: {}", e);
+                if let Err(e) = refresh_auth() {
+                    log::info!("刷新LCU认证失败（可先打开游戏再重试）: {}", e);
+                    break;
+                }
+            }
+        }
+    }
+    Err(last_err)
 }
 
 /// 请求 LCU 图片资源并返回 Data URL（data:content-type;base64,...）。
 pub async fn lcu_get_img_as_base64(uri: &str) -> Result<String, String> {
+    let mut last_err = "图片请求失败或认证失效".to_string();
     for _ in 0..2 {
         let (token, port) = get_auth_pair().map_err(|e| format!("LCU认证失败: {}", e))?;
         let url = build_url(&token, uri, &port);
@@ -299,22 +439,37 @@ pub async fn lcu_get_img_as_base64(uri: &str) -> Result<String, String> {
                 let base64_str = general_purpose::STANDARD.encode(&bytes);
                 return Ok(format!("data:{};base64,{}", content_type, base64_str));
             }
-            _ => {
+            Ok(r) => {
+                let auth_failure = is_auth_failure(r.status());
+                last_err = err_with_status("GET图片", r).await;
+                if !auth_failure {
+                    return Err(last_err);
+                }
                 if let Err(e) = refresh_auth() {
                     log::info!("刷新LCU认证失败（可先打开游戏再重试）: {}", e);
+                    break;
+                }
+            }
+            Err(e) => {
+                last_err = format!("连接LCU失败: {}", e);
+                if let Err(e) = refresh_auth() {
+                    log::info!("刷新LCU认证失败（可先打开游戏再重试）: {}", e);
+                    break;
                 }
             }
         }
     }
-    Err("图片请求失败或认证失效".to_string())
+    Err(last_err)
 }
 
 /// 请求 LCU 图片资源并返回原始字节与 Content-Type。
+///
+/// 注意：URL 内嵌 `riot:{token}` 凭据，**绝不写入日志**。
 pub async fn lcu_get_img_as_binary(uri: &str) -> Result<(Vec<u8>, String), String> {
+    let mut last_err = "图片二进制请求失败或认证失效".to_string();
     for _ in 0..2 {
         let (token, port) = get_auth_pair().map_err(|e| format!("LCU认证失败: {}", e))?;
         let url = build_url(&token, uri, &port);
-        log::debug!("LCU GET Binary URL: {}", url);
         let resp = get_client().get(&url).send().await;
         match resp {
             Ok(r) if r.status() == StatusCode::OK => {
@@ -331,14 +486,27 @@ pub async fn lcu_get_img_as_binary(uri: &str) -> Result<(Vec<u8>, String), Strin
                     .to_vec();
                 return Ok((bytes, content_type));
             }
-            _ => {
+            Ok(r) => {
+                let auth_failure = is_auth_failure(r.status());
+                last_err = err_with_status("GET图片", r).await;
+                if !auth_failure {
+                    return Err(last_err);
+                }
                 if let Err(e) = refresh_auth() {
                     log::info!("刷新LCU认证失败（可先打开游戏再重试）: {}", e);
+                    break;
+                }
+            }
+            Err(e) => {
+                last_err = format!("连接LCU失败: {}", e);
+                if let Err(e) = refresh_auth() {
+                    log::info!("刷新LCU认证失败（可先打开游戏再重试）: {}", e);
+                    break;
                 }
             }
         }
     }
-    Err("图片二进制请求失败或认证失效".to_string())
+    Err(last_err)
 }
 
 /// 外部 HTTP GET + JSON 反序列化（不走 LCU 认证/限流，用于 CommunityDragon 等公开资源）

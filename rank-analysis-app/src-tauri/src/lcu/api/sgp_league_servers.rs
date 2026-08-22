@@ -98,17 +98,24 @@ fn config_is_newer(cur: Option<&LeagueServersConfig>, incoming: &LeagueServersCo
 }
 
 /// 应用配置到内存 + 写磁盘缓存（写盘失败静默——下次启动重新拉取即可）。
+///
+/// 择优判定与写入在**同一把锁**内完成：拆成「查 newer」「写回」两个临界区的
+/// 话，并发刷新可以在两窗之间插入一份更新的配置，随后被本窗口的旧配置覆盖
+/// （要等下次 2h revalidate 才自愈）。
 fn apply_config(config: LeagueServersConfig) {
-    let newer = {
-        let st = STORE.lock().unwrap();
-        config_is_newer(st.config.as_ref(), &config)
+    let applied = {
+        let mut st = STORE.lock().unwrap();
+        if config_is_newer(st.config.as_ref(), &config) {
+            st.config = Some(config.clone());
+            true
+        } else {
+            false
+        }
     };
-    if !newer {
-        return;
-    }
-    STORE.lock().unwrap().config = Some(config.clone());
-    if let Err(e) = save_disk_cache_at(&data_file(CACHE_FILE_NAME), &config) {
-        log::warn!("SGP league-servers 磁盘缓存写入失败（不影响内存映射）: {e}");
+    if applied {
+        if let Err(e) = save_disk_cache_at(&data_file(CACHE_FILE_NAME), &config) {
+            log::warn!("SGP league-servers 磁盘缓存写入失败（不影响内存映射）: {e}");
+        }
     }
 }
 

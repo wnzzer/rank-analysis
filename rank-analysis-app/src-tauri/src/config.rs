@@ -43,8 +43,8 @@ use moka::future::Cache;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{BufReader, BufWriter};
-use std::sync::{LazyLock, Mutex};
+use std::io::{BufReader, BufWriter, Write};
+use std::sync::{Arc, LazyLock, Mutex};
 use tokio::sync::OnceCell;
 
 /// 配置值的枚举类型，支持多种数据类型。
@@ -82,7 +82,10 @@ pub enum Value {
 /// 参数:
 /// - `&str`: 变更的配置键
 /// - `&Value`: 新的配置值
-type ConfigCallback = Box<dyn Fn(&str, &Value) + Send + Sync>;
+///
+/// 用 `Arc` 包装是为了在触发回调前能克隆整份列表并释放锁：回调体内可能再次
+/// 读写配置（如自动化模块热更新后回读），持锁调用会在同一把 Mutex 上自锁。
+type ConfigCallback = Arc<dyn Fn(&str, &Value) + Send + Sync>;
 
 /// 回调函数列表类型，使用 Mutex 保证线程安全。
 type CallbackList = Mutex<Vec<ConfigCallback>>;
@@ -152,6 +155,7 @@ pub async fn get_cache() -> &'static Cache<String, Value> {
                 }
                 Err(e) => {
                     log::error!("Failed to load config from {}: {}", path.display(), e);
+                    quarantine_corrupt_config(&path, &e.to_string());
                 }
             }
             log::info!("Config cache initialized");
@@ -182,7 +186,18 @@ where
     ON_CHANGE_CALLBACK_ARR
         .lock()
         .unwrap()
-        .push(Box::new(callback));
+        .push(Arc::new(callback));
+}
+
+/// 触发所有配置变更回调。
+///
+/// 先把列表克隆成 `Vec<ConfigCallback>`（Arc 计数拷贝，廉价）再释放锁逐个调用：
+/// 回调体内可能再次读写配置或注册新回调，若持锁调用会在同一把 Mutex 上自锁。
+fn fire_change_callbacks(key: &str, value: &Value) {
+    let callbacks = ON_CHANGE_CALLBACK_ARR.lock().unwrap().clone();
+    for callback in callbacks {
+        callback(key, value);
+    }
 }
 
 /// 初始化配置缓存。
@@ -239,6 +254,28 @@ fn is_not_found(err: &(dyn std::error::Error + Send + Sync + 'static)) -> bool {
         .is_some_and(|e| e.kind() == std::io::ErrorKind::NotFound)
 }
 
+/// 把损坏的配置文件改名留存为 `config.yaml.corrupt-<unix秒>`。
+///
+/// 解析失败说明文件已损坏；若不挪走，下一次成功写入会覆盖掉唯一的现场，
+/// 用户的全部设置就真的找不回来了。留存后按默认值启动，用户可人工恢复。
+fn quarantine_corrupt_config(path: &std::path::Path, reason: &str) {
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let mut os = path.as_os_str().to_os_string();
+    os.push(format!(".corrupt-{}", stamp));
+    let backup = std::path::PathBuf::from(os);
+    match std::fs::rename(path, &backup) {
+        Ok(()) => log::warn!(
+            "已将损坏的配置文件留存为 {}（原因: {}），可人工找回其中的设置",
+            backup.display(),
+            reason
+        ),
+        Err(e) => log::warn!("留存损坏配置文件失败（{}）: {}", backup.display(), e),
+    }
+}
+
 /// 将配置写入文件。
 ///
 /// 内部辅助函数，将当前缓存中的所有配置持久化到 YAML 文件。
@@ -268,9 +305,23 @@ fn write_config_to(
     // macOS 首次写入时 `~/Library/Application Support/<bundle id>` 还不存在，
     // 不先建目录 File::create 会直接失败。
     crate::paths::ensure_parent_dir(path)?;
-    let file = File::create(path)?;
-    let writer = BufWriter::new(file);
-    serde_yaml::to_writer(writer, config)?;
+    // 先整体序列化到内存：半截 YAML 比写失败更糟——启动解析失败会按空配置运行，
+    // 用户全部设置等于丢失；序列化失败时旧文件保持原样。
+    let mut body = Vec::new();
+    serde_yaml::to_writer(&mut body, config)?;
+    // 原子替换：先写同目录临时文件并 fsync，再 rename 覆盖目标。进程在写入中途
+    // 被杀/断电时，最坏情况是留下一个 .tmp 残骸，config.yaml 本身始终完整。
+    let mut tmp_os = path.as_os_str().to_os_string();
+    tmp_os.push(".tmp");
+    let tmp_path = std::path::PathBuf::from(tmp_os);
+    {
+        let mut tmp = BufWriter::new(File::create(&tmp_path)?);
+        tmp.write_all(&body)?;
+        tmp.flush()?;
+        let file = tmp.into_inner().map_err(|e| e.into_error())?;
+        file.sync_all()?;
+    }
+    std::fs::rename(&tmp_path, path)?;
     Ok(())
 }
 
@@ -464,13 +515,11 @@ fn filter_snapshot_for_apply(snapshot: HashMap<String, Value>) -> Vec<(String, V
 /// 把一份外来快照(备份文件 appConfig / 云端 config)逐键写入本地配置。
 ///
 /// 黑名单键即使出现在快照里也跳过(防云端脏数据/手改备份文件覆盖设备凭据);
-/// 写入走 [`put_config`],自然触发变更回调(自动化模块热更新、config-changed
-/// 事件),值按原样写入——快照里的值已是 `{value:...}` 存储形状,不重复包装。
+/// 写入走 [`put_config_batch`] 批量落盘一次,自然触发变更回调(自动化模块热更新、
+/// config-changed 事件),值按原样写入——快照里的值已是 `{value:...}` 存储形状,
+/// 不重复包装。
 pub async fn apply_config_snapshot_map(snapshot: HashMap<String, Value>) -> Result<(), String> {
-    for (key, value) in filter_snapshot_for_apply(snapshot) {
-        put_config(key, value).await?;
-    }
-    Ok(())
+    put_config_batch(filter_snapshot_for_apply(snapshot)).await
 }
 
 /// 从缓存获取配置值。
@@ -538,10 +587,31 @@ pub async fn get_config(key: &str) -> Result<Value, String> {
 /// ```
 pub async fn put_config(key: String, value: Value) -> Result<(), String> {
     get_cache().await.insert(key.clone(), value.clone()).await;
-    for callback in ON_CHANGE_CALLBACK_ARR.lock().unwrap().iter() {
-        callback(&key, &value);
+    // 先落盘成功再广播：写盘失败时前端不应收到「已变更」事件，
+    // 否则云同步会按一个磁盘上并不存在的状态发起推送。
+    write_config().await.map_err(|e| e.to_string())?;
+    fire_change_callbacks(&key, &value);
+    Ok(())
+}
+
+/// 批量写入多个配置键，只落盘一次。
+///
+/// 逐键走 [`put_config`] 会对每个键做一次全量 YAML 序列化 + 覆盖写（恢复 50 键
+/// 的快照 = 50 次全量 I/O）；批量版先把全部键写入缓存，再统一落盘一次，
+/// 回调仍逐键触发、时序不变。供快照恢复（[`apply_config_snapshot_map`]）等场景使用。
+pub async fn put_config_batch(pairs: Vec<(String, Value)>) -> Result<(), String> {
+    if pairs.is_empty() {
+        return Ok(());
     }
-    write_config().await.map_err(|e| e.to_string())
+    let cache = get_cache().await;
+    for (key, value) in &pairs {
+        cache.insert(key.clone(), value.clone()).await;
+    }
+    write_config().await.map_err(|e| e.to_string())?;
+    for (key, value) in &pairs {
+        fire_change_callbacks(key, value);
+    }
+    Ok(())
 }
 
 #[cfg(test)]

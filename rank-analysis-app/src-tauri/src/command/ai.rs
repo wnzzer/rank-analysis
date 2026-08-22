@@ -322,6 +322,14 @@ pub struct AiStreamEvent {
     pub data: Option<String>,
 }
 
+/// 发送一个流事件，返回是否仍有人接收。
+///
+/// 前端关页/取消分析时 Channel 接收端被 drop，`send` 返回 Err——此时必须停止
+/// 消费上游流并结束命令，否则请求会继续跑到自然结束（最长 60s），token 照常计费。
+fn send_stream_event(channel: &Channel<AiStreamEvent>, event: AiStreamEvent) -> bool {
+    channel.send(event).is_ok()
+}
+
 /// 流式 AI 分析命令
 ///
 /// # 参数
@@ -456,8 +464,12 @@ pub async fn stream_ai_analysis(
         }
     };
 
-    // 消费流：先吃掉看门狗已取到的首块，再继续读后续（首块后不再重试）
-    let mut buffer = String::new();
+    // 消费流：先吃掉看门狗已取到的首块，再继续读后续（首块后不再重试）。
+    //
+    // 缓冲保持**字节级**：SSE 的多字节 UTF-8 字符可能被网络分块切在字节中间，
+    // 逐 chunk 做 from_utf8_lossy 会把跨界字符变成 U+FFFD 乱码。这里只在完整
+    // 行（'\n' 为 ASCII，永不属于多字节序列的中间）上做解码，残尾留到下一块。
+    let mut buffer: Vec<u8> = Vec::new();
     let mut pending = Some(first_bytes);
 
     loop {
@@ -475,21 +487,53 @@ pub async fn stream_ai_analysis(
                 None => break,
             },
         };
+        buffer.extend_from_slice(&bytes);
 
-        buffer.push_str(&String::from_utf8_lossy(&bytes));
+        loop {
+            let Some(line_end) = buffer.iter().position(|&b| b == b'\n') else {
+                break;
+            };
+            let line_bytes: Vec<u8> = buffer.drain(..=line_end).collect();
+            let line = String::from_utf8_lossy(&line_bytes[..line_bytes.len() - 1])
+                .trim()
+                .to_string();
 
-        // 处理缓冲区的完整行
-        while let Some(line_end) = buffer.find('\n') {
-            let line = buffer[..line_end].trim().to_string();
-            buffer = buffer[line_end + 1..].to_string();
+            if let Some(content) = extract_delta_content(&line) {
+                if !send_stream_event(
+                    &on_event,
+                    AiStreamEvent {
+                        event: "chunk".to_string(),
+                        data: Some(content),
+                    },
+                ) {
+                    return Ok(());
+                }
+            }
+            // 流末 usage：单独发 usage 事件（D-P1 token 用量统计），不进 chunk
+            if let Some(usage) = extract_usage(&line) {
+                if !send_stream_event(
+                    &on_event,
+                    AiStreamEvent {
+                        event: "usage".to_string(),
+                        data: Some(usage.to_string()),
+                    },
+                ) {
+                    return Ok(());
+                }
+            }
+        }
+    }
 
+    // 流末残余不足一行的尾巴也要处理（provider 可能不发结尾换行）
+    if !buffer.is_empty() {
+        let line = String::from_utf8_lossy(&buffer).trim().to_string();
+        if !line.is_empty() {
             if let Some(content) = extract_delta_content(&line) {
                 let _ = on_event.send(AiStreamEvent {
                     event: "chunk".to_string(),
                     data: Some(content),
                 });
             }
-            // 流末 usage：单独发 usage 事件（D-P1 token 用量统计），不进 chunk
             if let Some(usage) = extract_usage(&line) {
                 let _ = on_event.send(AiStreamEvent {
                     event: "usage".to_string(),

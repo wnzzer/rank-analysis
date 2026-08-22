@@ -84,8 +84,34 @@ pub async fn get_all_tag_configs() -> Result<Vec<TagConfig>, String> {
 /// - `Err(String)`: 保存失败时的错误信息
 #[tauri::command]
 pub async fn save_tag_configs(configs: Vec<TagConfig>) -> Result<(), String> {
+    validate_tag_configs(&configs)?;
     let val = tags_to_value(&configs);
     config::put_config("userTags".to_string(), val).await
+}
+
+/// 保存前的结构校验。
+///
+/// - **id 唯一**：重复 id 会破坏 [`merge_missing_defaults`] 的「只补缺失」语义，
+///   同一 id 两份规则在 UI 与匹配引擎里的行为都未定义；
+/// - **is_default 与内置表一致**：该字段是「UI 不可删除」的依据。默认标签被改成
+///   false 后可被删除、下次 merge 又复活成幽灵标签；反过来给自定义标签标 true
+///   会伪造出删不掉的项。两种篡改都在入口直接拒绝。
+fn validate_tag_configs(configs: &[TagConfig]) -> Result<(), String> {
+    let default_ids: std::collections::HashSet<&str> =
+        get_default_tags().iter().map(|d| d.id.as_str()).collect();
+    let mut seen = std::collections::HashSet::new();
+    for t in configs {
+        if !seen.insert(t.id.as_str()) {
+            return Err(format!("标签 id 重复: {}", t.id));
+        }
+        if default_ids.contains(t.id.as_str()) != t.is_default {
+            return Err(format!(
+                "标签 {}({}) 的 is_default={} 与内置定义不符",
+                t.name, t.id, t.is_default
+            ));
+        }
+    }
+    Ok(())
 }
 
 // --- Foundational Types ---
@@ -1208,9 +1234,29 @@ fn tags_to_value(tags: &Vec<TagConfig>) -> config::Value {
 }
 
 /// 将 config::Value 转换为标签配置列表。
+///
+/// **逐条容错**：单条标签 schema 不兼容（枚举变体改名、降级安装读到新版字段等）
+/// 只跳过该条并告警，绝不做整表回退——整表回退默认值会在用户下一次保存时把
+/// 全部自定义规则永久覆盖掉。只有整体形状不是数组、或所有条目都解析失败时
+/// 才按默认标签启动。
 fn config_value_to_tags(v: config::Value) -> Vec<TagConfig> {
     let json = config_value_to_json(v);
-    serde_json::from_value(json).unwrap_or_else(|_| get_default_tags())
+    let Some(items) = json.as_array() else {
+        log::warn!("userTags 配置形状异常（非数组），按默认标签启动");
+        return get_default_tags();
+    };
+    let mut tags = Vec::with_capacity(items.len());
+    for (i, item) in items.iter().enumerate() {
+        match serde_json::from_value::<TagConfig>(item.clone()) {
+            Ok(tag) => tags.push(tag),
+            Err(e) => log::warn!("userTags 第 {} 条解析失败，已跳过: {}", i, e),
+        }
+    }
+    if tags.is_empty() && !items.is_empty() {
+        log::warn!("userTags 全部条目均解析失败，按默认标签启动");
+        return get_default_tags();
+    }
+    tags
 }
 
 /// 将 serde_json::Value 转换为 config::Value。

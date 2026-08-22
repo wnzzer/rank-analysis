@@ -112,12 +112,38 @@ pub fn suggest_next_actions(
     actions
 }
 
+/// 在快照中定位本机玩家。
+///
+/// liveclientdata 无 puuid，只能按召唤师名匹配；同局存在**同显示名**（不同 tag）
+/// 的玩家时可能绑错对象——这是数据源的客观限制。缓解策略：
+/// 1. 先取小写精确匹配的候选集；
+/// 2. 候选唯一 → 直接用；
+/// 3. 多个候选 → 优先大小写完全一致的（前端传来的名字来自会话数据的原始拼写）；
+/// 4. 仍无法区分 → 取首个并告警，提示建议可能绑错人。
 fn find_me<'a>(snapshot: &'a LiveGameSnapshot, my_game_name: &str) -> Option<&'a LivePlayer> {
     let needle = my_game_name.trim().to_lowercase();
-    snapshot
+    let candidates: Vec<&LivePlayer> = snapshot
         .players
         .iter()
-        .find(|p| p.summoner_name.trim().to_lowercase() == needle)
+        .filter(|p| p.summoner_name.trim().to_lowercase() == needle)
+        .collect();
+
+    match candidates.len() {
+        0 => None,
+        1 => candidates.into_iter().next(),
+        n => {
+            let exact = candidates
+                .iter()
+                .copied()
+                .find(|p| p.summoner_name.trim() == my_game_name.trim());
+            let chosen = exact.or_else(|| candidates.first().copied());
+            log::warn!(
+                "live: 快照中存在 {n} 个同名召唤师 \"{}\"，本机定位可能不准",
+                my_game_name
+            );
+            chosen
+        }
+    }
 }
 
 fn built_item_ids(player: &LivePlayer) -> HashSet<u32> {

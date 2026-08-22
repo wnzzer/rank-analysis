@@ -72,13 +72,23 @@ async fn discover_game_root() -> Option<PathBuf> {
     }
     // 3) 扫盘兜底：默认安装位置 <盘>:\WeGameApps\英雄联盟。
     //    以「能否定位到登录客户端 exe」为准，避免命中残留空目录。
-    for drive in b'C'..=b'Z' {
-        let candidate = PathBuf::from(format!(r"{}:\WeGameApps\英雄联盟", drive as char));
-        if resolve_launch_target(&candidate).is_some() {
-            return Some(candidate);
+    //    spawn_blocking：C:→Z: 逐盘 is_file() 是同步 IO，机械盘/网络映射盘上
+    //    可能卡顿数百 ms～秒级，不该占住 tokio worker（更不该阻塞调用方上下文）。
+    tauri::async_runtime::spawn_blocking(|| {
+        for drive in b'C'..=b'Z' {
+            let candidate = PathBuf::from(format!(r"{}:\WeGameApps\英雄联盟", drive as char));
+            if resolve_launch_target(&candidate).is_some() {
+                return Some(candidate);
+            }
         }
-    }
-    None
+        None
+    })
+    .await
+    .map_err(|e| {
+        log::warn!("扫盘任务失败: {e}");
+    })
+    .ok()
+    .flatten()
 }
 
 /// 将安装根目录写入 config（前端包装格式 `{value: String}`）；与已存值一致则跳过写盘。

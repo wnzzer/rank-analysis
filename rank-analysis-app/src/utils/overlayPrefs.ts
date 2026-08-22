@@ -1,8 +1,9 @@
 /**
  * 对局浮窗偏好（设计系统 v3 §C7）。
  *
- * 存 localStorage（主窗设置页写入，overlay 窗口同源读取）；
- * 后端 overlay:config 事件若推送则覆盖本地值（事件是权威源）。
+ * 存 localStorage（主窗设置页写入，overlay 窗口同源读取，是持久化的权威源）；
+ * 主窗口前端经 `emit('overlay:config')` 广播的实时变更若到达则覆盖本地值
+ * （后端不发射此事件；overlay 尚未创建时的广播会丢失，由 localStorage 兜底）。
  */
 export interface OverlayPrefs {
   /** 建议条最大条数 */

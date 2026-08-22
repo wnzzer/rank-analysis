@@ -13,6 +13,7 @@ import { lcuConnected } from '@renderer/composables/useGameState'
 import { deepEqual } from '@renderer/utils/deepEqual'
 import { isPlainObject } from '@renderer/utils/backupFile'
 import { mergeNotesMaps } from '@renderer/utils/mergePlayerNotes'
+import { isMainWindow } from '@renderer/utils/windows'
 import { usePlayerNotesStore } from './playerNotes'
 import { useSettingsStore } from './setting'
 import type { PlayerNotesMap } from '@renderer/types/domain/playerNote'
@@ -235,9 +236,13 @@ export const useCloudSyncStore = defineStore('cloudSync', () => {
 
   /**
    * 启动时初始化：读开关；主窗口且已开启则后台同步一次（失败静默，不阻塞启动）。
-   * 由 main.ts 在 app 启动时调用（每个窗口都会执行，但同步只在主窗口注册/触发）。
+   * 由 main.ts 在 app 启动时调用（每个窗口都会执行）。
+   *
+   * 同步只在主窗口注册/触发：record-* 子窗口各自 init 会造成 N 个窗口并发
+   * 拉/推云端，浪费请求并引入 LWW 写冲突面；这里在入口统一拦截。
    */
   async function init(): Promise<void> {
+    if (!isMainWindow()) return
     try {
       enabled.value = (await getConfigByIpc<boolean>(CONFIG_KEYS.cloudSyncEnabled)) === true
     } catch {

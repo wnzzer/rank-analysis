@@ -70,7 +70,28 @@ pub async fn import_rune_page(champion_id: i32) -> Result<ImportRuneResult, Stri
         log::info!("[import] 新建符文页 {} (id={})", page_name, id);
         (id, true)
     };
-    perks::set_current_perk_page(page_id).await?;
+
+    // 切当前页失败时的补偿：新建路径删除刚建的页（不留半完成状态的垃圾页）；
+    // 覆盖路径不回滚——原页内容已是目标值，回滚反而需要旧值快照，且覆盖失败
+    // 时原页保持原样、无脏状态。
+    if let Err(e) = perks::set_current_perk_page(page_id).await {
+        if created {
+            log::warn!(
+                "[import] 切换当前页失败，补偿删除刚新建的符文页 {} (id={}): {}",
+                page_name,
+                page_id,
+                e
+            );
+            if let Err(del_err) = perks::delete_perk_page(page_id).await {
+                log::error!(
+                    "[import] 补偿删除失败，客户端可能残留新建的空页 {}: {}",
+                    page_id,
+                    del_err
+                );
+            }
+        }
+        return Err(format!("切换当前符文页失败: {e}"));
+    }
     log::info!("[import] 已切换当前符文页 {} (id={})", page_name, page_id);
 
     Ok(ImportRuneResult {

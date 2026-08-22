@@ -323,6 +323,14 @@ fn clear_stale_gameflow_session(session: &mut Session) {
 /// 10. 处理历史对局记录
 /// 11. 发送完成事件
 async fn process_session_data(app_handle: AppHandle, seq: u64) -> Result<(), String> {
+    // 入口检查点：领号后若已有更新的任务进来（选人期 WS 事件密集时很常见），
+    // 立即放弃，不再执行 get_my_summoner + phase + session 三连拉与选人会话
+    // 重试——此前的首个检查点在 push_basic_info 之后，白跑的启动开销可观。
+    if !is_latest_task(&SESSION_TASK_SEQ, seq) {
+        log::info!("Session task {} superseded before start", seq);
+        return Ok(());
+    }
+
     let my_summoner = Summoner::get_my_summoner().await?;
 
     let phase = get_phase().await?;
@@ -792,6 +800,15 @@ async fn process_subteam_parallel(
     subteam_id: i32,
     seq: u64,
 ) -> Result<(), String> {
+    /// 日志用 puuid 截断（前 8 位）：完整 puuid 是玩家标识，日志只留可辨识前缀。
+    fn puuid_short(puuid: &str) -> &str {
+        if puuid.len() <= 8 {
+            puuid
+        } else {
+            &puuid[..8]
+        }
+    }
+
     #[derive(Serialize)]
     struct PlayerUpdate {
         #[serde(rename = "subteamId")]
@@ -828,44 +845,69 @@ async fn process_subteam_parallel(
             let puuid = player.puuid.clone();
             let champion_id = Some(player.champion_id).filter(|&id| id > 0);
 
-            let (summoner, match_history, rank) =
-                tokio::join!(
-                    async {
-                        Summoner::get_summoner_by_puuid(&puuid)
-                            .await
-                            .unwrap_or_default()
-                    },
-                    async {
-                        // 必须走缓存路径（miss 时固定拉满 0-49 再切片），不能裸拉 0..count-1：
-                        // LCU 按 puuid 整包缓存战绩，冷 puuid 的**首个请求区间会钉死它缓存的
-                        // 场数**，之后 begIndex/endIndex 被忽略、永远整包返回。若这里先发小区间
-                        // 请求，战绩页/标签计算从此只能拿到 count 场（真机实测复现）。
-                        let mut result =
-                            match MatchHistory::get_match_history_by_puuid(&puuid, 0, count - 1)
-                                .await
-                            {
-                                Ok(mut mh) => {
-                                    mh.enrich_info_cn().ok();
-                                    mh
-                                }
-                                Err(_) => MatchHistory::default(),
-                            };
-                        // 玩家总场数不足时会落到直连分支，LCU 可能无视区间整包返回，兜底截断
-                        if result.games.games.len() > count as usize {
-                            result.games.games.truncate(count as usize);
-                        }
-                        result
-                    },
-                    async {
-                        match Rank::get_rank_by_puuid(&puuid).await {
-                            Ok(mut r) => {
-                                r.enrich_cn_info();
-                                r
-                            }
-                            Err(_) => Rank::default(),
+            // 四类拉取失败当前都降级为默认值（宁缺毋滥的既定口径）。降级必须
+            // 留痕：否则 LCU 断连时前端只见空卡片，无法区分「玩家没数据」与
+            // 「拉取失败」。不往 SessionSummoner 加 wire 字段——前端类型与
+            // 渲染逻辑都得跟着动，收益不成比例；诊断走日志。
+            let (summoner, match_history, rank) = tokio::join!(
+                async {
+                    match Summoner::get_summoner_by_puuid(&puuid).await {
+                        Ok(s) => s,
+                        Err(e) => {
+                            log::warn!(
+                                "[session seq={seq}] summoner 拉取失败，降级默认值: puuid={} err={}",
+                                puuid_short(&puuid),
+                                e
+                            );
+                            Summoner::default()
                         }
                     }
-                );
+                },
+                async {
+                    // 必须走缓存路径（miss 时固定拉满 0-49 再切片），不能裸拉 0..count-1：
+                    // LCU 按 puuid 整包缓存战绩，冷 puuid 的**首个请求区间会钉死它缓存的
+                    // 场数**，之后 begIndex/endIndex 被忽略、永远整包返回。若这里先发小区间
+                    // 请求，战绩页/标签计算从此只能拿到 count 场（真机实测复现）。
+                    let mut result =
+                        match MatchHistory::get_match_history_by_puuid(&puuid, 0, count - 1).await {
+                            Ok(mut mh) => {
+                                if let Err(e) = mh.enrich_info_cn() {
+                                    log::warn!("[session seq={seq}] 战绩中文化失败: {}", e);
+                                }
+                                mh
+                            }
+                            Err(e) => {
+                                log::warn!(
+                                    "[session seq={seq}] match_history 拉取失败，降级默认值: puuid={} err={}",
+                                    &puuid_short(&puuid),
+                                    e
+                                );
+                                MatchHistory::default()
+                            }
+                        };
+                    // 玩家总场数不足时会落到直连分支，LCU 可能无视区间整包返回，兜底截断
+                    if result.games.games.len() > count as usize {
+                        result.games.games.truncate(count as usize);
+                    }
+                    result
+                },
+                async {
+                    match Rank::get_rank_by_puuid(&puuid).await {
+                        Ok(mut r) => {
+                            r.enrich_cn_info();
+                            r
+                        }
+                        Err(e) => {
+                            log::warn!(
+                                "[session seq={seq}] rank 拉取失败，降级默认值: puuid={} err={}",
+                                &puuid_short(&puuid),
+                                e
+                            );
+                            Rank::default()
+                        }
+                    }
+                }
+            );
 
             // 先推送基础数据（无 user_tag），让 UI 尽早渲染玩家战绩卡片
             if is_latest_task(&SESSION_TASK_SEQ, seq) {
@@ -894,10 +936,17 @@ async fn process_subteam_parallel(
                 }
             }
 
-            let user_tag =
-                crate::command::user_tag::get_user_tag_by_puuid(&puuid, mode, champion_id)
-                    .await
-                    .unwrap_or_else(|_| UserTag {
+            let user_tag = match
+                crate::command::user_tag::get_user_tag_by_puuid(&puuid, mode, champion_id).await
+            {
+                Ok(tag) => tag,
+                Err(e) => {
+                    log::warn!(
+                        "[session seq={seq}] user_tag 计算失败，降级默认值: puuid={} err={}",
+                        puuid_short(&puuid),
+                        e
+                    );
+                    UserTag {
                         recent_data: crate::command::user_tag::RecentData {
                             kda: 0.0,
                             kills: 0.0,
@@ -919,7 +968,9 @@ async fn process_subteam_parallel(
                             one_game_players_map: None,
                         },
                         tag: Vec::new(),
-                    });
+                    }
+                }
+            };
 
             SessionSummoner {
                 champion_id: player.champion_id,

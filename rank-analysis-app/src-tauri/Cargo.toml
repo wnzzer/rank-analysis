@@ -14,7 +14,9 @@ tauri-build = { version = "2", features = [] }
 opt-level = "z"   # 优化级别设为 "z"，专注于大小优化
 lto = true        # 启用链接时优化
 codegen-units = 1 # 减少代码生成单元，提高优化效果
-panic = "abort"   # 恐慌时直接中止，减少错误处理代码
+# 保持默认 unwind（不设 panic="abort"）：后台常驻任务（自动化/监控/shard）数量多，
+# abort 语义下任何一个循环里的边缘数据 panic 都会直接杀死整个应用；unwind 下
+# 只损失单个 task，且 sentry-panic 能捕获 panic 上报，可观测可恢复。
 strip = true      # 剥离符号信息，减小二进制大小
 
 [dependencies]

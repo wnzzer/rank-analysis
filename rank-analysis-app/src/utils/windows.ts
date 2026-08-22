@@ -16,6 +16,9 @@ import { LogicalPosition, LogicalSize } from '@tauri-apps/api/dpi'
 /** 战绩子窗口标签前缀 */
 export const RECORD_WINDOW_PREFIX = 'record-'
 
+/** 主窗口标签（tauri.conf.json 首个窗口，恒为 main） */
+export const MAIN_WINDOW_LABEL = 'main'
+
 /**
  * 由玩家 ID 生成稳定的子窗口标签（同一玩家永远同标签 → 重复点击聚焦复用而非再开一窗）。
  * 标签须为 `a-zA-Z-/:_` 子集：取 nameId 小写后的 31 进制 hash，转 36 进制。
@@ -47,6 +50,17 @@ export function currentWindowLabel(): string | null {
 export function isRecordChildWindow(): boolean {
   const label = currentWindowLabel()
   return !!label && label.startsWith(RECORD_WINDOW_PREFIX)
+}
+
+/**
+ * 当前是否为主窗口。
+ *
+ * 非 Tauri 环境（浏览器 dev / 单测 jsdom）返回 true：这些场景没有多窗口概念，
+ * 按「唯一主窗口」处理，避免云同步/更新检查等主窗口专属逻辑在 dev 下静默失效。
+ */
+export function isMainWindow(): boolean {
+  const label = currentWindowLabel()
+  return label === null || label === MAIN_WINDOW_LABEL
 }
 
 /** 按标签聚焦窗口 */

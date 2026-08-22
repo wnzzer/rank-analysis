@@ -99,6 +99,16 @@ pub async fn update_perk_page(page_id: i64, page: &NewPerkPage) -> Result<(), St
     Ok(())
 }
 
+/// 删除一页符文页。
+///
+/// LCU 端点 `DELETE lol-perks/v1/pages/{id}`。供导入流程的补偿回滚使用：
+/// 新建页后「切当前页」失败时删除刚建的页，避免客户端残留半完成状态的垃圾页。
+pub async fn delete_perk_page(page_id: i64) -> Result<(), String> {
+    let uri = format!("lol-perks/v1/pages/{}", page_id);
+    crate::lcu::util::http::lcu_delete::<()>(&uri).await?;
+    Ok(())
+}
+
 /// 纯函数：按名字（忽略首尾空白）在页面列表里找目标页。
 ///
 /// 返回 `None` 时表示客户端里不存在这个名字的符文页，调用方打日志提示。

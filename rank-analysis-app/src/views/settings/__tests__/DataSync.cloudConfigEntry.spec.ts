@@ -26,10 +26,6 @@ vi.mock('@tauri-apps/api/event', () => ({
 vi.mock('@tauri-apps/api/window', () => ({
   getCurrentWindow: vi.fn(() => ({ label: 'main' }))
 }))
-vi.mock('@tauri-apps/plugin-dialog', () => ({
-  save: vi.fn(),
-  open: vi.fn()
-}))
 
 const messageMock = vi.hoisted(() => ({
   success: vi.fn(),

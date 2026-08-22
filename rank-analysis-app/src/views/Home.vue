@@ -2,7 +2,9 @@
   <div class="home">
     <PageHeader :kicker="`Home · ${greeting}，召唤师`">
       <template #title>
-        <template v-if="connected && summoner">{{ summoner.gameName }}<span class="home__tag">#{{ summoner.tagLine }}</span></template>
+        <template v-if="connected && summoner"
+          >{{ summoner.gameName }}<span class="home__tag">#{{ summoner.tagLine }}</span></template
+        >
         <template v-else>RANK ANALYSIS</template>
       </template>
       <template #meta>
@@ -14,7 +16,9 @@
     <div class="home__grid home__grid--main">
       <!-- 客户端状态卡：原 /Loading 页的职责并入此处（v2 壳层） -->
       <CornerCard title="客户端状态" :emphasis="!connected" class="home__status">
-        <template #extra><span v-if="connected" class="tagp win"><i class="dot dot--win"></i>在线</span></template>
+        <template #extra
+          ><span v-if="connected" class="tagp win"><i class="dot dot--win"></i>在线</span></template
+        >
         <div v-if="connected" class="st-row">
           <span class="ic ic--win">●</span>
           <div class="st-copy">
@@ -27,25 +31,26 @@
           <p class="home__off-title">{{ offTitle }}</p>
           <p class="psub">{{ offHint }}</p>
           <div class="home__off-acts">
-            <button
-              v-if="canLaunch"
-              class="btn pri sm"
-              :disabled="launching"
-              @click="launchLeague"
-            >{{ launching ? '正在启动…' : '启动客户端' }}</button>
+            <button v-if="canLaunch" class="btn pri sm" :disabled="launching" @click="launchLeague">
+              {{ launching ? '正在启动…' : '启动客户端' }}
+            </button>
             <button
               v-if="isAccessDenied && canRelaunch"
               class="btn gho sm"
               :disabled="relaunching"
               @click="relaunchAsAdmin"
-            >{{ relaunching ? '正在重启…' : '以管理员身份重启' }}</button>
+            >
+              {{ relaunching ? '正在重启…' : '以管理员身份重启' }}
+            </button>
           </div>
         </div>
       </CornerCard>
 
       <!-- 短板提醒：来自成长页的习惯标签聚合 -->
       <CornerCard title="短板提醒" subtitle="近 20 场聚合" emphasis class="home__shorts">
-        <template #extra><button class="btn gho sm" @click="go('Growth')">去成长 →</button></template>
+        <template #extra
+          ><button class="btn gho sm" @click="go('Growth')">去成长 →</button></template
+        >
         <div v-if="topTags.length" class="short-list">
           <div v-for="t in topTags" :key="t.dimension" class="short-row">
             <span class="tagp loss">{{ dimLabel(t.dimension) }} {{ fmtDelta(t.avgVsPeer) }}</span>
@@ -59,7 +64,9 @@
           title="暂无短板检出"
           description="收集满 5 局对局后会自动在「成长」页产出习惯标签；届时可在这里一键转为改错目标。"
         >
-          <template #action><button class="btn gho sm" @click="go('Growth')">先去看看成长页</button></template>
+          <template #action
+            ><button class="btn gho sm" @click="go('Growth')">先去看看成长页</button></template
+          >
         </EmptyState>
         <p v-else class="psub">正在读取短板数据…</p>
       </CornerCard>
@@ -67,18 +74,22 @@
 
     <div class="home__grid home__grid--sub">
       <CornerCard title="快捷入口">
-        <div class="qentry" @click="openPalette"><span class="ic">⌕</span>查询玩家战绩<span class="kbd q-kbd">Ctrl K</span></div>
+        <div class="qentry" @click="openPalette">
+          <span class="ic">⌕</span>查询玩家战绩<span class="kbd q-kbd">Ctrl K</span>
+        </div>
         <div class="qentry" @click="goRecordSelf"><span class="ic">▤</span>查看我的战绩</div>
-        <div class="qentry" @click="go('Library')"><span class="ic">❏</span>资产库 · 标签与标记</div>
+        <div class="qentry" @click="go('Library')">
+          <span class="ic">❏</span>资产库 · 标签与标记
+        </div>
         <div class="qentry" @click="go('Settings')"><span class="ic">⚙</span>设置</div>
       </CornerCard>
 
       <CornerCard title="最近动态">
-        <div class="qentry" style="cursor:default">
+        <div class="qentry" style="cursor: default">
           <span class="ic">✦</span>
           <span class="psub">选人期推荐 / 对局信号会在进入英雄选择后自动出现在「对局」页</span>
         </div>
-        <div class="qentry" style="cursor:default">
+        <div class="qentry" style="cursor: default">
           <span class="ic">◈</span>
           <span class="psub">战绩子窗口支持并排对比：在战绩页打开详情后按 Ctrl+Tab 切换窗口</span>
         </div>
@@ -107,12 +118,7 @@ import EmptyState from '../components/ui/EmptyState.vue'
 import { useGameState } from '../composables/useGameState'
 import { launchLeagueByIpc } from '../services/ipc'
 import { isWindows } from '../services/platform'
-import {
-  addHabitGoal,
-  DIMENSION_LABELS,
-  getHabitTags,
-  type HabitTag
-} from '../services/insight'
+import { addHabitGoal, DIMENSION_LABELS, getHabitTags, type HabitTag } from '../services/insight'
 
 const router = useRouter()
 const message = useMessage()
@@ -149,7 +155,11 @@ const launching = ref(false)
 const relaunching = ref(false)
 
 const offTitle = computed(() =>
-  !isAccessDenied.value ? '未连接客户端' : canRelaunch.value ? '需要管理员权限' : '无法读取客户端信息'
+  !isAccessDenied.value
+    ? '未连接客户端'
+    : canRelaunch.value
+      ? '需要管理员权限'
+      : '无法读取客户端信息'
 )
 const offHint = computed(() => {
   if (isAccessDenied.value) {
