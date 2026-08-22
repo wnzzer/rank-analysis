@@ -142,36 +142,8 @@
                   </template>
                   OP.GG：该英雄在当前模式的梯度与全球胜率（非玩家个人胜率）
                 </n-tooltip>
+                <!-- 版本徽章自隐藏（零占位），保留在 meta 行；其余低频信息收进下方 ⓘ -->
                 <PatchNoteBadge :champion-id="sessionSummoner.championId" :mode="opggMode" />
-                <!-- ARAM Balance Status -->
-                <n-popover
-                  v-if="balanceTags.length > 0 && isAramMode"
-                  trigger="hover"
-                  :style="{ padding: 'var(--space-4)' }"
-                >
-                  <template #trigger>
-                    <n-tag
-                      size="small"
-                      :type="overallBalanceStatus.type"
-                      :bordered="false"
-                      round
-                      class="balance-tag"
-                    >
-                      {{ overallBalanceStatus.label }}
-                    </n-tag>
-                  </template>
-                  <n-flex vertical size="small" class="balance-list">
-                    <n-tag
-                      v-for="tag in balanceTags"
-                      :key="tag.label"
-                      size="small"
-                      :type="tag.type"
-                      :bordered="false"
-                    >
-                      {{ tag.label }}
-                    </n-tag>
-                  </n-flex>
-                </n-popover>
               </n-flex>
             </div>
 
@@ -184,15 +156,6 @@
                 </template>
                 预组队：近期多次同队，大概率一起排的；编号仅区分不同组
               </n-tooltip>
-              <n-tag v-if="meetCount > 0" type="warning" size="small" round>
-                <n-popover trigger="hover">
-                  <template #trigger>遇见过 ×{{ meetCount }}</template>
-                  <MettingPlayersCard
-                    :meet-games="sessionSummoner.meetGames"
-                    :meet-total="sessionSummoner.meetTotal"
-                  ></MettingPlayersCard>
-                </n-popover>
-              </n-tag>
               <UnifiedTagRow
                 :tags="sessionSummoner?.userTag?.tag || []"
                 :puuid="sessionSummoner.summoner.puuid"
@@ -200,6 +163,35 @@
                 :tag-line="sessionSummoner.summoner.tagLine"
                 :max-visible="tagMaxVisible"
               />
+              <!-- ⓘ 溢出收纳（G5）：版本改动 / ARAM 平衡 / 遇见次数 收进单一 popover -->
+              <n-popover v-if="hasInfoOverflow" trigger="hover" :style="{ padding: 'var(--space-12)' }">
+                <template #trigger>
+                  <span class="pc-info">ⓘ</span>
+                </template>
+                <n-flex vertical size="small" class="pc-info-body">
+                  <template v-if="isAramMode && balanceTags.length > 0">
+                    <span class="pc-info-h">大乱斗平衡性</span>
+                    <n-flex wrap size="small">
+                      <n-tag
+                        v-for="tag in balanceTags"
+                        :key="tag.label"
+                        size="small"
+                        :type="tag.type"
+                        :bordered="false"
+                      >
+                        {{ tag.label }}
+                      </n-tag>
+                    </n-flex>
+                  </template>
+                  <template v-if="meetCount > 0">
+                    <span class="pc-info-h">遇见过 ×{{ meetCount }}（近{{ sessionSummoner.meetTotal }}局）</span>
+                    <MettingPlayersCard
+                      :meet-games="sessionSummoner.meetGames"
+                      :meet-total="sessionSummoner.meetTotal"
+                    />
+                  </template>
+                </n-flex>
+              </n-popover>
             </div>
           </n-flex>
         </div>
@@ -310,6 +302,11 @@ const meetCount = computed(() => {
   return total && total > 0 ? total : list
 })
 
+/** ⓘ 溢出入口可见性：ARAM 平衡 / 遇见次数 任一存在即显示（G5 收纳；版本徽章自隐藏留在 meta 行） */
+const hasInfoOverflow = computed(
+  () => meetCount.value > 0 || (isAramMode.value && balanceTags.value.length > 0)
+)
+
 /** n-card content-style：用 token 控制内边距（P0 收紧为 --space-4 让 4 场 1 屏装下） */
 const cardContentStyle = 'padding: var(--space-4);'
 
@@ -370,7 +367,7 @@ const tagMaxVisible = computed(() =>
   )
 )
 
-const { isAramMode, balanceTags, overallBalanceStatus } = useAramBalance(
+const { isAramMode, balanceTags } = useAramBalance(
   toRef(() => props.sessionSummoner.championId),
   toRef(() => props.queueId)
 )
@@ -533,16 +530,27 @@ watch(
   font-weight: 600;
 }
 
-.balance-tag {
-  /* 18px / cursor:help：紧凑标签固定高度，不入 token */
+/* ⓘ 溢出入口（G5）：低频信息收纳 */
+.pc-info {
   height: 18px;
-  padding: 0 var(--space-6);
-  font-size: var(--font-size-xs);
+  min-width: 18px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 var(--space-4);
+  font-size: var(--font-size-2xs);
+  color: var(--text-tertiary);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-pill);
   cursor: help;
 }
-
-.balance-list {
-  gap: var(--space-4);
+.pc-info:hover {
+  color: var(--text-secondary);
+  border-color: var(--brand-border);
+}
+.pc-info-h {
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-secondary);
 }
 
 .hidden-record-block {

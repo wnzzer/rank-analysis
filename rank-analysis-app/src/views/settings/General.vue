@@ -193,7 +193,7 @@
               :min="1"
               :max="6"
               style="width: 90px"
-              @update:value="saveOverlayPrefs(overlayPrefs)"
+              @update:value="persistOverlay"
             />
             <span style="font-size: var(--font-size-sm); color: var(--text-secondary)">不透明度</span>
             <n-slider
@@ -203,7 +203,7 @@
               :step="0.05"
               style="width: 140px"
               format-tooltip
-              @update:value="saveOverlayPrefs(overlayPrefs)"
+              @update:value="persistOverlay"
             />
           </n-space>
           <n-text :depth="3" style="font-size: var(--font-size-sm)">
@@ -270,6 +270,7 @@ import {
 } from '@renderer/services/knowledge'
 import { invoke } from '@tauri-apps/api/core'
 import { useMessage } from 'naive-ui'
+import { emit } from '@tauri-apps/api/event'
 import { loadOverlayPrefs, saveOverlayPrefs } from '@renderer/utils/overlayPrefs'
 
 const matchCount = ref(4)
@@ -292,9 +293,18 @@ const usageLog = ref<AiUsageEntry[]>([])
 const usageTotal = computed(() => sumAiUsage(usageLog.value))
 const message = useMessage()
 
-/** CDragon 图标一键缓存状态 */
 /** 对局浮窗偏好（localStorage，overlay 窗口同源读取；见 utils/overlayPrefs.ts） */
 const overlayPrefs = ref(loadOverlayPrefs())
+
+/** 持久化并实时广播给 overlay 窗口（Tauri emit 全局事件，无需后端参与） */
+async function persistOverlay() {
+  saveOverlayPrefs(overlayPrefs.value)
+  try {
+    await emit('overlay:config', overlayPrefs.value)
+  } catch {
+    /* overlay 未运行时广播失败可忽略 */
+  }
+}
 
 const cdragonCaching = ref(false)
 const cdragonCacheResult = ref('')

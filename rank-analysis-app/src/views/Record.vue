@@ -3,8 +3,6 @@
     <PlayerBar
       :summoner="summoner"
       :rank="rank"
-      :solo5v5="solo5v5"
-      :flex="flex"
       :recent-data="recentData"
       :tags="tags"
       :platform-id-cn="platformIdCn"

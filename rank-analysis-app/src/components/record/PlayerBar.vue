@@ -38,14 +38,7 @@
         <img :src="tierImage(soloInfo.tier)" class="player-bar-rank-img" alt="" />
         <span class="player-bar-rank-text">{{ formatCompactTierText(soloInfo) }}</span>
       </div>
-      <div class="player-bar-rate">
-        <span class="player-bar-rate-label">单双</span>
-        <span class="player-bar-rate-value">{{ solo5v5.winRate }}%</span>
-      </div>
-      <div class="player-bar-rate">
-        <span class="player-bar-rate-label">灵活</span>
-        <span class="player-bar-rate-value">{{ flex.winRate }}%</span>
-      </div>
+      <!-- 单双/灵活胜率已并入左栏概览卡（RankCard），此处瘦身去重（R3） -->
       <div class="player-bar-recent">
         <span class="player-bar-recent-label">近20场</span>
         <span class="player-bar-recent-value">
@@ -84,7 +77,7 @@ import { assetPrefix } from '@renderer/services/http'
 import { CopyOutline } from '@vicons/ionicons5'
 import { computed } from 'vue'
 import { NAvatar, NButton, NFlex, NIcon, NEllipsis, NPopover, NTag, useMessage } from 'naive-ui'
-import type { Rank, RecentWinRate, Summoner } from '@renderer/types/domain/player'
+import type { Rank, Summoner } from '@renderer/types/domain/player'
 import type { RankTag, RecentData } from '@renderer/types/domain/analysis'
 import { usePlayerNotesStore } from '@renderer/features/settings/stores/playerNotes'
 import { formatCompactTierText, hasRealTier } from '@renderer/utils/rank'
@@ -95,8 +88,6 @@ import UnifiedTagRow from '@renderer/components/common/UnifiedTagRow.vue'
 const props = defineProps<{
   summoner: Summoner
   rank: Rank
-  solo5v5: RecentWinRate
-  flex: RecentWinRate
   recentData: RecentData
   tags: RankTag[]
   platformIdCn: string
@@ -215,23 +206,6 @@ const copyName = () => {
   white-space: nowrap;
 }
 
-.player-bar-rate {
-  display: inline-flex;
-  align-items: baseline;
-  gap: var(--space-4);
-  white-space: nowrap;
-}
-
-.player-bar-rate-label {
-  font-size: var(--font-size-xs);
-  color: var(--text-tertiary);
-}
-
-.player-bar-rate-value {
-  font-size: var(--font-size-sm);
-  font-weight: 700;
-  color: var(--semantic-win);
-}
 
 .player-bar-recent {
   display: inline-flex;
