@@ -1,6 +1,7 @@
 import { ref, readonly, onMounted, onUnmounted } from 'vue'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import router from '../router'
+import { SHELL_V2 } from '../flags'
 import { isRecordChildWindow } from '@renderer/utils/windows'
 
 export interface GameStateEvent {
@@ -75,6 +76,20 @@ function handleConnectionRoute(state: GameStateEvent) {
     return
   }
   const currentPath = router.currentRoute.value.path
+
+  if (SHELL_V2) {
+    // v2 壳层：断连落地主页（状态卡承接原 Loading 职责）；连接不强制跳页，
+    // 用户停在哪页就在哪页（主页状态卡会自行亮起在线态）
+    if (
+      !state.connected &&
+      currentPath !== '/Home' &&
+      !currentPath.startsWith('/Settings') &&
+      !currentPath.startsWith('/Loading')
+    ) {
+      router.push({ path: '/Home' })
+    }
+    return
+  }
 
   if (state.connected && state.summoner) {
     // 游戏客户端已连接，且当前在 Loading 页，则跳转首页 (Record)

@@ -1,9 +1,17 @@
 import { createRouter, createWebHashHistory, RouteRecordRaw } from 'vue-router'
+import { SHELL_V2 } from '../flags'
 
 const routes: Array<RouteRecordRaw> = [
   {
     path: '/',
-    redirect: '/Loading'
+    // v2 壳层默认落地主页仪表盘；旧壳层维持 Loading 连接门
+    redirect: () => (SHELL_V2 ? '/Home' : '/Loading')
+  },
+  {
+    path: '/Home',
+    name: 'Home',
+    component: () => import('@renderer/views/Home.vue'),
+    meta: { title: '主页' }
   },
   {
     path: '/Record',

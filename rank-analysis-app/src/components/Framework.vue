@@ -1,13 +1,29 @@
 <template>
   <div class="full-container">
-    <n-flex vertical size="large">
-      <!-- 启动弹窗队列：同一时刻至多一个可见，顺序见 useStartupDialogs。
-           云端配置拉取裁决（CloudConfigPullDialog）不再走这里自动弹出，改成
-           设置页「数据与同步」里的被动角标引导入口，见 views/settings/DataSync.vue -->
-      <ErrorReportingConsentDialog
-        :show="active === 'errorReportingConsent'"
-        @decide="onConsentDecide"
-      />
+    <!-- 启动弹窗队列：同一时刻至多一个可见，顺序见 useStartupDialogs。
+         云端配置拉取裁决（CloudConfigPullDialog）不再走这里自动弹出，改成
+         设置页「数据与同步」里的被动角标引导入口，见 views/settings/DataSync.vue -->
+    <ErrorReportingConsentDialog :show="active === 'errorReportingConsent'" @decide="onConsentDecide" />
+
+    <!-- ============ v2 壳层：舰桥导航 + 顶栏（flags.shellV2，P4 移除分支） ============ -->
+    <template v-if="SHELL_V2">
+      <TopBar @open-palette="paletteShow = true" />
+      <div class="shellv2">
+        <NavRail />
+        <main class="shellv2__content">
+          <router-view v-slot="{ Component }">
+            <Transition v-if="!isSettingsRoute" name="page" mode="out-in">
+              <component :is="Component" :key="$route.fullPath" />
+            </Transition>
+            <component v-else :is="Component" :key="$route.fullPath" />
+          </router-view>
+        </main>
+      </div>
+      <CommandPalette v-model:show="paletteShow" />
+    </template>
+
+    <!-- ============ 旧壳层（flag 关闭时回退；P4 整块删除） ============ -->
+    <n-flex v-else vertical size="large">
       <!-- 整体布局 -->
       <n-layout>
         <!-- 顶部区域 -->
@@ -37,13 +53,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useMessage } from 'naive-ui'
 
 import Header from './Header.vue'
 import SideNavigation from './SideNavigation.vue'
+import TopBar from './shell/TopBar.vue'
+import NavRail from './shell/NavRail.vue'
+import CommandPalette from './shell/CommandPalette.vue'
 import ErrorReportingConsentDialog from '@renderer/components/common/ErrorReportingConsentDialog.vue'
+import { SHELL_V2 } from '../flags'
 import { useGameState } from '@renderer/composables/useGameState'
 import { useWindowShortcuts } from '@renderer/composables/useWindowShortcuts'
 import { useZoom } from '@renderer/composables/useZoom'
@@ -52,17 +72,16 @@ import { useStartupDialogs } from '@renderer/composables/useStartupDialogs'
 /**
  * 应用主布局框架组件
  *
- * 提供应用的整体布局结构，包括：
- * - 顶部标题栏（Header）
- * - 左侧导航栏（SideNavigation）
- * - 主内容区域（router-view）
- *
- * @example
- * <!-- 在 App.vue 中使用 -->
- * <Framework />
+ * v3 重构期双壳并存（flags.SHELL_V2 切换）：
+ * - v2：TopBar + NavRail + CommandPalette + 内容区；
+ * - v1（旧）：36px Header + 68px SideNavigation，保持原样以便回退。
+ * 共享职责（游戏状态监听 / 缩放 / 快捷键 / 启动弹窗队列）对两壳一视同仁。
  */
 
 const route = useRoute()
+
+/** 命令面板显隐：顶栏搜索按钮与 Ctrl+K（面板内部监听）都会打开 */
+const paletteShow = ref(false)
 
 /**
  * 判断当前路由是否为设置页面
@@ -120,8 +139,24 @@ const contentStyle = computed(() => ({
   /* 占满整个高度 */
   margin: 0;
   padding: 0;
+  display: flex;
+  flex-direction: column;
 }
 
+/* ===== v2 壳层布局 ===== */
+.shellv2 {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.shellv2__content {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  background: var(--bg-base);
+}
+
+/* ===== 旧壳层（P4 删除） ===== */
 .header {
   user-select: none;
   -webkit-app-region: drag;
@@ -139,9 +174,7 @@ const contentStyle = computed(() => ({
 
 .content {
   height: calc(100vh - 36px);
-}
-
-.left {
+}.left {
   width: 68px;
   min-width: 68px;
   background-color: var(--bg-base) !important;
