@@ -204,12 +204,15 @@
           </n-flex>
         </div>
 
-        <!-- Match History Grid -->
-        <PlayerHistoryGrid :games="sessionSummoner?.matchHistory.games.games" />
+        <!-- Match History Grid：compact 密度下隐藏（信息降载，见设计系统 v3 密度分层） -->
+        <PlayerHistoryGrid
+          v-if="props.density !== 'compact'"
+          :games="sessionSummoner?.matchHistory.games.games"
+        />
       </div>
 
-      <!-- Right Side: Stats -->
-      <div class="right-section">
+      <!-- Right Side: Stats（compact 隐藏） -->
+      <div v-if="props.density !== 'compact'" class="right-section">
         <PlayerStatsCard :recent="sessionSummoner.userTag.recentData" :is-dark="isDark" />
       </div>
     </n-flex>

@@ -13,42 +13,24 @@
   </template>
   <template v-else>
     <div class="gaming-page">
-      <n-button
-        circle
-        secondary
-        type="primary"
-        class="gaming-config-btn"
-        @click="showConfig = true"
-      >
-        <template #icon>
-          <n-icon><settings-outline /></n-icon>
-        </template>
-      </n-button>
-
-      <!-- AI 分析按钮 -->
-      <n-tooltip v-model:show="showAITooltip" placement="left" :duration="5000">
-        <template #trigger>
-          <!--
-            刻意不用 :loading —— naive-ui Button 在 loading 时根本不 emit click
-            （node_modules/naive-ui/es/button/src/Button.mjs:146），会把用户锁在
-            面板外面。进行中改用 spin 图标表达，按钮始终可点、随时能开回面板。
-          -->
-          <n-button
-            circle
-            secondary
-            type="info"
-            class="gaming-ai-btn"
-            :disabled="!sessionData.phase"
-            @click="handleOpenPanel"
-          >
-            <template #icon>
-              <n-spin v-if="ai.loading.value || live.loading.value" :size="14" />
-              <n-icon v-else><sparkles-outline /></n-icon>
-            </template>
-          </n-button>
-        </template>
-        ✨ AI分析功能：选人期分析阵容情报，对局中实时分析出装/经济/团战，赛后复盘整局
-      </n-tooltip>
+      <!-- 右下 dock：常态可见的操作区，替代旧 opacity 0.6 悬浮钮（设计系统 v3 §C2） -->
+      <div class="gaming-dock">
+        <!-- 刻意不用 :loading —— naive-ui Button loading 时不 emit click，会把用户锁在
+             面板外。进行中改用 spin 表达，按钮始终可点、随时能开回面板。 -->
+        <button
+          class="dock-btn dock-btn--ai"
+          :disabled="!sessionData.phase"
+          @click="handleOpenPanel"
+        >
+          <n-spin v-if="ai.loading.value || live.loading.value" :size="13" />
+          <n-icon v-else :size="15"><sparkles-outline /></n-icon>
+          <span>AI 分析</span>
+        </button>
+        <button class="dock-btn" @click="showConfig = true">
+          <n-icon :size="15"><settings-outline /></n-icon>
+          <span>设置</span>
+        </button>
+      </div>
 
       <n-modal v-model:show="showConfig" preset="card" title="显示设置" style="width: 400px">
         <n-form-item label="战绩显示数量">
@@ -62,24 +44,25 @@
         <span class="gaming-config-hint">设置将在下一次刷新或对局时生效</span>
       </n-modal>
 
-      <!-- AI 分析结果弹窗（D-P2 三 tab：选人期 / 对局中 / 赛后，各自独立进度） -->
-      <n-modal
+      <!-- AI 分析面板：右侧抽屉（GAMING_V2）——选人期可与阵容并看，不再锁模态 -->
+      <n-drawer
         v-model:show="ai.showPanel.value"
-        preset="card"
-        :title="aiPanelTitle"
-        style="width: 640px"
+        placement="right"
+        :width="aiDrawerWidth"
+        :trap-focus="false"
       >
-        <template #header-extra>
-          <n-button
-            size="small"
-            tertiary
-            type="primary"
-            :disabled="currentTabLoading"
-            @click="rerunCurrentTab"
-          >
-            重新分析
-          </n-button>
-        </template>
+        <n-drawer-content :title="aiPanelTitle" closable>
+          <template #header-extra>
+            <n-button
+              size="small"
+              tertiary
+              type="primary"
+              :disabled="currentTabLoading"
+              @click="rerunCurrentTab"
+            >
+              重新分析
+            </n-button>
+          </template>
         <n-tabs v-model:value="aiTab" type="line" animated>
           <n-tab-pane name="champSelect" tab="选人期">
             <div
@@ -130,9 +113,173 @@
             <div v-else class="ai-result-empty">暂无赛后分析结果，点「重新分析」生成。</div>
           </n-tab-pane>
         </n-tabs>
-      </n-modal>
+        </n-drawer-content>
+      </n-drawer>
 
-      <div class="gaming-intel-banner">
+      <!-- ================= 情报舱（GAMING_V2）：结论区 → 阶段区 → 信号区 ================= -->
+      <div v-if="GAMING_V2" class="intel-bay">
+        <!-- ① 结论区：VerdictBanner + 梯度选择（梯度影响推荐依据，就近放结论旁）；
+             兜底态追加「存为规则」入口，把兜底转化为用户自己的规则 -->
+        <div class="intel-bay__verdict">
+          <VerdictBanner
+            class="intel-verdict"
+            :state="verdictState"
+            :verb="verdictVerb"
+            :champion="verdictChampion"
+            :reason="verdictReason"
+            :seconds="bp.displaySecs.value"
+            :total="30"
+          />
+          <n-select
+            v-if="opggMode === 'ranked'"
+            :value="opggTier"
+            :options="TIER_OPTIONS"
+            :loading="opggTierLoading"
+            :disabled="opggTierLoading"
+            size="tiny"
+            class="banner-tier-select intel-tier"
+            @update:value="onTierChange"
+          />
+          <button
+            v-if="verdictState === 'fallback'"
+            class="intel-save-rule"
+            title="把这条兜底建议固化为你自己的规则"
+            @click="handleSaveRule"
+          >
+            存为规则
+          </button>
+        </div>
+
+        <!-- ② 阶段区 -->
+        <div class="intel-bay__stage">
+          <div class="intel-stage-row">
+            <!-- 阶段 stepper：预选/禁用/选人/确认，仅 stage 非空时展示 -->
+            <div v-if="champSelectStage" class="stage-stepper">
+              <template v-for="(step, i) in STAGE_STEPS" :key="step.key">
+                <div
+                  class="stage-step"
+                  :class="{
+                    'stage-step-active': i === currentStageIndex,
+                    'stage-step-done': i < currentStageIndex
+                  }"
+                >
+                  <span class="stage-dot"></span>
+                  <span class="stage-label">{{ step.label }}</span>
+                </div>
+                <span
+                  v-if="i < STAGE_STEPS.length - 1"
+                  class="stage-connector"
+                  :class="{ 'stage-connector-done': i < currentStageIndex }"
+                ></span>
+              </template>
+            </div>
+            <div class="banner-meta">
+              <template v-if="bannerPhaseLabel">{{ bannerPhaseLabel }} · </template
+              >{{ sessionData.typeCn }}
+              <template v-if="opggStatus">
+                · OP.GG {{ opggStatus.patch
+                }}<span v-if="opggStatus.stale" class="banner-stale">（数据滞后）</span>
+              </template>
+            </div>
+          </div>
+
+          <!-- 双方 ban 条：任一方有 ban 才展示整块 -->
+          <div v-if="hasBans" class="ban-bar">
+            <div class="ban-group">
+              <span class="ban-group-label">我方禁用</span>
+              <div v-if="myBans.length > 0" class="ban-icons">
+                <img
+                  v-for="id in myBans"
+                  :key="`my-ban-${id}`"
+                  class="ban-icon"
+                  :src="getChampionUrl(id)"
+                  :alt="`ban-${id}`"
+                />
+              </div>
+              <span v-else class="ban-group-empty">-</span>
+            </div>
+            <div class="ban-group">
+              <span class="ban-group-label">敌方禁用</span>
+              <div v-if="theirBans.length > 0" class="ban-icons">
+                <img
+                  v-for="id in theirBans"
+                  :key="`their-ban-${id}`"
+                  class="ban-icon"
+                  :src="getChampionUrl(id)"
+                  :alt="`ban-${id}`"
+                />
+              </div>
+              <span v-else class="ban-group-empty">-</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ③ 信号区：tab 化，默认强度对比；有内容的 tab 挂数量角标 -->
+        <div class="intel-sigs">
+          <div class="intel-sigs__tabs" role="tablist">
+            <button
+              v-for="t in signalTabs"
+              :key="t.key"
+              type="button"
+              role="tab"
+              class="sig-tab"
+              :class="{ 'sig-tab--on': activeSignalTab === t.key }"
+              :aria-selected="activeSignalTab === t.key"
+              @click="activeSignalTab = t.key"
+            >
+              {{ t.label }}<sup
+                v-if="
+                  (t.key === 'threat' && (threatRatings?.length ?? 0) > 0) ||
+                  (t.key === 'next' && (nextActions?.length ?? 0) > 0)
+                "
+                class="sig-badge"
+                >{{ t.key === 'threat' ? threatRatings?.length : nextActions?.length }}</sup
+              >
+            </button>
+          </div>
+          <div class="intel-sigs__pane">
+            <!-- 双方阵容强度对比条：锁定英雄 ≥1 即出现，数据不足时整块隐藏 -->
+            <TeamStrengthBar
+              v-if="activeSignalTab === 'strength'"
+              :mine="lineupScores.scores.value.mine"
+              :enemy="lineupScores.scores.value.enemy"
+            />
+            <EnemyThreatCard v-else-if="activeSignalTab === 'threat'" :ratings="threatRatings" />
+            <NextActionCard v-else-if="activeSignalTab === 'next'" :actions="nextActions" />
+            <template v-else>
+              <!-- 对位分析（同分路画像均值差 ≥2%，确定性计算） -->
+              <div
+                v-if="lineupScores.scores.value.matchupHints.length > 0"
+                class="matchup-hints"
+              >
+                <div
+                  v-for="(hint, i) in lineupScores.scores.value.matchupHints"
+                  :key="i"
+                  class="matchup-hint"
+                >
+                  {{ hint }}
+                </div>
+              </div>
+              <!-- 敌方打野节奏（SGP 战绩前 10 分钟击杀分布，确定性计算） -->
+              <div v-if="lineupScores.scores.value.junglePatternLine" class="jungle-pattern">
+                {{ lineupScores.scores.value.junglePatternLine }}
+              </div>
+              <p
+                v-if="
+                  lineupScores.scores.value.matchupHints.length === 0 &&
+                  !lineupScores.scores.value.junglePatternLine
+                "
+                class="psub intel-empty"
+              >
+                暂无对位/野区信号——需要更多已锁定英雄数据
+              </p>
+            </template>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ 旧横幅布局（GAMING_V2=false 回退；P4 整块删除） ============ -->
+      <div v-else class="gaming-intel-banner">
         <div class="banner-main" :class="{ 'banner-main-split': champSelectStage }">
           <!-- 阶段 stepper：预选/禁用/选人/确认，仅 stage 非空时展示；'' 时保留原有单行文案 -->
           <div v-if="champSelectStage" class="stage-stepper">
@@ -283,6 +430,7 @@ import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import { SettingsOutline, SparklesOutline } from '@vicons/ionicons5'
 import { useMessage } from 'naive-ui'
 
+import VerdictBanner from '@renderer/components/ui/VerdictBanner.vue'
 import LoadingComponent from '@renderer/components/LoadingComponent.vue'
 import SubteamCard from '@renderer/components/gaming/SubteamCard.vue'
 import BestPicksPanel from '@renderer/components/gaming/BestPicksPanel.vue'
@@ -317,6 +465,7 @@ import { getNextActions, type NextAction } from '@renderer/services/nextAction'
 import type { Position, PickRule, BanRule } from '@renderer/types/rules'
 import type { ChampSelect, Subteam } from '@renderer/types/domain/gaming'
 import type { championOption } from '@renderer/types/domain/champion'
+import { GAMING_V2 } from '../flags'
 
 /** 选人阶段 stepper 的四步定义，顺序与展示文案固定 */
 const STAGE_STEPS: Array<{ key: string; label: string }> = [
@@ -519,7 +668,8 @@ watch(
     if (phase === 'ChampSelect') {
       void getThreatRatings()
         .then(r => {
-          threatRatings.value = r
+          // 后端/测试桩可能返回 undefined：归一为数组，避免模板读 length 崩溃
+          threatRatings.value = Array.isArray(r) ? r : []
         })
         .catch(() => {})
     } else {
@@ -551,9 +701,10 @@ async function pollNextActions(): Promise<void> {
       mySummonerPuuid.value,
       sessionData.queueId
     )
-    nextActions.value = actions
+    // 同 threatRatings：归一为数组防 undefined（mock 桩/后端异常都可能返回空）
+    nextActions.value = Array.isArray(actions) ? actions : []
     // 推送数据到 overlay 窗口（4b overlay POC）
-    void invoke('push_overlay_data', { actions })
+    void invoke('push_overlay_data', { actions: nextActions.value })
   } catch {
     nextActions.value = []
   }
@@ -631,6 +782,50 @@ watch(opggMode, m => getOpggStatus(m).then(s => (opggStatus.value = s)), { immed
  */
 const bp = useBpDecision(() => sessionData.phase)
 
+/* ================= v3 情报舱（GAMING_V2）================= */
+
+/** 结论带动词：决策动作类型直译 */
+const verdictVerb = computed(() => (bp.decision.value?.action_type === 'Ban' ? 'BAN' : '选'))
+
+/** 结论英雄名：champion-names 缓存在 onMounted 预热，ban 阶段也有名字可显 */
+const verdictChampion = computed(() => {
+  const id = bp.decision.value?.target?.champion_id
+  return id ? getChampionName(id) : ''
+})
+
+/**
+ * 一句话理由（结论带只给一行）：
+ * 手动覆盖 > 规则来源 > 兜底来源；evidence 对位风险并入兜底文案尾部。
+ */
+const verdictReason = computed(() => {
+  const d = bp.decision.value
+  if (!d || !d.target) return '当前无可执行目标，按兵不动'
+  if (d.user_overridden) return '你已手动操作，本条建议仅作参考'
+  const o = d.target.origin
+  if (o.type === 'Rule') return `来自你的规则「${o.rule_name}」`
+  const ev = d.target.evidence
+  return `系统兜底（池内 ${o.pool_size} 个候选）${ev ? ` · 注意被 counter 风险` : ''}`
+})
+
+/** 三态：正常金 / 兜底弱化 / 无目标 idle —— 与 VerdictBanner 契约一致 */
+const verdictState = computed<'decision' | 'fallback' | 'idle'>(() => {
+  const d = bp.decision.value
+  if (!d || !d.target) return 'idle'
+  return d.user_overridden || d.target.origin.type === 'Fallback' ? 'fallback' : 'decision'
+})
+
+type SignalTab = 'strength' | 'threat' | 'next' | 'matchup'
+const activeSignalTab = ref<SignalTab>('strength')
+const signalTabs: Array<{ key: SignalTab; label: string }> = [
+  { key: 'strength', label: '强度对比' },
+  { key: 'threat', label: '威胁评级' },
+  { key: 'next', label: '下一步' },
+  { key: 'matchup', label: '对位 / 野区' }
+]
+
+/** AI 抽屉宽度：宽屏固定侧栏宽，窄窗占满（挂载时取一次即可） */
+const aiDrawerWidth = Math.min(520, typeof window !== 'undefined' ? window.innerWidth : 520)
+
 const router = useRouter()
 
 /** 我的分路，取自会话里标着「我」的那名玩家；ARAM 等无分路模式为 null */
@@ -663,11 +858,6 @@ const onTierChange = async (next: OpggTier) => {
     message.error('段位数据拉取失败，已保持原段位显示')
   }
 }
-
-const showAITooltip = ref(false)
-
-/** AI 功能提示状态（内存中存储，每次打开软件只提示一次） */
-let hasShownAITip = false
 
 /**
  * AI 分析状态。面板显隐与请求生命周期是分开的两件事——按钮只管「打开面板」，
@@ -836,17 +1026,6 @@ onMounted(async () => {
   // 提前在页面挂载时触发一次，幂等（已加载时立即返回）。
   void loadChampionNames()
 
-  // 每次打开软件只展示一次 AI 功能提示
-  if (!hasShownAITip) {
-    setTimeout(() => {
-      showAITooltip.value = true
-      hasShownAITip = true
-      setTimeout(() => {
-        showAITooltip.value = false
-      }, 5000)
-    }, 2000)
-  }
-
   // OP.GG 数据兜底刷新：后端启动已预热，此处 fire-and-forget 兜底软件长开超 12h 未重启的场景。
   // 两个模式都刷新完成后，重新拉取当前模式状态以更新横幅（版本号/滞后标记跟着变化）。
   void Promise.all([ensureOpggData('ranked'), ensureOpggData('aram')]).then(() =>
@@ -858,30 +1037,153 @@ onMounted(async () => {
 <style lang="css" scoped>
 .gaming-page {
   padding: var(--space-16);
-  /* 右缘悬浮按钮（设置/AI）占一条竖向通道，多留白避免压在卡片内容上 */
-  padding-right: calc(var(--space-16) + 40px);
   height: 100%;
   box-sizing: border-box;
   position: relative;
   overflow-y: auto;
 }
 
-.gaming-config-btn {
-  position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
+/* ---- 右下 dock（v3）：常态可见的操作区 ---- */
+.gaming-dock {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
   z-index: var(--z-dock);
-  opacity: 0.6;
+  display: flex;
+  gap: var(--space-8);
+}
+.dock-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  height: 36px;
+  padding: 0 var(--space-16);
+  border: none;
+  cursor: pointer;
+  clip-path: var(--clip-notch);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-secondary);
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  transition:
+    filter var(--dur-fast) var(--ease-expo),
+    color var(--dur-fast) var(--ease-expo),
+    border-color var(--dur-fast) var(--ease-expo);
+}
+.dock-btn:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--brand-border);
+}
+.dock-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.dock-btn--ai {
+  background: var(--brand-gradient);
+  border-color: transparent;
+  color: var(--text-on-brand);
+  box-shadow: var(--glow-brand);
+}
+.dock-btn--ai:hover:not(:disabled) {
+  filter: brightness(1.08);
+  color: var(--text-on-brand);
 }
 
-.gaming-ai-btn {
-  position: absolute;
-  right: 0;
-  top: calc(50% + 50px);
-  transform: translateY(-50%);
-  z-index: var(--z-dock);
-  opacity: 0.6;
+/* ---- 情报舱（v3）：单一容器三区结构 ---- */
+.intel-bay {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  clip-path: var(--clip-corner-md);
+  padding: var(--space-12) var(--space-16) var(--space-8);
+  margin-bottom: var(--space-12);
+}
+.intel-bay__verdict {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-10);
+}
+.intel-verdict {
+  flex: 1;
+  min-width: 0;
+}
+.intel-tier {
+  width: 96px;
+  flex: none;
+  align-self: center;
+}
+.intel-save-rule {
+  flex: none;
+  align-self: center;
+  height: 30px;
+  padding: 0 var(--space-12);
+  border: 1px solid var(--warn-border);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  clip-path: var(--clip-notch);
+}
+.intel-save-rule:hover {
+  filter: brightness(1.1);
+}
+
+.intel-bay__stage {
+  margin-top: var(--space-10);
+  padding-top: var(--space-8);
+  border-top: 1px solid var(--border-subtle);
+}
+.intel-stage-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-16);
+}
+
+.intel-sigs {
+  margin-top: var(--space-10);
+  padding-top: var(--space-8);
+  border-top: 1px solid var(--border-subtle);
+}
+.intel-sigs__tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.sig-tab {
+  position: relative;
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  padding: 7px 14px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition:
+    color var(--dur-fast) var(--ease-expo),
+    border-color var(--dur-fast) var(--ease-expo);
+}
+.sig-tab:hover {
+  color: var(--text-secondary);
+}
+.sig-tab--on {
+  color: var(--brand);
+  border-bottom-color: var(--brand);
+}
+.sig-badge {
+  font-family: var(--font-num);
+  font-size: 9px;
+  color: var(--info);
+  margin-left: 3px;
+}
+.intel-sigs__pane {
+  padding-top: var(--space-10);
+  min-height: 40px;
+}
+.intel-empty {
+  text-align: center;
+  padding: var(--space-8) 0;
 }
 
 .gaming-config-hint {

@@ -50,6 +50,19 @@
           {{ titleText }}
           <span class="bp-panel-count">{{ shownPicks.length }}/{{ picks.length }} 个候选</span>
         </div>
+        <!-- 当前生效的非默认筛选：chip 回显 + 点击撤销（设计系统 v3 §C2-G7） -->
+        <div v-if="activeFilterChips.length > 0" class="bp-chips">
+          <button
+            v-for="c in activeFilterChips"
+            :key="c.key"
+            type="button"
+            class="bp-chip"
+            :title="'点击恢复默认'"
+            @click="c.reset"
+          >
+            {{ c.label }} ×
+          </button>
+        </div>
         <div class="bp-controls">
           <span class="bp-control-label">位置</span>
           <n-select
@@ -595,6 +608,85 @@ const filterStatusLabel = computed(() => {
   return parts.length > 0 ? `筛选：${parts.join('，')}` : ''
 })
 
+/**
+ * 当前生效的「非默认」筛选 chips（设计系统 v3 §C2-G7）。
+ * 与底部 filterStatusLabel 的区别：这里只列偏离默认值的项，点 chip 即恢复该项默认。
+ */
+const activeFilterChips = computed(() => {
+  const chips: Array<{ key: string; label: string; reset: () => void }> = []
+  if (positionFilter.value !== 'follow') {
+    const opt = PICK_POSITION_OPTIONS.find(o => o.value === positionFilter.value)
+    chips.push({
+      key: 'pos',
+      label: `位置 ${opt?.label ?? String(positionFilter.value)}`,
+      reset: () => {
+        positionFilter.value = 'follow'
+      }
+    })
+  }
+  if (displayCount.value !== 5) {
+    const n = displayCount.value
+    chips.push({
+      key: 'count',
+      label: `数量 ${n === 'all' ? '全部' : n}`,
+      reset: () => void onChangeCount(5)
+    })
+  }
+  if (!onlyOwned.value) {
+    chips.push({
+      key: 'owned',
+      label: '含未拥有',
+      reset: () => {
+        onlyOwned.value = true
+        void persistFilter(OWNED_KEY, true)
+      }
+    })
+  }
+  if (poolOnly.value) {
+    chips.push({
+      key: 'pool',
+      label: '仅英雄池',
+      reset: () => {
+        poolOnly.value = false
+        void persistFilter(POOL_ONLY_KEY, false)
+      }
+    })
+  }
+  if (coverageFirst.value) {
+    chips.push({
+      key: 'coverage',
+      label: '优先覆盖',
+      reset: () => {
+        coverageFirst.value = false
+        void persistFilter(COVERAGE_FIRST_KEY, false)
+      }
+    })
+  }
+  if (poolOnly.value && poolMinWinRate.value !== 50) {
+    const v = poolMinWinRate.value
+    chips.push({
+      key: 'wr',
+      label: `胜率≥${v}%`,
+      reset: () => {
+        poolMinWinRate.value = 50
+        void persistFilter(POOL_WIN_RATE_KEY, 50)
+      }
+    })
+  }
+  if (poolOnly.value && poolMinGames.value !== 5) {
+    const g = poolMinGames.value
+    chips.push({
+      key: 'games',
+      label: `场次≥${g}`,
+      reset: () => {
+        poolMinGames.value = 5
+        void persistFilter(POOL_GAMES_KEY, 5)
+      }
+    })
+  }
+  return chips
+})
+
 function championName(id: number): string {
   return getChampionName(id) || `英雄 ${id}`
 }
@@ -732,6 +824,28 @@ function championName(id: number): string {
 
 .bp-control {
   width: 118px;
+}
+
+/* ---- 生效筛选 chips：点击撤销单项 ---- */
+.bp-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.bp-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--info-border, rgba(76, 194, 255, 0.3));
+  background: var(--info-soft, rgba(76, 194, 255, 0.12));
+  color: var(--info, #2ba3e6);
+  font-size: var(--font-size-2xs);
+  padding: 2px 8px;
+  cursor: pointer;
+  clip-path: var(--clip-notch);
+}
+.bp-chip:hover {
+  filter: brightness(1.12);
 }
 
 /* ---- 候选池细粒度筛选行：仅已拥有 / 仅英雄池（胜率·场次门槛） ---- */

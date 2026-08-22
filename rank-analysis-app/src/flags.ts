@@ -17,3 +17,6 @@ function readFlag(key: string, fallback: boolean): boolean {
 
 /** 新壳层（舰桥导航 + 顶栏 + 主页）：P1 引入，P4 移除本开关 */
 export const SHELL_V2 = readFlag('ra.flag.shellV2', true)
+
+/** 对局页情报舱改造（结论带/信号区/dock/AI 抽屉）：P2 引入，P4 移除本开关 */
+export const GAMING_V2 = readFlag('ra.flag.gamingV2', true)
