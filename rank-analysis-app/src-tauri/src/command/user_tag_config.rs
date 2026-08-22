@@ -97,8 +97,11 @@ pub async fn save_tag_configs(configs: Vec<TagConfig>) -> Result<(), String> {
 ///   false 后可被删除、下次 merge 又复活成幽灵标签；反过来给自定义标签标 true
 ///   会伪造出删不掉的项。两种篡改都在入口直接拒绝。
 fn validate_tag_configs(configs: &[TagConfig]) -> Result<(), String> {
+    // 先落本地再借引用：get_default_tags() 返回临时值，链式 .iter() 会在语句末
+    // 被 drop，HashSet<&str> 立即悬垂（E0716）。
+    let defaults = get_default_tags();
     let default_ids: std::collections::HashSet<&str> =
-        get_default_tags().iter().map(|d| d.id.as_str()).collect();
+        defaults.iter().map(|d| d.id.as_str()).collect();
     let mut seen = std::collections::HashSet::new();
     for t in configs {
         if !seen.insert(t.id.as_str()) {

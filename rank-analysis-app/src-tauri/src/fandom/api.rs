@@ -54,11 +54,12 @@ pub async fn fetch_aram_balance_data(
         return Err("Extracted content does not look like Lua script".into());
     }
 
-    // 最小化 Lua 环境：只装 BASE/TABLE/STRING/MATH。`Lua::new()` 会以安全模式
-    // 装载全部标准库（含受限的 os/io）；这里执行的是远端 wiki 内容，环境越
-    // 小，wiki 内容被构造出意外能力（文件/时间/协程面）的空间越小。
+    // 最小化 Lua 环境：只装 TABLE/STRING/MATH。mlua 0.9 的 StdLib 常量表没有
+    // BASE（基础语法求值不依赖运行库）；相比 `Lua::new()` 的全量安全标准库，
+    // 这里执行的是远端 wiki 内容，环境越小，被构造出意外能力（os/io/协程面）
+    // 的空间越小。
     let lua = Lua::new_with(
-        mlua::StdLib::BASE | mlua::StdLib::TABLE | mlua::StdLib::STRING | mlua::StdLib::MATH,
+        mlua::StdLib::TABLE | mlua::StdLib::STRING | mlua::StdLib::MATH,
         mlua::LuaOptions::new(),
     )
     .map_err(|e| format!("Lua 环境初始化失败: {e}"))?;

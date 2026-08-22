@@ -404,7 +404,10 @@ pub async fn read_backup_file(app: tauri::AppHandle) -> Result<Option<String>, S
     if meta.len() > MAX_BACKUP_FILE_SIZE {
         return Err("文件过大（>10MB），不是备份文件".to_string());
     }
-    std::fs::read_to_string(&path).map_err(|e| format!("读取文件失败 {display}: {e}"))
+    // Some 包装与「用户取消 → Ok(None)」的返回形状对齐
+    std::fs::read_to_string(&path)
+        .map_err(|e| format!("读取文件失败 {display}: {e}"))
+        .map(Some)
 }
 
 /// 由 Unix 秒得出 `YYYY-MM-DD`（UTC，仅用于默认导出文件名）。

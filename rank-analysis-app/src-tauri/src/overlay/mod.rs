@@ -35,7 +35,7 @@ const OVERLAY_MARGIN: f64 = 16.0;
 /// 窗口初始不可见（`visible(false)`），由 [`show`] 在对局中激活。
 /// 创建失败不 panic——降级为主窗口内 Tab 展示（当前 M5a/M5b 行为）。
 fn create(app: &tauri::AppHandle) -> Result<(), String> {
-    let _w = WebviewWindowBuilder::new(app, "overlay", WebviewUrl::App("overlay.html".into()))
+    let builder = WebviewWindowBuilder::new(app, "overlay", WebviewUrl::App("overlay.html".into()))
         .title("")
         .inner_size(OVERLAY_WIDTH, OVERLAY_HEIGHT)
         .decorations(false)
@@ -43,8 +43,13 @@ fn create(app: &tauri::AppHandle) -> Result<(), String> {
         .focusable(false)
         .resizable(false)
         .skip_taskbar(true)
-        .transparent(true)
-        .visible(false)
+        .visible(false);
+    // tauri 的 WebviewWindowBuilder#transparent 在 macOS 上不存在（webview 透明
+    // 走 window effects 通道）；overlay 主战场是 Windows 国服，macOS 分支不设透明，
+    // 由 CSS 透明背景兜底。
+    #[cfg(not(target_os = "macos"))]
+    let builder = builder.transparent(true);
+    let _w = builder
         .build()
         .map_err(|e| format!("overlay 窗口创建失败: {e}"))?;
 
