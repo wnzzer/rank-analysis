@@ -204,12 +204,26 @@ cargo test            # 运行测试
 }
 ```
 
+## 🎨 设计系统禁令（v3「奥术金工」· 2026-08 起）
+
+> 依据：`design/spec/DESIGN-SPEC.md` 与 `design/UI-UX-REDESIGN-PLAN.md`。适用于 `rank-analysis-app/src/**`。
+
+1. **禁止组件内硬编码颜色**：`.vue/.css` 中不得出现 hex/rgba 直写，一律引用 `styles/tokens.css` 语义 token（`--brand/--win/--loss/--warn/--info/--bg-*/--text-*`）。白名单：`styles/tokens.css` 本体、第三方库覆盖文件。
+2. **禁止 ad-hoc z-index**：只允许 `--z-content/sticky/dock/modal/toast` 五档。
+3. **禁止 `!important`**：仅允许覆盖 naive-ui 深层样式时使用，且须注释原因（白名单随 P4 收敛清零）。
+4. **字号下限 10px**：`--font-size-2xs` 起步；9px 已废除。
+5. **动效唯一双轨**：时长只用 `--dur-*`、缓动只用 `--ease-expo`（P4 更名 `--ease-standard`）；新增 `--transition-*`/`--ease-out-expo` 视为违规（已于 P0 删除）。
+6. **金色纪律**：品牌金 `--brand*` 只用于结论/激活/关键强调；胜负数据一律 `--win/--loss`。
+7. **切角纪律**：容器切角用 `--clip-corner-md/sm`，控件用 `--clip-notch`；同屏只允许一档容器切角；切角容器不得再配圆角。
+
 ## 📚 参考资源
 
 - [Vue.js 风格指南](https://vuejs.org/style-guide/)
 - [TypeScript 官方文档](https://www.typescriptlang.org/docs/)
 - [Rust API 指南](https://rust-lang.github.io/api-guidelines/)
 - [Tauri 最佳实践](https://tauri.app/v2/guides/)
+
+
 
 ---
 

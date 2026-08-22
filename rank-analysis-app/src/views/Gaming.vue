@@ -871,7 +871,7 @@ onMounted(async () => {
   right: 0;
   top: 50%;
   transform: translateY(-50%);
-  z-index: 100;
+  z-index: var(--z-dock);
   opacity: 0.6;
 }
 
@@ -880,7 +880,7 @@ onMounted(async () => {
   right: 0;
   top: calc(50% + 50px);
   transform: translateY(-50%);
-  z-index: 100;
+  z-index: var(--z-dock);
   opacity: 0.6;
 }
 

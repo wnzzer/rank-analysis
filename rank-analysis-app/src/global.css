@@ -27,11 +27,6 @@
   --radius-xl: 16px;
   --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.2);
   --shadow-card-hover: 0 2px 8px rgba(0, 0, 0, 0.25);
-  --transition-fast: 0.2s ease;
-  --transition-normal: 0.3s ease;
-  --transition-slow: 0.5s cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
-  --stagger-step: var(--stagger);
 
   /* === 玻璃层 === */
   --glass-bg-low: rgba(255, 255, 255, 0.03);
@@ -238,10 +233,6 @@
 /* 减少动效偏好：可访问性 */
 @media (prefers-reduced-motion: reduce) {
   :root {
-    --transition-fast: 0s;
-    --transition-normal: 0s;
-    --transition-slow: 0s;
-    --stagger-step: 0s;
     --dur-instant: 0ms;
     --dur-fast: 0ms;
     --dur-normal: 0ms;

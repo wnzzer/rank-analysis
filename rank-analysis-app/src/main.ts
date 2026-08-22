@@ -9,6 +9,7 @@ import { useCloudSyncStore } from './features/settings/stores/cloudSync'
 import { initAssetPrefix } from './services/http'
 import { initPlatform } from './services/platform'
 import './global.css'
+import './styles/tokens.css'
 import './styles/ai-report.css'
 
 async function bootstrap() {

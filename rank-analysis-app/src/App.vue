@@ -59,19 +59,6 @@ body {
   color: var(--text-primary);
 }
 
-.custom-titlebar {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-  height: 35px;
-  width: 100%;
-  z-index: 9999;
-  background-color: var(--bg-surface);
-  color: var(--text-primary);
-  padding-left: var(--space-12);
-  font-size: var(--font-size-md);
-}
-
 .content {
   /* 内容区需要设置可滚动 */
   overflow: auto;

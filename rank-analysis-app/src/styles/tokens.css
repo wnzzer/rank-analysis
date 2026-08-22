@@ -1,0 +1,142 @@
+/* ============================================================
+   Design System v3 「奥术金工 Hextech Forge」· 运行时 token
+   来源：design/spec/tokens.css（单一事实源，本文件是其运行时子集）
+
+   P0 落地规则（绞杀者模式）：
+   · 本文件只包含「与旧 global.css 不重名」的 token，保证旧页面零回归；
+   · 与旧同名共享的中性值（--bg-base、--text-*、--radius-*、--font-size-2xl 等）
+     在 P4 由 global.css 整体替换为 spec 全量版时一次性翻值；
+   · 新组件（components/ui/、P1 起的壳层与页面）只允许使用本文件 + 旧文件中
+     的语义 token，禁止 hex/rgba 直写（白名单见 CODE_QUALITY.md）。
+   ============================================================ */
+
+:root {
+  /* ---------- primitive · 原料（组件禁用） ---------- */
+  --hx-gold-100: #faf0d7;
+  --hx-gold-200: #f5e2ae;
+  --hx-gold-300: #f0c96b;
+  --hx-gold-400: #e3b355;
+  --hx-gold-500: #d4a548;
+  --hx-gold-600: #b08434;
+  --hx-gold-700: #8a6420;
+  --hx-cyan-300: #4cc2ff;
+  --hx-cyan-600: #1f7ab0;
+
+  /* ---------- 品牌（金）：结论/激活/关键强调专用 ---------- */
+  --brand: var(--hx-gold-300);
+  --brand-strong: var(--hx-gold-500);
+  --brand-deep: var(--hx-gold-600);
+  --brand-soft: rgba(212, 165, 72, 0.12);
+  --brand-border: rgba(212, 165, 72, 0.28);
+  --brand-gradient: linear-gradient(135deg, var(--hx-gold-300), var(--hx-gold-500));
+  --text-on-brand: #241a05;
+
+  /* ---------- 信息（青） ---------- */
+  --info: var(--hx-cyan-300);
+  --info-strong: var(--hx-cyan-600);
+  --info-soft: rgba(76, 194, 255, 0.12);
+  --info-border: rgba(76, 194, 255, 0.3);
+
+  /* ---------- 数据语义（短名，替代旧 --semantic-*） ---------- */
+  --win: #3fbf8f;
+  --win-bright: #5cd9ab;
+  --win-soft: rgba(63, 191, 143, 0.13);
+  --win-border: rgba(63, 191, 143, 0.32);
+  --loss: #e05c5c;
+  --loss-bright: #ef8080;
+  --loss-soft: rgba(224, 92, 92, 0.12);
+  --loss-border: rgba(224, 92, 92, 0.34);
+  --warn: #ff9f43;
+  --warn-soft: rgba(255, 159, 67, 0.13);
+  --warn-border: rgba(255, 159, 67, 0.35);
+
+  /* ---------- 表面补充层 ---------- */
+  --bg-raised: #151d29;
+  --bg-sunken: #06080c;
+  --bg-hover: rgba(255, 255, 255, 0.05);
+  --bg-active: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.14);
+
+  /* ---------- 形状：切角语法（Hextech 身份） ---------- */
+  --clip-corner-sm: polygon(
+    8px 0,
+    100% 0,
+    100% calc(100% - 8px),
+    calc(100% - 8px) 100%,
+    0 100%,
+    0 8px
+  );
+  --clip-corner-md: polygon(
+    14px 0,
+    100% 0,
+    100% calc(100% - 14px),
+    calc(100% - 14px) 100%,
+    0 100%,
+    0 14px
+  );
+  --clip-notch: polygon(6px 0, 100% 0, 100% 100%, 0 100%, 0 6px);
+
+  /* ---------- 排印补充 ---------- */
+  --tracking-tight: -0.01em;
+  --tracking-wide: 0.04em;
+  --tracking-label: 0.12em;
+  --font-weight-black: 800;
+  --font-num: Bahnschrift, 'Segoe UI', sans-serif;
+
+  /* ---------- 阴影/辉光/层级 ---------- */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.45);
+  --shadow-3: 0 12px 32px rgba(0, 0, 0, 0.55);
+  --glow-brand: 0 0 12px rgba(240, 201, 107, 0.25);
+  --z-content: 0;
+  --z-sticky: 10;
+  --z-dock: 50;
+  --z-modal: 100;
+  --z-toast: 200;
+
+  /* ---------- 材质 ---------- */
+  --noise-img: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='0.35'/%3E%3C/svg%3E");
+}
+
+/* 浅色「羊皮纸金工」：同几何换材质，辉光全灭 */
+:root.theme-light {
+  --brand: var(--hx-gold-700);
+  --brand-strong: #75541b;
+  --brand-deep: #5e430f;
+  --brand-soft: rgba(138, 100, 32, 0.1);
+  --brand-border: rgba(138, 100, 32, 0.32);
+  --brand-gradient: linear-gradient(135deg, #a67c2e, #8a6420);
+  --text-on-brand: #fffdf8;
+
+  --info: var(--hx-cyan-600);
+  --info-strong: #186a99;
+  --info-soft: rgba(31, 122, 176, 0.09);
+  --info-border: rgba(31, 122, 176, 0.3);
+
+  --win: #2e8f6c;
+  --win-bright: #25795a;
+  --win-soft: rgba(46, 143, 108, 0.1);
+  --win-border: rgba(46, 143, 108, 0.32);
+  --loss: #c04444;
+  --loss-bright: #a83a3a;
+  --loss-soft: rgba(192, 68, 68, 0.09);
+  --loss-border: rgba(192, 68, 68, 0.32);
+  --warn: #b26a12;
+  --warn-soft: rgba(178, 106, 18, 0.1);
+  --warn-border: rgba(178, 106, 18, 0.32);
+
+  --bg-raised: #fffdf8;
+  --bg-sunken: #ece5d4;
+  --bg-hover: rgba(35, 40, 46, 0.04);
+  --bg-active: rgba(35, 40, 46, 0.07);
+  --border-strong: rgba(60, 50, 30, 0.2);
+
+  --shadow-1: 0 1px 2px rgba(60, 50, 30, 0.08);
+  --shadow-2: 0 4px 12px rgba(60, 50, 30, 0.1);
+  --shadow-3: 0 12px 32px rgba(60, 50, 30, 0.16);
+  --glow-brand: none;
+}
+
+/* P1 待翻转清单（现由旧 global.css 值维持，翻值时整批迁移）：
+   --focus-ring-color→金、--bg-base/surface→#0a0e14/#10161f、
+   --text-primary 系→新 alpha、--font-size-2xl/3xl→22/26+display34 */
