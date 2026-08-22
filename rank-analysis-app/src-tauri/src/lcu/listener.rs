@@ -89,8 +89,10 @@ impl LcuListener {
             // 会话刷新防抖时间戳（跨重连保留在本方法栈上）
             let mut last_refresh = Instant::now() - SESSION_REFRESH_DEBOUNCE;
 
-            match self.connect_once(port, &auth_header).await {
-                Ok(ws_stream) => {
+            // 握手整体包一层 CONNECT_TIMEOUT：TLS/WS 阶段卡死时也能收敛进重连循环
+            match tokio::time::timeout(CONNECT_TIMEOUT, self.connect_once(port, &auth_header)).await
+            {
+                Ok(Ok(ws_stream)) => {
                     log::info!("LCU WebSocket 已连接");
                     let (mut write, mut read) = ws_stream.split();
 
@@ -158,8 +160,15 @@ impl LcuListener {
                         }
                     }
                 }
-                Err(e) => {
+                Ok(Err(e)) => {
                     log::error!("连接 LCU WebSocket 失败: {}，2秒后重试...", e);
+                    tokio::time::sleep(Duration::from_secs(2)).await;
+                }
+                Err(_) => {
+                    log::error!(
+                        "连接 LCU WebSocket 超时（>{}s），2秒后重试...",
+                        CONNECT_TIMEOUT.as_secs()
+                    );
                     tokio::time::sleep(Duration::from_secs(2)).await;
                 }
             }

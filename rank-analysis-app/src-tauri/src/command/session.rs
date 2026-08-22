@@ -879,7 +879,7 @@ async fn process_subteam_parallel(
                             Err(e) => {
                                 log::warn!(
                                     "[session seq={seq}] match_history 拉取失败，降级默认值: puuid={} err={}",
-                                    &puuid_short(&puuid),
+                                    puuid_short(&puuid),
                                     e
                                 );
                                 MatchHistory::default()

@@ -489,10 +489,7 @@ pub async fn stream_ai_analysis(
         };
         buffer.extend_from_slice(&bytes);
 
-        loop {
-            let Some(line_end) = buffer.iter().position(|&b| b == b'\n') else {
-                break;
-            };
+        while let Some(line_end) = buffer.iter().position(|&b| b == b'\n') {
             let line_bytes: Vec<u8> = buffer.drain(..=line_end).collect();
             let line = String::from_utf8_lossy(&line_bytes[..line_bytes.len() - 1])
                 .trim()

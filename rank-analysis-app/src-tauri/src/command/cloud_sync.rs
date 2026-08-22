@@ -354,7 +354,7 @@ pub async fn export_backup(app: tauri::AppHandle) -> Result<Option<String>, Stri
     app.dialog()
         .file()
         .add_filter("JSON", &["json"])
-        .set_file_name(&format!(
+        .set_file_name(format!(
             "rank-analysis-backup-{}.json",
             today_iso_from_unix(now_unix())
         ))
