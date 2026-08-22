@@ -1,7 +1,6 @@
 import { ref, readonly, onMounted, onUnmounted } from 'vue'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import router from '../router'
-import { SHELL_V2 } from '../flags'
 import { isRecordChildWindow } from '@renderer/utils/windows'
 
 export interface GameStateEvent {
@@ -77,22 +76,9 @@ function handleConnectionRoute(state: GameStateEvent) {
   }
   const currentPath = router.currentRoute.value.path
 
-  if (SHELL_V2) {
-    // v2 壳层：断连落地主页（状态卡承接原 Loading 职责）；连接不强制跳页，
-    // 用户停在哪页就在哪页（主页状态卡会自行亮起在线态）
-    if (
-      !state.connected &&
-      currentPath !== '/Home' &&
-      !currentPath.startsWith('/Settings') &&
-      !currentPath.startsWith('/Loading')
-    ) {
-      router.push({ path: '/Home' })
-    }
-    return
-  }
-
   if (state.connected && state.summoner) {
-    // 游戏客户端已连接，且当前在 Loading 页，则跳转首页 (Record)
+    // 历史深链兼容：连接建立时仍停留在旧 /Loading 门则送进战绩页；
+    // 其余页面不强制跳转，主页状态卡会自行亮起在线态
     if (currentPath === '/Loading') {
       router.push({
         path: '/Record',
@@ -100,17 +86,19 @@ function handleConnectionRoute(state: GameStateEvent) {
           name: `${state.summoner.gameName}#${state.summoner.tagLine}`
         }
       })
-      console.log('📍 Auto navigated to Record page')
     }
-  } else {
-    // 游戏客户端断开连接，跳转 Loading。设置页豁免：设置不依赖 LCU 连接，
-    // 且状态事件每 ≤10s 心跳一次，不豁免会把正在改设置的用户反复踢回 Loading
-    if (currentPath !== '/Loading' && !currentPath.startsWith('/Settings')) {
-      router.push({
-        path: '/Loading'
-      })
-      console.log('📍 Auto navigated to Loading page')
-    }
+    return
+  }
+
+  // 断连：落地主页（状态卡承接原 Loading 职责）。
+  // 设置页豁免：设置不依赖 LCU 连接，且状态事件每 ≤10s 心跳一次，
+  // 不豁免会把正在改设置的用户反复踢走
+  if (
+    currentPath !== '/Home' &&
+    !currentPath.startsWith('/Settings') &&
+    !currentPath.startsWith('/Loading')
+  ) {
+    router.push({ path: '/Home' })
   }
 }
 

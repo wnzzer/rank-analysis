@@ -122,14 +122,13 @@ import UserSidePanel from '../components/record/UserSidePanel.vue'
 import type { Game } from '../types/domain/match'
 import type { ChampionPoolEntry } from '../components/record/championPool'
 import { useBreakpoint } from '@renderer/composables/useBreakpoint'
-import { RECORD_V2 } from '../flags'
 import { usePlayerRecordData } from '@renderer/composables/usePlayerRecordData'
 
 const route = useRoute()
 const { isMobile, isCompact } = useBreakpoint()
 
 /** v3 宽屏双栏：详情走右侧常驻栏；窄窗自动回退内嵌展开 */
-const widePane = computed(() => RECORD_V2 && !isCompact.value && !isMobile.value)
+const widePane = computed(() => !isCompact.value && !isMobile.value)
 const selectedGameId = ref<number | null>(null)
 const selectedGame = ref<Game | null>(null)
 function onSelectGame(g: Game | null) {

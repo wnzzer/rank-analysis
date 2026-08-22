@@ -1,11 +1,9 @@
 import { createRouter, createWebHashHistory, RouteRecordRaw } from 'vue-router'
-import { SHELL_V2 } from '../flags'
 
 const routes: Array<RouteRecordRaw> = [
   {
     path: '/',
-    // v2 壳层默认落地主页仪表盘；旧壳层维持 Loading 连接门
-    redirect: () => (SHELL_V2 ? '/Home' : '/Loading')
+    redirect: '/Home'
   },
   {
     path: '/Home',
@@ -32,10 +30,15 @@ const routes: Array<RouteRecordRaw> = [
     meta: { title: '成长' }
   },
   {
+    path: '/Library',
+    name: 'Library',
+    component: () => import('@renderer/views/Library.vue'),
+    meta: { title: '资产库' }
+  },
+  {
     path: '/Loading',
-    name: 'Loading',
-    component: () => import('@renderer/views/Loading.vue'),
-    meta: { title: '加载中' }
+    // 旧连接门已并入主页状态卡；路由保留仅为兼容历史深链，重定向到主页
+    redirect: '/Home'
   },
   {
     // 开发用：情报卡动画演示，无导航入口，仅 #/IntelDemo 直达

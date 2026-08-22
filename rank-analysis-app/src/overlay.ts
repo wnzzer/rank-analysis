@@ -6,5 +6,7 @@
  */
 import { createApp } from 'vue'
 import OverlayView from './views/OverlayView.vue'
+import './styles/tokens.css'
+import './overlay-theme.css'
 
 createApp(OverlayView).mount('#overlay-app')

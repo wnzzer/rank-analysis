@@ -1,47 +1,58 @@
 <script setup lang="ts">
 /**
- * 对局内 Overlay 视图（4b overlay POC）。
+ * 对局内 Overlay 视图（v3 §C7：同语言重绘 + 可配置）。
  *
- * 监听主窗口推送的 "overlay:update" 事件，渲染 NextAction 建议卡片。
- * 透明背景 + 鼠标穿透由 Rust 端窗口属性控制（set_ignore_cursor_events），
- * 本组件仅负责内容渲染。
+ * 监听主窗口推送的 "overlay:update" 渲染 NextAction 建议卡；
+ * "overlay:config" 可选推送 { maxItems, opacity } 覆盖本地偏好。
+ * 透明背景 + 鼠标穿透由 Rust 端窗口属性控制（set_ignore_cursor_events）。
  */
-import { ref, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { NEXT_ACTION_LABELS, URGENCY_COLORS, type NextAction } from '@renderer/services/nextAction'
+import { loadOverlayPrefs, saveOverlayPrefs, type OverlayPrefs } from '@renderer/utils/overlayPrefs'
 
 const actions = ref<NextAction[]>([])
 const visible = ref(false)
-let unlisten: UnlistenFn | null = null
+const prefs = ref<OverlayPrefs>(loadOverlayPrefs())
+
+const shown = computed(() => actions.value.slice(0, prefs.value.maxItems))
+const cardStyle = computed(() => ({ opacity: String(prefs.value.opacity) }))
+
+let unlistenUpdate: UnlistenFn | null = null
+let unlistenConfig: UnlistenFn | null = null
 
 onMounted(async () => {
-  unlisten = await listen<NextAction[]>('overlay:update', event => {
-    actions.value = event.payload
-    visible.value = (event.payload?.length ?? 0) > 0
+  unlistenUpdate = await listen<NextAction[]>('overlay:update', event => {
+    actions.value = Array.isArray(event.payload) ? event.payload : []
+    visible.value = actions.value.length > 0
+  })
+  unlistenConfig = await listen<Partial<OverlayPrefs>>('overlay:config', event => {
+    const merged = { ...prefs.value, ...(event.payload ?? {}) }
+    prefs.value = { ...merged }
+    saveOverlayPrefs(prefs.value)
   })
 })
 
 onUnmounted(() => {
-  unlisten?.()
+  unlistenUpdate?.()
+  unlistenConfig?.()
 })
 </script>
 
 <template>
   <div v-if="visible" class="overlay-container">
-    <div class="overlay-card">
+    <div class="overlay-card" :style="cardStyle">
       <div class="overlay-header">下一动作建议</div>
       <div class="overlay-list">
         <div
-          v-for="(a, i) in actions"
+          v-for="(a, i) in shown"
           :key="i"
           class="overlay-item"
           :class="`overlay-item-${a.urgency}`"
         >
-          <span
-            class="overlay-urgency"
-            :style="{ color: URGENCY_COLORS[a.urgency] ?? 'rgba(255,255,255,0.5)' }"
-            >{{ a.urgency === 'high' ? '!' : '·' }}</span
-          >
+          <span class="overlay-urgency" :style="{ color: URGENCY_COLORS[a.urgency] ?? 'var(--text-tertiary)' }">
+            {{ a.urgency === 'high' ? '!' : '·' }}
+          </span>
           <span class="overlay-kind">{{ NEXT_ACTION_LABELS[a.kind] ?? a.kind }}</span>
           <span class="overlay-reason">{{ a.reason }}</span>
         </div>
@@ -59,6 +70,8 @@ body {
   background: transparent;
   overflow: hidden;
   user-select: none;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei',
+    sans-serif;
 }
 
 #overlay-app {
@@ -80,20 +93,20 @@ body {
 }
 
 .overlay-card {
-  background: rgba(10, 10, 15, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  padding: 10px;
+  background: var(--bg-raised);
+  border: 1px solid var(--brand-border);
+  clip-path: var(--clip-corner-md);
+  padding: 12px;
   backdrop-filter: blur(8px);
 }
 
 .overlay-header {
-  font-size: 12px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.7);
-  margin-bottom: 8px;
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--tracking-label);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  color: var(--brand);
+  margin-bottom: 8px;
 }
 
 .overlay-list {
@@ -103,8 +116,8 @@ body {
 }
 
 .overlay-item {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.85);
+  font-size: var(--font-size-xs);
+  color: var(--text-primary);
   display: flex;
   align-items: flex-start;
   gap: 6px;
@@ -113,17 +126,18 @@ body {
 
 .overlay-urgency {
   flex-shrink: 0;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   width: 12px;
 }
 
 .overlay-kind {
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   flex-shrink: 0;
   min-width: 60px;
+  color: var(--text-secondary);
 }
 
 .overlay-reason {
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--text-tertiary);
 }
 </style>

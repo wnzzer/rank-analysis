@@ -44,7 +44,7 @@
         <span class="gaming-config-hint">设置将在下一次刷新或对局时生效</span>
       </n-modal>
 
-      <!-- AI 分析面板：右侧抽屉（GAMING_V2）——选人期可与阵容并看，不再锁模态 -->
+      <!-- AI 分析面板：右侧抽屉——选人期可与阵容并看，不再锁模态 -->
       <n-drawer
         v-model:show="ai.showPanel.value"
         placement="right"
@@ -116,8 +116,8 @@
         </n-drawer-content>
       </n-drawer>
 
-      <!-- ================= 情报舱（GAMING_V2）：结论区 → 阶段区 → 信号区 ================= -->
-      <div v-if="GAMING_V2" class="intel-bay">
+      <!-- ================= 情报舱：结论区 → 阶段区 → 信号区 ================= -->
+      <div class="intel-bay">
         <!-- ① 结论区：VerdictBanner + 梯度选择（梯度影响推荐依据，就近放结论旁）；
              兜底态追加「存为规则」入口，把兜底转化为用户自己的规则 -->
         <div class="intel-bay__verdict">
@@ -278,113 +278,6 @@
         </div>
       </div>
 
-      <!-- ============ 旧横幅布局（GAMING_V2=false 回退；P4 整块删除） ============ -->
-      <div v-else class="gaming-intel-banner">
-        <div class="banner-main" :class="{ 'banner-main-split': champSelectStage }">
-          <!-- 阶段 stepper：预选/禁用/选人/确认，仅 stage 非空时展示；'' 时保留原有单行文案 -->
-          <div v-if="champSelectStage" class="stage-stepper">
-            <template v-for="(step, i) in STAGE_STEPS" :key="step.key">
-              <div
-                class="stage-step"
-                :class="{
-                  'stage-step-active': i === currentStageIndex,
-                  'stage-step-done': i < currentStageIndex
-                }"
-              >
-                <span class="stage-dot"></span>
-                <span class="stage-label">{{ step.label }}</span>
-              </div>
-              <span
-                v-if="i < STAGE_STEPS.length - 1"
-                class="stage-connector"
-                :class="{ 'stage-connector-done': i < currentStageIndex }"
-              ></span>
-            </template>
-          </div>
-          <div class="banner-meta">
-            <template v-if="bannerPhaseLabel">{{ bannerPhaseLabel }} · </template
-            >{{ sessionData.typeCn }}
-            <template v-if="opggStatus">
-              · OP.GG {{ opggStatus.patch
-              }}<span v-if="opggStatus.stale" class="banner-stale">（数据滞后）</span>
-            </template>
-            <!-- 段位仅对 ranked 快照有意义：aram 快照没有段位概念，
-                 在那里给下拉等于承诺一个不存在的能力 -->
-            <n-select
-              v-if="opggMode === 'ranked'"
-              :value="opggTier"
-              :options="TIER_OPTIONS"
-              :loading="opggTierLoading"
-              :disabled="opggTierLoading"
-              size="tiny"
-              class="banner-tier-select"
-              @update:value="onTierChange"
-            />
-          </div>
-        </div>
-
-        <!-- 双方 ban 条：位于 stepper 下、grid 上，任一方有 ban 才展示整块 -->
-        <div v-if="hasBans" class="ban-bar">
-          <div class="ban-group">
-            <span class="ban-group-label">我方禁用</span>
-            <div v-if="myBans.length > 0" class="ban-icons">
-              <img
-                v-for="id in myBans"
-                :key="`my-ban-${id}`"
-                class="ban-icon"
-                :src="getChampionUrl(id)"
-                :alt="`ban-${id}`"
-              />
-            </div>
-            <span v-else class="ban-group-empty">-</span>
-          </div>
-          <div class="ban-group">
-            <span class="ban-group-label">敌方禁用</span>
-            <div v-if="theirBans.length > 0" class="ban-icons">
-              <img
-                v-for="id in theirBans"
-                :key="`their-ban-${id}`"
-                class="ban-icon"
-                :src="getChampionUrl(id)"
-                :alt="`ban-${id}`"
-              />
-            </div>
-            <span v-else class="ban-group-empty">-</span>
-          </div>
-        </div>
-
-        <BpDecisionBar
-          :decision="bp.decision.value"
-          :display-secs="bp.displaySecs.value"
-          @save-rule="handleSaveRule"
-        />
-
-        <!-- 双方阵容强度对比条：锁定英雄 ≥1 即出现，数据不足时整块隐藏 -->
-        <TeamStrengthBar
-          :mine="lineupScores.scores.value.mine"
-          :enemy="lineupScores.scores.value.enemy"
-        />
-
-        <EnemyThreatCard :ratings="threatRatings" />
-
-        <NextActionCard :actions="nextActions" />
-
-        <!-- 对位分析（同分路画像均值差 ≥2%，确定性计算） -->
-        <div v-if="lineupScores.scores.value.matchupHints.length > 0" class="matchup-hints">
-          <div
-            v-for="(hint, i) in lineupScores.scores.value.matchupHints"
-            :key="i"
-            class="matchup-hint"
-          >
-            {{ hint }}
-          </div>
-        </div>
-        <!-- 敌方打野节奏（SGP 战绩前 10 分钟击杀分布，确定性计算） -->
-        <div v-if="lineupScores.scores.value.junglePatternLine" class="jungle-pattern">
-          {{ lineupScores.scores.value.junglePatternLine }}
-        </div>
-      </div>
-
       <div class="gaming-grid" :class="{ 'gaming-grid-multi': sessionData.isMultiTeam }">
         <div v-for="st of orderedSubteams" :key="`subteam-col-${st.subteamId}`" class="subteam-col">
           <BestPicksPanel
@@ -434,7 +327,6 @@ import VerdictBanner from '@renderer/components/ui/VerdictBanner.vue'
 import LoadingComponent from '@renderer/components/LoadingComponent.vue'
 import SubteamCard from '@renderer/components/gaming/SubteamCard.vue'
 import BestPicksPanel from '@renderer/components/gaming/BestPicksPanel.vue'
-import BpDecisionBar from '@renderer/components/gaming/BpDecisionBar.vue'
 import TeamStrengthBar from '@renderer/components/gaming/TeamStrengthBar.vue'
 import EnemyThreatCard from '@renderer/components/gaming/EnemyThreatCard.vue'
 import NextActionCard from '@renderer/components/gaming/NextActionCard.vue'
@@ -465,7 +357,6 @@ import { getNextActions, type NextAction } from '@renderer/services/nextAction'
 import type { Position, PickRule, BanRule } from '@renderer/types/rules'
 import type { ChampSelect, Subteam } from '@renderer/types/domain/gaming'
 import type { championOption } from '@renderer/types/domain/champion'
-import { GAMING_V2 } from '../flags'
 
 /** 选人阶段 stepper 的四步定义，顺序与展示文案固定 */
 const STAGE_STEPS: Array<{ key: string; label: string }> = [
@@ -782,7 +673,7 @@ watch(opggMode, m => getOpggStatus(m).then(s => (opggStatus.value = s)), { immed
  */
 const bp = useBpDecision(() => sessionData.phase)
 
-/* ================= v3 情报舱（GAMING_V2）================= */
+/* ================= v3 情报舱 ================= */
 
 /** 结论带动词：决策动作类型直译 */
 const verdictVerb = computed(() => (bp.decision.value?.action_type === 'Ban' ? 'BAN' : '选'))
@@ -1189,25 +1080,6 @@ onMounted(async () => {
 .gaming-config-hint {
   font-size: var(--font-size-sm);
   color: var(--text-tertiary);
-}
-
-.gaming-intel-banner {
-  margin-bottom: var(--space-8);
-}
-
-.banner-main {
-  text-align: center;
-  font-size: 12px;
-  opacity: 0.7;
-}
-
-/* stage 非空时：左 stepper、右数据源信息并排 */
-.banner-main-split {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-16);
-  text-align: left;
 }
 
 .banner-meta {

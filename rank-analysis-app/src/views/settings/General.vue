@@ -183,6 +183,34 @@
           </n-text>
         </n-space>
       </n-form-item>
+      <n-form-item label="对局浮窗">
+        <n-space vertical :size="4" style="width: 100%">
+          <n-space align="center" :size="12">
+            <span style="font-size: var(--font-size-sm); color: var(--text-secondary)">建议条数</span>
+            <n-input-number
+              v-model:value="overlayPrefs.maxItems"
+              size="tiny"
+              :min="1"
+              :max="6"
+              style="width: 90px"
+              @update:value="saveOverlayPrefs(overlayPrefs)"
+            />
+            <span style="font-size: var(--font-size-sm); color: var(--text-secondary)">不透明度</span>
+            <n-slider
+              v-model:value="overlayPrefs.opacity"
+              :min="0.5"
+              :max="1"
+              :step="0.05"
+              style="width: 140px"
+              format-tooltip
+              @update:value="saveOverlayPrefs(overlayPrefs)"
+            />
+          </n-space>
+          <n-text :depth="3" style="font-size: var(--font-size-sm)">
+            对局中右上角悬浮的「下一动作建议」浮窗样式；改动即时生效。
+          </n-text>
+        </n-space>
+      </n-form-item>
       <n-form-item label="AI 用量统计">
         <n-space vertical :size="4" style="width: 100%">
           <n-space align="center" :size="12">
@@ -242,6 +270,7 @@ import {
 } from '@renderer/services/knowledge'
 import { invoke } from '@tauri-apps/api/core'
 import { useMessage } from 'naive-ui'
+import { loadOverlayPrefs, saveOverlayPrefs } from '@renderer/utils/overlayPrefs'
 
 const matchCount = ref(4)
 const errorReporting = ref(false)
@@ -264,6 +293,9 @@ const usageTotal = computed(() => sumAiUsage(usageLog.value))
 const message = useMessage()
 
 /** CDragon 图标一键缓存状态 */
+/** 对局浮窗偏好（localStorage，overlay 窗口同源读取；见 utils/overlayPrefs.ts） */
+const overlayPrefs = ref(loadOverlayPrefs())
+
 const cdragonCaching = ref(false)
 const cdragonCacheResult = ref('')
 

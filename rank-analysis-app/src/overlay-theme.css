@@ -1,0 +1,10 @@
+/* Overlay 窗口最小主题：透明画布 + Forge 语义色映射到本地别名。
+   overlay.html 无 naive/无 global.css，这里只补 token 依赖的最小面。 */
+:root {
+  --bg-raised: rgba(10, 14, 20, 0.86);
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --text-primary: rgba(232, 236, 242, 0.92);
+  --text-secondary: rgba(232, 236, 242, 0.64);
+  --text-tertiary: rgba(232, 236, 242, 0.45);
+}

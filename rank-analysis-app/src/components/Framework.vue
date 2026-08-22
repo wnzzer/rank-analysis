@@ -5,50 +5,19 @@
          设置页「数据与同步」里的被动角标引导入口，见 views/settings/DataSync.vue -->
     <ErrorReportingConsentDialog :show="active === 'errorReportingConsent'" @decide="onConsentDecide" />
 
-    <!-- ============ v2 壳层：舰桥导航 + 顶栏（flags.shellV2，P4 移除分支） ============ -->
-    <template v-if="SHELL_V2">
-      <TopBar @open-palette="paletteShow = true" />
-      <div class="shellv2">
-        <NavRail />
-        <main class="shellv2__content">
-          <router-view v-slot="{ Component }">
-            <Transition v-if="!isSettingsRoute" name="page" mode="out-in">
-              <component :is="Component" :key="$route.fullPath" />
-            </Transition>
-            <component v-else :is="Component" :key="$route.fullPath" />
-          </router-view>
-        </main>
-      </div>
-      <CommandPalette v-model:show="paletteShow" />
-    </template>
-
-    <!-- ============ 旧壳层（flag 关闭时回退；P4 整块删除） ============ -->
-    <n-flex v-else vertical size="large">
-      <!-- 整体布局 -->
-      <n-layout>
-        <!-- 顶部区域 -->
-        <n-layout-header class="header" bordered>
-          <Header></Header>
-        </n-layout-header>
-
-        <!-- 中间部分：左侧导航 + 内容区域 -->
-        <n-layout has-sider class="content" style="width: 100%">
-          <!-- 左侧导航 -->
-          <n-layout-sider collapse-mode="width" class="left" style="width: 68px" bordered>
-            <SideNavigation />
-          </n-layout-sider>
-          <!-- 内容区域 -->
-          <n-layout-content :content-style="contentStyle">
-            <router-view v-slot="{ Component }">
-              <Transition v-if="!isSettingsRoute" name="page" mode="out-in">
-                <component :is="Component" :key="$route.fullPath" />
-              </Transition>
-              <component v-else :is="Component" :key="$route.fullPath" />
-            </router-view>
-          </n-layout-content>
-        </n-layout>
-      </n-layout>
-    </n-flex>
+    <TopBar @open-palette="paletteShow = true" />
+    <div class="shellv2">
+      <NavRail />
+      <main class="shellv2__content">
+        <router-view v-slot="{ Component }">
+          <Transition v-if="!isSettingsRoute" name="page" mode="out-in">
+            <component :is="Component" :key="$route.fullPath" />
+          </Transition>
+          <component v-else :is="Component" :key="$route.fullPath" />
+        </router-view>
+      </main>
+    </div>
+    <CommandPalette v-model:show="paletteShow" />
   </div>
 </template>
 
@@ -57,25 +26,18 @@ import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useMessage } from 'naive-ui'
 
-import Header from './Header.vue'
-import SideNavigation from './SideNavigation.vue'
 import TopBar from './shell/TopBar.vue'
 import NavRail from './shell/NavRail.vue'
 import CommandPalette from './shell/CommandPalette.vue'
 import ErrorReportingConsentDialog from '@renderer/components/common/ErrorReportingConsentDialog.vue'
-import { SHELL_V2 } from '../flags'
 import { useGameState } from '@renderer/composables/useGameState'
 import { useWindowShortcuts } from '@renderer/composables/useWindowShortcuts'
 import { useZoom } from '@renderer/composables/useZoom'
 import { useStartupDialogs } from '@renderer/composables/useStartupDialogs'
 
 /**
- * 应用主布局框架组件
- *
- * v3 重构期双壳并存（flags.SHELL_V2 切换）：
- * - v2：TopBar + NavRail + CommandPalette + 内容区；
- * - v1（旧）：36px Header + 68px SideNavigation，保持原样以便回退。
- * 共享职责（游戏状态监听 / 缩放 / 快捷键 / 启动弹窗队列）对两壳一视同仁。
+ * 应用主布局框架组件（v3 壳层：舰桥导航 + 三段顶栏 + 命令面板）。
+ * 共享职责（游戏状态监听 / 缩放 / 快捷键 / 启动弹窗队列）在此统一挂载。
  */
 
 const route = useRoute()
@@ -89,10 +51,6 @@ const paletteShow = ref(false)
  */
 const isSettingsRoute = computed(() => route.path.startsWith('/Settings'))
 
-/**
- * 初始化游戏状态监听
- * 包含自动跳转逻辑：当检测到游戏开始时自动切换到对局页面
- */
 useGameState()
 
 // 浏览器式缩放（Ctrl+滚轮 / Ctrl±0）：页面级缩放，全窗口生效
@@ -103,16 +61,8 @@ useWindowShortcuts()
 
 const message = useMessage()
 
-/**
- * 启动弹窗队列：谁先弹、谁让位、什么时候弹，全部收敛在 useStartupDialogs 里。
- * 本组件只负责渲染和用户可见反馈（toast / 路由跳转）。
- */
 const { active, resolveErrorReportingConsent } = useStartupDialogs()
 
-/**
- * 错误上报同意弹窗的用户选择。无论选择什么都标记"已问过"，之后不再弹。
- * @param enabled - true 启用上报，false 保持关闭
- */
 async function onConsentDecide(enabled: boolean): Promise<void> {
   try {
     await resolveErrorReportingConsent(enabled)
@@ -121,15 +71,6 @@ async function onConsentDecide(enabled: boolean): Promise<void> {
     message.error('保存失败')
   }
 }
-
-/**
- * 内容区域样式配置
- * 使用 CSS 变量确保主题一致性
- */
-const contentStyle = computed(() => ({
-  backgroundColor: 'var(--bg-base)',
-  height: '100%'
-}))
 </script>
 <style scoped>
 .full-container {
@@ -156,39 +97,7 @@ const contentStyle = computed(() => ({
   background: var(--bg-base);
 }
 
-/* ===== 旧壳层（P4 删除） ===== */
-.header {
-  user-select: none;
-  -webkit-app-region: drag;
-  pointer-events: auto;
-  margin: 0;
-  height: 36px;
-  line-height: 36px;
-  text-align: center;
-  background-color: var(--glass-bg-low) !important;
-  border-bottom: 1px solid var(--glass-border) !important;
-  box-shadow:
-    0 1px 0 rgba(0, 0, 0, 0.15),
-    var(--glass-highlight);
-}
-
-.content {
-  height: calc(100vh - 36px);
-}.left {
-  width: 68px;
-  min-width: 68px;
-  background-color: var(--bg-base) !important;
-  border-right: 1px solid var(--glass-border) !important;
-  overflow: hidden;
-}
-
-.left :deep(.n-layout-sider-scroll-container) {
-  overflow: hidden !important;
-}
-
-.left :deep(.n-scrollbar-rail) {
-  display: none !important;
-}
+/* ===== 旧壳层样式已随 Header/SideNavigation 一并移除（P4） ===== */
 
 /* 页面切换过渡 */
 .page-enter-active,
