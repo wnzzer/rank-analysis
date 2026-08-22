@@ -4,6 +4,23 @@
 > 范围：`rank-analysis-app/src` 全部渲染层（主窗口 / record-* 子窗口 / overlay 窗口）+ 新增主页
 > 与 v1.0 的区别：不再保留现有壳层与视觉语言；新增设计概念、布局范式重构、高保真原型三个前置阶段，评审通过后才进入工程实施。
 
+## ✅ 执行状态（2026-08-21 收官）
+
+| 阶段 | 状态 | 提交 |
+|------|------|------|
+| D0 风格探索 | ✅ 三方向 moodboard | `8f3028c`（d0-moodboards.html） |
+| D1 语言定稿 | ✅ 方向 A「奥术金工」定稿，tokens.css + DESIGN-SPEC.md | 同上 |
+| D2 高保真原型 | ✅ d2-forges.html 9 屏可交互 | `9e5296d` |
+| D3 评审冻结 | ✅ 维护者走查通过并冻结 | `64522ea` |
+| P0 地基 | ✅ token 落地 / 双轨动效删除 / 死代码清理 / ui 组件骨架 | `18ce065` |
+| P1 壳层+主页 | ✅ 舰桥/顶栏/命令面板/Home Dashboard | `6e3fec6` |
+| P2 Gaming 情报舱 | ✅ VerdictBanner/信号tabs/dock/AI抽屉/密度分层/筛选chips | `3ae75dc` |
+| P3 Record 双栏 | ✅ 右侧详情栏/工具栏三分区/日期常显/tab分组 | `05e83e1` |
+| P4 收尾 | ✅ Growth 规范化/Settings 单层化/Library 新页/Overlay 配置；**旧壳与全部 flag 已拆除** | `f47759d` |
+
+门禁记录：每阶段 lint=0 / vue-tsc=0 / vitest 全绿（最终 140 文件 1395+ 用例）。
+Rust 门禁在本机因缺 MSVC link.exe 无法执行；P1–P4 未触碰任何 Rust 源文件。
+
 ---
 
 ## 目录
