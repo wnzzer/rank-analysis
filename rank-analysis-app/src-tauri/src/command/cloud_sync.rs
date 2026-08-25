@@ -1,4 +1,4 @@
-//! Supabase 云同步：匿名会话管理 + sync_data 表读写 + 导入导出文件 IO
+﻿//! Supabase 云同步：匿名会话管理 + sync_data 表读写 + 导入导出文件 IO
 //!
 //! 身份模型：每台设备一个匿名 Supabase 账号，只用于写入溯源（RLS「谁写的谁能改」），
 //! 不承担跨设备身份识别；跨设备找回数据按 puuid 查询所有设备的行，前端合并。
@@ -347,6 +347,37 @@ async fn build_backup_json() -> Result<String, String> {
 ///
 /// # 返回值
 /// - `Ok(Some(path))`: 用户选定且已成功写入的路径（前端用于提示）
+
+/// 通用文本导出：Rust 侧弹系统保存对话框并写盘（webview 不持有裸路径，
+/// 与 `export_backup` 同一安全范式）。内容由调用方给足（含 BOM 等编码前缀）。
+///
+/// # 参数
+/// - `file_name`: 建议的默认文件名
+/// - `contents`: 完整文件内容
+///
+/// # 返回值
+/// - `Ok(Some(path))`: 用户选择路径且写入成功
+/// - `Ok(None)`: 用户取消了对话框
+#[tauri::command]
+pub async fn save_text_file(
+    app: tauri::AppHandle,
+    file_name: String,
+    contents: String,
+) -> Result<Option<String>, String> {
+    let (tx, rx) = tokio::sync::oneshot::channel::<Option<tauri_plugin_dialog::FilePath>>();
+    app.dialog().file().set_file_name(file_name).save_file(move |file| {
+        let _ = tx.send(file);
+    });
+    let picked = rx.await.map_err(|_| "文件对话框已关闭".to_string())?;
+    let Some(file) = picked else {
+        return Ok(None);
+    };
+    let path = file.into_path().map_err(|e| e.to_string())?;
+    let display = path.display().to_string();
+    std::fs::write(&path, contents).map_err(|e| format!("写入文件失败 {display}: {e}"))?;
+    Ok(Some(display))
+}
+
 /// - `Ok(None)`: 用户取消了对话框
 #[tauri::command]
 pub async fn export_backup(app: tauri::AppHandle) -> Result<Option<String>, String> {

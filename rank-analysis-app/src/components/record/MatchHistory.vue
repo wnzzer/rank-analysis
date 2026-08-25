@@ -37,6 +37,18 @@
         </div>
 
         <div class="mt-group mt-group--view">
+          <n-button
+            size="small"
+            class="toolbar-export"
+            :disabled="filteredGames.length === 0 || exporting"
+            :title="`导出当前筛选的 ${filteredGames.length} 场对局为 CSV`"
+            @click="onExportCsv"
+          >
+            <template #icon>
+              <n-icon :size="13"><Download /></n-icon>
+            </template>
+            {{ exporting ? '导出中…' : '导出 CSV' }}
+          </n-button>
           <n-button size="small" class="toolbar-expand-all" @click="toggleExpandAll">
             {{ anyExpanded ? '收起全部' : '展开全部' }}
           </n-button>
@@ -167,9 +179,20 @@
 import RecordCard from './RecordCard.vue'
 import RecordCardSkeleton from './RecordCardSkeleton.vue'
 import TrendBar from './TrendBar.vue'
-import { ArrowLeft, ArrowRight, Repeat } from 'lucide-vue-next'
+import { ArrowLeft, ArrowRight, Repeat, Download } from 'lucide-vue-next'
 import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
-import { NEmpty, NButton, useLoadingBar } from 'naive-ui'
+import { NEmpty, NButton, NIcon, useLoadingBar, useMessage } from 'naive-ui'
+import { exportMatchesCsv } from '@renderer/utils/exportMatches'
+
+// 导出结果仅为装饰性反馈：部分单测宿主无 n-message-provider，
+// useMessage 在缺 provider 时会抛错，这里容错降级为不提示
+const messageApi = (() => {
+  try {
+    return useMessage()
+  } catch {
+    return null
+  }
+})()
 import { useRoute } from 'vue-router'
 import { renderSingleSelectTag, renderLabel, filterChampionFunc } from '../composition'
 import { modeOptions, initModeOptions } from './composition'
@@ -325,6 +348,27 @@ const sgpStartIndex = ref(0)
 
 /** 趋势条：与列表共用同一份过滤（客户端过滤不重拉） */
 const trendFiltered = computed(() => filteredGames.value)
+
+/** 导出当前筛选对局为 CSV（Rust 侧保存对话框，纯本地） */
+const exporting = ref(false)
+async function onExportCsv() {
+  if (exporting.value || filteredGames.value.length === 0) return
+  exporting.value = true
+  try {
+    const result = await exportMatchesCsv(
+      filteredGames.value,
+      id => championOptions.value.find(o => o.value === id)?.label ?? `英雄 ${id}`
+    )
+    if (result.status === 'saved') {
+      messageApi?.success(`已导出 ${filteredGames.value.length} 场对局`)
+    }
+  } catch (e) {
+    console.error('导出 CSV 失败:', e)
+    messageApi?.error(typeof e === 'string' ? e : '导出失败，请重试')
+  } finally {
+    exporting.value = false
+  }
+}
 
 /** 英雄池：从最近 50 场聚合（供左栏 HeroPool 联动，不改动 50 场窗口口径） */
 const championPool = computed<ChampionPoolEntry[]>(() => aggregateChampionPool(allGames.value))
