@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="full-container">
     <!-- 启动弹窗队列：同一时刻至多一个可见，顺序见 useStartupDialogs。
          云端配置拉取裁决（CloudConfigPullDialog）不再走这里自动弹出，改成
@@ -16,7 +16,12 @@
         <div v-if="routeError" class="route-error">
           <CornerCard title="页面出错了" class="route-error__card">
             <p class="route-error__msg">{{ routeError }}</p>
-            <button class="btn gho sm route-error__retry" @click="retryRoute">重试</button>
+            <div class="route-error__acts">
+              <button class="btn gho sm" title="复制错误信息用于反馈" @click="copyError">
+                复制错误信息
+              </button>
+              <button class="btn pri sm" @click="retryRoute">重试</button>
+            </div>
           </CornerCard>
         </div>
         <router-view v-else v-slot="{ Component }">
@@ -66,6 +71,14 @@ onErrorCaptured(err => {
 function retryRoute() {
   routeError.value = null
   renderKey.value += 1
+}
+async function copyError(): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(routeError.value ?? '')
+    message.success('错误信息已复制')
+  } catch {
+    /* 剪贴板不可用静默 */
+  }
 }
 watch(
   () => route.fullPath,
@@ -181,6 +194,12 @@ async function onConsentDecide(enabled: boolean): Promise<void> {
   color: var(--text-secondary);
   word-break: break-all;
   margin-bottom: var(--space-12);
+}
+.route-error__acts {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-8);
+  margin-top: var(--space-4);
 }
 .route-error__retry {
   background: var(--brand-gradient);

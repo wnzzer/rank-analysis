@@ -20,7 +20,9 @@ const maxByHeight = ref(99)
 function updateMaxByHeight(): void {
   maxByHeight.value = Math.max(1, Math.floor((window.innerHeight - 64) / 26))
 }
-const shown = computed(() => actions.value.slice(0, Math.min(prefs.value.maxItems, maxByHeight.value)))
+const shown = computed(() =>
+  actions.value.slice(0, Math.min(prefs.value.maxItems, maxByHeight.value))
+)
 const cardStyle = computed(() => ({ opacity: String(prefs.value.opacity) }))
 
 let unlistenUpdate: UnlistenFn | null = null

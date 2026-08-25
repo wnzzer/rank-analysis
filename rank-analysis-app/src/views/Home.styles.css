@@ -480,6 +480,14 @@ button.qentry {
 .qentry-wrap:hover .qentry-sort {
   opacity: 1;
 }
+/* 键盘可达：任一 sort 手柄获得焦点时整组常显 */
+.qentry-sort:focus-within {
+  opacity: 1;
+}
+.sort-btn:focus-visible {
+  outline: var(--focus-ring-width, 2px) solid var(--focus-ring-color);
+  outline-offset: 1px;
+}
 .sort-btn {
   width: 18px;
   height: 18px;
