@@ -99,7 +99,7 @@
   /* === Focus ring（实心环，替代默认光晕） === */
   --focus-ring-width: 2px;
   --focus-ring-offset: 1px;
-  --focus-ring-color: rgba(61, 155, 122, 0.85);
+  --focus-ring-color: rgba(240, 201, 107, 0.8);
 
   /* === 数据语义高亮（收编各组件散落的一次性 hex） === */
   --accent-gold: #f2bf63;
@@ -169,7 +169,7 @@
   --loss-bar-gradient: linear-gradient(180deg, #d96565, #a33b3b);
   --border-control: rgba(20, 30, 35, 0.2);
   --border-control-hover: rgba(20, 30, 35, 0.4);
-  --focus-ring-color: rgba(45, 138, 108, 0.85);
+  --focus-ring-color: rgba(138, 100, 32, 0.8);
   --accent-gold: #b8862a;
   --accent-gold-deep: #9c6f1e;
   --accent-blue: #2f7fd1;
@@ -228,6 +228,12 @@
 :focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: var(--focus-ring-offset);
+}
+
+/* 文本选区：品牌金弱底（明暗主题同源 token） */
+::selection {
+  background: color-mix(in srgb, var(--accent-gold) 30%, transparent);
+  color: var(--text-primary);
 }
 
 /* 减少动效偏好：可访问性 */
