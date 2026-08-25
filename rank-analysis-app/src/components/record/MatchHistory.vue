@@ -48,7 +48,9 @@
               <template #icon>
                 <n-icon :size="13"><Download /></n-icon>
               </template>
-              {{ exporting ? '导出中…' : `导出 · ${exportFormatLabel(exportFormat)}` }}
+              <span class="export-text">{{
+                exporting ? '导出中…' : `导出 · ${exportFormatLabel(exportFormat)}`
+              }}</span>
             </n-button>
             <n-dropdown trigger="click" :options="exportOptions" @select="onFormatPick">
               <n-button
@@ -1160,5 +1162,11 @@ watch(
 }
 .export-path-copy:hover {
   color: var(--brand);
+}
+
+@media (max-width: 640px) {
+  .export-text {
+    display: none;
+  }
 }
 </style>
