@@ -93,6 +93,7 @@
           <button
             class="btn gho sm"
             :disabled="detailIndex <= 0"
+            title="上一个对局（←）"
             aria-label="上一个对局"
             @click="stepDetail(-1)"
           >
@@ -102,6 +103,7 @@
           <button
             class="btn gho sm"
             :disabled="detailIndex >= games.length - 1"
+            title="下一个对局（→）"
             aria-label="下一个对局"
             @click="stepDetail(1)"
           >

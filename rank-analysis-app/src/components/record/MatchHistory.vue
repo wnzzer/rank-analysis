@@ -401,9 +401,16 @@ const trendFiltered = computed(() => filteredGames.value)
 
 /** 导出当前筛选对局（格式记忆：主按钮按上次格式直出，▾ 重选并记忆） */
 const exporting = ref(false)
-/** 最近一次导出的落盘路径：工具栏下方展示，可一键复制 */
+/** 最近一次导出的落盘路径：工具栏下方展示 10s（可复制），超时自动收起 */
 const lastExportPath = ref<string | null>(null)
 const pathCopied = ref(false)
+let pathTimer: ReturnType<typeof setTimeout> | null = null
+function showExportPath(path: string): void {
+  lastExportPath.value = path
+  pathCopied.value = false
+  if (pathTimer) clearTimeout(pathTimer)
+  pathTimer = setTimeout(() => (lastExportPath.value = null), 10_000)
+}
 const exportFormat = ref<ExportFormat>(loadExportFormat())
 const FORMAT_LABELS: Record<ExportFormat, string> = {
   csv: 'CSV 基础',
@@ -453,8 +460,7 @@ async function onExportSelect(format: string) {
       { format: format as ExportFormat }
     )
     if (result.status === 'saved') {
-      lastExportPath.value = result.path
-      pathCopied.value = false
+      showExportPath(result.path)
       messageApi?.success(`已导出 ${filteredGames.value.length} 场对局`)
     }
   } catch (e) {
@@ -867,8 +873,9 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
-  collectGeneration.value++ // 卸载即作废进行中的全量收集
+  collectGeneration.value++ // 使聚合收集上仍在进行的全量收集失效
   window.removeEventListener('resize', onViewportResize)
+  if (pathTimer) clearTimeout(pathTimer)
 })
 
 // 切换玩家（路由 name 变化）时列表与趋势条一起刷新
