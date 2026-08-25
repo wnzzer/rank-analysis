@@ -1,26 +1,19 @@
 ﻿<template>
   <div class="growth">
     <!-- ===== Hero 横幅：熔炉余烬同语 ===== -->
-    <section class="ghero">
-      <canvas ref="emberCanvas" class="ghero__canvas" aria-hidden="true"></canvas>
-      <div class="ghero__veil" aria-hidden="true"></div>
-      <div class="ghero__inner">
-        <p class="ghero__kicker reveal" style="--d: 0">
-          <span class="ghero__rule" aria-hidden="true"></span>
-          GROWTH REPORT · 跨局聚合
-        </p>
-        <h1 class="ghero__title reveal" style="--d: 60ms">成 长</h1>
-        <p class="ghero__sub reveal" style="--d: 140ms">
-          重复性短板与改错清单——数据全部来自本机收集的对局
-        </p>
-        <div class="ghero__acts reveal" style="--d: 220ms">
-          <button class="btn pri" :disabled="refreshingTags" @click="refreshAll">
-            <RefreshCw class="btn-glyph" :class="{ spin: refreshingTags }" />
-            {{ refreshingTags ? '分析中…' : '重新分析' }}
-          </button>
-        </div>
-      </div>
-    </section>
+    <PageStage
+      kicker="GROWTH REPORT · 跨局聚合"
+      title="成 长"
+      sub="重复性短板与改错清单——数据全部来自本机收集的对局"
+      compact
+    >
+      <template #actions>
+        <button class="btn pri" :disabled="refreshingTags" @click="refreshAll">
+          <RefreshCw class="btn-glyph" :class="{ spin: refreshingTags }" />
+          {{ refreshingTags ? '分析中…' : '重新分析' }}
+        </button>
+      </template>
+    </PageStage>
 
     <div class="growth__inner">
       <!-- 加载 / 全局错误 -->
@@ -149,7 +142,7 @@ import { useMessage } from 'naive-ui'
 
 import CornerCard from '../components/ui/CornerCard.vue'
 import EmptyState from '../components/ui/EmptyState.vue'
-import { useEmberField } from '../composables/useEmberField'
+import PageStage from '../components/ui/PageStage.vue'
 import { TriangleAlert, TrendingUp, Target, RefreshCw, Flame, Check } from 'lucide-vue-next'
 import {
   addHabitGoal,
@@ -173,9 +166,6 @@ const tagsMsg = ref('')
 
 const newGoalTitle = ref('')
 const newGoalDimension = ref('vision')
-
-const emberCanvas = ref<HTMLCanvasElement | null>(null)
-useEmberField(emberCanvas)
 
 const doneCount = computed(() => goals.value.filter(g => g.done).length)
 const progressPct = computed(() =>
@@ -267,82 +257,6 @@ onMounted(async () => {
 .growth {
   max-width: 1080px;
   margin: 0 auto;
-}
-
-/* ===== Hero 横幅 ===== */
-.ghero {
-  position: relative;
-  overflow: hidden;
-  border-bottom: 1px solid var(--border-subtle);
-  background:
-    radial-gradient(
-      110% 100% at 20% 0%,
-      color-mix(in srgb, var(--info) 7%, transparent),
-      transparent 55%
-    ),
-    var(--bg-sunken);
-}
-.ghero__canvas {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-}
-.ghero__veil {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(to bottom, transparent 60%, var(--bg-base));
-}
-.ghero__veil::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image: var(--noise-img);
-  opacity: 0.05;
-}
-.ghero__inner {
-  position: relative;
-  z-index: 1;
-  padding: 40px var(--space-24) 32px;
-}
-.ghero__kicker {
-  display: flex;
-  align-items: center;
-  gap: var(--space-10);
-  font-family: var(--font-num);
-  font-size: var(--font-size-xs);
-  letter-spacing: var(--tracking-label);
-  text-transform: uppercase;
-  color: var(--brand);
-}
-.ghero__rule {
-  width: 30px;
-  height: 1px;
-  background: var(--brand-gradient);
-  box-shadow: var(--glow-brand);
-}
-.ghero__title {
-  margin: var(--space-8) 0 var(--space-6);
-  font-size: clamp(30px, 4.4vw, 48px);
-  font-weight: var(--font-weight-black);
-  letter-spacing: 0.08em;
-  line-height: 1.05;
-  color: var(--text-primary);
-}
-.ghero__sub {
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-}
-.ghero__acts {
-  margin-top: var(--space-16);
-}
-.btn-glyph {
-  width: 12px;
-  height: 12px;
-}
-.btn-glyph.spin {
-  animation: growth-spin 1s linear infinite;
 }
 
 /* ===== 功能区 ===== */
