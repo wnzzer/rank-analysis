@@ -7,6 +7,10 @@
       sub="重复性短板与改错清单——数据全部来自本机收集的对局"
       compact
     >
+      <template #meta>
+        <template v-if="lastBackupAt">上次备份 · {{ formatBackupTime(lastBackupAt) }}</template>
+        <template v-else>尚未备份过目标</template>
+      </template>
       <template #actions>
         <input
           ref="restoreInputEl"
@@ -314,6 +318,19 @@ async function loadGoals(): Promise<void> {
 /* ---------- 目标备份 / 还原（纯本地 JSON） ---------- */
 const restoreInputEl = ref<HTMLInputElement | null>(null)
 const backingUp = ref(false)
+const LAST_BACKUP_KEY = 'growth.lastBackupAt'
+const lastBackupAt = ref<string | null>(readLastBackup())
+
+function readLastBackup(): string | null {
+  try {
+    return localStorage.getItem(LAST_BACKUP_KEY)
+  } catch {
+    return null
+  }
+}
+function formatBackupTime(iso: string): string {
+  return `${iso.slice(0, 10)} ${iso.slice(11, 16)}`
+}
 
 async function backupGoals(): Promise<void> {
   if (backingUp.value) return
@@ -323,6 +340,12 @@ async function backupGoals(): Promise<void> {
       fileName: goalsBackupFileName(),
       contents: serializeGoalsBackup(goals.value, goalNotes.value)
     })
+    lastBackupAt.value = new Date().toISOString()
+    try {
+      localStorage.setItem(LAST_BACKUP_KEY, lastBackupAt.value)
+    } catch {
+      /* 写失败静默 */
+    }
     message.success('目标备份已保存')
   } catch (e) {
     console.error('目标备份失败:', e)

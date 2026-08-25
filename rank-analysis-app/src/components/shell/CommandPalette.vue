@@ -244,10 +244,15 @@ onBeforeUnmount(() => {
   background: var(--bg-raised);
   border: 1px solid var(--brand-border);
   clip-path: var(--clip-corner-md);
-  box-shadow: var(--shadow-3), var(--glow-brand);
+  box-shadow: var(--shadow-3);
   overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+/* 暗色主题叠加辉光；--glow-brand 在亮色为 none，
+   不能与实值阴影逗号并列（整条声明会失效） */
+.theme-dark .pal {
+  box-shadow: var(--shadow-3), var(--glow-brand);
 }
 .pal__input {
   padding: 15px 18px;

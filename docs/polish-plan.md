@@ -84,15 +84,23 @@
 - [x] R6-1 useEmberField：prefers-reduced-motion 下改为绘制「静态单帧」
       （当前直接跳过=画布空白；保留氛围但零动效）
 - [x] R6-2 Record 无对局数据时的列表空态接 #art 图形槽 + 引导文案统一
-- [ ] R6-3 Growth 头部显示上次备份时间（localStorage 记录，备份成功即更新）
-- [ ] R6-4 CommandPalette 开合动画与辉光在亮色主题下的层次校验
+- [x] R6-3 Growth 头部显示上次备份时间（localStorage 持久化，PageStage #meta）
+- [x] R6-4 亮色动画层次校验：发现并修复组合阴影失效 bug——
+      `box-shadow: var(--shadow-3), var(--glow-brand)` 在亮色（glow=none）下
+      整条声明被丢弃；改为暗色主题叠加辉光的独立规则
 
 ### 完成标准
 同前。
 
 ---
 
-## Round 7 —— （Round 6 完成度 ≥80% 时续写）
+## Round 7 —— 微交互与一致性终扫
 
-（待续写）
+- [ ] R7-1 战绩导出追加「复制 CSV 到剪贴板」次级动作（clipboard API，离线）
+- [ ] R7-2 Home 走马灯 hover 暂停补 title 提示；reduced-motion 下弱化处理
+- [ ] R7-3 全局 cursor-pointer 审计：所有 @click 元素逐个核对
+- [ ] R7-4 Growth 备份/还原按钮组窄窗换行适配
+
+### 完成标准
+同前。
 
