@@ -61,7 +61,8 @@
     </section>
 
     <!-- ===== S2 · 描边巨幕走马灯 ===== -->
-    <div class="gmarquee" aria-hidden="true">
+    <div class="gmarquee" aria-hidden="true" title="活动横幅（悬停可暂停）">
+      >
       <div class="gmarquee__track">
         <span v-for="copy in 2" :key="copy" class="gmarquee__copy">
           <span

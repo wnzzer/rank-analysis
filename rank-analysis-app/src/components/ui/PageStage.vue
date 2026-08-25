@@ -243,6 +243,9 @@ useEmberField(emberCanvas, {
 }
 .pstage__acts {
   margin-top: var(--space-16);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
 }
 
 .reveal {

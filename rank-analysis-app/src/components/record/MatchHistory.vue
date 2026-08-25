@@ -211,6 +211,7 @@ import EmptyState from '@renderer/components/ui/EmptyState.vue'
 import { Search, TriangleAlert } from 'lucide-vue-next'
 import {
   exportMatches,
+  gamesToCsv,
   loadExportFormat,
   saveExportFormat,
   type ExportFormat
@@ -394,14 +395,34 @@ const FORMAT_LABELS: Record<ExportFormat, string> = {
 function exportFormatLabel(f: ExportFormat): string {
   return FORMAT_LABELS[f] ?? f
 }
-const exportOptions = (Object.keys(FORMAT_LABELS) as ExportFormat[]).map(key => ({
-  label: FORMAT_LABELS[key],
-  key
-}))
+const exportOptions = [
+  ...(Object.keys(FORMAT_LABELS) as ExportFormat[]).map(key => ({
+    label: FORMAT_LABELS[key],
+    key
+  })),
+  { type: 'divider' as const, key: 'd-clip' },
+  { label: '复制 CSV 到剪贴板', key: 'clipboard' }
+]
 function onFormatPick(format: string) {
   if ((FORMATS_SET as Set<string>).has(format)) {
     exportFormat.value = format as ExportFormat
     saveExportFormat(exportFormat.value)
+  } else if (format === 'clipboard') {
+    void copyCsvToClipboard()
+  }
+}
+async function copyCsvToClipboard(): Promise<void> {
+  if (filteredGames.value.length === 0) return
+  try {
+    await navigator.clipboard.writeText(
+      gamesToCsv(
+        filteredGames.value,
+        id => championOptions.value.find(o => o.value === id)?.label ?? `英雄 ${id}`
+      ).replace(/^\uFEFF/, '')
+    )
+    messageApi?.success(`已复制 ${filteredGames.value.length} 场对局 CSV`)
+  } catch {
+    messageApi?.error('剪贴板不可用，请改用文件导出')
   }
 }
 async function onExportSelect(format: string) {

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="stats-container">
     <div class="stats-card" :class="{ 'is-expanded': showStats }">
       <!-- Header / Toggle -->
@@ -144,6 +144,7 @@ const hasGames = computed(
 }
 
 .stats-header {
+  cursor: pointer;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -164,6 +165,7 @@ const hasGames = computed(
 }
 
 .stats-compact {
+  cursor: pointer;
   cursor: pointer;
 }
 

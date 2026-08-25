@@ -96,10 +96,12 @@
 
 ## Round 7 —— 微交互与一致性终扫
 
-- [ ] R7-1 战绩导出追加「复制 CSV 到剪贴板」次级动作（clipboard API，离线）
-- [ ] R7-2 Home 走马灯 hover 暂停补 title 提示；reduced-motion 下弱化处理
-- [ ] R7-3 全局 cursor-pointer 审计：所有 @click 元素逐个核对
-- [ ] R7-4 Growth 备份/还原按钮组窄窗换行适配
+- [x] R7-1 战绩导出追加「复制 CSV 到剪贴板」次级动作（clipboard API，离线）
+- [x] R7-2 Home 走马灯 hover 暂停补 title 提示；reduced-motion 下弱化处理
+- [x] R7-3 全局 cursor-pointer 审计：所有 @click 元素逐个核对
+      （修复 PlayerStatsCard 两处可点击 div）
+- [x] R7-4 Growth 备份/还原按钮组窄窗换行适配
+      （PageStage actions 槽 flex-wrap，惠及所有页面按钮组）
 
 ### 完成标准
 同前。
