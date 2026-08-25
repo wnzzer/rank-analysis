@@ -88,6 +88,7 @@ defineProps<{ hint?: string }>()
   width: 14px;
   height: 14px;
   color: var(--semantic-win);
+}
 
 .loading-text-block {
   display: flex;
