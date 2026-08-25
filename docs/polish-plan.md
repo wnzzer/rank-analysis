@@ -218,8 +218,8 @@
 - [x] R20-3 polish-plan 轮次速览表补 R17-R20 行
 - [x] R20-4 全量门禁复核——lint/type/test/build 全绿
 
-## Round 21 候选池（Round 20 完成度 ≥80% 时续写）
-- R21-1 Gaming 重连提示的单测（watch isConnected 时序断言）
+## Round 21 计划 重连提示测试化（2026-08-26）
+- [x] R21-1 useReconnectBanner 组合式函数 + 5 个时序单测（fake timers 断言闪烁窗口）
 - R21-2 Record 导出路径条 aria-live 播报
 - R21-3 polish-plan 轮次速览表同步维护
 - R21-4 下一轮候选池滚动续写
