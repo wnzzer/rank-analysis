@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import { getSgpRankByName, getSgpRegions } from '@renderer/features/record/services/sgp'
 import { modeOptions, initModeOptions } from '@renderer/composables/useGameModes'
+import { lcuConnected } from '@renderer/composables/useGameState'
 import {
   defaultRank,
   defaultRecentWinRate,
@@ -119,6 +120,19 @@ export function usePlayerRecordData() {
       }
     }
   )
+
+  // LCU 重连沿自动刷新：一局结束后客户端抖动恢复/重开客户端时，
+  // 让刚结束的对局与最新段位尽快出现在当前页，无需手动切走再回
+  watch(lcuConnected, (now, prev) => {
+    if (!now || prev) return
+    const nameFromQuery = route.query.name as string
+    const target =
+      nameFromQuery ??
+      (summoner.value.gameName ? `${summoner.value.gameName}#${summoner.value.tagLine}` : '')
+    if (target) {
+      void loadSummonerData(target)
+    }
+  })
 
   return {
     summoner,
