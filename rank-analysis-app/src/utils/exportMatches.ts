@@ -72,7 +72,8 @@ export function gamesToJson(games: Game[]): string {
 function stamp(): string {
   const d = new Date()
   const p = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`
+  // 精确到秒：同分钟内连续导出不再生成同名文件
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`
 }
 
 export type ExportResult = { status: 'saved'; path: string } | { status: 'cancelled' }

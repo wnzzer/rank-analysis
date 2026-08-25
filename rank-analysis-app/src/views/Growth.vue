@@ -189,6 +189,7 @@
  */
 import { computed, onMounted, ref, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { getVersion } from '@tauri-apps/api/app'
 import { useMessage } from 'naive-ui'
 
 import CornerCard from '../components/ui/CornerCard.vue'
@@ -320,6 +321,7 @@ const restoreInputEl = ref<HTMLInputElement | null>(null)
 const backingUp = ref(false)
 const LAST_BACKUP_KEY = 'growth.lastBackupAt'
 const lastBackupAt = ref<string | null>(readLastBackup())
+const appVersion = ref('')
 
 function readLastBackup(): string | null {
   try {
@@ -338,7 +340,7 @@ async function backupGoals(): Promise<void> {
   try {
     await invoke('save_text_file', {
       fileName: goalsBackupFileName(),
-      contents: serializeGoalsBackup(goals.value, goalNotes.value)
+      contents: serializeGoalsBackup(goals.value, goalNotes.value, appVersion.value)
     })
     lastBackupAt.value = new Date().toISOString()
     try {
@@ -363,6 +365,13 @@ async function onRestoreFile(e: Event): Promise<void> {
   try {
     const text = await file.text()
     const backup = parseGoalsBackup(text)
+    // 二次确认：备份清单明显大于当前清单（>5 条新增）时防误导入
+    const missing = backup.goals.filter(
+      g => !goals.value.some(s => s.dimension === g.dimension && s.title === g.title)
+    )
+    if (missing.length > 5 && !window.confirm(`该备份将新建 ${missing.length} 个目标，确定继续？`)) {
+      return
+    }
     let created = 0
     for (const g of backup.goals) {
       const exists = goals.value.some(s => s.dimension === g.dimension && s.title === g.title)
@@ -444,6 +453,9 @@ async function turnToGoal(t: HabitTag): Promise<void> {
 
 onMounted(async () => {
   loading.value = true
+  void getVersion()
+    .then(v => (appVersion.value = v))
+    .catch(() => {})
   await Promise.all([refreshAll(), loadGoals()])
   loading.value = false
 })

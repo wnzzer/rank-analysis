@@ -135,4 +135,26 @@ describe('exportMatches 对话框链路', () => {
     const r = await exportMatches([makeGame()], label)
     expect(r).toEqual({ status: 'cancelled' })
   })
+
+  it('文件名时间戳精确到秒——跨秒导出生成不同文件名', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2026-08-26T10:00:00'))
+      const r1 = await exportMatches([makeGame()], label)
+      vi.setSystemTime(new Date('2026-08-26T10:00:01'))
+      const r2 = await exportMatches([makeGame()], label)
+      expect(r1.status).toBe('saved')
+      expect(r2.status).toBe('saved')
+      const names = vi
+        .mocked(invoke)
+        .mock.calls.slice(-2)
+        .map(([, a]) => (a as { fileName: string }).fileName)
+      expect(names[0]).not.toBe(names[1])
+      // 时间段位于 -10..-4：HHMMSS
+      expect(names[0].slice(-10, -4)).toBe('100000')
+      expect(names[1].slice(-10, -4)).toBe('100001')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
