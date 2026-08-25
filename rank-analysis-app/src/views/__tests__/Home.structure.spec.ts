@@ -27,4 +27,18 @@ describe('Home 旗舰页结构', () => {
     expect(css).toContain('prefers-reduced-motion')
     expect(css).toContain('.theme-light .stage__kicker')
   })
+
+  it('关键选择器快照：视差/走马灯/入口排序等主干不被误删', () => {
+    for (const cls of [
+      '.stage__veil',
+      '.stage__line--ghost',
+      '.scroll-cue',
+      '.qentry-wrap',
+      '.qentry-sort',
+      '.gmarquee__word',
+      '@keyframes home-marquee'
+    ]) {
+      expect(css).toContain(cls)
+    }
+  })
 })

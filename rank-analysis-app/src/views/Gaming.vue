@@ -6,7 +6,7 @@
 -->
 <template>
   <template v-if="!sessionData.phase">
-    <LoadingComponent :hint="isConnected ? '进入英雄选择后这里会自动展示对局分析' : undefined">
+    <LoadingComponent :hint="waitingHint">
       <!-- 已连接时不提示「启动客户端」——那会跟左下角的绿色连接灯自相矛盾 -->
       {{ isConnected ? '等待加入游戏...' : '未连接到客户端' }}
     </LoadingComponent>
@@ -369,7 +369,21 @@ const STAGE_STEPS: Array<{ key: string; label: string }> = [
 const { sessionData, requestSessionData } = useSessionSync()
 const tiersBySubteam = useSessionTiers(sessionData)
 const { getChampionUrl } = useAssetUrl()
-const { isConnected, summoner: mySummoner } = useGameState()
+const { isConnected, summoner: mySummoner, currentPhase } = useGameState()
+
+/** 等待态副文案与 phase 联动：大厅/匹配中给出更贴近当前的说明 */
+const waitingHint = computed(() => {
+  if (!isConnected.value) return undefined
+  switch (currentPhase.value) {
+    case 'Lobby':
+      return '已在大厅 · 创建或加入对局后自动切入分析'
+    case 'MatchMaking':
+    case 'ReadyCheck':
+      return '正在匹配 · 接受对局后自动进入分析'
+    default:
+      return '进入英雄选择后这里会自动展示对局分析'
+  }
+})
 
 /** 自己的 puuid，用于在玩家卡上标出「我」 */
 const mySummonerPuuid = computed(() => mySummoner.value?.puuid ?? '')
