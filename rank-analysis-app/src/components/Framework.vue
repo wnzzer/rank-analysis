@@ -12,11 +12,18 @@
     <div class="shellv2">
       <NavRail />
       <main class="shellv2__content">
-        <router-view v-slot="{ Component }">
+        <!-- 路由级错误兜底：渲染异常不再无声白屏，给出可重试的出口 -->
+        <div v-if="routeError" class="route-error">
+          <CornerCard title="页面出错了" class="route-error__card">
+            <p class="route-error__msg">{{ routeError }}</p>
+            <button class="btn gho sm route-error__retry" @click="retryRoute">重试</button>
+          </CornerCard>
+        </div>
+        <router-view v-else v-slot="{ Component }">
           <Transition v-if="!isSettingsRoute" name="page" mode="out-in">
-            <component :is="Component" :key="$route.fullPath" />
+            <component :is="Component" :key="$route.fullPath + '-' + renderKey" />
           </Transition>
-          <component v-else :is="Component" :key="$route.fullPath" />
+          <component v-else :is="Component" :key="$route.fullPath + '-' + renderKey" />
         </router-view>
       </main>
     </div>
@@ -25,13 +32,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onErrorCaptured, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useMessage } from 'naive-ui'
 
 import TopBar from './shell/TopBar.vue'
 import NavRail from './shell/NavRail.vue'
 import CommandPalette from './shell/CommandPalette.vue'
+import CornerCard from './ui/CornerCard.vue'
 import ErrorReportingConsentDialog from '@renderer/components/common/ErrorReportingConsentDialog.vue'
 import { useGameState } from '@renderer/composables/useGameState'
 import { useWindowShortcuts } from '@renderer/composables/useWindowShortcuts'
@@ -47,6 +55,24 @@ const route = useRoute()
 
 /** 命令面板显隐：顶栏搜索按钮与 Ctrl+K（面板内部监听）都会打开 */
 const paletteShow = ref(false)
+
+/* 路由级错误兜底：捕获子树渲染错误，展示可重试卡片而非无声白屏 */
+const routeError = ref<string | null>(null)
+const renderKey = ref(0)
+onErrorCaptured(err => {
+  routeError.value = err instanceof Error ? err.message : String(err)
+  return false
+})
+function retryRoute() {
+  routeError.value = null
+  renderKey.value += 1
+}
+watch(
+  () => route.fullPath,
+  () => {
+    if (routeError.value) retryRoute()
+  }
+)
 
 /**
  * 判断当前路由是否为设置页面
@@ -135,5 +161,30 @@ async function onConsentDecide(enabled: boolean): Promise<void> {
     transform: none;
     filter: none;
   }
+}
+
+/* 路由错误兜底卡 */
+.route-error {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-24);
+}
+.route-error__card {
+  max-width: 460px;
+  width: 100%;
+  text-align: center;
+}
+.route-error__msg {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  word-break: break-all;
+  margin-bottom: var(--space-12);
+}
+.route-error__retry {
+  background: var(--brand-gradient);
+  color: var(--text-on-brand);
+  border: none;
 }
 </style>

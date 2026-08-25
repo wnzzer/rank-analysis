@@ -74,7 +74,9 @@
         :icon="TrendingUp"
         title="暂无短板检出"
         description="收集满 5 局对局后会自动产出习惯标签；点「重新分析」可立即聚合一次。"
-      />
+      >
+        <template #art><TrendingUp /></template>
+      </EmptyState>
 
       <!-- 改错清单 -->
       <CornerCard
@@ -124,7 +126,9 @@
               <button
                 type="button"
                 class="goal-note-btn"
-                :class="{ 'goal-note-btn--on': editingNoteId === String(g.id) || !!goalNotes[String(g.id)] }"
+                :class="{
+                  'goal-note-btn--on': editingNoteId === String(g.id) || !!goalNotes[String(g.id)]
+                }"
                 title="备注"
                 aria-label="编辑备注"
                 @click="toggleNoteEditor(String(g.id))"
@@ -154,7 +158,9 @@
           :icon="Target"
           title="还没有目标"
           description="把上面的短板标签转成一条可执行目标吧。"
-        />
+        >
+          <template #art><Target /></template>
+        </EmptyState>
       </CornerCard>
     </div>
   </div>

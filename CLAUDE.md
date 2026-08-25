@@ -252,6 +252,14 @@ const summoner = await invoke('get_summoner_by_name', {
 
 ---
 
+## UI 工程约定（旗舰语言时代新增）
+
+- **新页面沉浸横幅**：一律使用 `components/ui/PageStage.vue`（支持 kicker/title/ghost/
+  sub/actions 槽与 cold/compact 变体），不再手写 hero 区块。
+- **大段组件样式外置**：当 `<style>` 超过约 200 行时外置为同目录 `.styles.css` 并以
+  `<style scoped src="./X.styles.css">` 引用；此时必须配套结构金丝雀测试
+  （参考 `views/__tests__/Home.structure.spec.ts`），防止样式块在提交链路中静默丢失。
+
 ## 项目规范速查
 
 ### 文件命名

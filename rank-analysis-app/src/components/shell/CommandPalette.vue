@@ -2,7 +2,7 @@
   <Teleport to="body">
     <Transition name="pal">
       <div v-if="show" class="pal-mask" @mousedown.self="close">
-        <div class="pal" role="dialog" aria-label="命令面板">
+        <div ref="panelEl" class="pal" role="dialog" aria-modal="true" aria-label="命令面板">
           <input
             ref="inputEl"
             v-model="q"
@@ -142,8 +142,31 @@ watch([show, filtered], async () => {
 })
 
 const inputEl = ref<HTMLInputElement | null>(null)
+const panelEl = ref<HTMLElement | null>(null)
 const listEl = ref<HTMLElement | null>(null)
 const itemEls = new Map<number, HTMLElement>()
+
+/* 焦点管理：打开时记忆触发元素，关闭后归还；Tab 在面板内循环（焦点陷阱） */
+let lastFocused: HTMLElement | null = null
+
+watch([show, filtered], async () => {
+  active.value = 0
+  if (show.value) {
+    await nextTick()
+    inputEl.value?.focus()
+    scrollActive()
+  }
+})
+
+watch(show, s => {
+  if (s) {
+    lastFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null
+  } else if (lastFocused) {
+    lastFocused.focus()
+    lastFocused = null
+  }
+})
+
 function setActiveEl(i: number, el: unknown) {
   if (el) itemEls.set(i, el as HTMLElement)
 }
@@ -178,6 +201,19 @@ function onGlobalKey(e: KeyboardEvent) {
   if (e.key === 'Escape') {
     e.preventDefault()
     close()
+    return
+  }
+  // 焦点陷阱：Tab/Shift+Tab 在面板内循环（input + 命令项）
+  if (e.key === 'Tab' && panelEl.value) {
+    const focusables = Array.from(panelEl.value.querySelectorAll<HTMLElement>('input, button'))
+    if (focusables.length === 0) return
+    e.preventDefault()
+    const activeEl = document.activeElement as HTMLElement | null
+    const idx = focusables.indexOf(activeEl ?? focusables[0])
+    const next = e.shiftKey
+      ? focusables[(idx - 1 + focusables.length) % focusables.length]
+      : focusables[(idx + 1) % focusables.length]
+    next?.focus()
   }
 }
 /** 主页快捷入口通过该事件打开面板（解耦：Home 不持有面板实例） */

@@ -47,21 +47,29 @@
 
 ---
 
-## Round 4 —— 健壮性与开发者体验
+## Round 4 —— 健壮性与开发者体验 ✅（2026-08-26 完成）
 
-- [ ] R4-1 CommandPalette 可访问性：打开时焦点困在面板（Tab 循环）+
-      aria-modal + 关闭后焦点归还触发元素
-- [ ] R4-2 路由级错误兜底：Framework 加 errorCaptured，渲染异常时展示
-      「出错了 · 重试」切角卡（复用 CornerCard 视觉），不再无声白屏
-- [ ] R4-3 CLAUDE.md 补两条工程约定：① 新页面沉浸横幅一律用 PageStage；
-      ② 大段样式外置 .css + 结构金丝雀测试模式（防样式丢失回归重演）
-- [ ] R4-4 Growth 两个空态接 #art 图形槽示范接线
+- [x] R4-1 CommandPalette 可访问性：aria-modal + Tab/Shift+Tab 焦点陷阱
+      （input 与命令项循环）+ 关闭后焦点归还触发元素
+- [x] R4-2 路由级错误兜底：Framework onErrorCaptured 捕获子树渲染异常，
+      展示「页面出错了 · 重试」切角卡；路由变化自动清除，renderKey 强制重挂
+- [x] R4-3 CLAUDE.md 补两条工程约定：PageStage 统一横幅；
+      大段样式外置 + 结构金丝雀测试模式
+- [x] R4-4 Growth 两个空态接 #art 图形槽示范接线
 
 ### 完成标准
 同前；R4-1 需键盘路径人工复核一遍。
 
 ---
 
-## Round 5 —— （Round 4 完成度 ≥80% 时续写）
+## Round 5 —— 数据与交互的最后一公里
 
-（待续写）
+- [ ] R5-1 导出格式记忆：localStorage 记住上次选择的导出格式，下次默认选中
+- [ ] R5-2 Home 快捷入口自定义排序（上移/下移按钮 + localStorage 持久化，
+      无拖拽依赖）
+- [ ] R5-3 Growth 目标备注纳入 JSON 导出（目标数据整体备份/还原 roundtrip）
+- [ ] R5-4 亮色主题第二遍：OverlayView 之外的 record 详情 tabs .theme-light
+      块与新旗舰组件交叉核对（重点 CornerCard emphasis 渐变在亮色下的层次）
+
+### 完成标准
+同前；R5-1 需断言「刷新后默认选中上次格式」的单测。
