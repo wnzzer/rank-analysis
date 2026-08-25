@@ -129,6 +129,7 @@
             ><i :style="{ width: progressPct }"></i
           ></span>
         </p>
+        <p v-if="importingFile" class="psub goal-importing">正在导入备份…</p>
         <ul v-if="goals.length" class="goals-list">
           <li
             v-for="g in goals"
@@ -371,6 +372,7 @@ async function onRestoreFile(e: Event): Promise<void> {
 
 /** 拖拽 .json 到清单卡即导入（与文件选择同一管线） */
 const dragActive = ref(false)
+const importingFile = ref(false)
 function onDropImport(e: DragEvent): void {
   dragActive.value = false
   const file = e.dataTransfer?.files?.[0]
@@ -380,6 +382,8 @@ function onDropImport(e: DragEvent): void {
 }
 
 async function importGoalsFile(file: File): Promise<void> {
+  if (importingFile.value) return
+  importingFile.value = true
   try {
     const text = await file.text()
     const backup = parseGoalsBackup(text)
@@ -416,6 +420,7 @@ async function importGoalsFile(file: File): Promise<void> {
         : '还原失败：文件格式不正确'
     )
   } finally {
+    importingFile.value = false
     restoreInputEl.value!.value = ''
   }
 }
@@ -651,6 +656,13 @@ onMounted(async () => {
   height: 100%;
   background: var(--brand-gradient);
   transition: width var(--dur-spring) var(--ease-spring);
+}
+.goals-card--drag {
+  outline: 2px dashed var(--brand);
+  outline-offset: -2px;
+}
+.goal-importing {
+  padding: var(--space-4) 0;
 }
 .goals-list {
   list-style: none;

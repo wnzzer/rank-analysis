@@ -136,10 +136,10 @@
 > 前九轮已覆盖视觉/交互/数据/健壮性主干。本轮起转为候选池模式：
 > 从下列候选取 2-4 项执行，或由用户反馈直接插入高优先级条目。
 
-- [ ] R10-a Record 详情聚焦模式下补「上一个/下一个对局」快速切换按钮
+- [x] R10-a Record 详情聚焦模式下补「上一个/下一个对局」快速切换按钮
 - [ ] R10-b Gaming 等待态 LoadingComponent 文案与 phase 联动细化
 - [ ] R10-c vitest 补 Home.styles.css 关键选择器快照（防外链样式被误改）
-- [ ] R10-d Growth 备份文件拖拽时的视觉高亮已有——补充 drop 后 loading 态
+- [x] R10-d Growth 拖拽导入 loading 态（importingFile 防重入 + 卡内指示文案 + 拖拽虚线高亮）
 
 ### 完成标准
 同前。

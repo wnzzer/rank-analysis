@@ -89,6 +89,25 @@
 
       <!-- v3 宽屏右侧详情栏：选中对局在此展示，列表保持节奏（<1064 回退内嵌展开） -->
       <aside v-if="widePane && selectedGame" class="record-dpane">
+        <div class="record-dpane__nav">
+          <button
+            class="btn gho sm"
+            :disabled="detailIndex <= 0"
+            aria-label="上一个对局"
+            @click="stepDetail(-1)"
+          >
+            <ArrowLeft class="btn-arrow-glyph" /> 上一个
+          </button>
+          <span class="record-dpane__pos num"> {{ detailIndex + 1 }} / {{ games.length }} </span>
+          <button
+            class="btn gho sm"
+            :disabled="detailIndex >= games.length - 1"
+            aria-label="下一个对局"
+            @click="stepDetail(1)"
+          >
+            下一个 <ArrowRight class="btn-arrow-glyph" />
+          </button>
+        </div>
         <MatchDetailInline
           :game="selectedGame"
           :region="regionQuery"
@@ -116,7 +135,7 @@
 import { onMounted, onBeforeUnmount, computed, ref, watch, type ComponentPublicInstance } from 'vue'
 import { useRoute } from 'vue-router'
 import { NButton, NIcon, NDrawer, NDrawerContent } from 'naive-ui'
-import { ArrowUp, Menu } from 'lucide-vue-next'
+import { ArrowLeft, ArrowRight, ArrowUp, Menu } from 'lucide-vue-next'
 import MatchHistory from '../components/record/MatchHistory.vue'
 import MatchDetailInline from '../components/record/MatchDetailInline.vue'
 import PlayerBar from '../components/record/PlayerBar.vue'
@@ -139,6 +158,16 @@ function onSelectGame(g: Game | null) {
 }
 /** 聚焦模式：宽屏详情展开时隐藏左栏与列表，整页只留详情（收回恢复） */
 const focusMode = computed(() => widePane.value && !!selectedGame.value)
+
+/** 聚焦模式内上/下一个对局（按全量列表顺序，找不到当前项时禁用步进） */
+const detailIndex = computed(() => {
+  const id = selectedGame.value?.gameId
+  return id === undefined ? -1 : games.value.findIndex(g => g.gameId === id)
+})
+function stepDetail(dir: -1 | 1) {
+  const next = games.value[detailIndex.value + dir]
+  if (next) onSelectGame(next)
+}
 
 /** 聚焦模式下 Esc 收回详情 */
 function onGlobalKey(e: KeyboardEvent) {
@@ -335,6 +364,18 @@ const activeChampion = ref(0)
   border-left: 1px solid var(--border-subtle);
   padding-left: var(--space-12);
   scrollbar-width: none;
+}
+.record-dpane__nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+  margin-bottom: var(--space-8);
+}
+.record-dpane__pos {
+  font-family: 'Space Mono', 'Bahnschrift', monospace;
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
 }
 .record-dpane::-webkit-scrollbar {
   display: none;
