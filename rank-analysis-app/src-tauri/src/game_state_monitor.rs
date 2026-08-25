@@ -415,7 +415,12 @@ mod tests {
 
     #[test]
     fn failure_at_threshold_flips_disconnected() {
-        assert!(!resolved_connected(true, DISCONNECT_FAIL_STREAK, false, OTHER));
+        assert!(!resolved_connected(
+            true,
+            DISCONNECT_FAIL_STREAK,
+            false,
+            OTHER
+        ));
     }
 
     #[test]
