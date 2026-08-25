@@ -25,6 +25,9 @@
     <a href="https://gitcode.com/wnzzer/rank-analysis">
       <img src="https://gitcode.com/wnzzer/rank-analysis/star/badge.svg" alt="AtomGitStars" />
     </a>
+    <a href="https://linux.do">
+      <img src="https://img.shields.io/badge/LINUX%20DO-Community-FFB003?style=flat-square&logo=discourse&logoColor=white" alt="LINUX DO" />
+    </a>
   </p>
 
   <!-- Stats -->
