@@ -8,6 +8,17 @@
       compact
     >
       <template #actions>
+        <input
+          ref="restoreInputEl"
+          type="file"
+          accept=".json,application/json"
+          style="display: none"
+          @change="onRestoreFile"
+        />
+        <button class="btn gho sm" @click="restoreInputEl?.click()">还原</button>
+        <button class="btn gho sm" :disabled="backingUp || !goals.length" @click="backupGoals">
+          备份
+        </button>
         <button class="btn pri" :disabled="refreshingTags" @click="refreshAll">
           <RefreshCw class="btn-glyph" :class="{ spin: refreshingTags }" />
           {{ refreshingTags ? '分析中…' : '重新分析' }}
@@ -173,6 +184,7 @@
  * 标杆语言（4A）：熔炉余烬横幅 + 入场 stagger + 连败火焰可视化 + 目标进度条。
  */
 import { computed, onMounted, ref, watch } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
 import { useMessage } from 'naive-ui'
 
 import CornerCard from '../components/ui/CornerCard.vue'
@@ -187,6 +199,12 @@ import {
   Check,
   PenLine
 } from 'lucide-vue-next'
+import {
+  goalsBackupFileName,
+  parseGoalsBackup,
+  serializeGoalsBackup,
+  remapNotesByTitleKey
+} from '../utils/exportGoals'
 import {
   addHabitGoal,
   DIMENSION_FIX_HINTS,
@@ -290,6 +308,63 @@ async function loadGoals(): Promise<void> {
     goals.value = await listHabitGoals()
   } catch {
     goals.value = []
+  }
+}
+
+/* ---------- 目标备份 / 还原（纯本地 JSON） ---------- */
+const restoreInputEl = ref<HTMLInputElement | null>(null)
+const backingUp = ref(false)
+
+async function backupGoals(): Promise<void> {
+  if (backingUp.value) return
+  backingUp.value = true
+  try {
+    await invoke('save_text_file', {
+      fileName: goalsBackupFileName(),
+      contents: serializeGoalsBackup(goals.value, goalNotes.value)
+    })
+    message.success('目标备份已保存')
+  } catch (e) {
+    console.error('目标备份失败:', e)
+    message.error(typeof e === 'string' ? e : '备份失败，请重试')
+  } finally {
+    backingUp.value = false
+  }
+}
+
+async function onRestoreFile(e: Event): Promise<void> {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = '' // 允许连续选择同一文件
+  if (!file) return
+  try {
+    const text = await file.text()
+    const backup = parseGoalsBackup(text)
+    let created = 0
+    for (const g of backup.goals) {
+      const exists = goals.value.some(s => s.dimension === g.dimension && s.title === g.title)
+      if (!exists) {
+        await addHabitGoal(g.dimension, g.title)
+        created += 1
+      }
+    }
+    await loadGoals()
+    const remapped = remapNotesByTitleKey(backup, goals.value)
+    goalNotes.value = { ...goalNotes.value, ...remapped }
+    try {
+      localStorage.setItem(GOAL_NOTES_KEY, JSON.stringify(goalNotes.value))
+    } catch {
+      /* 写失败静默 */
+    }
+    message.success(`还原完成：新建 ${created} 个目标，回填 ${Object.keys(remapped).length} 条备注`)
+  } catch (err) {
+    message.error(
+      err instanceof Error && err.message.includes('备份')
+        ? err.message
+        : '还原失败：文件格式不正确'
+    )
+  } finally {
+    restoreInputEl.value!.value = ''
   }
 }
 

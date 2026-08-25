@@ -83,6 +83,27 @@ export interface ExportOptions {
   extended?: boolean
 }
 
+const FORMAT_KEY = 'record.exportFormat'
+const FORMATS: ExportFormat[] = ['csv', 'csv-full', 'json']
+
+/** 记住的导出格式（localStorage）；无记录或非法值时回退 csv */
+export function loadExportFormat(): ExportFormat {
+  try {
+    const v = localStorage.getItem(FORMAT_KEY) as ExportFormat | null
+    return v && FORMATS.includes(v) ? v : 'csv'
+  } catch {
+    return 'csv'
+  }
+}
+
+export function saveExportFormat(format: ExportFormat): void {
+  try {
+    localStorage.setItem(FORMAT_KEY, format)
+  } catch {
+    /* 隐私模式写失败静默 */
+  }
+}
+
 /** 弹保存对话框并写入；用户取消返回 cancelled */
 export async function exportMatches(
   games: Game[],

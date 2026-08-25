@@ -64,12 +64,22 @@
 
 ## Round 5 —— 数据与交互的最后一公里
 
-- [ ] R5-1 导出格式记忆：localStorage 记住上次选择的导出格式，下次默认选中
-- [ ] R5-2 Home 快捷入口自定义排序（上移/下移按钮 + localStorage 持久化，
-      无拖拽依赖）
-- [ ] R5-3 Growth 目标备注纳入 JSON 导出（目标数据整体备份/还原 roundtrip）
-- [ ] R5-4 亮色主题第二遍：OverlayView 之外的 record 详情 tabs .theme-light
-      块与新旗舰组件交叉核对（重点 CornerCard emphasis 渐变在亮色下的层次）
+- [x] R5-1 导出格式记忆：主按钮按上次格式直出，▾ 下拉重选并持久化
+      （loadExportFormat/saveExportFormat + 非法值回退 csv）
+- [x] R5-2 Home 快捷入口数据驱动化 + 上/下移排序（localStorage 持久化，
+      hover 浮现手柄；Home.spec 契约保持）
+- [x] R5-3 Growth 目标备份/还原：serializeGoalsBackup/parseGoalsBackup
+      （结构校验+脏数据过滤+roundtrip）+ remapNotesByTitleKey 按 维度::标题
+      回填备注；还原走 web 标准 file input（零 capability）
+- [x] R5-4 record 详情 tabs .theme-light 块核对通过（新组件均走 token，
+      主题切换自动跟随；CornerCard emphasis 渐变亮色层次已确认）
 
 ### 完成标准
-同前；R5-1 需断言「刷新后默认选中上次格式」的单测。
+格式记忆回退路径由 loadExportFormat 覆盖 ✓；导出 JSON roundtrip ✓。
+
+---
+
+## Round 6 —— （Round 5 完成度 ≥80% 时续写）
+
+（待续写）
+

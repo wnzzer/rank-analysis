@@ -154,31 +154,32 @@
 
       <div class="home__grid home__grid--sub">
         <CornerCard title="快捷入口" class="reveal" style="--d: 240ms">
-          <button class="qentry" @click="openPalette">
-            <span class="qentry__idx num">01</span>
-            <span class="ic"><Search /></span>
-            <span class="qentry__label">查询玩家战绩</span>
-            <span class="kbd q-kbd">Ctrl K</span>
-            <ArrowUpRight class="qentry__arrow" />
-          </button>
-          <button class="qentry" @click="goRecordSelf">
-            <span class="qentry__idx num">02</span>
-            <span class="ic"><ScrollText /></span>
-            <span class="qentry__label">查看我的战绩</span>
-            <ArrowUpRight class="qentry__arrow" />
-          </button>
-          <button class="qentry" @click="go('Library')">
-            <span class="qentry__idx num">03</span>
-            <span class="ic"><LibraryBig /></span>
-            <span class="qentry__label">资产库 · 标签与标记</span>
-            <ArrowUpRight class="qentry__arrow" />
-          </button>
-          <button class="qentry" @click="go('Settings')">
-            <span class="qentry__idx num">04</span>
-            <span class="ic"><Settings /></span>
-            <span class="qentry__label">设置</span>
-            <ArrowUpRight class="qentry__arrow" />
-          </button>
+          <div v-for="(e, i) in orderedQuickEntries" :key="e.id" class="qentry-wrap">
+            <button class="qentry" @click="e.run">
+              <span class="qentry__idx num">{{ String(i + 1).padStart(2, '0') }}</span>
+              <span class="ic"><component :is="e.icon" /></span>
+              <span class="qentry__label">{{ e.label }}</span>
+              <span v-if="e.kbd" class="kbd q-kbd">{{ e.kbd }}</span>
+            </button>
+            <span class="qentry-sort" aria-hidden="true">
+              <button
+                class="sort-btn"
+                :disabled="i === 0"
+                aria-label="上移"
+                @click.stop="moveQuickEntry(i, -1)"
+              >
+                <ChevronUp />
+              </button>
+              <button
+                class="sort-btn"
+                :disabled="i === orderedQuickEntries.length - 1"
+                aria-label="下移"
+                @click.stop="moveQuickEntry(i, 1)"
+              >
+                <ChevronDown />
+              </button>
+            </span>
+          </div>
         </CornerCard>
 
         <CornerCard title="最近动态" class="reveal" style="--d: 320ms">
@@ -208,7 +209,7 @@
  *
  * 功能契约不变：连接门（启动/管理员重启）、短板转目标、命令面板入口。
  */
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, markRaw, onBeforeUnmount, onMounted, ref, type Component } from 'vue'
 import { useRouter } from 'vue-router'
 import { useMessage } from 'naive-ui'
 import { invoke } from '@tauri-apps/api/core'
@@ -226,8 +227,8 @@ import {
   Columns2,
   Circle,
   ArrowRight,
-  ArrowUpRight,
   ChevronDown,
+  ChevronUp,
   Diamond
 } from 'lucide-vue-next'
 import { useGameState } from '../composables/useGameState'
@@ -258,6 +259,62 @@ const shards = [
 ]
 
 const stageEl = ref<HTMLElement | null>(null)
+
+/* ---------- 快捷入口：数据驱动 + 顺序持久化（localStorage） ---------- */
+interface QuickEntryDef {
+  id: string
+  label: string
+  icon: Component
+  kbd?: string
+  run: () => void
+}
+const QUICK_ORDER_KEY = 'home.quickOrder'
+const quickDefs: Array<Omit<QuickEntryDef, 'run'>> = [
+  { id: 'palette', label: '查询玩家战绩', icon: markRaw(Search), kbd: 'Ctrl K' },
+  { id: 'record', label: '查看我的战绩', icon: markRaw(ScrollText) },
+  { id: 'library', label: '资产库 · 标签与标记', icon: markRaw(LibraryBig) },
+  { id: 'settings', label: '设置', icon: markRaw(Settings) }
+]
+const quickOrder = ref<string[]>(loadQuickOrder())
+function loadQuickOrder(): string[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(QUICK_ORDER_KEY) ?? '[]') as string[]
+    return Array.isArray(v) ? v.filter(x => quickDefs.some(d => d.id === x)) : []
+  } catch {
+    return []
+  }
+}
+const orderedQuickEntries = computed<QuickEntryDef[]>(() => {
+  const runners: Record<string, () => void> = {
+    palette: openPalette,
+    record: goRecordSelf,
+    library: () => go('Library'),
+    settings: () => go('Settings')
+  }
+  const map = new Map(quickDefs.map(d => [d.id, { ...d, run: runners[d.id] }]))
+  const out: QuickEntryDef[] = []
+  for (const id of quickOrder.value) {
+    const d = map.get(id)
+    if (d) {
+      out.push(d)
+      map.delete(id)
+    }
+  }
+  out.push(...map.values())
+  return out
+})
+function moveQuickEntry(i: number, dir: -1 | 1): void {
+  const ids = orderedQuickEntries.value.map(e => e.id)
+  const j = i + dir
+  if (j < 0 || j >= ids.length) return
+  ;[ids[i], ids[j]] = [ids[j], ids[i]]
+  quickOrder.value = ids
+  try {
+    localStorage.setItem(QUICK_ORDER_KEY, JSON.stringify(ids))
+  } catch {
+    /* 隐私模式写失败静默 */
+  }
+}
 let parallaxRaf = 0
 let pmx = 0
 let pmy = 0

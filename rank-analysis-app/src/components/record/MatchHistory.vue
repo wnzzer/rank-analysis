@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="ratio-container">
     <div class="content-wrapper match-history-wrap">
       <!-- 工具栏三分区：筛选 / 视图 / 数据管理（设计系统 v3 §7.5） -->
@@ -37,19 +37,33 @@
         </div>
 
         <div class="mt-group mt-group--view">
-          <n-dropdown trigger="click" :options="exportOptions" @select="onExportSelect">
+          <div class="export-group">
             <n-button
               size="small"
               class="toolbar-export"
               :disabled="filteredGames.length === 0 || exporting"
-              :title="`导出当前筛选的 ${filteredGames.length} 场对局`"
+              :title="`以「${exportFormatLabel(exportFormat)}」导出当前筛选的 ${filteredGames.length} 场对局`"
+              @click="onExportSelect(exportFormat)"
             >
               <template #icon>
                 <n-icon :size="13"><Download /></n-icon>
               </template>
-              {{ exporting ? '导出中…' : '导出' }}
+              {{ exporting ? '导出中…' : `导出 · ${exportFormatLabel(exportFormat)}` }}
             </n-button>
-          </n-dropdown>
+            <n-dropdown trigger="click" :options="exportOptions" @select="onFormatPick">
+              <n-button
+                size="small"
+                class="export-caret"
+                :disabled="exporting"
+                title="选择导出格式"
+                aria-label="选择导出格式"
+              >
+                <template #icon>
+                  <n-icon :size="12"><ChevronDown /></n-icon>
+                </template>
+              </n-button>
+            </n-dropdown>
+          </div>
           <n-button size="small" class="toolbar-expand-all" @click="toggleExpandAll">
             {{ anyExpanded ? '收起全部' : '展开全部' }}
           </n-button>
@@ -180,10 +194,17 @@
 import RecordCard from './RecordCard.vue'
 import RecordCardSkeleton from './RecordCardSkeleton.vue'
 import TrendBar from './TrendBar.vue'
-import { ArrowLeft, ArrowRight, Repeat, Download } from 'lucide-vue-next'
+import { ArrowLeft, ArrowRight, Repeat, Download, ChevronDown } from 'lucide-vue-next'
 import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
 import { NEmpty, NButton, NIcon, NDropdown, useLoadingBar, useMessage } from 'naive-ui'
-import { exportMatches } from '@renderer/utils/exportMatches'
+import {
+  exportMatches,
+  loadExportFormat,
+  saveExportFormat,
+  type ExportFormat
+} from '@renderer/utils/exportMatches'
+
+const FORMATS_SET: Set<string> = new Set(['csv', 'csv-full', 'json'])
 
 // 导出结果仅为装饰性反馈：部分单测宿主无 n-message-provider，
 // useMessage 在缺 provider 时会抛错，这里容错降级为不提示
@@ -350,13 +371,27 @@ const sgpStartIndex = ref(0)
 /** 趋势条：与列表共用同一份过滤（客户端过滤不重拉） */
 const trendFiltered = computed(() => filteredGames.value)
 
-/** 导出当前筛选对局（CSV 基础/完整 或 JSON 全量；Rust 侧保存对话框，纯本地） */
+/** 导出当前筛选对局（格式记忆：主按钮按上次格式直出，▾ 重选并记忆） */
 const exporting = ref(false)
-const exportOptions = [
-  { label: 'CSV · 基础字段', key: 'csv' },
-  { label: 'CSV · 含补刀/经济/视野', key: 'csv-full' },
-  { label: 'JSON · 完整数据', key: 'json' }
-]
+const exportFormat = ref<ExportFormat>(loadExportFormat())
+const FORMAT_LABELS: Record<ExportFormat, string> = {
+  csv: 'CSV 基础',
+  'csv-full': 'CSV 完整',
+  json: 'JSON'
+}
+function exportFormatLabel(f: ExportFormat): string {
+  return FORMAT_LABELS[f] ?? f
+}
+const exportOptions = (Object.keys(FORMAT_LABELS) as ExportFormat[]).map(key => ({
+  label: FORMAT_LABELS[key],
+  key
+}))
+function onFormatPick(format: string) {
+  if ((FORMATS_SET as Set<string>).has(format)) {
+    exportFormat.value = format as ExportFormat
+    saveExportFormat(exportFormat.value)
+  }
+}
 async function onExportSelect(format: string) {
   if (exporting.value || filteredGames.value.length === 0) return
   exporting.value = true
@@ -364,7 +399,7 @@ async function onExportSelect(format: string) {
     const result = await exportMatches(
       filteredGames.value,
       id => championOptions.value.find(o => o.value === id)?.label ?? `英雄 ${id}`,
-      { format: format as 'csv' | 'csv-full' | 'json' }
+      { format: format as ExportFormat }
     )
     if (result.status === 'saved') {
       messageApi?.success(`已导出 ${filteredGames.value.length} 场对局`)
@@ -929,6 +964,22 @@ watch(
   background: var(--glass-bg-low) !important;
   border: 1px solid var(--glass-border) !important;
   color: var(--text-secondary);
+}
+
+.export-group {
+  display: inline-flex;
+  align-items: center;
+}
+
+.export-group .toolbar-export {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.export-group .export-caret {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  margin-left: -1px;
 }
 
 .toolbar-expand-all {

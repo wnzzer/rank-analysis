@@ -463,6 +463,49 @@ button.qentry {
   flex: 1;
 }
 
+/* 排序手柄：行尾悬停浮现（上/下移，顺序持久化） */
+.qentry-wrap {
+  position: relative;
+}
+.qentry-sort {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  translate: 0 -50%;
+  display: inline-flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-expo);
+}
+.qentry-wrap:hover .qentry-sort {
+  opacity: 1;
+}
+.sort-btn {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  background: var(--bg-active);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  clip-path: var(--clip-notch);
+}
+.sort-btn svg {
+  width: 11px;
+  height: 11px;
+}
+.sort-btn:hover:not(:disabled) {
+  color: var(--brand);
+  background: var(--brand-soft);
+}
+.sort-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
 /* 入场动效 */
 .reveal {
   animation: home-rise 0.75s var(--ease-expo) both;
