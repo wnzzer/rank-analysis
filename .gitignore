@@ -81,3 +81,6 @@ opgg_cache_*.json
 patch_notes_cache.json
 
 app.log.*
+
+# Python bytecode
+__pycache__/
