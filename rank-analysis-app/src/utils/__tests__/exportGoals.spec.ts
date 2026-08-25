@@ -63,4 +63,24 @@ describe('remapNotesByTitleKey', () => {
     ]
     expect(remapNotesByTitleKey(backup, localGoals)).toEqual({})
   })
+
+  it('还原全链路：缺失检测→补建→重映射（镜像视图层 importGoalsFile 步骤）', () => {
+    const text = serializeGoalsBackup(goals, { '11': '视野周计划', '12': '补刀提醒' })
+    const backup = parseGoalsBackup(text)
+    // 本地已有「10 分钟 80 刀」（id 不同），缺「排眼数 +1」
+    let local: HabitGoal[] = [{ id: 90, dimension: 'cs', title: '10 分钟 80 刀', done: true }]
+    const missing = backup.goals.filter(
+      g => !local.some(s => s.dimension === g.dimension && s.title === g.title)
+    )
+    expect(missing.map(g => g.title)).toEqual(['排眼数 +1'])
+    for (const g of missing) {
+      local = [
+        ...local,
+        { id: 100 + local.length, dimension: g.dimension, title: g.title, done: false }
+      ]
+    }
+    const remapped = remapNotesByTitleKey(backup, local)
+    expect(remapped['101']).toBe('视野周计划')
+    expect(remapped['90']).toBe('补刀提醒')
+  })
 })

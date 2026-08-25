@@ -182,6 +182,15 @@
           </template>
         </EmptyState>
       </template>
+      <template v-else-if="games.length === 0">
+        <EmptyState
+          :icon="Inbox"
+          title="还没有对局记录"
+          description="完成一局排位后，战绩会自动同步到这里。"
+        >
+          <template #art><Inbox /></template>
+        </EmptyState>
+      </template>
       <TransitionGroup v-else name="list" tag="div" class="match-history-list">
         <div
           v-for="(game, index) in games"
@@ -223,7 +232,7 @@ import { ArrowLeft, ArrowRight, Repeat, Download, ChevronDown } from 'lucide-vue
 import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
 import { NButton, NIcon, NDropdown, useLoadingBar, useMessage } from 'naive-ui'
 import EmptyState from '@renderer/components/ui/EmptyState.vue'
-import { Search, TriangleAlert } from 'lucide-vue-next'
+import { Search, TriangleAlert, Inbox } from 'lucide-vue-next'
 import {
   exportMatches,
   gamesToCsv,
