@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 战绩清单导出（纯本地）：CSV（基础/完整字段）与 JSON 全量两种格式。
  * 文本经 Rust 侧系统保存对话框落盘（webview 不持有裸路径）。
  */
@@ -19,8 +19,36 @@ function formatDuration(seconds: number): string {
   return `${m}:${String(s).padStart(2, '0')}`
 }
 
-const CSV_HEAD_BASE = ['对局时间', '模式', '英雄', '结果', '击杀', '死亡', '助攻', 'KDA', '时长']
+const CSV_HEAD_BASE = [
+  '对局时间',
+  '模式',
+  '英雄',
+  '队伍',
+  '结果',
+  '击杀',
+  '死亡',
+  '助攻',
+  'KDA',
+  '时长',
+  '对手英雄'
+]
 const CSV_HEAD_EXTRA = ['补刀', '经济', '视野']
+
+/** 防御性读取 LCU/SGP 明细中可能存在、domain 未收录的对位字段 */
+interface DetailParticipant {
+  teamId: number
+  championId: number
+  teamPosition?: string
+}
+
+/** 找对位敌人：优先按 teamPosition 匹配；无对位信息时返回空串（不编造） */
+function findOpponentChampion(game: Game, me: Game['participants'][number]): string {
+  const pos = (me as DetailParticipant).teamPosition
+  if (!pos || pos === 'UNKNOWN') return ''
+  const enemies = game.participants.filter(p => p.teamId !== me.teamId) as DetailParticipant[]
+  const opp = enemies.find(e => e.teamPosition === pos)
+  return opp ? String(opp.championId) : ''
+}
 
 function gameRow(
   g: Game,
@@ -34,17 +62,18 @@ function gameRow(
     g.gameCreationDate,
     g.queueName || g.gameMode,
     champLabel(p.championId),
+    p.teamId === 100 ? '蓝' : p.teamId === 200 ? '红' : `#${p.teamId}`,
     st.win ? '胜' : '负',
     st.kills,
     st.deaths,
     st.assists,
     kda,
-    formatDuration(g.gameDuration)
+    formatDuration(g.gameDuration),
+    findOpponentChampion(g, p)
   ]
-  if (!extended) return base
+  if (!extended) return base.slice(0, base.length - 1)
   return [...base, st.totalMinionsKilled ?? '', st.goldEarned ?? '', st.visionScore ?? '']
 }
-
 export function gamesToCsv(
   games: Game[],
   champLabel: (championId: number) => string,

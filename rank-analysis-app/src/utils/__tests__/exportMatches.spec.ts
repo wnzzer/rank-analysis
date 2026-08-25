@@ -62,8 +62,8 @@ describe('gamesToCsv', () => {
     const lines = gamesToCsv([makeGame()], label)
       .replace(/^\uFEFF/, '')
       .split('\r\n')
-    expect(lines[0]).toBe('对局时间,模式,英雄,结果,击杀,死亡,助攻,KDA,时长')
-    expect(lines[1]).toContain('2026-08-25T12:00:00+08:00,单双排,亚索,胜,8,2,6,7.00,25:30')
+    expect(lines[0]).toBe('对局时间,模式,英雄,队伍,结果,击杀,死亡,助攻,KDA,时长,对手英雄')
+    expect(lines[1]).toContain('2026-08-25T12:00:00+08:00,单双排,亚索,蓝,胜,8,2,6,7.00,25:30')
     expect(lines[1]).not.toContain('233')
   })
 
@@ -71,7 +71,9 @@ describe('gamesToCsv', () => {
     const lines = gamesToCsv([makeGame()], label, true)
       .replace(/^\uFEFF/, '')
       .split('\r\n')
-    expect(lines[0]).toBe('对局时间,模式,英雄,结果,击杀,死亡,助攻,KDA,时长,补刀,经济,视野')
+    expect(lines[0]).toBe(
+      '对局时间,模式,英雄,队伍,结果,击杀,死亡,助攻,KDA,时长,对手英雄,补刀,经济,视野'
+    )
     expect(lines[1]).toContain(',233,15400,22')
   })
 

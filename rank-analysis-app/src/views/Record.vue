@@ -194,6 +194,18 @@ watch(isCompact, compact => {
   if (!compact) sideOpen.value = false
 })
 
+/**
+ * 跨断点聚焦保持：宽屏下展开的详情在切到窄窗时，转交给
+ * MatchHistory 的内嵌展开机制（focusGameId 定位并就地展开），
+ * 避免详情凭空消失；窄→宽无对称需求（内嵌展开仍在列表中可见）。
+ */
+watch(widePane, w => {
+  if (!w && selectedGame.value) {
+    focusGameId.value = selectedGame.value.gameId
+    onSelectGame(null)
+  }
+})
+
 /** 回到顶部 FAB：内容区滚动超过阈值显示，点击平滑回顶 */
 const BACK_TOP_THRESHOLD = 400
 const showBackTop = ref(false)

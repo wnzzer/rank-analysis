@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 /**
  * 对局内 Overlay 视图（v3 §C7：同语言重绘 + 可配置）。
  *
@@ -140,6 +140,28 @@ body {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+/* 条目插入时淡入下滑：maxItems 增减时高度变化平滑 */
+.overlay-item {
+  animation: ov-in 0.25s var(--ease-expo, ease-out) both;
+}
+
+@keyframes ov-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay-item {
+    animation: none;
+  }
 }
 
 .overlay-item {
