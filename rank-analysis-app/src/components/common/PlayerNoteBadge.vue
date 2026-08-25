@@ -15,7 +15,7 @@
         type="button"
       >
         <span v-if="hasNote" class="note-dot" :style="{ background: meta.cssVar }" />
-        <n-icon v-else class="note-add-icon"><BookmarkOutline /></n-icon>
+        <n-icon v-else class="note-add-icon"><Bookmark /></n-icon>
       </button>
     </template>
 
@@ -89,7 +89,7 @@
  */
 import { computed, ref, watch } from 'vue'
 import { NPopover, NIcon, NInput, NButton, NEllipsis, useMessage } from 'naive-ui'
-import { BookmarkOutline } from '@vicons/ionicons5'
+import { Bookmark } from 'lucide-vue-next'
 import { usePlayerNotesStore } from '@renderer/features/settings/stores/playerNotes'
 import { NOTE_LABELS, getNoteLabelMeta, type NoteLabel } from '@renderer/types/domain/playerNote'
 import type { OneGamePlayer } from '@renderer/types/domain/analysis'

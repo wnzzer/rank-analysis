@@ -2,8 +2,8 @@
   <div class="relationship-col">
     <div class="relationship-header" :class="variant === 'friend' ? 'good-color' : 'bad-color'">
       <n-icon>
-        <AccessibilityOutline v-if="variant === 'friend'" />
-        <FlashOutline v-else />
+        <Accessibility v-if="variant === 'friend'" />
+        <Zap v-else />
       </n-icon>
       <span>{{ variant === 'friend' ? '好友/胜率' : '宿敌/胜率' }}</span>
     </div>
@@ -48,7 +48,7 @@
 </template>
 
 <script setup lang="ts">
-import { AccessibilityOutline, FlashOutline } from '@vicons/ionicons5'
+import { Accessibility, Zap } from 'lucide-vue-next'
 import { NIcon, NEmpty, NPopover, NAvatar, NEllipsis } from 'naive-ui'
 import MettingPlayersCard from '@renderer/components/gaming/MettingPlayersCard.vue'
 import { searchSummoner } from '@renderer/utils/navigation'

@@ -1,6 +1,6 @@
 <template>
   <div class="empty">
-    <span class="empty__icon" aria-hidden="true">{{ icon }}</span>
+    <span class="empty__icon" aria-hidden="true"><component :is="icon" /></span>
     <p class="empty__title">{{ title }}</p>
     <p v-if="description || $slots.default" class="empty__desc">
       <slot>{{ description }}</slot>
@@ -14,18 +14,21 @@
 <script setup lang="ts">
 /**
  * EmptyState —— 标准空态（设计系统 v3 §7.7）
- * 线性图标 + 标题 + 说明 + 动作槽；禁止裸文案空态。
+ * Lucide 图标 + 标题 + 说明 + 动作槽；禁止裸文案空态。
  */
+import { markRaw, type Component } from 'vue'
+import { CircleDashed } from 'lucide-vue-next'
+
 withDefaults(
   defineProps<{
-    /** 图标字符（几何字形，如 ◇ ▢ ⌕） */
-    icon?: string
+    /** Lucide 图标组件 */
+    icon?: Component
     /** 空态标题 */
     title: string
     /** 说明文字（可用默认 slot 覆盖） */
     description?: string
   }>(),
-  { icon: '◇', description: '' }
+  { icon: markRaw(CircleDashed), description: '' }
 )
 </script>
 
@@ -39,9 +42,12 @@ withDefaults(
   text-align: center;
 }
 .empty__icon {
-  font-size: 30px;
-  line-height: 1;
+  display: inline-flex;
   color: var(--text-tertiary);
+}
+.empty__icon svg {
+  width: 28px;
+  height: 28px;
 }
 .empty__title {
   font-size: var(--font-size-base);

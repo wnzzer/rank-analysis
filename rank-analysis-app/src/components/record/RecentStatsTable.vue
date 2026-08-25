@@ -21,7 +21,7 @@
       <!-- KDA -->
       <div class="recent-stats-row">
         <div class="recent-stats-label-group">
-          <n-icon class="recent-stats-icon-kda"><PulseOutline /></n-icon>
+          <n-icon class="recent-stats-icon-kda"><Activity /></n-icon>
           <span>KDA</span>
         </div>
         <!-- KDA 没有 raw-value 维度,不占左占位,让 KDA + 击杀详情有更宽空间 -->
@@ -57,7 +57,7 @@
         :color="groupRateColor(recentData.groupRate, isDark)"
       >
         <template #label>
-          <n-icon><AccessibilityOutline /></n-icon> 参团率
+          <n-icon><Accessibility /></n-icon> 参团率
         </template>
       </ProgressStatRow>
       <!-- Damage -->
@@ -79,7 +79,7 @@
 </template>
 
 <script setup lang="ts">
-import { AccessibilityOutline, PulseOutline } from '@vicons/ionicons5'
+import { Accessibility, Activity } from 'lucide-vue-next'
 import { NCard, NFlex, NDropdown, NButton, NIcon } from 'naive-ui'
 import type { RecentData } from '@renderer/types/domain/analysis'
 import {

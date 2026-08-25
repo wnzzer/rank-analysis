@@ -4,7 +4,9 @@
       <template #header-extra>
         <n-flex>
           <n-button type="primary" size="small" @click="openCreateModal"> 新增标签 </n-button>
-          <n-button size="small" @click="openAIModal">✨ AI 推荐</n-button>
+          <n-button size="small" @click="openAIModal"
+            ><Sparkles class="btn-glyph" /> AI 推荐</n-button
+          >
         </n-flex>
       </template>
       <n-data-table :columns="columns" :data="tags" :loading="loading" :bordered="false" />
@@ -78,6 +80,7 @@ import {
   useThemeVars
 } from 'naive-ui'
 import { invoke } from '@tauri-apps/api/core'
+import { Sparkles } from 'lucide-vue-next'
 import TagConditionNode from './TagConditionNode.vue'
 import AISuggestModal from '@renderer/components/tags/AISuggestModal.vue'
 import type { championOption } from '@renderer/types/domain/champion'

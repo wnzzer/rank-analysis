@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="home">
     <PageHeader :kicker="`Home · ${greeting}，召唤师`">
       <template #title>
@@ -20,12 +20,14 @@
           ><span v-if="connected" class="tagp win"><i class="dot dot--win"></i>在线</span></template
         >
         <div v-if="connected" class="st-row">
-          <span class="ic ic--win">●</span>
+          <span class="ic ic--win"><Circle class="ic-fill" /></span>
           <div class="st-copy">
             <b>{{ summoner?.gameName }}#{{ summoner?.tagLine }}</b>
             <span class="psub">{{ phaseText }}</span>
           </div>
-          <button class="btn gho sm" @click="go('Gaming')">去对局 →</button>
+          <button class="btn gho sm" @click="go('Gaming')">
+            <span>去对局</span><ArrowRight class="btn-arrow-glyph" />
+          </button>
         </div>
         <div v-else class="home__offline">
           <p class="home__off-title">{{ offTitle }}</p>
@@ -60,7 +62,7 @@
         </div>
         <EmptyState
           v-else-if="!tagsLoading"
-          icon="↗"
+          :icon="TrendingUp"
           title="暂无短板检出"
           description="收集满 5 局对局后会自动在「成长」页产出习惯标签；届时可在这里一键转为改错目标。"
         >
@@ -75,22 +77,26 @@
     <div class="home__grid home__grid--sub">
       <CornerCard title="快捷入口">
         <div class="qentry" @click="openPalette">
-          <span class="ic">⌕</span>查询玩家战绩<span class="kbd q-kbd">Ctrl K</span>
+          <span class="ic"><Search /></span>查询玩家战绩<span class="kbd q-kbd">Ctrl K</span>
         </div>
-        <div class="qentry" @click="goRecordSelf"><span class="ic">▤</span>查看我的战绩</div>
+        <div class="qentry" @click="goRecordSelf">
+          <span class="ic"><ScrollText /></span>查看我的战绩
+        </div>
         <div class="qentry" @click="go('Library')">
-          <span class="ic">❏</span>资产库 · 标签与标记
+          <span class="ic"><LibraryBig /></span>资产库 · 标签与标记
         </div>
-        <div class="qentry" @click="go('Settings')"><span class="ic">⚙</span>设置</div>
+        <div class="qentry" @click="go('Settings')">
+          <span class="ic"><Settings /></span>设置
+        </div>
       </CornerCard>
 
       <CornerCard title="最近动态">
         <div class="qentry" style="cursor: default">
-          <span class="ic">✦</span>
+          <span class="ic"><Sparkles /></span>
           <span class="psub">选人期推荐 / 对局信号会在进入英雄选择后自动出现在「对局」页</span>
         </div>
         <div class="qentry" style="cursor: default">
-          <span class="ic">◈</span>
+          <span class="ic"><Columns2 /></span>
           <span class="psub">战绩子窗口支持并排对比：在战绩页打开详情后按 Ctrl+Tab 切换窗口</span>
         </div>
       </CornerCard>
@@ -115,6 +121,17 @@ import { invoke } from '@tauri-apps/api/core'
 import PageHeader from '../components/ui/PageHeader.vue'
 import CornerCard from '../components/ui/CornerCard.vue'
 import EmptyState from '../components/ui/EmptyState.vue'
+import {
+  TrendingUp,
+  Search,
+  ScrollText,
+  LibraryBig,
+  Settings,
+  Sparkles,
+  Columns2,
+  Circle,
+  ArrowRight
+} from 'lucide-vue-next'
 import { useGameState } from '../composables/useGameState'
 import { launchLeagueByIpc } from '../services/ipc'
 import { isWindows } from '../services/platform'
@@ -281,8 +298,19 @@ const openPalette = () => window.dispatchEvent(new CustomEvent('ra:open-palette'
   place-items: center;
   background: var(--bg-active);
   clip-path: var(--clip-corner-sm);
-  font-size: 13px;
   color: var(--text-secondary);
+}
+.ic svg {
+  width: 14px;
+  height: 14px;
+}
+.ic-fill {
+  fill: currentColor;
+}
+.btn-arrow-glyph {
+  width: 11px;
+  height: 11px;
+  margin-left: 4px;
 }
 .ic--win {
   background: var(--win-soft);

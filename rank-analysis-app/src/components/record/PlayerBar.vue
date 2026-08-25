@@ -19,7 +19,7 @@
           <span class="player-bar-tagline">#{{ summoner.tagLine }}</span>
           <n-button text size="tiny" @click="copyName">
             <template #icon>
-              <n-icon><copy-outline /></n-icon>
+              <n-icon><Copy /></n-icon>
             </template>
           </n-button>
           <PlayerNoteBadge
@@ -74,7 +74,7 @@
 
 <script lang="ts" setup>
 import { assetPrefix } from '@renderer/services/http'
-import { CopyOutline } from '@vicons/ionicons5'
+import { Copy } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { NAvatar, NButton, NFlex, NIcon, NEllipsis, NPopover, NTag, useMessage } from 'naive-ui'
 import type { Rank, Summoner } from '@renderer/types/domain/player'

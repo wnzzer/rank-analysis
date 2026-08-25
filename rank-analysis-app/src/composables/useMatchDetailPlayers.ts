@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 战绩详情页的玩家数据整理：
  * - 将 game 拍平为 DetailPlayer[]
  * - 计算队伍汇总、所属 teamRelative 占比
@@ -7,16 +7,7 @@
  */
 
 import { computed, type MaybeRefOrGetter, toValue, type Component } from 'vue'
-import {
-  CashOutline,
-  FlagOutline,
-  FlameOutline,
-  FlashOutline,
-  FootstepsOutline,
-  PeopleOutline,
-  ShieldOutline,
-  SkullOutline
-} from '@vicons/ionicons5'
+import { Coins, Flag, Flame, Footprints, Users, Shield, Skull, Zap } from 'lucide-vue-next'
 import type { Game, Participant, ParticipantStats } from '@renderer/types/domain/match'
 import { safeRelativePercent } from '@renderer/utils/format'
 
@@ -86,7 +77,7 @@ export interface ScoreContext {
  * 各维归一到 0..1（KDA 用饱和函数 kda/(kda+3)，其余除以全场最大值），加权和乘 10。
  * 权重：KDA 26% / 输出 22% / 参团 18% / 承伤 10% / 经济 10% / 补刀 8% / 推塔 6%。
  *
- * ⚠️ 与后端 `match_history.rs::wegame_score` 同式——两端必须同步修改。
+ * 注意：与后端 `match_history.rs::wegame_score` 同式——两端必须同步修改。
  */
 export function computeMatchScore(s: ParticipantStats, ctx: ScoreContext): number {
   const kda = (s.kills + s.assists) / Math.max(1, s.deaths)
@@ -139,7 +130,7 @@ function multiKillBadges(stats: ParticipantStats): PlayerBadge[] {
       return {
         key: cfg.key,
         label: count > 1 ? `${cfg.label}×${count}` : cfg.label,
-        icon: FlashOutline,
+        icon: Zap,
         className: cfg.className
       }
     })
@@ -149,49 +140,49 @@ const badgeConfigs = [
   {
     key: 'kills',
     label: '杀人最多',
-    icon: SkullOutline,
+    icon: Skull,
     className: 'match-detail-badge-kills',
     value: (s: ParticipantStats) => s.kills
   },
   {
     key: 'damage',
     label: '伤害最多',
-    icon: FlameOutline,
+    icon: Flame,
     className: 'match-detail-badge-damage',
     value: (s: ParticipantStats) => s.totalDamageDealtToChampions
   },
   {
     key: 'assists',
     label: '助攻最多',
-    icon: PeopleOutline,
+    icon: Users,
     className: 'match-detail-badge-assists',
     value: (s: ParticipantStats) => s.assists
   },
   {
     key: 'turrets',
     label: '推塔最多',
-    icon: FlagOutline,
+    icon: Flag,
     className: 'match-detail-badge-turrets',
     value: (s: ParticipantStats) => s.damageDealtToTurrets
   },
   {
     key: 'gold',
     label: '钱最多',
-    icon: CashOutline,
+    icon: Coins,
     className: 'match-detail-badge-gold',
     value: (s: ParticipantStats) => s.goldEarned
   },
   {
     key: 'taken',
     label: '承伤最多',
-    icon: ShieldOutline,
+    icon: Shield,
     className: 'match-detail-badge-taken',
     value: (s: ParticipantStats) => s.totalDamageTaken
   },
   {
     key: 'cs',
     label: '补兵最多',
-    icon: FootstepsOutline,
+    icon: Footprints,
     className: 'match-detail-badge-cs',
     value: (s: ParticipantStats) => totalCs(s)
   }

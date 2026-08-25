@@ -5,8 +5,8 @@
       <div class="stats-header" @click="showStats = !showStats">
         <span class="stats-title">近期数据</span>
         <n-icon size="14" class="toggle-icon">
-          <chevron-down v-if="!showStats" />
-          <chevron-up v-else />
+          <ChevronDown v-if="!showStats" />
+          <ChevronUp v-else />
         </n-icon>
       </div>
 
@@ -83,7 +83,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { NIcon } from 'naive-ui'
-import { ChevronDown, ChevronUp } from '@vicons/ionicons5'
+import { ChevronDown, ChevronUp } from 'lucide-vue-next'
 import type { RecentData } from '@renderer/types/domain/analysis'
 import {
   kdaColor,

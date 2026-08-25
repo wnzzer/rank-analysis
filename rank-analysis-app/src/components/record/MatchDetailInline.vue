@@ -105,7 +105,7 @@
                   >
                     <template #icon>
                       <n-spin v-if="replay.busy.value" :size="14" />
-                      <n-icon v-else><PlayCircleOutline /></n-icon>
+                      <n-icon v-else><CirclePlay /></n-icon>
                     </template>
                     {{ replay.buttonLabel.value }}
                   </n-button>
@@ -129,7 +129,7 @@
                   >
                     <template #icon>
                       <n-spin v-if="ai.aiLoading.value" :size="14" />
-                      <n-icon v-else><SparklesOutline /></n-icon>
+                      <n-icon v-else><Sparkles /></n-icon>
                     </template>
                     AI 整局复盘
                   </n-button>
@@ -147,7 +147,7 @@
                     @click="emit('close')"
                   >
                     <template #icon>
-                      <n-icon><CloseOutline /></n-icon>
+                      <n-icon><X /></n-icon>
                     </template>
                   </n-button>
                 </template>
@@ -210,7 +210,7 @@
 
 <script lang="ts" setup>
 import { computed, ref, watch, onMounted, toRef, provide } from 'vue'
-import { CloseOutline, PlayCircleOutline, SparklesOutline } from '@vicons/ionicons5'
+import { CirclePlay, Sparkles, X } from 'lucide-vue-next'
 import { NButton, NIcon, NTooltip } from 'naive-ui'
 import { invoke } from '@tauri-apps/api/core'
 import { useCopy } from '@renderer/composables/useCopy'

@@ -1,18 +1,17 @@
-import { describe, it, expect, vi } from 'vitest'
+﻿import { describe, it, expect, vi } from 'vitest'
 import { ref } from 'vue'
 import { useMatchDetailPlayers } from './useMatchDetailPlayers'
 import type { Game, Participant, ParticipantStats } from '@renderer/types/domain/match'
 
-// @vicons/ionicons5 is not installed in the test environment
-vi.mock('@vicons/ionicons5', () => ({
-  CashOutline: {},
-  FlagOutline: {},
-  FlameOutline: {},
-  FlashOutline: {},
-  FootstepsOutline: {},
-  PeopleOutline: {},
-  ShieldOutline: {},
-  SkullOutline: {}
+vi.mock('lucide-vue-next', () => ({
+  Coins: {},
+  Flag: {},
+  Flame: {},
+  Footprints: {},
+  Users: {},
+  Shield: {},
+  Skull: {},
+  Zap: {}
 }))
 
 function makeStats(overrides: Partial<ParticipantStats> = {}): ParticipantStats {

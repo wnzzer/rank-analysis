@@ -1,4 +1,4 @@
-import { ref, readonly, onMounted, onUnmounted } from 'vue'
+﻿import { ref, readonly, onMounted, onUnmounted } from 'vue'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import router from '../router'
 import { isRecordChildWindow } from '@renderer/utils/windows'
@@ -121,7 +121,7 @@ async function setupListeners() {
     }
   })
 
-  console.log('✅ Game state listeners registered')
+  console.log('Game state listeners registered')
 }
 
 function teardownListeners() {

@@ -23,11 +23,11 @@
           @click="handleOpenPanel"
         >
           <n-spin v-if="ai.loading.value || live.loading.value" :size="13" />
-          <n-icon v-else :size="15"><sparkles-outline /></n-icon>
+          <n-icon v-else :size="15"><Sparkles /></n-icon>
           <span>AI 分析</span>
         </button>
         <button class="dock-btn" @click="showConfig = true">
-          <n-icon :size="15"><settings-outline /></n-icon>
+          <n-icon :size="15"><Settings /></n-icon>
           <span>设置</span>
         </button>
       </div>
@@ -320,7 +320,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { invoke } from '@tauri-apps/api/core'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
-import { SettingsOutline, SparklesOutline } from '@vicons/ionicons5'
+import { Settings, Sparkles } from 'lucide-vue-next'
 import { useMessage } from 'naive-ui'
 
 import VerdictBanner from '@renderer/components/ui/VerdictBanner.vue'

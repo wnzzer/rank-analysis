@@ -8,7 +8,8 @@
 
     <div class="tbar__right">
       <button class="tb-search nodrag" @click="$emit('openPalette')">
-        <span>⌕ 搜索</span>
+        <Search class="tb-glyph" />
+        <span>搜索</span>
         <KeyHint keys="Ctrl K" />
       </button>
 
@@ -19,7 +20,7 @@
           :title="`发现新版本 v${availableUpdate.version}，点击立即更新`"
           @click="onUpdateClick"
         >
-          ↑ 新版 v{{ availableUpdate.version }}
+          <ArrowUp class="tb-glyph" /> 新版 v{{ availableUpdate.version }}
         </button>
       </Transition>
 
@@ -29,15 +30,16 @@
         :aria-label="isDark ? '切换到亮色主题' : '切换到暗色主题'"
         @click="settingsStore.toggleTheme()"
       >
-        {{ isDark ? '☀' : '☾' }}
+        <Sun v-if="isDark" />
+        <Moon v-else />
       </button>
 
       <span class="tb-divider nodrag"></span>
 
       <div class="winb nodrag">
-        <button aria-label="最小化" @click="controls.minimize()">─</button>
-        <button aria-label="最大化/还原" @click="controls.toggleMaximize()">□</button>
-        <button class="x" aria-label="关闭" @click="controls.close()">✕</button>
+        <button aria-label="最小化" @click="controls.minimize()"><Minus /></button>
+        <button aria-label="最大化/还原" @click="controls.toggleMaximize()"><Square /></button>
+        <button class="x" aria-label="关闭" @click="controls.close()"><X /></button>
       </div>
     </div>
   </header>
@@ -55,6 +57,7 @@
  * - 更新药丸沿用 useAppUpdate 单例状态。
  */
 import { computed, ref, watch, onMounted } from 'vue'
+import { X, Search, ArrowUp, Sun, Moon, Minus, Square } from 'lucide-vue-next'
 import { useRoute } from 'vue-router'
 import { useTheme } from '../../composables/useTheme'
 import { useSettingsStore } from '../../features/settings/stores/setting'
@@ -218,9 +221,19 @@ const title = computed(() => (route.meta.title as string | undefined) ?? '')
   border: none;
   background: transparent;
   color: var(--text-secondary);
-  font-size: 14px;
   cursor: pointer;
   clip-path: var(--clip-notch);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.tb-ico svg {
+  width: 15px;
+  height: 15px;
+}
+.tb-glyph {
+  width: 12px;
+  height: 12px;
 }
 .tb-ico:hover {
   background: var(--bg-hover);
@@ -243,8 +256,14 @@ const title = computed(() => (route.meta.title as string | undefined) ?? '')
   border: none;
   background: transparent;
   color: var(--text-secondary);
-  font-size: 11px;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.winb button svg {
+  width: 13px;
+  height: 13px;
 }
 .winb button:hover {
   background: var(--bg-hover);

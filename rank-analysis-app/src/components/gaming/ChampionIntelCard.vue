@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div
     class="intel-card"
     :class="[
@@ -11,7 +11,7 @@
     <!-- 未亮英雄：占位（虚线边框 + 居中提示，picking 态同样吃 intel-picking 动画） -->
     <template v-if="isEmpty">
       <div class="intel-placeholder">
-        <span class="intel-placeholder-icon">❓</span>
+        <span class="intel-placeholder-icon"><CircleHelp /></span>
         <span class="intel-placeholder-text">{{
           pickState === 'picking' ? '正在选择…' : pickState === 'banning' ? '禁用中…' : '尚未选择'
         }}</span>
@@ -146,6 +146,7 @@
  * pick-state 驱动三态动画（intent 呼吸 / picking 边框脉冲 / locked 定格入场）。
  */
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
+import { CircleHelp } from 'lucide-vue-next'
 import { useAssetUrl } from '@renderer/composables/useAssetUrl'
 import { getChampionName, loadChampionNames } from '@renderer/services/ai/champion-names'
 import {
@@ -195,7 +196,7 @@ const name = ref('')
 const meta = ref<ChampionMeta | null>(null)
 const hints = ref<CounterHint[]>([])
 const badge = computed(() => tierBadge(meta.value?.tier ?? 0))
-/** 未亮出英雄：走占位分支（虚线卡 + 居中 ❓） */
+/** 未亮出英雄：走占位分支（虚线卡 + 居中 CircleHelp 图标） */
 const isEmpty = computed(() => !props.championId || props.championId <= 0)
 /** 是否有 PUGG 统计主体（需要「我」的 puuid 才能聚合历史战绩） */
 const canShowBuild = computed(() => !isEmpty.value && !!props.myPuuid)
@@ -501,7 +502,12 @@ watch(
   opacity: 0.55;
 }
 .intel-placeholder-icon {
-  font-size: 16px;
+  display: inline-flex;
+  color: var(--text-tertiary);
+}
+.intel-placeholder-icon svg {
+  width: 16px;
+  height: 16px;
 }
 
 /* ---- 出装/符文面板（方向 C，C-2-UI）---- */

@@ -4,7 +4,7 @@
       <div class="loading-visual" aria-hidden="true">
         <div class="loading-track" />
         <div class="loading-ring" />
-        <div class="loading-center">⚔</div>
+        <div class="loading-center"><Swords /></div>
       </div>
       <div class="loading-text-block">
         <p class="loading-text"><slot /></p>
@@ -22,6 +22,8 @@
  * @slot default - 主提示文案
  * @slot action - 副提示下方的操作区（如"以管理员身份重启"按钮）
  */
+import { Swords } from 'lucide-vue-next'
+
 defineProps<{ hint?: string }>()
 </script>
 
@@ -80,9 +82,12 @@ defineProps<{ hint?: string }>()
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: var(--font-size-base);
   animation: loading-pulse 2s ease-in-out infinite;
 }
+.loading-center svg {
+  width: 14px;
+  height: 14px;
+  color: var(--semantic-win);
 
 .loading-text-block {
   display: flex;

@@ -4,7 +4,8 @@
     <n-popover v-if="note" trigger="hover">
       <template #trigger>
         <n-tag data-test="note-chip" size="small" round :type="noteMeta.naiveType">
-          ✎ {{ note.note ? truncated(note.note) : noteMeta.text }}
+          <span class="note-glyph"><PenLine /></span>
+          {{ note.note ? truncated(note.note) : noteMeta.text }}
         </n-tag>
       </template>
       <span>[{{ noteMeta.text }}] {{ note.note || '（未填写文字）' }}</span>
@@ -51,6 +52,7 @@
  */
 import { computed } from 'vue'
 import { NPopover, NTag, useMessage } from 'naive-ui'
+import { PenLine } from 'lucide-vue-next'
 import { usePlayerNotesStore } from '@renderer/features/settings/stores/playerNotes'
 import { getNoteLabelMeta } from '@renderer/types/domain/playerNote'
 import type { RankTag } from '@renderer/types/domain/analysis'
@@ -152,6 +154,15 @@ defineExpose({ solidifyTag })
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-4);
+}
+.note-glyph {
+  display: inline-flex;
+  vertical-align: -2px;
+  margin-right: 2px;
+}
+.note-glyph svg {
+  width: 11px;
+  height: 11px;
 }
 
 .overflow-chip {

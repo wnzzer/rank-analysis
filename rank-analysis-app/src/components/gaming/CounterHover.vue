@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <n-popover
     trigger="hover"
     placement="right-start"
@@ -58,9 +58,11 @@
                     @click="toggleSort(col.key)"
                   >
                     {{ col.label
-                    }}<span v-if="sortKey === col.key" class="sort-arrow">{{
-                      sortDir === 'desc' ? ' ▼' : ' ▲'
-                    }}</span>
+                    }}<span v-if="sortKey === col.key" class="sort-arrow"
+                      ><ChevronDown v-if="sortDir === 'desc'" class="sort-arrow-glyph" /><ChevronUp
+                        v-else
+                        class="sort-arrow-glyph"
+                    /></span>
                   </th>
                 </tr>
               </thead>
@@ -98,9 +100,11 @@
                     @click="toggleSynergySort(col.key)"
                   >
                     {{ col.label
-                    }}<span v-if="synergySortKey === col.key" class="sort-arrow">{{
-                      synergySortDir === 'desc' ? ' ▼' : ' ▲'
-                    }}</span>
+                    }}<span v-if="synergySortKey === col.key" class="sort-arrow"
+                      ><ChevronDown
+                        v-if="synergySortDir === 'desc'"
+                        class="sort-arrow-glyph" /><ChevronUp v-else class="sort-arrow-glyph"
+                    /></span>
                   </th>
                 </tr>
               </thead>
@@ -139,6 +143,7 @@
  * 底部固定来源标注（region · tier · patch · stale 标记），防数据口径误导。
  */
 import { computed, onMounted, ref, toRef } from 'vue'
+import { ChevronDown, ChevronUp } from 'lucide-vue-next'
 import { NPopover } from 'naive-ui'
 import { useAssetUrl } from '@renderer/composables/useAssetUrl'
 import {
@@ -374,7 +379,12 @@ onMounted(async () => {
 }
 
 .sort-arrow {
-  font-size: 10px;
+  display: inline-flex;
+  vertical-align: -1px;
+}
+.sort-arrow-glyph {
+  width: 10px;
+  height: 10px;
 }
 
 .ch-col {

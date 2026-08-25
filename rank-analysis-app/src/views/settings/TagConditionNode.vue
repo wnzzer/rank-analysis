@@ -64,7 +64,7 @@
           v-if="!isRoot"
           class="remove-btn"
         >
-          <template #icon>✕</template>
+          <template #icon><X class="node-x" /></template>
         </n-button>
       </div>
 
@@ -279,8 +279,8 @@
           style="width: 120px"
         />
         <n-button size="tiny" circle text type="error" @click="removeSelf" v-if="!isRoot"
-          >✕</n-button
-        >
+          ><X class="node-x"
+        /></n-button>
       </div>
       <div style="padding: var(--space-10)">
         <n-select
@@ -318,6 +318,7 @@
 
 <script setup lang="ts">
 import { PropType, computed, toRefs } from 'vue'
+import { X } from 'lucide-vue-next'
 import { NTag, NButton, NSelect, NInputNumber, NDivider, useThemeVars } from 'naive-ui'
 import type { SelectMixedOption } from 'naive-ui/es/select/src/interface'
 import TagConditionNode from './TagConditionNode.vue' // Recursive import
@@ -564,6 +565,10 @@ function emitUpdate() {
 </script>
 
 <style scoped>
+.node-x {
+  width: 10px;
+  height: 10px;
+}
 .condition-node {
   border-left: 3px solid v-bind('themeVars.borderColor');
   padding-left: var(--space-12);

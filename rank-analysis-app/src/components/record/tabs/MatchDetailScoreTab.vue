@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="match-detail-score">
     <div v-if="scoresByTeam.length === 0" class="match-detail-score-empty">
       {{ scoreError || '评分暂不可用（对局数据缺失）' }}
@@ -52,7 +52,7 @@
               }}</span>
             </div>
           </div>
-          <span class="match-detail-score-drill-hint">▼</span>
+          <span class="match-detail-score-drill-hint"><ChevronDown /></span>
         </div>
 
         <div
@@ -114,6 +114,7 @@
 
 <script lang="ts" setup>
 import { computed, inject, onMounted, ref } from 'vue'
+import { ChevronDown } from 'lucide-vue-next'
 import { matchDetailContextKey } from '../matchDetailContext'
 import type { DetailPlayer } from '@renderer/composables/useMatchDetailPlayers'
 import {
@@ -308,12 +309,18 @@ function scoreLevel(total: number) {
 }
 .match-detail-score-drill-hint {
   flex: 0 0 14px;
-  font-size: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: var(--n-text-color-3, #999);
   text-align: center;
 }
 .match-detail-score-row--open .match-detail-score-drill-hint {
   color: var(--n-primary-color, #63e2b7);
+}
+.match-detail-score-drill-hint svg {
+  width: 10px;
+  height: 10px;
 }
 .match-detail-score-drilldown {
   margin: 2px 0 8px 24px;

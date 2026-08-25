@@ -50,7 +50,7 @@
                 >
                   <template #icon>
                     <n-icon>
-                      <ArrowBack></ArrowBack>
+                      <ArrowLeft></ArrowLeft>
                     </n-icon>
                   </template>
                 </n-button>
@@ -66,7 +66,7 @@
                 >
                   <template #icon>
                     <n-icon>
-                      <ArrowForward></ArrowForward>
+                      <ArrowRight></ArrowRight>
                     </n-icon>
                   </template>
                 </n-button>
@@ -76,7 +76,7 @@
           <n-tooltip trigger="hover">
             <template #trigger>
               <n-button quaternary circle size="small" class="toolbar-reset" @click="resetFilter">
-                <n-icon><RepeatOutline /></n-icon>
+                <n-icon><Repeat /></n-icon>
               </n-button>
             </template>
             复位
@@ -167,7 +167,7 @@
 import RecordCard from './RecordCard.vue'
 import RecordCardSkeleton from './RecordCardSkeleton.vue'
 import TrendBar from './TrendBar.vue'
-import { ArrowBack, ArrowForward, RepeatOutline } from '@vicons/ionicons5'
+import { ArrowLeft, ArrowRight, Repeat } from 'lucide-vue-next'
 import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
 import { NEmpty, NButton, useLoadingBar } from 'naive-ui'
 import { useRoute } from 'vue-router'

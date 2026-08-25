@@ -22,7 +22,7 @@
  * 右侧通过箭头图标二次强调方向。
  */
 import { computed } from 'vue'
-import { ArrowDown, ArrowUp } from '@vicons/ionicons5'
+import { ArrowDown, ArrowUp } from 'lucide-vue-next'
 
 const props = defineProps<{
   /** 倾向类型：good 上升 / bad 下降 / 空字符串无标记 */

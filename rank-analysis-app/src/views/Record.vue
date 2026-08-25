@@ -38,7 +38,7 @@
         @click="sideOpen = !sideOpen"
       >
         <template #icon>
-          <n-icon><MenuOutline /></n-icon>
+          <n-icon><Menu /></n-icon>
         </template>
       </n-button>
       <n-drawer
@@ -105,7 +105,7 @@
           @click="scrollToTop"
         >
           <template #icon>
-            <n-icon><ArrowUpOutline /></n-icon>
+            <n-icon><ArrowUp /></n-icon>
           </template>
         </n-button>
       </Transition>
@@ -116,7 +116,7 @@
 import { onBeforeUnmount, computed, ref, watch, type ComponentPublicInstance } from 'vue'
 import { useRoute } from 'vue-router'
 import { NButton, NIcon, NDrawer, NDrawerContent } from 'naive-ui'
-import { ArrowUpOutline, MenuOutline } from '@vicons/ionicons5'
+import { ArrowUp, Menu } from 'lucide-vue-next'
 import MatchHistory from '../components/record/MatchHistory.vue'
 import MatchDetailInline from '../components/record/MatchDetailInline.vue'
 import PlayerBar from '../components/record/PlayerBar.vue'

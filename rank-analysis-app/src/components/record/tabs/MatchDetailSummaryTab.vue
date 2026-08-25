@@ -112,7 +112,7 @@
                       @click.stop="ctx.copy(player.displayName)"
                     >
                       <template #icon>
-                        <n-icon><CopyOutline /></n-icon>
+                        <n-icon><Copy /></n-icon>
                       </template>
                     </n-button>
                     <span v-if="player.puuid" @click.stop>
@@ -151,7 +151,7 @@
                               "
                               :size="12"
                             />
-                            <n-icon v-else><SparklesOutline /></n-icon>
+                            <n-icon v-else><Sparkles /></n-icon>
                           </template>
                         </n-button>
                       </template>
@@ -363,7 +363,7 @@
 
 <script lang="ts" setup>
 import { computed, inject } from 'vue'
-import { CopyOutline, SparklesOutline } from '@vicons/ionicons5'
+import { Copy, Sparkles } from 'lucide-vue-next'
 import { NButton, NIcon, NTag, NTooltip } from 'naive-ui'
 import { searchSummoner } from '@renderer/utils/navigation'
 import { assetPrefix } from '@renderer/services/http'

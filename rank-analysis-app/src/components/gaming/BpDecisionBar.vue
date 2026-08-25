@@ -1,4 +1,5 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
+import { ArrowLeft } from 'lucide-vue-next'
 /**
  * 选人期 BP 决策带。
  *
@@ -72,7 +73,7 @@ function rejectedText(r: BpRejected): string {
       <img class="bp-avatar" :src="getChampionUrl(decision.target.champion_id)" alt="" />
       <span class="bp-champion">{{ getChampionName(decision.target.champion_id) }}</span>
       <span class="bp-origin" :class="isFallback ? 'bp-origin-fallback' : 'bp-origin-rule'">
-        ← {{ originLabel }}
+        <ArrowLeft class="bp-origin-glyph" /> {{ originLabel }}
       </span>
       <button type="button" class="bp-save-rule" @click="$emit('save-rule')">存为规则</button>
     </div>
@@ -115,6 +116,11 @@ function rejectedText(r: BpRejected): string {
 }
 .bp-origin-rule {
   color: var(--accent-blue);
+}
+.bp-origin-glyph {
+  width: 10px;
+  height: 10px;
+  vertical-align: -1px;
 }
 /* 弱化传达的是「这不是你的意图，是系统替你兜的」，不是「它选得差」 */
 .bp-origin-fallback {

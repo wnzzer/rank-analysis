@@ -25,7 +25,7 @@
                 @click="run(c)"
                 @mousemove="active = i"
               >
-                <span class="pal__icon">{{ c.icon ?? '◇' }}</span>
+                <span class="pal__icon"><component :is="c.icon ?? Circle" /></span>
                 <span class="pal__label">{{ c.label }}</span>
                 <span v-if="c.hint" class="pal__hint">{{ c.hint }}</span>
               </button>
@@ -48,8 +48,18 @@
  * 打开方式：Ctrl+K（全局）/ 顶栏搜索按钮。
  * 命令源：页面导航 + 动作 + 动态「查询战绩」；纯逻辑抽在 commandPalette.ts 便于单测。
  */
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, markRaw, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import {
+  House,
+  ScrollText,
+  Swords,
+  TrendingUp,
+  LibraryBig,
+  Settings,
+  Search,
+  Circle
+} from 'lucide-vue-next'
 import KeyHint from '../ui/KeyHint.vue'
 import { filterCommands, nextIndex, parsePlayerQuery, type PaletteCommand } from './commandPalette'
 
@@ -62,12 +72,49 @@ const active = ref(0)
 const commands = computed<PaletteCommand[]>(() => {
   const go = (name: string) => () => router.push({ name })
   const list: PaletteCommand[] = [
-    { key: 'nav-home', group: '页面', label: '主页', icon: '◈', hint: 'Home', run: go('Home') },
-    { key: 'nav-record', group: '页面', label: '战绩查询', icon: '▤', run: go('Record') },
-    { key: 'nav-gaming', group: '页面', label: '对局分析', icon: '▶', run: go('Gaming') },
-    { key: 'nav-growth', group: '页面', label: '成长', icon: '↗', run: go('Growth') },
-    { key: 'nav-library', group: '页面', label: '资产库', icon: '❏', run: go('Library') },
-    { key: 'nav-settings', group: '页面', label: '设置', icon: '⚙', run: go('Settings') }
+    {
+      key: 'nav-home',
+      group: '页面',
+      label: '主页',
+      icon: markRaw(House),
+      hint: 'Home',
+      run: go('Home')
+    },
+    {
+      key: 'nav-record',
+      group: '页面',
+      label: '战绩查询',
+      icon: markRaw(ScrollText),
+      run: go('Record')
+    },
+    {
+      key: 'nav-gaming',
+      group: '页面',
+      label: '对局分析',
+      icon: markRaw(Swords),
+      run: go('Gaming')
+    },
+    {
+      key: 'nav-growth',
+      group: '页面',
+      label: '成长',
+      icon: markRaw(TrendingUp),
+      run: go('Growth')
+    },
+    {
+      key: 'nav-library',
+      group: '页面',
+      label: '资产库',
+      icon: markRaw(LibraryBig),
+      run: go('Library')
+    },
+    {
+      key: 'nav-settings',
+      group: '页面',
+      label: '设置',
+      icon: markRaw(Settings),
+      run: go('Settings')
+    }
   ]
   const playerQuery = parsePlayerQuery(q.value)
   if (playerQuery && playerQuery.includes('#')) {
@@ -75,7 +122,7 @@ const commands = computed<PaletteCommand[]>(() => {
       key: 'act-player',
       group: '查询',
       label: `查询战绩「${playerQuery}」`,
-      icon: '⌕',
+      icon: markRaw(Search),
       hint: 'Enter',
       run: () => router.push({ path: '/Record', query: { name: playerQuery } })
     })
@@ -213,8 +260,13 @@ onBeforeUnmount(() => {
 }
 .pal__icon {
   width: 18px;
+  height: 18px;
   flex: none;
   color: var(--text-tertiary);
+}
+.pal__icon svg {
+  width: 100%;
+  height: 100%;
 }
 .pal__label {
   flex: 1;

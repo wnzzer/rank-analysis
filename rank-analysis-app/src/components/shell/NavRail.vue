@@ -1,9 +1,11 @@
 <template>
   <!-- 战绩子窗口：精简模式，只保留「回主窗口 / 并排对比」两个动作 -->
   <aside v-if="isChild" class="rail rail--child">
-    <button class="rail-i" title="回主窗口" @click="backMain"><span>◈</span><em>主窗口</em></button>
+    <button class="rail-i" title="回主窗口" @click="backMain">
+      <span><AppWindow /></span><em>主窗口</em>
+    </button>
     <button class="rail-i" title="并排对比" @click="tileSide">
-      <span>⿴</span><em>并排对比</em>
+      <span><Columns2 /></span><em>并排对比</em>
     </button>
   </aside>
 
@@ -41,8 +43,7 @@
           :title="it.label"
           @click="go(it.name)"
         >
-          <span>{{ it.icon }}</span
-          ><em>{{ it.label }}</em>
+          <span><component :is="it.icon" /></span><em>{{ it.label }}</em>
         </button>
       </template>
     </nav>
@@ -59,7 +60,8 @@
         </button>
       </n-dropdown>
       <button class="rail-pin" :title="pinned ? '取消固定展开' : '固定展开'" @click="togglePin">
-        {{ pinned ? '⇤' : '⇥' }}
+        <PinOff v-if="pinned" />
+        <Pin v-else />
       </button>
     </div>
   </aside>
@@ -74,9 +76,21 @@
  * - 底部状态舱：连接状态灯 + 菜单（关闭客户端为两步确认的危险动作，
  *   就近原则承接自旧标题栏——状态在哪，操作在哪）。
  */
-import { computed, h, ref } from 'vue'
+import { computed, h, markRaw, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { NDropdown } from 'naive-ui'
+import {
+  House,
+  ScrollText,
+  Swords,
+  TrendingUp,
+  LibraryBig,
+  Settings,
+  AppWindow,
+  Columns2,
+  Pin,
+  PinOff
+} from 'lucide-vue-next'
 import { isRecordChildWindow, focusMainWindow, tileWindowsSideBySide } from '../../utils/windows'
 import { closeLeagueByIpc } from '../../services/ipc'
 import { useGameState } from '../../composables/useGameState'
@@ -96,14 +110,14 @@ const sections = [
   {
     label: '分析',
     items: [
-      { name: 'Home', label: '主页', icon: '◈' },
-      { name: 'Record', label: '战绩', icon: '▤' },
-      { name: 'Gaming', label: '对局', icon: '▶' },
-      { name: 'Growth', label: '成长', icon: '↗' }
+      { name: 'Home', label: '主页', icon: markRaw(House) },
+      { name: 'Record', label: '战绩', icon: markRaw(ScrollText) },
+      { name: 'Gaming', label: '对局', icon: markRaw(Swords) },
+      { name: 'Growth', label: '成长', icon: markRaw(TrendingUp) }
     ]
   },
-  { label: '库', items: [{ name: 'Library', label: '资产库', icon: '❏' }] },
-  { label: '系统', items: [{ name: 'Settings', label: '设置', icon: '⚙' }] }
+  { label: '库', items: [{ name: 'Library', label: '资产库', icon: markRaw(LibraryBig) }] },
+  { label: '系统', items: [{ name: 'Settings', label: '设置', icon: markRaw(Settings) }] }
 ]
 
 function go(name: string) {
@@ -134,7 +148,7 @@ const statusOptions = computed(() => [
   { type: 'divider' as const, key: 'd1' },
   {
     key: 'close-game',
-    label: confirmingClose.value ? '⚠ 再点一次确认关闭游戏' : '关闭游戏客户端',
+    label: confirmingClose.value ? '再点一次确认关闭游戏' : '关闭游戏客户端',
     props: { class: confirmingClose.value ? 'ra-menu-danger-armed' : '' }
   },
   { key: 'github', label: () => h('span', null, '项目主页 GitHub') }
@@ -253,9 +267,15 @@ function tileSide() {
     color var(--dur-fast) var(--ease-expo);
 }
 .rail-i span {
-  font-size: 16px;
   width: 24px;
-  text-align: center;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.rail-i span svg {
+  width: 17px;
+  height: 17px;
 }
 .rail-i em {
   font-style: normal;
@@ -357,7 +377,13 @@ function tileSide() {
   background: transparent;
   color: var(--text-tertiary);
   cursor: pointer;
-  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.rail-pin svg {
+  width: 15px;
+  height: 15px;
 }
 .rail-pin:hover {
   color: var(--text-secondary);

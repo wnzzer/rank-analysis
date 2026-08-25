@@ -5,6 +5,8 @@
  * label + hint 做大小写不敏感的包含匹配，命中即保留原序。
  */
 
+import type { Component } from 'vue'
+
 export interface PaletteCommand {
   /** 稳定 key，供键盘导航 diff 用 */
   key: string
@@ -14,8 +16,8 @@ export interface PaletteCommand {
   label: string
   /** 右侧弱化提示（快捷键/说明） */
   hint?: string
-  /** 图标字符（几何字形，非 emoji） */
-  icon?: string
+  /** Lucide 图标组件（markRaw 包装，禁止响应式代理） */
+  icon?: Component
   /** 执行动作 */
   run: () => void
 }

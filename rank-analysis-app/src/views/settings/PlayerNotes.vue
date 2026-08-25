@@ -7,7 +7,7 @@
 
       <n-alert type="default" :bordered="false" style="margin-bottom: var(--space-12)">
         <template #icon>
-          <n-icon><InformationCircleOutline /></n-icon>
+          <n-icon><Info /></n-icon>
         </template>
         备注仅保存在本机，换电脑或重装会丢失，也无法与他人共享。在对局玩家卡、玩家详情页点名字旁的标记即可添加。
       </n-alert>
@@ -22,7 +22,7 @@
       />
       <n-empty v-else description="还没有标记过任何人" style="padding: 32px 0">
         <template #icon>
-          <n-icon><BookmarksOutline /></n-icon>
+          <n-icon><BookMarked /></n-icon>
         </template>
       </n-empty>
     </n-card>
@@ -52,7 +52,7 @@ import {
   useMessage,
   type DataTableColumns
 } from 'naive-ui'
-import { InformationCircleOutline, BookmarksOutline } from '@vicons/ionicons5'
+import { Info, BookMarked } from 'lucide-vue-next'
 import { usePlayerNotesStore } from '@renderer/features/settings/stores/playerNotes'
 import { getNoteLabelMeta } from '@renderer/types/domain/playerNote'
 import PlayerNoteBadge from '@renderer/components/common/PlayerNoteBadge.vue'

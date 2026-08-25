@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="corner-card" :class="{ 'corner-card--emph': emphasis }">
     <div class="corner-card__in">
       <div
@@ -7,7 +7,9 @@
         :class="{ 'corner-card__head--clickable': collapsible }"
         @click="collapsible && $emit('update:collapsed', !collapsed)"
       >
-        <span v-if="collapsible" class="corner-card__chev" :class="{ open: !collapsed }">▾</span>
+        <span v-if="collapsible" class="corner-card__chev" :class="{ open: !collapsed }"
+          ><ChevronDown
+        /></span>
         <h3 class="corner-card__title">{{ title }}</h3>
         <span v-if="subtitle" class="corner-card__sub">{{ subtitle }}</span>
         <span class="corner-card__extra" @click.stop><slot name="extra" /></span>
@@ -20,6 +22,8 @@
 </template>
 
 <script setup lang="ts">
+import { ChevronDown } from 'lucide-vue-next'
+
 /**
  * CornerCard —— 设计系统 v3 万物容器（切角卡片基座）
  *
@@ -92,8 +96,12 @@ defineEmits<{ 'update:collapsed': [value: boolean] }>()
 }
 .corner-card__chev {
   color: var(--text-tertiary);
-  font-size: var(--font-size-xs);
+  display: inline-flex;
   transition: transform var(--dur-fast) var(--ease-expo);
+}
+.corner-card__chev svg {
+  width: 12px;
+  height: 12px;
 }
 .corner-card__chev.open {
   transform: rotate(0deg);

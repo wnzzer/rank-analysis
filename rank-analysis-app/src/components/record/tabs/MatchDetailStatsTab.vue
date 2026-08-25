@@ -10,7 +10,7 @@
         @update:value="scheduleFilter"
       >
         <template #prefix>
-          <n-icon :size="14"><SearchOutline /></n-icon>
+          <n-icon :size="14"><Search /></n-icon>
         </template>
       </n-input>
       <span class="match-detail-stats-count font-number">
@@ -226,7 +226,7 @@
 
 <script lang="ts" setup>
 import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { SearchOutline } from '@vicons/ionicons5'
+import { Search } from 'lucide-vue-next'
 import { NIcon, NInput, NTooltip } from 'naive-ui'
 import { matchDetailContextKey } from '../matchDetailContext'
 import {

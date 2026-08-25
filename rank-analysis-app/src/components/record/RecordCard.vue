@@ -165,14 +165,14 @@
 
       <!-- 展开箭头：就地展开时翻转朝上 -->
       <n-icon class="record-card-chevron" :class="{ 'record-card-chevron--expanded': expanded }">
-        <ChevronDownOutline />
+        <ChevronDown />
       </n-icon>
     </div>
   </div>
 </template>
 
 <script lang="ts" setup>
-import { ChevronDownOutline } from '@vicons/ionicons5'
+import { ChevronDown } from 'lucide-vue-next'
 import { computed, inject } from 'vue'
 import { NEllipsis, NIcon, NTooltip } from 'naive-ui'
 import { formatCompactNumber, formatGameDate } from '@renderer/utils/format'

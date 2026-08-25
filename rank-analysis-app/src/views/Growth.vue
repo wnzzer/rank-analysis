@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="growth">
     <PageHeader
       kicker="Growth Report"
@@ -16,7 +16,7 @@
     <p v-if="loading" class="psub growth-hint">正在聚合本机对局…</p>
     <EmptyState
       v-else-if="tagsMsg && !tags.length"
-      icon="⚠"
+      :icon="TriangleAlert"
       title="暂时拿不到短板数据"
       :description="tagsMsg"
     >
@@ -52,7 +52,7 @@
 
     <EmptyState
       v-else
-      icon="↗"
+      :icon="TrendingUp"
       title="暂无短板检出"
       description="收集满 5 局对局后会自动产出习惯标签；点「重新分析」可立即聚合一次。"
     />
@@ -89,7 +89,7 @@
       </ul>
       <EmptyState
         v-else
-        icon="▢"
+        :icon="Target"
         title="还没有目标"
         description="把上面的短板标签转成一条可执行目标吧。"
       />
@@ -108,6 +108,7 @@ import { useMessage } from 'naive-ui'
 import PageHeader from '../components/ui/PageHeader.vue'
 import CornerCard from '../components/ui/CornerCard.vue'
 import EmptyState from '../components/ui/EmptyState.vue'
+import { TriangleAlert, TrendingUp, Target } from 'lucide-vue-next'
 import {
   addHabitGoal,
   DIMENSION_FIX_HINTS,

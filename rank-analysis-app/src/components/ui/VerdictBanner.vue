@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="vb" :class="stateClass" role="status">
     <ChargeRing
       v-if="state !== 'idle'"
@@ -29,7 +29,7 @@
         @click="$emit('switchTier')"
         @keyup.enter="$emit('switchTier')"
       >
-        {{ tierLabel }} ▾
+        {{ tierLabel }} <ChevronDown class="vb__tiersel-glyph" />
       </span>
     </div>
   </div>
@@ -47,6 +47,7 @@
  * 尺寸由容器决定（deck 模式放大字号），本组件只管状态语义。
  */
 import { computed } from 'vue'
+import { ChevronDown } from 'lucide-vue-next'
 import ChargeRing from './ChargeRing.vue'
 
 const props = withDefaults(
@@ -214,5 +215,10 @@ const stateClass = computed(() =>
   padding: 4px 12px;
   cursor: pointer;
   clip-path: var(--clip-notch);
+}
+.vb__tiersel-glyph {
+  width: 10px;
+  height: 10px;
+  vertical-align: -1px;
 }
 </style>

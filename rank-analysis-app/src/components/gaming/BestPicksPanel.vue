@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div v-if="visible" class="best-picks-panel" :class="{ 'panel-error': error }">
     <n-popover trigger="click" :width="460" :show-arrow="false">
       <template #trigger>
@@ -42,7 +42,7 @@
           </span>
           <span v-else-if="error" class="bp-error-text">OP.GG 数据未就绪</span>
           <span v-else class="bp-empty-text">{{ emptyText }}</span>
-          <span class="bp-expand-hint">▼ {{ expandHint }}</span>
+          <span class="bp-expand-hint"><ChevronDown class="bp-hint-glyph" /> {{ expandHint }}</span>
         </div>
       </template>
       <div class="bp-panel-content">
@@ -198,6 +198,7 @@
 </template>
 
 <script setup lang="ts">
+import { ChevronDown } from 'lucide-vue-next'
 /**
  * 已亮阵容 → 我方最优推荐条（P2 对位 + P3 协同双维）。
  *
@@ -773,6 +774,11 @@ function championName(id: number): string {
   margin-left: 4px;
   font-size: 11px;
   opacity: 0.5;
+}
+.bp-hint-glyph {
+  width: 10px;
+  height: 10px;
+  vertical-align: -1px;
 }
 
 .bp-panel-content {

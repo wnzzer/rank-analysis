@@ -105,7 +105,7 @@
                     copy(sessionSummoner.summoner.gameName + '#' + sessionSummoner.summoner.tagLine)
                   "
                 >
-                  <n-icon><copy-outline /></n-icon>
+                  <n-icon><Copy /></n-icon>
                 </n-button>
                 <PlayerNoteBadge
                   v-if="sessionSummoner.summoner.puuid"
@@ -120,7 +120,7 @@
                 <span class="tag-line">#{{ sessionSummoner?.summoner.tagLine }}</span>
                 <n-flex align="center" class="tier-row">
                   <span v-if="imgUrl.includes('unranked')" class="tier-icon-placeholder">
-                    <n-icon><HelpCircleOutline /></n-icon>
+                    <n-icon><CircleHelp /></n-icon>
                   </span>
                   <LazyImg v-else class="tier-icon" :src="imgUrl" alt="tier" />
                   <span class="tier-text">{{ tierCn }}</span>
@@ -231,7 +231,7 @@ import {
   NTag,
   NTooltip
 } from 'naive-ui'
-import { CopyOutline, HelpCircleOutline } from '@vicons/ionicons5'
+import { CircleHelp, Copy } from 'lucide-vue-next'
 import MettingPlayersCard from './MettingPlayersCard.vue'
 import { useCopy } from '@renderer/composables/useCopy'
 import { searchSummoner } from '@renderer/utils/navigation'

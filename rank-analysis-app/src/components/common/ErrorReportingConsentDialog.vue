@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <n-modal
     :show="show"
     :mask-closable="false"
@@ -12,7 +12,7 @@
 
       <!-- 图标光环 -->
       <div class="consent-icon-halo">
-        <n-icon class="consent-icon"><ShieldCheckmarkOutline /></n-icon>
+        <n-icon class="consent-icon"><ShieldCheck /></n-icon>
       </div>
 
       <h2 id="consent-title" class="consent-title">帮助改进应用？</h2>
@@ -22,7 +22,7 @@
       <ul class="consent-points">
         <li class="consent-point" style="--i: 0">
           <span class="consent-point-icon"
-            ><n-icon><LockClosedOutline /></n-icon
+            ><n-icon><Lock /></n-icon
           ></span>
           <span class="consent-point-text">
             <span class="consent-point-title">只发报错堆栈</span>
@@ -31,7 +31,7 @@
         </li>
         <li class="consent-point" style="--i: 1">
           <span class="consent-point-icon"
-            ><n-icon><CodeSlashOutline /></n-icon
+            ><n-icon><CodeXml /></n-icon
           ></span>
           <span class="consent-point-text">
             <span class="consent-point-title">开源可查</span>
@@ -40,7 +40,7 @@
         </li>
         <li class="consent-point" style="--i: 2">
           <span class="consent-point-icon"
-            ><n-icon><ToggleOutline /></n-icon
+            ><n-icon><ToggleLeft /></n-icon
           ></span>
           <span class="consent-point-text">
             <span class="consent-point-title">默认关闭，随时可关</span>
@@ -76,12 +76,7 @@
  * @see commit 6163f86（Sentry opt-in 接入）
  */
 import { NModal, NIcon, NButton } from 'naive-ui'
-import {
-  ShieldCheckmarkOutline,
-  LockClosedOutline,
-  CodeSlashOutline,
-  ToggleOutline
-} from '@vicons/ionicons5'
+import { ShieldCheck, Lock, CodeXml, ToggleLeft } from 'lucide-vue-next'
 
 defineProps<{
   /** 是否显示 */

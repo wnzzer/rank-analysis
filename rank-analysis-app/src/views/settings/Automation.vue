@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <n-space vertical>
     <!-- Basic settings card -->
     <n-card>
@@ -7,7 +7,7 @@
         <div class="setting-item">
           <span class="setting-label">
             <n-icon size="20" class="setting-item-icon setting-item-icon-accept">
-              <FlashOutline />
+              <Zap />
             </n-icon>
             自动接受对局
           </span>
@@ -17,7 +17,7 @@
         <div class="setting-item">
           <span class="setting-label">
             <n-icon size="20" class="setting-item-icon setting-item-icon-start">
-              <PlayCircleOutline />
+              <CirclePlay />
             </n-icon>
             自动开始匹配
           </span>
@@ -27,7 +27,7 @@
         <div class="setting-item">
           <span class="setting-label">
             <n-icon size="20" class="setting-item-icon setting-item-icon-start">
-              <BulbOutline />
+              <Lightbulb />
             </n-icon>
             智能推荐（英雄池 / Ban 池）
           </span>
@@ -54,7 +54,7 @@
       <template #header>
         <span class="setting-label">
           <n-icon size="20" class="setting-item-icon setting-item-icon-pick">
-            <CheckmarkCircleOutline />
+            <CircleCheck />
           </n-icon>
           自动选择英雄
         </span>
@@ -153,7 +153,7 @@
       <template #header>
         <span class="setting-label">
           <n-icon size="20" color="#d03050">
-            <Close />
+            <X />
           </n-icon>
           自动禁止英雄
         </span>
@@ -255,7 +255,7 @@
       <template #header>
         <span class="setting-label">
           <n-icon size="20" color="#18a058">
-            <FlashOutline />
+            <Zap />
           </n-icon>
           选人执行偏好
         </span>
@@ -289,7 +289,7 @@
       <template #header>
         <span class="setting-label">
           <n-icon size="20" color="#f0a020">
-            <ColorWandOutline />
+            <WandSparkles />
           </n-icon>
           自动符文
         </span>
@@ -338,14 +338,7 @@ import { VueDraggable } from 'vue-draggable-plus'
 import { computed, onMounted, ref } from 'vue'
 import { useMessage } from 'naive-ui'
 import { renderSingleSelectTag, renderLabel, filterChampionFunc } from '@renderer/utils/champion'
-import {
-  CheckmarkCircleOutline,
-  FlashOutline,
-  Close,
-  PlayCircleOutline,
-  BulbOutline,
-  ColorWandOutline
-} from '@vicons/ionicons5'
+import { CircleCheck, Zap, X, CirclePlay, Lightbulb, WandSparkles } from 'lucide-vue-next'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import { assetPrefix } from '@renderer/services/http'
 import type { championOption } from '@renderer/types/domain/champion'
