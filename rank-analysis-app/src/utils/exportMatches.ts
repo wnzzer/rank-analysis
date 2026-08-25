@@ -1,9 +1,11 @@
 /**
- * 战绩清单导出 CSV（纯本地）：拼装 UTF-8 BOM + CRLF 的 CSV 文本，
- * 经 Rust 侧系统保存对话框落盘（webview 不持有裸路径）。
+ * 战绩清单导出（纯本地）：CSV（基础/完整字段）与 JSON 全量两种格式。
+ * 文本经 Rust 侧系统保存对话框落盘（webview 不持有裸路径）。
  */
 import { invoke } from '@tauri-apps/api/core'
 import type { Game } from '../types/domain/match'
+
+export type ExportFormat = 'csv' | 'csv-full' | 'json'
 
 /** CSV 字段转义：含引号/逗号/换行时包引号并双写内部引号 */
 function csvEscape(value: string | number): string {
@@ -17,26 +19,54 @@ function formatDuration(seconds: number): string {
   return `${m}:${String(s).padStart(2, '0')}`
 }
 
-export function gamesToCsv(games: Game[], champLabel: (championId: number) => string): string {
-  const head = ['对局时间', '模式', '英雄', '结果', '击杀', '死亡', '助攻', 'KDA', '时长']
-  const rows = games.map(g => {
-    const p = g.participants[0]
-    const st = p.stats
-    const kda = st.deaths === 0 ? 'Perfect' : ((st.kills + st.assists) / st.deaths).toFixed(2)
-    return [
-      g.gameCreationDate,
-      g.queueName || g.gameMode,
-      champLabel(p.championId),
-      st.win ? '胜' : '负',
-      st.kills,
-      st.deaths,
-      st.assists,
-      kda,
-      formatDuration(g.gameDuration)
-    ]
-  })
+const CSV_HEAD_BASE = ['对局时间', '模式', '英雄', '结果', '击杀', '死亡', '助攻', 'KDA', '时长']
+const CSV_HEAD_EXTRA = ['补刀', '经济', '视野']
+
+function gameRow(
+  g: Game,
+  champLabel: (championId: number) => string,
+  extended: boolean
+): Array<string | number> {
+  const p = g.participants[0]
+  const st = p.stats
+  const kda = st.deaths === 0 ? 'Perfect' : ((st.kills + st.assists) / st.deaths).toFixed(2)
+  const base = [
+    g.gameCreationDate,
+    g.queueName || g.gameMode,
+    champLabel(p.championId),
+    st.win ? '胜' : '负',
+    st.kills,
+    st.deaths,
+    st.assists,
+    kda,
+    formatDuration(g.gameDuration)
+  ]
+  if (!extended) return base
+  return [...base, st.totalMinionsKilled ?? '', st.goldEarned ?? '', st.visionScore ?? '']
+}
+
+export function gamesToCsv(
+  games: Game[],
+  champLabel: (championId: number) => string,
+  extended = false
+): string {
+  const head = extended ? [...CSV_HEAD_BASE, ...CSV_HEAD_EXTRA] : CSV_HEAD_BASE
   // BOM：让 Excel 按 UTF-8 打开中文不乱码；行尾 CRLF 兼容 Excel 换行
-  return '\uFEFF' + [head, ...rows].map(r => r.map(csvEscape).join(',')).join('\r\n')
+  return (
+    '\uFEFF' +
+    [head, ...games.map(g => gameRow(g, champLabel, extended))]
+      .map(r => r.map(csvEscape).join(','))
+      .join('\r\n')
+  )
+}
+
+/** JSON 全量导出：完整 Game 结构 + 元信息，可 roundtrip 还原 */
+export function gamesToJson(games: Game[]): string {
+  return JSON.stringify(
+    { exportedAt: new Date().toISOString(), count: games.length, games },
+    null,
+    2
+  )
 }
 
 function stamp(): string {
@@ -47,14 +77,24 @@ function stamp(): string {
 
 export type ExportResult = { status: 'saved'; path: string } | { status: 'cancelled' }
 
+export interface ExportOptions {
+  format?: ExportFormat
+  /** CSV 完整字段开关（json 恒为全量，忽略此项） */
+  extended?: boolean
+}
+
 /** 弹保存对话框并写入；用户取消返回 cancelled */
-export async function exportMatchesCsv(
+export async function exportMatches(
   games: Game[],
-  champLabel: (championId: number) => string
+  champLabel: (championId: number) => string,
+  options: ExportOptions = {}
 ): Promise<ExportResult> {
+  const { format = 'csv', extended = false } = options
+  const ext = format === 'json' ? 'json' : 'csv'
+  const contents = format === 'json' ? gamesToJson(games) : gamesToCsv(games, champLabel, extended)
   const path = await invoke<string | null>('save_text_file', {
-    fileName: `rank-analysis-matches-${stamp()}.csv`,
-    contents: gamesToCsv(games, champLabel)
+    fileName: `rank-analysis-matches-${stamp()}.${ext}`,
+    contents
   })
   return path ? { status: 'saved', path } : { status: 'cancelled' }
 }

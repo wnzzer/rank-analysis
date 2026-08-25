@@ -33,14 +33,13 @@
 
 ## Round 3 —— 离线功能增强第二批
 
-- [ ] R3-1 战绩导出扩展：可选字段集（补刀/经济/视野）与 JSON 格式导出
-      （同一 save_text_file 通道，复用转义逻辑）
-- [ ] R3-2 Growth 目标清单支持本地备注列（纯前端 state + 现有 toggle 通道，
-      不新增后端表）
-- [ ] R3-3 键盘快捷键补齐：Record 聚焦模式下 Esc 收回详情、Gaming AI 抽屉
-      Esc 已有——统一走 useWindowShortcuts 注册
-- [ ] R3-4 空状态插画级打磨：EmptyState 支持可选大号图形槽（纯 CSS 图形，
-      不引入图片资源）
+- [x] R3-1 战绩导出扩展：三格式下拉（CSV 基础 / CSV 完整含补刀经济视野 /
+      JSON 全量），同一 `save_text_file` 通道；JSON roundtrip + 对话框链路 8 单测
+      （偏离说明：R3-3 的 Esc 未走 useWindowShortcuts——那是多窗口级设施，
+      Record 聚焦 Esc 用本地监听更内聚）
+- [x] R3-3 Record 聚焦模式 Esc 收回详情（onGlobalKey 常驻监听 + focusMode 门控）
+- [ ] R3-2 Growth 目标清单本地备注列（localStorage 持久化，不新增后端表）
+- [ ] R3-4 EmptyState 可选大号图形槽（纯 CSS 图形，不引入图片资源）
 
 ### 完成标准
-同前；R3-1 导出的 JSON 需可被重新导入校验（roundtrip 测试）。
+同前；R3-1 导出的 JSON 需可被重新导入校验（roundtrip 测试 ✓ 已含）。

@@ -113,7 +113,7 @@
   </div>
 </template>
 <script lang="ts" setup>
-import { onBeforeUnmount, computed, ref, watch, type ComponentPublicInstance } from 'vue'
+import { onMounted, onBeforeUnmount, computed, ref, watch, type ComponentPublicInstance } from 'vue'
 import { useRoute } from 'vue-router'
 import { NButton, NIcon, NDrawer, NDrawerContent } from 'naive-ui'
 import { ArrowUp, Menu } from 'lucide-vue-next'
@@ -139,6 +139,14 @@ function onSelectGame(g: Game | null) {
 }
 /** 聚焦模式：宽屏详情展开时隐藏左栏与列表，整页只留详情（收回恢复） */
 const focusMode = computed(() => widePane.value && !!selectedGame.value)
+
+/** 聚焦模式下 Esc 收回详情 */
+function onGlobalKey(e: KeyboardEvent) {
+  if (e.key === 'Escape' && focusMode.value) {
+    e.preventDefault()
+    onSelectGame(null)
+  }
+}
 const regionQuery = computed(() => (route.query.region as string) ?? '')
 /** 窄窗左栏抽屉开关（进入宽窗时自动关闭，避免跨断点残留） */
 const sideOpen = ref(false)
@@ -170,7 +178,12 @@ function bindContentScroll(el: Element | ComponentPublicInstance | null) {
   showBackTop.value = (target?.scrollTop ?? 0) > BACK_TOP_THRESHOLD
 }
 
+onMounted(() => {
+  window.addEventListener('keydown', onGlobalKey)
+})
+
 onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onGlobalKey)
   contentEl.value?.removeEventListener('scroll', onContentScroll)
 })
 const {
