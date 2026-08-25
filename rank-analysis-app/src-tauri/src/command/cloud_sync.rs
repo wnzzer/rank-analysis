@@ -365,9 +365,12 @@ pub async fn save_text_file(
     contents: String,
 ) -> Result<Option<String>, String> {
     let (tx, rx) = tokio::sync::oneshot::channel::<Option<tauri_plugin_dialog::FilePath>>();
-    app.dialog().file().set_file_name(file_name).save_file(move |file| {
-        let _ = tx.send(file);
-    });
+    app.dialog()
+        .file()
+        .set_file_name(file_name)
+        .save_file(move |file| {
+            let _ = tx.send(file);
+        });
     let picked = rx.await.map_err(|_| "文件对话框已关闭".to_string())?;
     let Some(file) = picked else {
         return Ok(None);
