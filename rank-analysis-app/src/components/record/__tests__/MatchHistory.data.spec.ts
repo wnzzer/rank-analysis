@@ -198,6 +198,9 @@ describe('MatchHistory 数据流(M1 B-测试)', () => {
   vi.setConfig({ testTimeout: 30000 })
 
   beforeEach(() => {
+    // 隔离筛选持久化：上一用例写入的筛选会经 restoreFilters 污染后续挂载
+    localStorage.removeItem('record.matchFilters')
+    sessionStorage.removeItem('record.focusGameId')
     Object.defineProperty(Element.prototype, 'scrollIntoView', {
       value: vi.fn(),
       writable: true,
