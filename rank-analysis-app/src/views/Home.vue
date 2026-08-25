@@ -279,7 +279,9 @@ function onStagePointer(e: PointerEvent) {
 }
 
 const titleText = computed(() =>
-  connected.value && summoner.value ? `${summoner.value.gameName}#${summoner.value.tagLine}` : 'FORGE YOUR RANK'
+  connected.value && summoner.value
+    ? `${summoner.value.gameName}#${summoner.value.tagLine}`
+    : 'FORGE YOUR RANK'
 )
 
 /* ---------- 问候 / 阶段 ---------- */
