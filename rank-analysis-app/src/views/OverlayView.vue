@@ -15,13 +15,20 @@ const actions = ref<NextAction[]>([])
 const visible = ref(false)
 const prefs = ref<OverlayPrefs>(loadOverlayPrefs())
 
-const shown = computed(() => actions.value.slice(0, prefs.value.maxItems))
+/** 屏幕高度自适应：每条约 26px，预留头部与边距，避免低分辨率下溢出屏幕 */
+const maxByHeight = ref(99)
+function updateMaxByHeight(): void {
+  maxByHeight.value = Math.max(1, Math.floor((window.innerHeight - 64) / 26))
+}
+const shown = computed(() => actions.value.slice(0, Math.min(prefs.value.maxItems, maxByHeight.value)))
 const cardStyle = computed(() => ({ opacity: String(prefs.value.opacity) }))
 
 let unlistenUpdate: UnlistenFn | null = null
 let unlistenConfig: UnlistenFn | null = null
 
 onMounted(async () => {
+  updateMaxByHeight()
+  window.addEventListener('resize', updateMaxByHeight)
   // listen 失败（如 capability 缺失被 ACL 拒绝）不能让 Promise 悬空成
   // unhandled rejection：记日志并保持 UI 可用（后续轮询推送仍会重试投递）。
   try {
@@ -42,6 +49,7 @@ onMounted(async () => {
 onUnmounted(() => {
   unlistenUpdate?.()
   unlistenConfig?.()
+  window.removeEventListener('resize', updateMaxByHeight)
 })
 </script>
 

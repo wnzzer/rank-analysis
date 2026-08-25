@@ -160,3 +160,44 @@ describe('exportMatches 对话框链路', () => {
     }
   })
 })
+
+describe('对手英雄列回退配对', () => {
+  function makeFullGame(withPositions: boolean): Game {
+    const participants = Array.from({ length: 10 }, (_, i) => {
+      const pid = i + 1
+      return {
+        win: pid <= 5,
+        participantId: pid,
+        teamId: pid <= 5 ? 100 : 200,
+        championId: 100 + pid,
+        spell1Id: 4,
+        spell2Id: 12,
+        ...(withPositions
+          ? { teamPosition: ['top', 'jug', 'mid', 'bot', 'sup'][(pid - 1) % 5] }
+          : {}),
+        stats: makeGame().participants[0].stats
+      }
+    }) as Game['participants']
+    const base = makeGame()
+    return { ...base, participants }
+  }
+
+  it('无 teamPosition 时按 participantId ±5 镜像配对', () => {
+    const g = makeFullGame(false)
+    const csv = gamesToCsv([g], label)
+    expect(csv).toContain('英雄101,蓝,胜,8,2,6,7.00,25:30,106')
+  })
+
+  it('非 10 人局不启用回退（留空不编造）', () => {
+    const g = makeFullGame(false)
+    ;(g as { participants: unknown }).participants = g.participants.slice(0, 2)
+    const csv = gamesToCsv([g], label)
+    expect(csv.split('\r\n')[1].endsWith('25:30,')).toBe(true)
+  })
+
+  it('有 teamPosition 时优先按位置匹配', () => {
+    const g = makeFullGame(true)
+    const csv = gamesToCsv([g], label)
+    expect(csv.trim().endsWith(',106')).toBe(true)
+  })
+})

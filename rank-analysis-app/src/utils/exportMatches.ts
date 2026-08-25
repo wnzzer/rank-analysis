@@ -38,16 +38,32 @@ const CSV_HEAD_EXTRA = ['补刀', '经济', '视野']
 interface DetailParticipant {
   teamId: number
   championId: number
+  participantId: number
   teamPosition?: string
 }
 
-/** 找对位敌人：优先按 teamPosition 匹配；无对位信息时返回空串（不编造） */
+/** 找对位敌人：
+ *  1) 优先按 teamPosition 匹配；
+ *  2) 缺失时按标准 10 人局 participantId ±5 约定配对（100 队 1-5 ↔ 200 队 6-10）；
+ *  3) 非 10 人局或 id 布局不符 → 返回空串（不编造） */
 function findOpponentChampion(game: Game, me: Game['participants'][number]): string {
   const pos = (me as DetailParticipant).teamPosition
-  if (!pos || pos === 'UNKNOWN') return ''
   const enemies = game.participants.filter(p => p.teamId !== me.teamId) as DetailParticipant[]
-  const opp = enemies.find(e => e.teamPosition === pos)
-  return opp ? String(opp.championId) : ''
+  if (pos && pos !== 'UNKNOWN') {
+    const opp = enemies.find(e => e.teamPosition === pos)
+    if (opp) return String(opp.championId)
+  }
+  // 回退：标准 5v5 的 id 镜像配对
+  if (game.participants.length === 10 && alliesOf(game, me.teamId) === 5) {
+    const oppId = me.participantId > 5 ? me.participantId - 5 : me.participantId + 5
+    const opp = enemies.find(e => e.participantId === oppId)
+    if (opp) return String(opp.championId)
+  }
+  return ''
+}
+
+function alliesOf(game: Game, teamId: number): number {
+  return game.participants.filter(p => p.teamId === teamId).length
 }
 
 function gameRow(
@@ -71,7 +87,7 @@ function gameRow(
     formatDuration(g.gameDuration),
     findOpponentChampion(g, p)
   ]
-  if (!extended) return base.slice(0, base.length - 1)
+  if (!extended) return base
   return [...base, st.totalMinionsKilled ?? '', st.goldEarned ?? '', st.visionScore ?? '']
 }
 export function gamesToCsv(
