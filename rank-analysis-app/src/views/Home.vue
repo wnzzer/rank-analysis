@@ -1,59 +1,84 @@
 ﻿<template>
   <div class="home">
-    <!-- ===== 沉浸层：熔炉余烬 Hero ===== -->
-    <section class="hero" :class="{ 'hero--cold': !connected }">
-      <canvas ref="emberCanvas" class="hero__canvas" aria-hidden="true"></canvas>
-      <div class="hero__veil" aria-hidden="true"></div>
+    <!-- ===== S1 · 沉浸舞台 ===== -->
+    <section ref="stageEl" class="stage">
+      <canvas ref="emberCanvas" class="stage__ember" aria-hidden="true"></canvas>
+      <div class="stage__shards" aria-hidden="true">
+        <svg
+          v-for="(s, i) in shards"
+          :key="i"
+          class="shard"
+          :style="{
+            left: s.x,
+            top: s.y,
+            width: s.size,
+            '--p': s.depth,
+            '--float-d': s.floatDur + 's',
+            animationDelay: s.delay
+          }"
+          viewBox="0 0 100 100"
+          fill="none"
+        >
+          <polygon
+            points="50,3 93,26 93,74 50,97 7,74 7,26"
+            stroke="currentColor"
+            stroke-width="2"
+          />
+        </svg>
+      </div>
+      <div class="stage__veil" aria-hidden="true"></div>
 
-      <div class="hero__inner">
-        <p class="hero__kicker reveal" style="--d: 0">
-          <span class="hero__rule" aria-hidden="true"></span>
-          HOME · {{ greeting }}，召唤师
+      <div class="stage__content">
+        <p class="stage__kicker reveal" style="--d: 0">
+          <span class="kicker-dot" aria-hidden="true"></span>
+          {{ greeting }}，召唤师 —— FORGE CONSOLE
         </p>
 
-        <h1 class="hero__title reveal" style="--d: 60ms" :aria-label="titleText">
-          <span
-            v-for="(ch, i) in titleChars"
-            :key="i"
-            class="hero__ch"
-            :class="{ 'hero__ch--tag': ch.char === '#' }"
-            :style="{ '--d': 120 + i * 40 + 'ms' }"
-            >{{ ch.char === ' ' ? '\u00A0' : ch.char }}</span
-          >
+        <h1 class="stage__title" :aria-label="titleText">
+          <span class="stage__line reveal" style="--d: 60ms">{{
+            connected && summoner ? summoner.gameName : 'FORGE'
+          }}</span>
+          <span class="stage__line stage__line--ghost reveal" style="--d: 160ms">
+            <template v-if="connected && summoner">#{{ summoner.tagLine }}</template>
+            <template v-else>YOUR RANK</template>
+          </span>
         </h1>
 
-        <div class="hero__meta reveal" style="--d: 260ms">
+        <div class="stage__meta reveal" style="--d: 280ms">
           <span class="pulse-dot" :class="{ 'pulse-dot--on': connected }"></span>
-          <span class="hero__meta-main">{{ connected ? phaseText : offTitle }}</span>
-          <span class="hero__meta-sep" aria-hidden="true">/</span>
-          <span class="hero__meta-sub">{{
+          <span>{{ connected ? phaseText : offTitle }}</span>
+          <span class="meta-sep" aria-hidden="true">/</span>
+          <span class="meta-sub">{{
             connected ? '客户端运行中' : '启动后自动同步段位与战绩'
           }}</span>
         </div>
       </div>
 
-      <div class="ticker" role="status">
-        <div class="ticker__track">
-          <span v-for="copy in 2" :key="copy" class="ticker__copy" :aria-hidden="copy === 2">
-            <span v-for="(it, i) in tickerItems" :key="i" class="ticker__item">
-              <component :is="it.icon" class="ticker__icon" />{{ it.text }}
-              <Diamond class="ticker__sep" />
-            </span>
-          </span>
-        </div>
+      <div class="scroll-cue reveal" style="--d: 600ms" aria-hidden="true">
+        <ChevronDown class="cue-icon" />
+        <span class="cue-text">SCROLL</span>
       </div>
     </section>
 
-    <!-- ===== 功能舱 ===== -->
+    <!-- ===== S2 · 描边巨幕走马灯 ===== -->
+    <div class="gmarquee" aria-hidden="true">
+      <div class="gmarquee__track">
+        <span v-for="copy in 2" :key="copy" class="gmarquee__copy">
+          <span
+            v-for="word in ['FORGE YOUR RANK', 'RANK ANALYSIS', 'RISE ABOVE']"
+            :key="word"
+            class="gmarquee__word"
+          >
+            {{ word }}<Diamond class="gmarquee__sep"
+          /></span>
+        </span>
+      </div>
+    </div>
+
+    <!-- ===== S3 · 功能舱 ===== -->
     <div class="home__inner">
       <div class="home__grid home__grid--main">
-        <!-- 客户端状态卡：原 /Loading 页职责并入（v2 壳层） -->
-        <CornerCard
-          title="客户端状态"
-          :emphasis="!connected"
-          class="home__status reveal"
-          style="--d: 120ms"
-        >
+        <CornerCard title="客户端状态" :emphasis="!connected" class="reveal" style="--d: 80ms">
           <template #extra
             ><span v-if="connected" class="tagp win"
               ><i class="dot dot--win"></i>在线</span
@@ -93,13 +118,12 @@
           </div>
         </CornerCard>
 
-        <!-- 短板提醒：来自成长页的习惯标签聚合 -->
         <CornerCard
           title="短板提醒"
           subtitle="近 20 场聚合"
           emphasis
-          class="home__shorts reveal"
-          style="--d: 200ms"
+          class="reveal"
+          style="--d: 160ms"
         >
           <template #extra
             ><button class="btn gho sm" @click="go('Growth')">去成长 →</button></template
@@ -129,32 +153,42 @@
       </div>
 
       <div class="home__grid home__grid--sub">
-        <CornerCard title="快捷入口" class="reveal" style="--d: 280ms">
-          <button class="qentry" @click="openPalette" @pointermove="tilt" @pointerleave="untilt">
+        <CornerCard title="快捷入口" class="reveal" style="--d: 240ms">
+          <button class="qentry" @click="openPalette">
+            <span class="qentry__idx num">01</span>
             <span class="ic"><Search /></span>
             <span class="qentry__label">查询玩家战绩</span>
             <span class="kbd q-kbd">Ctrl K</span>
+            <ArrowUpRight class="qentry__arrow" />
           </button>
-          <button class="qentry" @click="goRecordSelf" @pointermove="tilt" @pointerleave="untilt">
+          <button class="qentry" @click="goRecordSelf">
+            <span class="qentry__idx num">02</span>
             <span class="ic"><ScrollText /></span>
             <span class="qentry__label">查看我的战绩</span>
+            <ArrowUpRight class="qentry__arrow" />
           </button>
-          <button class="qentry" @click="go('Library')" @pointermove="tilt" @pointerleave="untilt">
+          <button class="qentry" @click="go('Library')">
+            <span class="qentry__idx num">03</span>
             <span class="ic"><LibraryBig /></span>
             <span class="qentry__label">资产库 · 标签与标记</span>
+            <ArrowUpRight class="qentry__arrow" />
           </button>
-          <button class="qentry" @click="go('Settings')" @pointermove="tilt" @pointerleave="untilt">
+          <button class="qentry" @click="go('Settings')">
+            <span class="qentry__idx num">04</span>
             <span class="ic"><Settings /></span>
             <span class="qentry__label">设置</span>
+            <ArrowUpRight class="qentry__arrow" />
           </button>
         </CornerCard>
 
-        <CornerCard title="最近动态" class="reveal" style="--d: 340ms">
+        <CornerCard title="最近动态" class="reveal" style="--d: 320ms">
           <div class="qentry qentry--static">
+            <span class="qentry__idx num">··</span>
             <span class="ic"><Sparkles /></span>
             <span class="psub">选人期推荐 / 对局信号会在进入英雄选择后自动出现在「对局」页</span>
           </div>
           <div class="qentry qentry--static">
+            <span class="qentry__idx num">··</span>
             <span class="ic"><Columns2 /></span>
             <span class="psub">战绩子窗口支持并排对比：在战绩页打开详情后按 Ctrl+Tab 切换窗口</span>
           </div>
@@ -166,17 +200,15 @@
 
 <script setup lang="ts">
 /**
- * Home —— 主页仪表盘 · 标杆展示页（设计系统 v3 §C1 + 4A 升级）
+ * Home —— 主页 · 旗舰沉浸页（ui-ux-pro-max 设计系统落地）
  *
- * 沉浸层：熔炉余烬粒子场（useEmberField）+ 超大逐字排版 + 动态 ticker；
- * 物理动效：入口 stagger / 快捷入口磁吸 tilt；全部尊重 prefers-reduced-motion。
+ * 检索结论：Immersive/Interactive 模式 + Dark OLED 底 + Kinetic Motion 字组
+ * （Syncopate 显示体 / Space Mono 数据体）+ 多层视差（3 层）+ 物理光效；
+ * 红线：prefers-reduced-motion 全降级、transform/opacity 动画、对比度达标。
  *
- * 功能契约不变：
- * - 原 /Loading 的连接门职责并入「客户端状态卡」（含一键启动 / 管理员重启）；
- * - 成长短板 Top3 直达转化（转目标）；
- * - 快捷入口统一走 CommandPalette / 路由，不重复业务逻辑。
+ * 功能契约不变：连接门（启动/管理员重启）、短板转目标、命令面板入口。
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useMessage } from 'naive-ui'
 import { invoke } from '@tauri-apps/api/core'
@@ -194,8 +226,8 @@ import {
   Columns2,
   Circle,
   ArrowRight,
-  Swords,
-  ShieldCheck,
+  ArrowUpRight,
+  ChevronDown,
   Diamond
 } from 'lucide-vue-next'
 import { useGameState } from '../composables/useGameState'
@@ -207,7 +239,7 @@ const router = useRouter()
 const message = useMessage()
 const { isConnected: connected, summoner, reasonCode, reasonMessage, currentPhase } = useGameState()
 
-/* ---------- 沉浸层 ---------- */
+/* ---------- 沉浸层：余烬场 + 视差 ---------- */
 const reducedMotion = ref(
   typeof window !== 'undefined' && typeof window.matchMedia === 'function'
     ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -216,34 +248,41 @@ const reducedMotion = ref(
 const emberCanvas = ref<HTMLCanvasElement | null>(null)
 useEmberField(emberCanvas, { cold: computed(() => !connected.value) })
 
-const titleText = computed(() =>
-  connected.value && summoner.value
-    ? `${summoner.value.gameName}#${summoner.value.tagLine}`
-    : 'RANK ANALYSIS'
-)
-const titleChars = computed(() => Array.from(titleText.value).map(char => ({ char })))
+/** 六边形碎片层：视差系数 --p 越大位移越强 */
+const shards = [
+  { x: '8%', y: '18%', size: '92px', depth: 1.4, floatDur: 9, delay: '0s' },
+  { x: '78%', y: '12%', size: '56px', depth: 2.2, floatDur: 7, delay: '-2s' },
+  { x: '88%', y: '58%', size: '128px', depth: 0.9, floatDur: 11, delay: '-4s' },
+  { x: '16%', y: '66%', size: '44px', depth: 2.6, floatDur: 8, delay: '-1s' },
+  { x: '58%', y: '76%', size: '70px', depth: 1.8, floatDur: 10, delay: '-5s' }
+]
 
-const tickerItems = computed(() => [
-  { icon: Swords, text: connected.value ? phaseText.value : offTitle.value },
-  { icon: Search, text: 'Ctrl K 唤起命令面板' },
-  { icon: Columns2, text: '战绩详情并排对比 · Ctrl+Tab 切换窗口' },
-  { icon: ShieldCheck, text: '数据仅存本地 · 云同步可选' }
-])
+const stageEl = ref<HTMLElement | null>(null)
+let parallaxRaf = 0
+let pmx = 0
+let pmy = 0
 
-/** 磁吸微倾斜（仅鼠标、非减弱动效） */
-function tilt(e: PointerEvent) {
+function applyParallax() {
+  parallaxRaf = 0
+  const el = stageEl.value
+  if (!el) return
+  el.style.setProperty('--mx', pmx.toFixed(3))
+  el.style.setProperty('--my', pmy.toFixed(3))
+}
+function onStagePointer(e: PointerEvent) {
   if (reducedMotion.value || e.pointerType !== 'mouse') return
-  const el = e.currentTarget as HTMLElement
-  const r = el.getBoundingClientRect()
-  const px = (e.clientX - r.left) / r.width - 0.5
-  const py = (e.clientY - r.top) / r.height - 0.5
-  el.style.transform = `perspective(600px) rotateX(${(-py * 5).toFixed(2)}deg) rotateY(${(px * 7).toFixed(2)}deg)`
-}
-function untilt(e: PointerEvent) {
-  ;(e.currentTarget as HTMLElement).style.transform = ''
+  const r = stageEl.value?.getBoundingClientRect()
+  if (!r) return
+  pmx = (e.clientX - r.left) / r.width - 0.5
+  pmy = (e.clientY - r.top) / r.height - 0.5
+  if (!parallaxRaf) parallaxRaf = requestAnimationFrame(applyParallax)
 }
 
-/* ---------- 问候 ---------- */
+const titleText = computed(() =>
+  connected.value && summoner.value ? `${summoner.value.gameName}#${summoner.value.tagLine}` : 'FORGE YOUR RANK'
+)
+
+/* ---------- 问候 / 阶段 ---------- */
 const greeting = computed(() => {
   const h = new Date().getHours()
   if (h < 6) return '夜深了'
@@ -294,7 +333,6 @@ async function launchLeague() {
   launching.value = true
   try {
     await launchLeagueByIpc()
-    // 拉起成功保持 loading 态，等 game_state_monitor 推送连接后由状态卡自然切换
     setTimeout(() => (launching.value = false), 30000)
   } catch (e) {
     message.error(typeof e === 'string' ? e : '启动失败，请重试或手动打开游戏')
@@ -323,6 +361,7 @@ const tagsLoading = ref(true)
 const topTags = ref<HabitTagLike[]>([])
 
 onMounted(async () => {
+  window.addEventListener('pointermove', onStagePointer, { passive: true })
   try {
     const tags: HabitTag[] = await getHabitTags()
     topTags.value = [...tags].sort((a, b) => a.avgVsPeer - b.avgVsPeer).slice(0, 3)
@@ -331,6 +370,11 @@ onMounted(async () => {
   } finally {
     tagsLoading.value = false
   }
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('pointermove', onStagePointer)
+  if (parallaxRaf) cancelAnimationFrame(parallaxRaf)
 })
 
 function dimLabel(d: string) {
@@ -364,432 +408,3 @@ function goRecordSelf() {
 }
 const openPalette = () => window.dispatchEvent(new CustomEvent('ra:open-palette'))
 </script>
-
-<style scoped>
-/* ===== 沉浸层 ===== */
-.home {
-  /* 标杆页允许内容横跨内容区全宽，功能舱仍限宽居中 */
-}
-.hero {
-  position: relative;
-  overflow: hidden;
-  min-height: clamp(280px, 36vh, 400px);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  border-bottom: 1px solid var(--border-subtle);
-  background:
-    radial-gradient(
-      120% 90% at 78% 8%,
-      color-mix(in srgb, var(--brand) 9%, transparent),
-      transparent 58%
-    ),
-    var(--bg-sunken);
-}
-.hero--cold {
-  background:
-    radial-gradient(
-      120% 90% at 78% 8%,
-      color-mix(in srgb, var(--text-tertiary) 6%, transparent),
-      transparent 58%
-    ),
-    var(--bg-sunken);
-}
-.hero__canvas {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-}
-.hero__veil {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(to bottom, transparent 55%, var(--bg-base));
-}
-.hero__veil::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image: var(--noise-img);
-  opacity: 0.05;
-}
-.hero__inner {
-  position: relative;
-  z-index: 1;
-  width: 100%;
-  max-width: 1080px;
-  margin: 0 auto;
-  padding: 48px var(--space-24) 40px;
-}
-.hero__kicker {
-  display: flex;
-  align-items: center;
-  gap: var(--space-10);
-  font-family: var(--font-num);
-  font-size: var(--font-size-xs);
-  letter-spacing: var(--tracking-label);
-  text-transform: uppercase;
-  color: var(--brand);
-}
-.hero__rule {
-  width: 30px;
-  height: 1px;
-  background: var(--brand-gradient);
-  box-shadow: var(--glow-brand);
-}
-.hero__title {
-  margin: var(--space-10) 0 var(--space-12);
-  font-family: var(--font-num);
-  font-size: clamp(34px, 6vw, 68px);
-  font-weight: var(--font-weight-black);
-  letter-spacing: var(--tracking-tight);
-  line-height: 1.04;
-  color: var(--text-primary);
-  text-wrap: balance;
-}
-.hero__ch {
-  display: inline-block;
-  animation: home-ch-in 0.7s var(--ease-expo) both;
-  animation-delay: calc(var(--d, 0) * 1ms);
-}
-.hero__ch--tag {
-  color: var(--brand);
-  text-shadow: var(--glow-brand);
-}
-.hero__meta {
-  display: flex;
-  align-items: center;
-  gap: var(--space-10);
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-}
-.hero__meta-sep {
-  color: var(--text-tertiary);
-}
-.hero__meta-sub {
-  color: var(--text-tertiary);
-}
-.pulse-dot {
-  width: 8px;
-  height: 8px;
-  transform: rotate(45deg);
-  background: var(--text-tertiary);
-  flex: none;
-}
-.pulse-dot--on {
-  background: var(--win);
-  animation: home-pulse 2.2s ease-in-out infinite;
-}
-
-/* ticker */
-.ticker {
-  position: relative;
-  z-index: 1;
-  border-top: 1px solid var(--border-subtle);
-  background: color-mix(in srgb, var(--bg-base) 62%, transparent);
-  overflow: hidden;
-  white-space: nowrap;
-  mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
-}
-.ticker__track {
-  display: inline-flex;
-  animation: home-ticker 30s linear infinite;
-}
-.ticker:hover .ticker__track {
-  animation-play-state: paused;
-}
-.ticker__copy {
-  display: inline-flex;
-}
-.ticker__item {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 9px 14px 9px 20px;
-  font-size: var(--font-size-xs);
-  color: var(--text-tertiary);
-}
-.ticker__icon {
-  width: 11px;
-  height: 11px;
-  color: var(--brand);
-  opacity: 0.75;
-}
-.ticker__sep {
-  width: 5px;
-  height: 5px;
-  margin-left: 22px;
-  opacity: 0.3;
-}
-
-/* ===== 功能舱 ===== */
-.home__inner {
-  max-width: 1080px;
-  margin: 0 auto;
-  padding: var(--space-20) var(--space-24) 32px;
-}
-.home__grid {
-  display: grid;
-  gap: var(--space-16);
-  margin-bottom: var(--space-16);
-}
-.home__grid--main {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
-}
-.home__grid--sub {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-}
-
-.st-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-10);
-}
-.st-row .btn {
-  margin-left: auto;
-}
-.ic {
-  width: 28px;
-  height: 28px;
-  flex: none;
-  display: grid;
-  place-items: center;
-  background: var(--bg-active);
-  clip-path: var(--clip-corner-sm);
-  color: var(--text-secondary);
-  transition:
-    transform var(--dur-fast) var(--ease-spring),
-    color var(--dur-fast) var(--ease-expo),
-    background var(--dur-fast) var(--ease-expo);
-}
-.ic svg {
-  width: 14px;
-  height: 14px;
-}
-.ic-fill {
-  fill: currentColor;
-}
-.btn-arrow-glyph {
-  width: 11px;
-  height: 11px;
-  margin-left: 4px;
-}
-.ic--win {
-  background: var(--win-soft);
-  color: var(--win);
-}
-.st-copy {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-.st-copy b {
-  font-size: var(--font-size-sm);
-}
-
-.tagp {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: var(--font-size-2xs);
-  padding: 3px 9px;
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--border-subtle);
-}
-.tagp.win {
-  background: var(--win-soft);
-  border-color: var(--win-border);
-  color: var(--win);
-}
-.dot {
-  width: 7px;
-  height: 7px;
-  transform: rotate(45deg);
-  display: inline-block;
-}
-.dot--win {
-  background: var(--win);
-  box-shadow: var(--glow-win);
-}
-
-.psub {
-  font-size: var(--font-size-xs);
-  color: var(--text-tertiary);
-}
-.kbd {
-  font-family: var(--font-num);
-  font-size: var(--font-size-2xs);
-  border: 1px solid var(--border-strong);
-  border-bottom-width: 2px;
-  padding: 0 6px;
-  background: var(--bg-raised);
-  color: var(--text-secondary);
-}
-
-.home__offline {
-  text-align: center;
-  padding: var(--space-8) 0;
-}
-.home__off-title {
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-bold);
-  margin-bottom: var(--space-4);
-}
-.home__off-acts {
-  display: flex;
-  gap: var(--space-8);
-  justify-content: center;
-  margin-top: var(--space-12);
-}
-
-.short-list {
-  display: flex;
-  flex-direction: column;
-}
-.short-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-10);
-  padding: 8px 0;
-  border-bottom: 1px solid var(--border-subtle);
-}
-.short-row:last-child {
-  border-bottom: none;
-}
-.short-bar {
-  flex: 1;
-  height: 3px;
-  min-width: 40px;
-  background: var(--bg-active);
-  clip-path: var(--clip-notch);
-  overflow: hidden;
-}
-.short-bar i {
-  display: block;
-  height: 100%;
-  background: linear-gradient(90deg, var(--loss-border), var(--loss));
-}
-.short-streak {
-  margin-left: auto;
-  flex: none;
-}
-.short-fix {
-  flex: none;
-}
-
-.qentry {
-  display: flex;
-  width: 100%;
-  align-items: center;
-  gap: var(--space-10);
-  padding: 11px 2px;
-  border: none;
-  border-bottom: 1px solid var(--border-subtle);
-  background: transparent;
-  font-size: var(--font-size-sm);
-  text-align: left;
-  cursor: pointer;
-  color: var(--text-secondary);
-  transition:
-    transform var(--dur-fast) ease-out,
-    color var(--dur-fast) var(--ease-expo);
-}
-button.qentry {
-  font-family: inherit;
-}
-.qentry:last-child {
-  border-bottom: none;
-}
-.qentry:hover {
-  color: var(--brand);
-}
-.qentry:hover .ic {
-  transform: translateY(-2px);
-  color: var(--brand);
-  background: var(--brand-soft);
-}
-.qentry--static,
-.qentry--static:hover {
-  cursor: default;
-  color: var(--text-secondary);
-}
-.qentry--static:hover .ic {
-  transform: none;
-  background: var(--bg-active);
-  color: var(--text-secondary);
-}
-.q-kbd {
-  margin-left: auto;
-}
-
-/* 入场动效 */
-.reveal {
-  animation: home-rise 0.7s var(--ease-expo) both;
-  animation-delay: calc(var(--d, 0) * 1ms);
-}
-
-@keyframes home-ch-in {
-  from {
-    opacity: 0;
-    transform: translateY(0.45em);
-    filter: blur(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-    filter: blur(0);
-  }
-}
-@keyframes home-rise {
-  from {
-    opacity: 0;
-    transform: translateY(14px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-@keyframes home-pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 var(--win-border);
-  }
-  50% {
-    box-shadow: 0 0 0 6px transparent;
-  }
-}
-@keyframes home-ticker {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(-50%);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .reveal,
-  .hero__ch {
-    animation: none;
-    opacity: 1;
-    transform: none;
-    filter: none;
-  }
-  .ticker__track,
-  .pulse-dot--on {
-    animation: none;
-  }
-}
-
-@media (max-width: 900px) {
-  .home__grid--main,
-  .home__grid--sub {
-    grid-template-columns: 1fr;
-  }
-  .short-streak {
-    display: none;
-  }
-}
-</style>

@@ -11,6 +11,12 @@ import { initPlatform } from './services/platform'
 import './global.css'
 import './styles/tokens.css'
 import './styles/ai-report.css'
+// 自托管显示字体（@fontsource）：Syncopate 冲击力标题 / Space Mono 数据文本，
+// 随包分发不依赖运行时外网（国内网络 Google Fonts 不可达）
+import '@fontsource/syncopate/400.css'
+import '@fontsource/syncopate/700.css'
+import '@fontsource/space-mono/400.css'
+import '@fontsource/space-mono/700.css'
 
 async function bootstrap() {
   // mount 前先拿到平台相关的两项：asset 协议前缀（决定图片 src 是否正确）与平台标识
