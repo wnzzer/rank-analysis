@@ -410,3 +410,5 @@ function goRecordSelf() {
 }
 const openPalette = () => window.dispatchEvent(new CustomEvent('ra:open-palette'))
 </script>
+
+<style scoped src="./Home.styles.css"></style>
