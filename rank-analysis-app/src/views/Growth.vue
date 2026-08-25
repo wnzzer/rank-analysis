@@ -99,7 +99,7 @@
         :class="{ 'goals-card--drag': dragActive }"
         style="--d: 200ms"
         title="改错清单"
-        subtitle="可勾选 · 跨局追踪"
+        subtitle="可勾选 · 跨局追踪 · 支持拖拽 .json 导入"
         @dragover.prevent="dragActive = true"
         @dragleave.self="dragActive = false"
         @drop.prevent="onDropImport($event)"

@@ -34,6 +34,7 @@
           </div>
           <div class="pal__foot">
             <KeyHint keys="↑↓" /> 选择 <KeyHint keys="Enter" /> 执行 <KeyHint keys="Esc" /> 关闭
+            <span v-if="filtered.length" class="pal__count">共 {{ filtered.length }} 条</span>
             <button class="pal__reset" title="清除使用频次记录" @click="resetUsage">
               重置常用
             </button>
@@ -384,6 +385,10 @@ onBeforeUnmount(() => {
   border-top: 1px solid var(--border-subtle);
   font-family: 'Space Mono', 'Bahnschrift', monospace;
   font-size: var(--font-size-2xs);
+  color: var(--text-tertiary);
+}
+.pal__count {
+  font-family: 'Space Mono', 'Bahnschrift', monospace;
   color: var(--text-tertiary);
 }
 .pal__reset {

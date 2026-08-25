@@ -178,11 +178,18 @@ function stepDetail(dir: -1 | 1) {
   if (next) onSelectGame(next)
 }
 
-/** 聚焦模式下 Esc 收回详情 */
+/** 聚焦模式下键盘切换：Esc 收回、←/→ 上/下一个对局 */
 function onGlobalKey(e: KeyboardEvent) {
-  if (e.key === 'Escape' && focusMode.value) {
+  if (!focusMode.value) return
+  if (e.key === 'Escape') {
     e.preventDefault()
     onSelectGame(null)
+  } else if (e.key === 'ArrowLeft') {
+    e.preventDefault()
+    stepDetail(-1)
+  } else if (e.key === 'ArrowRight') {
+    e.preventDefault()
+    stepDetail(1)
   }
 }
 const regionQuery = computed(() => (route.query.region as string) ?? '')
