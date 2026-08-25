@@ -155,6 +155,11 @@
 
       <div class="home__grid home__grid--sub">
         <CornerCard title="快捷入口" class="reveal" style="--d: 240ms">
+          <div class="qentry-reset-row">
+            <button v-if="quickOrder.length > 0" class="qentry-reset" @click="resetQuickOrder">
+              恢复默认排序
+            </button>
+          </div>
           <div v-for="(e, i) in orderedQuickEntries" :key="e.id" class="qentry-wrap">
             <button class="qentry" @click="e.run">
               <span class="qentry__idx num">{{ String(i + 1).padStart(2, '0') }}</span>
@@ -312,6 +317,14 @@ function moveQuickEntry(i: number, dir: -1 | 1): void {
   quickOrder.value = ids
   try {
     localStorage.setItem(QUICK_ORDER_KEY, JSON.stringify(ids))
+  } catch {
+    /* 隐私模式写失败静默 */
+  }
+}
+function resetQuickOrder(): void {
+  quickOrder.value = []
+  try {
+    localStorage.removeItem(QUICK_ORDER_KEY)
   } catch {
     /* 隐私模式写失败静默 */
   }

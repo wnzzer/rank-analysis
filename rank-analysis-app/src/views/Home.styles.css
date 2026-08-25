@@ -1,4 +1,4 @@
-/* ===== Home 旗舰页样式（ui-ux-pro-max: Kinetic Motion 字组） =====
+﻿/* ===== Home 旗舰页样式（ui-ux-pro-max: Kinetic Motion 字组） =====
    独立文件原因见 git 历史样式块丢失事故；经 <style scoped src> 引用 */
 
 /* 字组 */
@@ -588,4 +588,22 @@ button.qentry {
   .stage__line--ghost {
     padding-top: 4px;
   }
+}
+
+.qentry-reset-row {
+  min-height: 20px;
+  display: flex;
+  justify-content: flex-end;
+}
+.qentry-reset {
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-2xs);
+  cursor: pointer;
+  padding: 0;
+  transition: color var(--dur-fast) var(--ease-expo);
+}
+.qentry-reset:hover {
+  color: var(--brand);
 }

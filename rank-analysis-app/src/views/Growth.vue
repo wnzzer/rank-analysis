@@ -96,9 +96,13 @@
       <!-- 改错清单 -->
       <CornerCard
         class="goals-card reveal"
+        :class="{ 'goals-card--drag': dragActive }"
         style="--d: 200ms"
         title="改错清单"
         subtitle="可勾选 · 跨局追踪"
+        @dragover.prevent="dragActive = true"
+        @dragleave.self="dragActive = false"
+        @drop.prevent="onDropImport($event)"
       >
         <template #extra>
           <div class="goal-add">
@@ -362,14 +366,30 @@ async function onRestoreFile(e: Event): Promise<void> {
   const file = input.files?.[0]
   input.value = '' // 允许连续选择同一文件
   if (!file) return
+  await importGoalsFile(file)
+}
+
+/** 拖拽 .json 到清单卡即导入（与文件选择同一管线） */
+const dragActive = ref(false)
+function onDropImport(e: DragEvent): void {
+  dragActive.value = false
+  const file = e.dataTransfer?.files?.[0]
+  if (file && file.name.toLowerCase().endsWith('.json')) {
+    void importGoalsFile(file)
+  }
+}
+
+async function importGoalsFile(file: File): Promise<void> {
   try {
     const text = await file.text()
     const backup = parseGoalsBackup(text)
-    // 二次确认：备份清单明显大于当前清单（>5 条新增）时防误导入
     const missing = backup.goals.filter(
       g => !goals.value.some(s => s.dimension === g.dimension && s.title === g.title)
     )
-    if (missing.length > 5 && !window.confirm(`该备份将新建 ${missing.length} 个目标，确定继续？`)) {
+    if (
+      missing.length > 5 &&
+      !window.confirm(`该备份将新建 ${missing.length} 个目标，确定继续？`)
+    ) {
       return
     }
     let created = 0

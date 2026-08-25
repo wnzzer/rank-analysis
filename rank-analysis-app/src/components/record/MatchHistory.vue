@@ -131,6 +131,19 @@
         </div>
       </div>
 
+      <Transition name="list">
+        <div v-if="lastExportPath" class="export-path-bar">
+          <span class="export-path-label">已导出</span>
+          <span class="export-path-text" :title="lastExportPath">{{ lastExportPath }}</span>
+          <button class="export-path-copy" @click="copyExportPath">
+            {{ pathCopied ? '已复制' : '复制路径' }}
+          </button>
+          <button class="export-path-close" aria-label="关闭" @click="lastExportPath = null">
+            ✕
+          </button>
+        </div>
+      </Transition>
+
       <TrendBar
         :games="trendFiltered"
         :champion-options="championOptions"
@@ -386,6 +399,9 @@ const trendFiltered = computed(() => filteredGames.value)
 
 /** 导出当前筛选对局（格式记忆：主按钮按上次格式直出，▾ 重选并记忆） */
 const exporting = ref(false)
+/** 最近一次导出的落盘路径：工具栏下方展示，可一键复制 */
+const lastExportPath = ref<string | null>(null)
+const pathCopied = ref(false)
 const exportFormat = ref<ExportFormat>(loadExportFormat())
 const FORMAT_LABELS: Record<ExportFormat, string> = {
   csv: 'CSV 基础',
@@ -435,6 +451,8 @@ async function onExportSelect(format: string) {
       { format: format as ExportFormat }
     )
     if (result.status === 'saved') {
+      lastExportPath.value = result.path
+      pathCopied.value = false
       messageApi?.success(`已导出 ${filteredGames.value.length} 场对局`)
     }
   } catch (e) {
@@ -442,6 +460,17 @@ async function onExportSelect(format: string) {
     messageApi?.error(typeof e === 'string' ? e : '导出失败，请重试')
   } finally {
     exporting.value = false
+  }
+}
+
+async function copyExportPath(): Promise<void> {
+  if (!lastExportPath.value) return
+  try {
+    await navigator.clipboard.writeText(lastExportPath.value)
+    pathCopied.value = true
+    setTimeout(() => (pathCopied.value = false), 1500)
+  } catch {
+    messageApi?.error('复制失败，请手动选择路径文本')
   }
 }
 
@@ -1088,5 +1117,48 @@ watch(
 .pagination :deep(.n-button) {
   background: var(--glass-bg-low) !important;
   border: 1px solid var(--glass-border) !important;
+}
+
+.export-path-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: 6px var(--space-10);
+  margin-bottom: var(--space-12);
+  background: var(--brand-soft);
+  border: 1px solid var(--brand-border);
+  clip-path: var(--clip-notch);
+}
+.export-path-label {
+  flex: none;
+  font-size: var(--font-size-2xs);
+  font-weight: 700;
+  color: var(--brand);
+  letter-spacing: var(--tracking-label);
+}
+.export-path-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+  font-family: 'Space Mono', 'Bahnschrift', monospace;
+  font-size: var(--font-size-2xs);
+  color: var(--text-secondary);
+  user-select: text;
+}
+.export-path-copy,
+.export-path-close {
+  flex: none;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: var(--font-size-2xs);
+}
+.export-path-copy:hover {
+  color: var(--brand);
 }
 </style>
