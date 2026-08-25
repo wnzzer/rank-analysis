@@ -1,5 +1,11 @@
-import { describe, it, expect } from 'vitest'
-import { filterCommands, nextIndex, parsePlayerQuery, type PaletteCommand } from '../commandPalette'
+﻿import { describe, it, expect } from 'vitest'
+import {
+  filterCommands,
+  nextIndex,
+  parsePlayerQuery,
+  sortByUsage,
+  type PaletteCommand
+} from '../commandPalette'
 
 const list: PaletteCommand[] = [
   { key: 'a', group: '页面', label: '主页', run: () => {} },
@@ -48,3 +54,31 @@ describe('parsePlayerQuery', () => {
     expect(parsePlayerQuery('   ')).toBeNull()
   })
 })
+
+describe('sortByUsage（最近使用组内前置）', () => {
+  const make = (key: string, group: string): PaletteCommand => ({
+    key,
+    group,
+    label: key,
+    run: () => {}
+  })
+
+  it('同分组内按使用频次降序，未使用条目保持相对顺序', () => {
+    const seg = [make('a', '页面'), make('b', '页面'), make('c', '页面')]
+    const out = sortByUsage(seg, { c: 5, a: 2 })
+    expect(out.map(x => x.key)).toEqual(['c', 'a', 'b'])
+  })
+
+  it('分组边界不因排序而合并', () => {
+    const seg = [make('p1', '页面'), make('a1', '动作'), make('p2', '页面')]
+    const out = sortByUsage(seg, { p2: 9, a1: 1 })
+    expect(out.filter(x => x.group === '页面').map(x => x.key)).toEqual(['p1', 'p2'])
+    expect(out.filter(x => x.group === '动作').map(x => x.key)).toEqual(['a1'])
+  })
+
+  it('空 usage 稳定返回原序', () => {
+    const seg = [make('b', '页面'), make('a', '页面')]
+    expect(sortByUsage(seg, {}).map(x => x.key)).toEqual(['b', 'a'])
+  })
+})
+

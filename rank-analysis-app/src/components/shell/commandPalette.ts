@@ -31,6 +31,49 @@ export function filterCommands(list: PaletteCommand[], q: string): PaletteComman
   )
 }
 
+/**
+ * 最近使用排序：在「连续同分组」的段内按使用频次降序重排，
+ * 分组边界与组内未使用条目的相对顺序保持不变（稳定）。
+ * 仅浏览态（无搜索词）调用；有搜索词时保持相关度原序。
+ */
+export function sortByUsage(
+  list: PaletteCommand[],
+  usage: Record<string, number>
+): PaletteCommand[] {
+  const out: PaletteCommand[] = []
+  let i = 0
+  while (i < list.length) {
+    let j = i
+    while (j < list.length && list[j].group === list[i].group) j += 1
+    const segment = list.slice(i, j)
+    segment.sort(
+      (a, b) => (usage[b.key] ?? 0) - (usage[a.key] ?? 0)
+    )
+    out.push(...segment)
+    i = j
+  }
+  return out
+}
+
+const USAGE_KEY = 'palette.usage'
+
+export function loadUsage(): Record<string, number> {
+  try {
+    const v = JSON.parse(localStorage.getItem(USAGE_KEY) ?? '{}') as Record<string, number>
+    return typeof v === 'object' && v ? v : {}
+  } catch {
+    return {}
+  }
+}
+
+export function saveUsage(usage: Record<string, number>): void {
+  try {
+    localStorage.setItem(USAGE_KEY, JSON.stringify(usage))
+  } catch {
+    /* 隐私模式写失败静默 */
+  }
+}
+
 /** 键盘上下移动：delta ±1，环形回绕；空列表返回 -1 表示无选中 */
 export function nextIndex(current: number, length: number, delta: 1 | -1): number {
   if (length === 0) return -1

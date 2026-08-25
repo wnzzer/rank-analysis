@@ -34,6 +34,9 @@
           </div>
           <div class="pal__foot">
             <KeyHint keys="↑↓" /> 选择 <KeyHint keys="Enter" /> 执行 <KeyHint keys="Esc" /> 关闭
+            <button class="pal__reset" title="清除使用频次记录" @click="resetUsage">
+              重置常用
+            </button>
           </div>
         </div>
       </div>
@@ -61,7 +64,15 @@ import {
   Circle
 } from 'lucide-vue-next'
 import KeyHint from '../ui/KeyHint.vue'
-import { filterCommands, nextIndex, parsePlayerQuery, type PaletteCommand } from './commandPalette'
+import {
+  filterCommands,
+  nextIndex,
+  parsePlayerQuery,
+  sortByUsage,
+  loadUsage,
+  saveUsage,
+  type PaletteCommand
+} from './commandPalette'
 
 const show = defineModel<boolean>('show', { default: false })
 const router = useRouter()
@@ -130,7 +141,21 @@ const commands = computed<PaletteCommand[]>(() => {
   return list
 })
 
-const filtered = computed(() => filterCommands(commands.value, q.value))
+/** 浏览态（无搜索词）按最近使用频次在组内前置；搜索态保持相关度原序 */
+const filtered = computed(() => {
+  const list = filterCommands(commands.value, q.value)
+  return q.value.trim() ? list : sortByUsage(list, usage.value)
+})
+
+const usage = ref<Record<string, number>>(loadUsage())
+function recordUsage(key: string): void {
+  usage.value = { ...usage.value, [key]: (usage.value[key] ?? 0) + 1 }
+  saveUsage(usage.value)
+}
+function resetUsage(): void {
+  usage.value = {}
+  saveUsage(usage.value)
+}
 
 watch([show, filtered], async () => {
   active.value = 0
@@ -184,6 +209,7 @@ function runActive() {
 }
 function run(c: PaletteCommand) {
   close()
+  recordUsage(c.key)
   c.run()
 }
 function close() {
@@ -359,6 +385,18 @@ onBeforeUnmount(() => {
   font-family: 'Space Mono', 'Bahnschrift', monospace;
   font-size: var(--font-size-2xs);
   color: var(--text-tertiary);
+}
+.pal__reset {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: var(--font-size-2xs);
+  transition: color var(--dur-fast) var(--ease-expo);
+}
+.pal__reset:hover {
+  color: var(--brand);
 }
 .pal-enter-active,
 .pal-leave-active {

@@ -145,24 +145,39 @@
 
 ---
 
-## Round 11 —— 命令面板与身份细节
+## Round 11 —— 命令面板与身份细节 ✅（2026-08-26 完成）
 
-- [ ] R11-1 CommandPalette 最近使用排序：按使用频次（localStorage 计数）
-      在同分组内前置展示，重置入口放页脚
-- [ ] R11-2 About 版本章点击复制版本号（title 提示 + 成功消息）
-- [ ] R11-3 Record 聚焦模式记忆：会话内重进页面恢复上次聚焦对局
-      （sessionStorage）
-- [ ] R11-4 README 功能清单补：战绩导出 CSV/JSON、目标备份还原、
-      聚焦模式、命令面板
+- [x] R11-1 CommandPalette 最近使用：sortByUsage 组内频次降序纯函数
+      （分组边界稳定、空 usage 原序，3 单测）+ 页脚「重置常用」
+- [x] R11-2 About 版本章点击复制版本号（cursor/title/成功消息）
+- [x] R11-3 Record 聚焦记忆：sessionStorage 记录上次聚焦对局，
+      games 到达后自动重开（仅宽屏）
+- [x] R11-4 README.zh-CN 功能清单补：导出 CSV/JSON、聚焦模式、
+      成长与效率小节
 
 ### 完成标准
-同前；R11-1 需单测覆盖计数递增与排序稳定性。
+R11-1 sortByUsage 3 个单测覆盖计数递增排序与稳定性 ✓。
 
 ---
 
 ## Round 12 —— （Round 11 完成度 ≥80% 时续写）
 
 （待续写）
+
+---
+
+## Round 12 —— 收尾观察轮
+
+> 连续多轮打磨后进入稳态。本轮候选从真实使用反馈取用；
+> 若无反馈则执行下列低风险项后考虑暂停循环。
+
+- [ ] R12-a Growth 备份还原成功后同步刷新短板卡数据源
+- [ ] R12-b CommandPalette 使用频次上限保护（仅保留 top 20 记录防膨胀）
+- [ ] R12-c README 英文版同步成长与效率小节
+- [ ] R12-d 全站 console.log 清理（保留 error/warn）
+
+### 完成标准
+同前。
 
 ---
 

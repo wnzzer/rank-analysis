@@ -152,9 +152,18 @@ const { isMobile, isCompact } = useBreakpoint()
 const widePane = computed(() => !isCompact.value && !isMobile.value)
 const selectedGameId = ref<number | null>(null)
 const selectedGame = ref<Game | null>(null)
+
+/** 聚焦记忆（会话级）：重进战绩页自动恢复上次聚焦的对局 */
+const FOCUS_KEY = 'record.focusGameId'
 function onSelectGame(g: Game | null) {
   selectedGame.value = g
   selectedGameId.value = g?.gameId ?? null
+  try {
+    if (g) sessionStorage.setItem(FOCUS_KEY, String(g.gameId))
+    else sessionStorage.removeItem(FOCUS_KEY)
+  } catch {
+    /* 隐私模式写失败静默 */
+  }
 }
 /** 聚焦模式：宽屏详情展开时隐藏左栏与列表，整页只留详情（收回恢复） */
 const focusMode = computed(() => widePane.value && !!selectedGame.value)
@@ -233,6 +242,20 @@ const championPool = ref<ChampionPoolEntry[]>([])
 const hoveredChampion = ref<number | null>(null)
 /** 近期对局全量（由 MatchHistory 上抛，D-P3 分时曲线数据源） */
 const games = ref<Game[]>([])
+
+/** 聚焦恢复：列表数据到达后，若会话内记录了上次聚焦的对局则自动重开 */
+watch(games, list => {
+  if (selectedGame.value || !list.length) return
+  try {
+    const stored = sessionStorage.getItem(FOCUS_KEY)
+    if (!stored) return
+    const target = list.find(g => String(g.gameId) === stored)
+    if (target && widePane.value) onSelectGame(target)
+  } catch {
+    /* 隐私模式读取失败静默 */
+  }
+})
+
 /** 好友/宿敌弹窗点击对局：交给 MatchHistory 定位并就地展开（处理后清空） */
 const focusGameId = ref<number | null>(null)
 /** 英雄池点击：作为一次性命令下发给 MatchHistory 设置英雄筛选（处理后清空） */

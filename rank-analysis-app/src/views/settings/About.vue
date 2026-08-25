@@ -21,7 +21,9 @@
             <h2>Rank Analysis</h2>
             <p>AI 驱动的英雄联盟对局复盘助手</p>
             <div class="version-info">
-              <span class="version-tag">{{ currentVersion }}</span>
+              <button type="button" class="version-tag" title="点击复制版本号" @click="copyVersion">
+                {{ currentVersion }}
+              </button>
               <n-button size="small" type="primary" @click="checkForUpdates('manual')">
                 检查更新
               </n-button>
@@ -143,6 +145,13 @@ const copyDeviceId = () => {
     .catch(() => message.error('复制失败'))
 }
 
+const copyVersion = () => {
+  navigator.clipboard
+    .writeText(currentVersion.value)
+    .then(() => message.success('版本号已复制'))
+    .catch(() => message.error('复制失败'))
+}
+
 onMounted(() => {
   fetchAppVersion()
   invoke<string>('get_device_id')
@@ -237,10 +246,12 @@ const sendEmail = () => {
 }
 
 .version-tag {
+  cursor: pointer;
   background-color: var(--brand-soft);
   color: var(--brand);
   padding: var(--space-2) var(--space-8);
   border-radius: var(--radius-sm);
+  transition: filter var(--dur-fast) var(--ease-expo);
   font-size: var(--font-size-sm);
   margin-right: var(--space-10);
 }
