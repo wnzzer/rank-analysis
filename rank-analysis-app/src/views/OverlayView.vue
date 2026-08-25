@@ -102,20 +102,38 @@ body {
 }
 
 .overlay-card {
-  background: var(--bg-raised);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bg-sunken) 90%, transparent),
+    color-mix(in srgb, var(--bg-raised) 94%, transparent)
+  );
   border: 1px solid var(--brand-border);
+  border-top: 2px solid var(--brand);
   clip-path: var(--clip-corner-md);
   padding: 12px;
   backdrop-filter: blur(8px);
+  box-shadow: var(--shadow-2);
 }
 
 .overlay-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'Space Mono', 'Bahnschrift', monospace;
   font-size: var(--font-size-2xs);
   font-weight: var(--font-weight-semibold);
   letter-spacing: var(--tracking-label);
   text-transform: uppercase;
   color: var(--brand);
   margin-bottom: 8px;
+}
+.overlay-header::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  transform: rotate(45deg);
+  background: var(--brand);
+  box-shadow: var(--glow-brand);
 }
 
 .overlay-list {
@@ -143,10 +161,11 @@ body {
   font-weight: var(--font-weight-semibold);
   flex-shrink: 0;
   min-width: 60px;
+  font-family: 'Space Mono', 'Bahnschrift', monospace;
   color: var(--text-secondary);
 }
 
 .overlay-reason {
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
 </style>

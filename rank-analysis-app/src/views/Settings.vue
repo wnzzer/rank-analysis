@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="settings">
     <!-- v3：单层顶 tab（原内嵌 sider 已拆除，全局舰桥是唯一侧栏） -->
     <div class="tabs" role="tablist">
@@ -95,10 +95,12 @@ function go(key: string) {
 }
 .tab:hover {
   color: var(--text-secondary);
+  background: var(--bg-hover);
 }
 .tab--on {
   color: var(--brand);
   border-bottom-color: var(--brand);
+  text-shadow: var(--glow-brand);
 }
 /* 待裁决呼吸角标：本体动画/配色沿用 global.css .pending-badge-dot，这里只占位 */
 .pending-badge-dot {
