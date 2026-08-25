@@ -1,6 +1,8 @@
 <template>
   <div class="empty">
-    <span class="empty__icon" aria-hidden="true"><component :is="icon" /></span>
+    <slot name="art">
+      <span class="empty__icon" aria-hidden="true"><component :is="icon" /></span>
+    </slot>
     <p class="empty__title">{{ title }}</p>
     <p v-if="description || $slots.default" class="empty__desc">
       <slot>{{ description }}</slot>
@@ -48,6 +50,12 @@ withDefaults(
 .empty__icon svg {
   width: 28px;
   height: 28px;
+}
+/* 大号图形槽：需要更强视觉的空态用 #art 覆盖默认图标（纯 CSS/内联图形） */
+.empty__art svg {
+  width: 56px;
+  height: 56px;
+  color: var(--brand-border);
 }
 .empty__title {
   font-size: var(--font-size-base);

@@ -109,15 +109,44 @@
           ></span>
         </p>
         <ul v-if="goals.length" class="goals-list">
-          <li v-for="g in goals" :key="g.id" class="goal-item">
-            <label class="goal-check" :class="{ done: g.done }">
-              <input type="checkbox" :checked="g.done" @change="() => toggleGoal(g)" />
-              <span class="goal-box" aria-hidden="true"><Check class="goal-tick" /></span>
-              <span>{{ g.title }}</span>
-            </label>
-            <span class="tagp info goal-dim">{{
-              DIMENSION_LABELS[g.dimension] ?? g.dimension
-            }}</span>
+          <li
+            v-for="g in goals"
+            :key="g.id"
+            class="goal-item"
+            :class="{ 'goal-item--editing': editingNoteId === String(g.id) }"
+          >
+            <div class="goal-line">
+              <label class="goal-check" :class="{ done: g.done }">
+                <input type="checkbox" :checked="g.done" @change="() => toggleGoal(g)" />
+                <span class="goal-box" aria-hidden="true"><Check class="goal-tick" /></span>
+                <span>{{ g.title }}</span>
+              </label>
+              <button
+                type="button"
+                class="goal-note-btn"
+                :class="{ 'goal-note-btn--on': editingNoteId === String(g.id) || !!goalNotes[String(g.id)] }"
+                title="备注"
+                aria-label="编辑备注"
+                @click="toggleNoteEditor(String(g.id))"
+              >
+                <PenLine class="goal-note-glyph" />
+              </button>
+              <span class="tagp info goal-dim">{{
+                DIMENSION_LABELS[g.dimension] ?? g.dimension
+              }}</span>
+            </div>
+            <input
+              v-if="editingNoteId === String(g.id)"
+              v-model="noteDraft"
+              class="goal-note-input"
+              placeholder="备注（回车保存 · Esc 取消）"
+              @keyup.enter="saveNote(String(g.id))"
+              @keyup.esc="cancelNoteEditor"
+              @blur="saveNote(String(g.id))"
+            />
+            <p v-else-if="goalNotes[String(g.id)]" class="psub goal-note-text">
+              {{ goalNotes[String(g.id)] }}
+            </p>
           </li>
         </ul>
         <EmptyState
@@ -137,13 +166,21 @@
  * 重算一体：点「重新分析」后端聚合全量收集、幂等落库、返回最新标签。
  * 标杆语言（4A）：熔炉余烬横幅 + 入场 stagger + 连败火焰可视化 + 目标进度条。
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useMessage } from 'naive-ui'
 
 import CornerCard from '../components/ui/CornerCard.vue'
 import EmptyState from '../components/ui/EmptyState.vue'
 import PageStage from '../components/ui/PageStage.vue'
-import { TriangleAlert, TrendingUp, Target, RefreshCw, Flame, Check } from 'lucide-vue-next'
+import {
+  TriangleAlert,
+  TrendingUp,
+  Target,
+  RefreshCw,
+  Flame,
+  Check,
+  PenLine
+} from 'lucide-vue-next'
 import {
   addHabitGoal,
   DIMENSION_FIX_HINTS,
@@ -171,6 +208,61 @@ const doneCount = computed(() => goals.value.filter(g => g.done).length)
 const progressPct = computed(() =>
   goals.value.length ? `${Math.round((doneCount.value / goals.value.length) * 100)}%` : '0%'
 )
+
+/* ---------- 目标本地备注（localStorage，离线持久；随目标删除清理孤儿） ---------- */
+const GOAL_NOTES_KEY = 'growth.goalNotes'
+const goalNotes = ref<Record<string, string>>(loadGoalNotes())
+const editingNoteId = ref<string | null>(null)
+const noteDraft = ref('')
+
+function loadGoalNotes(): Record<string, string> {
+  try {
+    return JSON.parse(localStorage.getItem(GOAL_NOTES_KEY) ?? '{}') as Record<string, string>
+  } catch {
+    return {}
+  }
+}
+function persistNotes(): void {
+  try {
+    localStorage.setItem(GOAL_NOTES_KEY, JSON.stringify(goalNotes.value))
+  } catch {
+    /* 隐私模式等写失败场景静默：备注属增强功能 */
+  }
+}
+watch(goals, list => {
+  const live = new Set(list.map(g => String(g.id)))
+  let changed = false
+  for (const id of Object.keys(goalNotes.value)) {
+    if (!live.has(id)) {
+      delete goalNotes.value[id]
+      changed = true
+    }
+  }
+  if (changed) persistNotes()
+})
+function toggleNoteEditor(id: string): void {
+  if (editingNoteId.value === id) {
+    saveNote(id)
+  } else {
+    editingNoteId.value = id
+    noteDraft.value = goalNotes.value[id] ?? ''
+  }
+}
+function saveNote(id: string): void {
+  if (editingNoteId.value !== id) return
+  const v = noteDraft.value.trim()
+  if (v) goalNotes.value = { ...goalNotes.value, [id]: v }
+  else {
+    const cp = { ...goalNotes.value }
+    delete cp[id]
+    goalNotes.value = cp
+  }
+  persistNotes()
+  editingNoteId.value = null
+}
+function cancelNoteEditor(): void {
+  editingNoteId.value = null
+}
 
 const dimensionOptions = computed(() =>
   Object.entries(DIMENSION_LABELS).map(([value, label]) => ({ value, label }))
@@ -430,11 +522,53 @@ onMounted(async () => {
   flex-direction: column;
 }
 .goal-item {
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.goal-line {
   display: flex;
   align-items: center;
   gap: var(--space-10);
-  padding: 9px 0;
-  border-bottom: 1px solid var(--border-subtle);
+}
+.goal-note-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  clip-path: var(--clip-notch);
+  transition:
+    color var(--dur-fast) var(--ease-expo),
+    background var(--dur-fast) var(--ease-expo);
+}
+.goal-note-btn:hover,
+.goal-note-btn--on {
+  color: var(--brand);
+  background: var(--brand-soft);
+}
+.goal-note-glyph {
+  width: 12px;
+  height: 12px;
+}
+.goal-note-input {
+  width: 100%;
+  height: 28px;
+  margin-top: var(--space-6);
+  font-size: var(--font-size-xs);
+  color: var(--text-primary);
+  background: var(--bg-base);
+  border: 1px solid var(--brand-border);
+  clip-path: var(--clip-notch);
+  padding: 0 var(--space-8);
+  outline: none;
+}
+.goal-note-text {
+  margin-top: var(--space-4);
 }
 .goal-item:last-child {
   border-bottom: none;
@@ -446,6 +580,8 @@ onMounted(async () => {
   cursor: pointer;
   font-size: var(--font-size-sm);
   color: var(--text-primary);
+  flex: 1;
+  min-width: 0;
 }
 .goal-check input[type='checkbox'] {
   position: absolute;
@@ -489,7 +625,7 @@ onMounted(async () => {
   text-decoration: line-through;
 }
 .goal-dim {
-  margin-left: auto;
+  flex: none;
 }
 
 .reveal {

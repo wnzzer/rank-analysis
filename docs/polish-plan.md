@@ -1,4 +1,4 @@
-# 持续优化迭代计划（离线功能专项）
+﻿# 持续优化迭代计划（离线功能专项）
 
 > 运作方式：每轮列 3-6 个可独立验证的条目；全部完成后在本文件追加下一轮；
 > 单条目完成后就地勾选。约束：只做离线功能 / 不依赖运行时外部资源。
@@ -38,8 +38,8 @@
       （偏离说明：R3-3 的 Esc 未走 useWindowShortcuts——那是多窗口级设施，
       Record 聚焦 Esc 用本地监听更内聚）
 - [x] R3-3 Record 聚焦模式 Esc 收回详情（onGlobalKey 常驻监听 + focusMode 门控）
-- [ ] R3-2 Growth 目标清单本地备注列（localStorage 持久化，不新增后端表）
-- [ ] R3-4 EmptyState 可选大号图形槽（纯 CSS 图形，不引入图片资源）
+- [x] R3-2 Growth 目标清单本地备注列（localStorage 持久化，不新增后端表）
+- [x] R3-4 EmptyState 可选大号图形槽（纯 CSS 图形，不引入图片资源）
 
 ### 完成标准
 同前；R3-1 导出的 JSON 需可被重新导入校验（roundtrip 测试 ✓ 已含）。
