@@ -102,21 +102,38 @@ async function onConsentDecide(enabled: boolean): Promise<void> {
 
 /* ===== 旧壳层样式已随 Header/SideNavigation 一并移除（P4） ===== */
 
-/* 页面切换过渡 */
+/* 页面切换过渡：位移 + 微缩 + 轻模糊，一次导航 250ms 内完成（合成器友好） */
 .page-enter-active,
 .page-leave-active {
   transition:
     opacity var(--dur-normal) var(--ease-expo),
-    transform var(--dur-normal) var(--ease-expo);
+    transform var(--dur-normal) var(--ease-expo),
+    filter var(--dur-normal) var(--ease-expo);
+  will-change: opacity, transform;
 }
 
 .page-enter-from {
   opacity: 0;
-  transform: translateY(8px);
+  transform: translateY(10px) scale(0.995);
+  filter: blur(3px);
 }
 
 .page-leave-to {
   opacity: 0;
-  transform: translateY(-4px);
+  transform: translateY(-6px) scale(0.997);
+  filter: blur(2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-enter-active,
+  .page-leave-active {
+    transition: opacity var(--dur-instant) linear;
+    filter: none;
+  }
+  .page-enter-from,
+  .page-leave-to {
+    transform: none;
+    filter: none;
+  }
 }
 </style>

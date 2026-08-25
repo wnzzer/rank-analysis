@@ -968,6 +968,7 @@ onMounted(async () => {
 .dock-btn:hover:not(:disabled) {
   color: var(--text-primary);
   border-color: var(--brand-border);
+  box-shadow: var(--glow-brand);
 }
 .dock-btn:disabled {
   opacity: 0.5;
