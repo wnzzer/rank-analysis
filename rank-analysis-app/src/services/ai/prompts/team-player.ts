@@ -2,7 +2,7 @@
  * 单玩家深度分析 Prompt（从 team.ts 拆出）
  */
 
-import { extractPlayerDeepDive } from '../player-insight'
+import { extractPlayerDeepDive, type PlayerInsightSource } from '../player-insight'
 import { buildNoteBrief } from '../shared/noteBrief'
 import { getChampionName } from '../champion-names'
 import { getChampionPatchNote } from '@renderer/services/patchNotes'
@@ -15,7 +15,7 @@ import { DIRECTION_CN } from './shared/patchNotes'
  * @param opts.useNotes - 是否注入使用者手动备注（隐私开关，默认 false，fail-closed）
  */
 export async function buildPlayerAnalysisPrompt(
-  player: any,
+  player: PlayerInsightSource,
   opts: { useNotes?: boolean } = {}
 ): Promise<string> {
   const noteBrief =
@@ -66,7 +66,7 @@ ${JSON.stringify(topChampions)}
 ${JSON.stringify(positionStats)}
 
 【标签列表】
-${tags.length > 0 ? tags.map((t: any) => `• ${t.tagName}(${t.tagDesc}) - ${t.good ? '正面' : '负面'}`).join('\n') : '无标签'}
+${tags.length > 0 ? tags.map(t => `• ${t.tagName}(${t.tagDesc}) - ${t.good ? '正面' : '负面'}`).join('\n') : '无标签'}
 ${noteSection}
 【最近15场详细战绩】
 ${JSON.stringify(detailedGames)}

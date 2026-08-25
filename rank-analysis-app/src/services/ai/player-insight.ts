@@ -4,6 +4,9 @@
  */
 
 import { getChampionName } from './champion-names'
+import type { Game, Participant } from '@renderer/types/domain/match'
+import type { RankTag, RecentData } from '@renderer/types/domain/analysis'
+import type { QueueInfo, Summoner } from '@renderer/types/domain/player'
 
 interface ChampionAggregate {
   count: number
@@ -12,9 +15,22 @@ interface ChampionAggregate {
   totalDamage: number
 }
 
-function aggregateChampionStats(recentGames: any[]): Record<number, ChampionAggregate> {
+type InsightGame = Omit<Game, 'participants'> & {
+  participants: Array<Participant & { selectedPosition?: string; timeline?: { lane?: string } }>
+}
+
+export interface PlayerInsightSource {
+  championId?: number
+  assignedPosition?: string
+  summoner?: Partial<Pick<Summoner, 'gameName' | 'tagLine' | 'puuid' | 'summonerLevel'>>
+  rank?: { queueMap?: { RANKED_SOLO_5x5?: Partial<Pick<QueueInfo, 'tierCn'>> } }
+  matchHistory?: { games?: { games?: InsightGame[] } }
+  userTag?: { tag?: RankTag[]; recentData?: Partial<RecentData> }
+}
+
+function aggregateChampionStats(recentGames: InsightGame[]): Record<number, ChampionAggregate> {
   const stats: Record<number, ChampionAggregate> = {}
-  recentGames.forEach((g: any) => {
+  recentGames.forEach(g => {
     const champId = g.participants[0]?.championId
     if (!champId) return
     if (!stats[champId]) {
@@ -32,7 +48,7 @@ function aggregateChampionStats(recentGames: any[]): Record<number, ChampionAggr
 }
 
 /** 返回出场次数 top N 的英雄（均值已计算） */
-export function extractTopChampions(recentGames: any[], limit = 5) {
+export function extractTopChampions(recentGames: InsightGame[], limit = 5) {
   const stats = aggregateChampionStats(recentGames)
   return Object.entries(stats)
     .sort((a, b) => b[1].count - a[1].count)
@@ -46,9 +62,9 @@ export function extractTopChampions(recentGames: any[], limit = 5) {
     }))
 }
 
-export function extractMainPosition(recentGames: any[]): string {
+export function extractMainPosition(recentGames: InsightGame[]): string {
   const positionStats: Record<string, number> = {}
-  recentGames.forEach((g: any) => {
+  recentGames.forEach(g => {
     const pos =
       g.participants[0]?.timeline?.lane || g.participants[0]?.selectedPosition || 'UNKNOWN'
     positionStats[pos] = (positionStats[pos] || 0) + 1
@@ -56,16 +72,16 @@ export function extractMainPosition(recentGames: any[]): string {
   return Object.entries(positionStats).sort((a, b) => b[1] - a[1])[0]?.[0] || '未知'
 }
 
-export function extractPositionStats(recentGames: any[]): Record<string, number> {
+export function extractPositionStats(recentGames: InsightGame[]): Record<string, number> {
   const positionStats: Record<string, number> = {}
-  recentGames.forEach((g: any) => {
+  recentGames.forEach(g => {
     const pos = g.participants[0]?.timeline?.lane || 'UNKNOWN'
     positionStats[pos] = (positionStats[pos] || 0) + 1
   })
   return positionStats
 }
 
-function recentGamePreview(g: any, includeEconomy = true) {
+function recentGamePreview(g: InsightGame, includeEconomy = true) {
   const base = {
     champion: getChampionName(g.participants[0]?.championId),
     win: g.participants[0].stats.win,
@@ -93,7 +109,10 @@ function recentGamePreview(g: any, includeEconomy = true) {
  * @param opts.noteBrief - 使用者手动备注速览（`[色档] 文本`），有值时以 `userNote`
  *   字段注入返回对象；开关关闭时调用方不传，返回对象不含该字段
  */
-export function extractPlayerInsight(p: any, opts: { detailed: boolean; noteBrief?: string }) {
+export function extractPlayerInsight(
+  p: PlayerInsightSource,
+  opts: { detailed: boolean; noteBrief?: string }
+) {
   const recentGames = p.matchHistory?.games?.games || []
   const tags = p.userTag?.tag || []
   const recent = p.userTag?.recentData
@@ -102,7 +121,7 @@ export function extractPlayerInsight(p: any, opts: { detailed: boolean; noteBrie
       ? Math.round((recent.selectWins / (recent.selectWins + recent.selectLosses)) * 100)
       : 0
 
-  const recentStats: Record<string, any> = {
+  const recentStats: Record<string, number | string> = {
     wins: recent?.selectWins || 0,
     losses: recent?.selectLosses || 0,
     winRate,
@@ -118,31 +137,29 @@ export function extractPlayerInsight(p: any, opts: { detailed: boolean; noteBrie
 
   return {
     name: p.summoner?.gameName || '未知',
-    currentChampion: getChampionName(p.championId),
+    currentChampion: getChampionName(p.championId as number),
     tier: p.rank?.queueMap?.RANKED_SOLO_5x5?.tierCn || '无段位',
     level: p.summoner?.summonerLevel,
     recentStats,
     topChampions: extractTopChampions(recentGames),
     mainPosition: extractMainPosition(recentGames),
-    tags: tags.map((t: any) => ({
+    tags: tags.map(t => ({
       name: t.tagName,
       desc: t.tagDesc,
       isGood: t.good
     })),
     ...(opts.noteBrief ? { userNote: opts.noteBrief } : {}),
-    recentGamesPreview: recentGames
-      .slice(0, 10)
-      .map((g: any) => recentGamePreview(g, opts.detailed))
+    recentGamesPreview: recentGames.slice(0, 10).map(g => recentGamePreview(g, opts.detailed))
   }
 }
 
 /** 抽取更详细的单玩家画像（战绩详情更多，15 场） */
-export function extractPlayerDeepDive(player: any) {
+export function extractPlayerDeepDive(player: PlayerInsightSource) {
   const recentGames = player.matchHistory?.games?.games || []
   return {
     topChampions: extractTopChampions(recentGames),
     positionStats: extractPositionStats(recentGames),
-    detailedGames: recentGames.slice(0, 15).map((g: any) => ({
+    detailedGames: recentGames.slice(0, 15).map(g => ({
       ...recentGamePreview(g, true),
       gameMode: g.gameMode
     }))

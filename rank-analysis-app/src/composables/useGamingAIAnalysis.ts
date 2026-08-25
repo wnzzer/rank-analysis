@@ -134,8 +134,8 @@ export function useGamingAIAnalysis(
           opggMode: toValue(opggMode)
         })
       }
-    } catch (e: any) {
-      message.error('AI 分析出错: ' + (e?.message || '未知错误'))
+    } catch (e) {
+      message.error('AI 分析出错: ' + ((e instanceof Error && e.message) || '未知错误'))
       state.loading.value = false
     }
   }

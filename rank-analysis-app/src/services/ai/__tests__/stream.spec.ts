@@ -37,7 +37,7 @@ function makeCallbacks(): StreamCallbacks & {
       done++
     },
     onError: (e: string) => errors.push(e)
-  } as any
+  }
 }
 
 describe('mapStreamEvent', () => {

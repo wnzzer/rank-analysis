@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { buildTeamAnalysisPrompt } from '../team'
 import { findCounterHints } from '@renderer/services/opgg'
 import { getChampionPatchNote } from '@renderer/services/patchNotes'
+import type { RecentPlayerProfile } from '../../shared/types'
 
 const CHAMP_NAMES: Record<number, string> = {
   64: '盲僧',
@@ -210,20 +211,30 @@ describe('buildTeamAnalysisPrompt', () => {
 })
 
 describe('buildTeamAnalysisPrompt — profileMap 统一情报块', () => {
-  /** 近期画像最小形状 */
-  function minProfile(partial: { lossStreak?: number; winRate?: number } = {}) {
+  /** 近期画像最小形状（补齐 RecentPlayerProfile 必填字段的默认值） */
+  function minProfile(
+    partial: { lossStreak?: number; winRate?: number } = {}
+  ): RecentPlayerProfile {
     return {
+      positionDistribution: [{ pos: 'MIDDLE', ratio: 1, games: 10 }],
+      mainPosition: 'MIDDLE',
+      currentLanePlayedRatio: 0,
+      championDistribution: [],
+      positionChampionDistribution: [],
+      currentChampionMastery: null,
       recentWinRate: partial.winRate ?? 0.5,
       recentKda: 2.0,
       streak: { kind: 'loss', count: partial.lossStreak ?? 0 },
       isOffRole: false,
-      positionDistribution: [{ position: 'MIDDLE', games: 10 }]
+      offRoleSeverity: 'none'
     }
   }
 
   it('提供 profileMap 时用统一情报块替换【敌方英雄版本情报】（版本+信号+模式知识）', async () => {
     const session = makeSessionData()
-    const profileMap = new Map<string, any>([['p1', minProfile({ lossStreak: 3, winRate: 0.3 })]])
+    const profileMap = new Map<string, RecentPlayerProfile | null>([
+      ['p1', minProfile({ lossStreak: 3, winRate: 0.3 })]
+    ])
     const prompt = await buildTeamAnalysisPrompt(session, {
       opggMode: 'ranked',
       modeKind: 'ranked',

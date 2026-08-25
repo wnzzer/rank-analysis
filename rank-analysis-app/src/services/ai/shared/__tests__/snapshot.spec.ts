@@ -2,7 +2,52 @@ import { describe, it, expect } from 'vitest'
 import { buildMatchSnapshot, isAugmentMode } from '../snapshot'
 import type { Game } from '@renderer/types/domain/match'
 
-function makeParticipant(overrides: any = {}) {
+interface ParticipantFixture {
+  participantId: number
+  teamId: number
+  championId: number
+  spell1Id: number
+  spell2Id: number
+  teamPosition?: string
+  timeline?: { lane?: string; role?: string }
+  stats: {
+    win: boolean
+    kills: number
+    deaths: number
+    assists: number
+    totalDamageDealtToChampions: number
+    totalDamageTaken: number
+    goldEarned: number
+    totalMinionsKilled: number
+    neutralMinionsKilled: number
+    totalHeal: number
+    damageDealtToTurrets: number
+    perk0: number
+    perkSubStyle: number
+    playerAugment1: number
+    playerAugment2: number
+    playerAugment3: number
+    playerAugment4: number
+    playerAugment5: number
+    playerAugment6: number
+    item0: number
+    item1: number
+    item2: number
+    item3: number
+    item4: number
+    item5: number
+    item6: number
+    doubleKills?: number
+    tripleKills?: number
+    quadraKills?: number
+    pentaKills?: number
+    visionScore?: number
+    sightWardsBoughtInGame?: number
+    visionWardsBoughtInGame?: number
+  }
+}
+
+function makeParticipant(overrides: Partial<ParticipantFixture> = {}): ParticipantFixture {
   return {
     participantId: 1,
     teamId: 100,
@@ -51,7 +96,12 @@ function makeParticipant(overrides: any = {}) {
 }
 
 function makeGame(
-  opts: { queueId?: number; gameMode?: string; duration?: number; participants?: any[] } = {}
+  opts: {
+    queueId?: number
+    gameMode?: string
+    duration?: number
+    participants?: ParticipantFixture[]
+  } = {}
 ): Game {
   return {
     gameId: 1,
@@ -63,7 +113,7 @@ function makeGame(
     participantIdentities: [
       { participantId: 1, player: { gameName: 'Test', tagLine: '1234', puuid: 'p1' } }
     ]
-  } as any
+  } as unknown as Game
 }
 
 describe('buildMatchSnapshot', () => {
@@ -110,9 +160,9 @@ describe('buildMatchSnapshot', () => {
 
   it('wardScore 为 null when LCU stats 缺 visionScore（缺数据≠0，防模型冤枉玩家不插眼）', () => {
     const p = makeParticipant()
-    delete (p.stats as any).visionScore
-    delete (p.stats as any).sightWardsBoughtInGame
-    delete (p.stats as any).visionWardsBoughtInGame
+    delete p.stats.visionScore
+    delete p.stats.sightWardsBoughtInGame
+    delete p.stats.visionWardsBoughtInGame
     const snap = buildMatchSnapshot(makeGame({ participants: [p] }))
     expect(snap.players[0].wardScore).toBeNull()
     expect(snap.players[0].controlWardsPlaced).toBeNull()
@@ -152,10 +202,10 @@ describe('buildMatchSnapshot', () => {
 
   it('defaults multiKills to 0 when 旧缓存数据缺字段', () => {
     const p = makeParticipant()
-    delete (p.stats as any).doubleKills
-    delete (p.stats as any).tripleKills
-    delete (p.stats as any).quadraKills
-    delete (p.stats as any).pentaKills
+    delete p.stats.doubleKills
+    delete p.stats.tripleKills
+    delete p.stats.quadraKills
+    delete p.stats.pentaKills
     const snap = buildMatchSnapshot(makeGame({ participants: [p] }))
     expect(snap.players[0].multiKills).toEqual({ double: 0, triple: 0, quadra: 0, penta: 0 })
   })

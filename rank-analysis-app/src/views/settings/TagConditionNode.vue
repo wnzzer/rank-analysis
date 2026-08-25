@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="condition-node">
     <!-- Logic Nodes (AND/OR) -->
     <div v-if="condition.type === 'and' || condition.type === 'or'" class="group-node">
@@ -42,7 +42,7 @@
           :model-value="condition.condition"
           :mode-options="modeOptions"
           :champion-options="championOptions"
-          @update:model-value="(val: any) => updateNotChild(val)"
+          @update:model-value="val => updateNotChild(val)"
           @remove="() => removeNotChild()"
         />
         <div v-else class="empty-placeholder">
@@ -102,7 +102,7 @@
               :render-tag="renderSingleSelectTag"
               :render-label="renderLabel"
               v-model:value="filter.ids"
-              :options="championOptions"
+              :options="championSelectOptions"
               placeholder="选择英雄"
               class="sel-value-wide"
             />
@@ -166,7 +166,9 @@
           <n-select
             size="small"
             :value="condition.refresh.type"
-            @update:value="val => handleRefreshTypeChange(condition.refresh, val)"
+            @update:value="
+              val => condition.refresh && handleRefreshTypeChange(condition.refresh, val)
+            "
             :options="refreshTypeOptions"
             class="sel-type"
           />
@@ -299,7 +301,7 @@
           :render-tag="renderSingleSelectTag"
           :render-label="renderLabel"
           v-model:value="condition.ids"
-          :options="championOptions"
+          :options="championSelectOptions"
           placeholder="英雄"
           class="sel-value-wide"
         />
@@ -315,33 +317,76 @@
 </template>
 
 <script setup lang="ts">
-import { PropType, toRefs } from 'vue'
+import { PropType, computed, toRefs } from 'vue'
 import { NTag, NButton, NSelect, NInputNumber, NDivider, useThemeVars } from 'naive-ui'
+import type { SelectMixedOption } from 'naive-ui/es/select/src/interface'
 import TagConditionNode from './TagConditionNode.vue' // Recursive import
 import {
   renderSingleSelectTag,
   renderLabel,
   filterChampionFunc
 } from '../../components/composition'
+import type { championOption } from '@renderer/types/domain/champion'
 
 const themeVars = useThemeVars()
+
+// 编辑器对条件树做就地增删字段（切换类型时 delete 旧类型专属键），
+// 因此用全可选的草稿形状而非 types/tagSuggest.ts 的严格可辨识联合；
+// 序列化经 JSON.stringify（undefined 键自动剔除），与后端 schema 保持兼容。
+interface FilterDraft {
+  type: string
+  ids?: number[]
+  metric?: string
+  op?: string
+  value?: number
+  count?: number
+}
+
+interface RefreshDraft {
+  type: string
+  metric?: string
+  op?: string
+  value?: number
+  min?: number
+  kind?: string
+  gameOp?: string
+  gameValue?: number
+}
+
+interface ConditionNodeDraft {
+  type: string
+  conditions?: ConditionNodeDraft[]
+  condition?: ConditionNodeDraft | null
+  filters?: FilterDraft[]
+  refresh?: RefreshDraft
+  ids?: number[]
+}
 
 // We receive props for mode/champion options
 const props = defineProps({
   modelValue: {
-    type: Object as PropType<any>,
+    type: Object as PropType<ConditionNodeDraft>,
     required: true
   },
   isRoot: {
     type: Boolean,
     default: false
   },
-  modeOptions: { type: Array as PropType<any[]>, default: () => [] },
-  championOptions: { type: Array as PropType<any[]>, default: () => [] }
+  modeOptions: {
+    type: Array as PropType<{ label: string; value: number }[]>,
+    default: () => []
+  },
+  championOptions: { type: Array as PropType<championOption[]>, default: () => [] }
 })
 
 const emit = defineEmits(['update:modelValue', 'remove'])
 const { modelValue: condition } = toRefs(props)
+
+// championOption 是 interface（无隐式索引签名），不满足 naive-ui SelectMixedOption
+// 的索引签名要求；运行时形状兼容（label/value），此处集中断言一次
+const championSelectOptions = computed(
+  () => props.championOptions as unknown as SelectMixedOption[]
+)
 
 // --- Options ---
 const filterTypeOptions = [
@@ -389,9 +434,9 @@ const refreshTypeOptions = [
 // --- Actions ---
 
 function addChild() {
-  if (!condition.value.conditions) condition.value.conditions = []
+  const conditions = condition.value.conditions ?? (condition.value.conditions = [])
   // Add a default simple History node
-  condition.value.conditions.push({
+  conditions.push({
     type: 'history',
     filters: [],
     refresh: { type: 'count', op: '>=', value: 1 }
@@ -399,13 +444,13 @@ function addChild() {
   emitUpdate()
 }
 
-function updateChild(index: any, val: any) {
-  condition.value.conditions[index] = val
+function updateChild(index: number, val: ConditionNodeDraft) {
+  condition.value.conditions![index] = val
   emitUpdate()
 }
 
-function removeChild(index: any) {
-  condition.value.conditions.splice(index, 1)
+function removeChild(index: number) {
+  condition.value.conditions!.splice(index, 1)
   emitUpdate()
 }
 
@@ -413,7 +458,7 @@ function removeSelf() {
   emit('remove')
 }
 
-function updateNotChild(val: any) {
+function updateNotChild(val: ConditionNodeDraft) {
   condition.value.condition = val
   emitUpdate()
 }
@@ -434,17 +479,17 @@ function removeNotChild() {
 
 // History Actions
 function addFilter() {
-  if (!condition.value.filters) condition.value.filters = []
-  condition.value.filters.push({ type: 'queue', ids: [] })
+  const filters = condition.value.filters ?? (condition.value.filters = [])
+  filters.push({ type: 'queue', ids: [] })
   emitUpdate()
 }
 
-function removeFilter(index: any) {
-  condition.value.filters.splice(index, 1)
+function removeFilter(index: number) {
+  condition.value.filters!.splice(index, 1)
   emitUpdate()
 }
 
-function handleFilterTypeChange(filter: any, newType: string) {
+function handleFilterTypeChange(filter: FilterDraft, newType: string) {
   filter.type = newType
   // Clean up other properties based on newType
   if (newType === 'queue') {
@@ -479,7 +524,7 @@ function handleFilterTypeChange(filter: any, newType: string) {
  * 切换 Check 类型时清理旧类型专属字段并写入新类型的合法初值，
  * 避免残留字段导致后端反序列化失败（如 streak 的 min/kind 混进 ratio）
  */
-function handleRefreshTypeChange(refresh: any, newType: string) {
+function handleRefreshTypeChange(refresh: RefreshDraft, newType: string) {
   delete refresh.metric
   delete refresh.op
   delete refresh.value

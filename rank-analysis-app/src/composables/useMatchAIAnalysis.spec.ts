@@ -25,14 +25,15 @@ vi.mock('@renderer/services/ai/shared/recentProfile.batch', () => ({
 
 import { analyzeMatchDetailWithAIStream } from '@renderer/services/ai'
 import { useMatchAIAnalysis } from './useMatchAIAnalysis'
+import type { StreamCallbacks } from '@renderer/services/ai'
 
 const mockAnalyze = vi.mocked(analyzeMatchDetailWithAIStream)
 
 /** 捕获流式回调，由测试驱动 chunk/done/error 的时机 */
-let captured: any = null
+let captured: StreamCallbacks | null = null
 function armStream(): void {
-  mockAnalyze.mockImplementation((...args: unknown[]) => {
-    captured = args.find(a => a && typeof (a as any).onChunk === 'function')
+  mockAnalyze.mockImplementation((_game, callbacks) => {
+    captured = callbacks
     return new Promise<void>(() => {}) // 永不自己 settle
   })
 }
@@ -116,8 +117,8 @@ describe('useMatchAIAnalysis', () => {
     result.openOverviewAnalysis(1)
     await flush()
 
-    captured.onChunk('## 结论\n下路对线崩了')
-    captured.onDone()
+    captured!.onChunk('## 结论\n下路对线崩了')
+    captured!.onDone()
     await nextTick()
 
     result.showAiModal.value = false
@@ -135,8 +136,8 @@ describe('useMatchAIAnalysis', () => {
     const { result, unmount } = setup()
     result.openOverviewAnalysis(1)
     await flush()
-    captured.onChunk('整局内容')
-    captured.onDone()
+    captured!.onChunk('整局内容')
+    captured!.onDone()
     await nextTick()
 
     result.openPlayerAnalysis(1)
@@ -151,8 +152,8 @@ describe('useMatchAIAnalysis', () => {
     const { result, unmount } = setup()
     result.openOverviewAnalysis(1)
     await flush()
-    captured.onChunk('旧结果')
-    captured.onDone()
+    captured!.onChunk('旧结果')
+    captured!.onDone()
     await nextTick()
 
     void result.runCurrentAiAnalysis()

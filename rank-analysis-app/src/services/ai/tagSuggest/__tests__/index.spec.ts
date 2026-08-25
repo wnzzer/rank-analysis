@@ -9,6 +9,7 @@ vi.mock('@renderer/services/ai/stream', () => ({
 
 import { invoke } from '@tauri-apps/api/core'
 import { requestAIContent, requestAIContentStream } from '@renderer/services/ai/stream'
+import type { StreamCallbacks } from '@renderer/services/ai/types'
 import {
   requestTagSuggestions,
   markAdopted,
@@ -205,7 +206,7 @@ function mockHappyPath() {
     success: true,
     content: JSON.stringify(stage1Output)
   })
-  mockStream.mockImplementation(async (_userPrompt, callbacks: any) => {
+  mockStream.mockImplementation(async (_userPrompt: string, callbacks: StreamCallbacks) => {
     callbacks.onChunk(JSON.stringify(stage2Output))
     callbacks.onDone()
   })
@@ -253,7 +254,7 @@ describe('requestTagSuggestions — happy path', () => {
       success: true,
       content: JSON.stringify(stage1Output)
     })
-    mockStream.mockImplementation(async (_p, cb: any) => {
+    mockStream.mockImplementation(async (_p: string, cb: StreamCallbacks) => {
       cb.onChunk(JSON.stringify(stage2Output))
       cb.onDone()
     })
@@ -267,7 +268,7 @@ describe('requestTagSuggestions — happy path', () => {
     mockHappyPath()
     await requestTagSuggestions() // first call seeds dedup
     let stage2SystemPrompt = ''
-    mockStream.mockImplementation(async (_p, cb: any, sys: string) => {
+    mockStream.mockImplementation(async (_p: string, cb: StreamCallbacks, sys: string) => {
       stage2SystemPrompt = sys
       cb.onChunk(JSON.stringify(stage2Output))
       cb.onDone()
@@ -310,7 +311,7 @@ describe('requestTagSuggestions — failure modes', () => {
       success: true,
       content: JSON.stringify(stage1Output)
     })
-    mockStream.mockImplementation(async (_p, cb: any) => {
+    mockStream.mockImplementation(async (_p: string, cb: StreamCallbacks) => {
       cb.onError('stream died')
     })
     const r = await requestTagSuggestions()

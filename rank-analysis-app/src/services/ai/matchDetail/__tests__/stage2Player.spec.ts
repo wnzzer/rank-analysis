@@ -38,7 +38,7 @@ function makePlayer(opts: {
   }
 }
 
-function makeSnapshot(players: any[]): MatchSnapshot {
+function makeSnapshot(players: ReturnType<typeof makePlayer>[]): MatchSnapshot {
   return {
     gameId: 1,
     queueName: '单双排位',

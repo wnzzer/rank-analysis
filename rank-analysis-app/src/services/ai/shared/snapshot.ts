@@ -20,6 +20,11 @@ import { inferTeamPosition } from './positionInfer'
 import { spellIdsToNames } from './summonerSpells'
 import type { ModeContext, RecentPlayerProfile, TeamPosition } from './types'
 
+type LcuParticipantExtras = {
+  teamPosition?: string
+  timeline?: { lane?: string; role?: string }
+}
+
 function getParticipants(game: Game): Participant[] {
   return game.gameDetail?.participants?.length ? game.gameDetail.participants : game.participants
 }
@@ -89,12 +94,12 @@ function safePerMinute(value: number, durationSeconds: number): number {
   return roundStat(value / minutes, 1)
 }
 
-function readTeamPosition(participant: Participant): TeamPosition {
+function readTeamPosition(participant: Participant & LcuParticipantExtras): TeamPosition {
   // LCU 战绩常整局缺 teamPosition/timeline.lane（国服真机实测 10 人全缺）——
   // 有值时透传，缺失时用召唤师技能+英雄启发式推断（惩戒→打野等），
   // 推不出再落 UNKNOWN（消费方按无分路降级）。
   return inferTeamPosition({
-    teamPosition: (participant as any).teamPosition ?? '',
+    teamPosition: participant.teamPosition ?? '',
     spellIds: [participant.spell1Id, participant.spell2Id],
     championId: participant.championId
   })
@@ -138,7 +143,7 @@ export function buildMatchSnapshot(
       kills: 0
     }
     const stats = participant.stats
-    const tl = (participant as any).timeline ?? {}
+    const tl = (participant as Participant & LcuParticipantExtras).timeline ?? {}
     const puuid = identity?.player?.puuid ?? ''
 
     return {
@@ -177,12 +182,12 @@ export function buildMatchSnapshot(
       gpm: safePerMinute(stats.goldEarned, durationSeconds),
       csm: safePerMinute(totalCs(stats), durationSeconds),
       items: modeContext.hasItemBuild ? getItemIds(stats) : [],
-      trinketId: (stats as any).item6 ?? 0,
+      trinketId: stats.item6 ?? 0,
       // 视野三项：国服 LCU 战绩实测不下发这些字段——缺失必须是 null 而非 0，
       // 否则模型会拿假 0 冤枉玩家"整局没插眼"（真机复现）。
-      wardScore: (stats as any).visionScore ?? null,
-      controlWardsPlaced: (stats as any).sightWardsBoughtInGame ?? null,
-      visionWardsBought: (stats as any).visionWardsBoughtInGame ?? null,
+      wardScore: stats.visionScore ?? null,
+      controlWardsPlaced: stats.sightWardsBoughtInGame ?? null,
+      visionWardsBought: stats.visionWardsBoughtInGame ?? null,
       // 多杀字段已在类型上声明（后端曾丢弃该字段导致这里恒为 0，现已透传）
       multiKills: {
         double: stats.doubleKills ?? 0,

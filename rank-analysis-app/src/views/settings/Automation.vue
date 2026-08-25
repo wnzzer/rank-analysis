@@ -569,22 +569,22 @@ const updateStartSwitch = async () => {
   await putConfigByIpc('settings.auto.startMatchSwitch', autoStart.value)
 }
 
-const deleteBanData = async (value: any) => {
+const deleteBanData = async (value: number) => {
   myBanData.value = myBanData.value.filter(item => item !== value)
   await updateBanData()
 }
-const deletePickData = async (value: any) => {
+const deletePickData = async (value: number) => {
   myPickData.value = myPickData.value.filter(item => item !== value)
   await updatePickData()
 }
-const addBanData = async (value: any) => {
-  if (value === 0 || myBanData.value.includes(value)) return
-  myBanData.value?.push(value)
+const addBanData = async (value: number | string) => {
+  if (value === 0 || myBanData.value.includes(value as number)) return
+  myBanData.value?.push(value as number)
   await updateBanData()
 }
-const addPickData = async (value: any) => {
-  if (myPickData.value.includes(value) || value === 0) return
-  myPickData.value?.push(value)
+const addPickData = async (value: number | string) => {
+  if (myPickData.value.includes(value as number) || value === 0) return
+  myPickData.value?.push(value as number)
   await updatePickData()
 }
 </script>

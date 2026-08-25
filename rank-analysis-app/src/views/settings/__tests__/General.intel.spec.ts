@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { mount, type DOMWrapper, type VueWrapper } from '@vue/test-utils'
 import naive from 'naive-ui'
 
 vi.mock('@renderer/services/ipc', () => ({
@@ -56,8 +56,8 @@ const statusFixture = {
 }
 
 /** 定位「战术情报」所在表单项内的 n-switch（页面还有错误上报/备注开关，须按 label 区分） */
-function intelSwitch(w: any): any {
-  const item = w.findAll('.n-form-item').find((el: any) => el.text().includes('战术情报'))
+function intelSwitch(w: VueWrapper): DOMWrapper<Element> {
+  const item = w.findAll('.n-form-item').find(el => el.text().includes('战术情报'))
   if (!item) throw new Error('未找到战术情报表单项')
   return item.find('.n-switch')
 }

@@ -12,6 +12,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { defineComponent, reactive, ref, nextTick } from 'vue'
 import { mount } from '@vue/test-utils'
 import type { StreamCallbacks } from '@renderer/services/ai'
+import type { SessionData } from '@renderer/types/domain/gaming'
 
 const messageStub = { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() }
 vi.mock('naive-ui', () => ({ useMessage: () => messageStub }))
@@ -31,13 +32,14 @@ const captured: { team: StreamCallbacks | null; champSelect: StreamCallbacks | n
   team: null,
   champSelect: null
 }
-function armStream(
-  mock: { mockImplementation: (fn: (...a: any[]) => any) => void },
-  kind: 'team' | 'champSelect'
-): void {
-  mock.mockImplementation((...args: any[]) => {
-    captured[kind] = args.find(a => a && typeof a.onChunk === 'function') as StreamCallbacks
+function armStreams(): void {
+  mockTeam.mockImplementation((_gameData, _type, callbacks) => {
+    captured.team = callbacks
     // 永不自己 settle：由测试调用 captured.onDone()/onError() 决定
+    return new Promise<void>(() => {})
+  })
+  mockChampSelect.mockImplementation((_sessionData, _opggMode, callbacks) => {
+    captured.champSelect = callbacks
     return new Promise<void>(() => {})
   })
 }
@@ -56,7 +58,7 @@ function withSetup<T>(composable: () => T): { result: T; unmount: () => void } {
 }
 
 function setup(phase = 'InProgress') {
-  const sessionData = reactive({ phase }) as any
+  const sessionData = reactive({ phase }) as SessionData
   const opggMode = ref('ranked' as const)
   return withSetup(() => useGamingAIAnalysis(sessionData, opggMode))
 }
@@ -66,8 +68,7 @@ describe('useGamingAIAnalysis', () => {
     vi.clearAllMocks()
     captured.team = null
     captured.champSelect = null
-    armStream(mockTeam, 'team')
-    armStream(mockChampSelect, 'champSelect')
+    armStreams()
     // 每个用例独立时间线，限流台账从 0 重新开始
     vi.setSystemTime(new Date(2026, 0, 1, 12, 0, 0))
   })
@@ -184,7 +185,7 @@ describe('useGamingAIAnalysis', () => {
   })
 
   it('phase 切换重置限流台账：新阶段自动发起不受旧阶段限流影响', async () => {
-    const sessionData = reactive({ phase: 'InProgress' }) as any
+    const sessionData = reactive({ phase: 'InProgress' }) as SessionData
     const opggMode = ref('ranked' as const)
     const { result, unmount } = withSetup(() => useGamingAIAnalysis(sessionData, opggMode))
 
@@ -215,8 +216,7 @@ describe('useGamingAIAnalysis', () => {
     inGame.unmount()
 
     vi.clearAllMocks()
-    armStream(mockTeam, 'team')
-    armStream(mockChampSelect, 'champSelect')
+    armStreams()
 
     const champSelect = setup('ChampSelect')
     champSelect.result.openPanel()
@@ -227,7 +227,7 @@ describe('useGamingAIAnalysis', () => {
   })
 
   it('kind 状态隔离：切阶段后另一 kind 的结果/进度保留', async () => {
-    const sessionData = reactive({ phase: 'ChampSelect' }) as any
+    const sessionData = reactive({ phase: 'ChampSelect' }) as SessionData
     const opggMode = ref('ranked' as const)
     const { result, unmount } = withSetup(() => useGamingAIAnalysis(sessionData, opggMode))
 
@@ -257,7 +257,7 @@ describe('useGamingAIAnalysis', () => {
   })
 
   it('rerunKind：指定 kind 重跑，不碰另一个 kind 的进度（三 tab 化的重跑分发）', async () => {
-    const sessionData = reactive({ phase: 'InProgress' }) as any
+    const sessionData = reactive({ phase: 'InProgress' }) as SessionData
     const opggMode = ref('ranked' as const)
     const { result, unmount } = withSetup(() => useGamingAIAnalysis(sessionData, opggMode))
 

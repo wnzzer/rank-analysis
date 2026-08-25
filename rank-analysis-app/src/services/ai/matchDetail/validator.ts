@@ -132,7 +132,7 @@ export function validateAttribution(rawJson: string, snapshot: MatchSnapshot): V
       continue
     }
 
-    const playerSnap = snapshot.players.find((p: any) => p.participantId === v.participantId)
+    const playerSnap = snapshot.players.find(p => p.participantId === v.participantId)
     if (!playerSnap) {
       // 找不到对应玩家，无从 grounding，摘除全部因子但保留 verdict。
       v.mitigatingFactors = []
@@ -148,7 +148,7 @@ export function validateAttribution(rawJson: string, snapshot: MatchSnapshot): V
   // 英雄/分路/胜负方是快照里的既有事实，由 TS 写入而非信任模型——Stage 2 锐评
   // 曾因缺这些字段把下路写成"中路核弹手"、把败方塞进"谁尽力了"（真机截图复现）。
   for (const v of result.verdicts) {
-    const playerSnap = snapshot.players.find((p: any) => p.participantId === v.participantId) as any
+    const playerSnap = snapshot.players.find(p => p.participantId === v.participantId)
     if (!playerSnap) {
       v.champion = undefined
       v.teamPosition = undefined
@@ -170,7 +170,7 @@ export function validateAttribution(rawJson: string, snapshot: MatchSnapshot): V
 function isFactorGrounded(
   factor: MitigatingFactorKind,
   v: Verdict,
-  playerSnap: any,
+  playerSnap: MatchSnapshot['players'][number],
   result: AttributionResult,
   snapshot: MatchSnapshot
 ): boolean {
@@ -184,7 +184,7 @@ function isFactorGrounded(
       const sameTeamCriminals = result.verdicts.filter(
         other =>
           other.participantId !== v.participantId &&
-          snapshot.players.find((p: any) => p.participantId === other.participantId)?.teamId ===
+          snapshot.players.find(p => p.participantId === other.participantId)?.teamId ===
             playerSnap.teamId &&
           other.label === '犯罪'
       )

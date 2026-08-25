@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <n-space vertical>
     <n-card title="标签管理" size="small">
       <template #header-extra>
@@ -81,22 +81,24 @@ import { invoke } from '@tauri-apps/api/core'
 import TagConditionNode from './TagConditionNode.vue'
 import AISuggestModal from '@renderer/components/tags/AISuggestModal.vue'
 import type { championOption } from '@renderer/types/domain/champion'
+import type { TagCondition } from '@renderer/types/tagSuggest'
 
 const themeVars = useThemeVars()
 
-// Backend Interfaces
-interface TagConfig {
+// 与 types/tagSuggest.ts 的 TagConfig 同构，但编辑态允许 condition 为空
+// （未初始化时提示「请配置触发条件」）、isDefault 缺省（新建标签）
+interface EditableTag {
   id: string
   name: string
   desc: string
   good: boolean
   enabled: boolean
-  condition: any // Complex tree structure, using any to delegate to component
+  condition: TagCondition | null
   isDefault?: boolean
 }
 
 const message = useMessage()
-const tags = ref<TagConfig[]>([])
+const tags = ref<EditableTag[]>([])
 const loading = ref(false)
 const showModal = ref(false)
 const aiModalShow = ref(false)
@@ -110,7 +112,7 @@ async function onAITagAdopted() {
 }
 
 // Initialize with empty object matching interface partially
-const currentTag = ref<TagConfig>({
+const currentTag = ref<EditableTag>({
   id: '',
   name: '',
   desc: '',
@@ -127,7 +129,7 @@ const columns = [
     title: '状态',
     key: 'enabled',
     width: 80,
-    render: (row: any) =>
+    render: (row: EditableTag) =>
       h(NSwitch, {
         value: row.enabled,
         size: 'small',
@@ -137,15 +139,15 @@ const columns = [
   {
     title: '名称',
     key: 'name',
-    render: (row: any) =>
+    render: (row: EditableTag) =>
       h(NTag, { type: row.good ? 'success' : 'error' }, { default: () => row.name })
   },
   { title: '描述', key: 'desc' },
-  { title: '默认', key: 'isDefault', render: (row: any) => (row.isDefault ? '是' : '否') },
+  { title: '默认', key: 'isDefault', render: (row: EditableTag) => (row.isDefault ? '是' : '否') },
   {
     title: '操作',
     key: 'actions',
-    render(row: any) {
+    render(row: EditableTag) {
       if (row.isDefault) {
         return h(
           NButton,
@@ -188,11 +190,11 @@ onMounted(async () => {
 async function loadTags() {
   loading.value = true
   try {
-    const res = await invoke<TagConfig[]>('get_all_tag_configs')
+    const res = await invoke<EditableTag[]>('get_all_tag_configs')
     // No transformation needed now, assume backend sends valid tree
     tags.value = res
-  } catch (e: any) {
-    message.error('加载标签失败: ' + e)
+  } catch (e) {
+    message.error('加载标签失败: ' + String(e))
   } finally {
     loading.value = false
   }
@@ -200,9 +202,9 @@ async function loadTags() {
 
 async function fetchModes() {
   try {
-    const res: any = await invoke('get_game_modes')
+    const res = await invoke<{ label: string; value: number }[]>('get_game_modes')
     // Filter out "All" (0) if not needed, or keep it.
-    modeOptions.value = res.filter((m: any) => m.value !== 0)
+    modeOptions.value = res.filter(m => m.value !== 0)
   } catch (e) {
     message.error('加载游戏模式失败')
   }
@@ -210,21 +212,20 @@ async function fetchModes() {
 
 async function fetchChampions() {
   try {
-    const res: any = await invoke('get_champion_options')
-    championOptions.value = res
+    championOptions.value = await invoke<championOption[]>('get_champion_options')
   } catch (e) {
     message.error('加载英雄列表失败')
   }
 }
 
-async function toggleEnabled(row: TagConfig, val: boolean) {
+async function toggleEnabled(row: EditableTag, val: boolean) {
   row.enabled = val
   // Save all tags
   try {
     await invoke('save_tag_configs', { configs: tags.value })
     message.success(val ? '已启用' : '已禁用')
-  } catch (e: any) {
-    message.error(e)
+  } catch (e) {
+    message.error(String(e))
     row.enabled = !val
   }
 }
@@ -259,7 +260,7 @@ function initRootCondition() {
   }
 }
 
-function openEditModal(row: any) {
+function openEditModal(row: EditableTag) {
   // Deep copy
   currentTag.value = JSON.parse(JSON.stringify(row))
   showModal.value = true
@@ -291,8 +292,8 @@ async function saveTag() {
     message.success('保存成功')
     showModal.value = false
     loadTags()
-  } catch (e: any) {
-    message.error(e)
+  } catch (e) {
+    message.error(String(e))
   }
 }
 
@@ -302,8 +303,8 @@ async function deleteTag(id: string) {
     await invoke('save_tag_configs', { configs: newTags })
     message.success('删除成功')
     loadTags()
-  } catch (e: any) {
-    message.error(e)
+  } catch (e) {
+    message.error(String(e))
   }
 }
 </script>

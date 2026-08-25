@@ -102,7 +102,7 @@ defineProps<{
 }>()
 
 const emit = defineEmits<{
-  'mode-change': [value: string | number, option: any]
+  'mode-change': [value: string | number, option: { label?: string }]
 }>()
 
 // n-card 的 content-style 需要字符串,这里走 token

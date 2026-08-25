@@ -17,6 +17,7 @@ import { defineComponent, reactive, ref } from 'vue'
 import { mount, flushPromises } from '@vue/test-utils'
 import type { StreamCallbacks } from '@renderer/services/ai'
 import type { LiveGameSnapshot } from '@renderer/features/gaming/services/liveGame'
+import type { SessionData } from '@renderer/types/domain/gaming'
 
 const messageStub = { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() }
 vi.mock('naive-ui', () => ({ useMessage: () => messageStub }))
@@ -109,7 +110,7 @@ function withSetup<T>(composable: () => T): { result: T; unmount: () => void } {
 }
 
 function setup(phase = 'InProgress') {
-  const sessionData = reactive(JSON.parse(JSON.stringify(SESSION))) as any
+  const sessionData = reactive(JSON.parse(JSON.stringify(SESSION))) as SessionData
   sessionData.phase = phase
   const mySummoner = ref(ME)
   return withSetup(() => useLiveAIAnalysis(sessionData, { mySummoner }))
@@ -162,7 +163,7 @@ describe('useLiveAIAnalysis', () => {
   })
 
   it('按 pollIntervalMs 周期轮询', async () => {
-    const sessionData = reactive(JSON.parse(JSON.stringify(SESSION))) as any
+    const sessionData = reactive(JSON.parse(JSON.stringify(SESSION))) as SessionData
     const { unmount } = withSetup(() =>
       useLiveAIAnalysis(sessionData, { mySummoner: ref(ME), pollIntervalMs: 50 })
     )
@@ -176,7 +177,7 @@ describe('useLiveAIAnalysis', () => {
   })
 
   it('离开对局：停轮询、清快照，结果保留', async () => {
-    const sessionData = reactive(JSON.parse(JSON.stringify(SESSION))) as any
+    const sessionData = reactive(JSON.parse(JSON.stringify(SESSION))) as SessionData
     const { result, unmount } = withSetup(() =>
       useLiveAIAnalysis(sessionData, { mySummoner: ref(ME) })
     )
@@ -302,7 +303,7 @@ describe('useLiveAIAnalysis', () => {
   })
 
   it('阶段切换重置限流：离开对局再回来可立即自动发起', async () => {
-    const sessionData = reactive(JSON.parse(JSON.stringify(SESSION))) as any
+    const sessionData = reactive(JSON.parse(JSON.stringify(SESSION))) as SessionData
     const { result, unmount } = withSetup(() =>
       useLiveAIAnalysis(sessionData, { mySummoner: ref(ME) })
     )

@@ -5,7 +5,7 @@
  */
 
 import type { Game } from '@renderer/types/domain/match'
-import type { SessionData } from '@renderer/types/domain/gaming'
+import type { SessionData, SessionSummoner } from '@renderer/types/domain/gaming'
 import type { OpggMode } from '@renderer/services/opgg'
 import { getConfigByIpc } from '@renderer/services/ipc'
 import { CONFIG_KEYS } from '@renderer/services/configKeys'
@@ -20,7 +20,7 @@ import type { RecentData } from '@renderer/types/domain/analysis'
 import type { LiveGameSnapshot } from '@renderer/features/gaming/services/liveGame'
 import { analyzeMatchDetail } from './matchDetail'
 import type { AIAnalysisReport } from './matchDetail'
-import type { RecentPlayerProfile } from './shared/types'
+import type { RecentPlayerProfile, TeamPosition } from './shared/types'
 import { fetchBatchProfiles } from './shared/recentProfile.batch'
 import { classifyMode } from './shared/modeContext'
 import type { PlayerScore } from '@renderer/features/record/services/playerScore'
@@ -31,18 +31,18 @@ import type { DecisionBacktest } from '@renderer/features/record/services/backte
  * prompt 构建方按「未提供画像」降级到旧版敌方情报块，不影响分析链路。
  */
 async function buildTeamProfileMap(
-  gameData: any
+  gameData: SessionData
 ): Promise<Map<string, RecentPlayerProfile | null> | undefined> {
   try {
     const subteams = gameData?.subteams ?? []
     const requests = subteams
-      .flatMap((st: any) => st.players ?? [])
-      .map((p: any) => ({
-        puuid: p.summoner?.puuid as string | undefined,
-        teamPosition: (p.assignedPosition || 'UNKNOWN') as any,
-        championId: (p.championId as number) || 0
+      .flatMap(st => st.players ?? [])
+      .map(p => ({
+        puuid: p.summoner?.puuid,
+        teamPosition: (p.assignedPosition || 'UNKNOWN') as TeamPosition,
+        championId: p.championId || 0
       }))
-      .filter((r: any) => r.puuid && r.championId > 0)
+      .filter(r => r.puuid && r.championId > 0)
     if (requests.length === 0) return undefined
     return await fetchBatchProfiles(requests)
   } catch (error) {
@@ -62,7 +62,7 @@ export type { AttributionResult, MatchAIState } from './matchDetail'
 export type { AIAnalysisReport } from './matchDetail'
 
 export async function analyzeGameWithAIStream(
-  gameData: any,
+  gameData: SessionData | SessionSummoner,
   type: 'team' | 'player' = 'team',
   callbacks: StreamCallbacks,
   opts: { opggMode?: OpggMode } = {}
@@ -73,27 +73,28 @@ export async function analyzeGameWithAIStream(
     const useNotes = (await getConfigByIpc<boolean>(CONFIG_KEYS.aiUsePlayerNotes)) !== false
     // 战术情报开关：默认开，显式 false 时整队分析不再注入版本情报/克制/信号/模式知识
     const intelEnabled = (await getConfigByIpc<boolean>(CONFIG_KEYS.opggEnabled)) !== false
+    const session = gameData as SessionData
     const prompt =
       type === 'team'
-        ? await buildTeamAnalysisPrompt(gameData, {
+        ? await buildTeamAnalysisPrompt(session, {
             useNotes,
             opggMode: intelEnabled ? opts.opggMode : undefined,
-            profileMap: intelEnabled ? await buildTeamProfileMap(gameData) : undefined,
-            modeKind: classifyMode(gameData?.queueId ?? 0, gameData?.gameMode ?? '').kind,
-            queueId: gameData?.queueId as number | undefined
+            profileMap: intelEnabled ? await buildTeamProfileMap(session) : undefined,
+            modeKind: classifyMode(session?.queueId ?? 0, session?.gameMode ?? '').kind,
+            queueId: session?.queueId as number | undefined
           })
-        : await buildPlayerAnalysisPrompt(gameData, { useNotes })
+        : await buildPlayerAnalysisPrompt(gameData as SessionSummoner, { useNotes })
     // DEFAULT_SYSTEM_PROMPT 带"所有结论都必须绑定数据证据"反幻觉指令，
     // 与 prompt 内纪律区配套（旧的弱版 IN_GAME_SYSTEM_PROMPT 已淘汰）。
     await requestAIContentStream(prompt, callbacks, DEFAULT_SYSTEM_PROMPT)
-  } catch (error: any) {
+  } catch (error) {
     console.error('AI analysis error:', error)
-    callbacks.onError(error.message || '网络请求失败')
+    callbacks.onError((error as { message?: string })?.message || '网络请求失败')
   }
 }
 
 export async function analyzeGameWithAI(
-  gameData: any,
+  gameData: SessionData | SessionSummoner,
   type: 'team' | 'player' = 'team'
 ): Promise<AIAnalysisResult> {
   return new Promise(resolve => {
@@ -129,9 +130,9 @@ export async function analyzeChampSelectWithAIStream(
     // 用 stream.ts 的 DEFAULT_SYSTEM_PROMPT（含"所有结论都必须绑定数据证据"的反幻觉指令），
     // 与选人期 prompt 里的分析纪律硬规则配套；不沿用对局中的 IN_GAME_SYSTEM_PROMPT。
     await requestAIContentStream(prompt, callbacks, DEFAULT_SYSTEM_PROMPT)
-  } catch (error: any) {
+  } catch (error) {
     console.error('Champ select AI analysis error:', error)
-    callbacks.onError(error.message || '网络请求失败')
+    callbacks.onError((error as { message?: string })?.message || '网络请求失败')
   }
 }
 
@@ -150,9 +151,9 @@ export async function analyzeLiveGameWithAIStream(
   try {
     const prompt = buildLiveGamePrompt(snapshot, extras)
     await requestAIContentStream(prompt, callbacks, DEFAULT_SYSTEM_PROMPT)
-  } catch (error: any) {
+  } catch (error) {
     console.error('Live game AI analysis error:', error)
-    callbacks.onError(error.message || '网络请求失败')
+    callbacks.onError((error as { message?: string })?.message || '网络请求失败')
   }
 }
 
@@ -171,9 +172,9 @@ export async function analyzeGrowthReportWithAIStream(
   try {
     const prompt = buildGrowthReportPrompt(recent, curveInsights)
     await requestAIContentStream(prompt, callbacks, DEFAULT_SYSTEM_PROMPT)
-  } catch (error: any) {
+  } catch (error) {
     console.error('Growth report AI analysis error:', error)
-    callbacks.onError(error.message || '网络请求失败')
+    callbacks.onError((error as { message?: string })?.message || '网络请求失败')
   }
 }
 
@@ -217,9 +218,9 @@ export async function analyzeMatchDetailWithAIStream(
       callbacks.onChunk(out.fallbackMarkdown)
       callbacks.onDone()
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Match detail AI stream analysis error:', error)
-    callbacks.onError(error.message || '网络请求失败')
+    callbacks.onError((error as { message?: string })?.message || '网络请求失败')
   }
 }
 

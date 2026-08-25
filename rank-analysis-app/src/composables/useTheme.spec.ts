@@ -8,6 +8,8 @@ import { useTheme } from './useTheme'
 import { createPinia, setActivePinia } from 'pinia'
 import { useSettingsStore } from '@renderer/features/settings/stores/setting'
 
+type StoreTheme = ReturnType<typeof useSettingsStore>['theme']
+
 describe('useTheme', () => {
   beforeEach(() => {
     // 每个测试前重置 Pinia 状态
@@ -21,7 +23,7 @@ describe('useTheme', () => {
     it('should return true when theme is Dark', () => {
       // Arrange
       const store = useSettingsStore()
-      store.theme = { name: 'Dark' } as any
+      store.theme = { name: 'Dark' } as unknown as StoreTheme
 
       // Act
       const { isDark } = useTheme()
@@ -36,7 +38,7 @@ describe('useTheme', () => {
     it('should return true when theme is dark (lowercase)', () => {
       // Arrange
       const store = useSettingsStore()
-      store.theme = { name: 'dark' } as any
+      store.theme = { name: 'dark' } as unknown as StoreTheme
 
       // Act
       const { isDark } = useTheme()
@@ -51,7 +53,7 @@ describe('useTheme', () => {
     it('should return false when theme is Light', () => {
       // Arrange
       const store = useSettingsStore()
-      store.theme = { name: 'Light' } as any
+      store.theme = { name: 'Light' } as unknown as StoreTheme
 
       // Act
       const { isDark } = useTheme()
@@ -66,7 +68,7 @@ describe('useTheme', () => {
     it('should return false when theme is undefined', () => {
       // Arrange
       const store = useSettingsStore()
-      store.theme = undefined as any
+      store.theme = undefined as unknown as StoreTheme
 
       // Act
       const { isDark } = useTheme()
@@ -83,7 +85,7 @@ describe('useTheme', () => {
     it('should be opposite of isDark', () => {
       // Arrange
       const store = useSettingsStore()
-      store.theme = { name: 'Dark' } as any
+      store.theme = { name: 'Dark' } as unknown as StoreTheme
 
       // Act
       const { isDark, isLight } = useTheme()
@@ -100,7 +102,7 @@ describe('useTheme', () => {
     it('should return current theme name', () => {
       // Arrange
       const store = useSettingsStore()
-      store.theme = { name: 'CustomTheme' } as any
+      store.theme = { name: 'CustomTheme' } as unknown as StoreTheme
 
       // Act
       const { themeName } = useTheme()
@@ -115,7 +117,7 @@ describe('useTheme', () => {
     it('should return default "dark" when theme is undefined', () => {
       // Arrange
       const store = useSettingsStore()
-      store.theme = undefined as any
+      store.theme = undefined as unknown as StoreTheme
 
       // Act
       const { themeName } = useTheme()
@@ -132,14 +134,14 @@ describe('useTheme', () => {
     it('should react to theme changes', () => {
       // Arrange
       const store = useSettingsStore()
-      store.theme = { name: 'Light' } as any
+      store.theme = { name: 'Light' } as unknown as StoreTheme
       const { isDark } = useTheme()
 
       // 初始状态
       expect(isDark.value).toBe(false)
 
       // Act: 改变主题
-      store.theme = { name: 'Dark' } as any
+      store.theme = { name: 'Dark' } as unknown as StoreTheme
 
       // Assert
       expect(isDark.value).toBe(true)

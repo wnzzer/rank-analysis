@@ -14,7 +14,7 @@ import type { AttributionResult } from '../types'
 const LANE_POSITIONS = new Set(['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'])
 
 /** 单个玩家 → 喂给模型的紧凑 JSON（剔除 isMe 等无关字段，保留全量数值证据） */
-function playerBrief(p: any): string {
+function playerBrief(p: MatchSnapshot['players'][number]): string {
   return JSON.stringify({
     name: p.name,
     champion: p.champion,
@@ -50,7 +50,7 @@ export function buildStage2PlayerPrompt(
   participantId: number,
   vocabSamples: string[]
 ): string {
-  const players = snapshot.players as any[]
+  const players = snapshot.players
   const targetPlayer = players.find(p => p.participantId === participantId)
   const targetBlock = targetPlayer ? playerBrief(targetPlayer) : '（未找到目标玩家快照）'
 

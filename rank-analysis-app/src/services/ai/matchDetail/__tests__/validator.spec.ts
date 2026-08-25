@@ -1,7 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import { validateAttribution } from '../validator'
 import type { MatchSnapshot } from '../../shared/snapshot'
-import type { AttributionResult } from '../types'
+import type { AttributionResult, MitigatingFactor, Verdict } from '../types'
+
+type LooseVerdict = Omit<Verdict, 'evidenceMetrics' | 'label'> & {
+  label: string
+  evidenceMetrics: Array<{ metric: string; value: number | string | null }>
+}
+
+type LooseResult = Omit<AttributionResult, 'verdicts'> & { verdicts: LooseVerdict[] }
 
 function snapshotWithPlayer(opts: {
   participantId: number
@@ -10,7 +17,7 @@ function snapshotWithPlayer(opts: {
   isFirstTimeInRecent?: boolean
   otherPlayers?: Array<{ participantId: number; teamId: number }>
 }): MatchSnapshot {
-  const players: any[] = [
+  const players = [
     {
       participantId: opts.participantId,
       teamId: opts.teamId,
@@ -45,7 +52,11 @@ function snapshotWithPlayer(opts: {
   return { players } as unknown as MatchSnapshot
 }
 
-function validVerdict(participantId: number, label = '正常', mitigatingFactors: any[] = []) {
+function validVerdict(
+  participantId: number,
+  label = '正常',
+  mitigatingFactors: MitigatingFactor[] = []
+): LooseVerdict {
   return {
     participantId,
     name: `P${participantId}`,
@@ -60,7 +71,7 @@ function validVerdict(participantId: number, label = '正常', mitigatingFactors
   }
 }
 
-function validResult(verdicts: any[]): AttributionResult {
+function validResult(verdicts: LooseVerdict[]): LooseResult {
   return { winReason: '蓝方运营优势滚雪球，红方下路 10 分钟崩盘连锁', verdicts }
 }
 
@@ -165,7 +176,7 @@ describe('validateAttribution', () => {
           { participantId: 4, teamId: 200 }
         ]
       })
-      const bad = validVerdict(1, '神勇' as any)
+      const bad = validVerdict(1, '神勇')
       const result = validResult([bad, validVerdict(2), validVerdict(3), validVerdict(4)])
       const out = validateAttribution(JSON.stringify(result), snap)
       expect(out.ok).toBe(false)
@@ -348,7 +359,7 @@ describe('validateAttribution', () => {
         { metric: 'damageShare', value: '36.3%' },
         { metric: 'kda', value: '4.44' },
         { metric: 'kills', value: 19 }
-      ] as any
+      ]
       const result = validResult([v, validVerdict(2), validVerdict(3), validVerdict(4)])
       const out = validateAttribution(JSON.stringify(result), snap4())
       expect(out.ok).toBe(true)
@@ -365,7 +376,7 @@ describe('validateAttribution', () => {
         { metric: 'deaths', value: 11 },
         { metric: 'rank', value: '队内最高' },
         { metric: 'damageShare', value: 30 }
-      ] as any
+      ]
       const result = validResult([v, validVerdict(2), validVerdict(3), validVerdict(4)])
       const out = validateAttribution(JSON.stringify(result), snap4())
       expect(out.ok).toBe(true)
@@ -383,7 +394,7 @@ describe('validateAttribution', () => {
         { metric: 'a', value: '很高' },
         { metric: 'b', value: null },
         { metric: 'c', value: '第一名' }
-      ] as any
+      ]
       const result = validResult([v, validVerdict(2), validVerdict(3), validVerdict(4)])
       const out = validateAttribution(JSON.stringify(result), snap4())
       expect(out.ok).toBe(true)
@@ -397,7 +408,7 @@ describe('validateAttribution', () => {
   describe('deterministic backfill: champion / teamPosition / teamResult', () => {
     /** 带英雄/分路/胜负的快照——回填数据源 */
     function snapshotWithRoster(): MatchSnapshot {
-      const players: any[] = [
+      const players = [
         {
           participantId: 1,
           teamId: 100,

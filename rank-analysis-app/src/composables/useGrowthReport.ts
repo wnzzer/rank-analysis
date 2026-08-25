@@ -50,8 +50,8 @@ export function useGrowthReport(): {
         }
       }
       await analyzeGrowthReportWithAIStream(recent, callbacks, curveInsights)
-    } catch (e: any) {
-      message.error('成长报告生成失败: ' + (e?.message || '未知错误'))
+    } catch (e) {
+      message.error('成长报告生成失败: ' + ((e instanceof Error && e.message) || '未知错误'))
       loading.value = false
     }
   }

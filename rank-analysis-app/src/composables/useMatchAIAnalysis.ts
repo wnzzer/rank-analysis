@@ -5,7 +5,7 @@
 
 import { computed, ref, watch, toValue, type MaybeRefOrGetter } from 'vue'
 import { useMessage } from 'naive-ui'
-import type { Game } from '@renderer/types/domain/match'
+import type { Game, MatchPlayerIdentity, Participant } from '@renderer/types/domain/match'
 import {
   analyzeMatchDetailWithAIStream,
   type MatchDetailAnalysisMode,
@@ -69,6 +69,10 @@ export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
   // 否则隐私开关切换后缓存命中会绕过开关（旁路）。
   const profileCache = new Map<number, Map<string, RecentPlayerProfile | null>>()
 
+  // LCU/SGP 明细实际携带、但 domain 模型未收录的字段（防御性读取，缺失走回退）
+  type DetailIdentity = MatchPlayerIdentity & { participantId?: number }
+  type DetailParticipant = Participant & { teamPosition?: string }
+
   async function ensureProfiles(g: Game): Promise<Map<string, RecentPlayerProfile | null>> {
     const cached = profileCache.get(g.gameId)
     if (cached) return injectNoteBriefs(cached)
@@ -76,10 +80,10 @@ export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
     const participants = g.participants ?? []
     const requests = identities
       .map(idn => {
-        const pid = (idn as any).participantId
+        const pid = (idn as DetailIdentity).participantId
         const p = participants.find(pp => pp.participantId === pid)
         if (!p || !idn.player?.puuid) return null
-        const tp = ((p as any).teamPosition || 'UNKNOWN') as TeamPosition
+        const tp = ((p as DetailParticipant).teamPosition || 'UNKNOWN') as TeamPosition
         return {
           puuid: idn.player.puuid,
           teamPosition: tp,
@@ -166,10 +170,10 @@ export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
         // decisionBacktest：本机决策回测事实（描述性对位，非因果）
         { profileMap, vocabSamples: sampleCritiqueVocab(), playerScores, decisionBacktest }
       )
-    } catch (error: any) {
+    } catch (error) {
       if (token !== runToken) return
       aiState.value = 'error'
-      message.error('AI 分析出错: ' + (error.message || '未知错误'))
+      message.error('AI 分析出错: ' + ((error instanceof Error && error.message) || '未知错误'))
       aiLoading.value = false
     }
   }

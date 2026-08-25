@@ -27,8 +27,8 @@ const mockAnalyze = vi.mocked(analyzeGrowthReportWithAIStream)
 /** 捕获流式回调，让测试自己驱动 chunk/done/error 的时机 */
 let captured: StreamCallbacks | null = null
 function armStream(): void {
-  mockAnalyze.mockImplementation((...args: any[]) => {
-    captured = args.find(a => a && typeof a.onChunk === 'function') as StreamCallbacks
+  mockAnalyze.mockImplementation((_recent, callbacks) => {
+    captured = callbacks
     return new Promise<void>(() => {})
   })
 }

@@ -127,7 +127,7 @@ function makeGame(): Game {
       participantId: id,
       player: { gameName: `P${id}`, tagLine: '0000', puuid: `puuid_${id}` }
     }))
-  } as any
+  } as unknown as Game
 }
 
 function fakeAttributionJson() {

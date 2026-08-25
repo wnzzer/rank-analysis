@@ -602,8 +602,8 @@ const handleTestConnection = async () => {
       }
     })) as { model?: string; totalTokens?: number }
     message.success(`连接成功：${result.model || '模型'} · ${result.totalTokens ?? 0} tokens`)
-  } catch (e: any) {
-    message.error(e?.message || String(e) || '连接失败')
+  } catch (e) {
+    message.error((e instanceof Error && e.message) || String(e) || '连接失败')
   } finally {
     testing.value = false
   }
@@ -624,9 +624,9 @@ const handleCdragonCache = async () => {
         ? `缓存完成：${ok}/${total} 图标已落盘`
         : `缓存完成：${ok}/${total} 成功（部分失败，未成功的将在取图时快速跳过）`
     message.success(cdragonCacheResult.value)
-  } catch (e: any) {
+  } catch (e) {
     cdragonCacheResult.value = ''
-    message.error(e?.message || String(e) || '缓存失败')
+    message.error((e instanceof Error && e.message) || String(e) || '缓存失败')
   } finally {
     cdragonCaching.value = false
   }

@@ -96,7 +96,7 @@ describe('AISuggestModal', () => {
         droppedCount: 0,
         generatedAt: '2026-05-02T00:00:00Z'
       }
-    } as any)
+    })
     const w = mount(AISuggestModal, { props: { show: true }, global: { stubs } })
     await new Promise(r => setTimeout(r, 0))
     await w.vm.$nextTick()
@@ -127,7 +127,7 @@ describe('AISuggestModal', () => {
         droppedCount: 0,
         generatedAt: '2026-05-02'
       }
-    } as any)
+    })
     vi.mocked(invoke).mockImplementation(async (cmd: string) => {
       if (cmd === 'get_all_tag_configs') return [{ id: 'existing', name: 'X' }]
       if (cmd === 'save_tag_configs') return undefined

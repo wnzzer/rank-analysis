@@ -23,6 +23,12 @@ import { usePlayerNotesStore } from '@renderer/features/settings/stores/playerNo
 
 const mockInvoke = invoke as ReturnType<typeof vi.fn>
 
+interface HistoryArgs {
+  puuid: string
+  region?: string
+  name?: string
+}
+
 /** 只统计战绩拉取的 invoke 次数（备注开关的 get_config 调用不计入） */
 const historyCallCount = () =>
   mockInvoke.mock.calls.filter(c => c[0] === 'get_match_history_by_puuid').length
@@ -59,7 +65,7 @@ function rawHistory(_puuid: string, games: ReturnType<typeof rawMatch>[]) {
 
 describe('fetchBatchProfiles', () => {
   it('returns a profile per puuid in parallel', async () => {
-    mockInvoke.mockImplementation(async (cmd, args: any) => {
+    mockInvoke.mockImplementation(async (cmd: string, args: HistoryArgs) => {
       if (cmd === 'get_match_history_by_puuid') {
         return rawHistory(args.puuid, [
           rawMatch({ puuid: args.puuid, teamPosition: 'JUNGLE', championId: 64, win: true })
@@ -78,7 +84,7 @@ describe('fetchBatchProfiles', () => {
   })
 
   it('isolates individual failures', async () => {
-    mockInvoke.mockImplementation(async (_cmd, args: any) => {
+    mockInvoke.mockImplementation(async (_cmd: string, args: HistoryArgs) => {
       if (args.puuid === 'p_bad') throw new Error('LCU offline')
       return rawHistory(args.puuid, [
         rawMatch({ puuid: args.puuid, teamPosition: 'JUNGLE', championId: 64, win: true })
@@ -95,7 +101,7 @@ describe('fetchBatchProfiles', () => {
   })
 
   it('hits LRU on second call within TTL', async () => {
-    mockInvoke.mockImplementation(async (_cmd, args: any) => {
+    mockInvoke.mockImplementation(async (_cmd: string, args: HistoryArgs) => {
       return rawHistory(args.puuid, [
         rawMatch({ puuid: args.puuid, teamPosition: 'JUNGLE', championId: 64, win: true })
       ])
@@ -110,7 +116,7 @@ describe('fetchBatchProfiles', () => {
 
   it('re-fetches if cache expired (advance fake timers)', async () => {
     vi.useFakeTimers()
-    mockInvoke.mockImplementation(async (_cmd, args: any) =>
+    mockInvoke.mockImplementation(async (_cmd: string, args: HistoryArgs) =>
       rawHistory(args.puuid, [
         rawMatch({ puuid: args.puuid, teamPosition: 'JUNGLE', championId: 64, win: true })
       ])
@@ -127,7 +133,7 @@ describe('fetchBatchProfiles', () => {
   it('恒返回干净 profile：即使开关开且有备注也不含 note（注入是 injectNoteBriefs 的职责）', async () => {
     const store = usePlayerNotesStore()
     await store.setNote('p1', { note: '演员', label: 'blacklist', gameName: 'A', tagLine: '1' })
-    mockInvoke.mockImplementation(async (cmd, args: any) => {
+    mockInvoke.mockImplementation(async (cmd: string, args: HistoryArgs) => {
       if (cmd === 'get_match_history_by_puuid') {
         return rawHistory(args.puuid, [
           rawMatch({ puuid: args.puuid, teamPosition: 'JUNGLE', championId: 64, win: true })
@@ -168,7 +174,7 @@ describe('SGP 跨区战绩兜底（fetchBatchProfiles + region/name）', () => {
     mockInvoke.mock.calls.filter(c => c[0] === 'get_sgp_match_history_by_name').length
 
   it('本区无战绩 + region/name → 走 SGP 战绩兜底并聚合（含 timeline.lane 位置）', async () => {
-    mockInvoke.mockImplementation(async (cmd, args: any) => {
+    mockInvoke.mockImplementation(async (cmd: string, args: HistoryArgs) => {
       if (cmd === 'get_match_history_by_puuid') return { games: { games: [] } }
       if (cmd === 'get_sgp_match_history_by_name') {
         expect(args.region).toBe('HN10')
@@ -208,7 +214,7 @@ describe('SGP 跨区战绩兜底（fetchBatchProfiles + region/name）', () => {
   })
 
   it('本区无战绩但无 region → 不启用 SGP 兜底（返回空画像，不编造）', async () => {
-    mockInvoke.mockImplementation(async (cmd, _args: any) => {
+    mockInvoke.mockImplementation(async (cmd: string, _args: HistoryArgs) => {
       if (cmd === 'get_match_history_by_puuid') return { games: { games: [] } }
       return null
     })
@@ -223,7 +229,7 @@ describe('SGP 跨区战绩兜底（fetchBatchProfiles + region/name）', () => {
   })
 
   it('SGP 兜底失败 → 该玩家空画像（不编造），不阻塞其他玩家', async () => {
-    mockInvoke.mockImplementation(async (cmd, args: any) => {
+    mockInvoke.mockImplementation(async (cmd: string, args: HistoryArgs) => {
       if (cmd === 'get_match_history_by_puuid') {
         return args.puuid === 'p_bad'
           ? { games: { games: [] } }
@@ -245,7 +251,7 @@ describe('SGP 跨区战绩兜底（fetchBatchProfiles + region/name）', () => {
   })
 
   it('SGP 兜底结果同样进 LRU 缓存：二次查询不重复调 SGP', async () => {
-    mockInvoke.mockImplementation(async (cmd, _args: any) => {
+    mockInvoke.mockImplementation(async (cmd: string, _args: HistoryArgs) => {
       if (cmd === 'get_match_history_by_puuid') return { games: { games: [] } }
       if (cmd === 'get_sgp_match_history_by_name') {
         return { games: { games: [sgpGame({ championId: 64, lane: 'JUNGLE', win: true })] } }
@@ -280,7 +286,7 @@ describe('injectNoteBriefs', () => {
 
   /** 构造一个干净（无 note）的 profile map */
   async function buildCleanMap(puuids: string[]) {
-    mockInvoke.mockImplementation(async (cmd, args: any) => {
+    mockInvoke.mockImplementation(async (cmd: string, args: HistoryArgs) => {
       if (cmd === 'get_match_history_by_puuid') {
         return rawHistory(args.puuid, [
           rawMatch({ puuid: args.puuid, teamPosition: 'JUNGLE', championId: 64, win: true })

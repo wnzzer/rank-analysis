@@ -168,8 +168,8 @@ export function useLiveAIAnalysis(
         myGameName: summoner?.gameName ?? '',
         recommendedItems: recommended ?? undefined
       })
-    } catch (e: any) {
-      message.error('对局中分析出错: ' + (e?.message || '未知错误'))
+    } catch (e) {
+      message.error('对局中分析出错: ' + ((e instanceof Error && e.message) || '未知错误'))
       loading.value = false
     }
   }

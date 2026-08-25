@@ -139,8 +139,10 @@ export async function requestAIContentStream(
       },
       onEvent: channel
     })
-  } catch (error: any) {
-    settle(() => callbacks.onError(error?.message || String(error) || '流式请求失败'))
+  } catch (error) {
+    settle(() =>
+      callbacks.onError((error as { message?: string })?.message || String(error) || '流式请求失败')
+    )
   }
 }
 
