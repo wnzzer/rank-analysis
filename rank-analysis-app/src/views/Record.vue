@@ -8,7 +8,7 @@
       :platform-id-cn="platformIdCn"
       :is-cross-region="isCrossRegion"
     />
-    <div class="record-main">
+    <div class="record-main" :class="{ 'record-main--focus': focusMode }">
       <!-- 宽窗（>=1064）：左栏常驻；窄窗：隐藏并改用 NDrawer 抽屉 -->
       <aside v-if="!isMobile && !isCompact" class="record-side">
         <UserSidePanel
@@ -98,7 +98,7 @@
       <!-- 回到顶部 FAB：内容区滚动超过阈值后显示，点击平滑回顶 -->
       <Transition name="fab">
         <n-button
-          v-if="showBackTop"
+          v-if="showBackTop && !focusMode"
           circle
           class="record-back-top"
           title="回到顶部"
@@ -137,6 +137,8 @@ function onSelectGame(g: Game | null) {
   selectedGame.value = g
   selectedGameId.value = g?.gameId ?? null
 }
+/** 聚焦模式：宽屏详情展开时隐藏左栏与列表，整页只留详情（收回恢复） */
+const focusMode = computed(() => widePane.value && !!selectedGame.value)
 const regionQuery = computed(() => (route.query.region as string) ?? '')
 /** 窄窗左栏抽屉开关（进入宽窗时自动关闭，避免跨断点残留） */
 const sideOpen = ref(false)
@@ -323,6 +325,23 @@ const activeChampion = ref(0)
 }
 .record-dpane::-webkit-scrollbar {
   display: none;
+}
+
+/* 聚焦模式：宽屏详情展开时隐藏左栏与列表，整页只留详情（收回即恢复） */
+.record-main--focus .record-side,
+.record-main--focus .record-content {
+  display: none;
+}
+.record-main--focus .record-dpane {
+  flex: 1;
+  width: auto;
+  max-width: 1080px;
+  margin: 0 auto;
+  border-left: none;
+  padding-left: var(--space-8);
+}
+.record-main--focus .record-dpane::-webkit-scrollbar {
+  width: 6px;
 }
 
 /* 战绩列表滚动条细化：6px 圆角细条替代系统默认宽条（与详情页一致） */
