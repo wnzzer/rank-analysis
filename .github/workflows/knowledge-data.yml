@@ -1,11 +1,13 @@
 # 知识库构建：knowledge/ 源文件 → data/knowledge/knowledge.json
 # 关联设计: docs/superpowers/specs/2026-07-11-ai-analysis-iteration-design.md §4.3
-# 产物经 jsDelivr / GitCode 分发，客户端 knowledge 模块拉取（内置兜底同产物）
+# 产物经 jsDelivr 分发，客户端 knowledge 模块拉取（内置兜底同产物）
+# （GitCode 镜像已于 2026-08-25 移除：GITCODE_TOKEN 失效致每日定时任务连续失败，
+#   sync-gitcode.yml 已禁用；如需恢复国内镜像先续期 secret 再加回镜像推送步骤）
 name: Knowledge Data
 
 on:
   schedule:
-    - cron: '17 3 * * *' # 每日一次，代价低（仅 demo 源文件重建，无网络依赖）
+    - cron: "17 3 * * *" # 每日一次，代价低（仅 demo 源文件重建，无网络依赖）
   workflow_dispatch:
 
 permissions:
@@ -20,8 +22,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # 拉全量历史，否则 GitCode 镜像推送会漏 commit（对比 sync-gitcode.yml）
 
       - uses: actions/setup-node@v4
         with:
@@ -53,11 +53,3 @@ jobs:
           git commit -m "chore(data): 重建知识库 knowledge.json"
           git push origin HEAD:main
           echo "pushed=true" >> "$GITHUB_OUTPUT"
-
-      # GITHUB_TOKEN 推送不触发 sync-gitcode（GitHub 防递归），自带镜像推送
-      - name: Mirror to GitCode
-        if: steps.commit.outputs.pushed == 'true'
-        env:
-          GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
-        run: |
-          git push "https://wnzzer:${GITCODE_TOKEN}@gitcode.com/wnzzer/rank-analysis.git" HEAD:main --force
