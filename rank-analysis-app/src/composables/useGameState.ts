@@ -55,6 +55,22 @@ let listenerSetupPromise: Promise<void> | null = null
 let activeInstances = 0
 let lastPhase = ''
 
+/**
+ * 断连宽限：一局结束前后 LCU 客户端常有秒级忙/重启窗口，
+ * 单次 get_my_summoner 失败就会发出 connected=false（后端以该请求成败定义连接）。
+ * 若立即踢回主页，用户在对局页/战绩页会被"闪退"——这里要求断连持续超过
+ * 一个心跳周期（后端 ≤10s 一推）才落主页，期间恢复则取消。
+ */
+const DISCONNECT_GRACE_MS = 12000
+let kickTimer: ReturnType<typeof setTimeout> | null = null
+
+function cancelKick(): void {
+  if (kickTimer !== null) {
+    clearTimeout(kickTimer)
+    kickTimer = null
+  }
+}
+
 /** 处理连接状态的路由切换。 */
 function handleConnectionRoute(state: GameStateEvent) {
   // 战绩子窗口（record-*）：不自动跳转，保持打开的是哪页就是哪页
@@ -64,6 +80,7 @@ function handleConnectionRoute(state: GameStateEvent) {
   const currentPath = router.currentRoute.value.path
 
   if (state.connected && state.summoner) {
+    cancelKick()
     // 历史深链兼容：连接建立时仍停留在旧 /Loading 门则送进战绩页；
     // 其余页面不强制跳转，主页状态卡会自行亮起在线态
     if (currentPath === '/Loading') {
@@ -77,16 +94,23 @@ function handleConnectionRoute(state: GameStateEvent) {
     return
   }
 
-  // 断连：落地主页（状态卡承接原 Loading 职责）。
-  // 设置页豁免：设置不依赖 LCU 连接，且状态事件每 ≤10s 心跳一次，
-  // 不豁免会把正在改设置的用户反复踢走
-  if (
-    currentPath !== '/Home' &&
-    !currentPath.startsWith('/Settings') &&
-    !currentPath.startsWith('/Loading')
-  ) {
-    router.push({ path: '/Home' })
+  if (!state.connected) {
+    // 断连宽限：到点仍未恢复才落地主页（状态卡承接原 Loading 职责）。
+    // 设置页豁免：设置不依赖 LCU 连接，不豁免会把正在改设置的用户反复踢走
+    cancelKick()
+    kickTimer = setTimeout(() => {
+      kickTimer = null
+      if (isConnected.value) return
+      const p = router.currentRoute.value.path
+      if (!p.startsWith('/Home') && !p.startsWith('/Settings') && !p.startsWith('/Loading')) {
+        router.push({ path: '/Home' })
+      }
+    }, DISCONNECT_GRACE_MS)
+    return
   }
+
+  // connected=true 但 summoner 缺失（登录信息瞬时不全）：不视为断连，
+  // 保持用户所在页面与既有身份，等待下一跳心跳补全——旧逻辑此处会误踢
 }
 
 async function setupListeners() {
@@ -97,7 +121,11 @@ async function setupListeners() {
 
     isConnected.value = state.connected
     currentPhase.value = state.phase
-    summoner.value = state.summoner
+    // 身份粘滞：瞬时失败不携带召唤师时保留上次已知身份，
+    // 避免对局页/战绩页在抖动窗口内"忘记"当前玩家
+    if (state.summoner) {
+      summoner.value = state.summoner
+    }
     reasonCode.value = state.reasonCode ?? null
     reasonMessage.value = state.reasonMessage ?? null
 
@@ -125,6 +153,7 @@ async function setupListeners() {
 }
 
 function teardownListeners() {
+  cancelKick()
   if (unlistenState) {
     unlistenState()
     unlistenState = null
