@@ -12,6 +12,7 @@ pub mod insight;
 pub mod knowledge;
 pub mod lcu;
 pub mod live;
+pub mod mayhem;
 pub mod meet_db;
 pub mod migrate;
 pub mod observability;

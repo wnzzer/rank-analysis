@@ -56,6 +56,7 @@ pub mod knowledge;
 pub mod launcher;
 pub mod live;
 pub mod match_history;
+pub mod mayhem;
 pub mod meet;
 pub mod opgg;
 pub mod overlay;
