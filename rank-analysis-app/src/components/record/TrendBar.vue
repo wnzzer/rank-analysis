@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div v-if="games.length > 0" class="trend-bar">
     <span class="trend-bar-title">近{{ games.length }}场趋势</span>
     <div class="trend-bar-cells" role="list" aria-label="近期对局趋势">
@@ -151,12 +151,12 @@ const tooltipKda = (game: Game) => {
 }
 
 .trend-bar-cell-win {
-  background: linear-gradient(180deg, #2f9e63, #1f7a4c);
+  background: var(--win-bar-gradient);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
 }
 
 .trend-bar-cell-loss {
-  background: linear-gradient(180deg, #c74b5c, #a13544);
+  background: var(--loss-bar-gradient);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
@@ -192,13 +192,13 @@ const tooltipKda = (game: Game) => {
 }
 
 .trend-bar-mvp-gold {
-  background: linear-gradient(180deg, #f6d365, #d4a017);
-  box-shadow: 0 0 4px rgba(244, 198, 88, 0.6);
+  background: var(--brand-gradient);
+  box-shadow: var(--glow-brand);
 }
 
 .trend-bar-mvp-silver {
-  background: linear-gradient(180deg, #eef3f9, #aab8c8);
-  box-shadow: 0 0 4px rgba(190, 205, 222, 0.5);
+  background: linear-gradient(180deg, var(--text-primary), var(--text-secondary));
+  box-shadow: 0 0 4px color-mix(in srgb, var(--text-secondary) 50%, transparent);
 }
 
 .trend-bar-tooltip-line {

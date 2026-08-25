@@ -194,11 +194,12 @@ impl GameStateMonitor {
         // 维持 connected=true 并沿用上次已知的召唤师/阶段，避免对局结束
         // 前后 LCU 忙/重启窗口的单次误报把前端从对局页/战绩页踢走。
         let deny_immediate = fail_reason_code.as_deref() == Some("ACCESS_DENIED");
-        let in_grace = !connected_raw
-            && !deny_immediate
-            && self.last_state.connected
-            && self.consecutive_failures < DISCONNECT_FAIL_STREAK;
-        let connected = connected_raw || in_grace;
+        let connected = resolved_connected(
+            self.last_state.connected,
+            self.consecutive_failures,
+            connected_raw,
+            if deny_immediate { Some("ACCESS_DENIED") } else { None },
+        );
 
         let (reason_code, reason_message) = if connected {
             (None, None)
@@ -365,4 +366,62 @@ pub async fn start_game_state_monitor(app_handle: AppHandle, stop: Arc<AtomicBoo
     });
 
     log::info!("Game state monitor started");
+}
+
+/// 断连去抖纯函数：给定上次连接态、连续失败次数、本次探测成败与失败归类，
+/// 返回对外呈现的 connected。
+///
+/// 规则：
+/// - 探测成功 → 恒为 true（计数清零由调用方负责）
+/// - 失败且归类为 ACCESS_DENIED → 恒为 false（持久权限问题需立即引导提权）
+/// - 其余失败：上次已连接且未达阈值时维持 true（宽限），否则 false
+fn resolved_connected(
+    last_connected: bool,
+    consecutive_failures: u32,
+    probe_ok: bool,
+    fail_reason_code: Option<&str>,
+) -> bool {
+    if probe_ok {
+        return true;
+    }
+    if fail_reason_code == Some("ACCESS_DENIED") {
+        return false;
+    }
+    last_connected && consecutive_failures < DISCONNECT_FAIL_STREAK
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{resolved_connected, DISCONNECT_FAIL_STREAK};
+
+    const DENIED: Option<&str> = Some("ACCESS_DENIED");
+    const OTHER: Option<&str> = Some("OTHER");
+
+    #[test]
+    fn probe_success_is_always_connected() {
+        assert!(resolved_connected(false, 0, true, None));
+        assert!(resolved_connected(true, 3, true, OTHER));
+    }
+
+    #[test]
+    fn access_denied_disconnects_immediately_even_on_first_failure() {
+        assert!(!resolved_connected(true, 1, false, DENIED));
+    }
+
+    #[test]
+    fn first_failure_while_connected_stays_in_grace() {
+        assert!(resolved_connected(true, 1, false, OTHER));
+    }
+
+    #[test]
+    fn failure_at_threshold_flips_disconnected() {
+        assert!(!resolved_connected(true, DISCONNECT_FAIL_STREAK, false, OTHER));
+    }
+
+    #[test]
+    fn grace_never_applies_when_previously_disconnected() {
+        // 冷启动即失败（客户端没开）：不宽限，立即如实上报未连接
+        assert!(!resolved_connected(false, 1, false, OTHER));
+        assert!(!resolved_connected(false, 5, false, None));
+    }
 }

@@ -1,10 +1,10 @@
 <template>
   <!-- 战绩子窗口：精简模式，只保留「回主窗口 / 并排对比」两个动作 -->
   <aside v-if="isChild" class="rail rail--child">
-    <button class="rail-i" title="回主窗口" @click="backMain">
+    <button class="rail-i" title="回主窗口" aria-label="回主窗口" @click="backMain">
       <span><AppWindow /></span><em>主窗口</em>
     </button>
-    <button class="rail-i" title="并排对比" @click="tileSide">
+    <button class="rail-i" title="并排对比" aria-label="并排对比" @click="tileSide">
       <span><Columns2 /></span><em>并排对比</em>
     </button>
   </aside>
@@ -59,7 +59,12 @@
           <span class="dot"></span><em>{{ connected ? statusName : '未连接' }}</em>
         </button>
       </n-dropdown>
-      <button class="rail-pin" :title="pinned ? '取消固定展开' : '固定展开'" @click="togglePin">
+      <button
+        class="rail-pin"
+        :title="pinned ? '取消固定展开' : '固定展开'"
+        :aria-label="pinned ? '取消固定展开' : '固定展开'"
+        @click="togglePin"
+      >
         <PinOff v-if="pinned" />
         <Pin v-else />
       </button>
