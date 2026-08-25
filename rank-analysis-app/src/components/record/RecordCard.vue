@@ -339,6 +339,32 @@ function openDetail() {
   transition-duration: var(--dur-instant);
 }
 
+/* 胜负左缘色条：列表扫读时先看颜色再看字（op.gg 同式） */
+.record-card-win {
+  box-shadow:
+    inset 3px 0 0 color-mix(in srgb, var(--win) 60%, transparent),
+    var(--shadow-sm),
+    var(--glass-highlight);
+}
+.record-card-loss {
+  box-shadow:
+    inset 3px 0 0 color-mix(in srgb, var(--loss) 55%, transparent),
+    var(--shadow-sm),
+    var(--glass-highlight);
+}
+.record-card-win:hover {
+  box-shadow:
+    inset 3px 0 0 var(--win),
+    var(--shadow-md),
+    var(--glass-highlight);
+}
+.record-card-loss:hover {
+  box-shadow:
+    inset 3px 0 0 var(--loss),
+    var(--shadow-md),
+    var(--glass-highlight);
+}
+
 .record-card-grid {
   display: grid;
   /* 固定列收窄 + 可伸缩列 minmax：窄窗下整体收缩而非溢出（列间 gap 同步收紧） */
