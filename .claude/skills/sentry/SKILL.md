@@ -74,6 +74,18 @@ curl -sS -H "Authorization: Bearer $SENTRY_TOKEN" \
   "https://sentry.io/api/0/organizations/rank-analysis/events/?field=count_unique(user.id)&field=count()&statsPeriod=24h&dataset=ourlogs"
 ```
 
+按天看 DAU 趋势（时间序列端点参数名是 `yAxis`，不是 `field`——见下方"常见坑"）：
+
+```bash
+curl -sS -G -H "Authorization: Bearer $SENTRY_TOKEN" \
+  "https://sentry.io/api/0/organizations/rank-analysis/events-stats/" \
+  --data-urlencode "yAxis=count_unique(user.id)" \
+  --data-urlencode "statsPeriod=30d" \
+  --data-urlencode "dataset=ourlogs" \
+  --data-urlencode "interval=1d" \
+  | python3 -c "import json,sys,datetime; d=json.load(sys.stdin)['data']; [print(datetime.date.fromtimestamp(t).isoformat(), int(v[0]['count']) if v else 0) for t,v in d]"
+```
+
 ### 2. 日志量
 
 24h / 30d 总条数：
@@ -154,6 +166,7 @@ curl -sS -H "Authorization: Bearer $SENTRY_TOKEN" \
 | `release` 全是 `0.0.0` | 用了 `ef71a30` 之前的版本；升级到最新版后才会有真实值 |
 | 429 / rate limit | 单 token 每分钟有限速，连查时 `sleep 1` 即可；或加 `&per_page=50` 少分页 |
 | 国服网络下偶尔超时 | 走代理 / 等几秒重试，Sentry SDK 本身在国服 `flush` 也会超时（见 `observability.rs:80`） |
+| `events-stats`（按天切片）传 `field=count_unique(user.id)` 静默变成全量 `count()`（响应里 `confidence` 键仍标 `count()`，不报错） | **静默陷阱**：`events-stats` 端点的聚合函数参数是 `yAxis`，不是 `field`（`field` 只在单点聚合的 `/events/` 端点上生效）。按天看 DAU 趋势要用 `yAxis=count_unique(user.id)&interval=1d`，否则数出来的是日志条数（百万级），会被误判成"DAU 涨了 10 万倍" |
 
 ## 调试技巧
 
