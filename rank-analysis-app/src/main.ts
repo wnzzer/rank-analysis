@@ -24,6 +24,16 @@ async function bootstrap() {
   await Promise.all([initAssetPrefix(), initPlatform()])
 
   const app = createApp(App)
+
+  // 全局错误可见性：渲染期异常若被静默吞掉，页面会以"卡住/点不动"的
+  // 形态呈现而无任何线索；这里强制落 console（Sentry 钩子另行捕获上报）
+  app.config.errorHandler = (err, _instance, info) => {
+    console.error(`[vue:error] ${info}`, err)
+  }
+  window.addEventListener('unhandledrejection', e => {
+    console.error('[unhandledrejection]', e.reason)
+  })
+
   const pinia = createPinia()
   app.use(pinia)
   app.use(router)
