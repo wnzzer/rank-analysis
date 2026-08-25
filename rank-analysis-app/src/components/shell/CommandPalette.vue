@@ -204,17 +204,18 @@ onBeforeUnmount(() => {
 }
 .pal {
   width: min(640px, 92vw);
-  margin: 16vh auto 0;
+  margin: 14vh auto 0;
   background: var(--bg-raised);
   border: 1px solid var(--brand-border);
   clip-path: var(--clip-corner-md);
-  box-shadow: var(--shadow-3);
+  box-shadow: var(--shadow-3), var(--glow-brand);
   overflow: hidden;
   display: flex;
   flex-direction: column;
 }
 .pal__input {
-  padding: 14px 18px;
+  padding: 15px 18px;
+  font-family: 'Space Mono', 'Bahnschrift', monospace;
   font-size: var(--font-size-md);
   color: var(--text-primary);
   background: transparent;
@@ -231,13 +232,24 @@ onBeforeUnmount(() => {
   padding: 6px;
 }
 .pal__group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  font-family: 'Space Mono', 'Bahnschrift', monospace;
   font-size: var(--font-size-2xs);
   letter-spacing: var(--tracking-label);
   text-transform: uppercase;
   color: var(--text-tertiary);
   padding: 10px 12px 4px;
 }
+.pal__group::before {
+  content: '';
+  width: 12px;
+  height: 1px;
+  background: var(--brand-gradient);
+}
 .pal__item {
+  position: relative;
   width: 100%;
   display: flex;
   align-items: center;
@@ -250,10 +262,18 @@ onBeforeUnmount(() => {
   cursor: pointer;
   text-align: left;
   clip-path: var(--clip-notch);
+  transition:
+    background var(--dur-fast) var(--ease-expo),
+    color var(--dur-fast) var(--ease-expo);
+}
+.pal__item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 .pal__item--on {
   background: var(--brand-soft);
   color: var(--text-primary);
+  box-shadow: inset 2px 0 0 var(--brand);
 }
 .pal__item--on .pal__icon {
   color: var(--brand);
@@ -263,6 +283,10 @@ onBeforeUnmount(() => {
   height: 18px;
   flex: none;
   color: var(--text-tertiary);
+  transition: color var(--dur-fast) var(--ease-expo);
+}
+.pal__item:hover .pal__icon {
+  color: var(--brand);
 }
 .pal__icon svg {
   width: 100%;
@@ -275,7 +299,7 @@ onBeforeUnmount(() => {
   text-overflow: ellipsis;
 }
 .pal__hint {
-  font-family: var(--font-num);
+  font-family: 'Space Mono', 'Bahnschrift', monospace;
   font-size: var(--font-size-2xs);
   color: var(--text-tertiary);
 }
@@ -291,15 +315,22 @@ onBeforeUnmount(() => {
   gap: 6px;
   padding: 8px 14px;
   border-top: 1px solid var(--border-subtle);
+  font-family: 'Space Mono', 'Bahnschrift', monospace;
   font-size: var(--font-size-2xs);
   color: var(--text-tertiary);
 }
 .pal-enter-active,
 .pal-leave-active {
-  transition: opacity var(--dur-fast) var(--ease-expo);
+  transition:
+    opacity var(--dur-fast) var(--ease-expo),
+    transform var(--dur-normal) var(--ease-expo);
 }
-.pal-enter-from,
+.pal-enter-from {
+  opacity: 0;
+  transform: translateY(-10px) scale(0.985);
+}
 .pal-leave-to {
   opacity: 0;
+  transform: translateY(-6px) scale(0.99);
 }
 </style>
