@@ -1,4 +1,4 @@
-//! # 游戏状态监听模块
+﻿//! # 游戏状态监听模块
 //!
 //! 实时监控英雄联盟客户端（LCU）的连接状态和游戏阶段变化。
 //!
@@ -198,7 +198,11 @@ impl GameStateMonitor {
             self.last_state.connected,
             self.consecutive_failures,
             connected_raw,
-            if deny_immediate { Some("ACCESS_DENIED") } else { None },
+            if deny_immediate {
+                Some("ACCESS_DENIED")
+            } else {
+                None
+            },
         );
 
         let (reason_code, reason_message) = if connected {

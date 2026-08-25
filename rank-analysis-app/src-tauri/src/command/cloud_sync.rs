@@ -378,7 +378,6 @@ pub async fn save_text_file(
     Ok(Some(display))
 }
 
-/// - `Ok(None)`: 用户取消了对话框
 #[tauri::command]
 pub async fn export_backup(app: tauri::AppHandle) -> Result<Option<String>, String> {
     let (tx, rx) = tokio::sync::oneshot::channel::<Option<tauri_plugin_dialog::FilePath>>();
