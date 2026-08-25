@@ -338,6 +338,7 @@ import { useLineupScore } from '@renderer/composables/useLineupScore'
 import { useSessionSync } from '@renderer/composables/useSessionSync'
 import { useSessionTiers } from '@renderer/composables/useSessionTiers'
 import { useGameState } from '@renderer/composables/useGameState'
+import { useReconnectBanner } from '@renderer/composables/useReconnectBanner'
 import { useAssetUrl } from '@renderer/composables/useAssetUrl'
 import { usePickRules, useBanRules } from '@renderer/composables/useRules'
 import {
@@ -371,18 +372,8 @@ const tiersBySubteam = useSessionTiers(sessionData)
 const { getChampionUrl } = useAssetUrl()
 const { isConnected, summoner: mySummoner, currentPhase } = useGameState()
 
-/** 重连成功后短暂展示的恢复提示（3s 后回到常态文案） */
-const reconnected = ref(false)
-let reconnectTimer: ReturnType<typeof setTimeout> | undefined
-watch(isConnected, (now, prev) => {
-  if (prev === false && now === true) {
-    reconnected.value = true
-    clearTimeout(reconnectTimer)
-    reconnectTimer = setTimeout(() => {
-      reconnected.value = false
-    }, 3000)
-  }
-})
+/** 重连成功后短暂展示的恢复提示（3s 后回到常态文案），时序逻辑见 useReconnectBanner */
+const { reconnected } = useReconnectBanner(isConnected)
 
 /** 等待态副文案与 phase 联动：大厅/匹配中给出更贴近当前的说明 */
 const waitingHint = computed(() => {
@@ -767,7 +758,6 @@ const message = useMessage()
 
 const { tier: opggTier, loading: opggTierLoading, loadTier, switchTier } = useOpggTier()
 onMounted(loadTier)
-onUnmounted(() => clearTimeout(reconnectTimer))
 
 /**
  * 段位切换。成功后补刷 opggStatus——换段位可能连补丁号一起变，

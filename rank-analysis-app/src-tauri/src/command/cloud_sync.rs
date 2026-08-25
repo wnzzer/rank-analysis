@@ -347,6 +347,29 @@ async fn build_backup_json() -> Result<String, String> {
 ///
 /// # 返回值
 /// - `Ok(Some(path))`: 用户选定且已成功写入的路径（前端用于提示）
+#[tauri::command]
+pub async fn export_backup(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let (tx, rx) = tokio::sync::oneshot::channel::<Option<tauri_plugin_dialog::FilePath>>();
+    app.dialog()
+        .file()
+        .add_filter("JSON", &["json"])
+        .set_file_name(format!(
+            "rank-analysis-backup-{}.json",
+            today_iso_from_unix(now_unix())
+        ))
+        .save_file(move |file| {
+            let _ = tx.send(file);
+        });
+    let picked = rx.await.map_err(|_| "文件对话框已关闭".to_string())?;
+    let Some(file) = picked else {
+        return Ok(None);
+    };
+    let path = file.into_path().map_err(|e| e.to_string())?;
+    let display = path.display().to_string();
+    let content = build_backup_json().await?;
+    std::fs::write(&path, content).map_err(|e| format!("写入文件失败 {display}: {e}"))?;
+    Ok(Some(display))
+}
 
 /// 通用文本导出：Rust 侧弹系统保存对话框并写盘（webview 不持有裸路径，
 /// 与 `export_backup` 同一安全范式）。内容由调用方给足（含 BOM 等编码前缀）。
@@ -378,30 +401,6 @@ pub async fn save_text_file(
     let path = file.into_path().map_err(|e| e.to_string())?;
     let display = path.display().to_string();
     std::fs::write(&path, contents).map_err(|e| format!("写入文件失败 {display}: {e}"))?;
-    Ok(Some(display))
-}
-
-#[tauri::command]
-pub async fn export_backup(app: tauri::AppHandle) -> Result<Option<String>, String> {
-    let (tx, rx) = tokio::sync::oneshot::channel::<Option<tauri_plugin_dialog::FilePath>>();
-    app.dialog()
-        .file()
-        .add_filter("JSON", &["json"])
-        .set_file_name(format!(
-            "rank-analysis-backup-{}.json",
-            today_iso_from_unix(now_unix())
-        ))
-        .save_file(move |file| {
-            let _ = tx.send(file);
-        });
-    let picked = rx.await.map_err(|_| "文件对话框已关闭".to_string())?;
-    let Some(file) = picked else {
-        return Ok(None);
-    };
-    let path = file.into_path().map_err(|e| e.to_string())?;
-    let display = path.display().to_string();
-    let content = build_backup_json().await?;
-    std::fs::write(&path, content).map_err(|e| format!("写入文件失败 {display}: {e}"))?;
     Ok(Some(display))
 }
 

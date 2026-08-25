@@ -134,7 +134,8 @@
       </div>
 
       <Transition name="list">
-        <div v-if="lastExportPath" class="export-path-bar">
+        <!-- role=status 隐含 aria-live=polite：导出完成后读屏软件播报路径 -->
+        <div v-if="lastExportPath" class="export-path-bar" role="status" aria-live="polite">
           <span class="export-path-label">已导出</span>
           <span class="export-path-text" :title="lastExportPath">{{ lastExportPath }}</span>
           <button class="export-path-copy" @click="copyExportPath">
