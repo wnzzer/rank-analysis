@@ -13,7 +13,9 @@
       >
         <header class="match-detail-score-team-header">
           <span class="match-detail-score-team-title">{{ team.title }}</span>
-          <span class="match-detail-score-team-result">{{ team.win ? '胜' : '负' }}</span>
+          <span class="match-detail-score-team-result" :class="team.win ? 'is-win' : 'is-lose'">{{
+            team.win ? '胜' : '负'
+          }}</span>
         </header>
 
         <div
@@ -24,7 +26,12 @@
           @click="toggleSelect(row.score.participantId)"
         >
           <span class="match-detail-score-rank font-number">{{ i + 1 }}</span>
-          <span v-if="row.mvpTag" class="match-detail-score-mvp">{{ row.mvpTag }}</span>
+          <span
+            v-if="row.mvpTag"
+            class="match-detail-score-mvp"
+            :class="{ 'is-svp': row.mvpTag === 'SVP' }"
+            >{{ row.mvpTag }}</span
+          >
           <div class="match-detail-score-player">
             <span class="match-detail-score-name" :class="{ 'is-me': row.isMe }">{{
               row.displayName
@@ -44,7 +51,10 @@
               <span class="match-detail-score-bar-track"
                 ><span
                   class="match-detail-score-bar-fill"
-                  :style="{ width: barWidth(row.score.breakdown[d.key], d.full) }"
+                  :style="{
+                    width: barWidth(row.score.breakdown[d.key], d.full),
+                    animationDelay: `${i * 60 + 120}ms`
+                  }"
                 ></span
               ></span>
               <span class="match-detail-score-bar-value font-number">{{
@@ -287,8 +297,18 @@ function scoreLevel(total: number) {
   font-weight: 600;
 }
 .match-detail-score-team-result {
-  font-size: 12px;
-  color: var(--n-text-color-3, #999);
+  font-size: 11px;
+  font-family: 'Space Mono', 'Bahnschrift', monospace;
+  padding: 1px 8px;
+  clip-path: var(--clip-notch, polygon(4px 0, 100% 0, 100% 100%, 0 100%, 0 4px));
+}
+.match-detail-score-team-result.is-win {
+  color: var(--win);
+  background: var(--win-soft);
+}
+.match-detail-score-team-result.is-lose {
+  color: var(--loss);
+  background: var(--loss-soft);
 }
 .match-detail-score-row {
   display: flex;
@@ -375,10 +395,18 @@ function scoreLevel(total: number) {
 }
 .match-detail-score-mvp {
   font-size: 10px;
-  padding: 0 4px;
+  padding: 1px 6px;
   border-radius: 4px;
-  background: rgba(255, 215, 0, 0.18);
-  color: #ffd76b;
+  background: linear-gradient(135deg, var(--hx-gold-300), var(--hx-gold-500));
+  color: var(--text-on-brand);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  box-shadow: var(--glow-brand);
+}
+.match-detail-score-mvp.is-svp {
+  background: var(--bg-active);
+  color: var(--text-secondary);
+  box-shadow: none;
 }
 .match-detail-score-player {
   flex: 0 0 128px;
@@ -392,9 +420,10 @@ function scoreLevel(total: number) {
 }
 .match-detail-score-total {
   flex: 0 0 34px;
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 700;
   text-align: right;
+  font-family: 'Space Mono', 'Bahnschrift', monospace;
 }
 .match-detail-score-total--s {
   color: #ffd76b;
@@ -435,7 +464,22 @@ function scoreLevel(total: number) {
   display: block;
   height: 100%;
   border-radius: 2px;
-  background: linear-gradient(90deg, #3a7bd5, #63e2b7);
+  background: linear-gradient(90deg, var(--hx-cyan-600), var(--hx-gold-300));
+  transform-origin: left;
+  animation: score-bar-in 0.55s var(--ease-expo, cubic-bezier(0.16, 1, 0.3, 1)) both;
+}
+@keyframes score-bar-in {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .match-detail-score-bar-fill {
+    animation: none;
+  }
 }
 .match-detail-score-bar-value {
   font-size: 9px;
