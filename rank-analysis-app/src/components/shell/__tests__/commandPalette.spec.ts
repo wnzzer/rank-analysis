@@ -81,4 +81,3 @@ describe('sortByUsage（最近使用组内前置）', () => {
     expect(sortByUsage(seg, {}).map(x => x.key)).toEqual(['b', 'a'])
   })
 })
-

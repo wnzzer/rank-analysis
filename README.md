@@ -1,4 +1,4 @@
-<div align="center">
+﻿<div align="center">
   <img src="./rank-analysis-app/src-tauri/icons/256x256.png" width="128" height="128" alt="Logo" />
   <h1>Rank Analysis</h1>
   <p>🎮 AI-powered match review for League of Legends — built on the official LCU API</p>
@@ -69,6 +69,8 @@ Built with **Tauri 2.0**, it pairs Rust's performance with a web frontend in a *
 - **MVP Display**: Quickly identify carry players
 - **Player Tags**: Auto-tags win streaks, loss streaks, and non-ranked players
 - **Relationship Display**: Identifies nemeses and friends
+- **Export CSV / JSON**: one-click export of the filtered list (basic fields or with CS/gold/vision), plus copy-to-clipboard
+- **Focus Detail Mode**: expanding a match takes the full page — prev/next switching and Esc to collapse
 
 ### 🔍 Match Analysis
 - **Premade Detection**: Marks pre-grouped players (duo/squad detection)
@@ -80,6 +82,12 @@ Built with **Tauri 2.0**, it pairs Rust's performance with a web frontend in a *
 - **Auto Matchmaking**: Automatically starts searching for matches
 - **Auto Accept**: Automatically accepts matches when found
 - **Rule-based Pick/Ban**: A configurable rule engine picks/bans by role × ally/enemy champion conditions (falls back to a fixed preset list)
+
+### 🌱 Growth & Efficiency
+- **Habit Weaknesses**: six-dimension weakness tags aggregated across matches; convert to improvement goals in one click.
+- **Goal Checklist**: track with checkboxes + local notes + JSON backup/restore (drag & drop import supported).
+- **Command Palette**: Ctrl K everywhere; most-used commands float to the top.
+- **Focus Detail Mode**: open a match and it takes the full page — jump prev/next instantly.
 
 ### 🗂️ Notes, Tags & Data Sync
 - **Player Notes**: Leave a note + color label (friendly / normal / careful / blacklist) on players you meet — surfaced automatically next time you run into them

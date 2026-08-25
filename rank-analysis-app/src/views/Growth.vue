@@ -412,6 +412,8 @@ async function importGoalsFile(file: File): Promise<void> {
     } catch {
       /* 写失败静默 */
     }
+    // 短板卡数据源与本清单同源（习惯标签），还原后同步刷新保持一致
+    void refreshAll()
     message.success(`还原完成：新建 ${created} 个目标，回填 ${Object.keys(remapped).length} 条备注`)
   } catch (err) {
     message.error(

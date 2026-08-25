@@ -46,9 +46,7 @@ export function sortByUsage(
     let j = i
     while (j < list.length && list[j].group === list[i].group) j += 1
     const segment = list.slice(i, j)
-    segment.sort(
-      (a, b) => (usage[b.key] ?? 0) - (usage[a.key] ?? 0)
-    )
+    segment.sort((a, b) => (usage[b.key] ?? 0) - (usage[a.key] ?? 0))
     out.push(...segment)
     i = j
   }
@@ -56,6 +54,8 @@ export function sortByUsage(
 }
 
 const USAGE_KEY = 'palette.usage'
+/** 持久化条目上限：防止长期使用后记录无限膨胀 */
+const USAGE_MAX_ENTRIES = 20
 
 export function loadUsage(): Record<string, number> {
   try {
@@ -67,8 +67,13 @@ export function loadUsage(): Record<string, number> {
 }
 
 export function saveUsage(usage: Record<string, number>): void {
+  // 只保留频次最高的前 N 条（0 计数剔除）
+  const pruned = Object.entries(usage)
+    .filter(([, n]) => n > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, USAGE_MAX_ENTRIES)
   try {
-    localStorage.setItem(USAGE_KEY, JSON.stringify(usage))
+    localStorage.setItem(USAGE_KEY, JSON.stringify(Object.fromEntries(pruned)))
   } catch {
     /* 隐私模式写失败静默 */
   }
