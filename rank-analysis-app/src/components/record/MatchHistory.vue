@@ -144,18 +144,28 @@
         </div>
       </template>
       <template v-else-if="loadError">
-        <n-empty description="加载失败" class="match-history-empty">
-          <template #extra>
+        <EmptyState
+          :icon="TriangleAlert"
+          title="加载失败"
+          description="网络或客户端暂时不可用，稍后可重试。"
+        >
+          <template #art><TriangleAlert /></template>
+          <template #action>
             <n-button size="small" @click="retry">重试</n-button>
           </template>
-        </n-empty>
+        </EmptyState>
       </template>
       <template v-else-if="games.length === 0 && hasFilter">
-        <n-empty description="没有匹配的对局" class="match-history-empty">
-          <template #extra>
+        <EmptyState
+          :icon="Search"
+          title="没有匹配的对局"
+          description="试试放宽筛选条件，或清除筛选查看全部对局。"
+        >
+          <template #art><Search /></template>
+          <template #action>
             <n-button size="small" @click="resetFilter">清除筛选</n-button>
           </template>
-        </n-empty>
+        </EmptyState>
       </template>
       <TransitionGroup v-else name="list" tag="div" class="match-history-list">
         <div
@@ -196,7 +206,9 @@ import RecordCardSkeleton from './RecordCardSkeleton.vue'
 import TrendBar from './TrendBar.vue'
 import { ArrowLeft, ArrowRight, Repeat, Download, ChevronDown } from 'lucide-vue-next'
 import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
-import { NEmpty, NButton, NIcon, NDropdown, useLoadingBar, useMessage } from 'naive-ui'
+import { NButton, NIcon, NDropdown, useLoadingBar, useMessage } from 'naive-ui'
+import EmptyState from '@renderer/components/ui/EmptyState.vue'
+import { Search, TriangleAlert } from 'lucide-vue-next'
 import {
   exportMatches,
   loadExportFormat,

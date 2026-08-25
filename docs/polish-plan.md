@@ -79,7 +79,20 @@
 
 ---
 
-## Round 6 —— （Round 5 完成度 ≥80% 时续写）
+## Round 6 —— 可感知性补缺
+
+- [x] R6-1 useEmberField：prefers-reduced-motion 下改为绘制「静态单帧」
+      （当前直接跳过=画布空白；保留氛围但零动效）
+- [x] R6-2 Record 无对局数据时的列表空态接 #art 图形槽 + 引导文案统一
+- [ ] R6-3 Growth 头部显示上次备份时间（localStorage 记录，备份成功即更新）
+- [ ] R6-4 CommandPalette 开合动画与辉光在亮色主题下的层次校验
+
+### 完成标准
+同前。
+
+---
+
+## Round 7 —— （Round 6 完成度 ≥80% 时续写）
 
 （待续写）
 

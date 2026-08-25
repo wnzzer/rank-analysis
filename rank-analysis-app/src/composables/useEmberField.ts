@@ -233,12 +233,19 @@ export function useEmberField(
     readPalette()
     resize()
     if (!ctx) return
-    if (reduced) return
+    if (reduced) {
+      // 减弱动效：只绘一帧静态余烬，保留氛围但零动画
+      drawFrame(16)
+      return
+    }
     start()
     window.addEventListener('pointermove', onMove, { passive: true })
     window.addEventListener('pointerleave', onLeave)
     document.addEventListener('visibilitychange', onVisibility)
-    themeObs = new MutationObserver(() => readPalette())
+    themeObs = new MutationObserver(() => {
+      readPalette()
+      if (reduced) drawFrame(16)
+    })
     themeObs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
     if (typeof ResizeObserver === 'function') {
       ro = new ResizeObserver(() => resize())
