@@ -201,6 +201,7 @@ const copyName = () => {
 }
 
 .player-bar-rank-text {
+  font-family: 'Space Mono', 'Bahnschrift', monospace;
   font-size: var(--font-size-sm);
   font-weight: 700;
   white-space: nowrap;
@@ -219,6 +220,7 @@ const copyName = () => {
 }
 
 .player-bar-recent-value {
+  font-family: 'Space Mono', 'Bahnschrift', monospace;
   font-size: var(--font-size-sm);
   font-weight: 700;
 }

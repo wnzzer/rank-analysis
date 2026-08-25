@@ -27,4 +27,11 @@ import { NCard, NFlex, NSkeleton } from 'naive-ui'
   margin-bottom: var(--space-8);
   box-shadow: inset 3px 0 0 color-mix(in srgb, var(--text-tertiary) 30%, transparent);
 }
+
+/* 减弱动效偏好：骨架脉冲静止，仅保留静态占位 */
+@media (prefers-reduced-motion: reduce) {
+  .record-card-skeleton :deep(.n-skeleton) {
+    animation: none;
+  }
+}
 </style>
