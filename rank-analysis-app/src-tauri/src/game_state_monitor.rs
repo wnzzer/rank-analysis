@@ -105,9 +105,19 @@ pub struct GameStateMonitor {
     app_handle: AppHandle,
     /// 上次状态快照
     last_state: GameStateEvent,
-    /// 上次推送时间
+    /// 上次推送事件的时间，用于实现最小推送间隔
     last_push_time: SystemTime,
+    /// 连续召唤师探测失败次数（恢复成功即清零）。
+    /// 达到 [`DISCONNECT_FAIL_STREAK`] 才允许把 connected 翻转为 false，
+    /// 豁免一局结束前后 LCU 忙/重启窗口的单次误报。
+    consecutive_failures: u32,
 }
+
+/// 断连判定的连续失败次数阈值（含首次）。
+///
+/// 权限不足（ACCESS_DENIED）不受此阈值保护——那是持久状态，需要立即
+/// 上报以引导用户提权重启。
+const DISCONNECT_FAIL_STREAK: u32 = 2;
 
 impl GameStateMonitor {
     /// 创建新的游戏状态监听器实例。
@@ -130,6 +140,7 @@ impl GameStateMonitor {
                 reason_message: None,
             },
             last_push_time: SystemTime::now(),
+            consecutive_failures: 0,
         }
     }
 
@@ -160,12 +171,17 @@ impl GameStateMonitor {
             Ok(result) => result,
             Err(_) => Err("阶段检测超时".to_string()),
         };
-        let connected = summoner_result.is_ok();
+        let connected_raw = summoner_result.is_ok();
+        if connected_raw {
+            self.consecutive_failures = 0;
+        } else {
+            self.consecutive_failures = self.consecutive_failures.saturating_add(1);
+        }
 
         // 未连接时进一步归类原因：区分"游戏没开"（正常等待）与"权限不足"
         // （需引导用户提权）。已连接，或仅是 API 短暂抖动（进程在但请求失败）时
         // 不展示任何告警，避免误导。
-        let (reason_code, reason_message) = if connected {
+        let (fail_reason_code, fail_reason_message) = if connected_raw {
             (None, None)
         } else {
             match crate::lcu::util::token::get_auth_detailed() {
@@ -174,10 +190,30 @@ impl GameStateMonitor {
             }
         };
 
+        // 断连去抖：上次已连接且失败未达阈值（或权限类需立即上报）时，
+        // 维持 connected=true 并沿用上次已知的召唤师/阶段，避免对局结束
+        // 前后 LCU 忙/重启窗口的单次误报把前端从对局页/战绩页踢走。
+        let deny_immediate = fail_reason_code.as_deref() == Some("ACCESS_DENIED");
+        let in_grace = !connected_raw
+            && !deny_immediate
+            && self.last_state.connected
+            && self.consecutive_failures < DISCONNECT_FAIL_STREAK;
+        let connected = connected_raw || in_grace;
+
+        let (reason_code, reason_message) = if connected {
+            (None, None)
+        } else {
+            (fail_reason_code, fail_reason_message)
+        };
+
         let new_state = GameStateEvent {
             connected,
-            phase: phase_result.ok(),
-            summoner: summoner_result.ok(),
+            phase: phase_result
+                .ok()
+                .or_else(|| if connected { self.last_state.phase.clone() } else { None }),
+            summoner: summoner_result
+                .ok()
+                .or_else(|| if connected { self.last_state.summoner.clone() } else { None }),
             reason_code,
             reason_message,
         };
