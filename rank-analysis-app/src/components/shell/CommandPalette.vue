@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <Teleport to="body">
     <Transition name="pal">
       <div v-if="show" class="pal-mask" @mousedown.self="close">
@@ -239,7 +239,7 @@ onBeforeUnmount(() => {
   font-size: var(--font-size-2xs);
   letter-spacing: var(--tracking-label);
   text-transform: uppercase;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   padding: 10px 12px 4px;
 }
 .pal__group::before {
@@ -301,7 +301,7 @@ onBeforeUnmount(() => {
 .pal__hint {
   font-family: 'Space Mono', 'Bahnschrift', monospace;
   font-size: var(--font-size-2xs);
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
 .pal__empty {
   padding: 22px;

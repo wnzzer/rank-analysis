@@ -56,7 +56,7 @@ withDefaults(
 }
 .empty__desc {
   font-size: var(--font-size-sm);
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   max-width: 360px;
 }
 .empty__act {
