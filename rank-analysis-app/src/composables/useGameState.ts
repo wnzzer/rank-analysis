@@ -148,7 +148,11 @@ export function useGameState() {
   onMounted(() => {
     activeInstances += 1
     if (listenerSetupPromise === null) {
-      listenerSetupPromise = setupListeners()
+      listenerSetupPromise = setupListeners().catch(e => {
+        // 非 Tauri 环境（浏览器 dev）无事件后端，listen 必然 reject——静默降级为离线态
+        console.warn('[game-state] 事件监听不可用，运行于离线模式:', e)
+        listenerSetupPromise = null
+      })
     }
   })
 
