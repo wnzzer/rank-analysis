@@ -1,10 +1,12 @@
 <template>
   <div class="library">
-    <PageHeader kicker="Library" title="资产库" subtitle="标签规则 · 我标记过的人">
+    <PageStage kicker="LIBRARY · 资产与标记" title="资 产 库" sub="标签规则 · 我标记过的人" compact>
       <template #actions>
-        <button class="btn gho sm" @click="goTags">管理标签规则 →</button>
+        <button class="btn gho sm" @click="goTags">
+          管理标签规则<ArrowUpRight class="btn-arrow" />
+        </button>
       </template>
-    </PageHeader>
+    </PageStage>
 
     <div class="lib-grid">
       <section class="lib-col">
@@ -31,8 +33,9 @@
  */
 import { useRouter } from 'vue-router'
 
-import PageHeader from '../components/ui/PageHeader.vue'
+import PageStage from '../components/ui/PageStage.vue'
 import PlayerNotesView from './settings/PlayerNotes.vue'
+import { ArrowUpRight } from 'lucide-vue-next'
 
 const router = useRouter()
 function goTags() {
@@ -50,6 +53,7 @@ function goTags() {
   grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
   gap: var(--space-20);
   align-items: start;
+  padding: var(--space-20) var(--space-24) var(--space-28);
 }
 .lib-h {
   font-size: var(--font-size-md);
@@ -84,6 +88,11 @@ function goTags() {
 .btn.gho:hover {
   color: var(--text-primary);
   border-color: var(--brand-border);
+}
+.btn-arrow {
+  width: 11px;
+  height: 11px;
+  margin-left: 4px;
 }
 .lib-go {
   margin-top: var(--space-12);
