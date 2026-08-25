@@ -420,3 +420,52 @@ describe('MatchHistory 数据流(M1 B-测试)', () => {
     wrapper.unmount()
   })
 })
+
+describe('MatchHistory 空态三态（R18-1 收口）', () => {
+  beforeEach(() => {
+    localStorage.removeItem('record.matchFilters')
+    sessionStorage.removeItem('record.focusGameId')
+  })
+
+  async function mountWithGames(count: number, fail = false) {
+    const invoke = vi.mocked((await import('@tauri-apps/api/core')).invoke)
+    invoke.mockReset()
+    invoke.mockImplementation((cmd: string) => {
+      if (cmd === 'get_match_history_by_name') {
+        if (fail) return Promise.reject(new Error('network down'))
+        return Promise.resolve({
+          games: { games: Array.from({ length: count }, (_, i) => makeGame({ gameId: 2000 + i })) },
+          begIndex: 0,
+          endIndex: Math.max(0, count - 1)
+        })
+      }
+      return Promise.resolve(null)
+    })
+    const MatchHistory = (await import('../MatchHistory.vue')).default
+    const wrapper = mount(MatchHistory, { global: { stubs }, attachTo: document.body })
+    await flushPromises()
+    return { wrapper }
+  }
+
+  it('加载失败态：EmptyState 标题 + 重试按钮', async () => {
+    const { wrapper } = await mountWithGames(0, true)
+    expect(wrapper.text()).toContain('加载失败')
+    expect(wrapper.find('.empty__act').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('筛选无结果态：提示放宽条件并提供清除入口', async () => {
+    const { wrapper } = await mountWithGames(3)
+    await setFilter(wrapper as VueWrapper, 1, 999)
+    expect(wrapper.text()).toContain('没有匹配的对局')
+    wrapper.unmount()
+  })
+
+  it('无对局且无筛选态：R18-1 新增 Inbox 引导空态', async () => {
+    const { wrapper } = await mountWithGames(0)
+    expect(wrapper.text()).toContain('还没有对局记录')
+    expect(wrapper.find('.empty__act').exists()).toBe(false)
+    expect(wrapper.findAll('.list-item')).toHaveLength(0)
+    wrapper.unmount()
+  })
+})

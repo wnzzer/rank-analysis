@@ -204,10 +204,16 @@
 
 ---
 
-## Round 19 候选池（Round 18 完成度 ≥80% 时续写）
-- R19-1 Record 空态结构金丝雀（三态：错误/无匹配/无对局）断言
-- R19-2 导出格式下拉 ARIA 角色核查（menu/menuitem 语义）
-- R19-3 Growth 拖拽导入非 .json 文件的提示反馈
-- R19-4 README 功能清单补「导出三格式 + 目标备份还原」
+## Round 19 计划 空态断言与导入反馈（2026-08-26）
+- [x] R19-1 Record 空态三态测试（加载失败/筛选无匹配/无对局引导，20 用例通过）
+- [x] R19-2 导出下拉 ARIA 核实——n-dropdown 原生 menu/menuitem 语义，无需改动
+- [x] R19-3 Growth 拖拽非 .json 文件给出 warning 提示（含文件名回显）
+- [x] R19-4 README 双语核实——导出（基础/含经济视野/剪贴板）与目标备份还原均已记载
+
+## Round 20 候选池（Round 19 完成度 ≥80% 时续写）
+- R20-1 空态三态纳入 Home.structure.spec 同类结构快照（防样式块丢失）
+- R20-2 Gaming waitingHint 文案在重连成功后的恢复提示
+- R20-3 polish-plan 轮次速览表补 R19/R20 行
+- R20-4 全量门禁复核（check + test + build 三绿基线确认）
 
 ## 归档说明

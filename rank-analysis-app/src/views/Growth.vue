@@ -376,8 +376,11 @@ const importingFile = ref(false)
 function onDropImport(e: DragEvent): void {
   dragActive.value = false
   const file = e.dataTransfer?.files?.[0]
-  if (file && file.name.toLowerCase().endsWith('.json')) {
+  if (!file) return
+  if (file.name.toLowerCase().endsWith('.json')) {
     void importGoalsFile(file)
+  } else {
+    message.warning(`仅支持 .json 备份文件，收到的是「${file.name}」`)
   }
 }
 
