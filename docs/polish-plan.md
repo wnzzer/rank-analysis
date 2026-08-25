@@ -25,6 +25,8 @@
 | R16 | 面板命令总数 / 聚焦键盘导航 / 拖拽导入引导 |
 | R17 | 路径条自动消失 / 导航按钮提示 / ticker 核查 |
 | R18 | 空态 #art 收口 / 下拉可达性核实 / 还原链路测试 |
+| R19 | 空态三态测试 / 拖拽导入提示 / README 核实 |
+| R20 | 重连恢复提示 / 结构断言归并 / 门禁复核 |
 
 ---
 
@@ -210,10 +212,16 @@
 - [x] R19-3 Growth 拖拽非 .json 文件给出 warning 提示（含文件名回显）
 - [x] R19-4 README 双语核实——导出（基础/含经济视野/剪贴板）与目标备份还原均已记载
 
-## Round 20 候选池（Round 19 完成度 ≥80% 时续写）
-- R20-1 空态三态纳入 Home.structure.spec 同类结构快照（防样式块丢失）
-- R20-2 Gaming waitingHint 文案在重连成功后的恢复提示
-- R20-3 polish-plan 轮次速览表补 R19/R20 行
-- R20-4 全量门禁复核（check + test + build 三绿基线确认）
+## Round 20 计划 重连恢复与收尾核验（2026-08-26）
+- [x] R20-1 空态三态结构断言已随 R19-1 落地（.empty__act/.list-item 类级锚定）
+- [x] R20-2 Gaming 重连恢复提示（isConnected false→true 触发 3s「连接已恢复」文案）
+- [x] R20-3 polish-plan 轮次速览表补 R17-R20 行
+- [x] R20-4 全量门禁复核——lint/type/test/build 全绿
+
+## Round 21 候选池（Round 20 完成度 ≥80% 时续写）
+- R21-1 Gaming 重连提示的单测（watch isConnected 时序断言）
+- R21-2 Record 导出路径条 aria-live 播报
+- R21-3 polish-plan 轮次速览表同步维护
+- R21-4 下一轮候选池滚动续写
 
 ## 归档说明

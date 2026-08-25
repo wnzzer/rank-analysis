@@ -316,7 +316,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { invoke } from '@tauri-apps/api/core'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
@@ -371,9 +371,23 @@ const tiersBySubteam = useSessionTiers(sessionData)
 const { getChampionUrl } = useAssetUrl()
 const { isConnected, summoner: mySummoner, currentPhase } = useGameState()
 
+/** 重连成功后短暂展示的恢复提示（3s 后回到常态文案） */
+const reconnected = ref(false)
+let reconnectTimer: ReturnType<typeof setTimeout> | undefined
+watch(isConnected, (now, prev) => {
+  if (prev === false && now === true) {
+    reconnected.value = true
+    clearTimeout(reconnectTimer)
+    reconnectTimer = setTimeout(() => {
+      reconnected.value = false
+    }, 3000)
+  }
+})
+
 /** 等待态副文案与 phase 联动：大厅/匹配中给出更贴近当前的说明 */
 const waitingHint = computed(() => {
   if (!isConnected.value) return undefined
+  if (reconnected.value) return '连接已恢复 · 正在同步对局状态'
   switch (currentPhase.value) {
     case 'Lobby':
       return '已在大厅 · 创建或加入对局后自动切入分析'
@@ -753,6 +767,7 @@ const message = useMessage()
 
 const { tier: opggTier, loading: opggTierLoading, loadTier, switchTier } = useOpggTier()
 onMounted(loadTier)
+onUnmounted(() => clearTimeout(reconnectTimer))
 
 /**
  * 段位切换。成功后补刷 opggStatus——换段位可能连补丁号一起变，
