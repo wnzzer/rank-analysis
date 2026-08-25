@@ -208,12 +208,20 @@ impl GameStateMonitor {
 
         let new_state = GameStateEvent {
             connected,
-            phase: phase_result
-                .ok()
-                .or_else(|| if connected { self.last_state.phase.clone() } else { None }),
-            summoner: summoner_result
-                .ok()
-                .or_else(|| if connected { self.last_state.summoner.clone() } else { None }),
+            phase: phase_result.ok().or_else(|| {
+                if connected {
+                    self.last_state.phase.clone()
+                } else {
+                    None
+                }
+            }),
+            summoner: summoner_result.ok().or_else(|| {
+                if connected {
+                    self.last_state.summoner.clone()
+                } else {
+                    None
+                }
+            }),
             reason_code,
             reason_message,
         };
