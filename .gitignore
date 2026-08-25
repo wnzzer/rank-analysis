@@ -84,3 +84,4 @@ app.log.*
 
 # Python bytecode
 __pycache__/
+!docs/polish-plan.md
