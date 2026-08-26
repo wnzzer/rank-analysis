@@ -10,11 +10,21 @@ export interface OverlayPrefs {
   maxItems: number
   /** 卡片不透明度 0.5~1 */
   opacity: number
+  /** 全局热键 Alt+A 开关浮窗（B1） */
+  hotkeyEnabled: boolean
+  /** 浮窗锚点 */
+  anchor: 'top-left' | 'top-center' | 'top-right'
 }
 
 const KEY = 'ra.overlay.prefs'
+const ANCHORS = ['top-left', 'top-center', 'top-right'] as const
 
-const DEFAULTS: OverlayPrefs = { maxItems: 3, opacity: 0.9 }
+const DEFAULTS: OverlayPrefs = {
+  maxItems: 3,
+  opacity: 0.9,
+  hotkeyEnabled: true,
+  anchor: 'top-center'
+}
 
 function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v))
@@ -27,7 +37,12 @@ export function loadOverlayPrefs(): OverlayPrefs {
     const p = JSON.parse(raw) as Partial<OverlayPrefs>
     return {
       maxItems: clamp(Number(p.maxItems ?? DEFAULTS.maxItems), 1, 6),
-      opacity: clamp(Number(p.opacity ?? DEFAULTS.opacity), 0.5, 1)
+      opacity: clamp(Number(p.opacity ?? DEFAULTS.opacity), 0.5, 1),
+      hotkeyEnabled:
+        typeof p.hotkeyEnabled === 'boolean' ? p.hotkeyEnabled : DEFAULTS.hotkeyEnabled,
+      anchor: ANCHORS.includes(p.anchor as (typeof ANCHORS)[number])
+        ? (p.anchor as OverlayPrefs['anchor'])
+        : DEFAULTS.anchor
     }
   } catch {
     return { ...DEFAULTS }
@@ -40,7 +55,9 @@ export function saveOverlayPrefs(prefs: OverlayPrefs): void {
       KEY,
       JSON.stringify({
         maxItems: clamp(Math.round(prefs.maxItems), 1, 6),
-        opacity: clamp(prefs.opacity, 0.5, 1)
+        opacity: clamp(prefs.opacity, 0.5, 1),
+        hotkeyEnabled: prefs.hotkeyEnabled,
+        anchor: ANCHORS.includes(prefs.anchor) ? prefs.anchor : DEFAULTS.anchor
       })
     )
   } catch {

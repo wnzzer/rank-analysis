@@ -16,10 +16,15 @@
 //! - **本地优先**：前端永远读指针指向的版本；断网时上一版本数据完整可用
 //! - **缓存语义**：整体放在系统临时目录（见 [`crate::paths`]），可随时删掉重建
 
+pub mod capture;
 pub mod client;
 pub mod db;
+#[cfg(all(feature = "ocr-win", windows))]
+pub mod engine_win;
 pub mod ocr;
+pub mod pipeline;
 pub mod probe;
+pub mod score;
 pub mod store;
 
 /// 海克斯大乱斗（ARAM Mayhem）的队列 ID。

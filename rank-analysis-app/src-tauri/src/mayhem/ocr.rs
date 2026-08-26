@@ -126,6 +126,24 @@ pub fn build_lexicon(augments: &Value) -> Vec<LexiconEntry> {
         .unwrap_or_default()
 }
 
+/// 三卡槽位批量匹配：`texts[i]` 对应第 i 个卡位（None = 该槽 OCR 无产出）。
+///
+/// 空槽原则：识别失败的槽保留 None，绝不用其他槽的结果顶替
+/// （卡位顺序必须与屏幕左/中/右一致，见 capture::slot_band_rects）。
+pub fn match_slots(
+    texts: &[Option<String>; 3],
+    lexicon: &[LexiconEntry],
+    max_distance: usize,
+) -> [Option<MatchHit>; 3] {
+    let mut out: [Option<MatchHit>; 3] = [None, None, None];
+    for (i, text) in texts.iter().enumerate() {
+        if let Some(t) = text {
+            out[i] = match_text(t, lexicon, max_distance);
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -187,5 +205,22 @@ mod tests {
         let lx = build_lexicon(&json);
         assert_eq!(lx.len(), 2);
         assert_eq!(lx[1].name, "升级：无尽之刃");
+    }
+
+    #[test]
+    fn match_slots_should_keep_empty_slots_and_map_by_position() {
+        let lx = lexicon();
+        let texts = [
+            Some("连拨击锺".into()), // 错字命中
+            None,                    // 中槽无文本 → 保持空
+            Some("双发快射".into()),
+        ];
+        let hits = match_slots(&texts, &lx, 2);
+        assert_eq!(hits[0].map(|h| h.id), Some(1220));
+        assert!(hits[1].is_none(), "空槽不得被顶替");
+        assert_eq!(hits[2].map(|h| h.id), Some(2010));
+        // 全部失败也不 panic
+        let none_texts = [None, None, None];
+        assert!(match_slots(&none_texts, &lx, 2).iter().all(|h| h.is_none()));
     }
 }

@@ -85,6 +85,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
 
     let mut app_builder = tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_process::init())
@@ -212,6 +213,15 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             command::mayhem::mayhem_probe_lcu,
             command::mayhem::mayhem_ocr_lexicon,
             command::mayhem::mayhem_ocr_match_sample,
+            command::mayhem::mayhem_screen_info,
+            command::mayhem::mayhem_slot_band_rects,
+            command::mayhem::mayhem_score_preview,
+            command::mayhem::mayhem_capture_band_stats,
+            command::mayhem::mayhem_capture_band_dump,
+            command::mayhem::mayhem_gameflow_phase,
+            command::mayhem::mayhem_assist_tick,
+            command::mayhem::mayhem_draft_context,
+            command::mayhem::mayhem_assist_manual,
             command::knowledge::update_knowledge,
             command::knowledge::get_knowledge,
             command::knowledge::get_knowledge_status,
@@ -246,6 +256,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             command::overlay::push_overlay_panel,
             command::overlay::set_overlay_layout,
             command::overlay::set_overlay_click_through,
+            command::overlay::overlay_toggle,
             command::cache_cdragon_icons,
         ]);
 

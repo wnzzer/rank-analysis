@@ -18,6 +18,7 @@
 //! ```
 
 use serde::Serialize;
+use serde_json::Value;
 
 use crate::lcu::api::match_history::MatchHistory;
 use crate::lcu::api::summoner::Summoner;
@@ -182,4 +183,298 @@ pub async fn mayhem_ocr_match_sample(
 ) -> Result<Option<crate::mayhem::ocr::MatchHit>, String> {
     let lexicon = mayhem_ocr_lexicon().await?;
     Ok(crate::mayhem::ocr::match_text(&text, &lexicon, max_distance.unwrap_or(2)))
+}
+
+// ---------------------------------------------------------------------------
+// A3.1 屏幕捕获几何
+// ---------------------------------------------------------------------------
+
+/// 主显示器信息。
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScreenInfo {
+    pub width: i32,
+    pub height: i32,
+}
+
+/// 主显示器分辨率（A3.1 布局与调试用；非 Windows 返回 Err）。
+#[tauri::command]
+pub fn mayhem_screen_info() -> Result<ScreenInfo, String> {
+    #[cfg(windows)]
+    {
+        let (width, height) = crate::mayhem::capture::gdi::primary_screen_size();
+        Ok(ScreenInfo { width, height })
+    }
+    #[cfg(not(windows))]
+    Err("屏幕捕获仅支持 Windows".to_string())
+}
+
+/// 当前主显示器下三张强化卡的标题带矩形（左/中/右）。
+///
+/// 非平台相关：纯几何计算；非 Windows 以 1080p 为基准返回，便于前端开发预览。
+#[tauri::command]
+pub async fn mayhem_slot_band_rects() -> Result<Vec<crate::mayhem::capture::Rect>, String> {
+    let screen = {
+        #[cfg(windows)]
+        {
+            crate::mayhem::capture::gdi::primary_screen_size()
+        }
+        #[cfg(not(windows))]
+        {
+            (1920, 1080)
+        }
+    };
+    let rects = crate::mayhem::capture::slot_band_rects(screen);
+    Ok(rects.to_vec())
+}
+
+/// 抓取三张卡的标题带并计算亮度标准差（A3 触发时机启发式）。
+///
+/// 纯色画面 stddev≈0；出现强化卡文字/图标后显著升高。OCR 引擎接入前，
+/// 这是判断「三选一是否出现」的唯一信号源（阈值由前端 trigger 层持有）。
+#[tauri::command]
+pub async fn mayhem_capture_band_stats(
+) -> Result<Vec<crate::mayhem::capture::BandStat>, String> {
+    #[cfg(windows)]
+    {
+        let screen = crate::mayhem::capture::gdi::primary_screen_size();
+        crate::mayhem::capture::analyze_bands(screen, &|x, y, w, h| {
+            crate::mayhem::capture::gdi::capture_region_rgba(x, y, w, h).map(|rg| rg.rgba)
+        })
+    }
+    #[cfg(not(windows))]
+    Err("屏幕捕获仅支持 Windows".to_string())
+}
+
+/// 选人期上下文（A2）：队列 ID + 我方阵容 + bench 候选。
+///
+/// 不在选人阶段 / LCU 未连接时返回 null——前端按「无数据」隐藏面板。
+#[tauri::command]
+pub async fn mayhem_draft_context() -> Result<Option<Value>, String> {
+    let session =
+        match crate::lcu::api::champion_select::get_champion_select_session().await {
+            Ok(s) => s,
+            // 非选人阶段是该命令的正常失败路径，静默转 None
+            Err(_) => return Ok(None),
+        };
+    let queue_id = crate::lcu::api::session::get_session()
+        .await
+        .ok()
+        .map(|s| s.queue.id);
+
+    let v = serde_json::to_value(&session).map_err(|e| e.to_string())?;
+    Ok(Some(serde_json::json!({
+        "queueId": queue_id,
+        "localCellId": v["localPlayerCellId"],
+        "myTeam": v["myTeam"],
+        "bench": v["benchChampions"],
+    })))
+}
+
+/// 手动三选一：用户自行输入卡面文字，走完整「词表匹配→打分→组装」链路。
+///
+/// 这是 OCR 引擎就位前的可用兜底（对标 aramgg_client 的 F1 手动流程）：
+/// 截屏识别失败时用户把三张卡名称敲进来，同样得到带分数的推荐面板。
+/// 超过 3 个的文本忽略；不足 3 个按空槽处理。
+#[tauri::command]
+pub async fn mayhem_assist_manual(
+    texts: Vec<String>,
+    champion_id: Option<i64>,
+    rerolls_left: Option<u8>,
+) -> Result<Value, String> {
+    let mut slots: [Option<String>; 3] = [None, None, None];
+    for (i, t) in texts.iter().take(3).enumerate() {
+        let t = t.trim();
+        if !t.is_empty() {
+            slots[i] = Some(t.to_string());
+        }
+    }
+    crate::mayhem::pipeline::run_augment_round(
+        slots,
+        champion_id.unwrap_or(67),
+        rerolls_left,
+    )
+}
+
+/// 校准截图（A3.1）：抓取三张卡标题带并导出 BMP（base64）。
+///
+/// 前端把三张图直接展示给用户，据此调整 capture.rs 的标定常数，
+/// 使矩形精确对准游戏内的强化名称文本。
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BandDump {
+    pub slot: u8,
+    pub bmp_base64: String,
+}
+
+#[tauri::command]
+pub async fn mayhem_capture_band_dump() -> Result<Vec<BandDump>, String> {
+    #[cfg(windows)]
+    {
+        use base64::engine::general_purpose::STANDARD;
+        use base64::Engine as _;
+
+        let screen = crate::mayhem::capture::gdi::primary_screen_size();
+        let rects = crate::mayhem::capture::slot_band_rects(screen);
+        let mut out = Vec::with_capacity(3);
+        for r in &rects {
+            let region =
+                crate::mayhem::capture::gdi::capture_region_rgba(r.x, r.y, r.w, r.h)?;
+            out.push(BandDump {
+                slot: out.len() as u8,
+                bmp_base64: STANDARD.encode(crate::mayhem::capture::encode_bmp_rgba(
+                    &region.rgba,
+                    r.w,
+                    r.h,
+                )),
+            });
+        }
+        Ok(out)
+    }
+    #[cfg(not(windows))]
+    Err("屏幕捕获仅支持 Windows".to_string())
+}
+
+/// 当前 gameflow 阶段（大乱斗助手触发调度用）。
+#[tauri::command]
+pub async fn mayhem_gameflow_phase() -> Result<String, String> {
+    crate::lcu::api::phase::get_phase().await
+}
+
+/// 大乱斗助手单次 tick（A3 触发→识别→打分→推送 的编排入口）。
+///
+/// 流程：阶段过滤 → 抓三卡标题带活跃度 → 检测判定 → 识别文本（`ocr-win`
+/// feature 启用时走 Windows.Media.Ocr，否则如实返回 `ocr-not-configured`）
+/// → 词表匹配打分 → 组装面板负载。
+#[tauri::command]
+pub async fn mayhem_assist_tick(
+    champion_id: Option<i64>,
+    rerolls_left: Option<u8>,
+) -> Result<Value, String> {
+    let phase = crate::lcu::api::phase::get_phase().await.unwrap_or_default();
+    if phase != "InProgress" {
+        return Ok(serde_json::json!({
+            "phase": phase, "pushed": false, "reason": "not-in-game", "activeSlots": 0
+        }));
+    }
+
+    #[cfg(all(windows, feature = "ocr-win"))]
+    {
+        use crate::mayhem::capture::{luma_stddev, slot_band_rects};
+
+        let screen = crate::mayhem::capture::gdi::primary_screen_size();
+        let rects = slot_band_rects(screen);
+        let mut texts: [Option<String>; 3] = [None, None, None];
+        let mut active_slots = 0usize;
+
+        for (i, r) in rects.iter().enumerate() {
+            let region =
+                crate::mayhem::capture::gdi::capture_region_rgba(r.x, r.y, r.w, r.h)?;
+            if luma_stddev(&region.rgba) >= crate::mayhem::pipeline::BAND_ACTIVE_THRESHOLD {
+                active_slots += 1;
+            }
+            match crate::mayhem::engine_win::recognize_bgra(&region.rgba, r.w, r.h).await {
+                Ok(lines) => {
+                    let joined = lines.join(" ");
+                    if !joined.trim().is_empty() {
+                        texts[i] = Some(joined);
+                    }
+                }
+                Err(e) => log::warn!("[assist] 卡位 {i} OCR 失败: {e}"),
+            }
+        }
+
+        if active_slots < crate::mayhem::pipeline::ACTIVE_SLOTS_REQUIRED {
+            return Ok(serde_json::json!({
+                "phase": phase, "pushed": false,
+                "reason": "no-augment-ui", "activeSlots": active_slots
+            }));
+        }
+
+        let payload = crate::mayhem::pipeline::run_augment_round(
+            texts,
+            champion_id.unwrap_or(67),
+            rerolls_left,
+        )?;
+        return Ok(serde_json::json!({
+            "phase": phase, "pushed": true, "payload": payload
+        }));
+    }
+
+    #[cfg(all(windows, not(feature = "ocr-win")))]
+    {
+        let screen = crate::mayhem::capture::gdi::primary_screen_size();
+        let stats = crate::mayhem::capture::analyze_bands(screen, &|x, y, w, h| {
+            crate::mayhem::capture::gdi::capture_region_rgba(x, y, w, h).map(|rg| rg.rgba)
+        })?;
+        let active_slots =
+            stats.iter().filter(|s| s.stddev >= crate::mayhem::pipeline::BAND_ACTIVE_THRESHOLD).count();
+        if !crate::mayhem::pipeline::detect_from_stats(&stats) {
+            return Ok(serde_json::json!({
+                "phase": phase, "pushed": false,
+                "reason": "no-augment-ui", "activeSlots": active_slots
+            }));
+        }
+        // OCR 引擎未编译（--features ocr-win）：检测已通过但拿不到卡位文本，
+        // 如实告知前端而非伪造空面板；手动三选一不受影响。
+        return Ok(serde_json::json!({
+            "phase": phase, "pushed": false, "reason": "ocr-not-configured",
+            "activeSlots": active_slots
+        }));
+    }
+
+    #[cfg(not(windows))]
+    Err("屏幕捕获仅支持 Windows".to_string())
+}
+
+/// 端到端预览（A3 调试）：用本地真实数据对样例候选打分并组装面板负载。
+///
+/// 候选取英雄 67（薇恩）分片里前两个有全局数据的强化 + 一个空槽，
+/// 走完整 score_round 链路；OCR/截屏层就位后由 pipeline 替换输入源。
+#[tauri::command]
+pub async fn mayhem_score_preview(champion_id: Option<i64>) -> Result<serde_json::Value, String> {
+    use std::collections::HashMap;
+
+    let champ_id = champion_id.unwrap_or(67);
+    let tables = crate::mayhem::score::load_tables(champ_id)?;
+
+    // 从词表取元数据 + 挑两个有全局胜率样本的候选
+    let augments = crate::mayhem::store::read_local_json("augments.json")?;
+    let lexicon = crate::mayhem::ocr::build_lexicon(&augments);
+    let mut metas: HashMap<i64, crate::mayhem::score::CandidateMeta> = HashMap::new();
+    for e in &lexicon {
+        metas.insert(
+            e.id,
+            crate::mayhem::score::CandidateMeta {
+                name: e.name.clone(),
+                rarity_name: "silver".into(),
+            },
+        );
+    }
+
+    let mut picks: Vec<i64> = Vec::new();
+    for (id, g) in &tables.global {
+        if g.wr.is_some() && tables.trio_members.contains(id) {
+            picks.push(*id);
+            if picks.len() == 2 {
+                break;
+            }
+        }
+    }
+    if picks.len() < 2 {
+        for id in tables.global.keys() {
+            if !picks.contains(id) && tables.global.get(id).and_then(|g| g.wr).is_some() {
+                picks.push(*id);
+                if picks.len() == 2 {
+                    break;
+                }
+            }
+        }
+    }
+    if picks.len() < 2 {
+        return Err("本地数据不足，无法预览（请先在数据页同步）".to_string());
+    }
+
+    let hits = [Some(crate::mayhem::ocr::MatchHit { id: picks[0], confidence: 1.0 }), None, Some(crate::mayhem::ocr::MatchHit { id: picks[1], confidence: 1.0 })];
+    Ok(crate::mayhem::score::score_round(hits, &metas, &tables, Some(2)))
 }

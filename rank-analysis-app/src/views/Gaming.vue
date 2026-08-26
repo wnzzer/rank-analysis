@@ -278,6 +278,8 @@
         </div>
       </div>
 
+      <MayhemDraftPanel v-if="sessionData.queueId === 2400" />
+
       <div class="gaming-grid" :class="{ 'gaming-grid-multi': sessionData.isMultiTeam }">
         <div v-for="st of orderedSubteams" :key="`subteam-col-${st.subteamId}`" class="subteam-col">
           <BestPicksPanel
@@ -327,6 +329,7 @@ import VerdictBanner from '@renderer/components/ui/VerdictBanner.vue'
 import LoadingComponent from '@renderer/components/LoadingComponent.vue'
 import SubteamCard from '@renderer/components/gaming/SubteamCard.vue'
 import BestPicksPanel from '@renderer/components/gaming/BestPicksPanel.vue'
+import MayhemDraftPanel from '@renderer/components/gaming/MayhemDraftPanel.vue'
 import TeamStrengthBar from '@renderer/components/gaming/TeamStrengthBar.vue'
 import EnemyThreatCard from '@renderer/components/gaming/EnemyThreatCard.vue'
 import NextActionCard from '@renderer/components/gaming/NextActionCard.vue'

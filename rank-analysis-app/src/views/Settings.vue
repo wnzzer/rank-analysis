@@ -49,6 +49,7 @@ const cloudStore = useCloudSyncStore()
 const options = [
   { key: 'General', label: '常规设置' },
   { key: 'Automation', label: '自动化' },
+  { key: 'Companion', label: 'AI 搭子' },
   { key: 'DataSync', label: '数据与同步' },
   { key: 'About', label: '关于我们' }
 ]

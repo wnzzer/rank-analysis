@@ -142,6 +142,13 @@
                   </template>
                   OP.GG：该英雄在当前模式的梯度与全球胜率（非玩家个人胜率）
                 </n-tooltip>
+                <!-- 大乱斗（2400）：官方 T 级角标（腾讯口径，来自 mayhem 数据） -->
+                <n-tooltip v-if="mayhemTier" trigger="hover">
+                  <template #trigger>
+                    <span class="mayhem-tier">T{{ mayhemTier }}</span>
+                  </template>
+                  海克斯大乱斗官方强度层级（腾讯国服公开统计）
+                </n-tooltip>
                 <!-- 版本徽章自隐藏（零占位），保留在 meta 行；其余低频信息收进下方 ⓘ -->
                 <PatchNoteBadge :champion-id="sessionSummoner.championId" :mode="opggMode" />
               </n-flex>
@@ -380,6 +387,29 @@ const { isAramMode, balanceTags } = useAramBalance(
 
 /** 当前英雄的 OP.GG 元数据（T 级/胜率），驱动 chip；championId<=0 或 opggMode 未传时保持 null */
 const opggMeta = ref<ChampionMeta | null>(null)
+
+/**
+ * 大乱斗（queueId 2400）官方 T 级角标。
+ * 动态导入 mayhem 元数据助手：非大乱斗模式零开销，也不把该模块拉进常规包图。
+ */
+const mayhemTier = ref<number | null>(null)
+watch(
+  [toRef(() => props.queueId), toRef(() => props.sessionSummoner.championId)],
+  async ([qid, cid]) => {
+    if (qid !== 2400 || !cid) {
+      mayhemTier.value = null
+      return
+    }
+    try {
+      const { ensureMayhemChampionMeta } =
+        await import('@renderer/features/mayhem/services/mayhemData')
+      mayhemTier.value = (await ensureMayhemChampionMeta()).get(cid)?.tier ?? null
+    } catch {
+      mayhemTier.value = null
+    }
+  },
+  { immediate: true }
+)
 const opggBadge = computed(() => tierBadge(opggMeta.value?.tier ?? 0))
 /** 胜率语义色：>=52% 绿、<=48% 红，与 ChampionIntelCard 同一套规则 */
 const opggWinRateClass = computed(() => {
@@ -498,6 +528,16 @@ watch(
 
 .tier-row {
   gap: var(--space-4);
+}
+
+/* 大乱斗官方 T 级角标（仅 2400 渲染） */
+.mayhem-tier {
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  padding: 1px 6px;
+  letter-spacing: 0.04em;
+  color: #ffd76a;
+  border: 1px solid rgba(255, 215, 106, 0.5);
 }
 
 /* 当前英雄 OP.GG T 级/胜率 chip：样式简化版复用 ChampionIntelCard 的 intel-tier/intel-winrate 语义 */

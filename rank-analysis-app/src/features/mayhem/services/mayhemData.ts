@@ -369,6 +369,47 @@ export async function getMayhemVersionChanges(): Promise<MayhemVersionChange[]> 
 // 纯工具（供视图复用与单测）
 // ---------------------------------------------------------------------------
 
+/** 英雄元数据精简缓存条目 */
+export interface MayhemChampionMetaEntry {
+  tier: number | null
+  name: string
+}
+
+let metaCachePromise: Promise<Map<number, MayhemChampionMetaEntry>> | null = null
+
+/**
+ * 幂等获取「英雄 id → T级/名字」映射（模块级缓存，进程内共享）。
+ *
+ * PlayerCard 等高频消费方通过动态导入调用：非大乱斗模式零开销；
+ * 失败时清空缓存允许下次重试。
+ */
+export function ensureMayhemChampionMeta(): Promise<Map<number, MayhemChampionMetaEntry>> {
+  if (!metaCachePromise) {
+    metaCachePromise = getMayhemChampions()
+      .then(res => {
+        const map = new Map<number, MayhemChampionMetaEntry>()
+        for (const c of res.champions ?? []) {
+          map.set(c.id, { tier: c.stats.tier, name: c.title })
+        }
+        return map
+      })
+      .catch(err => {
+        metaCachePromise = null
+        throw err
+      })
+  }
+  return metaCachePromise
+}
+
+/** 按称号查英雄 id（角标 hover 等场景的反查）。 */
+export function mayhemIdByTitle(
+  map: Map<number, MayhemChampionMetaEntry>,
+  title: string
+): number | null {
+  for (const [id, m] of map) if (m.name === title) return id
+  return null
+}
+
 /**
  * 去除上游富文本描述中的标签并还原常见实体。
  *

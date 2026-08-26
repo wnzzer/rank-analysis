@@ -156,6 +156,28 @@ pub fn set_click_through(enabled: bool) -> Result<(), String> {
     w.set_ignore_cursor_events(enabled).map_err(|e| e.to_string())
 }
 
+/// 切换 overlay 显示/隐藏（全局热键 Alt+A 的后端实现）。
+///
+/// 返回切换后的可见状态。窗口不存在时先创建再显示（与 [`show`] 同语义）。
+pub fn toggle(app: &tauri::AppHandle) -> Result<bool, String> {
+    match get_window() {
+        Some(w) => {
+            let visible = w.is_visible().unwrap_or(false);
+            if visible {
+                hide();
+                Ok(false)
+            } else {
+                show(app);
+                Ok(true)
+            }
+        }
+        None => {
+            show(app);
+            Ok(true)
+        }
+    }
+}
+
 /// 销毁 overlay 窗口（进程退出时清理）。
 pub fn destroy() {
     if let Some(w) = get_window() {

@@ -115,11 +115,9 @@
   border-color: transparent;
 }
 
+/* 空态包装：EmptyState 自带内边距与排版，这里仅保留区块级留白 */
 .m-empty {
-  text-align: center;
-  color: var(--text-tertiary);
-  font-size: var(--font-size-sm);
-  padding: 64px 0;
+  padding: var(--space-8) 0;
 }
 
 .m-grid {
@@ -257,6 +255,34 @@
   accent-color: var(--brand-border);
 }
 
+/* ---- 手动三选一表单 ---- */
+.m-manual {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  flex-wrap: wrap;
+  padding: var(--space-8) 0;
+}
+.m-manual__slot {
+  width: 150px;
+}
+
+/* ---- 校准截图视图 ---- */
+.m-calib {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  flex-wrap: wrap;
+  padding: var(--space-8) var(--space-12);
+  margin-bottom: var(--space-12);
+  border: 1px dashed var(--brand-border);
+}
+.m-calib__shot {
+  height: 44px;
+  image-rendering: pixelated;
+  border: 1px solid var(--border-strong);
+}
+
 /* ---- 强化榜卡片 ---- */
 .m-grid--aug {
   grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
@@ -332,6 +358,14 @@
 /* ---- 我的数据 Tab ---- */
 .btn.pri {
   background: var(--brand-gradient);
+  color: var(--text-on-brand);
+}
+.btn--on {
+  background: var(--brand-gradient);
+  color: var(--text-on-brand);
+  border-color: transparent;
+}
+.btn--on:hover:not(:disabled) {
   color: var(--text-on-brand);
 }
 .mine-head {

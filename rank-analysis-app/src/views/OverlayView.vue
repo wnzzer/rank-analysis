@@ -1,9 +1,11 @@
 ﻿<script setup lang="ts">
 /**
- * 对局内 Overlay 视图（v3 §C7：同语言重绘 + 可配置）。
+ * 对局内 Overlay 视图（B1 多面板宿主）。
  *
- * 监听主窗口推送的 "overlay:update" 渲染 NextAction 建议卡；
- * "overlay:config" 可选推送 { maxItems, opacity } 覆盖本地偏好。
+ * - 兼容通道：`overlay:update`（NextAction 列表，Gaming 轮询推送）
+ * - 面板信封：`overlay:panel` → { panel, payload }，按注册表分发渲染
+ *   （mayhem-augments = 三选一卡组；后续面板在此扩展）
+ * - `overlay:config` 可选推送 { maxItems, opacity } 覆盖本地偏好。
  * 透明背景 + 鼠标穿透由 Rust 端窗口属性控制（set_ignore_cursor_events）。
  */
 import { computed, onMounted, onUnmounted, ref } from 'vue'
@@ -11,9 +13,26 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { NEXT_ACTION_LABELS, URGENCY_COLORS, type NextAction } from '@renderer/services/nextAction'
 import { loadOverlayPrefs, saveOverlayPrefs, type OverlayPrefs } from '@renderer/utils/overlayPrefs'
 
+import MayhemAugmentPanel from '../components/overlay/MayhemAugmentPanel.vue'
+import {
+  isMayhemAugmentsPayload,
+  type MayhemAugmentsPayload,
+  type OverlayPanelEnvelope
+} from '../features/overlay/panels'
+
 const actions = ref<NextAction[]>([])
-const visible = ref(false)
 const prefs = ref<OverlayPrefs>(loadOverlayPrefs())
+const mayhemAugments = ref<MayhemAugmentsPayload | null>(null)
+const companionText = ref('')
+let bubbleTimer: ReturnType<typeof setTimeout> | null = null
+
+/** 任一面板有内容即显示 overlay 窗口内容 */
+const hasContent = computed(
+  () =>
+    actions.value.length > 0 ||
+    (mayhemAugments.value?.candidates.length ?? 0) > 0 ||
+    companionText.value.length > 0
+)
 
 /** 屏幕高度自适应：每条约 26px，预留头部与边距，避免低分辨率下溢出屏幕 */
 const maxByHeight = ref(99)
@@ -27,6 +46,7 @@ const cardStyle = computed(() => ({ opacity: String(prefs.value.opacity) }))
 
 let unlistenUpdate: UnlistenFn | null = null
 let unlistenConfig: UnlistenFn | null = null
+let unlistenPanel: UnlistenFn | null = null
 
 onMounted(async () => {
   updateMaxByHeight()
@@ -36,12 +56,30 @@ onMounted(async () => {
   try {
     unlistenUpdate = await listen<NextAction[]>('overlay:update', event => {
       actions.value = Array.isArray(event.payload) ? event.payload : []
-      visible.value = actions.value.length > 0
     })
     unlistenConfig = await listen<Partial<OverlayPrefs>>('overlay:config', event => {
       const merged = { ...prefs.value, ...(event.payload ?? {}) }
       prefs.value = { ...merged }
       saveOverlayPrefs(prefs.value)
+    })
+    unlistenPanel = await listen<OverlayPanelEnvelope>('overlay:panel', event => {
+      const { panel, payload } = event.payload ?? {}
+      if (panel === 'mayhem-augments') {
+        mayhemAugments.value = isMayhemAugmentsPayload(payload) ? payload : null
+      } else if (panel === 'companion-bubble') {
+        const text =
+          typeof (payload as { text?: unknown })?.text === 'string'
+            ? (payload as { text: string }).text
+            : ''
+        companionText.value = text
+        // 气泡自动消失（桥接层不推送清空消息时的兜底）
+        if (bubbleTimer) clearTimeout(bubbleTimer)
+        if (text) {
+          bubbleTimer = setTimeout(() => {
+            companionText.value = ''
+          }, 6000)
+        }
+      }
     })
   } catch (e) {
     console.warn('overlay event listen failed:', e)
@@ -51,13 +89,22 @@ onMounted(async () => {
 onUnmounted(() => {
   unlistenUpdate?.()
   unlistenConfig?.()
+  unlistenPanel?.()
   window.removeEventListener('resize', updateMaxByHeight)
 })
 </script>
 
 <template>
-  <div v-if="visible" class="overlay-container">
-    <div class="overlay-card" :style="cardStyle">
+  <div v-if="hasContent" class="overlay-container">
+    <div v-if="companionText" class="overlay-card overlay-bubble" :style="cardStyle">
+      {{ companionText }}
+    </div>
+
+    <div v-if="mayhemAugments" class="overlay-card ov-gap" :style="cardStyle">
+      <MayhemAugmentPanel :payload="mayhemAugments" />
+    </div>
+
+    <div v-if="shown.length" class="overlay-card ov-gap" :style="cardStyle">
       <div class="overlay-header">下一动作建议</div>
       <div class="overlay-list">
         <div
@@ -123,6 +170,21 @@ body {
   padding: 12px;
   backdrop-filter: blur(8px);
   box-shadow: var(--shadow-2);
+}
+
+/* 多面板纵向堆叠时的间距 */
+.ov-gap {
+  margin-top: 10px;
+}
+
+/* AI 搭子气泡：圆角、更柔和的边框，与数据卡区分 */
+.overlay-bubble {
+  border: 1px solid var(--brand-border);
+  border-left: 3px solid var(--brand);
+  clip-path: none;
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  color: var(--text-primary);
 }
 
 .overlay-header {

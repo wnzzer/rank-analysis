@@ -27,6 +27,7 @@
         </span>
         <button class="chip" @click="dismissChanges">知道了</button>
       </div>
+
       <div v-if="error" class="m-alert">{{ error }}</div>
 
       <div class="m-tabs">
@@ -56,22 +57,75 @@
           </button>
         </div>
 
-        <template v-else>
-          <div class="m-roles">
-            <button
-              v-for="r in RARITY_OPTIONS"
-              :key="r.key"
-              class="chip"
-              :class="{ 'chip--on': activeRarity === r.key }"
-              @click="activeRarity = r.key"
-            >
-              {{ r.label }}
-            </button>
-          </div>
+        <div v-else-if="activeTab === 'augments'" class="m-roles">
+          <button
+            v-for="r in RARITY_OPTIONS"
+            :key="r.key"
+            class="chip"
+            :class="{ 'chip--on': activeRarity === r.key }"
+            @click="activeRarity = r.key"
+          >
+            {{ r.label }}
+          </button>
+        </div>
+
+        <!-- 强化榜工具行：低样本开关 / 浮窗预览 / 对局监听 / 手动入口 -->
+        <template v-if="activeTab === 'augments'">
           <label class="m-toggle">
             <input v-model="showNoSample" type="checkbox" /> 显示无胜率样本
           </label>
+          <button class="btn gho sm" :disabled="previewing" @click="onPreviewPanel">
+            {{ previewing ? '推送中…' : '预览浮窗' }}
+          </button>
+          <button class="btn gho sm" :class="{ 'btn--on': assistRunning }" @click="toggleAssist">
+            {{ assistRunning ? '停止对局监听' : '启动对局监听' }}
+          </button>
+          <button class="btn gho sm" @click="manualOpen = !manualOpen">手动三选一</button>
+          <button class="btn gho sm" :disabled="calibrating" @click="onCalibrate">
+            {{ calibrating ? '截取中…' : '校准截图' }}
+          </button>
+          <span v-if="lastTick" class="m-toggle">
+            {{ lastTick.note
+            }}<template v-if="lastTick.maxStddev != null">
+              · 峰值 {{ lastTick.maxStddev.toFixed(1) }}</template
+            >
+          </span>
         </template>
+      </div>
+
+      <!-- 校准视图：三张标题带的实际截取内容，用于对准 capture.rs 标定常数 -->
+      <div v-if="bandDump.length" class="m-calib">
+        <img
+          v-for="d in bandDump"
+          :key="d.slot"
+          class="m-calib__shot"
+          :src="`data:image/bmp;base64,${d.bmpBase64}`"
+          :alt="`卡位 ${d.slot}`"
+          :title="`卡位 ${d.slot}（左/中/右）实际截取区域`"
+        />
+        <span class="m-toggle">
+          若框未对准卡名，请调整 src-tauri/src/mayhem/capture.rs 的标定常数后重新截取。
+        </span>
+      </div>
+
+      <!-- 手动三选一（OCR 兜底）：输入卡面文字 → 打分 → 推浮窗 -->
+      <div v-if="manualOpen" class="m-manual">
+        <input
+          v-for="(_, i) in manualTexts"
+          :key="i"
+          v-model.trim="manualTexts[i]"
+          class="m-search m-manual__slot"
+          :placeholder="['左卡名称', '中卡名称', '右卡名称'][i]"
+          maxlength="20"
+          @keydown.enter="onManualAssist"
+        />
+        <label class="m-toggle"
+          >重随
+          <input v-model.number="manualRerolls" type="number" min="0" max="9" style="width: 48px" />
+        </label>
+        <button class="btn pri sm" :disabled="manualBusy" @click="onManualAssist">
+          {{ manualBusy ? '推送中…' : '打分并推浮窗' }}
+        </button>
       </div>
 
       <!-- Tab 1 英雄榜 -->
@@ -210,12 +264,13 @@
 
 <script setup lang="ts">
 /**
- * Mayhem —— 海克斯大乱斗数据中心（feature-expansion-plan M1 / A1）
- * 双 Tab：英雄榜（官方 T 级 + 胜率）/ 强化榜（稀有度分组 + 轮次最佳标注）。
- * 首屏本地优先；无本地数据或手动点击才走网络同步。英雄卡跳详情子页。
+ * Mayhem —— 海克斯大乱斗数据中心（feature-expansion-plan M1 / A1 / A3）
+ * 三 Tab：英雄榜 / 强化榜 / 我的；强化榜含浮窗预览、对局监听与手动三选一兜底。
+ * 首屏本地优先；无本地数据或手动点击才走网络同步。
  */
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { invoke } from '@tauri-apps/api/core'
 
 import PageStage from '../components/ui/PageStage.vue'
 import { Download, RefreshCw } from 'lucide-vue-next'
@@ -238,8 +293,22 @@ import {
   type MyAugmentStat,
   type MyChampionStat
 } from '../features/mayhem/services/mayhemData'
-
-const CHANGES_SEEN_KEY = 'mayhem-changes-seen-version'
+import {
+  assistManual,
+  previewAugmentOverlay,
+  pushOverlayPanel,
+  setOverlayClickThrough,
+  setOverlayLayout
+} from '../features/overlay/panels'
+import { applyOverlayHotkey } from '../features/overlay/hotkeys'
+import {
+  createAssistScheduler,
+  type AssistScheduler,
+  type AssistTick,
+  type BandDumpDto,
+  type BandStatsDto
+} from '../features/mayhem/trigger'
+import { loadOverlayPrefs } from '../utils/overlayPrefs'
 
 const TABS = [
   { key: 'champions', label: '英雄榜' },
@@ -263,6 +332,11 @@ const RARITY_OPTIONS = [
   { key: 'silver', label: '白银' }
 ]
 
+/** 对局监听调度器单例（跨 Tab 切换保持运行） */
+let assist: AssistScheduler | null = null
+
+const CHANGES_SEEN_KEY = 'mayhem-changes-seen-version'
+
 const router = useRouter()
 
 const status = ref<MayhemStatus | null>(null)
@@ -284,36 +358,15 @@ const importing = ref(false)
 const importNote = ref('')
 const mineLoadedOnce = ref(false)
 const versionChanges = ref<MayhemVersionChange[]>([])
-
-/** 仅展示「当前激活版本」对应的最新变动，且未被用户点过“知道了” */
-const changeBanner = computed<MayhemVersionChange | null>(() => {
-  const latest = versionChanges.value[0]
-  if (!latest || !status.value?.activeVersion) return null
-  if (latest.toVersion !== status.value.activeVersion) return null
-  const empty =
-    !latest.added.length &&
-    !latest.removed.length &&
-    !latest.tierMoves.length &&
-    !latest.wrDrifts.length
-  if (empty) return null
-  try {
-    if (localStorage.getItem(CHANGES_SEEN_KEY) === latest.toVersion) return null
-  } catch {
-    /* localStorage 不可用时不做持久化忽略 */
-  }
-  return latest
-})
-
-function dismissChanges() {
-  const v = changeBanner.value?.toVersion
-  if (!v) return
-  try {
-    localStorage.setItem(CHANGES_SEEN_KEY, v)
-  } catch {
-    /* ignore */
-  }
-  versionChanges.value = []
-}
+const previewing = ref(false)
+const assistRunning = ref(false)
+const lastTick = ref<AssistTick | null>(null)
+const manualOpen = ref(false)
+const manualTexts = ref<string[]>(['', '', ''])
+const manualRerolls = ref<number>(2)
+const manualBusy = ref(false)
+const calibrating = ref(false)
+const bandDump = ref<BandDumpDto[]>([])
 
 const roleOptions = [
   { key: 'all', label: '全部' },
@@ -355,6 +408,36 @@ const filteredAugments = computed(() => {
     .sort((a, b) => (b.stats?.winRate ?? -1) - (a.stats?.winRate ?? -1))
 })
 
+/** 仅展示「当前激活版本」对应的最新变动，且未被用户点过“知道了” */
+const changeBanner = computed<MayhemVersionChange | null>(() => {
+  const latest = versionChanges.value[0]
+  if (!latest || !status.value?.activeVersion) return null
+  if (latest.toVersion !== status.value.activeVersion) return null
+  const empty =
+    !latest.added.length &&
+    !latest.removed.length &&
+    !latest.tierMoves.length &&
+    !latest.wrDrifts.length
+  if (empty) return null
+  try {
+    if (localStorage.getItem(CHANGES_SEEN_KEY) === latest.toVersion) return null
+  } catch {
+    /* localStorage 不可用时不做持久化忽略 */
+  }
+  return latest
+})
+
+function dismissChanges() {
+  const v = changeBanner.value?.toVersion
+  if (!v) return
+  try {
+    localStorage.setItem(CHANGES_SEEN_KEY, v)
+  } catch {
+    /* ignore */
+  }
+  versionChanges.value = []
+}
+
 function switchTab(key: 'champions' | 'augments' | 'mine') {
   activeTab.value = key
   if (key === 'augments' && !augments.value.length && status.value?.ready) void loadAugments()
@@ -365,69 +448,12 @@ function switchTab(key: 'champions' | 'augments' | 'mine') {
   }
 }
 
-async function loadMine() {
-  mineLoadedOnce.value = true
-  try {
-    ;[myChamps.value, myAugs.value] = await Promise.all([getMyChampionStats(), getMyAugmentStats()])
-  } catch (e) {
-    error.value = `读取自采数据失败：${String(e)}`
-  }
-}
-
-async function onImport() {
-  importing.value = true
-  importNote.value = ''
-  try {
-    const r = await importMayhemRecent()
-    importNote.value =
-      `扫描 ${r.scanned} 场：新增 ${r.imported}，已有 ${r.skippedExisting}` +
-      (r.failed ? `，失败 ${r.failed}` : '')
-    await loadMine()
-  } catch (e) {
-    importNote.value = `导入失败（需客户端在线）：${String(e)}`
-  } finally {
-    importing.value = false
-  }
-}
-
-/** 英雄名映射：优先用已加载的英雄榜，未命中回退 id 占位 */
-function champName(id: number): string {
-  const c = champions.value.find(x => x.id === id)
-  return c ? `${c.title}（${c.name}）` : `英雄 #${id}`
-}
-
-function augNameOf(id: number): string {
-  const a = augments.value.find(x => x.id === id)
-  return a?.name ?? `强化 #${id}`
-}
-
-function augTooltipOf(id: number): string {
-  const a = augments.value.find(x => x.id === id)
-  return a ? plainDesc(a) || a.name : ''
-}
-
-function augRemoteIcon(id: number): string | undefined {
-  return augments.value.find(x => x.id === id)?.iconUrl
-}
-
-function wrPct(c: MyChampionStat): string {
-  return `${((c.wins / Math.max(c.games, 1)) * 100).toFixed(0)}%`
-}
-
-function augWrPct(a: MyAugmentStat): string {
-  return `${((a.wins / Math.max(a.games, 1)) * 100).toFixed(0)}%`
-}
-
-function kda(kills: number, deaths: number, assists: number): string {
-  return deaths === 0 ? '∞' : ((kills + assists) / deaths).toFixed(2)
-}
-
 function openChampion(id: number) {
   void router.push({ name: 'MayhemChampionDetail', params: { id: String(id) } })
 }
 
 function tierOf(c: MayhemChampion): number {
-  return clampTier(c.stats.tier)
+  return clampTier(c.stats.tier ?? 5)
 }
 
 function tierOfAug(a: MayhemAugment): number | null {
@@ -438,12 +464,16 @@ function stageOfAug(a: MayhemAugment): number | null {
   return bestStage(a.stages ?? [])
 }
 
-function clampTier(v: number | null): number {
-  return Math.min(Math.max(v ?? 5, 1), 5)
+function clampTier(v: number): number {
+  return Math.min(Math.max(v, 1), 5)
 }
 
 function pct(v: number | null | undefined): string {
-  return v == null ? '--' : `${(v * 100).toFixed(v >= 0.1 ? 1 : 2)}%`
+  if (v == null) return '--'
+  // 相对胜率（情境装等差值口径）带符号展示更准确
+  const abs = Math.abs(v)
+  const text = (abs * 100).toFixed(abs >= 0.1 ? 1 : 2)
+  return v < 0 ? `-${text}%` : `${text}%`
 }
 
 function roleLabel(role: string): string {
@@ -504,7 +534,137 @@ async function onSync(force: boolean) {
   }
 }
 
+async function loadMine() {
+  mineLoadedOnce.value = true
+  try {
+    ;[myChamps.value, myAugs.value] = await Promise.all([getMyChampionStats(), getMyAugmentStats()])
+  } catch (e) {
+    error.value = `读取自采数据失败：${String(e)}`
+  }
+}
+
+async function onImport() {
+  importing.value = true
+  importNote.value = ''
+  try {
+    const r = await importMayhemRecent()
+    importNote.value =
+      `扫描 ${r.scanned} 场：新增 ${r.imported}，已有 ${r.skippedExisting}` +
+      (r.failed ? `，失败 ${r.failed}` : '')
+    await loadMine()
+  } catch (e) {
+    importNote.value = `导入失败（需客户端在线）：${String(e)}`
+  } finally {
+    importing.value = false
+  }
+}
+
+function champName(id: number): string {
+  const c = champions.value.find(x => x.id === id)
+  return c ? `${c.title}（${c.name}）` : `英雄 #${id}`
+}
+
+function augNameOf(id: number): string {
+  const a = augments.value.find(x => x.id === id)
+  return a?.name ?? `强化 #${id}`
+}
+
+function augTooltipOf(id: number): string {
+  const a = augments.value.find(x => x.id === id)
+  return a ? plainDesc(a) || a.name : ''
+}
+
+function augRemoteIcon(id: number): string | undefined {
+  return augments.value.find(x => x.id === id)?.iconUrl
+}
+
+function wrPct(c: MyChampionStat): string {
+  return `${((c.wins / Math.max(c.games, 1)) * 100).toFixed(0)}%`
+}
+
+function augWrPct(a: MyAugmentStat): string {
+  return `${((a.wins / Math.max(a.games, 1)) * 100).toFixed(0)}%`
+}
+
+function kda(kills: number, deaths: number, assists: number): string {
+  return deaths === 0 ? '∞' : ((kills + assists) / deaths).toFixed(2)
+}
+
+async function onPreviewPanel() {
+  previewing.value = true
+  try {
+    await previewAugmentOverlay()
+  } catch (e) {
+    error.value = `预览失败：${String(e)}（需先同步大乱斗数据）`
+  } finally {
+    previewing.value = false
+  }
+}
+
+/** 校准截图：导出三张卡标题带的实际截取内容（BMP 预览） */
+async function onCalibrate() {
+  calibrating.value = true
+  try {
+    bandDump.value = (await invoke('mayhem_capture_band_dump')) as BandDumpDto[]
+  } catch (e) {
+    error.value = `校准截图失败：${String(e)}`
+  } finally {
+    calibrating.value = false
+  }
+}
+
+async function onManualAssist() {
+  const texts = manualTexts.value.filter(t => t.length > 0)
+  if (!texts.length) {
+    error.value = '请至少输入一张卡的名称'
+    return
+  }
+  manualBusy.value = true
+  try {
+    await assistManual(texts, undefined, manualRerolls.value)
+  } catch (e) {
+    error.value = `手动三选一失败：${String(e)}（需先同步大乱斗数据）`
+  } finally {
+    manualBusy.value = false
+  }
+}
+
+/** 对局监听：周期 tick 检测三选一画面；检测沿触发后端真管线并推送面板 */
+function toggleAssist() {
+  if (!assist) {
+    assist = createAssistScheduler({
+      getPhase: () => invoke('mayhem_gameflow_phase') as Promise<string>,
+      getBandStats: () => invoke('mayhem_capture_band_stats') as Promise<BandStatsDto[]>,
+      onTick: t => {
+        lastTick.value = t
+      },
+      onDetected: async () => {
+        const outcome = (await invoke('mayhem_assist_tick', { championId: null })) as {
+          pushed?: boolean
+          payload?: unknown
+        }
+        if (!outcome.pushed || !outcome.payload) return
+        await setOverlayLayout(560, 240, 'top-center')
+        await pushOverlayPanel('mayhem-augments', outcome.payload)
+      }
+    })
+  }
+  if (assist.running) {
+    assist.stop()
+    assistRunning.value = false
+    return
+  }
+  // 对局中浮窗必须保持穿透，避免挡操作；手动校正面板出现时再关穿透
+  void setOverlayClickThrough(true).catch(() => {})
+  assist.start()
+  assistRunning.value = true
+}
+
 onMounted(async () => {
+  // 全局热键幂等应用（进入大乱斗页即确保 Alt+A 可用；失败仅告警）
+  void applyOverlayHotkey(loadOverlayPrefs().hotkeyEnabled).catch(e =>
+    console.warn('热键注册失败:', e)
+  )
   try {
     status.value = await getMayhemStatus()
     void getMayhemVersionChanges()

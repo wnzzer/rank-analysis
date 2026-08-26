@@ -9,10 +9,7 @@
  */
 import { computed } from 'vue'
 
-import {
-  isMayhemAugmentsPayload,
-  type MayhemAugmentCandidate
-} from '../../features/overlay/panels'
+import { isMayhemAugmentsPayload, type MayhemAugmentCandidate } from '../../features/overlay/panels'
 
 const props = defineProps<{ payload: unknown }>()
 
@@ -28,7 +25,7 @@ const candidates = computed<MayhemAugmentCandidate[]>(() => {
 })
 
 function bySlot(slot: 0 | 1 | 2): MayhemAugmentCandidate | null {
-  return candidates.value.find((c) => c.slot === slot) ?? null
+  return candidates.value.find(c => c.slot === slot) ?? null
 }
 
 function titleOf(c: MayhemAugmentCandidate | null): string {
@@ -45,7 +42,10 @@ function scoreText(c: MayhemAugmentCandidate | null): string {
 <template>
   <div class="m3p">
     <div class="m3p__head">
-      海克斯三选一<span v-if="isMayhemAugmentsPayload(payload) && payload.rerollsLeft != null" class="m3p__reroll">
+      海克斯三选一<span
+        v-if="isMayhemAugmentsPayload(payload) && payload.rerollsLeft != null"
+        class="m3p__reroll"
+      >
         重随 ×{{ payload.rerollsLeft }}
       </span>
     </div>
@@ -61,9 +61,12 @@ function scoreText(c: MayhemAugmentCandidate | null): string {
         <template v-if="bySlot(s.slot)">
           <span class="m3c__name">{{ bySlot(s.slot)!.name ?? '?' }}</span>
           <span class="m3c__meta">
-            <i v-if="bySlot(s.slot)!.rarityName" class="m3c__rar" :class="`rr-${bySlot(s.slot)!.rarityName}`">{{
-              bySlot(s.slot)!.rarityName
-            }}</i>
+            <i
+              v-if="bySlot(s.slot)!.rarityName"
+              class="m3c__rar"
+              :class="`rr-${bySlot(s.slot)!.rarityName}`"
+              >{{ bySlot(s.slot)!.rarityName }}</i
+            >
             <b class="m3c__score">{{ scoreText(bySlot(s.slot)) }}</b>
             <em v-if="bySlot(s.slot)!.grade" class="m3c__grade">{{ bySlot(s.slot)!.grade }}</em>
           </span>

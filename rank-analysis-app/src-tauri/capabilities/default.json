@@ -36,6 +36,7 @@
     "mcp-bridge:default",
     "sentry:default",
     "dialog:allow-open",
-    "dialog:allow-save"
+    "dialog:allow-save",
+    "global-shortcut:default"
   ]
 }

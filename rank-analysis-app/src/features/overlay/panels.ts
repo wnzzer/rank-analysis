@@ -9,7 +9,12 @@
 import { invoke } from '@tauri-apps/api/core'
 
 /** 内置面板 id（与 OverlayView 的渲染分支一一对应） */
-export const OVERLAY_PANEL_IDS = ['next-actions', 'mayhem-augments', 'mayhem-builds'] as const
+export const OVERLAY_PANEL_IDS = [
+  'next-actions',
+  'mayhem-augments',
+  'mayhem-builds',
+  'companion-bubble'
+] as const
 
 export type OverlayPanelId = (typeof OVERLAY_PANEL_IDS)[number]
 
@@ -20,10 +25,7 @@ export interface OverlayPanelEnvelope {
 }
 
 /** 向指定面板推送数据（主窗口调用） */
-export async function pushOverlayPanel(
-  panel: OverlayPanelId,
-  payload: unknown
-): Promise<void> {
+export async function pushOverlayPanel(panel: OverlayPanelId, payload: unknown): Promise<void> {
   await invoke('push_overlay_panel', { panel, payload })
 }
 
@@ -39,6 +41,33 @@ export async function setOverlayLayout(
 /** 切换鼠标穿透（手动校正面板交互时传 false） */
 export async function setOverlayClickThrough(enabled: boolean): Promise<void> {
   await invoke('set_overlay_click_through', { enabled })
+}
+
+/**
+ * 端到端预览：后端用本地真实数据打分出一份三选一负载，
+ * 显示 overlay 并推送到 mayhem-augments 面板（A3 调试入口）。
+ */
+export async function previewAugmentOverlay(championId?: number): Promise<void> {
+  const payload = await invoke('mayhem_score_preview', { championId })
+  await invoke('show_overlay_window')
+  await setOverlayLayout(560, 240, 'top-center')
+  await pushOverlayPanel('mayhem-augments', payload)
+}
+
+/** 手动三选一：文本 → 词表匹配打分 → 显示并推送浮窗 */
+export async function assistManual(
+  texts: string[],
+  championId?: number,
+  rerollsLeft?: number
+): Promise<void> {
+  const payload = (await invoke('mayhem_assist_manual', {
+    texts,
+    championId,
+    rerollsLeft
+  })) as unknown
+  await invoke('show_overlay_window')
+  await setOverlayLayout(560, 240, 'top-center')
+  await pushOverlayPanel('mayhem-augments', payload)
 }
 
 // ---------------------------------------------------------------------------
@@ -76,8 +105,6 @@ export interface MayhemAugmentsPayload {
 /** 类型守卫：判断未知 payload 是否为三选一负载 */
 export function isMayhemAugmentsPayload(p: unknown): p is MayhemAugmentsPayload {
   return (
-    typeof p === 'object' &&
-    p !== null &&
-    Array.isArray((p as { candidates?: unknown }).candidates)
+    typeof p === 'object' && p !== null && Array.isArray((p as { candidates?: unknown }).candidates)
   )
 }

@@ -97,6 +97,12 @@ const routes: Array<RouteRecordRaw> = [
         meta: { title: '数据与同步' }
       },
       {
+        path: '/Settings/Companion',
+        name: 'Companion',
+        component: () => import('@renderer/views/settings/Companion.vue'),
+        meta: { title: 'AI 搭子' }
+      },
+      {
         path: '/Settings/About',
         name: 'About',
         component: () => import('@renderer/views/settings/About.vue'),

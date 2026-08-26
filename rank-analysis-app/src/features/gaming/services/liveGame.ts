@@ -50,6 +50,10 @@ export interface LiveEvent {
   dragonType?: string | null
   towerName?: string | null
   assisters: string[]
+  /** Multikill 事件携带（部分版本缺失） */
+  killStreak?: number
+  /** GameEnd 事件携带：Win/Fail（部分版本缺失） */
+  result?: string
 }
 
 export interface LiveGameData {

@@ -7,6 +7,11 @@ edition = "2021"
 name = "rank_analysis_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+[features]
+# 可选 Windows.Media.Ocr 引擎（A3.2）：`cargo build --features ocr-win`
+# 默认关闭——未启用时大乱斗助手返回 ocr-not-configured，手动三选一不受影响。
+ocr-win = ["dep:windows"]
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
@@ -44,6 +49,8 @@ phf = { version = "0.12", features = ["macros"] } # 用于静态配置编译期�
 tokio = { version = "1", features = ["full"] }
 urlencoding = "2.1.3" # 用于 URL 编码
 tauri-plugin-updater = "2.9.0"
+# 全局热键（B1：Alt+A 开关对局浮窗；游戏窗口无焦点时仍可触发）
+tauri-plugin-global-shortcut = "2"
 mlua = { version = "0.9", features = ["lua54", "vendored", "async"] }
 futures = "0.3"
 tokio-tungstenite = { version = "0.28", features = [
@@ -87,5 +94,14 @@ winapi = { version = "0.3.9", features = [
     "winnt",
     "shellapi",
     "winuser",
-] } # Windows api，用于获取 lol 进程信息 / 提权重启 / 拉起登录客户端
+    "wingdi", # mayhem/capture.rs：BitBlt 屏幕区域抓取（A3.1 v1）
+  ] } # Windows api，用于获取 lol 进程信息 / 提权重启 / 拉起登录客户端
+# A3.2 OCR 引擎（可选，见 [features].ocr-win）：Windows.Media.Ocr 直连
+windows = { version = "0.62", optional = true, features = [
+    "Foundation",
+    "Globalization",
+    "Graphics_Imaging",
+    "Media_Ocr",
+    "Storage_Streams",
+] }
 winreg = "0.55" # 清理腾讯登录客户端注册的 LOL 开机自启项（command/launcher.rs）

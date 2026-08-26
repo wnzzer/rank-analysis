@@ -76,3 +76,9 @@ pub fn set_overlay_layout(
 pub fn set_overlay_click_through(enabled: bool) -> Result<(), String> {
     crate::overlay::set_click_through(enabled)
 }
+
+/// 显示/隐藏浮窗（全局热键 Alt+A 后端入口）。返回切换后的可见状态。
+#[tauri::command]
+pub fn overlay_toggle(app: tauri::AppHandle) -> Result<bool, String> {
+    crate::overlay::toggle(&app)
+}

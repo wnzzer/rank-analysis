@@ -1,0 +1,115 @@
+.rv {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.rv-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.chip {
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  padding: 3px 10px;
+  cursor: pointer;
+}
+.chip:hover {
+  color: var(--text-primary);
+}
+.chip--on {
+  background: var(--brand-gradient);
+  color: var(--text-on-brand);
+  border-color: transparent;
+}
+
+.rv-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+  gap: var(--space-20);
+  align-items: start;
+}
+@media (max-width: 860px) {
+  .rv-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.rv-block h4 {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  margin-bottom: var(--space-8);
+}
+
+/* ---- 雷达 ---- */
+.rv-radar {
+  width: 260px;
+  height: 260px;
+}
+.radar-ring {
+  fill: none;
+  stroke: var(--border-strong);
+  stroke-width: 1;
+}
+.radar-avg {
+  fill: rgba(128, 128, 128, 0.18);
+  stroke: var(--text-tertiary);
+  stroke-dasharray: 4 3;
+  stroke-width: 1;
+}
+.radar-self {
+  fill: rgba(126, 224, 143, 0.22);
+  stroke: #7fe08f;
+  stroke-width: 1.5;
+}
+.radar-label {
+  font-size: 11px;
+  fill: var(--text-secondary);
+}
+
+.rv-muted {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+}
+
+/* ---- 三裁判 ---- */
+.rv-btn {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  padding: 5px 14px;
+  cursor: pointer;
+  border: none;
+  clip-path: var(--clip-notch);
+  background: var(--brand-gradient);
+  color: var(--text-on-brand);
+}
+.rv-btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+.rv-judges {
+  margin-top: var(--space-8);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-8);
+}
+.rv-judge {
+  border: 1px solid var(--border-strong);
+  padding: var(--space-8) var(--space-10);
+  line-height: 1.6;
+}
+.rv-judge b {
+  display: block;
+  font-size: var(--font-size-xs);
+  color: var(--brand);
+  margin-bottom: 4px;
+}
+.rv-judge p {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--text-primary);
+}
