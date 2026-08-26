@@ -65,7 +65,12 @@ async fn probe_endpoint(endpoint: &str) -> ProbeResult {
         Ok(v) => {
             let mut paths = Vec::new();
             scan_key_paths(&v, "augment", "", &mut paths);
-            ProbeResult { endpoint: endpoint.to_string(), ok: true, error: None, augment_key_paths: paths }
+            ProbeResult {
+                endpoint: endpoint.to_string(),
+                ok: true,
+                error: None,
+                augment_key_paths: paths,
+            }
         }
         Err(e) => ProbeResult {
             endpoint: endpoint.to_string(),
