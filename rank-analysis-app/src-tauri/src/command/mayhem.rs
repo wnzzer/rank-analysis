@@ -403,6 +403,8 @@ pub async fn mayhem_assist_tick(
 
     #[cfg(all(windows, not(feature = "ocr-win")))]
     {
+        // 参数仅在 ocr-win 全管线里消费；该降级臂显式吞掉避免 -Dwarnings
+        let _ = (champion_id, rerolls_left);
         let screen = crate::mayhem::capture::gdi::primary_screen_size();
         let stats = crate::mayhem::capture::analyze_bands(screen, &|x, y, w, h| {
             crate::mayhem::capture::gdi::capture_region_rgba(x, y, w, h).map(|rg| rg.rgba)
@@ -424,7 +426,10 @@ pub async fn mayhem_assist_tick(
     }
 
     #[cfg(not(windows))]
-    Err("屏幕捕获仅支持 Windows".to_string())
+    {
+        let _ = (champion_id, rerolls_left);
+        Err("屏幕捕获仅支持 Windows".to_string())
+    }
 }
 
 /// 端到端预览（A3 调试）：用本地真实数据对样例候选打分并组装面板负载。
