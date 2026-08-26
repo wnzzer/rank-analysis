@@ -396,7 +396,7 @@ pub async fn mayhem_assist_tick(
         Ok(serde_json::json!({
             "phase": phase, "pushed": true, "payload": payload
         }))
-    }
+    };
 
     #[cfg(all(windows, not(feature = "ocr-win")))]
     let out: Result<Value, String> = {
@@ -422,7 +422,7 @@ pub async fn mayhem_assist_tick(
             "phase": phase, "pushed": false, "reason": "ocr-not-configured",
             "activeSlots": active_slots
         }))
-    }
+    };
 
     #[cfg(not(windows))]
     let out: Result<Value, String> = {
