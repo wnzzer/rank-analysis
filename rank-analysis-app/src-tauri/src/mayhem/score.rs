@@ -71,8 +71,12 @@ impl CandidateMeta {
         let mut out = HashMap::new();
         if let Some(items) = augments["data"].as_array() {
             for it in items {
-                let Some(id) = it["id"].as_i64() else { continue };
-                let Some(name) = it["name"].as_str() else { continue };
+                let Some(id) = it["id"].as_i64() else {
+                    continue;
+                };
+                let Some(name) = it["name"].as_str() else {
+                    continue;
+                };
                 let name = name.trim();
                 if name.is_empty() {
                     continue;
@@ -121,7 +125,10 @@ fn min_max_norm(values: &[f64]) -> Vec<f64> {
     if (max - min).abs() < f64::EPSILON {
         return vec![0.5; values.len()];
     }
-    values.iter().map(|v| ((v - min) / (max - min)).clamp(0.0, 1.0)).collect()
+    values
+        .iter()
+        .map(|v| ((v - min) / (max - min)).clamp(0.0, 1.0))
+        .collect()
 }
 
 /// 档位映射（分数 0-100）。
@@ -145,8 +152,15 @@ pub fn load_tables(champion_id: i64) -> Result<ScoreTables, String> {
     let mut global = HashMap::new();
     if let Some(items) = aug_json["data"].as_array() {
         for it in items {
-            let Some(id) = it["id"].as_i64() else { continue };
-            global.insert(id, GlobalStats { wr: it["stats"]["winRate"].as_f64() });
+            let Some(id) = it["id"].as_i64() else {
+                continue;
+            };
+            global.insert(
+                id,
+                GlobalStats {
+                    wr: it["stats"]["winRate"].as_f64(),
+                },
+            );
         }
     }
 
@@ -295,7 +309,11 @@ pub fn score_round(
     let best_slot = scored
         .iter()
         .filter(|(_, c)| c.score.is_some())
-        .max_by(|a, b| a.1.score.partial_cmp(&b.1.score).unwrap_or(std::cmp::Ordering::Equal))
+        .max_by(|a, b| {
+            a.1.score
+                .partial_cmp(&b.1.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
         .map(|(slot, _)| *slot);
     for (slot, c) in scored.iter_mut() {
         if Some(*slot) == best_slot {
@@ -316,7 +334,10 @@ mod tests {
     use super::*;
 
     fn hit(id: i64, conf: f64) -> MatchHit {
-        MatchHit { id, confidence: conf }
+        MatchHit {
+            id,
+            confidence: conf,
+        }
     }
 
     fn tables_with(
@@ -329,7 +350,13 @@ mod tests {
             t.global.insert(*id, GlobalStats { wr: Some(*wr) });
         }
         for (id, wr, games) in champ {
-            t.champ_wr.insert(*id, ChampAugStat { wr: *wr, games: *games });
+            t.champ_wr.insert(
+                *id,
+                ChampAugStat {
+                    wr: *wr,
+                    games: *games,
+                },
+            );
         }
         for (id, wr) in trios {
             t.trio_members.insert(*id);
@@ -340,7 +367,15 @@ mod tests {
 
     fn meta_map(ids: &[i64]) -> HashMap<i64, CandidateMeta> {
         ids.iter()
-            .map(|id| (*id, CandidateMeta { name: format!("强化{id}"), rarity_name: "gold".into() }))
+            .map(|id| {
+                (
+                    *id,
+                    CandidateMeta {
+                        name: format!("强化{id}"),
+                        rarity_name: "gold".into(),
+                    },
+                )
+            })
             .collect()
     }
 
@@ -357,7 +392,12 @@ mod tests {
     fn higher_global_wr_should_win_when_other_dims_equal() {
         let t = tables_with(&[(1, 0.60), (2, 0.50)], &[], &[]);
         let m = meta_map(&[1, 2]);
-        let payload = score_round([Some(&hit(1, 1.0)), None, Some(&hit(2, 1.0))], &m, &t, Some(2));
+        let payload = score_round(
+            [Some(&hit(1, 1.0)), None, Some(&hit(2, 1.0))],
+            &m,
+            &t,
+            Some(2),
+        );
 
         let cands = payload["candidates"].as_array().expect("candidates");
         assert_eq!(cands.len(), 3, "空槽也要占位");
@@ -384,7 +424,9 @@ mod tests {
             "英雄维度权重应足以翻转全局劣势"
         );
         let reasons = cands[1]["reasons"].as_array().unwrap();
-        assert!(reasons.iter().any(|r| r.as_str().unwrap().contains("该英雄历史")));
+        assert!(reasons
+            .iter()
+            .any(|r| r.as_str().unwrap().contains("该英雄历史")));
     }
 
     #[test]
@@ -393,7 +435,9 @@ mod tests {
         let m = meta_map(&[1]);
         let payload = score_round([Some(&hit(1, 1.0)), None, None], &m, &t, None);
         let reasons = payload["candidates"][0]["reasons"].as_array().unwrap();
-        assert!(reasons.iter().any(|r| r.as_str().unwrap().contains("样本不足")));
+        assert!(reasons
+            .iter()
+            .any(|r| r.as_str().unwrap().contains("样本不足")));
     }
 
     #[test]

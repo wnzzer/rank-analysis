@@ -37,7 +37,11 @@ pub fn scan_key_paths(v: &Value, needle: &str, prefix: &str, out: &mut Vec<Strin
     match v {
         Value::Object(map) => {
             for (k, child) in map {
-                let path = if prefix.is_empty() { k.clone() } else { format!("{prefix}.{k}") };
+                let path = if prefix.is_empty() {
+                    k.clone()
+                } else {
+                    format!("{prefix}.{k}")
+                };
                 if k.to_lowercase().contains(needle) && out.len() < MAX_PATHS {
                     out.push(path.clone());
                 }

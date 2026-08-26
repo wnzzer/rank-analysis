@@ -82,7 +82,11 @@ pub fn analyze_bands(
         .enumerate()
         .map(|(i, r)| {
             let rgba = grab(r.x, r.y, r.w, r.h)?;
-            Ok(BandStat { slot: i as u8, rect: *r, stddev: luma_stddev(&rgba) })
+            Ok(BandStat {
+                slot: i as u8,
+                rect: *r,
+                stddev: luma_stddev(&rgba),
+            })
         })
         .collect()
 }
@@ -112,7 +116,12 @@ pub fn slot_band_rects(screen: (i32, i32)) -> [Rect; 3] {
     let center_x = sw * GROUP_CENTER_X;
 
     let offsets = [-CARD_PITCH, 0.0, CARD_PITCH];
-    let mut out = [Rect { x: 0, y: 0, w: 1, h: 1 }; 3];
+    let mut out = [Rect {
+        x: 0,
+        y: 0,
+        w: 1,
+        h: 1,
+    }; 3];
     for (i, off) in offsets.iter().enumerate() {
         // 先在基准系里表达再统一缩放，保证与 scale_rect 的钳制语义一致
         let bx = ((center_x + sw * off - band_w / 2.0) / sw * BASE_WIDTH as f32) as i32;
@@ -147,7 +156,7 @@ pub fn encode_bmp_rgba(rgba: &[u8], w: i32, h: i32) -> Vec<u8> {
     out.extend_from_slice(&0u16.to_le_bytes()); // reserved1
     out.extend_from_slice(&0u16.to_le_bytes()); // reserved2
     out.extend_from_slice(&54u32.to_le_bytes()); // offBits
-    // BITMAPINFOHEADER
+                                                 // BITMAPINFOHEADER
     out.extend_from_slice(&40u32.to_le_bytes());
     out.extend_from_slice(&(w as i32).to_le_bytes());
     out.extend_from_slice(&(h as i32).to_le_bytes()); // 正值 = 自下而上
@@ -225,13 +234,13 @@ mod geometry_tests {
         assert_eq!(u16::from_le_bytes(bmp[28..30].try_into().unwrap()), 32);
         assert_eq!(u32::from_le_bytes(bmp[30..34].try_into().unwrap()), 0);
         // 文件大小 = 头 + 数据
-        assert_eq!(u32::from_le_bytes(bmp[2..6].try_into().unwrap()), (54 + 16) as u32);
+        assert_eq!(
+            u32::from_le_bytes(bmp[2..6].try_into().unwrap()),
+            (54 + 16) as u32
+        );
 
         // 第一条输出像素行应是输入的**底**行，且通道已转 BGR(A)
-        assert_eq!(
-            &bmp[54..62],
-            &[12, 11, 10, 255, 9, 8, 7, 255]
-        );
+        assert_eq!(&bmp[54..62], &[12, 11, 10, 255, 9, 8, 7, 255]);
         // 第二条是顶行
         assert_eq!(&bmp[62..70], &[6, 5, 4, 255, 3, 2, 1, 255]);
     }
@@ -246,12 +255,37 @@ mod geometry_tests {
     #[test]
     fn rects_should_scale_linearly_and_stay_in_bounds() {
         // 2K 分辨率：等比放大
-        let r = scale_rect((1920, 1080), Rect { x: 100, y: 100, w: 300, h: 50 }, (3840, 2160));
-        assert_eq!(r, Rect { x: 200, y: 200, w: 600, h: 100 });
+        let r = scale_rect(
+            (1920, 1080),
+            Rect {
+                x: 100,
+                y: 100,
+                w: 300,
+                h: 50,
+            },
+            (3840, 2160),
+        );
+        assert_eq!(
+            r,
+            Rect {
+                x: 200,
+                y: 200,
+                w: 600,
+                h: 100
+            }
+        );
 
         // 越界钳制：源矩形部分出屏时收边而不是越界
-        let clamped =
-            scale_rect((1920, 1080), Rect { x: 1900, y: 0, w: 400, h: 50 }, (1920, 1080));
+        let clamped = scale_rect(
+            (1920, 1080),
+            Rect {
+                x: 1900,
+                y: 0,
+                w: 400,
+                h: 50,
+            },
+            (1920, 1080),
+        );
         assert_eq!((clamped.x, clamped.w), (1900, 20));
     }
 
@@ -375,7 +409,11 @@ pub mod gdi {
             for px in buf.chunks_exact_mut(4) {
                 px.swap(0, 2);
             }
-            Ok(RegionRgba { width: w, height: h, rgba: buf })
+            Ok(RegionRgba {
+                width: w,
+                height: h,
+                rgba: buf,
+            })
         }
     }
 }

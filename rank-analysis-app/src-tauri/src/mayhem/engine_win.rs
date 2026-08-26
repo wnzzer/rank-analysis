@@ -39,34 +39,32 @@ fn init_apartment_once() {
 /// - `rgba`: BGRA 序列化的像素数据（capture.rs 输出已转为 RGBA 命名但字节序
 ///   实际是 B,G,R,A——与 Bgra8 位图格式一一对应）
 /// - `w`/`h`: 像素尺寸；必须与缓冲长度一致（先校验再触碰 WinRT）
-pub async fn recognize_bgra(
-    bgra: &[u8],
-    w: i32,
-    h: i32,
-) -> Result<Vec<String>, String> {
+pub async fn recognize_bgra(bgra: &[u8], w: i32, h: i32) -> Result<Vec<String>, String> {
     if w <= 0 || h <= 0 {
         return Err("invalid bitmap size".into());
     }
     let expected = (w as usize) * (h as usize) * 4;
     if bgra.len() != expected {
-        return Err(format!("pixel buffer size mismatch: {} != {}", bgra.len(), expected));
+        return Err(format!(
+            "pixel buffer size mismatch: {} != {}",
+            bgra.len(),
+            expected
+        ));
     }
 
     init_apartment_once();
 
-    let writer =
-        DataWriter::new().map_err(|e| format!("DataWriter::new: {e}"))?;
-    writer.WriteBytes(bgra).map_err(|e| format!("WriteBytes: {e}"))?;
-    let buffer = writer.DetachBuffer().map_err(|e| format!("DetachBuffer: {e}"))?;
+    let writer = DataWriter::new().map_err(|e| format!("DataWriter::new: {e}"))?;
+    writer
+        .WriteBytes(bgra)
+        .map_err(|e| format!("WriteBytes: {e}"))?;
+    let buffer = writer
+        .DetachBuffer()
+        .map_err(|e| format!("DetachBuffer: {e}"))?;
     drop(writer); // 显式关闭写入器；buffer 已独立持有数据
 
-    let bitmap = SoftwareBitmap::CreateCopyFromBuffer(
-        &buffer,
-        BitmapPixelFormat::Bgra8,
-        w,
-        h,
-    )
-    .map_err(|e| format!("CreateCopyFromBuffer: {e}"))?;
+    let bitmap = SoftwareBitmap::CreateCopyFromBuffer(&buffer, BitmapPixelFormat::Bgra8, w, h)
+        .map_err(|e| format!("CreateCopyFromBuffer: {e}"))?;
 
     let engine = OcrEngine::TryCreateFromUserProfileLanguages()
         .map_err(|e| format!("OCR 引擎不可用（请在系统设置安装中文语言包后重试）: {e}"))?;
@@ -74,7 +72,9 @@ pub async fn recognize_bgra(
     let operation = engine
         .RecognizeAsync(&bitmap)
         .map_err(|e| format!("RecognizeAsync: {e}"))?;
-    let result = operation.await.map_err(|e| format!("recognize await: {e}"))?;
+    let result = operation
+        .await
+        .map_err(|e| format!("recognize await: {e}"))?;
 
     let mut lines = Vec::new();
     for line in result.Lines()?.into_iter() {

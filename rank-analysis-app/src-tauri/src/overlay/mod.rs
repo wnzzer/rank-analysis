@@ -141,7 +141,10 @@ fn position_by_anchor(app: &tauri::AppHandle, width: f64, anchor: &str) {
         _ => screen_w - width as i32 - OVERLAY_MARGIN as i32,
     };
     if let Some(w) = get_window() {
-        let _ = w.set_position(Position::Physical(tauri::PhysicalPosition::new(x, OVERLAY_MARGIN as i32)));
+        let _ = w.set_position(Position::Physical(tauri::PhysicalPosition::new(
+            x,
+            OVERLAY_MARGIN as i32,
+        )));
     }
 }
 
@@ -153,7 +156,8 @@ pub fn set_click_through(enabled: bool) -> Result<(), String> {
     let Some(w) = get_window() else {
         return Err("overlay 窗口不存在".to_string());
     };
-    w.set_ignore_cursor_events(enabled).map_err(|e| e.to_string())
+    w.set_ignore_cursor_events(enabled)
+        .map_err(|e| e.to_string())
 }
 
 /// 切换 overlay 显示/隐藏（全局热键 Alt+A 的后端实现）。

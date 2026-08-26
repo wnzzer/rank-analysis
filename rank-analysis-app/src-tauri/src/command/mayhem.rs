@@ -58,7 +58,7 @@ pub async fn mayhem_sync(force: Option<bool>) -> Result<Option<SyncReport>, Stri
 
 /// 查询本地数据状态（纯磁盘读取，离线可用）。
 #[tauri::command]
-pub async fn mayhem_status() -> Result<MayhemStatus, String> {
+pub fn mayhem_status() -> Result<MayhemStatus, String> {
     let ptr = crate::mayhem::store::read_pointer();
     let (version, synced_at) = match ptr {
         Some(p) => (Some(p.data_version.clone()), Some(p.synced_at)),
@@ -77,13 +77,13 @@ pub async fn mayhem_status() -> Result<MayhemStatus, String> {
 
 /// 读取英雄榜（champions.json 原始 JSON，含 T 级/胜率/选取率/职业标签）。
 #[tauri::command]
-pub async fn mayhem_get_champions() -> Result<serde_json::Value, String> {
+pub fn mayhem_get_champions() -> Result<serde_json::Value, String> {
     crate::mayhem::store::read_local_json("champions.json")
 }
 
 /// 读取强化榜（augments.json 原始 JSON）。
 #[tauri::command]
-pub async fn mayhem_get_augments() -> Result<serde_json::Value, String> {
+pub fn mayhem_get_augments() -> Result<serde_json::Value, String> {
     crate::mayhem::store::read_local_json("augments.json")
 }
 
@@ -93,9 +93,7 @@ pub async fn mayhem_get_augments() -> Result<serde_json::Value, String> {
 ///
 /// - `Ok(null)`: 未同步或该英雄无数据（调用方按无数据处理）
 #[tauri::command]
-pub async fn mayhem_get_champion_detail(
-    champion_id: i64,
-) -> Result<Option<serde_json::Value>, String> {
+pub fn mayhem_get_champion_detail(champion_id: i64) -> Result<Option<serde_json::Value>, String> {
     crate::mayhem::store::champion_detail(champion_id)
 }
 
@@ -136,21 +134,19 @@ pub async fn mayhem_import_recent() -> Result<ImportReport, String> {
 
 /// 本人英雄维度聚合（games/wins/KDA 求和），按场次降序。
 #[tauri::command]
-pub async fn mayhem_personal_champion_stats() -> Result<Vec<ChampionAgg>, String> {
+pub fn mayhem_personal_champion_stats() -> Result<Vec<ChampionAgg>, String> {
     Ok(db::personal_champion_stats())
 }
 
 /// 本人强化维度聚合；`champion_id` 提供时只统计该英雄的对局。
 #[tauri::command]
-pub async fn mayhem_personal_augment_stats(
-    champion_id: Option<i32>,
-) -> Result<Vec<AugmentAgg>, String> {
+pub fn mayhem_personal_augment_stats(champion_id: Option<i32>) -> Result<Vec<AugmentAgg>, String> {
     Ok(db::personal_augment_stats(champion_id))
 }
 
 /// 版本变动日志（新 → 旧）；首次同步前为空表。
 #[tauri::command]
-pub async fn mayhem_version_changes() -> Result<Vec<crate::mayhem::store::VersionChange>, String> {
+pub fn mayhem_version_changes() -> Result<Vec<crate::mayhem::store::VersionChange>, String> {
     Ok(crate::mayhem::store::version_changes())
 }
 
@@ -169,20 +165,23 @@ pub async fn mayhem_probe_lcu() -> Result<Vec<crate::mayhem::probe::ProbeResult>
 
 /// 当前本地数据构建的强化名词表（OCR 词表约束用）。
 #[tauri::command]
-pub async fn mayhem_ocr_lexicon(
-) -> Result<Vec<crate::mayhem::ocr::LexiconEntry>, String> {
+pub fn mayhem_ocr_lexicon() -> Result<Vec<crate::mayhem::ocr::LexiconEntry>, String> {
     let augments = crate::mayhem::store::read_local_json("augments.json")?;
     Ok(crate::mayhem::ocr::build_lexicon(&augments))
 }
 
 /// 用样例文本试跑词表匹配（调试用：验证归一化/容差手感，无需截屏）。
 #[tauri::command]
-pub async fn mayhem_ocr_match_sample(
+pub fn mayhem_ocr_match_sample(
     text: String,
     max_distance: Option<usize>,
 ) -> Result<Option<crate::mayhem::ocr::MatchHit>, String> {
-    let lexicon = mayhem_ocr_lexicon().await?;
-    Ok(crate::mayhem::ocr::match_text(&text, &lexicon, max_distance.unwrap_or(2)))
+    let lexicon = mayhem_ocr_lexicon()?;
+    Ok(crate::mayhem::ocr::match_text(
+        &text,
+        &lexicon,
+        max_distance.unwrap_or(2),
+    ))
 }
 
 // ---------------------------------------------------------------------------
@@ -213,7 +212,7 @@ pub fn mayhem_screen_info() -> Result<ScreenInfo, String> {
 ///
 /// 非平台相关：纯几何计算；非 Windows 以 1080p 为基准返回，便于前端开发预览。
 #[tauri::command]
-pub async fn mayhem_slot_band_rects() -> Result<Vec<crate::mayhem::capture::Rect>, String> {
+pub fn mayhem_slot_band_rects() -> Result<Vec<crate::mayhem::capture::Rect>, String> {
     let screen = {
         #[cfg(windows)]
         {
@@ -233,8 +232,7 @@ pub async fn mayhem_slot_band_rects() -> Result<Vec<crate::mayhem::capture::Rect
 /// 纯色画面 stddev≈0；出现强化卡文字/图标后显著升高。OCR 引擎接入前，
 /// 这是判断「三选一是否出现」的唯一信号源（阈值由前端 trigger 层持有）。
 #[tauri::command]
-pub async fn mayhem_capture_band_stats(
-) -> Result<Vec<crate::mayhem::capture::BandStat>, String> {
+pub async fn mayhem_capture_band_stats() -> Result<Vec<crate::mayhem::capture::BandStat>, String> {
     #[cfg(windows)]
     {
         let screen = crate::mayhem::capture::gdi::primary_screen_size();
@@ -251,12 +249,11 @@ pub async fn mayhem_capture_band_stats(
 /// 不在选人阶段 / LCU 未连接时返回 null——前端按「无数据」隐藏面板。
 #[tauri::command]
 pub async fn mayhem_draft_context() -> Result<Option<Value>, String> {
-    let session =
-        match crate::lcu::api::champion_select::get_champion_select_session().await {
-            Ok(s) => s,
-            // 非选人阶段是该命令的正常失败路径，静默转 None
-            Err(_) => return Ok(None),
-        };
+    let session = match crate::lcu::api::champion_select::get_champion_select_session().await {
+        Ok(s) => s,
+        // 非选人阶段是该命令的正常失败路径，静默转 None
+        Err(_) => return Ok(None),
+    };
     let queue_id = crate::lcu::api::session::Session::get_session()
         .await
         .ok()
@@ -289,11 +286,7 @@ pub async fn mayhem_assist_manual(
             slots[i] = Some(t.to_string());
         }
     }
-    crate::mayhem::pipeline::run_augment_round(
-        slots,
-        champion_id.unwrap_or(67),
-        rerolls_left,
-    )
+    crate::mayhem::pipeline::run_augment_round(slots, champion_id.unwrap_or(67), rerolls_left)
 }
 
 /// 校准截图（A3.1）：抓取三张卡标题带并导出 BMP（base64）。
@@ -308,7 +301,7 @@ pub struct BandDump {
 }
 
 #[tauri::command]
-pub async fn mayhem_capture_band_dump() -> Result<Vec<BandDump>, String> {
+pub fn mayhem_capture_band_dump() -> Result<Vec<BandDump>, String> {
     #[cfg(windows)]
     {
         use base64::engine::general_purpose::STANDARD;
@@ -318,8 +311,7 @@ pub async fn mayhem_capture_band_dump() -> Result<Vec<BandDump>, String> {
         let rects = crate::mayhem::capture::slot_band_rects(screen);
         let mut out = Vec::with_capacity(3);
         for r in &rects {
-            let region =
-                crate::mayhem::capture::gdi::capture_region_rgba(r.x, r.y, r.w, r.h)?;
+            let region = crate::mayhem::capture::gdi::capture_region_rgba(r.x, r.y, r.w, r.h)?;
             out.push(BandDump {
                 slot: out.len() as u8,
                 bmp_base64: STANDARD.encode(crate::mayhem::capture::encode_bmp_rgba(
@@ -351,7 +343,9 @@ pub async fn mayhem_assist_tick(
     champion_id: Option<i64>,
     rerolls_left: Option<u8>,
 ) -> Result<Value, String> {
-    let phase = crate::lcu::api::phase::get_phase().await.unwrap_or_default();
+    let phase = crate::lcu::api::phase::get_phase()
+        .await
+        .unwrap_or_default();
     if phase != "InProgress" {
         return Ok(serde_json::json!({
             "phase": phase, "pushed": false, "reason": "not-in-game", "activeSlots": 0
@@ -368,8 +362,7 @@ pub async fn mayhem_assist_tick(
         let mut active_slots = 0usize;
 
         for (i, r) in rects.iter().enumerate() {
-            let region =
-                crate::mayhem::capture::gdi::capture_region_rgba(r.x, r.y, r.w, r.h)?;
+            let region = crate::mayhem::capture::gdi::capture_region_rgba(r.x, r.y, r.w, r.h)?;
             if luma_stddev(&region.rgba) >= crate::mayhem::pipeline::BAND_ACTIVE_THRESHOLD {
                 active_slots += 1;
             }
@@ -409,8 +402,10 @@ pub async fn mayhem_assist_tick(
         let stats = crate::mayhem::capture::analyze_bands(screen, &|x, y, w, h| {
             crate::mayhem::capture::gdi::capture_region_rgba(x, y, w, h).map(|rg| rg.rgba)
         })?;
-        let active_slots =
-            stats.iter().filter(|s| s.stddev >= crate::mayhem::pipeline::BAND_ACTIVE_THRESHOLD).count();
+        let active_slots = stats
+            .iter()
+            .filter(|s| s.stddev >= crate::mayhem::pipeline::BAND_ACTIVE_THRESHOLD)
+            .count();
         if !crate::mayhem::pipeline::detect_from_stats(&stats) {
             return Ok(serde_json::json!({
                 "phase": phase, "pushed": false,
@@ -437,7 +432,7 @@ pub async fn mayhem_assist_tick(
 /// 候选取英雄 67（薇恩）分片里前两个有全局数据的强化 + 一个空槽，
 /// 走完整 score_round 链路；OCR/截屏层就位后由 pipeline 替换输入源。
 #[tauri::command]
-pub async fn mayhem_score_preview(champion_id: Option<i64>) -> Result<serde_json::Value, String> {
+pub fn mayhem_score_preview(champion_id: Option<i64>) -> Result<serde_json::Value, String> {
     use std::collections::HashMap;
 
     let champ_id = champion_id.unwrap_or(67);
@@ -480,6 +475,21 @@ pub async fn mayhem_score_preview(champion_id: Option<i64>) -> Result<serde_json
         return Err("本地数据不足，无法预览（请先在数据页同步）".to_string());
     }
 
-    let hits = [Some(crate::mayhem::ocr::MatchHit { id: picks[0], confidence: 1.0 }), None, Some(crate::mayhem::ocr::MatchHit { id: picks[1], confidence: 1.0 })];
-    Ok(crate::mayhem::score::score_round(hits, &metas, &tables, Some(2)))
+    let hits = [
+        Some(crate::mayhem::ocr::MatchHit {
+            id: picks[0],
+            confidence: 1.0,
+        }),
+        None,
+        Some(crate::mayhem::ocr::MatchHit {
+            id: picks[1],
+            confidence: 1.0,
+        }),
+    ];
+    Ok(crate::mayhem::score::score_round(
+        hits,
+        &metas,
+        &tables,
+        Some(2),
+    ))
 }

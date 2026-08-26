@@ -219,11 +219,15 @@ pub struct VersionChange {
 }
 
 /// 从 augments.json 的 `data` 数组提取 `id → (tier, winRate)` 映射。
-fn augment_index(v: &serde_json::Value) -> std::collections::HashMap<i64, (Option<i64>, Option<f64>)> {
+fn augment_index(
+    v: &serde_json::Value,
+) -> std::collections::HashMap<i64, (Option<i64>, Option<f64>)> {
     let mut map = std::collections::HashMap::new();
     if let Some(items) = v["data"].as_array() {
         for it in items {
-            let Some(id) = it["id"].as_i64() else { continue };
+            let Some(id) = it["id"].as_i64() else {
+                continue;
+            };
             let tier = it["stats"]["tier"].as_i64();
             let wr = it["stats"]["winRate"].as_f64();
             map.insert(id, (tier, wr));
@@ -245,12 +249,19 @@ pub fn diff_augments(old: &serde_json::Value, new: &serde_json::Value) -> Versio
     for (id, (old_tier, old_wr)) in &old_map {
         if let Some((new_tier, new_wr)) = new_map.get(id) {
             if old_tier != new_tier {
-                tier_moves.push(TierMove { augment_id: *id, from_tier: *old_tier, to_tier: *new_tier });
+                tier_moves.push(TierMove {
+                    augment_id: *id,
+                    from_tier: *old_tier,
+                    to_tier: *new_tier,
+                });
             }
             if let (Some(a), Some(b)) = (old_wr, new_wr) {
                 let delta_pp = (b - a) * 100.0;
                 if delta_pp.abs() >= WR_DRIFT_THRESHOLD * 100.0 {
-                    wr_drifts.push(WrDrift { augment_id: *id, delta_pp: (delta_pp * 100.0).round() / 100.0 });
+                    wr_drifts.push(WrDrift {
+                        augment_id: *id,
+                        delta_pp: (delta_pp * 100.0).round() / 100.0,
+                    });
                 }
             }
         }
@@ -290,8 +301,7 @@ fn save_changes_in(root: &Path, entry: VersionChange) -> Result<(), String> {
     list.truncate(CHANGE_LOG_KEEP);
     let path = root.join(CHANGE_LOG_FILE);
     let tmp = root.join("changes.json.tmp");
-    let json =
-        serde_json::to_string(&list).map_err(|e| format!("serialize changes: {}", e))?;
+    let json = serde_json::to_string(&list).map_err(|e| format!("serialize changes: {}", e))?;
     std::fs::write(&tmp, json).map_err(|e| format!("write {}: {}", tmp.display(), e))?;
     std::fs::rename(&tmp, &path).map_err(|e| format!("rename {}: {}", path.display(), e))
 }
@@ -303,11 +313,11 @@ fn record_changes(root: &Path, from_version: &str, to_version: &str) {
     }
     let (Ok(old_json), Ok(new_json)) = (
         std::fs::read_to_string(
-            root.join("versions").join(from_version).join("augments.json"),
+            root.join("versions")
+                .join(from_version)
+                .join("augments.json"),
         ),
-        std::fs::read_to_string(
-            root.join("versions").join(to_version).join("augments.json"),
-        ),
+        std::fs::read_to_string(root.join("versions").join(to_version).join("augments.json")),
     ) else {
         return;
     };
@@ -600,7 +610,11 @@ mod tests {
         assert_eq!(d.removed, vec![1002]);
         assert_eq!(
             d.tier_moves,
-            vec![TierMove { augment_id: 1003, from_tier: Some(3), to_tier: Some(1) }]
+            vec![TierMove {
+                augment_id: 1003,
+                from_tier: Some(3),
+                to_tier: Some(1)
+            }]
         );
         assert_eq!(d.wr_drifts.len(), 1);
         assert_eq!(d.wr_drifts[0].augment_id, 1003);
@@ -612,7 +626,8 @@ mod tests {
         let old: serde_json::Value =
             serde_json::from_str(r#"{"data":[{"id":7,"stats":{"tier":2,"winRate":null}}]}"#)
                 .unwrap();
-        let new: serde_json::Value = serde_json::from_str(r#"{"data":[{"id":7,"stats":{}}]}"#).unwrap();
+        let new: serde_json::Value =
+            serde_json::from_str(r#"{"data":[{"id":7,"stats":{}}]}"#).unwrap();
         let d = diff_augments(&old, &new);
         // tier 2 → null 也算跃迁；胜率缺失不产生漂移
         assert_eq!(d.tier_moves.len(), 1);

@@ -67,19 +67,35 @@ mod tests {
     use crate::mayhem::capture::{BandStat, Rect};
 
     fn band(slot: u8, stddev: f64) -> BandStat {
-        BandStat { slot, rect: Rect { x: 0, y: 0, w: 10, h: 10 }, stddev }
+        BandStat {
+            slot,
+            rect: Rect {
+                x: 0,
+                y: 0,
+                w: 10,
+                h: 10,
+            },
+            stddev,
+        }
     }
 
     #[test]
     fn detection_should_require_two_active_bands() {
-        assert!(!detect_from_stats(&[band(0, 30.0), band(1, 5.0), band(2, 4.0)]));
+        assert!(!detect_from_stats(&[
+            band(0, 30.0),
+            band(1, 5.0),
+            band(2, 4.0)
+        ]));
         assert!(detect_from_stats(&[
             band(0, BAND_ACTIVE_THRESHOLD),
             band(1, 99.0),
             band(2, 0.0)
         ]));
         // 阈值边界：恰好等于阈值算活跃
-        assert!(detect_from_stats(&[band(0, BAND_ACTIVE_THRESHOLD), band(1, BAND_ACTIVE_THRESHOLD)]));
+        assert!(detect_from_stats(&[
+            band(0, BAND_ACTIVE_THRESHOLD),
+            band(1, BAND_ACTIVE_THRESHOLD)
+        ]));
         assert!(!detect_from_stats(&[]));
     }
 }

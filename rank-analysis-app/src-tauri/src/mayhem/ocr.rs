@@ -97,7 +97,10 @@ pub fn match_text(text: &str, lexicon: &[LexiconEntry], max_distance: usize) -> 
         }
         let dist = levenshtein(&norm_chars, &name_chars);
         if dist == 0 {
-            return Some(MatchHit { id: entry.id, confidence: 1.0 });
+            return Some(MatchHit {
+                id: entry.id,
+                confidence: 1.0,
+            });
         }
         if dist <= max_distance && best.map(|(_, bd, _)| dist < bd).unwrap_or(true) {
             best = Some((entry.id, dist, name_chars.len()));
@@ -150,10 +153,22 @@ mod tests {
 
     fn lexicon() -> Vec<LexiconEntry> {
         vec![
-            LexiconEntry { id: 1220, name: "连拨击锤".into() },
-            LexiconEntry { id: 1336, name: "升级：无尽之刃".into() },
-            LexiconEntry { id: 1022, name: "灵巧".into() },
-            LexiconEntry { id: 2010, name: "双发快射".into() },
+            LexiconEntry {
+                id: 1220,
+                name: "连拨击锤".into(),
+            },
+            LexiconEntry {
+                id: 1336,
+                name: "升级：无尽之刃".into(),
+            },
+            LexiconEntry {
+                id: 1022,
+                name: "灵巧".into(),
+            },
+            LexiconEntry {
+                id: 2010,
+                name: "双发快射".into(),
+            },
         ]
     }
 

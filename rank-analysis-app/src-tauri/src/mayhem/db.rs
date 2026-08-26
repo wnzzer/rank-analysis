@@ -152,11 +152,7 @@ fn has_game_in(conn: &Connection, game_id: i64) -> rusqlite::Result<bool> {
 ///
 /// 仅接受 queueId == 2400 的对局；participants 里通过 identities 的 puuid 匹配
 /// 本人行（`is_self=1`）。他人行不落任何身份字段。
-pub fn import_game_in(
-    conn: &Connection,
-    game: &Game,
-    self_puuid: &str,
-) -> rusqlite::Result<bool> {
+pub fn import_game_in(conn: &Connection, game: &Game, self_puuid: &str) -> rusqlite::Result<bool> {
     if game.queue_id != crate::mayhem::MAYHEM_QUEUE_ID {
         return Ok(false);
     }
@@ -309,7 +305,11 @@ fn augment_stats_in(
 
     let mut out: Vec<AugmentAgg> = acc
         .into_iter()
-        .map(|(augment_id, (games, wins))| AugmentAgg { augment_id, games, wins })
+        .map(|(augment_id, (games, wins))| AugmentAgg {
+            augment_id,
+            games,
+            wins,
+        })
         .collect();
     out.sort_by(|a, b| b.games.cmp(&a.games).then(a.augment_id.cmp(&b.augment_id)));
     Ok(out)
@@ -419,7 +419,9 @@ mod tests {
 
         // 敌方行不得被标记为 self
         let foe_self: i64 = conn
-            .query_row("SELECT COUNT(*) FROM players WHERE is_self = 0", [], |r| r.get(0))
+            .query_row("SELECT COUNT(*) FROM players WHERE is_self = 0", [], |r| {
+                r.get(0)
+            })
             .unwrap();
         assert_eq!(foe_self, 1);
     }
@@ -449,12 +451,18 @@ mod tests {
         assert_eq!(c.kills, 16);
 
         let aug_all = augment_stats_in(&conn, None).expect("aug all");
-        let tank_engine = aug_all.iter().find(|a| a.augment_id == 1225).expect("aug 1225");
+        let tank_engine = aug_all
+            .iter()
+            .find(|a| a.augment_id == 1225)
+            .expect("aug 1225");
         assert_eq!(tank_engine.games, 2);
         assert_eq!(tank_engine.wins, 1);
 
         // 按英雄过滤：库里只有 67 号英雄的自采行，过滤后一致；换不存在英雄为空
-        assert_eq!(augment_stats_in(&conn, Some(67)).unwrap().len(), aug_all.len());
+        assert_eq!(
+            augment_stats_in(&conn, Some(67)).unwrap().len(),
+            aug_all.len()
+        );
         assert!(augment_stats_in(&conn, Some(999)).unwrap().is_empty());
 
         // 装备/召唤师技能 JSON 落库且过滤 0 值
@@ -466,6 +474,9 @@ mod tests {
             )
             .unwrap();
         assert_eq!(serde_json::from_str::<Vec<i64>>(&items).unwrap().len(), 4); // item0-2 + 3340
-        assert_eq!(serde_json::from_str::<Vec<i64>>(&spells).unwrap(), vec![4, 6]);
+        assert_eq!(
+            serde_json::from_str::<Vec<i64>>(&spells).unwrap(),
+            vec![4, 6]
+        );
     }
 }
