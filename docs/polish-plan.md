@@ -27,6 +27,7 @@
 | R18 | 空态 #art 收口 / 下拉可达性核实 / 还原链路测试 |
 | R19 | 空态三态测试 / 拖拽导入提示 / README 核实 |
 | R20 | 重连恢复提示 / 结构断言归并 / 门禁复核 |
+| R21 | 重连提示测试化 / 路径条 aria-live 核实 |
 
 ---
 
@@ -220,8 +221,23 @@
 
 ## Round 21 计划 重连提示测试化（2026-08-26）
 - [x] R21-1 useReconnectBanner 组合式函数 + 5 个时序单测（fake timers 断言闪烁窗口）
+- [x] R21-2 导出路径条 aria-live 核实——role=status + aria-live=polite 已在位，无需改动
+- [x] R21-3 polish-plan 轮次速览表补 R21/R22 行
+- [x] R21-4 下一轮候选池滚动续写（Round 22 已写入）
 - R21-2 Record 导出路径条 aria-live 播报
 - R21-3 polish-plan 轮次速览表同步维护
 - R21-4 下一轮候选池滚动续写
+
+## Round 22 计划 可达性与主题核查（2026-08-26）
+- [x] R22-1 Gaming 未连接态核实——标题「未连接到客户端」+ 默认引导语「请确认英雄联盟客户端已运行」链路完整
+- [x] R22-2 export-path-bar 核实——全 token 化（--brand-soft/--brand），主题切换自动跟随
+- [x] R22-3 RecordCard 补 Space 激活（防滚动）+ :focus-visible 品牌焦点环
+- R22-4 polish-plan 轮次速览表滚动维护
+
+## Round 23 候选池（Round 22 完成度 ≥80% 时续写）
+- R23-1 RecordCard Space/Enter 激活的组件级单测
+- R23-2 Growth 目标行完成态的划线样式核查（done 态视觉反馈）
+- R23-3 Home 走马灯 gmarquee reduced-motion 复核
+- R23-4 polish-plan 轮次速览表滚动维护
 
 ## 归档说明

@@ -10,6 +10,7 @@
     tabindex="0"
     @click="openDetail"
     @keyup.enter="openDetail"
+    @keydown.space.prevent="openDetail"
     @mouseenter="emit('hover-champion', games.participants[0].championId)"
     @mouseleave="emit('leave-champion')"
   >
@@ -326,6 +327,12 @@ function openDetail() {
     transform var(--dur-fast) var(--ease-expo),
     box-shadow var(--dur-fast) var(--ease-expo),
     border-color var(--dur-fast) var(--ease-expo);
+}
+
+/* 键盘可达性（R22-3）：焦点环仅键盘触发时出现，不干扰鼠标点击 */
+.record-card:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
 }
 
 .record-card:hover {
