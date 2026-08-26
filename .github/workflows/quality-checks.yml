@@ -5,6 +5,8 @@ on:
     branches: [ main, develop ]
   pull_request:
     branches: [ main, develop ]
+  # fork 场景：PR 触发需要所有者批准，这里提供手动入口便于在 fork 上直接跑完整门禁
+  workflow_dispatch:
 
 permissions:
   contents: read
