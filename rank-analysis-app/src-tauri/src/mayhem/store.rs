@@ -578,7 +578,7 @@ mod tests {
     fn aug_json(id: i64, tier: Option<i64>, wr: Option<f64>) -> String {
         let tier_s = tier.map(|t| t.to_string()).unwrap_or_else(|| "null".into());
         let wr_s = wr.map(|w| w.to_string()).unwrap_or_else(|| "null".into());
-        format!(r#"{{"data":[{{"id":{id},"stats":{{"tier":{tier_s},"winRate":{wr_s}}}}}]}}"#)
+        format!(r#"{{"id":{id},"stats":{{"tier":{tier_s},"winRate":{wr_s}}}}}"#)
     }
 
     #[test]

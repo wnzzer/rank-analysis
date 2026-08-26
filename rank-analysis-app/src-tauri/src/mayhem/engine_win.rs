@@ -37,12 +37,8 @@ fn init_apartment_once() {
     });
 }
 
-/// 对一块 RGBA 像素缓冲做 OCR，返回识别出的行文本（自上而下）。
-///
-/// # 参数
-/// - `rgba`: RGBA 序列化的像素数据（capture.rs 输出已转为 R,G,B,A）
-/// - `w`/`h`: 像素尺寸；必须与缓冲长度一致（先校验再触碰 WinRT）
-pub async fn recognize_rgba(rgba: &[u8], w: i32, h: i32) -> Result<Vec<String>, String> {
+/// 同步 OCR 执行（在专有阻塞线程上运行，确保 !Send 的 WinRT COM 指针不跨越 .await 边界）。
+fn recognize_rgba_sync(rgba: &[u8], w: i32, h: i32) -> Result<Vec<String>, String> {
     if w <= 0 || h <= 0 {
         return Err("invalid bitmap size".into());
     }
@@ -76,8 +72,8 @@ pub async fn recognize_rgba(rgba: &[u8], w: i32, h: i32) -> Result<Vec<String>, 
         .RecognizeAsync(&bitmap)
         .map_err(|e| format!("RecognizeAsync: {e}"))?;
     let result = operation
-        .await
-        .map_err(|e| format!("recognize await: {e}"))?;
+        .get()
+        .map_err(|e| format!("recognize get: {e}"))?;
 
     let mut lines = Vec::new();
     for line in result
@@ -94,6 +90,17 @@ pub async fn recognize_rgba(rgba: &[u8], w: i32, h: i32) -> Result<Vec<String>, 
         }
     }
     Ok(lines)
+}
+
+/// 对一块 RGBA 像素缓冲做 OCR，返回识别出的行文本（自上而下）。
+///
+/// 通过 [`tokio::task::spawn_blocking`] 隔离 WinRT COM 对象的生命周期，
+/// 保证返回的 Future 满足 `Send` 约束，可在 Tauri 命令中安全跨线程调度。
+pub async fn recognize_rgba(rgba: &[u8], w: i32, h: i32) -> Result<Vec<String>, String> {
+    let rgba_owned = rgba.to_vec();
+    tokio::task::spawn_blocking(move || recognize_rgba_sync(&rgba_owned, w, h))
+        .await
+        .map_err(|e| format!("OCR 线程执行异常: {e}"))?
 }
 
 /// 兼容别名：转发至 [`recognize_rgba`]。
