@@ -28,6 +28,8 @@
 | R19 | 空态三态测试 / 拖拽导入提示 / README 核实 |
 | R20 | 重连恢复提示 / 结构断言归并 / 门禁复核 |
 | R21 | 重连提示测试化 / 路径条 aria-live 核实 |
+| R22 | 卡片键盘可达性 / 空态与主题核实 |
+| R23 | 键盘单测 / 完成态与动效核查 |
 
 ---
 
@@ -234,10 +236,16 @@
 - [x] R22-3 RecordCard 补 Space 激活（防滚动）+ :focus-visible 品牌焦点环
 - R22-4 polish-plan 轮次速览表滚动维护
 
-## Round 23 候选池（Round 22 完成度 ≥80% 时续写）
-- R23-1 RecordCard Space/Enter 激活的组件级单测
-- R23-2 Growth 目标行完成态的划线样式核查（done 态视觉反馈）
-- R23-3 Home 走马灯 gmarquee reduced-motion 复核
-- R23-4 polish-plan 轮次速览表滚动维护
+## Round 23 计划 键盘测试化与样式核查（2026-08-26）
+- [x] R23-1 RecordCard 键盘激活单测（role/tabindex/Enter/Space 双触发，12 用例通过）
+- [x] R23-2 Growth 完成态核实——品牌渐变勾选框 + 划线弱化文字，无需改动
+- [x] R23-3 gmarquee 核实——prefers-reduced-motion 覆盖 track + aria-hidden + 悬停暂停
+- [x] R23-4 polish-plan 轮次速览表滚动维护
+
+## Round 24 候选池（Round 23 完成度 ≥80% 时续写）
+- R24-1 全量门禁复核（lint/type/test/build 四绿基线）
+- R24-2 CI Quality Checks 状态确认（含并行 mayhem 流落地后的 Rust 门禁）
+- R24-3 下一轮候选池滚动续写
+- R24-4 polish-plan 归档说明更新（R18-R24 收束）
 
 ## 归档说明
