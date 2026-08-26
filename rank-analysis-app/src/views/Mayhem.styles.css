@@ -206,3 +206,112 @@
   color: var(--text-tertiary);
   line-height: 1.7;
 }
+
+/* ---- Tab 栏 ---- */
+.m-tabs {
+  display: flex;
+  gap: var(--space-8);
+  margin-bottom: var(--space-16);
+}
+.mtab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  padding: 6px 14px;
+  cursor: pointer;
+}
+.mtab:hover {
+  color: var(--text-primary);
+}
+.mtab.on {
+  color: var(--text-primary);
+  border-bottom-color: var(--brand-border);
+}
+
+.m-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+.m-toggle input {
+  accent-color: var(--brand-border);
+}
+
+/* ---- 强化榜卡片 ---- */
+.m-grid--aug {
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+}
+.acard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--space-16) var(--space-8) var(--space-12);
+  background: var(--surface-card, rgba(128, 128, 128, 0.06));
+  border: 1px solid var(--border-strong);
+  text-align: center;
+}
+.aico {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 4px;
+}
+.aname {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ararity {
+  font-size: 10px;
+  padding: 0 6px;
+  border: 1px solid var(--border-strong);
+  color: var(--text-secondary);
+}
+.rr-prismatic {
+  color: #ffd76a;
+  border-color: #ffd76a88;
+}
+.rr-gold {
+  color: #e8b563;
+  border-color: #e8b56366;
+}
+.rr-silver {
+  color: #b9c4d0;
+  border-color: #b9c4d066;
+}
+.awr {
+  margin-top: 6px;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  color: #7fe08f;
+}
+.apr {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.apr em {
+  font-style: normal;
+  color: #c9a2ff;
+}
+.atops {
+  display: flex;
+  gap: 2px;
+  margin-top: 6px;
+}
+.atops img {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+}

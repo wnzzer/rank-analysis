@@ -159,7 +159,10 @@ pub fn champion_detail_in(
             continue;
         };
         let shard_json = read_local_json_in(root, path)?;
-        return Ok(shard_json["champions"][&champion_id.to_string()].clone());
+        // 分片声称包含该英雄但条目缺失时，继续扫后续分片而非整体失败
+        if let Some(detail) = shard_json["champions"].get(champion_id.to_string()) {
+            return Ok(Some(detail.clone()));
+        }
     }
     Ok(None)
 }

@@ -227,9 +227,6 @@
 - [x] R21-2 导出路径条 aria-live 核实——role=status + aria-live=polite 已在位，无需改动
 - [x] R21-3 polish-plan 轮次速览表补 R21/R22 行
 - [x] R21-4 下一轮候选池滚动续写（Round 22 已写入）
-- R21-2 Record 导出路径条 aria-live 播报
-- R21-3 polish-plan 轮次速览表同步维护
-- R21-4 下一轮候选池滚动续写
 
 ## Round 22 计划 可达性与主题核查（2026-08-26）
 - [x] R22-1 Gaming 未连接态核实——标题「未连接到客户端」+ 默认引导语「请确认英雄联盟客户端已运行」链路完整

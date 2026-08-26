@@ -36,6 +36,12 @@ const routes: Array<RouteRecordRaw> = [
     meta: { title: '海克斯大乱斗' }
   },
   {
+    path: '/Mayhem/champion/:id',
+    name: 'MayhemChampionDetail',
+    component: () => import('@renderer/views/MayhemChampionDetail.vue'),
+    meta: { title: '大乱斗英雄详情' }
+  },
+  {
     path: '/Library',
     name: 'Library',
     component: () => import('@renderer/views/Library.vue'),
