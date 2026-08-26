@@ -30,6 +30,7 @@
 | R21 | 重连提示测试化 / 路径条 aria-live 核实 |
 | R22 | 卡片键盘可达性 / 空态与主题核实 |
 | R23 | 键盘单测 / 完成态与动效核查 |
+| R24 | 门禁四绿复核 / 并行流收编落地 |
 
 ---
 
@@ -242,10 +243,16 @@
 - [x] R23-3 gmarquee 核实——prefers-reduced-motion 覆盖 track + aria-hidden + 悬停暂停
 - [x] R23-4 polish-plan 轮次速览表滚动维护
 
-## Round 24 候选池（Round 23 完成度 ≥80% 时续写）
-- R24-1 全量门禁复核（lint/type/test/build 四绿基线）
-- R24-2 CI Quality Checks 状态确认（含并行 mayhem 流落地后的 Rust 门禁）
-- R24-3 下一轮候选池滚动续写
-- R24-4 polish-plan 归档说明更新（R18-R24 收束）
+## Round 24 计划 门禁复核与并行流收编（2026-08-26）
+- [x] R24-1 全量门禁复核——lint/type/test/build 四绿（145 文件 / 1438 用例，含 Mayhem 结构金丝雀）
+- [x] R24-2 并行 mayhem 流成果收编落地（141d00b 使 HEAD 自洽）+ rustfmt 11 处对齐（16f0336）
+- [x] R24-3 下一轮候选池滚动续写
+- [x] R24-4 polish-plan 归档说明更新
+
+## Round 25 候选池（Round 24 完成度 ≥80% 时续写）
+- R25-1 CI Quality Checks 全绿确认（mayhem Rust 门禁：clippy + cargo test）
+- R25-2 Mayhem 视图空态/加载态与设计系统一致性核查
+- R25-3 README 双语补「大乱斗数据同步」功能条目（视 CI 结果）
+- R25-4 polish-plan 轮次速览表滚动维护
 
 ## 归档说明
