@@ -65,7 +65,8 @@ pub fn read_pointer_in(root: &Path) -> Option<ActivePointer> {
 
 /// 原子写指针到指定根目录：先写 `.tmp` 再 rename 覆盖，中断不留半截 JSON。
 pub fn write_pointer_atomic_in(root: &Path, pointer: &ActivePointer) -> Result<(), String> {
-    crate::paths::ensure_parent_dir(root).map_err(|e| e.to_string())?;
+    // root 本身是目录：确保其存在（ensure_parent_dir 只建父级，不建 root）
+    std::fs::create_dir_all(root).map_err(|e| e.to_string())?;
     let path = root.join("pointer.json");
     let tmp = root.join("pointer.json.tmp");
     let json = serde_json::to_string(pointer).map_err(|e| e.to_string())?;
@@ -116,12 +117,13 @@ pub fn cleanup_other_versions_in(root: &Path, keep: &str) {
 /// - 未同步 / 无指针 → `"mayhem data not synced yet"`
 /// - 路径非法 → `"unsafe rel path"`（在读盘之前拒绝）
 pub fn read_local_json_in(root: &Path, rel_path: &str) -> Result<serde_json::Value, String> {
-    let Some(ptr) = read_pointer_in(root) else {
-        return Err("mayhem data not synced yet".to_string());
-    };
+    // 路径校验最先执行：非法路径在任何 IO/状态检查之前一律拒绝
     if !is_safe_rel_path(rel_path) {
         return Err(format!("unsafe rel path: {}", rel_path));
     }
+    let Some(ptr) = read_pointer_in(root) else {
+        return Err("mayhem data not synced yet".to_string());
+    };
     let path = root.join("versions").join(&ptr.data_version).join(rel_path);
     let content =
         std::fs::read_to_string(&path).map_err(|e| format!("read {}: {}", path.display(), e))?;
@@ -304,7 +306,7 @@ mod tests {
     #[test]
     fn corrupted_pointer_should_be_swallowed_as_none() {
         let root = temp_root("corrupt");
-        crate::paths::ensure_parent_dir(&root).unwrap();
+        std::fs::create_dir_all(&root).unwrap();
         std::fs::write(root.join("pointer.json"), "{broken").unwrap();
         assert!(read_pointer_in(&root).is_none());
 
@@ -321,7 +323,7 @@ mod tests {
         write_version(&root, "16.16.3", "champions.json", "{}");
         // 遗留 staging 目录也应被清理
         let staging = root.join("versions").join("16.17.0.staging");
-        crate::paths::ensure_parent_dir(&staging).unwrap();
+        std::fs::create_dir_all(&staging).unwrap();
         std::fs::write(staging.join("x"), "1").unwrap();
 
         cleanup_other_versions_in(&root, "16.16.3");
