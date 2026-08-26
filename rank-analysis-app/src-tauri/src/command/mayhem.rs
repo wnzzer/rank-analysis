@@ -488,7 +488,7 @@ pub fn mayhem_score_preview(champion_id: Option<i64>) -> Result<serde_json::Valu
         }),
     ];
     Ok(crate::mayhem::score::score_round(
-        hits,
+        [hits[0].as_ref(), hits[1].as_ref(), hits[2].as_ref()],
         &metas,
         &tables,
         Some(2),

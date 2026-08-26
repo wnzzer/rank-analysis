@@ -231,9 +231,9 @@ mod tests {
             Some("双发快射".into()),
         ];
         let hits = match_slots(&texts, &lx, 2);
-        assert_eq!(hits[0].map(|h| h.id), Some(1220));
+        assert_eq!(hits[0].as_ref().map(|h| h.id), Some(1220));
         assert!(hits[1].is_none(), "空槽不得被顶替");
-        assert_eq!(hits[2].map(|h| h.id), Some(2010));
+        assert_eq!(hits[2].as_ref().map(|h| h.id), Some(2010));
         // 全部失败也不 panic
         let none_texts = [None, None, None];
         assert!(match_slots(&none_texts, &lx, 2).iter().all(|h| h.is_none()));
