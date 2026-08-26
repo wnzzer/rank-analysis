@@ -125,10 +125,10 @@ pub async fn mayhem_import_recent() -> Result<ImportReport, String> {
     };
     for g in &mayhem_games {
         match db::import_game(g, &me.puuid) {
-            Some(Ok(true)) => report.imported += 1,
-            Some(Ok(false)) => report.skipped_existing += 1,
+            Some(true) => report.imported += 1,
+            Some(false) => report.skipped_existing += 1,
             // 连接未就绪或写库失败：计入失败，继续处理其余对局
-            _ => report.failed += 1,
+            None => report.failed += 1,
         }
     }
     Ok(report)
@@ -257,7 +257,7 @@ pub async fn mayhem_draft_context() -> Result<Option<Value>, String> {
             // 非选人阶段是该命令的正常失败路径，静默转 None
             Err(_) => return Ok(None),
         };
-    let queue_id = crate::lcu::api::session::get_session()
+    let queue_id = crate::lcu::api::session::Session::get_session()
         .await
         .ok()
         .map(|s| s.queue.id);

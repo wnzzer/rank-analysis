@@ -197,7 +197,7 @@ pub fn import_game_in(
         .into_iter()
         .filter(|v| *v > 0)
         .collect();
-        let spells: Vec<i32> = [p.stats.spell1_id, p.stats.spell2_id]
+        let spells: Vec<i32> = [p.spell1_id, p.spell2_id]
             .into_iter()
             .filter(|v| *v > 0)
             .collect();
@@ -244,7 +244,7 @@ pub fn import_game_in(
 }
 
 /// 全局连接版 [`import_game_in`]；连接未就绪返回 None。
-pub fn import_game(game: &Game, self_puuid: &str) -> Option<rusqlite::Result<bool>> {
+pub fn import_game(game: &Game, self_puuid: &str) -> Option<bool> {
     with_db(|conn| import_game_in(conn, game, self_puuid))
 }
 

@@ -54,7 +54,7 @@ pub fn run_augment_round(
 
     let hits = super::ocr::match_slots(&texts, &lexicon, 2);
     Ok(super::score::score_round(
-        [&hits[0], &hits[1], &hits[2]],
+        [hits[0].as_ref(), hits[1].as_ref(), hits[2].as_ref()],
         &metas,
         &tables,
         rerolls_left,

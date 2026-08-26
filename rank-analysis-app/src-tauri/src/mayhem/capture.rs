@@ -290,11 +290,10 @@ pub mod gdi {
         BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDIBits,
         SelectObject,
     };
-    use winapi::um::user32::{GetSystemMetrics, ReleaseDC};
-    use winapi::um::wingdi::{
-        BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS, SRCCOPY,
-    };
-    use winapi::um::winuser::{GetDC, GetWindowDC};
+    use winapi::um::wingdi::{BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS, SRCCOPY};
+    // 注意：winapi 的模块按头文件组织——GDI 函数在 wingdi，窗口函数在 winuser，
+    // 不存在 user32/gdi32 模块名。
+    use winapi::um::winuser::{GetSystemMetrics, GetWindowDC, ReleaseDC};
 
     /// 抓取结果：BGRA 已转 RGBA 的像素缓冲。
     pub struct RegionRgba {
@@ -331,12 +330,14 @@ pub mod gdi {
                 ReleaseDC(null_mut(), hdc_screen);
                 return Err("CreateCompatibleBitmap failed".into());
             }
-            let old = SelectObject(hdc_mem, hbmp);
+            // HBITMAP__ 裸指针 → HGDIOBJ(*mut c_void)：SelectObject/DeleteObject 形参口径
+            let hobj = hbmp as *mut winapi::ctypes::c_void;
+            let old = SelectObject(hdc_mem, hobj);
 
             let ok = BitBlt(hdc_mem, 0, 0, w, h, hdc_screen, x, y, SRCCOPY) != 0;
             if !ok {
                 SelectObject(hdc_mem, old);
-                DeleteObject(hbmp);
+                DeleteObject(hobj);
                 DeleteDC(hdc_mem);
                 ReleaseDC(null_mut(), hdc_screen);
                 return Err(format!("BitBlt failed at ({x},{y}) {w}x{h}"));
@@ -362,7 +363,7 @@ pub mod gdi {
                 DIB_RGB_COLORS,
             );
             SelectObject(hdc_mem, old);
-            DeleteObject(hbmp);
+            DeleteObject(hobj);
             DeleteDC(hdc_mem);
             ReleaseDC(null_mut(), hdc_screen);
 

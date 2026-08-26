@@ -195,6 +195,7 @@ pub fn score_round(
 ) -> serde_json::Value {
     let known: Vec<(&MatchHit, &GlobalStats)> = hits
         .iter()
+        .copied()
         .flatten()
         .filter_map(|h| tables.global.get(&h.id).map(|g| (h, g)))
         .collect();
