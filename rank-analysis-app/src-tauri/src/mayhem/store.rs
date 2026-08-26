@@ -585,7 +585,7 @@ mod tests {
     fn diff_augments_should_catch_add_remove_tier_and_drift() {
         // 1001: 新增；1002: 移除；1003: T3→T1 且胜率 +2.0pp；1004: 漂移 0.5pp 不记录
         let old: serde_json::Value = serde_json::from_str(&format!(
-            "[{}]",
+            r#"{{"data":[{}]}}"#,
             [
                 aug_json(1002, Some(2), Some(0.50)),
                 aug_json(1003, Some(3), Some(0.48)),
@@ -595,7 +595,7 @@ mod tests {
         ))
         .unwrap();
         let new: serde_json::Value = serde_json::from_str(&format!(
-            "[{}]",
+            r#"{{"data":[{}]}}"#,
             [
                 aug_json(1001, Some(1), Some(0.60)),
                 aug_json(1003, Some(1), Some(0.50)),

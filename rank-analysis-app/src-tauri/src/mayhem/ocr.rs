@@ -121,6 +121,9 @@ pub fn build_lexicon(augments: &Value) -> Vec<LexiconEntry> {
             arr.iter()
                 .filter_map(|it| {
                     let id = it["id"].as_i64()?;
+                    if id <= 0 {
+                        return None;
+                    }
                     let name = it["name"].as_str()?.trim().to_string();
                     (!name.is_empty()).then_some(LexiconEntry { id, name })
                 })

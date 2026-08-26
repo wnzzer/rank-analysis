@@ -25,8 +25,8 @@ use super::ocr::MatchHit;
 use super::store::read_local_json;
 
 /// 维度权重（和为 1）。
-const W_GLOBAL: f64 = 0.45;
-const W_CHAMP: f64 = 0.40;
+const W_GLOBAL: f64 = 0.35;
+const W_CHAMP: f64 = 0.50;
 const W_SYNERGY: f64 = 0.15;
 
 /// 该英雄历史胜率参与归一化的最小样本门槛。
