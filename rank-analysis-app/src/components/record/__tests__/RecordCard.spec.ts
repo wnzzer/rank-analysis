@@ -209,3 +209,17 @@ describe('RecordCard 行卡增强（CS/模式/技能/日期）', () => {
     expect(wrapper.find('.record-card-result-label').text()).toBe('第 3 名')
   })
 })
+
+describe('RecordCard 键盘可达性（R22-3）', () => {
+  it('role=button + tabindex=0；Enter 与 Space 均触发 open-detail', async () => {
+    const wrapper = mountCard(gameOf())
+    const card = wrapper.find('.record-card')
+    expect(card.attributes('role')).toBe('button')
+    expect(card.attributes('tabindex')).toBe('0')
+    await card.trigger('keyup.enter')
+    expect(wrapper.emitted('open-detail')).toHaveLength(1)
+    await card.trigger('keydown.space')
+    expect(wrapper.emitted('open-detail')).toHaveLength(2)
+    wrapper.unmount()
+  })
+})
