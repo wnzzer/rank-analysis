@@ -85,7 +85,11 @@ pub fn join_origin(path_or_url: &str) -> String {
     if path_or_url.starts_with("http://") || path_or_url.starts_with("https://") {
         return path_or_url.to_string();
     }
-    let sep = if path_or_url.starts_with('/') { "" } else { "/" };
+    let sep = if path_or_url.starts_with('/') {
+        ""
+    } else {
+        "/"
+    };
     format!("{}{}{}", DATA_API_ORIGIN, sep, path_or_url)
 }
 
@@ -103,7 +107,8 @@ pub fn is_safe_rel_path(path: &str) -> bool {
     if path.contains(':') || path.contains('\\') {
         return false;
     }
-    path.split('/').all(|seg| !seg.is_empty() && seg != "." && seg != "..")
+    path.split('/')
+        .all(|seg| !seg.is_empty() && seg != "." && seg != "..")
 }
 
 /// 从 `"sha256-<hex>"` 提取 hex 部分；格式不符返回 None。
@@ -167,7 +172,10 @@ pub async fn download_verified(
     if !resp.status().is_success() {
         return Err(format!("GET {}: HTTP {}", url, resp.status()));
     }
-    let body = resp.bytes().await.map_err(|e| format!("read {}: {}", url, e))?;
+    let body = resp
+        .bytes()
+        .await
+        .map_err(|e| format!("read {}: {}", url, e))?;
 
     if let Some(hex) = parse_sha256_hex(expect_hash) {
         use sha2::{Digest, Sha256};
@@ -181,7 +189,8 @@ pub async fn download_verified(
         }
     }
 
-    crate::paths::ensure_parent_dir(dest).map_err(|e| format!("mkdir {}: {}", dest.display(), e))?;
+    crate::paths::ensure_parent_dir(dest)
+        .map_err(|e| format!("mkdir {}: {}", dest.display(), e))?;
     let part = dest.with_extension("part");
     std::fs::write(&part, &body).map_err(|e| format!("write {}: {}", part.display(), e))?;
     std::fs::rename(&part, dest).map_err(|e| format!("rename to {}: {}", dest.display(), e))?;
@@ -194,11 +203,20 @@ mod tests {
 
     #[test]
     fn join_origin_should_handle_relative_and_absolute() {
-        assert_eq!(join_origin("/api/x.json"), "https://data.dtodo.cn/api/x.json");
+        assert_eq!(
+            join_origin("/api/x.json"),
+            "https://data.dtodo.cn/api/x.json"
+        );
         // 无前导斜杠也要能拼
-        assert_eq!(join_origin("api/x.json"), "https://data.dtodo.cn/api/x.json");
+        assert_eq!(
+            join_origin("api/x.json"),
+            "https://data.dtodo.cn/api/x.json"
+        );
         // 绝对 URL 原样返回
-        assert_eq!(join_origin("https://cdn.example.com/a.json"), "https://cdn.example.com/a.json");
+        assert_eq!(
+            join_origin("https://cdn.example.com/a.json"),
+            "https://cdn.example.com/a.json"
+        );
     }
 
     #[test]
@@ -219,7 +237,10 @@ mod tests {
     #[test]
     fn parse_sha256_hex_should_accept_only_canonical_form() {
         let h = "a".repeat(64);
-        assert_eq!(parse_sha256_hex(Some(&format!("sha256-{}", h))), Some(h.clone()));
+        assert_eq!(
+            parse_sha256_hex(Some(&format!("sha256-{}", h))),
+            Some(h.clone())
+        );
         // 大写应归一化为小写
         let upper = format!("sha256-{}", h.to_uppercase());
         assert_eq!(parse_sha256_hex(Some(&upper)), Some(h));

@@ -63,7 +63,11 @@ pub async fn mayhem_status() -> Result<MayhemStatus, String> {
         && crate::mayhem::store::read_local_json("champions.json").is_ok()
         && crate::mayhem::store::read_local_json("augments.json").is_ok()
         && crate::mayhem::store::read_local_json("champion-shards/index.json").is_ok();
-    Ok(MayhemStatus { active_version: version, synced_at, ready })
+    Ok(MayhemStatus {
+        active_version: version,
+        synced_at,
+        ready,
+    })
 }
 
 /// 读取英雄榜（champions.json 原始 JSON，含 T 级/胜率/选取率/职业标签）。

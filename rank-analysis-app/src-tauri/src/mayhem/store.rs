@@ -205,7 +205,9 @@ pub async fn sync(force: bool) -> Result<Option<SyncReport>, String> {
 
     let root = root_dir();
     let from_version = read_pointer_in(&root).map(|p| p.data_version);
-    let staging = root.join("versions").join(format!("{}.staging", config.data_version));
+    let staging = root
+        .join("versions")
+        .join(format!("{}.staging", config.data_version));
     if staging.exists() {
         std::fs::remove_dir_all(&staging).map_err(|e| e.to_string())?;
     }
@@ -285,7 +287,10 @@ mod tests {
         let root = temp_root("ptr");
         assert!(read_pointer_in(&root).is_none());
 
-        let original = ActivePointer { data_version: "16.16.3".into(), synced_at: 1_756_000_000 };
+        let original = ActivePointer {
+            data_version: "16.16.3".into(),
+            synced_at: 1_756_000_000,
+        };
         write_pointer_atomic_in(&root, &original).unwrap();
 
         // 原子写不应遗留 .tmp 文件
@@ -363,12 +368,17 @@ mod tests {
         );
         write_pointer_atomic_in(
             &root,
-            &ActivePointer { data_version: "16.16.3".into(), synced_at: 0 },
+            &ActivePointer {
+                data_version: "16.16.3".into(),
+                synced_at: 0,
+            },
         )
         .unwrap();
 
         // 命中第二个分片里的 67 号
-        let detail = champion_detail_in(&root, 67).unwrap().expect("should find vayne");
+        let detail = champion_detail_in(&root, 67)
+            .unwrap()
+            .expect("should find vayne");
         assert_eq!(detail["champion"]["alias"], "Vayne");
         // 索引存在但没有该英雄 → None
         assert!(champion_detail_in(&root, 999).unwrap().is_none());
@@ -379,7 +389,10 @@ mod tests {
         let root = temp_root("noindex");
         write_pointer_atomic_in(
             &root,
-            &ActivePointer { data_version: "16.16.3".into(), synced_at: 0 },
+            &ActivePointer {
+                data_version: "16.16.3".into(),
+                synced_at: 0,
+            },
         )
         .unwrap();
         assert!(champion_detail_in(&root, 67).unwrap().is_none());
