@@ -13,10 +13,10 @@
 //! - WinRT 工厂调用要求 MTA 套间：模块用 [`init_apartment_once`] 保证一次初始化，
 //!   tokio worker 线程可直接调用
 
-use windows::core::ApartmentType;
 use windows::Graphics::Imaging::{BitmapPixelFormat, SoftwareBitmap};
 use windows::Media::Ocr::OcrEngine;
 use windows::Storage::Streams::DataWriter;
+use windows::Win32::System::Com::{CoInitializeEx, COINIT_MULTITHREADED};
 
 use std::sync::Once;
 
@@ -28,8 +28,11 @@ static INIT_APARTMENT: Once = Once::new();
 /// 后续调用按现有套间继续。
 fn init_apartment_once() {
     INIT_APARTMENT.call_once(|| {
-        // 刻意忽略结果：失败场景（已以 STA 初始化）下 WinRT 多数工厂仍可用
-        let _ = windows::core::init_apartment(ApartmentType::MTA);
+        // 刻意忽略 HRESULT：S_FALSE（已初始化）/ RPC_E_CHANGED_MODE 均不致命，
+        // 后续调用按现有套间继续
+        unsafe {
+            CoInitializeEx(None, COINIT_MULTITHREADED);
+        }
     });
 }
 
@@ -77,8 +80,15 @@ pub async fn recognize_bgra(bgra: &[u8], w: i32, h: i32) -> Result<Vec<String>, 
         .map_err(|e| format!("recognize await: {e}"))?;
 
     let mut lines = Vec::new();
-    for line in result.Lines()?.into_iter() {
-        let text = line.Text()?.to_string();
+    for line in result
+        .Lines()
+        .map_err(|e| format!("Lines: {e}"))?
+        .into_iter()
+    {
+        let text = line
+            .Text()
+            .map_err(|e| format!("Line::Text: {e}"))?
+            .to_string();
         if !text.trim().is_empty() {
             lines.push(text);
         }

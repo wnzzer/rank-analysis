@@ -254,10 +254,11 @@ pub async fn mayhem_draft_context() -> Result<Option<Value>, String> {
         // 非选人阶段是该命令的正常失败路径，静默转 None
         Err(_) => return Ok(None),
     };
-    let queue_id = crate::lcu::api::session::Session::get_session()
+    // Session 结构体不含 queue 字段：直接读原始 gameflow JSON 取队列 ID
+    let gf: Value = crate::lcu::util::http::lcu_get("lol-gameflow/v1/session")
         .await
-        .ok()
-        .map(|s| s.queue.id);
+        .unwrap_or(Value::Null);
+    let queue_id = gf["queue"]["id"].as_i64().map(|x| x as i32);
 
     let v = serde_json::to_value(&session).map_err(|e| e.to_string())?;
     Ok(Some(serde_json::json!({

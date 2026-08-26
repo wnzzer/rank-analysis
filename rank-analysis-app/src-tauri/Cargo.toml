@@ -103,5 +103,6 @@ windows = { version = "0.62", optional = true, features = [
     "Graphics_Imaging",
     "Media_Ocr",
     "Storage_Streams",
+    "Win32_System_Com",
 ] }
 winreg = "0.55" # 清理腾讯登录客户端注册的 LOL 开机自启项（command/launcher.rs）
