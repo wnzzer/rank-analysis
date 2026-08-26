@@ -1,4 +1,4 @@
-﻿# 持续优化迭代计划（离线功能专项）
+# 持续优化迭代计划（离线功能专项）
 
 > 运作方式：每轮列 3-6 个可独立验证的条目；全部完成后在本文件追加下一轮；
 > 单条目完成后就地勾选。约束：只做离线功能 / 不依赖运行时外部资源。
@@ -37,6 +37,7 @@
 | R28 | utils 零覆盖补测（tier-image/overlayPrefs/colors） |
 | R29 | 服务层与剪贴板测试化（http/platform/useCopy） |
 | R30 | 模式列表测试化 / configKeys 一致性核查 |
+| R31 | Mayhem 空态统一 / draft 缺口边界 / README 同步 |
 
 ---
 
@@ -333,11 +334,21 @@
       后由任意会话一次性落地
 - [x] R30-4 polish-plan 轮次速览表滚动维护
 
-## Round 31 候选池
-- R31-1 `ai.apiKey` 是否应加入 CLOUD_ONLY_BLACKLIST 的产品决策与实施
-  （若决定排除：Rust 黑名单 + 单测 + README 数据说明三处同步）
-- R31-2 useEmberField 测试化（reduced-motion 分支已有实现，评估动画帧 mock 成本）
-- R31-3 Mayhem 空态 + README（登记项，并行流收官后一次性落地）
-- R31-4 polish-plan 轮次速览表滚动维护
+## Round 31 计划 Mayhem 空态统一与边界增强 ✅（2026-08-27）
+- [x] R31-1 Mayhem 空态统一接 EmptyState——英雄榜、强化榜、我的英雄、我的强化
+      全部接入标准 EmptyState 组件，支持一键清空筛选与导入操作；保留 .m-empty
+      类名并保证金丝雀测试完全通过。
+- [x] R31-2 draft.ts compositionGaps 边界增强——teamIds 为空时给出「等待队友选定英雄...」
+      避免显示全员缺口误导玩家；7 组单元测试全部通过。
+- [x] R31-3 README 双语同步——新增「海克斯大乱斗（Mayhem）专项中心」功能介绍，
+      覆盖 T 级榜单、流派出装、选人期助手与对局浮窗。
+- [x] R31-4 General.vue 浮窗描述优化与 rustfmt 格式合规修复。
+
+## Round 32 候选池
+- R32-1 `ai.apiKey` 是否应加入 CLOUD_ONLY_BLACKLIST 的产品决策与实施
+  （若排除：Rust 黑名单 + 单测 + README 数据说明三处同步）
+- R32-2 useEmberField 测试化（reduced-motion 分支已有实现，评估动画帧 mock 成本）
+- R32-3 大乱斗详情页/战绩卡纯文本与图片快捷分享支持（E6）
+- R32-4 polish-plan 轮次速览表滚动维护
 
 ## 归档说明

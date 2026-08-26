@@ -228,7 +228,7 @@
             <n-text :depth="3" style="font-size: var(--font-size-xs)">Alt+A 开/关浮窗</n-text>
           </n-space>
           <n-text :depth="3" style="font-size: var(--font-size-sm)">
-            对局中右上角悬浮的「下一动作建议」浮窗样式；改动即时生效。
+            对局中悬浮的「下一动作建议」与搭子气泡浮窗样式；改动即时生效。
           </n-text>
         </n-space>
       </n-form-item>

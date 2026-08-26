@@ -55,4 +55,9 @@ describe('compositionGaps', () => {
     const g = compositionGaps([875, 63], META)
     expect(g.sentence).toBe('阵容均衡')
   })
+
+  it('未确定英雄时给出等待提示', () => {
+    const g = compositionGaps([], META)
+    expect(g.sentence).toBe('等待队友选定英雄...')
+  })
 })

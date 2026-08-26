@@ -131,7 +131,24 @@
       <!-- Tab 1 英雄榜 -->
       <template v-if="activeTab === 'champions'">
         <div v-if="loading && !champions.length" class="m-empty">正在加载数据…</div>
-        <div v-else-if="!filteredChampions.length" class="m-empty">没有符合条件的英雄</div>
+        <EmptyState
+          v-else-if="!filteredChampions.length"
+          :icon="SearchX"
+          title="没有符合条件的英雄"
+          description="尝试更换搜索关键词或职业分类"
+        >
+          <template #action>
+            <button
+              class="btn gho sm"
+              @click="
+                search = ''
+                activeRole = 'all'
+              "
+            >
+              清空筛选
+            </button>
+          </template>
+        </EmptyState>
         <div v-else class="m-grid">
           <button
             v-for="c in filteredChampions"
@@ -156,7 +173,24 @@
       <!-- Tab 2 强化榜 -->
       <template v-else-if="activeTab === 'augments'">
         <div v-if="augsLoading && !augments.length" class="m-empty">正在加载数据…</div>
-        <div v-else-if="!filteredAugments.length" class="m-empty">没有符合条件的强化</div>
+        <EmptyState
+          v-else-if="!filteredAugments.length"
+          :icon="SearchX"
+          title="没有符合条件的强化"
+          description="尝试更换搜索关键词或稀有度筛选"
+        >
+          <template #action>
+            <button
+              class="btn gho sm"
+              @click="
+                search = ''
+                activeRarity = 'all'
+              "
+            >
+              清空筛选
+            </button>
+          </template>
+        </EmptyState>
         <div v-else class="m-grid m-grid--aug">
           <div v-for="a in filteredAugments" :key="a.id" class="acard" :title="plainDesc(a)">
             <span v-if="tierOfAug(a)" class="ctier" :class="`t${tierOfAug(a)}`"
@@ -202,9 +236,12 @@
 
         <section class="d-sec">
           <h3>我的英雄</h3>
-          <div v-if="!myChamps.length" class="m-empty">
-            暂无自采数据——打完一局海克斯大乱斗后点上方按钮导入
-          </div>
+          <EmptyState
+            v-if="!myChamps.length"
+            :icon="Inbox"
+            title="暂无自采英雄数据"
+            description="打完一局海克斯大乱斗后点上方「导入最近战绩」即可汇总个人绝活"
+          />
           <div v-else class="mylist">
             <div
               v-for="c in myChamps"
@@ -229,7 +266,12 @@
 
         <section class="d-sec">
           <h3>我的强化</h3>
-          <div v-if="!myAugs.length" class="m-empty">暂无强化数据</div>
+          <EmptyState
+            v-if="!myAugs.length"
+            :icon="Inbox"
+            title="暂无自采强化数据"
+            description="打完一局海克斯大乱斗后点上方「导入最近战绩」即可汇总强化表现"
+          />
           <div v-else class="mylist mylist--aug">
             <div
               v-for="a in myAugs.slice(0, 20)"
@@ -273,7 +315,8 @@ import { useRouter } from 'vue-router'
 import { invoke } from '@tauri-apps/api/core'
 
 import PageStage from '../components/ui/PageStage.vue'
-import { Download, RefreshCw } from 'lucide-vue-next'
+import EmptyState from '../components/ui/EmptyState.vue'
+import { Download, Inbox, RefreshCw, SearchX } from 'lucide-vue-next'
 import { assetPrefix } from '../services/http'
 import {
   bestStage,

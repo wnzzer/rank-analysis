@@ -71,9 +71,7 @@ fn recognize_rgba_sync(rgba: &[u8], w: i32, h: i32) -> Result<Vec<String>, Strin
     let operation = engine
         .RecognizeAsync(&bitmap)
         .map_err(|e| format!("RecognizeAsync: {e}"))?;
-    let result = operation
-        .get()
-        .map_err(|e| format!("recognize get: {e}"))?;
+    let result = operation.get().map_err(|e| format!("recognize get: {e}"))?;
 
     let mut lines = Vec::new();
     for line in result

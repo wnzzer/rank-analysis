@@ -1,4 +1,4 @@
-﻿<div align="center">
+<div align="center">
   <img src="./rank-analysis-app/src-tauri/icons/256x256.png" width="128" height="128" alt="Logo" />
   <h1>Rank Analysis</h1>
   <p>🎮 AI-powered match review for League of Legends — built on the official LCU API</p>
@@ -77,6 +77,13 @@ Built with **Tauri 2.0**, it pairs Rust's performance with a web frontend in a *
 - **Match History**: Marks previously encountered players
 - **Match Details Panel**: Independent window showing 10 players' KDA, economy, CS, damage taken, towers destroyed, items, skills, and runes/augments
 - **Augment Recognition**: Special queues like Arena automatically switch to augment display with rarity differentiation
+
+### 🎲 Hextech Mayhem (ARAM) Center
+- **Official Tier Rankings**: Up-to-date tier list and daily win rates for champions and augments.
+- **Champion Builds & Synergy**: Augment recommendations, core item sets, starting items, and skill build orders.
+- **Draft Helper**: Real-time team composition gap analysis (Tank/AP/AD) and bench candidate scoring.
+- **In-Game Augment Overlay**: Evaluates 3-augment choices based on global win rates and champion synergy.
+- **Transparent Desktop Overlay**: Always-on-top, click-through overlay with Alt+A global hotkey toggle.
 
 ### 🤖 Automation Assistant
 - **Auto Matchmaking**: Automatically starts searching for matches

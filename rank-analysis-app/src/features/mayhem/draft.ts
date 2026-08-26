@@ -81,6 +81,15 @@ export interface CompositionGaps {
  * adish=射手/战士、apish=法师/辅助；坦克为 0 时前排缺口优先级最高。
  */
 export function compositionGaps(teamIds: number[], meta: ChampMetaMap): CompositionGaps {
+  if (!teamIds.length) {
+    return {
+      tanks: 0,
+      adish: 0,
+      apish: 0,
+      sentence: '等待队友选定英雄...'
+    }
+  }
+
   let tanks = 0
   let adish = 0
   let apish = 0
