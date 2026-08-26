@@ -353,8 +353,11 @@ pub async fn mayhem_assist_tick(
         }));
     }
 
+    // 三路 cfg 臂各自产出 Result 后统一返回（避免 cfg 组合下的 needless_return）
+    // 三路 cfg 臂各自产出 Result 绑定到 `out`，函数尾部统一返回——
+    // 避免 cfg 剥离后块尾值被丢弃或触发 needless_return
     #[cfg(all(windows, feature = "ocr-win"))]
-    {
+    let out: Result<Value, String> = {
         use crate::mayhem::capture::{luma_stddev, slot_band_rects};
 
         let screen = crate::mayhem::capture::gdi::primary_screen_size();
@@ -390,13 +393,13 @@ pub async fn mayhem_assist_tick(
             champion_id.unwrap_or(67),
             rerolls_left,
         )?;
-        return Ok(serde_json::json!({
+        Ok(serde_json::json!({
             "phase": phase, "pushed": true, "payload": payload
-        }));
+        }))
     }
 
     #[cfg(all(windows, not(feature = "ocr-win")))]
-    {
+    let out: Result<Value, String> = {
         // 参数仅在 ocr-win 全管线里消费；该降级臂显式吞掉避免 -Dwarnings
         let _ = (champion_id, rerolls_left);
         let screen = crate::mayhem::capture::gdi::primary_screen_size();
@@ -415,17 +418,19 @@ pub async fn mayhem_assist_tick(
         }
         // OCR 引擎未编译（--features ocr-win）：检测已通过但拿不到卡位文本，
         // 如实告知前端而非伪造空面板；手动三选一不受影响。
-        return Ok(serde_json::json!({
+        Ok(serde_json::json!({
             "phase": phase, "pushed": false, "reason": "ocr-not-configured",
             "activeSlots": active_slots
-        }));
+        }))
     }
 
     #[cfg(not(windows))]
-    {
+    let out: Result<Value, String> = {
         let _ = (champion_id, rerolls_left);
         Err("屏幕捕获仅支持 Windows".to_string())
-    }
+    };
+
+    out
 }
 
 /// 端到端预览（A3 调试）：用本地真实数据对样例候选打分并组装面板负载。

@@ -61,7 +61,7 @@ pub fn luma_stddev(rgba: &[u8]) -> f64 {
     }
     let mut sum = 0f64;
     let mut sq = 0f64;
-    for px in rgba.chunks_exact(4) {
+    for px in rgba.as_chunks::<4>().0 {
         let l = 0.299 * px[0] as f64 + 0.587 * px[1] as f64 + 0.114 * px[2] as f64;
         sum += l;
         sq += l * l;
@@ -158,8 +158,8 @@ pub fn encode_bmp_rgba(rgba: &[u8], w: i32, h: i32) -> Vec<u8> {
     out.extend_from_slice(&54u32.to_le_bytes()); // offBits
                                                  // BITMAPINFOHEADER
     out.extend_from_slice(&40u32.to_le_bytes());
-    out.extend_from_slice(&(w as i32).to_le_bytes());
-    out.extend_from_slice(&(h as i32).to_le_bytes()); // 正值 = 自下而上
+    out.extend_from_slice(&w.to_le_bytes());
+    out.extend_from_slice(&h.to_le_bytes()); // 正值 = 自下而上
     out.extend_from_slice(&1u16.to_le_bytes()); // planes
     out.extend_from_slice(&32u16.to_le_bytes()); // bpp
     out.extend_from_slice(&0u32.to_le_bytes()); // BI_RGB
@@ -405,8 +405,8 @@ pub mod gdi {
                 return Err("GetDIBits failed".into());
             }
 
-            // BGRA → RGBA
-            for px in buf.chunks_exact_mut(4) {
+            // BGRA → RGBA（as_chunks_mut 定长块，规避 clippy::chunks_exact_to_as_chunks）
+            for px in buf.as_chunks_mut::<4>().0 {
                 px.swap(0, 2);
             }
             Ok(RegionRgba {
