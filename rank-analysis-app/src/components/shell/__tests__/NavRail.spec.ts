@@ -54,7 +54,7 @@ describe('NavRail', () => {
   it('渲染三个分区的全部导航项', () => {
     const w = mountRail()
     const labels = w.findAll('.rail-i em').map(e => e.text())
-    expect(labels).toEqual(['主页', '战绩', '对局', '成长', '资产库', '设置'])
+    expect(labels).toEqual(['主页', '战绩', '对局', '成长', '大乱斗', '资产库', '设置'])
     w.unmount()
   })
 

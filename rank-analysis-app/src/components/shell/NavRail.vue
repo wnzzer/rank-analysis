@@ -89,6 +89,7 @@ import {
   ScrollText,
   Swords,
   TrendingUp,
+  Dices,
   LibraryBig,
   Settings,
   AppWindow,
@@ -118,7 +119,8 @@ const sections = [
       { name: 'Home', label: '主页', icon: markRaw(House) },
       { name: 'Record', label: '战绩', icon: markRaw(ScrollText) },
       { name: 'Gaming', label: '对局', icon: markRaw(Swords) },
-      { name: 'Growth', label: '成长', icon: markRaw(TrendingUp) }
+      { name: 'Growth', label: '成长', icon: markRaw(TrendingUp) },
+      { name: 'Mayhem', label: '大乱斗', icon: markRaw(Dices) }
     ]
   },
   { label: '库', items: [{ name: 'Library', label: '资产库', icon: markRaw(LibraryBig) }] },

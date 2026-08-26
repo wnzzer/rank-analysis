@@ -144,6 +144,14 @@ pub fn cache_file(name: &str) -> PathBuf {
     cache_file_in(&std::env::temp_dir(), name)
 }
 
+/// 某个缓存目录的绝对路径（系统临时目录下，带应用前缀，可整目录删除重建）。
+///
+/// 与 [`cache_file`] 同一命名空间：`mayhem` 这样的多文件缓存以目录为边界，
+/// 语义上仍是「丢了自动重建」的缓存，因此与单文件缓存共享前缀规则。
+pub fn cache_dir(name: &str) -> PathBuf {
+    cache_file_in(&std::env::temp_dir(), name)
+}
+
 /// 确保某个文件路径的父目录存在（不存在则递归创建）。
 ///
 /// macOS 首次运行时 `~/Library/Application Support/<bundle id>` 尚不存在，写配置前
@@ -218,6 +226,14 @@ mod tests {
     #[test]
     fn cache_file_must_be_absolute_never_cwd_relative() {
         assert!(cache_file("x.json").is_absolute());
+    }
+
+    #[test]
+    fn cache_dir_should_share_prefix_and_be_absolute() {
+        let dir = cache_dir("mayhem");
+        assert!(dir.is_absolute(), "{:?}", dir);
+        assert!(dir.ends_with("rank-analysis-mayhem"));
+        assert_eq!(dir.parent(), cache_file("x.json").parent());
     }
 
     #[test]

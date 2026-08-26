@@ -30,6 +30,12 @@ const routes: Array<RouteRecordRaw> = [
     meta: { title: '成长' }
   },
   {
+    path: '/Mayhem',
+    name: 'Mayhem',
+    component: () => import('@renderer/views/Mayhem.vue'),
+    meta: { title: '海克斯大乱斗' }
+  },
+  {
     path: '/Library',
     name: 'Library',
     component: () => import('@renderer/views/Library.vue'),

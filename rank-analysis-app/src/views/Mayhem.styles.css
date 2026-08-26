@@ -1,0 +1,208 @@
+.mayhem {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.mver {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  margin-right: var(--space-8);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  padding: 6px 14px;
+  cursor: pointer;
+  border: none;
+  clip-path: var(--clip-notch);
+}
+.btn.gho {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-strong);
+}
+.btn.gho:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--brand-border);
+}
+.btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+.btn-ico {
+  width: 12px;
+  height: 12px;
+  margin-right: 6px;
+}
+.spinning {
+  animation: m-spin 0.9s linear infinite;
+}
+@keyframes m-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.m-body {
+  padding: var(--space-4) var(--space-24) var(--space-28);
+}
+
+.m-alert {
+  background: var(--surface-raised, rgba(255, 96, 96, 0.08));
+  border: 1px solid rgba(255, 96, 96, 0.35);
+  color: var(--text-primary);
+  font-size: var(--font-size-xs);
+  padding: var(--space-8) var(--space-12);
+  margin-bottom: var(--space-12);
+  line-height: 1.6;
+}
+
+.m-toolbar {
+  display: flex;
+  gap: var(--space-12);
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: var(--space-16);
+}
+.m-search {
+  flex: 0 1 260px;
+  min-width: 180px;
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--text-primary);
+  font-size: var(--font-size-xs);
+  padding: 6px 10px;
+  outline: none;
+}
+.m-search:focus {
+  border-color: var(--brand-border);
+}
+.m-roles {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.chip {
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  padding: 3px 12px;
+  cursor: pointer;
+}
+.chip:hover {
+  color: var(--text-primary);
+}
+.chip--on {
+  background: var(--brand-gradient);
+  color: var(--text-on-brand);
+  border-color: transparent;
+}
+
+.m-empty {
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  padding: 64px 0;
+}
+
+.m-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: var(--space-12);
+}
+.ccard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--space-16) var(--space-8) var(--space-12);
+  background: var(--surface-card, rgba(128, 128, 128, 0.06));
+  border: 1px solid var(--border-strong);
+  cursor: pointer;
+  text-align: center;
+  transition:
+    border-color 0.15s ease,
+    transform 0.15s ease;
+}
+.ccard:hover {
+  border-color: var(--brand-border);
+  transform: translateY(-2px);
+}
+.ctier {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  padding: 1px 6px;
+  letter-spacing: 0.04em;
+}
+.t1 {
+  color: #ffd76a;
+  border: 1px solid #ffd76a66;
+}
+.t2 {
+  color: #c9a2ff;
+  border: 1px solid #c9a2ff66;
+}
+.t3 {
+  color: #7fb3ff;
+  border: 1px solid #7fb3ff66;
+}
+.t4 {
+  color: #74e0c8;
+  border: 1px solid #74e0c866;
+}
+.t5 {
+  color: var(--text-tertiary);
+  border: 1px solid var(--border-strong);
+}
+.cico {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  margin-bottom: 4px;
+}
+.cname {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+}
+.calias {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.cwr {
+  margin-top: 6px;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-bold);
+  color: #7fe08f;
+}
+.cpr {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.croles {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+.croles i {
+  font-style: normal;
+  font-size: 10px;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-strong);
+  padding: 0 5px;
+}
+
+.m-note {
+  margin-top: var(--space-20);
+  font-size: 11px;
+  color: var(--text-tertiary);
+  line-height: 1.7;
+}
