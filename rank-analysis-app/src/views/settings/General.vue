@@ -209,6 +209,23 @@
               format-tooltip
               @update:value="persistOverlay"
             />
+            <span style="font-size: var(--font-size-sm); color: var(--text-secondary)">锚点</span>
+            <n-select
+              v-model:value="overlayPrefs.anchor"
+              size="tiny"
+              style="width: 110px"
+              :options="overlayAnchorOptions"
+              @update:value="persistOverlay"
+            />
+            <span style="font-size: var(--font-size-sm); color: var(--text-secondary)"
+              >全局热键</span
+            >
+            <n-switch
+              v-model:value="overlayPrefs.hotkeyEnabled"
+              size="small"
+              @update:value="persistOverlay"
+            />
+            <n-text :depth="3" style="font-size: var(--font-size-xs)">Alt+A 开/关浮窗</n-text>
           </n-space>
           <n-text :depth="3" style="font-size: var(--font-size-sm)">
             对局中右上角悬浮的「下一动作建议」浮窗样式；改动即时生效。
@@ -276,6 +293,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { useMessage } from 'naive-ui'
 import { emit } from '@tauri-apps/api/event'
 import { loadOverlayPrefs, saveOverlayPrefs } from '@renderer/utils/overlayPrefs'
+import { applyOverlayHotkey } from '@renderer/features/overlay/hotkeys'
 
 const matchCount = ref(4)
 const errorReporting = ref(false)
@@ -303,12 +321,24 @@ const overlayPrefs = ref(loadOverlayPrefs())
 /** 持久化并实时广播给 overlay 窗口（Tauri emit 全局事件，无需后端参与） */
 async function persistOverlay() {
   saveOverlayPrefs(overlayPrefs.value)
+  // 热键开关即时生效（幂等：先解绑再按需绑定）
+  try {
+    await applyOverlayHotkey(overlayPrefs.value.hotkeyEnabled)
+  } catch (e) {
+    console.warn('全局热键注册失败:', e)
+  }
   try {
     await emit('overlay:config', overlayPrefs.value)
   } catch {
     /* overlay 未运行时广播失败可忽略 */
   }
 }
+
+const overlayAnchorOptions = [
+  { label: '左上', value: 'top-left' },
+  { label: '顶中', value: 'top-center' },
+  { label: '右上', value: 'top-right' }
+]
 
 const cdragonCaching = ref(false)
 const cdragonCacheResult = ref('')
