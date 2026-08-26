@@ -138,15 +138,7 @@
           description="尝试更换搜索关键词或职业分类"
         >
           <template #action>
-            <button
-              class="btn gho sm"
-              @click="
-                search = ''
-                activeRole = 'all'
-              "
-            >
-              清空筛选
-            </button>
+            <button class="btn gho sm" @click="onResetChampFilter">清空筛选</button>
           </template>
         </EmptyState>
         <div v-else class="m-grid">
@@ -180,15 +172,7 @@
           description="尝试更换搜索关键词或稀有度筛选"
         >
           <template #action>
-            <button
-              class="btn gho sm"
-              @click="
-                search = ''
-                activeRarity = 'all'
-              "
-            >
-              清空筛选
-            </button>
+            <button class="btn gho sm" @click="onResetAugFilter">清空筛选</button>
           </template>
         </EmptyState>
         <div v-else class="m-grid m-grid--aug">
@@ -489,6 +473,16 @@ function switchTab(key: 'champions' | 'augments' | 'mine') {
     if (!augments.value.length && status.value?.ready && !augsLoading.value) void loadAugments()
     if (!mineLoadedOnce.value) void loadMine()
   }
+}
+
+function onResetChampFilter() {
+  search.value = ''
+  activeRole.value = 'all'
+}
+
+function onResetAugFilter() {
+  search.value = ''
+  activeRarity.value = 'all'
 }
 
 function openChampion(id: number) {
