@@ -175,7 +175,7 @@ pub fn encode_bmp_rgba(rgba: &[u8], w: i32, h: i32) -> Vec<u8> {
     let stride = (w * 4) as usize;
     for y in (0..h).rev() {
         let start = y as usize * stride;
-        for px in rgba[start..start + stride].chunks_exact(4) {
+        for px in rgba[start..start + stride].as_chunks::<4>().0 {
             out.push(px[2]); // B
             out.push(px[1]); // G
             out.push(px[0]); // R

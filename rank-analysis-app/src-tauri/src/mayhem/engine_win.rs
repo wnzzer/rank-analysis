@@ -28,10 +28,11 @@ static INIT_APARTMENT: Once = Once::new();
 /// 后续调用按现有套间继续。
 fn init_apartment_once() {
     INIT_APARTMENT.call_once(|| {
-        // 刻意忽略 HRESULT：S_FALSE（已初始化）/ RPC_E_CHANGED_MODE 均不致命，
-        // 后续调用按现有套间继续
+        // HRESULT 显式吞掉：S_FALSE（已初始化）/ RPC_E_CHANGED_MODE 均不致命，
+        // 后续调用按现有套间继续（must_use 需绑定以消除告警）
         unsafe {
-            CoInitializeEx(None, COINIT_MULTITHREADED);
+            let hr = CoInitializeEx(None, COINIT_MULTITHREADED);
+            let _ = hr;
         }
     });
 }
