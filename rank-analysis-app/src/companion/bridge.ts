@@ -87,8 +87,11 @@ export function createLiveBridge(deps: LiveBridgeDeps = {}): LiveBridge {
     deps.getMe ??
     (async () => {
       try {
-        const s = (await invoke('get_my_summoner')) as { gameName?: string }
-        return s.gameName ?? ''
+        const s = (await invoke('get_my_summoner')) as {
+          gameName?: string
+          displayName?: string
+        }
+        return s.gameName || s.displayName || ''
       } catch {
         return ''
       }

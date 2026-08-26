@@ -207,29 +207,36 @@ pub fn score_round(
     tables: &ScoreTables,
     rerolls_left: Option<u8>,
 ) -> serde_json::Value {
-    let known: Vec<(&MatchHit, &GlobalStats)> = hits
-        .iter()
-        .copied()
-        .flatten()
-        .filter_map(|h| tables.global.get(&h.id).map(|g| (h, g)))
-        .collect();
+    let non_empty: Vec<&MatchHit> = hits.iter().copied().flatten().collect();
 
     let global_norms = min_max_norm(
-        &known
+        &non_empty
             .iter()
-            .map(|(_, g)| g.wr.unwrap_or(0.5))
+            .map(|h| {
+                tables
+                    .global
+                    .get(&h.id)
+                    .and_then(|g| g.wr)
+                    .unwrap_or(0.5)
+            })
             .collect::<Vec<_>>(),
     );
     let champ_norms = min_max_norm(
-        &known
+        &non_empty
             .iter()
-            .map(|(h, _)| {
+            .map(|h| {
                 tables
                     .champ_wr
                     .get(&h.id)
                     .filter(|s| s.games >= CHAMP_MIN_GAMES)
                     .map(|s| s.wr)
-                    .unwrap_or(tables.global.get(&h.id).and_then(|g| g.wr).unwrap_or(0.5))
+                    .unwrap_or_else(|| {
+                        tables
+                            .global
+                            .get(&h.id)
+                            .and_then(|g| g.wr)
+                            .unwrap_or(0.5)
+                    })
             })
             .collect::<Vec<_>>(),
     );
@@ -481,5 +488,22 @@ mod tests {
         assert_eq!(m.len(), 2);
         assert_eq!(m[&1220].rarity_name, "prismatic");
         assert_eq!(m[&1336].name, "升级：无尽之刃");
+    }
+
+    #[test]
+    fn unknown_augment_id_should_not_shift_subsequent_candidate_scores() {
+        // 卡位 0 是未知强化 99999；卡位 1 是 58% 胜率；卡位 2 是 42% 胜率
+        let t = tables_with(&[(101, 0.58), (102, 0.42)], &[], &[]);
+        let m = meta_map(&[101, 102]);
+        let hits = [Some(&hit(99999, 1.0)), Some(&hit(101, 1.0)), Some(&hit(102, 1.0))];
+        let payload = score_round(hits, &m, &t, None);
+        let cands = payload["candidates"].as_array().unwrap();
+
+        // 卡位 1 (101) 胜率高于卡位 2 (102)，因此卡位 1 分数必须高于卡位 2，且未发生错位
+        let s1 = cands[1]["score"].as_f64().unwrap();
+        let s2 = cands[2]["score"].as_f64().unwrap();
+        assert!(s1 > s2, "卡位 1 胜率高应得高分，不应被未知卡槽 0 错位影响: {s1} vs {s2}");
+        assert_eq!(cands[1]["best"], serde_json::Value::Bool(true));
+        assert_eq!(cands[2]["best"], serde_json::Value::Bool(false));
     }
 }

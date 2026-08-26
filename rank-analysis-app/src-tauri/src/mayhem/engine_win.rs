@@ -37,21 +37,20 @@ fn init_apartment_once() {
     });
 }
 
-/// 对一块 BGRA 像素缓冲做 OCR，返回识别出的行文本（自上而下）。
+/// 对一块 RGBA 像素缓冲做 OCR，返回识别出的行文本（自上而下）。
 ///
 /// # 参数
-/// - `rgba`: BGRA 序列化的像素数据（capture.rs 输出已转为 RGBA 命名但字节序
-///   实际是 B,G,R,A——与 Bgra8 位图格式一一对应）
+/// - `rgba`: RGBA 序列化的像素数据（capture.rs 输出已转为 R,G,B,A）
 /// - `w`/`h`: 像素尺寸；必须与缓冲长度一致（先校验再触碰 WinRT）
-pub async fn recognize_bgra(bgra: &[u8], w: i32, h: i32) -> Result<Vec<String>, String> {
+pub async fn recognize_rgba(rgba: &[u8], w: i32, h: i32) -> Result<Vec<String>, String> {
     if w <= 0 || h <= 0 {
         return Err("invalid bitmap size".into());
     }
     let expected = (w as usize) * (h as usize) * 4;
-    if bgra.len() != expected {
+    if rgba.len() != expected {
         return Err(format!(
             "pixel buffer size mismatch: {} != {}",
-            bgra.len(),
+            rgba.len(),
             expected
         ));
     }
@@ -60,14 +59,14 @@ pub async fn recognize_bgra(bgra: &[u8], w: i32, h: i32) -> Result<Vec<String>, 
 
     let writer = DataWriter::new().map_err(|e| format!("DataWriter::new: {e}"))?;
     writer
-        .WriteBytes(bgra)
+        .WriteBytes(rgba)
         .map_err(|e| format!("WriteBytes: {e}"))?;
     let buffer = writer
         .DetachBuffer()
         .map_err(|e| format!("DetachBuffer: {e}"))?;
     drop(writer); // 显式关闭写入器；buffer 已独立持有数据
 
-    let bitmap = SoftwareBitmap::CreateCopyFromBuffer(&buffer, BitmapPixelFormat::Bgra8, w, h)
+    let bitmap = SoftwareBitmap::CreateCopyFromBuffer(&buffer, BitmapPixelFormat::Rgba8, w, h)
         .map_err(|e| format!("CreateCopyFromBuffer: {e}"))?;
 
     let engine = OcrEngine::TryCreateFromUserProfileLanguages()
@@ -95,4 +94,9 @@ pub async fn recognize_bgra(bgra: &[u8], w: i32, h: i32) -> Result<Vec<String>, 
         }
     }
     Ok(lines)
+}
+
+/// 兼容别名：转发至 [`recognize_rgba`]。
+pub async fn recognize_bgra(rgba: &[u8], w: i32, h: i32) -> Result<Vec<String>, String> {
+    recognize_rgba(rgba, w, h).await
 }

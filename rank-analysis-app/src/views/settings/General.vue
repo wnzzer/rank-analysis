@@ -327,6 +327,13 @@ async function persistOverlay() {
   } catch (e) {
     console.warn('全局热键注册失败:', e)
   }
+  // 浮窗锚点与位置即时生效
+  try {
+    const { setOverlayLayout } = await import('@renderer/features/overlay/panels')
+    await setOverlayLayout(320, 200, overlayPrefs.value.anchor)
+  } catch {
+    /* overlay 未运行时可忽略 */
+  }
   try {
     await emit('overlay:config', overlayPrefs.value)
   } catch {

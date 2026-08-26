@@ -17,6 +17,20 @@ use serde_json::Value;
 pub struct LexiconEntry {
     pub id: i64,
     pub name: String,
+    #[serde(skip)]
+    pub norm_chars: Vec<char>,
+}
+
+impl LexiconEntry {
+    pub fn new(id: i64, name: impl Into<String>) -> Self {
+        let name = name.into();
+        let norm_chars = normalize_name(&name).chars().collect();
+        Self {
+            id,
+            name,
+            norm_chars,
+        }
+    }
 }
 
 /// 匹配结果：id + 置信度（0.0~1.0，1 为精确命中）。
@@ -90,12 +104,18 @@ pub fn match_text(text: &str, lexicon: &[LexiconEntry], max_distance: usize) -> 
 
     let mut best: Option<(i64, usize, usize)> = None; // (id, dist, name_len)
     for entry in lexicon {
-        let name_chars: Vec<char> = normalize_name(&entry.name).chars().collect();
+        let fallback;
+        let name_chars: &[char] = if entry.norm_chars.is_empty() {
+            fallback = normalize_name(&entry.name).chars().collect::<Vec<_>>();
+            &fallback
+        } else {
+            &entry.norm_chars
+        };
         // 长度差超过容差必然超距，跳过省一次 DP
         if name_chars.len().abs_diff(norm_chars.len()) > max_distance {
             continue;
         }
-        let dist = levenshtein(&norm_chars, &name_chars);
+        let dist = levenshtein(&norm_chars, name_chars);
         if dist == 0 {
             return Some(MatchHit {
                 id: entry.id,
@@ -124,8 +144,8 @@ pub fn build_lexicon(augments: &Value) -> Vec<LexiconEntry> {
                     if id <= 0 {
                         return None;
                     }
-                    let name = it["name"].as_str()?.trim().to_string();
-                    (!name.is_empty()).then_some(LexiconEntry { id, name })
+                    let name = it["name"].as_str()?.trim();
+                    (!name.is_empty()).then(|| LexiconEntry::new(id, name))
                 })
                 .collect()
         })
@@ -156,22 +176,10 @@ mod tests {
 
     fn lexicon() -> Vec<LexiconEntry> {
         vec![
-            LexiconEntry {
-                id: 1220,
-                name: "连拨击锤".into(),
-            },
-            LexiconEntry {
-                id: 1336,
-                name: "升级：无尽之刃".into(),
-            },
-            LexiconEntry {
-                id: 1022,
-                name: "灵巧".into(),
-            },
-            LexiconEntry {
-                id: 2010,
-                name: "双发快射".into(),
-            },
+            LexiconEntry::new(1220, "连拨击锤"),
+            LexiconEntry::new(1336, "升级：无尽之刃"),
+            LexiconEntry::new(1022, "灵巧"),
+            LexiconEntry::new(2010, "双发快射"),
         ]
     }
 

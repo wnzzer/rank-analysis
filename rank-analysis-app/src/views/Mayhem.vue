@@ -661,6 +661,12 @@ function toggleAssist() {
 }
 
 onMounted(async () => {
+  // 同步单例调度器现有状态（跨页切换保持状态一致）
+  if (assist?.running) {
+    assistRunning.value = true
+    lastTick.value = assist.lastTick()
+  }
+
   // 全局热键幂等应用（进入大乱斗页即确保 Alt+A 可用；失败仅告警）
   void applyOverlayHotkey(loadOverlayPrefs().hotkeyEnabled).catch(e =>
     console.warn('热键注册失败:', e)

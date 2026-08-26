@@ -370,7 +370,7 @@ pub async fn mayhem_assist_tick(
             if luma_stddev(&region.rgba) >= crate::mayhem::pipeline::BAND_ACTIVE_THRESHOLD {
                 active_slots += 1;
             }
-            match crate::mayhem::engine_win::recognize_bgra(&region.rgba, r.w, r.h).await {
+            match crate::mayhem::engine_win::recognize_rgba(&region.rgba, r.w, r.h).await {
                 Ok(lines) => {
                     let joined = lines.join(" ");
                     if !joined.trim().is_empty() {

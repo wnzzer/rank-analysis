@@ -24,6 +24,10 @@ static OVERLAY_CREATED: LazyLock<AtomicBool> = LazyLock::new(|| AtomicBool::new(
 /// 全局 AppHandle（创建窗口时写入，供后续通过标签查找窗口句柄）。
 static APP_HANDLE: LazyLock<Mutex<Option<tauri::AppHandle>>> = LazyLock::new(|| Mutex::new(None));
 
+/// 当前生效的浮窗锚点（默认右上，支持 top-left / top-center / top-right）。
+static CURRENT_ANCHOR: LazyLock<Mutex<String>> =
+    LazyLock::new(|| Mutex::new("top-right".to_string()));
+
 /// Overlay 窗口固定尺寸（评估文档 §3.1）。
 const OVERLAY_WIDTH: f64 = 320.0;
 const OVERLAY_HEIGHT: f64 = 200.0;
@@ -66,20 +70,6 @@ fn get_window() -> Option<tauri::WebviewWindow> {
     guard.as_ref()?.get_webview_window("overlay")
 }
 
-/// 将 overlay 窗口定位到主显示器右上角（带边距）。
-fn position_top_right(app: &tauri::AppHandle) {
-    let Some(monitor) = app.primary_monitor().ok().flatten() else {
-        log::warn!("[overlay] 无法获取主显示器，窗口保持默认位置");
-        return;
-    };
-    let size = monitor.size();
-    let x = size.width as i32 - OVERLAY_WIDTH as i32 - OVERLAY_MARGIN as i32;
-    let y = OVERLAY_MARGIN as i32;
-    if let Some(w) = get_window() {
-        let _ = w.set_position(Position::Physical(tauri::PhysicalPosition::new(x, y)));
-    }
-}
-
 /// 显示 overlay 窗口（对局中调用）。
 ///
 /// 以 [`get_window`] 的**真实存活**为准决定是否创建：`OVERLAY_CREATED` 只是
@@ -101,7 +91,8 @@ pub fn show(app: &tauri::AppHandle) {
         // 鼠标穿透：对局内悬浮建议不应拦截玩家对游戏窗口的操作
         let _ = w.set_ignore_cursor_events(true);
     }
-    position_top_right(app);
+    let anchor = CURRENT_ANCHOR.lock().unwrap().clone();
+    position_by_anchor(app, OVERLAY_WIDTH, &anchor);
 }
 
 /// 隐藏 overlay 窗口（对局结束调用）。
@@ -119,6 +110,7 @@ pub fn hide() {
 /// # 参数
 /// - `anchor`: `"top-left"` | `"top-center"` | `"top-right"`（未知值回退右上）
 pub fn layout(app: &tauri::AppHandle, width: f64, height: f64, anchor: &str) {
+    *CURRENT_ANCHOR.lock().unwrap() = anchor.to_string();
     let width = width.clamp(200.0, 900.0);
     let height = height.clamp(80.0, 500.0);
     if let Some(w) = get_window() {

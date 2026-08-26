@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 /**
  * 对局内 Overlay 视图（B1 多面板宿主）。
  *
@@ -57,10 +57,14 @@ onMounted(async () => {
     unlistenUpdate = await listen<NextAction[]>('overlay:update', event => {
       actions.value = Array.isArray(event.payload) ? event.payload : []
     })
-    unlistenConfig = await listen<Partial<OverlayPrefs>>('overlay:config', event => {
+    unlistenConfig = await listen<Partial<OverlayPrefs>>('overlay:config', async event => {
       const merged = { ...prefs.value, ...(event.payload ?? {}) }
       prefs.value = { ...merged }
       saveOverlayPrefs(prefs.value)
+      if (event.payload?.anchor) {
+        const { setOverlayLayout } = await import('../features/overlay/panels')
+        await setOverlayLayout(320, 200, event.payload.anchor).catch(() => {})
+      }
     })
     unlistenPanel = await listen<OverlayPanelEnvelope>('overlay:panel', event => {
       const { panel, payload } = event.payload ?? {}

@@ -15,6 +15,7 @@ import {
 import { computeReviewAxes, radarPoints } from '@renderer/companion/review'
 import { matchDetailContextKey } from '../matchDetailContext'
 import { requestAIContent } from '@renderer/services/ai/stream'
+import { getChampionName } from '@renderer/services/ai/champion-names'
 
 const injectedCtx = inject(matchDetailContextKey)
 if (!injectedCtx) throw new Error('ReviewTab 必须在 MatchDetailInline 内使用')
@@ -30,7 +31,7 @@ const detailPlayers = computed(() => players.detailPlayers.value)
 const judgePlayers = computed<JudgePlayer[]>(() =>
   detailPlayers.value.map(p => ({
     name: p.displayName,
-    championName: String(p.championId),
+    championName: getChampionName(p.championId) || String(p.championId),
     team: p.teamId,
     win: p.win,
     kills: p.stats.kills,
