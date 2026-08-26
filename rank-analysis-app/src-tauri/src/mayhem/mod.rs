@@ -17,4 +17,13 @@
 //! - **缓存语义**：整体放在系统临时目录（见 [`crate::paths`]），可随时删掉重建
 
 pub mod client;
+pub mod db;
+pub mod ocr;
+pub mod probe;
 pub mod store;
+
+/// 海克斯大乱斗（ARAM Mayhem）的队列 ID。
+///
+/// 与前端 `services/ai/shared/modeContext.ts` 的 2400 口径一致；CHERRY(斗魂)
+/// 变种走 1700+ 系列，不属于本模块。
+pub const MAYHEM_QUEUE_ID: i32 = 2400;

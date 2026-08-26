@@ -26,6 +26,13 @@ use serde::{Deserialize, Serialize};
 
 use super::client::{fetch_manifest, fetch_remote_config, is_safe_rel_path, SyncReport};
 
+/// 版本变动日志文件名（根目录下，保留最近 [`CHANGE_LOG_KEEP`] 条）。
+const CHANGE_LOG_FILE: &str = "changes.json";
+/// 版本变动日志保留条数。
+const CHANGE_LOG_KEEP: usize = 20;
+/// 胜率漂移显著阈值：|Δ| ≥ 1.5 个百分点才记录（对应计划 §A9）。
+const WR_DRIFT_THRESHOLD: f64 = 0.015;
+
 /// 指针文件内容：当前激活的数据版本。
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ActivePointer {
@@ -175,6 +182,156 @@ pub fn champion_detail(champion_id: i64) -> Result<Option<serde_json::Value>, St
 }
 
 // ---------------------------------------------------------------------------
+// 版本变动监控（A9）
+// ---------------------------------------------------------------------------
+
+/// T 级跃迁条目。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct TierMove {
+    pub augment_id: i64,
+    pub from_tier: Option<i64>,
+    pub to_tier: Option<i64>,
+}
+
+/// 胜率显著漂移条目（delta 为百分点，如 -2.31 表示下降 2.31pp）。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct WrDrift {
+    pub augment_id: i64,
+    pub delta_pp: f64,
+}
+
+/// 单个版本区间（from → to）的强化池/数值变动。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct VersionChange {
+    pub from_version: String,
+    pub to_version: String,
+    /// 记录时刻的 Unix 秒
+    pub recorded_at: i64,
+    /// 新增强化 id
+    pub added: Vec<i64>,
+    /// 移除强化 id
+    pub removed: Vec<i64>,
+    pub tier_moves: Vec<TierMove>,
+    pub wr_drifts: Vec<WrDrift>,
+}
+
+/// 从 augments.json 的 `data` 数组提取 `id → (tier, winRate)` 映射。
+fn augment_index(v: &serde_json::Value) -> std::collections::HashMap<i64, (Option<i64>, Option<f64>)> {
+    let mut map = std::collections::HashMap::new();
+    if let Some(items) = v["data"].as_array() {
+        for it in items {
+            let Some(id) = it["id"].as_i64() else { continue };
+            let tier = it["stats"]["tier"].as_i64();
+            let wr = it["stats"]["winRate"].as_f64();
+            map.insert(id, (tier, wr));
+        }
+    }
+    map
+}
+
+/// 纯函数：对比两个版本的 augments.json，产出变动集合（供单测与 record 复用）。
+pub fn diff_augments(old: &serde_json::Value, new: &serde_json::Value) -> VersionChange {
+    let old_map = augment_index(old);
+    let new_map = augment_index(new);
+
+    let mut added: Vec<i64> = new_map.keys().copied().collect();
+    let mut removed: Vec<i64> = old_map.keys().copied().collect();
+    let mut tier_moves: Vec<TierMove> = Vec::new();
+    let mut wr_drifts: Vec<WrDrift> = Vec::new();
+
+    for (id, (old_tier, old_wr)) in &old_map {
+        if let Some((new_tier, new_wr)) = new_map.get(id) {
+            if old_tier != new_tier {
+                tier_moves.push(TierMove { augment_id: *id, from_tier: *old_tier, to_tier: *new_tier });
+            }
+            if let (Some(a), Some(b)) = (old_wr, new_wr) {
+                let delta_pp = (b - a) * 100.0;
+                if delta_pp.abs() >= WR_DRIFT_THRESHOLD * 100.0 {
+                    wr_drifts.push(WrDrift { augment_id: *id, delta_pp: (delta_pp * 100.0).round() / 100.0 });
+                }
+            }
+        }
+    }
+
+    added.retain(|id| !old_map.contains_key(id));
+    removed.retain(|id| !new_map.contains_key(id));
+    // 稳定输出顺序便于快照对比
+    added.sort_unstable();
+    removed.sort_unstable();
+    tier_moves.sort_by_key(|t| t.augment_id);
+    wr_drifts.sort_by(|a, b| b.delta_pp.abs().total_cmp(&a.delta_pp.abs()));
+
+    VersionChange {
+        from_version: String::new(),
+        to_version: String::new(),
+        recorded_at: 0,
+        added,
+        removed,
+        tier_moves,
+        wr_drifts,
+    }
+}
+
+fn read_changes_in(root: &Path) -> Vec<VersionChange> {
+    std::fs::read_to_string(root.join(CHANGE_LOG_FILE))
+        .ok()
+        .and_then(|c| serde_json::from_str(&c).ok())
+        .unwrap_or_default()
+}
+
+/// 把新变动写入版本日志（最新在前，截断到 [`CHANGE_LOG_KEEP`] 条）。
+fn save_changes_in(root: &Path, entry: VersionChange) -> Result<(), String> {
+    crate::paths::ensure_parent_dir(root).map_err(|e| e.to_string())?;
+    let mut list = read_changes_in(root);
+    list.insert(0, entry);
+    list.truncate(CHANGE_LOG_KEEP);
+    let path = root.join(CHANGE_LOG_FILE);
+    let tmp = root.join("changes.json.tmp");
+    let json =
+        serde_json::to_string(&list).map_err(|e| format!("serialize changes: {}", e))?;
+    std::fs::write(&tmp, json).map_err(|e| format!("write {}: {}", tmp.display(), e))?;
+    std::fs::rename(&tmp, &path).map_err(|e| format!("rename {}: {}", path.display(), e))
+}
+
+/// 同步成功后记录 from → to 的变动（同版本或旧目录缺失时静默跳过）。
+fn record_changes(root: &Path, from_version: &str, to_version: &str) {
+    if from_version.is_empty() || from_version == to_version {
+        return;
+    }
+    let (Ok(old_json), Ok(new_json)) = (
+        std::fs::read_to_string(
+            root.join("versions").join(from_version).join("augments.json"),
+        ),
+        std::fs::read_to_string(
+            root.join("versions").join(to_version).join("augments.json"),
+        ),
+    ) else {
+        return;
+    };
+    let (Ok(old_v), Ok(new_v)) = (
+        serde_json::from_str::<serde_json::Value>(&old_json),
+        serde_json::from_str::<serde_json::Value>(&new_json),
+    ) else {
+        return;
+    };
+    let mut change = diff_augments(&old_v, &new_v);
+    change.from_version = from_version.to_string();
+    change.to_version = to_version.to_string();
+    change.recorded_at = now_secs();
+    if let Err(e) = save_changes_in(root, change) {
+        log::warn!("mayhem 变动日志写入失败: {}", e);
+    }
+}
+
+/// 读取版本变动日志（新 → 旧）；无记录返回空表。
+pub fn version_changes() -> Vec<VersionChange> {
+    read_changes_in(&root_dir())
+}
+
+// ---------------------------------------------------------------------------
 // 同步
 // ---------------------------------------------------------------------------
 
@@ -251,6 +408,11 @@ pub async fn sync(force: bool) -> Result<Option<SyncReport>, String> {
             synced_at: now_secs(),
         },
     )?;
+
+    // 变动日志要在清理旧版本目录**之前**计算（需要读旧 augments.json）
+    if let Some(from) = from_version.as_deref() {
+        record_changes(&root, from, &config.data_version);
+    }
 
     cleanup_other_versions_in(&root, &config.data_version);
 
@@ -401,5 +563,60 @@ mod tests {
         )
         .unwrap();
         assert!(champion_detail_in(&root, 67).unwrap().is_none());
+    }
+
+    fn aug_json(id: i64, tier: Option<i64>, wr: Option<f64>) -> String {
+        let tier_s = tier.map(|t| t.to_string()).unwrap_or_else(|| "null".into());
+        let wr_s = wr.map(|w| w.to_string()).unwrap_or_else(|| "null".into());
+        format!(r#"{{"data":[{{"id":{id},"stats":{{"tier":{tier_s},"winRate":{wr_s}}}}}]}}"#)
+    }
+
+    #[test]
+    fn diff_augments_should_catch_add_remove_tier_and_drift() {
+        // 1001: 新增；1002: 移除；1003: T3→T1 且胜率 +2.0pp；1004: 漂移 0.5pp 不记录
+        let old: serde_json::Value = serde_json::from_str(&format!(
+            "[{}]",
+            [
+                aug_json(1002, Some(2), Some(0.50)),
+                aug_json(1003, Some(3), Some(0.48)),
+                aug_json(1004, Some(4), Some(0.51))
+            ]
+            .join(",")
+        ))
+        .unwrap();
+        let new: serde_json::Value = serde_json::from_str(&format!(
+            "[{}]",
+            [
+                aug_json(1001, Some(1), Some(0.60)),
+                aug_json(1003, Some(1), Some(0.50)),
+                aug_json(1004, Some(4), Some(0.515))
+            ]
+            .join(",")
+        ))
+        .unwrap();
+
+        let d = diff_augments(&old, &new);
+        assert_eq!(d.added, vec![1001]);
+        assert_eq!(d.removed, vec![1002]);
+        assert_eq!(
+            d.tier_moves,
+            vec![TierMove { augment_id: 1003, from_tier: Some(3), to_tier: Some(1) }]
+        );
+        assert_eq!(d.wr_drifts.len(), 1);
+        assert_eq!(d.wr_drifts[0].augment_id, 1003);
+        assert_eq!(d.wr_drifts[0].delta_pp, 2.0);
+    }
+
+    #[test]
+    fn diff_augments_should_tolerate_missing_stats() {
+        let old: serde_json::Value =
+            serde_json::from_str(r#"{"data":[{"id":7,"stats":{"tier":2,"winRate":null}}]}"#)
+                .unwrap();
+        let new: serde_json::Value = serde_json::from_str(r#"{"data":[{"id":7,"stats":{}}]}"#).unwrap();
+        let d = diff_augments(&old, &new);
+        // tier 2 → null 也算跃迁；胜率缺失不产生漂移
+        assert_eq!(d.tier_moves.len(), 1);
+        assert!(d.wr_drifts.is_empty());
+        assert!(d.added.is_empty() && d.removed.is_empty());
     }
 }

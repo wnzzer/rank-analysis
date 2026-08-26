@@ -11,7 +11,8 @@
 knowledge/
 ├── modes/          # 模式知识合集（markdown：`# 标题` + `## 节` + `- 条目`）
 │   ├── ranked.md   #   排位（召唤师峡谷 5v5）
-│   ├── brawl.md    #   海克斯乱斗（queueId 1700）
+│   ├── brawl.md    #   斗魂竞技场（queueId 1700）
+│   ├── mayhem.md   #   海克斯大乱斗（queueId 2400）
 │   └── aram.md     #   大乱斗
 ├── champions/      # 单英雄知识点（渐进补充，本批仅骨架）
 └── rules/

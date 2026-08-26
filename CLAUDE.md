@@ -8,7 +8,8 @@
 
 ## 项目结构
 - 前端源码: `rank-analysis-app/src/`
-  - `components/` 组件 / `views/` 页面 / `pinia/` 状态 / `services/` API / `composables/` 组合式函数 / `types/` 类型
+  - `components/` 组件 / `views/` 页面 / `services/` API / `composables/` 组合式函数 / `types/` 类型
+  - `features/{gaming,mayhem,record,settings}/` 按域组织的服务与 Pinia store（store 在 `features/settings/stores/`，共 setting/playerNotes/cloudSync 三个）
 - 后端源码: `rank-analysis-app/src-tauri/src/`
   - `command/` Tauri Commands / `lcu/` LCU API 客户端 / `automation.rs` 自动化 / `fandom/` Fandom 数据
 

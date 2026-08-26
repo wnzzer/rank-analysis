@@ -31,6 +31,12 @@
 | R22 | 卡片键盘可达性 / 空态与主题核实 |
 | R23 | 键盘单测 / 完成态与动效核查 |
 | R24 | 门禁四绿复核 / 并行流收编落地 |
+| R25 | 门禁确认 / Mayhem 一致性核查（移交） |
+| R26 | 文档漂移清理 / augment 零覆盖补测 |
+| R27 | 平衡标签纯函数抽取与测试化 |
+| R28 | utils 零覆盖补测（tier-image/overlayPrefs/colors） |
+| R29 | 服务层与剪贴板测试化（http/platform/useCopy） |
+| R30 | 模式列表测试化 / configKeys 一致性核查 |
 
 ---
 
@@ -246,10 +252,92 @@
 - [x] R24-3 下一轮候选池滚动续写
 - [x] R24-4 polish-plan 归档说明更新
 
-## Round 25 候选池（Round 24 完成度 ≥80% 时续写）
-- R25-1 CI Quality Checks 全绿确认（mayhem Rust 门禁：clippy + cargo test）
-- R25-2 Mayhem 视图空态/加载态与设计系统一致性核查
-- R25-3 README 双语补「大乱斗数据同步」功能条目（视 CI 结果）
-- R25-4 polish-plan 轮次速览表滚动维护
+## Round 25 计划 门禁确认与并行流观察（2026-08-26）
+- [x] R25-1 门禁复核：前端 vitest 145 文件 / 1438 用例全绿（HEAD 基线）；
+      Rust 门禁本机不可执行——cargo/rustup 未安装于当前环境（target/ 为外部产物），
+      clippy + cargo test 交由 CI Quality Checks 承担
+- [x] R25-2 Mayhem 视图一致性核查——结论：PageStage 用法与结构金丝雀符合约定；
+      但加载/无匹配/错误三态为裸 div，未接 EmptyState（违反「禁止裸文案空态」约定，
+      且读本地失败时会误显「没有符合条件的英雄」）。该文件正被并行流活跃重构中
+      （Tab 化 + 英雄详情子页），为避免编辑冲突，修复移交 Round 26 树干净后落地
+- [-] R25-3 README 双语补「大乱斗数据同步」条目暂缓：Mayhem 功能尚未收编进 HEAD
+      （工作区未提交状态），等功能落地后随 Round 26 一并处理
+- [x] R25-4 polish-plan 轮次速览表滚动维护（含并行会话重复 R21 行去重）
+
+## Round 26 计划 文档漂移清理与零覆盖补测（2026-08-26）
+- [x] R26-1 CLAUDE.md 目录结构修正：`pinia/` 实际位于 `features/settings/stores/`；
+  补 features/{gaming,mayhem,record,settings} 与 views/settings 子页说明
+- [x] R26-2 vite.config.ts optimizeDeps 移除未安装的 `@vicons/ionicons5`
+  （依赖清单漂移，实际图标库为 lucide-vue-next）
+- [x] R26-3 utils/augment.ts `augmentRarityClass` 稀有度映射单测（kPrismatic/kGold/
+  kSilver/kBronze/default 五分支纯函数，此前零覆盖，7 用例通过）
+- [ ] R26-4 Mayhem 空态三态接 EmptyState——**继续挂起**：并行流仍在收编中
+  （aa2cb6f champion_detail 修复 + MayhemChampionDetail.vue 尚未提交），
+  待其轮次收官、树干净后落地。`.m-empty` 以包装类保留满足结构金丝雀；
+  错误态优先级需高于筛选空态（修复读本地失败误显「没有符合条件的英雄」）
+
+## Round 27 计划 平衡标签测试化（2026-08-26）
+- [x] R27-1 useAramBalance 测试化：抽出 `buildBalanceTags`/`summarizeBalanceStatus`
+      纯函数（composable 行为不变），12 用例覆盖死区阈值、正反极性、急速平铺值、
+      非数值容错与增强/削弱/调整三态聚合
+- [ ] R27-2 Mayhem 空态三态接 EmptyState + README 双语条目（承接 R26-4，
+      前置条件：并行流收官）
+- [ ] R27-3 下一轮候选池滚动续写
+
+## Round 28 计划 utils 零覆盖补测（2026-08-26）
+- [x] R28-1 utils/tier-image.spec——段位图标映射 3 用例（大小写归一、未知/空回退
+      unranked、资产导入解析）
+- [x] R28-2 utils/overlayPrefs.spec——浮窗偏好 7 用例（默认值、round-trip、
+      maxItems/opacity 双向钳制、部分字段补默认、损坏 JSON 容错、存储失败静默）
+- [x] R28-3 utils/colors.spec——8 组语义色阈值边界（good/bad/neutral 三档互异 +
+      亮暗主题取色差异）
+- [-] R28-4 R27-2 复核：并行流仍在制且范围扩大（intelContext/knowledge 集成、
+      CI store 测试修复 33f80e5），Mayhem 空态改造继续挂起
+
+## Round 29 候选池
+- R29-1 Mayhem 空态三态接 EmptyState + README 双语条目（承接 R27-2，
+  前置：并行流收官）
+- R29-2 composables/useCopy 或 recordAssetsKey 测试化
+- R29-3 services/http initAssetPrefix / platform 平台探测测试化（Tauri 环境分支 mock）
+- R29-4 polish-plan 轮次速览表滚动维护
+
+## Round 29 计划 服务层与剪贴板测试化（2026-08-26）
+- [x] R29-1 composables/useCopy.spec——复制成功/失败双路径 2 用例
+      （naive-ui useMessage mock 注入；实测 copy 内部 promise 链在第 3 个微任务
+      tick 才落地，flush 助手固定 4 tick 保证确定性）
+- [-] R29-2 recordAssetsKey 测试化**不适用**：文件仅导出 InjectionKey Symbol，
+      无任何可测逻辑（类型层设施，断言其存在无价值）
+- [x] R29-3 services/http + platform spec——7 用例：asset 前缀默认值/成功采用/
+      失败保当前值+告警；平台门控默认 windows/后端上报切换/失败保持/isWindows 联动
+- [x] R29-4 并行流复核：HEAD 仍为 33f80e5，Mayhem 全家桶（视图/金丝雀/db.rs/
+      knowledge 集成）持续在制 → R30 空态改造继续挂起
+
+## Round 30 候选池
+- R30-1 Mayhem 空态三态接 EmptyState + README 双语条目（承接 R27-2/R28-4，
+  前置：并行流收官；连续三轮挂起，若下轮仍在制则考虑降级为「仅在计划中登记」）
+- R30-2 composables/useEmberField 或 useGameModes 测试化（评估后择一）
+- R30-3 services/configKeys 键名清单与实际消费方一致性核查（防漂移）
+- R30-4 polish-plan 轮次速览表滚动维护
+
+## Round 30 计划 模式列表测试化与键名一致性核查（2026-08-26）
+- [x] R30-1 composables/useGameModes.spec——4 用例（哨兵默认项、value→key 映射、
+      失败保持+告警、成功后整体替换不合并）
+- [x] R30-2 configKeys 一致性核查——结论：**无漂移**。前端裸字符串仅存在于
+      configKeys.ts 本身与钉住字面量的测试文件；Rust 侧 REPORTING_KEY /
+      GAME_INSTALL_PATH_KEY / BACKUP_BLACKLIST 与前端键名逐一吻合。
+      ⚠️ 登记一项语义不对称供产品决策：`dashscopeApiKey` 在 CLOUD_ONLY_BLACKLIST
+      （云端排除、文件备份保留），而 `ai.apiKey` 不在黑名单会随 appConfig 上云
+      （可能是有意的跨设备同步设计，也可能遗漏）——不改行为，移交 R31 决策
+- [-] R30-3 Mayhem 空态改造第 4 次挂起（并行流新增 overlay/mod.rs 改动，
+      仍在制）→ 按池约定降级为「计划登记项」，不再逐轮复核，待并行流收官
+      后由任意会话一次性落地
+- [x] R30-4 polish-plan 轮次速览表滚动维护
+
+## Round 31 候选池
+- R31-1 `ai.apiKey` 是否应加入 CLOUD_ONLY_BLACKLIST 的产品决策与实施
+  （若决定排除：Rust 黑名单 + 单测 + README 数据说明三处同步）
+- R31-2 useEmberField 测试化（reduced-motion 分支已有实现，评估动画帧 mock 成本）
+- R31-3 Mayhem 空态 + README（登记项，并行流收官后一次性落地）
+- R31-4 polish-plan 轮次速览表滚动维护
 
 ## 归档说明

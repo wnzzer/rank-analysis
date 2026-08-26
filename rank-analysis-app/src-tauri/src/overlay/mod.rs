@@ -111,6 +111,51 @@ pub fn hide() {
     }
 }
 
+/// 调整 overlay 窗口尺寸并定位到指定锚点。
+///
+/// B1 多面板：三选一卡组等面板比原 NextAction 卡大，且需要贴屏幕顶部的
+/// 左中右位置。尺寸钳制在合理范围防止把游戏窗口整个盖住。
+///
+/// # 参数
+/// - `anchor`: `"top-left"` | `"top-center"` | `"top-right"`（未知值回退右上）
+pub fn layout(app: &tauri::AppHandle, width: f64, height: f64, anchor: &str) {
+    let width = width.clamp(200.0, 900.0);
+    let height = height.clamp(80.0, 500.0);
+    if let Some(w) = get_window() {
+        let _ = w.set_size(tauri::LogicalSize::new(width, height));
+    }
+    position_by_anchor(app, width, anchor);
+}
+
+/// 按锚点将窗口贴主显示器顶部（带边距）。
+fn position_by_anchor(app: &tauri::AppHandle, width: f64, anchor: &str) {
+    let Some(monitor) = app.primary_monitor().ok().flatten() else {
+        log::warn!("[overlay] 无法获取主显示器，窗口保持默认位置");
+        return;
+    };
+    let screen_w = monitor.size().width as i32;
+    let x = match anchor {
+        "top-left" => OVERLAY_MARGIN as i32,
+        "top-center" => (screen_w - width as i32) / 2,
+        // 默认右上（历史行为）
+        _ => screen_w - width as i32 - OVERLAY_MARGIN as i32,
+    };
+    if let Some(w) = get_window() {
+        let _ = w.set_position(Position::Physical(tauri::PhysicalPosition::new(x, OVERLAY_MARGIN as i32)));
+    }
+}
+
+/// 切换鼠标穿透。
+///
+/// 三选一识别失败时的手动校正面板需要接收点击，其余时间保持穿透，
+/// 避免悬浮窗挡住游戏操作。
+pub fn set_click_through(enabled: bool) -> Result<(), String> {
+    let Some(w) = get_window() else {
+        return Err("overlay 窗口不存在".to_string());
+    };
+    w.set_ignore_cursor_events(enabled).map_err(|e| e.to_string())
+}
+
 /// 销毁 overlay 窗口（进程退出时清理）。
 pub fn destroy() {
     if let Some(w) = get_window() {

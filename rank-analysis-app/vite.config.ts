@@ -45,7 +45,7 @@ export default defineConfig(() => ({
 
   // 依赖预构建配置
   optimizeDeps: {
-    include: ['vue', 'vue-router', 'pinia', 'naive-ui', '@vicons/ionicons5', '@tauri-apps/api']
+    include: ['vue', 'vue-router', 'pinia', 'naive-ui', '@tauri-apps/api']
   },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`

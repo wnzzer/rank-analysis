@@ -43,6 +43,14 @@ describe('Mayhem 榜单页结构', () => {
     expect(vue).toContain('activeRarity')
     expect(vue).toContain('MayhemChampionDetail')
   })
+
+  it('「我的」Tab 消费自采管道（导入 + 双聚合）', () => {
+    for (const token of ['importMayhemRecent', 'getMyChampionStats', 'getMyAugmentStats']) {
+      expect(vue).toContain(token)
+    }
+    expect(css).toContain('.myrow')
+    expect(css).toContain('.btn.pri')
+  })
 })
 
 describe('Mayhem 英雄详情页结构', () => {

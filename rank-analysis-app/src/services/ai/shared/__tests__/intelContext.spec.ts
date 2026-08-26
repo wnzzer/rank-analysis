@@ -81,11 +81,11 @@ function knowledgeBase(overrides: Record<string, unknown> = {}): KnowledgeBase {
 }
 
 describe('modeKnowledgeKey', () => {
-  it('ranked / aram / 海克斯乱斗(1700) 正确映射', () => {
+  it('ranked / aram / 斗魂(1700)→brawl / 海克斯大乱斗(2400)→mayhem 正确映射', () => {
     expect(modeKnowledgeKey('ranked', 420)).toBe('ranked')
     expect(modeKnowledgeKey('aram', 450)).toBe('aram')
     expect(modeKnowledgeKey('augment', 1700)).toBe('brawl')
-    expect(modeKnowledgeKey('augment', 2400)).toBeNull()
+    expect(modeKnowledgeKey('augment', 2400)).toBe('mayhem')
     expect(modeKnowledgeKey('unknown', 0)).toBeNull()
   })
 })

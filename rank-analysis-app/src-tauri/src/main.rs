@@ -205,6 +205,13 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             command::mayhem::mayhem_get_champions,
             command::mayhem::mayhem_get_augments,
             command::mayhem::mayhem_get_champion_detail,
+            command::mayhem::mayhem_import_recent,
+            command::mayhem::mayhem_personal_champion_stats,
+            command::mayhem::mayhem_personal_augment_stats,
+            command::mayhem::mayhem_version_changes,
+            command::mayhem::mayhem_probe_lcu,
+            command::mayhem::mayhem_ocr_lexicon,
+            command::mayhem::mayhem_ocr_match_sample,
             command::knowledge::update_knowledge,
             command::knowledge::get_knowledge,
             command::knowledge::get_knowledge_status,
@@ -236,6 +243,9 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             command::overlay::show_overlay_window,
             command::overlay::hide_overlay_window,
             command::overlay::push_overlay_data,
+            command::overlay::push_overlay_panel,
+            command::overlay::set_overlay_layout,
+            command::overlay::set_overlay_click_through,
             command::cache_cdragon_icons,
         ]);
 

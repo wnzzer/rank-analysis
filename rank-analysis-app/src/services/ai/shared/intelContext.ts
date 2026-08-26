@@ -21,11 +21,18 @@ import {
 } from './signals'
 import type { RecentPlayerProfile } from './types'
 
-/** 模式知识 key 映射：ranked → ranked / aram → aram / 海克斯乱斗(1700) → brawl / 其余无 */
+/**
+ * 模式知识 key 映射：ranked → ranked / aram(450) → aram / 斗魂竞技场(1700) → brawl /
+ * 海克斯大乱斗(2400) → mayhem / 其余无。
+ *
+ * 注意：brawl 在本仓库语义是斗魂竞技场（CHERRY），不要与海克斯大乱斗混用——
+ * 后者的知识键为 mayhem，知识源文件 knowledge/modes/mayhem.md。
+ */
 export function modeKnowledgeKey(modeKind: string, queueId: number): string | null {
   if (modeKind === 'ranked') return 'ranked'
   if (modeKind === 'aram') return 'aram'
   if (modeKind === 'augment' && queueId === 1700) return 'brawl'
+  if (modeKind === 'augment' && queueId === 2400) return 'mayhem'
   return null
 }
 

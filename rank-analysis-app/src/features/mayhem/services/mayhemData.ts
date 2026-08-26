@@ -281,6 +281,91 @@ export async function getMayhemChampionDetail(
 }
 
 // ---------------------------------------------------------------------------
+// 个人自采（mayhem.db，数据不出设备）
+// ---------------------------------------------------------------------------
+
+/** 导入报告 */
+export interface MayhemImportReport {
+  scanned: number
+  imported: number
+  skippedExisting: number
+  failed: number
+}
+
+/** 本人英雄聚合行 */
+export interface MyChampionStat {
+  championId: number
+  games: number
+  wins: number
+  kills: number
+  deaths: number
+  assists: number
+}
+
+/** 本人强化聚合行 */
+export interface MyAugmentStat {
+  augmentId: number
+  games: number
+  wins: number
+}
+
+/**
+ * 从本机 LCU 战绩导入最近的海克斯大乱斗对局（幂等）。
+ * 需要客户端在线；单次 LCU 请求即可完成。
+ */
+export async function importMayhemRecent(): Promise<MayhemImportReport> {
+  return (await invoke('mayhem_import_recent')) as MayhemImportReport
+}
+
+/** 本人英雄维度聚合（按场次降序） */
+export async function getMyChampionStats(): Promise<MyChampionStat[]> {
+  return (await invoke('mayhem_personal_champion_stats')) as MyChampionStat[]
+}
+
+/**
+ * 本人强化维度聚合。
+ * @param championId 提供时只统计该英雄的对局
+ */
+export async function getMyAugmentStats(championId?: number): Promise<MyAugmentStat[]> {
+  return (await invoke('mayhem_personal_augment_stats', {
+    championId
+  })) as MyAugmentStat[]
+}
+
+// ---------------------------------------------------------------------------
+// 版本变动监控（A9）
+// ---------------------------------------------------------------------------
+
+/** T 级跃迁条目 */
+export interface AugmentTierMove {
+  augmentId: number
+  fromTier: number | null
+  toTier: number | null
+}
+
+/** 胜率显著漂移（deltaPp 为百分点，如 -2.31） */
+export interface AugmentWrDrift {
+  augmentId: number
+  deltaPp: number
+}
+
+/** 单个版本区间的强化池/数值变动 */
+export interface MayhemVersionChange {
+  fromVersion: string
+  toVersion: string
+  recordedAt: number
+  added: number[]
+  removed: number[]
+  tierMoves: AugmentTierMove[]
+  wrDrifts: AugmentWrDrift[]
+}
+
+/** 版本变动日志（新 → 旧）；首次同步前为空表 */
+export async function getMayhemVersionChanges(): Promise<MayhemVersionChange[]> {
+  return (await invoke('mayhem_version_changes')) as MayhemVersionChange[]
+}
+
+// ---------------------------------------------------------------------------
 // 纯工具（供视图复用与单测）
 // ---------------------------------------------------------------------------
 
@@ -292,7 +377,8 @@ export async function getMayhemChampionDetail(
  */
 export function stripRichText(raw: string | undefined | null): string {
   if (!raw) return ''
-  const noTags = raw.replace(/<[^>]*>/g, '')
+  // <br> 视为词间空格，避免相邻行粘连
+  const noTags = raw.replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]*>/g, '')
   const decoded = noTags
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')

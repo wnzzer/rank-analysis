@@ -50,6 +50,19 @@
   padding: var(--space-4) var(--space-24) var(--space-28);
 }
 
+.m-changes {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+  border: 1px solid #ffd76a55;
+  background: rgba(255, 215, 106, 0.08);
+  color: var(--text-primary);
+  font-size: var(--font-size-xs);
+  padding: var(--space-8) var(--space-12);
+  margin-bottom: var(--space-12);
+}
+
 .m-alert {
   background: var(--surface-raised, rgba(255, 96, 96, 0.08));
   border: 1px solid rgba(255, 96, 96, 0.35);
@@ -314,4 +327,87 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
+}
+
+/* ---- 我的数据 Tab ---- */
+.btn.pri {
+  background: var(--brand-gradient);
+  color: var(--text-on-brand);
+}
+.mine-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  margin-bottom: var(--space-16);
+}
+.mine-note {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+}
+.d-sec {
+  margin-bottom: var(--space-24);
+}
+.d-sec h3 {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  margin-bottom: var(--space-8);
+}
+.mylist {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.myrow {
+  display: grid;
+  grid-template-columns: 28px minmax(120px, 1fr) 56px minmax(80px, 1fr) 52px 70px;
+  align-items: center;
+  gap: var(--space-8);
+  padding: 5px 8px;
+  border: 1px solid var(--border-strong);
+  cursor: pointer;
+}
+.myrow:hover {
+  border-color: var(--brand-border);
+}
+.myrow__ico {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+}
+.myrow__ico.sq {
+  border-radius: 0;
+}
+.myrow__name {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.myrow__g {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.mybar {
+  height: 6px;
+  background: rgba(128, 128, 128, 0.15);
+  overflow: hidden;
+}
+.mybar i {
+  display: block;
+  height: 100%;
+  background: var(--brand-gradient);
+}
+.myrow__wr {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  color: #7fe08f;
+  text-align: right;
+}
+.myrow__kda {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-align: right;
 }

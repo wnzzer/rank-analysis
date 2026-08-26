@@ -36,3 +36,43 @@ pub fn push_overlay_data(app: tauri::AppHandle, actions: Vec<NextAction>) -> Res
     }
     Ok(())
 }
+
+// ---------------------------------------------------------------------------
+// B1 多面板框架
+// ---------------------------------------------------------------------------
+
+/// 向指定 overlay 面板推送任意负载（B1 面板信封）。
+///
+/// 与 [`push_overlay_data`] 的区别：事件为 `overlay:panel`，payload 为
+/// `{ panel, payload }` 信封——overlay 端按 `panel` 分发到注册的渲染组件，
+/// 主窗侧无需关心 overlay 内部结构。
+#[tauri::command]
+pub fn push_overlay_panel(
+    app: tauri::AppHandle,
+    panel: String,
+    payload: serde_json::Value,
+) -> Result<(), String> {
+    let envelope = serde_json::json!({ "panel": panel, "payload": payload });
+    if let Err(e) = app.emit_to("overlay", "overlay:panel", &envelope) {
+        return Err(format!("overlay 面板推送失败: {e}"));
+    }
+    Ok(())
+}
+
+/// 调整 overlay 尺寸与锚点（`top-left` / `top-center` / `top-right`）。
+#[tauri::command]
+pub fn set_overlay_layout(
+    app: tauri::AppHandle,
+    width: f64,
+    height: f64,
+    anchor: String,
+) -> Result<(), String> {
+    crate::overlay::layout(&app, width, height, &anchor);
+    Ok(())
+}
+
+/// 切换鼠标穿透（true=穿透；手动校正面板交互时传 false）。
+#[tauri::command]
+pub fn set_overlay_click_through(enabled: bool) -> Result<(), String> {
+    crate::overlay::set_click_through(enabled)
+}

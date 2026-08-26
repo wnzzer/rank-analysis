@@ -74,64 +74,11 @@ export function useAramBalance(championId: Ref<number>, queueId: Ref<number>) {
   watch(isAramMode, fetchAramBalance)
   onMounted(fetchAramBalance)
 
-  const balanceTags = computed<BalanceTag[]>(() => {
-    if (!aramBalance.value) return []
-    const b = aramBalance.value
-    const tags: BalanceTag[] = []
+  const balanceTags = computed<BalanceTag[]>(() => buildBalanceTags(aramBalance.value))
 
-    const formatPct = (val: number) => {
-      const diff = val - 1
-      return (diff > 0 ? '+' : '') + Math.round(diff * 100) + '%'
-    }
-
-    const pushPercent = (
-      value: number | undefined,
-      label: string,
-      desc: string,
-      buffWhenGreater: boolean
-    ) => {
-      if (typeof value !== 'number' || Math.abs(value - 1.0) <= 0.001) return
-      const isBuff = buffWhenGreater ? value > 1 : value < 1
-      tags.push({
-        label: `${label} ${formatPct(value)}`,
-        desc,
-        type: isBuff ? 'success' : 'error',
-        isBuff
-      })
-    }
-
-    pushPercent(b.dmg_dealt, '输出', '造成伤害修正', true)
-    pushPercent(b.dmg_taken, '承伤', '承受伤害修正', false)
-    pushPercent(b.healing, '治疗', '治疗效果修正', true)
-    pushPercent(b.shielding, '护盾', '护盾效果修正', true)
-
-    if (typeof b.ability_haste === 'number' && b.ability_haste !== 0) {
-      tags.push({
-        label: `急速 ${b.ability_haste > 0 ? '+' : ''}${b.ability_haste}`,
-        desc: '技能急速修正',
-        type: b.ability_haste > 0 ? 'success' : 'error',
-        isBuff: b.ability_haste > 0
-      })
-    }
-
-    return tags
-  })
-
-  const overallBalanceStatus = computed<BalanceStatus>(() => {
-    const tags = balanceTags.value
-    if (tags.length === 0) return { label: '平衡', type: 'default' }
-
-    let buffCount = 0
-    let nerfCount = 0
-    for (const tag of tags) {
-      if (tag.isBuff) buffCount++
-      else nerfCount++
-    }
-
-    if (buffCount > nerfCount) return { label: '增强', type: 'success' }
-    if (nerfCount > buffCount) return { label: '削弱', type: 'error' }
-    return { label: '调整', type: 'warning' }
-  })
+  const overallBalanceStatus = computed<BalanceStatus>(() =>
+    summarizeBalanceStatus(balanceTags.value)
+  )
 
   return {
     aramBalance,
@@ -139,4 +86,68 @@ export function useAramBalance(championId: Ref<number>, queueId: Ref<number>) {
     balanceTags,
     overallBalanceStatus
   }
+}
+
+/**
+ * 由平衡数据构建标签列表（纯函数，便于单测——R27-3）。
+ *
+ * 与 1.0 偏差 ≤0.001 的百分比修正视为无调整不产出标签；
+ * 急速为平铺数值（非百分比），非零即产出。
+ */
+export function buildBalanceTags(b: AramBalanceData | null | undefined): BalanceTag[] {
+  if (!b) return []
+  const tags: BalanceTag[] = []
+
+  const formatPct = (val: number) => {
+    const diff = val - 1
+    return (diff > 0 ? '+' : '') + Math.round(diff * 100) + '%'
+  }
+
+  const pushPercent = (
+    value: number | undefined,
+    label: string,
+    desc: string,
+    buffWhenGreater: boolean
+  ) => {
+    if (typeof value !== 'number' || Math.abs(value - 1.0) <= 0.001) return
+    const isBuff = buffWhenGreater ? value > 1 : value < 1
+    tags.push({
+      label: `${label} ${formatPct(value)}`,
+      desc,
+      type: isBuff ? 'success' : 'error',
+      isBuff
+    })
+  }
+
+  pushPercent(b.dmg_dealt, '输出', '造成伤害修正', true)
+  pushPercent(b.dmg_taken, '承伤', '承受伤害修正', false)
+  pushPercent(b.healing, '治疗', '治疗效果修正', true)
+  pushPercent(b.shielding, '护盾', '护盾效果修正', true)
+
+  if (typeof b.ability_haste === 'number' && b.ability_haste !== 0) {
+    tags.push({
+      label: `急速 ${b.ability_haste > 0 ? '+' : ''}${b.ability_haste}`,
+      desc: '技能急速修正',
+      type: b.ability_haste > 0 ? 'success' : 'error',
+      isBuff: b.ability_haste > 0
+    })
+  }
+
+  return tags
+}
+
+/** 按增/削计数聚合出整体平衡结论（纯函数，便于单测——R27-3）。 */
+export function summarizeBalanceStatus(tags: BalanceTag[]): BalanceStatus {
+  if (tags.length === 0) return { label: '平衡', type: 'default' }
+
+  let buffCount = 0
+  let nerfCount = 0
+  for (const tag of tags) {
+    if (tag.isBuff) buffCount++
+    else nerfCount++
+  }
+
+  if (buffCount > nerfCount) return { label: '增强', type: 'success' }
+  if (nerfCount > buffCount) return { label: '削弱', type: 'error' }
+  return { label: '调整', type: 'warning' }
 }

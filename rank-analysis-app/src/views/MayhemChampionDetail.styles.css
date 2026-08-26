@@ -1,0 +1,402 @@
+.mdetail {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  padding: 6px 14px;
+  cursor: pointer;
+  border: none;
+  clip-path: var(--clip-notch);
+}
+.btn.gho {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-strong);
+}
+.btn.gho:hover {
+  color: var(--text-primary);
+  border-color: var(--brand-border);
+}
+
+.m-alert {
+  background: rgba(255, 96, 96, 0.08);
+  border: 1px solid rgba(255, 96, 96, 0.35);
+  color: var(--text-primary);
+  font-size: var(--font-size-xs);
+  padding: var(--space-8) var(--space-12);
+  margin-bottom: var(--space-12);
+  line-height: 1.6;
+}
+.m-empty {
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  padding: 48px 0;
+}
+.m-roles {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.chip {
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  padding: 3px 12px;
+  cursor: pointer;
+}
+.chip:hover {
+  color: var(--text-primary);
+}
+.chip--on {
+  background: var(--brand-gradient);
+  color: var(--text-on-brand);
+  border-color: transparent;
+}
+
+.d-body {
+  padding: var(--space-4) var(--space-24) var(--space-28);
+}
+
+/* ---- 概要 ---- */
+.d-hero {
+  display: flex;
+  gap: var(--space-16);
+  align-items: center;
+  padding: var(--space-12) 0 var(--space-20);
+}
+.d-ava {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  border: 2px solid var(--brand-border);
+}
+.d-nameline {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+.ctier {
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  padding: 1px 6px;
+  letter-spacing: 0.04em;
+}
+.t1 {
+  color: #ffd76a;
+  border: 1px solid #ffd76a66;
+}
+.t2 {
+  color: #c9a2ff;
+  border: 1px solid #c9a2ff66;
+}
+.t3 {
+  color: #7fb3ff;
+  border: 1px solid #7fb3ff66;
+}
+.t4 {
+  color: #74e0c8;
+  border: 1px solid #74e0c866;
+}
+.t5 {
+  color: var(--text-tertiary);
+  border: 1px solid var(--border-strong);
+}
+
+.d-name {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+}
+.d-subname {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+}
+.d-statsrow {
+  display: flex;
+  gap: var(--space-20);
+  margin-top: var(--space-8);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-bold);
+  color: #7fe08f;
+}
+.d-statsrow em,
+.d-sksum em {
+  font-style: normal;
+}
+.d-statsrow em {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-tertiary);
+  margin-right: 6px;
+}
+.d-rolerow {
+  margin-top: var(--space-8);
+  display: flex;
+  gap: 4px;
+}
+.d-rolerow i {
+  font-style: normal;
+  font-size: 10px;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-strong);
+  padding: 0 5px;
+}
+.d-balrow {
+  margin-top: var(--space-8);
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.dbal {
+  font-size: 10px;
+  padding: 1px 6px;
+  border: 1px solid var(--border-strong);
+}
+.dbal.buff {
+  color: #7fe08f;
+  border-color: #7fe08f66;
+}
+.dbal.nerf {
+  color: #ff8f8f;
+  border-color: #ff8f8f66;
+}
+
+/* ---- 区块 ---- */
+.d-sec {
+  margin-bottom: var(--space-24);
+}
+.d-sec h3 {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  margin-bottom: var(--space-8);
+}
+.d-sechead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+}
+.d-hint {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-bottom: var(--space-8);
+}
+.d-label {
+  display: inline-block;
+  min-width: 88px;
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+}
+.d-rowgroup {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-12);
+  margin-top: var(--space-10);
+}
+.d-rowgroup > img,
+.d-sits img,
+.d-spells img,
+.d-starter img,
+.d-ext img,
+.dtrio img {
+  width: 26px;
+  height: 26px;
+}
+img {
+  vertical-align: middle;
+}
+
+/* ---- 推荐强化列表 ---- */
+.d-augs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 6px;
+}
+.daug {
+  display: grid;
+  grid-template-columns: 30px 1fr auto auto;
+  grid-template-rows: auto auto;
+  column-gap: 8px;
+  row-gap: 0;
+  align-items: center;
+  border: 1px solid var(--border-strong);
+  padding: 6px 8px;
+}
+.daug > img {
+  grid-row: span 2;
+  width: 30px;
+  height: 30px;
+}
+.daug__name {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ararity {
+  justify-self: end;
+  font-size: 10px;
+  padding: 0 6px;
+  border: 1px solid var(--border-strong);
+  color: var(--text-secondary);
+}
+.rr-prismatic {
+  color: #ffd76a;
+  border-color: #ffd76a88;
+}
+.rr-gold {
+  color: #e8b563;
+  border-color: #e8b56366;
+}
+.rr-silver {
+  color: #b9c4d0;
+  border-color: #b9c4d066;
+}
+.daug__wr {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  color: #7fe08f;
+  justify-self: end;
+}
+.daug__pr {
+  grid-column: 2 / 4;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+/* ---- 组合 ---- */
+.d-trios {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.dtrio {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.dtrio__rank {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  width: 26px;
+}
+.dtrio__wr {
+  margin-left: var(--space-8);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  color: #7fe08f;
+}
+.dtrio__g {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+/* ---- 出装行 ---- */
+.d-corelist {
+  display: flex;
+  gap: var(--space-16);
+  flex-wrap: wrap;
+}
+.d-coreset {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.d-coremata {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-left: 4px;
+}
+.d-starters,
+.d-spells,
+.d-exts {
+  display: flex;
+  gap: var(--space-16);
+  flex-wrap: wrap;
+}
+.d-starter,
+.d-spell,
+.d-ext {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.d-starter em,
+.d-spell em,
+.d-ext em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.d-sits {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+/* ---- 技能加点 ---- */
+.d-skills {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.d-skillline {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-12);
+}
+.d-sksum {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-secondary);
+  min-width: 64px;
+}
+.skillbar {
+  display: inline-flex;
+  gap: 1px;
+}
+.skillbar i {
+  font-style: normal;
+  font-size: 9px;
+  line-height: 1;
+  width: 15px;
+  padding: 3px 0;
+  text-align: center;
+  background: rgba(128, 128, 128, 0.12);
+  color: var(--text-secondary);
+}
+.skillbar .k-q {
+  color: #7fb3ff;
+  background: rgba(127, 179, 255, 0.14);
+}
+.skillbar .k-w {
+  color: #74e0c8;
+  background: rgba(116, 224, 200, 0.14);
+}
+.skillbar .k-e {
+  color: #e8a0ff;
+  background: rgba(232, 160, 255, 0.14);
+}
+.skillbar .k-r {
+  color: #ffd76a;
+  background: rgba(255, 215, 106, 0.18);
+  font-weight: bold;
+}
+
+@media (max-width: 900px) {
+  .d-rowgroup {
+    flex-direction: column;
+    gap: var(--space-6);
+  }
+}
