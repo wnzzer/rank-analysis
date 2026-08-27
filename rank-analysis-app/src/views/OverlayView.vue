@@ -8,7 +8,8 @@
  * - `overlay:config` 可选推送 { maxItems, opacity } 覆盖本地偏好。
  * 透明背景 + 鼠标穿透由 Rust 端窗口属性控制（set_ignore_cursor_events）。
  */
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { NEXT_ACTION_LABELS, URGENCY_COLORS, type NextAction } from '@renderer/services/nextAction'
 import { loadOverlayPrefs, saveOverlayPrefs, type OverlayPrefs } from '@renderer/utils/overlayPrefs'
@@ -90,11 +91,24 @@ onMounted(async () => {
   }
 })
 
+watch(
+  hasContent,
+  val => {
+    if (!val) {
+      void invoke('hide_overlay_window').catch(() => {})
+    } else {
+      void invoke('show_overlay_window').catch(() => {})
+    }
+  },
+  { immediate: true }
+)
+
 onUnmounted(() => {
   unlistenUpdate?.()
   unlistenConfig?.()
   unlistenPanel?.()
   window.removeEventListener('resize', updateMaxByHeight)
+  void invoke('hide_overlay_window').catch(() => {})
 })
 </script>
 

@@ -36,6 +36,19 @@
           </n-text>
         </n-space>
       </n-form-item>
+      <n-form-item label="大乱斗界面风格">
+        <n-space vertical :size="4" style="width: 100%">
+          <n-select
+            :value="mayhemViewMode"
+            :options="mayhemViewModeOptions"
+            style="width: 280px"
+            @update:value="handleMayhemViewModeUpdate"
+          />
+          <n-text :depth="3" style="font-size: var(--font-size-sm)">
+            选择海克斯大乱斗页面呈现形式：Meta 矩阵看板（AramMeta 紧凑 T 级 + 4 大 Tab 联动）或 经典列表卡片。
+          </n-text>
+        </n-space>
+      </n-form-item>
       <n-form-item label="匿名错误上报">
         <n-space vertical :size="4">
           <n-switch v-model:value="errorReporting" @update:value="handleReportingUpdate" />
@@ -314,6 +327,25 @@ const usageLog = ref<AiUsageEntry[]>([])
 const usageTotal = computed(() => sumAiUsage(usageLog.value))
 const message = useMessage()
 
+/** 大乱斗界面风格配置（matrix / classic） */
+const mayhemViewMode = ref<'matrix' | 'classic'>('matrix')
+const mayhemViewModeOptions = [
+  { label: 'Meta 矩阵看板（推荐，AramMeta 紧凑分栏）', value: 'matrix' },
+  { label: '经典列表卡片（原有视图）', value: 'classic' }
+]
+
+async function handleMayhemViewModeUpdate(val: string | number) {
+  const mode = val === 'classic' ? 'classic' : 'matrix'
+  mayhemViewMode.value = mode
+  localStorage.setItem('mayhem.viewMode', mode)
+  try {
+    await putConfigByIpc('mayhem.viewMode', mode)
+    message.success(`大乱斗界面已切换为「${mode === 'matrix' ? 'Meta 矩阵看板' : '经典列表卡片'}」`)
+  } catch {
+    /* ignore */
+  }
+}
+
 /** 对局浮窗偏好（localStorage，overlay 窗口同源读取；见 utils/overlayPrefs.ts） */
 const overlayPrefs = ref(loadOverlayPrefs())
 
@@ -433,6 +465,19 @@ onMounted(async () => {
     }
   } catch (e) {
     console.error(e)
+  }
+  try {
+    const mode = await getConfigByIpc<string>('mayhem.viewMode')
+    if (mode === 'matrix' || mode === 'classic') {
+      mayhemViewMode.value = mode
+    } else {
+      const ls = localStorage.getItem('mayhem.viewMode')
+      if (ls === 'matrix' || ls === 'classic') {
+        mayhemViewMode.value = ls
+      }
+    }
+  } catch {
+    /* ignore */
   }
   try {
     const enabled = await getConfigByIpc<boolean>(CONFIG_KEYS.errorReportingEnabled)

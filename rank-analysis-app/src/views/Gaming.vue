@@ -318,7 +318,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { invoke } from '@tauri-apps/api/core'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
@@ -645,6 +645,15 @@ watch(
     }
   }
 )
+
+onUnmounted(() => {
+  if (nextActionTimer) {
+    clearInterval(nextActionTimer)
+    nextActionTimer = null
+  }
+  nextActions.value = []
+  void invoke('hide_overlay_window').catch(() => {})
+})
 
 /** 展示用 champSelect：实时数据优先，选人期结束后回退到最后一次快照，供离开选人期后继续展示阶段/ban 条 */
 const displayChampSelect = computed(() => sessionData.champSelect ?? lastChampSelect.value)

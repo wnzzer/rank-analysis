@@ -384,6 +384,7 @@ pub async fn sync(force: bool) -> Result<Option<SyncReport>, String> {
         std::fs::remove_dir_all(&staging).map_err(|e| e.to_string())?;
     }
 
+    let final_dir = root.join("versions").join(&config.data_version);
     let mut total_files = 0usize;
     let mut total_bytes = 0u64;
     for file in &manifest.files {
@@ -391,20 +392,43 @@ pub async fn sync(force: bool) -> Result<Option<SyncReport>, String> {
             return Err(format!("unsafe path in manifest: {}", file.path));
         }
         let dest = staging.join(&file.path);
-        let url = if file.url.is_empty() {
-            super::client::join_origin(&format!(
-                "/api/client/v1/data/{}/{}",
-                config.data_version, file.path
-            ))
-        } else {
-            super::client::join_origin(&file.url)
-        };
-        total_bytes += super::client::download_verified(&url, file.hash.as_deref(), &dest).await?;
-        total_files += 1;
+        let existing = final_dir.join(&file.path);
+        let mut reused = false;
+        if existing.exists() {
+            if let Ok(bytes) = std::fs::read(&existing) {
+                let valid = if let Some(expected_hex) = super::client::parse_sha256_hex(file.hash.as_deref()) {
+                    use sha2::{Digest, Sha256};
+                    let actual = hex::encode(Sha256::digest(&bytes));
+                    actual.eq_ignore_ascii_case(&expected_hex)
+                } else {
+                    true
+                };
+                if valid {
+                    crate::paths::ensure_parent_dir(&dest)
+                        .map_err(|e| format!("mkdir {}: {}", dest.display(), e))?;
+                    if std::fs::copy(&existing, &dest).is_ok() {
+                        total_bytes += bytes.len() as u64;
+                        total_files += 1;
+                        reused = true;
+                    }
+                }
+            }
+        }
+        if !reused {
+            let url = if file.url.is_empty() {
+                super::client::join_origin(&format!(
+                    "/api/client/v1/data/{}/{}",
+                    config.data_version, file.path
+                ))
+            } else {
+                super::client::join_origin(&file.url)
+            };
+            total_bytes += super::client::download_verified(&url, file.hash.as_deref(), &dest).await?;
+            total_files += 1;
+        }
     }
 
     // 校验全部通过后才落正式目录；目标已存在（上次中断残留）先移除
-    let final_dir = root.join("versions").join(&config.data_version);
     if final_dir.exists() {
         std::fs::remove_dir_all(&final_dir).map_err(|e| e.to_string())?;
     }

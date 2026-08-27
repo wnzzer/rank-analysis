@@ -52,7 +52,10 @@ pub struct MayhemStatus {
 /// - `Ok(Some(report))`：完成了一次新版本下载
 #[tauri::command]
 pub async fn mayhem_sync(force: Option<bool>) -> Result<Option<SyncReport>, String> {
-    let _guard = SYNC_LOCK.lock().await;
+    let Ok(_guard) = SYNC_LOCK.try_lock() else {
+        log::info!("[mayhem] 同步任务正在进行中，避免并发重复同步");
+        return Ok(None);
+    };
     crate::mayhem::store::sync(force.unwrap_or(false)).await
 }
 

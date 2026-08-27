@@ -11,6 +11,14 @@
           数据 {{ status.activeVersion }}
           <template v-if="syncedDateText"> · {{ syncedDateText }}</template>
         </span>
+        <button
+          class="btn gho sm"
+          :title="mayhemStore.viewMode === 'matrix' ? '切换为经典列表卡片视图' : '切换为 Meta 矩阵看板视图'"
+          @click="toggleViewMode"
+        >
+          <LayoutGrid class="btn-ico" />
+          {{ mayhemStore.viewMode === 'matrix' ? '切换至经典列表' : '切换至矩阵看板' }}
+        </button>
         <button class="btn gho sm" :disabled="syncing" @click="onSync(true)">
           <RefreshCw class="btn-ico" :class="{ spinning: syncing }" />
           {{ syncing ? '同步中…' : '刷新数据' }}
@@ -30,7 +38,12 @@
 
       <div v-if="error" class="m-alert">{{ error }}</div>
 
-      <div class="m-tabs">
+      <!-- 全新 Meta 矩阵看板视图 (AramMeta 进阶版) -->
+      <MayhemMatrixView v-if="mayhemStore.viewMode === 'matrix'" />
+
+      <!-- 经典列表卡片视图（保留原有 UI/UX） -->
+      <div v-else class="classic-mode-container">
+        <div class="m-tabs">
         <button
           v-for="t in TABS"
           :key="t.key"
@@ -279,6 +292,7 @@
           </div>
         </section>
       </template>
+      </div>
 
       <p class="m-note">
         数据来源：aramgg 公开客户端 API（腾讯国服公开统计口径，T 级官方、胜率随版本每日更新）。
@@ -294,13 +308,13 @@
  * 三 Tab：英雄榜 / 强化榜 / 我的；强化榜含浮窗预览、对局监听与手动三选一兜底。
  * 首屏本地优先；无本地数据或手动点击才走网络同步。
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { invoke } from '@tauri-apps/api/core'
 
 import PageStage from '../components/ui/PageStage.vue'
 import EmptyState from '../components/ui/EmptyState.vue'
-import { Download, Inbox, RefreshCw, SearchX } from 'lucide-vue-next'
+import { Download, Inbox, LayoutGrid, RefreshCw, SearchX } from 'lucide-vue-next'
 import { assetPrefix } from '../services/http'
 import {
   bestStage,
@@ -321,6 +335,8 @@ import {
   type MyAugmentStat,
   type MyChampionStat
 } from '../features/mayhem/services/mayhemData'
+import MayhemMatrixView from './mayhem/MayhemMatrixView.vue'
+import { useMayhemStore } from '../features/mayhem/stores/mayhemStore'
 import {
   assistManual,
   previewAugmentOverlay,
@@ -366,22 +382,56 @@ let assist: AssistScheduler | null = null
 const CHANGES_SEEN_KEY = 'mayhem-changes-seen-version'
 
 const router = useRouter()
+const mayhemStore = useMayhemStore()
 
-const status = ref<MayhemStatus | null>(null)
-const champions = ref<MayhemChampion[]>([])
-const augments = ref<MayhemAugment[]>([])
-const loading = ref(false)
-const augsLoading = ref(false)
-const syncing = ref(false)
-const error = ref('')
+function toggleViewMode() {
+  const next = mayhemStore.viewMode === 'matrix' ? 'classic' : 'matrix'
+  void mayhemStore.setViewMode(next)
+}
+
+const status = computed({
+  get: () => mayhemStore.status,
+  set: v => (mayhemStore.status = v)
+})
+const champions = computed({
+  get: () => mayhemStore.champions,
+  set: v => (mayhemStore.champions = v)
+})
+const augments = computed({
+  get: () => mayhemStore.augments,
+  set: v => (mayhemStore.augments = v)
+})
+const myChamps = computed({
+  get: () => mayhemStore.myChamps,
+  set: v => (mayhemStore.myChamps = v)
+})
+const myAugs = computed({
+  get: () => mayhemStore.myAugs,
+  set: v => (mayhemStore.myAugs = v)
+})
+const loading = computed({
+  get: () => mayhemStore.loading,
+  set: v => (mayhemStore.loading = v)
+})
+const augsLoading = computed({
+  get: () => mayhemStore.augsLoading,
+  set: v => (mayhemStore.augsLoading = v)
+})
+const syncing = computed({
+  get: () => mayhemStore.syncing,
+  set: v => (mayhemStore.syncing = v)
+})
+const error = computed({
+  get: () => mayhemStore.error,
+  set: v => (mayhemStore.error = v)
+})
+
 const search = ref('')
 const activeTab = ref<'champions' | 'augments' | 'mine'>('champions')
 const activeRole = ref('all')
 const activeRarity = ref('all')
 const showNoSample = ref(false)
 
-const myChamps = ref<MyChampionStat[]>([])
-const myAugs = ref<MyAugmentStat[]>([])
 const importing = ref(false)
 const importNote = ref('')
 const mineLoadedOnce = ref(false)
@@ -468,6 +518,7 @@ function dismissChanges() {
 
 function switchTab(key: 'champions' | 'augments' | 'mine') {
   activeTab.value = key
+  if (key === 'champions' && !champions.value.length) void loadData()
   if (key === 'augments' && !augments.value.length && status.value?.ready) void loadAugments()
   // 「我的」需要强化名称表做展示；首次进入时并行拉取本地聚合
   if (key === 'mine') {
@@ -535,50 +586,30 @@ function plainDesc(a: MayhemAugment): string {
 }
 
 async function loadData() {
-  loading.value = true
-  error.value = ''
-  try {
-    const res = await getMayhemChampions()
-    champions.value = extractMayhemChampions(res)
-  } catch (e) {
-    error.value = `读取本地数据失败：${String(e)}（可尝试刷新数据）`
-  } finally {
-    loading.value = false
-  }
+  const res = await getMayhemChampions()
+  champions.value = extractMayhemChampions(res)
+  await mayhemStore.loadChampions(true)
 }
 
 async function loadAugments() {
-  augsLoading.value = true
-  try {
-    const res = await getMayhemAugments()
-    augments.value = res.data ?? []
-  } catch (e) {
-    error.value = `读取强化数据失败：${String(e)}`
-  } finally {
-    augsLoading.value = false
-  }
+  const res = await getMayhemAugments()
+  if (res.data) augments.value = res.data
+  await mayhemStore.loadAugments(true)
 }
 
 async function onSync(force: boolean) {
-  syncing.value = true
-  try {
-    await syncMayhemData(force)
-    await Promise.all([loadData(), loadAugments()])
-    status.value = await getMayhemStatus()
-  } catch (e) {
-    error.value = `同步失败（离线时可继续使用本地版本）：${String(e)}`
-  } finally {
-    syncing.value = false
-  }
+  await syncMayhemData(force)
+  await mayhemStore.sync(force)
+  const st = (await getMayhemStatus()) as MayhemStatus
+  status.value = st
 }
 
 async function loadMine() {
   mineLoadedOnce.value = true
-  try {
-    ;[myChamps.value, myAugs.value] = await Promise.all([getMyChampionStats(), getMyAugmentStats()])
-  } catch (e) {
-    error.value = `读取自采数据失败：${String(e)}`
-  }
+  const [c, a] = await Promise.all([getMyChampionStats(), getMyAugmentStats()])
+  myChamps.value = c
+  myAugs.value = a
+  await mayhemStore.loadMine(true)
 }
 
 async function onImport() {
@@ -699,6 +730,8 @@ function toggleAssist() {
 }
 
 onMounted(async () => {
+  await mayhemStore.init()
+
   // 同步单例调度器现有状态（跨页切换保持状态一致）
   if (assist?.running) {
     assistRunning.value = true
@@ -709,22 +742,19 @@ onMounted(async () => {
   void applyOverlayHotkey(loadOverlayPrefs().hotkeyEnabled).catch(e =>
     console.warn('热键注册失败:', e)
   )
-  try {
-    status.value = await getMayhemStatus()
-    void getMayhemVersionChanges()
-      .then(list => {
-        versionChanges.value = list
-      })
-      .catch(() => {})
-    if (!status.value.ready) {
-      await onSync(false)
-    } else {
-      await loadData()
-    }
-  } catch (e) {
-    error.value = `初始化失败：${String(e)}`
-    loading.value = false
+  void getMayhemVersionChanges()
+    .then(list => {
+      versionChanges.value = list
+    })
+    .catch(() => {})
+})
+
+onUnmounted(() => {
+  if (assist?.running) {
+    assist.stop()
+    assistRunning.value = false
   }
+  void invoke('hide_overlay_window').catch(() => {})
 })
 </script>
 

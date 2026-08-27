@@ -132,10 +132,14 @@ fn position_by_anchor(app: &tauri::AppHandle, width: f64, anchor: &str) {
         // 默认右上（历史行为）
         _ => screen_w - width as i32 - OVERLAY_MARGIN as i32,
     };
+    let y = match anchor {
+        "top-right" => 64, // 避开顶栏窗控按钮区域（最小化/最大化/关闭）
+        _ => OVERLAY_MARGIN as i32,
+    };
     if let Some(w) = get_window() {
         let _ = w.set_position(Position::Physical(tauri::PhysicalPosition::new(
             x,
-            OVERLAY_MARGIN as i32,
+            y,
         )));
     }
 }
