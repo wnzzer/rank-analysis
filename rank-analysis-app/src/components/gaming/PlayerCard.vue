@@ -145,9 +145,17 @@
                 <!-- 大乱斗（2400）：官方 T 级角标（腾讯口径，来自 mayhem 数据） -->
                 <n-tooltip v-if="mayhemTier" trigger="hover">
                   <template #trigger>
-                    <span class="mayhem-tier">T{{ mayhemTier }}</span>
+                    <span
+                      class="mayhem-tier"
+                      role="button"
+                      tabindex="0"
+                      @click.stop="openMayhemDetail(sessionSummoner.championId)"
+                      @keydown.enter.stop="openMayhemDetail(sessionSummoner.championId)"
+                    >
+                      T{{ mayhemTier }}
+                    </span>
                   </template>
-                  海克斯大乱斗官方强度层级（腾讯国服公开统计）
+                  海克斯大乱斗官方强度 T{{ mayhemTier }} · 点击查看强化推荐与出装
                 </n-tooltip>
                 <!-- 版本徽章自隐藏（零占位），保留在 meta 行；其余低频信息收进下方 ⓘ -->
                 <PatchNoteBadge :champion-id="sessionSummoner.championId" :mode="opggMode" />
@@ -226,6 +234,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onUnmounted, ref, toRef, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   NCard,
   NFlex,
@@ -410,6 +419,14 @@ watch(
   },
   { immediate: true }
 )
+
+const router = useRouter()
+
+function openMayhemDetail(championId: number) {
+  if (!championId) return
+  void router.push({ name: 'MayhemChampionDetail', params: { id: String(championId) } })
+}
+
 const opggBadge = computed(() => tierBadge(opggMeta.value?.tier ?? 0))
 /** 胜率语义色：>=52% 绿、<=48% 红，与 ChampionIntelCard 同一套规则 */
 const opggWinRateClass = computed(() => {
@@ -538,6 +555,14 @@ watch(
   letter-spacing: 0.04em;
   color: #ffd76a;
   border: 1px solid rgba(255, 215, 106, 0.5);
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    border-color 0.15s ease;
+}
+.mayhem-tier:hover {
+  border-color: #ffd76a;
+  transform: translateY(-1px);
 }
 
 /* 当前英雄 OP.GG T 级/胜率 chip：样式简化版复用 ChampionIntelCard 的 intel-tier/intel-winrate 语义 */
