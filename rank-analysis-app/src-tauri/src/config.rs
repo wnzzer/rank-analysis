@@ -844,10 +844,7 @@ mod tests {
             .await;
         get_cache()
             .await
-            .insert(
-                "ai.apiKey".to_string(),
-                Value::String("sk-openai".into()),
-            )
+            .insert("ai.apiKey".to_string(), Value::String("sk-openai".into()))
             .await;
 
         let file_snap = config_snapshot(false).await;
