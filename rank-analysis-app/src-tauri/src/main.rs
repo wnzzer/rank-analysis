@@ -6,6 +6,7 @@ use rank_analysis_lib::command;
 use rank_analysis_lib::lcu::api::asset as asset_api;
 use rank_analysis_lib::score;
 use rank_analysis_lib::state::AppState;
+use tauri::Manager;
 
 // NOTE: main is no longer async
 fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
@@ -310,6 +311,19 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             sentry::Level::Info,
         );
     }
+
+    app_builder = app_builder.on_window_event(|window, event| {
+        if let tauri::WindowEvent::CloseRequested { .. } = event {
+            if window.label() == "main" {
+                info!("[lifecycle] 主窗口请求关闭，彻底销毁所有子窗口并退出全进程...");
+                if let Some(overlay) = window.app_handle().get_webview_window("overlay") {
+                    let _ = overlay.destroy();
+                }
+                rank_analysis_lib::shard::dispose_all();
+                std::process::exit(0);
+            }
+        }
+    });
 
     app_builder
         .build(tauri::generate_context!())

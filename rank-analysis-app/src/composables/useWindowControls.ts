@@ -6,6 +6,7 @@
  * 裸调 getCurrentWindow 会在启动时抛错导致整树渲染失败。
  */
 import { getCurrentWindow } from '@tauri-apps/api/window'
+import { isMainWindow } from '@renderer/utils/windows'
 
 function hasTauri(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
@@ -36,7 +37,16 @@ export function useWindowControls() {
 
   /** 关闭窗口 */
   const close = async (): Promise<void> => {
-    await appWindow.close()
+    if (isMainWindow()) {
+      try {
+        const { exit } = await import('@tauri-apps/plugin-process')
+        await exit(0)
+      } catch {
+        await appWindow.close()
+      }
+    } else {
+      await appWindow.close()
+    }
   }
 
   /** 设置窗口始终置顶 */

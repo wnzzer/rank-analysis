@@ -59,7 +59,7 @@ pub async fn mayhem_sync(force: Option<bool>) -> Result<Option<SyncReport>, Stri
     crate::mayhem::store::sync(force.unwrap_or(false)).await
 }
 
-/// 查询本地数据状态（纯磁盘读取，离线可用）。
+/// 查询本地数据状态（纯文件存在性自检，不阻塞 IPC 线程）。
 #[tauri::command]
 pub fn mayhem_status() -> Result<MayhemStatus, String> {
     let ptr = crate::mayhem::store::read_pointer();
@@ -67,10 +67,12 @@ pub fn mayhem_status() -> Result<MayhemStatus, String> {
         Some(p) => (Some(p.data_version.clone()), Some(p.synced_at)),
         None => (None, None),
     };
-    let ready = version.is_some()
-        && crate::mayhem::store::read_local_json("champions.json").is_ok()
-        && crate::mayhem::store::read_local_json("augments.json").is_ok()
-        && crate::mayhem::store::read_local_json("champion-shards/index.json").is_ok();
+    let ready = version.as_ref().map_or(false, |ver| {
+        let vdir = crate::mayhem::store::root_dir().join("versions").join(ver);
+        vdir.join("champions.json").is_file()
+            && vdir.join("augments.json").is_file()
+            && vdir.join("champion-shards").join("index.json").is_file()
+    });
     Ok(MayhemStatus {
         active_version: version,
         synced_at,
