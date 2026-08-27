@@ -13,6 +13,27 @@
         </span>
         <button
           class="btn gho sm"
+          :class="{ 'btn--on': assistRunning }"
+          :title="assistRunning ? '对局监听已开启（游戏内出现三选一时自动弹出）' : '点击启动对局监听'"
+          @click="toggleAssist"
+        >
+          <Radio class="btn-ico" />
+          {{ assistRunning ? '监听已开启' : '启动对局监听' }}
+        </button>
+        <button class="btn gho sm" :disabled="previewing" @click="onPreviewPanel">
+          <Eye class="btn-ico" />
+          {{ previewing ? '推送中…' : '预览浮窗' }}
+        </button>
+        <button
+          class="btn gho sm"
+          :class="{ 'btn--on': manualOpen }"
+          @click="manualOpen = !manualOpen"
+        >
+          <Keyboard class="btn-ico" />
+          {{ manualOpen ? '收起手动' : '手动三选一' }}
+        </button>
+        <button
+          class="btn gho sm"
           :title="mayhemStore.viewMode === 'matrix' ? '切换为经典列表卡片视图' : '切换为 Meta 矩阵看板视图'"
           @click="toggleViewMode"
         >
@@ -37,6 +58,26 @@
       </div>
 
       <div v-if="error" class="m-alert">{{ error }}</div>
+
+      <!-- 手动三选一（OCR 兜底）：输入卡面文字 → 打分 → 推浮窗 -->
+      <div v-if="manualOpen" class="m-manual">
+        <input
+          v-for="(_, i) in manualTexts"
+          :key="i"
+          v-model.trim="manualTexts[i]"
+          class="m-search m-manual__slot"
+          :placeholder="['左卡名称', '中卡名称', '右卡名称'][i]"
+          maxlength="20"
+          @keydown.enter="onManualAssist"
+        />
+        <label class="m-toggle"
+          >重随
+          <input v-model.number="manualRerolls" type="number" min="0" max="9" style="width: 48px" />
+        </label>
+        <button class="btn pri sm" :disabled="manualBusy" @click="onManualAssist">
+          {{ manualBusy ? '推送中…' : '打分并推浮窗' }}
+        </button>
+      </div>
 
       <!-- 全新 Meta 矩阵看板视图 (AramMeta 进阶版) -->
       <MayhemMatrixView v-if="mayhemStore.viewMode === 'matrix'" />
@@ -119,26 +160,6 @@
         <span class="m-toggle">
           若框未对准卡名，请调整 src-tauri/src/mayhem/capture.rs 的标定常数后重新截取。
         </span>
-      </div>
-
-      <!-- 手动三选一（OCR 兜底）：输入卡面文字 → 打分 → 推浮窗 -->
-      <div v-if="manualOpen" class="m-manual">
-        <input
-          v-for="(_, i) in manualTexts"
-          :key="i"
-          v-model.trim="manualTexts[i]"
-          class="m-search m-manual__slot"
-          :placeholder="['左卡名称', '中卡名称', '右卡名称'][i]"
-          maxlength="20"
-          @keydown.enter="onManualAssist"
-        />
-        <label class="m-toggle"
-          >重随
-          <input v-model.number="manualRerolls" type="number" min="0" max="9" style="width: 48px" />
-        </label>
-        <button class="btn pri sm" :disabled="manualBusy" @click="onManualAssist">
-          {{ manualBusy ? '推送中…' : '打分并推浮窗' }}
-        </button>
       </div>
 
       <!-- Tab 1 英雄榜 -->
@@ -314,7 +335,7 @@ import { invoke } from '@tauri-apps/api/core'
 
 import PageStage from '../components/ui/PageStage.vue'
 import EmptyState from '../components/ui/EmptyState.vue'
-import { Download, Inbox, LayoutGrid, RefreshCw, SearchX } from 'lucide-vue-next'
+import { Download, Eye, Inbox, Keyboard, LayoutGrid, Radio, RefreshCw, SearchX } from 'lucide-vue-next'
 import { assetPrefix } from '../services/http'
 import {
   bestStage,
