@@ -177,7 +177,7 @@ pub async fn download_verified(
         match client.get(url).send().await {
             Ok(resp) if resp.status().is_success() => match resp.bytes().await {
                 Ok(bytes) => break bytes,
-                Err(e) if attempts < 3 => {
+                Err(_e) if attempts < 3 => {
                     tokio::time::sleep(std::time::Duration::from_millis(300 * attempts)).await;
                     continue;
                 }
@@ -188,7 +188,7 @@ pub async fn download_verified(
                 continue;
             }
             Ok(resp) => return Err(format!("GET {}: HTTP {}", url, resp.status())),
-            Err(e) if attempts < 3 => {
+            Err(_e) if attempts < 3 => {
                 tokio::time::sleep(std::time::Duration::from_millis(300 * attempts)).await;
                 continue;
             }
