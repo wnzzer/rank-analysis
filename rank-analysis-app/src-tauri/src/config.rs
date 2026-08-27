@@ -469,7 +469,7 @@ pub const BACKUP_BLACKLIST: &[&str] = &[
 
 /// 仅云端额外排除的键:云端按 puuid 寻址、任何人可读,API key 放上去等于公开;
 /// 文件备份由用户自己保管,保留。
-pub const CLOUD_ONLY_BLACKLIST: &[&str] = &["dashscopeApiKey"];
+pub const CLOUD_ONLY_BLACKLIST: &[&str] = &["dashscopeApiKey", "ai.apiKey"];
 
 /// 该键是否允许进入文件备份
 pub fn allowed_in_backup(key: &str) -> bool {
@@ -814,6 +814,8 @@ mod tests {
         // API key:文件保留、云端排除
         assert!(allowed_in_backup("dashscopeApiKey"));
         assert!(!allowed_in_cloud("dashscopeApiKey"));
+        assert!(allowed_in_backup("ai.apiKey"));
+        assert!(!allowed_in_cloud("ai.apiKey"));
         // 普通键:两边都进
         assert!(allowed_in_backup("theme"));
         assert!(allowed_in_cloud("theme"));
@@ -840,15 +842,24 @@ mod tests {
                 Value::String("sk-xxx".into()),
             )
             .await;
+        get_cache()
+            .await
+            .insert(
+                "ai.apiKey".to_string(),
+                Value::String("sk-openai".into()),
+            )
+            .await;
 
         let file_snap = config_snapshot(false).await;
         assert!(file_snap.contains_key("snapTest.theme"));
         assert!(file_snap.contains_key("dashscopeApiKey"));
+        assert!(file_snap.contains_key("ai.apiKey"));
         assert!(!file_snap.contains_key("cloudSyncSession"));
 
         let cloud_snap = config_snapshot(true).await;
         assert!(cloud_snap.contains_key("snapTest.theme"));
         assert!(!cloud_snap.contains_key("dashscopeApiKey"));
+        assert!(!cloud_snap.contains_key("ai.apiKey"));
         assert!(!cloud_snap.contains_key("cloudSyncSession"));
     }
 
@@ -858,11 +869,13 @@ mod tests {
         snap.insert("theme".to_string(), Value::String("dark".into()));
         snap.insert("cloudSyncSession".to_string(), Value::String("evil".into()));
         snap.insert("dashscopeApiKey".to_string(), Value::String("sk".into()));
+        snap.insert("ai.apiKey".to_string(), Value::String("sk-ai".into()));
         let kept = filter_snapshot_for_apply(snap);
         let keys: Vec<&str> = kept.iter().map(|(k, _)| k.as_str()).collect();
         assert!(keys.contains(&"theme"));
         // 备份文件允许恢复 API key(黑名单只挡设备级键)
         assert!(keys.contains(&"dashscopeApiKey"));
+        assert!(keys.contains(&"ai.apiKey"));
         assert!(!keys.contains(&"cloudSyncSession"));
     }
 

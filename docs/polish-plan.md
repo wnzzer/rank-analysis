@@ -39,6 +39,7 @@
 | R30 | 模式列表测试化 / configKeys 一致性核查 |
 | R31 | Mayhem 空态统一 / draft 缺口边界 / README 同步 |
 | R32 | 赛后战报文本格式化与快捷分享（E6）/ 单测补全 |
+| R33 | ai.apiKey 云端黑名单安全合规 / PlayerCard 大乱斗角标跳转 |
 
 ---
 
@@ -352,11 +353,15 @@
 - [x] R32-3 MatchDetailReviewTab.vue 接入一键复制战报按钮，与 useCopy() 配合给出即时交互反馈。
 - [x] R32-4 polish-plan 轮次速览表滚动维护。
 
-## Round 33 候选池
-- R33-1 `ai.apiKey` 是否应加入 CLOUD_ONLY_BLACKLIST 的产品决策与实施
-  （若排除：Rust 黑名单 + 单测 + README 数据说明三处同步）
-- R33-2 useEmberField 测试化（reduced-motion 分支已有实现，评估动画帧 mock 成本）
-- R33-3 PlayerCard 大乱斗强度角标与快捷悬浮推荐装
-- R33-4 polish-plan 轮次速览表滚动维护
+## Round 33 计划 API Key 云端黑名单安全合规与对局大乱斗体验 ✅（2026-08-27）
+- [x] R33-1 `ai.apiKey` 纳入 CLOUD_ONLY_BLACKLIST——消除多服务商接入后私有凭据随 puuid 公开同步的安全风险；Rust 单测完整覆盖规则判定、快照排除与本地备份恢复。
+- [x] R33-2 PlayerCard.vue 大乱斗强度角标交互增强——官方 T 级角标显式提示出装强化，并支持点击一键跳转至对应英雄海克斯大乱斗流派详情。
+- [x] R33-3 polish-plan 轮次速览表滚动维护与 CI 打包全流程闭环验证。
+
+## Round 34 候选池
+- R34-1 useEmberField 测试化（reduced-motion 分支已有实现，评估动画帧 mock 成本）
+- R34-2 ai.baseUrl 针对非标准端点的 URL 自动规范化与协议头补齐
+- R34-3 SGP 历史对局详情容器评审 Tab 补强
+- R34-4 polish-plan 轮次速览表滚动维护
 
 ## 归档说明
