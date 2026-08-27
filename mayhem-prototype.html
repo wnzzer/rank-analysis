@@ -3,1072 +3,2076 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>海克斯大乱斗全新 UI/UX 原型预览（AramMeta 进阶版）</title>
+  <title>海克斯大乱斗 · 奥术金工设计原型 v2</title>
   <style>
+    /* ============================================================
+       Design System v3 「奥术金工 Hextech Forge」运行时 Design Tokens
+       严格复用客户端主设计规范：金色高贵强调 + 暗色切角板材 + 严谨数据排印
+       ============================================================ */
     :root {
-      --bg-base: #0a0d14;
-      --bg-surface: #111622;
-      --bg-card: #161c2b;
-      --bg-hover: #1f273b;
-      --border: #232c40;
-      --border-subtle: #192030;
-      --text-main: #e8ecf4;
-      --text-muted: #8b96ad;
-      --text-dim: #5a657e;
-      --primary: #f0a500;
-      --primary-rgb: 240, 165, 0;
-      --accent-op: #b845ed;
-      --accent-t1: #e65100;
-      --accent-t2: #d4a017;
-      --accent-t3: #2979ff;
-      --win-rate: #2ecc71;
-      --loss-rate: #e74c3c;
-      --rarity-prismatic: #c840e9;
-      --rarity-gold: #f5b041;
-      --rarity-silver: #a6acb8;
-      --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
-      --mono: "Space Mono", Consolas, monospace;
+      /* 原生调色盘 */
+      --hx-gold-100: #faf0d7;
+      --hx-gold-200: #f5e2ae;
+      --hx-gold-300: #f0c96b;
+      --hx-gold-400: #e3b355;
+      --hx-gold-500: #d4a548;
+      --hx-gold-600: #b08434;
+      --hx-gold-700: #8a6420;
+      --hx-cyan-300: #4cc2ff;
+      --hx-cyan-600: #1f7ab0;
+
+      /* 核心品牌色：奥术精金 */
+      --brand: var(--hx-gold-300);
+      --brand-strong: var(--hx-gold-500);
+      --brand-deep: var(--hx-gold-600);
+      --brand-soft: rgba(212, 165, 72, 0.12);
+      --brand-border: rgba(212, 165, 72, 0.28);
+      --brand-gradient: linear-gradient(135deg, var(--hx-gold-300), var(--hx-gold-500));
+      --text-on-brand: #241a05;
+
+      /* 语义数据色 */
+      --win: #3fbf8f;
+      --win-bright: #5cd9ab;
+      --win-soft: rgba(63, 191, 143, 0.13);
+      --win-border: rgba(63, 191, 143, 0.32);
+      --loss: #e05c5c;
+      --loss-bright: #ef8080;
+      --loss-soft: rgba(224, 92, 92, 0.12);
+      --loss-border: rgba(224, 92, 92, 0.34);
+      --warn: #ff9f43;
+      --warn-soft: rgba(255, 159, 67, 0.13);
+      --warn-border: rgba(255, 159, 67, 0.35);
+
+      /* 底色与层级系统 */
+      --bg-base: #080b10;
+      --bg-sunken: #040608;
+      --bg-surface: #0e131b;
+      --bg-raised: #141b26;
+      --bg-card: rgba(20, 27, 38, 0.7);
+      --border-subtle: rgba(255, 255, 255, 0.06);
+      --border-strong: rgba(255, 255, 255, 0.12);
+
+      /* 文字排版 */
+      --text-primary: #f0f3f8;
+      --text-secondary: #9da8b9;
+      --text-tertiary: #606d82;
+
+      /* 海克斯品质专属配色（严格规范化） */
+      --rarity-prismatic: #d946ef;
+      --rarity-prismatic-soft: rgba(217, 70, 239, 0.15);
+      --rarity-prismatic-border: rgba(217, 70, 239, 0.45);
+      
+      --rarity-gold: #f59e0b;
+      --rarity-gold-soft: rgba(245, 158, 11, 0.15);
+      --rarity-gold-border: rgba(245, 158, 11, 0.45);
+      
+      --rarity-silver: #94a3b8;
+      --rarity-silver-soft: rgba(148, 163, 184, 0.15);
+      --rarity-silver-border: rgba(148, 163, 184, 0.35);
+
+      /* 官方 T 级色彩体系 */
+      --tier-op: #e879f9;
+      --tier-t1: #ffd76a;
+      --tier-t2: #c9a2ff;
+      --tier-t3: #7fb3ff;
+      --tier-t4: #74e0c8;
+
+      /* 几何切角与排印 */
+      --clip-notch: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+      --clip-corner-sm: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+      --font-num: Bahnschrift, 'Segoe UI', monospace;
+      --tracking-label: 0.12em;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       background: var(--bg-base);
-      color: var(--text-main);
-      font-family: var(--font-family);
-      overflow-x: hidden;
+      color: var(--text-primary);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
       font-size: 13px;
       line-height: 1.5;
+      min-height: 100vh;
+      overflow-x: hidden;
     }
 
-    /* 顶部控制栏 */
-    .proto-nav {
+    /* ============================================================
+       顶部全局导航控制条（原型专属模拟条）
+       ============================================================ */
+    .proto-bar {
       position: sticky;
       top: 0;
       z-index: 100;
-      background: rgba(10, 13, 20, 0.92);
-      backdrop-filter: blur(12px);
-      border-bottom: 1px solid var(--border);
+      background: rgba(8, 11, 16, 0.95);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border-strong);
       padding: 10px 24px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 16px;
     }
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-size: 15px;
-      font-weight: 700;
-      color: #fff;
-    }
-    .brand span { color: var(--primary); }
-    .nav-tabs {
-      display: flex;
-      gap: 4px;
-      background: var(--bg-surface);
-      padding: 3px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-    }
-    .nav-tab {
-      background: transparent;
-      border: none;
-      color: var(--text-muted);
-      padding: 5px 14px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 12px;
-      font-weight: 600;
-      transition: all 0.15s;
-    }
-    .nav-tab.active {
-      background: var(--primary);
-      color: #000;
-    }
-    .layout-toggle-bar {
+    .proto-title {
       display: flex;
       align-items: center;
       gap: 8px;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--brand);
+      letter-spacing: var(--tracking-label);
+      text-transform: uppercase;
+    }
+    .proto-title::before {
+      content: '';
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      background: var(--brand);
+      transform: rotate(45deg);
+    }
+    .proto-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
       font-size: 12px;
-      color: var(--text-muted);
-    }
-    .toggle-pill {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      color: var(--text-main);
-      padding: 4px 10px;
-      border-radius: 6px;
+      font-weight: 600;
+      padding: 6px 14px;
       cursor: pointer;
-      font-size: 11px;
-      transition: 0.15s;
+      border: 1px solid var(--border-strong);
+      background: transparent;
+      color: var(--text-secondary);
+      clip-path: var(--clip-notch);
+      transition: all 0.15s ease;
     }
-    .toggle-pill.active {
-      border-color: var(--primary);
-      color: var(--primary);
-      background: rgba(240, 165, 0, 0.1);
+    .btn:hover {
+      color: var(--text-primary);
+      border-color: var(--brand-border);
+      background: var(--brand-soft);
+    }
+    .btn.active {
+      background: var(--brand-gradient);
+      color: var(--text-on-brand);
+      border-color: transparent;
+      font-weight: 700;
+    }
+    .btn.primary {
+      background: var(--brand);
+      color: var(--text-on-brand);
+      border-color: var(--brand);
+      font-weight: 700;
+    }
+    .btn.primary:hover {
+      filter: brightness(1.1);
     }
 
-    /* 筛选与搜索栏 */
+    /* ============================================================
+       主容器与 PageStage 页面舞台复刻
+       ============================================================ */
+    .app-container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 0 24px 48px;
+    }
+
+    .pstage {
+      padding: 24px 0 20px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 20px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+    .pstage-kicker {
+      font-family: var(--font-num);
+      font-size: 11px;
+      letter-spacing: 0.15em;
+      color: var(--brand);
+      text-transform: uppercase;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .kicker-dot {
+      width: 4px;
+      height: 4px;
+      background: var(--brand);
+      transform: rotate(45deg);
+    }
+    .pstage-title {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      color: var(--text-primary);
+    }
+    .pstage-sub {
+      font-size: 12px;
+      color: var(--text-tertiary);
+      margin-top: 4px;
+    }
+    .pstage-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .mver-badge {
+      font-family: var(--font-num);
+      font-size: 11px;
+      color: var(--text-tertiary);
+      background: var(--bg-sunken);
+      padding: 4px 10px;
+      border: 1px solid var(--border-subtle);
+      clip-path: var(--clip-notch);
+    }
+
+    /* ============================================================
+       双栏自适应布局架构 (Dual-Pane)
+       ============================================================ */
+    .matrix-layout {
+      display: grid;
+      grid-template-columns: minmax(480px, 56%) minmax(460px, 44%);
+      gap: 24px;
+      align-items: start;
+      transition: all 0.2s ease;
+    }
+    .matrix-layout.single-pane {
+      grid-template-columns: 1fr;
+    }
+
+    /* ============================================================
+       左侧栏：筛选工具与 T 级英雄矩阵
+       ============================================================ */
     .filter-bar {
-      padding: 12px 24px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 16px;
-      border-bottom: 1px solid var(--border-subtle);
-      background: var(--bg-surface);
+      gap: 12px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
     }
-    .role-pills {
+    .role-chips {
       display: flex;
       gap: 6px;
+      flex-wrap: wrap;
     }
-    .role-pill {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      color: var(--text-muted);
+    .chip {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-strong);
+      color: var(--text-secondary);
+      font-size: 12px;
       padding: 4px 12px;
-      border-radius: 14px;
       cursor: pointer;
-      font-size: 11px;
-      font-weight: 500;
-      transition: all 0.15s;
+      clip-path: var(--clip-notch);
+      transition: all 0.15s ease;
     }
-    .role-pill:hover { color: #fff; border-color: var(--text-muted); }
-    .role-pill.active {
-      background: var(--primary);
-      color: #000;
-      border-color: var(--primary);
+    .chip:hover {
+      color: var(--text-primary);
+      border-color: var(--brand-border);
+    }
+    .chip.active {
+      background: var(--brand-gradient);
+      color: var(--text-on-brand);
+      border-color: transparent;
       font-weight: 700;
     }
-    .search-box {
+
+    .search-wrap {
       position: relative;
       display: flex;
       align-items: center;
     }
     .search-input {
-      background: var(--bg-base);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 5px 12px 5px 28px;
-      color: #fff;
+      background: var(--bg-sunken);
+      border: 1px solid var(--border-strong);
+      color: var(--text-primary);
       font-size: 12px;
-      width: 220px;
+      padding: 6px 12px 6px 30px;
+      width: 210px;
       outline: none;
-      transition: border 0.15s;
+      clip-path: var(--clip-notch);
+      transition: all 0.15s ease;
     }
-    .search-input:focus { border-color: var(--primary); width: 260px; }
-    .search-icon { position: absolute; left: 9px; font-size: 11px; color: var(--text-dim); }
-
-    /* 主容器 */
-    .app-viewport {
-      padding: 18px 24px 60px;
-      max-width: 1720px;
-      margin: 0 auto;
+    .search-input:focus {
+      border-color: var(--brand-border);
+      width: 240px;
+    }
+    .search-icon {
+      position: absolute;
+      left: 10px;
+      font-size: 12px;
+      color: var(--text-tertiary);
+      pointer-events: none;
     }
 
-    /* 宽屏双栏布局 (Dual-Pane) */
-    .dual-pane {
-      display: grid;
-      grid-template-columns: 56% 44%;
+    /* T 级分组区域 */
+    .tier-sections {
+      display: flex;
+      flex-direction: column;
       gap: 20px;
-      align-items: start;
     }
-    /* 单栏内联折叠布局 (Inline Accordion) */
-    .single-pane {
-      display: block;
+    .tier-group {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 4px;
+      padding: 14px;
     }
-
-    /* 英雄矩阵区域 */
-    .tier-section {
-      margin-bottom: 22px;
-    }
-    .tier-header {
+    .tier-group-header {
       display: flex;
       align-items: center;
-      gap: 10px;
-      margin-bottom: 10px;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border-subtle);
     }
     .tier-badge {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 2px 10px;
-      border-radius: 5px;
+      font-family: var(--font-num);
+      font-size: 11px;
       font-weight: 800;
-      font-size: 12px;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.08em;
+      padding: 2px 8px;
+      clip-path: var(--clip-notch);
       text-transform: uppercase;
     }
-    .tier-badge.op { background: rgba(184, 69, 237, 0.18); color: #dc7bff; border: 1px solid rgba(184, 69, 237, 0.5); }
-    .tier-badge.t1 { background: rgba(230, 81, 0, 0.18); color: #ff7d33; border: 1px solid rgba(230, 81, 0, 0.5); }
-    .tier-badge.t2 { background: rgba(212, 160, 23, 0.18); color: #ffd152; border: 1px solid rgba(212, 160, 23, 0.5); }
-    .tier-count { color: var(--text-dim); font-size: 11px; }
+    .tier-badge.op {
+      background: rgba(232, 121, 249, 0.15);
+      color: var(--tier-op);
+      border: 1px solid rgba(232, 121, 249, 0.4);
+    }
+    .tier-badge.t1 {
+      background: rgba(255, 215, 106, 0.15);
+      color: var(--tier-t1);
+      border: 1px solid rgba(255, 215, 106, 0.4);
+    }
+    .tier-badge.t2 {
+      background: rgba(201, 162, 255, 0.15);
+      color: var(--tier-t2);
+      border: 1px solid rgba(201, 162, 255, 0.4);
+    }
+    .tier-badge.t3 {
+      background: rgba(127, 179, 255, 0.15);
+      color: var(--tier-t3);
+      border: 1px solid rgba(127, 179, 255, 0.4);
+    }
+    .tier-stat-summary {
+      font-size: 11px;
+      color: var(--text-tertiary);
+    }
 
+    /* 英雄头像网格 */
     .hero-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
-      gap: 8px;
+      grid-template-columns: repeat(auto-fill, minmax(62px, 1fr));
+      gap: 10px;
     }
     .hero-tile {
       position: relative;
       aspect-ratio: 1;
-      border-radius: 8px;
-      overflow: hidden;
+      background: var(--bg-sunken);
+      border: 1px solid var(--border-strong);
       cursor: pointer;
-      background: var(--bg-card);
-      border: 1.5px solid transparent;
-      transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+      clip-path: var(--clip-corner-sm);
+      overflow: hidden;
+      transition: all 0.15s ease;
     }
     .hero-tile:hover {
       transform: translateY(-2px);
-      border-color: rgba(255, 255, 255, 0.5);
-      z-index: 2;
+      border-color: var(--text-secondary);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
     }
     .hero-tile.active {
-      border-color: var(--primary) !important;
-      box-shadow: 0 0 14px rgba(240, 165, 0, 0.6);
-      transform: scale(1.04);
-      z-index: 3;
+      border-color: var(--brand) !important;
+      box-shadow: 0 0 16px rgba(240, 201, 107, 0.35);
+      transform: scale(1.05);
+      z-index: 2;
     }
-    .hero-tile.op-border { border-color: rgba(184, 69, 237, 0.4); }
-    .hero-tile.t1-border { border-color: rgba(230, 81, 0, 0.4); }
-    .hero-tile.t2-border { border-color: rgba(212, 160, 23, 0.4); }
-
-    .hero-avatar {
+    .hero-tile img {
       width: 100%;
       height: 100%;
       object-fit: cover;
       display: block;
     }
-    .hero-winrate {
+    .hero-tile .tile-wr {
       position: absolute;
       bottom: 0;
       left: 0;
       right: 0;
-      background: rgba(10, 13, 20, 0.82);
+      background: rgba(4, 6, 8, 0.88);
       backdrop-filter: blur(2px);
-      text-align: center;
+      font-family: var(--font-num);
       font-size: 10px;
       font-weight: 700;
+      text-align: center;
       padding: 1px 0;
-      color: #fff;
-      font-family: var(--mono);
+      color: var(--text-secondary);
     }
-    .hero-winrate.hi { color: var(--win-rate); }
-    .hero-my-badge {
+    .hero-tile .tile-wr.win { color: var(--win-bright); }
+    .hero-tile .my-badge {
       position: absolute;
-      top: 2px;
-      right: 2px;
-      background: rgba(240, 165, 0, 0.9);
-      color: #000;
-      font-size: 8px;
+      top: 3px;
+      right: 3px;
+      background: var(--brand);
+      color: var(--text-on-brand);
+      font-family: var(--font-num);
+      font-size: 8.5px;
       font-weight: 800;
-      padding: 0 3px;
-      border-radius: 3px;
-      line-height: 12px;
+      padding: 0 4px;
+      border-radius: 2px;
+      line-height: 13px;
     }
 
-    /* 联动看板 / 详情抽屉 (Inspector Panel) */
-    .inspector-panel {
-      background: var(--bg-surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      overflow: hidden;
+    /* ============================================================
+       右侧栏：联动看板 (Sticky Inspector) · 奥术金工全功能复刻
+       ============================================================ */
+    .inspector {
       position: sticky;
       top: 60px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-      animation: fadeIn 0.2s ease-out;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-strong);
+      clip-path: var(--clip-corner-sm);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+      overflow: hidden;
     }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 
-    /* 看板顶栏 */
-    .insp-header {
-      padding: 14px 18px;
-      background: linear-gradient(90deg, rgba(22, 28, 43, 0.95), rgba(17, 22, 34, 0.95));
-      border-bottom: 1px solid var(--border);
+    /* 看板顶栏 Hero 区域 */
+    .insp-hero {
+      padding: 18px 20px;
+      background: linear-gradient(135deg, var(--bg-raised), var(--bg-surface));
+      border-bottom: 1px solid var(--border-strong);
       display: flex;
+      align-items: center;
       justify-content: space-between;
-      align-items: center;
-      gap: 12px;
+      gap: 16px;
     }
-    .insp-hero-meta {
+    .insp-hero-left {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 14px;
     }
     .insp-hero-avatar {
-      width: 46px;
-      height: 46px;
-      border-radius: 8px;
-      border: 2px solid var(--primary);
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      border: 2px solid var(--brand-border);
+      box-shadow: 0 0 12px rgba(240, 201, 107, 0.2);
     }
-    .insp-hero-title {
-      font-size: 16px;
-      font-weight: 700;
-      color: #fff;
+    .insp-hero-titles {
       display: flex;
-      align-items: center;
-      gap: 6px;
+      flex-direction: column;
+      gap: 3px;
     }
-    .role-tag {
+    .hero-name-row {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+    .hero-name {
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--text-primary);
+    }
+    .hero-alias {
+      font-size: 12px;
+      color: var(--text-tertiary);
+    }
+    .hero-roles {
+      display: flex;
+      gap: 4px;
+      margin-top: 2px;
+    }
+    .hero-roles i {
+      font-style: normal;
       font-size: 10px;
-      padding: 1px 6px;
-      background: rgba(255,255,255,0.08);
-      border-radius: 4px;
-      color: var(--text-muted);
-      font-weight: normal;
+      color: var(--text-secondary);
+      border: 1px solid var(--border-strong);
+      padding: 0 6px;
+      clip-path: var(--clip-notch);
     }
-    .buff-tags {
-      display: flex;
-      gap: 6px;
-      margin-top: 3px;
-    }
-    .buff-tag {
-      font-size: 10px;
-      padding: 1px 6px;
-      border-radius: 4px;
-      background: rgba(46, 204, 113, 0.12);
-      color: #2ecc71;
-      border: 1px solid rgba(46, 204, 113, 0.3);
-      font-family: var(--mono);
-    }
-    .insp-actions {
-      display: flex;
-      gap: 6px;
-    }
-    .btn-action {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      color: #fff;
-      padding: 5px 12px;
-      border-radius: 6px;
-      font-size: 11px;
-      font-weight: 600;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      transition: 0.15s;
-    }
-    .btn-action:hover { background: var(--bg-hover); border-color: var(--text-muted); }
-    .btn-action.pri { background: var(--primary); color: #000; border-color: var(--primary); }
 
-    /* 看板二级 Tabs */
+    /* 官方 ARAM 平衡性 Buff 标签 */
+    .balance-tags {
+      display: flex;
+      gap: 6px;
+      margin-top: 6px;
+      flex-wrap: wrap;
+    }
+    .dbal {
+      font-family: var(--font-num);
+      font-size: 10.5px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border: 1px solid transparent;
+      clip-path: var(--clip-notch);
+    }
+    .dbal.buff {
+      color: var(--win-bright);
+      background: var(--win-soft);
+      border-color: var(--win-border);
+    }
+    .dbal.nerf {
+      color: var(--loss-bright);
+      background: var(--loss-soft);
+      border-color: var(--loss-border);
+    }
+    .dbal.neutral {
+      color: var(--text-tertiary);
+      border-color: var(--border-strong);
+    }
+
+    /* 看板二级 Tabs 导航 */
     .insp-tabs {
       display: flex;
-      border-bottom: 1px solid var(--border-subtle);
-      background: rgba(14, 18, 28, 0.6);
+      background: var(--bg-sunken);
+      border-bottom: 1px solid var(--border-strong);
       padding: 0 16px;
+      gap: 4px;
     }
     .insp-tab {
       background: transparent;
       border: none;
-      color: var(--text-muted);
-      padding: 10px 16px;
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
       border-bottom: 2px solid transparent;
-      transition: 0.15s;
+      color: var(--text-secondary);
+      font-size: 12.5px;
+      font-weight: 600;
+      padding: 10px 14px;
+      cursor: pointer;
+      transition: all 0.15s ease;
     }
-    .insp-tab:hover { color: #fff; }
+    .insp-tab:hover {
+      color: var(--text-primary);
+    }
     .insp-tab.active {
-      color: var(--primary);
-      border-bottom-color: var(--primary);
+      color: var(--brand);
+      border-bottom-color: var(--brand);
+      font-weight: 700;
     }
 
+    /* 看板主体滚动容器 */
     .insp-body {
-      padding: 16px 18px;
-      max-height: calc(100vh - 200px);
+      padding: 20px;
+      max-height: calc(100vh - 240px);
       overflow-y: auto;
     }
 
-    /* 概览模块：三大指标 */
-    .stats-trio {
+    /* 统计大指标三联卡 */
+    .stat-trio {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       gap: 10px;
-      margin-bottom: 16px;
+      margin-bottom: 20px;
     }
-    .stat-box {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 8px;
+    .stat-card {
+      background: var(--bg-raised);
+      border: 1px solid var(--border-strong);
+      clip-path: var(--clip-notch);
       padding: 10px 12px;
+      text-align: center;
     }
-    .stat-val { font-size: 18px; font-weight: 800; color: #fff; font-family: var(--mono); }
-    .stat-val.green { color: var(--win-rate); }
-    .stat-lbl { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+    .stat-card-val {
+      font-family: var(--font-num);
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--text-primary);
+    }
+    .stat-card-val.win { color: var(--win-bright); }
+    .stat-card-lbl {
+      font-size: 10.5px;
+      color: var(--text-tertiary);
+      margin-top: 2px;
+    }
 
-    /* 概览模块：两件套流水线 */
+    /* 模块区块标题规范 */
     .section-title {
       font-size: 12px;
       font-weight: 700;
-      color: var(--text-muted);
+      color: var(--brand);
       text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin: 14px 0 8px;
+      letter-spacing: 0.08em;
+      margin: 18px 0 10px;
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      gap: 6px;
     }
-    .build-route-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 12px;
+    .section-title::before {
+      content: '';
+      width: 4px;
+      height: 4px;
+      background: var(--brand);
+      transform: rotate(45deg);
     }
-    .build-path {
-      display: flex;
-      align-items: center;
-      gap: 8px;
+    .section-title.warn {
+      color: var(--loss-bright);
     }
-    .item-icon {
-      width: 36px;
-      height: 36px;
-      border-radius: 6px;
-      border: 1px solid var(--border);
-      background: #000;
+    .section-title.warn::before {
+      background: var(--loss-bright);
     }
-    .arrow-icon { color: var(--text-dim); font-weight: bold; }
-    .build-rate-box {
-      text-align: right;
-    }
-    .build-wr { font-size: 14px; font-weight: 700; color: var(--win-rate); font-family: var(--mono); }
-    .build-pr { font-size: 11px; color: var(--text-dim); font-family: var(--mono); }
 
-    /* 搭配装备卡片池 */
-    .items-scroll-row {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    /* 流派多方案切换器 (Multiple Builds Selector) */
+    .build-selector {
+      display: flex;
       gap: 8px;
-      margin-bottom: 16px;
-    }
-    .item-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 8px 6px;
-      text-align: center;
-      transition: 0.15s;
-    }
-    .item-card:hover { border-color: var(--text-muted); }
-    .item-card.warn { border-color: rgba(231, 76, 60, 0.4); background: rgba(231, 76, 60, 0.05); }
-    .item-card img { width: 32px; height: 32px; border-radius: 4px; margin: 0 auto 4px; display: block; }
-    .item-name { font-size: 10px; color: var(--text-main); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-    .item-wr { font-size: 11px; font-weight: 700; color: var(--win-rate); font-family: var(--mono); }
-    .item-wr.bad { color: var(--loss-rate); }
-    .item-pr { font-size: 9px; color: var(--text-dim); }
-
-    /* 海克斯三色泳道 */
-    .aug-swimlane {
       margin-bottom: 14px;
     }
-    .swimlane-badge {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 4px;
-      font-size: 10px;
-      font-weight: 700;
-      margin-bottom: 8px;
+    .build-pill {
+      background: var(--bg-sunken);
+      border: 1px solid var(--border-strong);
+      color: var(--text-secondary);
+      font-size: 11.5px;
+      padding: 5px 12px;
+      cursor: pointer;
+      clip-path: var(--clip-notch);
+      transition: all 0.15s ease;
     }
-    .swimlane-badge.prismatic { background: rgba(200, 64, 233, 0.18); color: #ea8aff; border: 1px solid rgba(200, 64, 233, 0.4); }
-    .swimlane-badge.gold { background: rgba(245, 176, 65, 0.18); color: #ffd685; border: 1px solid rgba(245, 176, 65, 0.4); }
-    .swimlane-badge.silver { background: rgba(166, 172, 184, 0.18); color: #d8dde6; border: 1px solid rgba(166, 172, 184, 0.4); }
+    .build-pill.active {
+      border-color: var(--brand-border);
+      background: var(--brand-soft);
+      color: var(--brand);
+      font-weight: 700;
+    }
 
-    .aug-grid {
+    /* 核心装备路径条 (Core Items) */
+    .core-build-bar {
+      background: var(--bg-sunken);
+      border: 1px solid var(--border-strong);
+      clip-path: var(--clip-corner-sm);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 12px;
+    }
+    .core-items-chain {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .item-icon-box {
+      width: 38px;
+      height: 38px;
+      border: 1px solid var(--border-strong);
+      clip-path: var(--clip-notch);
+      background: #000;
+      position: relative;
+    }
+    .item-icon-box img {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    .chain-arrow {
+      color: var(--text-tertiary);
+      font-size: 11px;
+    }
+    .core-meta {
+      text-align: right;
+    }
+    .core-win {
+      font-family: var(--font-num);
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--win-bright);
+    }
+    .core-pick {
+      font-size: 11px;
+      color: var(--text-tertiary);
+    }
+
+    /* 延伸件与出门装列表 (Item Extensions) */
+    .ext-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
       gap: 8px;
+      margin-bottom: 16px;
     }
-    .aug-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 8px 10px;
+    .ext-card {
+      background: var(--bg-sunken);
+      border: 1px solid var(--border-subtle);
+      clip-path: var(--clip-notch);
+      padding: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.15s ease;
+    }
+    .ext-card:hover {
+      border-color: var(--border-strong);
+      background: var(--bg-raised);
+    }
+    .ext-card img {
+      width: 30px;
+      height: 30px;
+      border: 1px solid var(--border-strong);
+      clip-path: var(--clip-notch);
+    }
+    .ext-info {
+      flex: 1;
+      overflow: hidden;
+    }
+    .ext-name {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .ext-rate {
+      font-family: var(--font-num);
+      font-size: 10.5px;
+      font-weight: 700;
+      color: var(--win-bright);
+    }
+
+    /* 常见但不推荐 · 负协同避坑警示卡片 (AramMeta Traps) */
+    .traps-banner {
+      background: var(--loss-soft);
+      border: 1px solid var(--loss-border);
+      clip-path: var(--clip-corner-sm);
+      padding: 12px 14px;
+      margin-bottom: 16px;
+    }
+    .traps-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .trap-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      background: rgba(0, 0, 0, 0.3);
+      padding: 6px 10px;
+      border-radius: 2px;
+    }
+    .trap-left {
       display: flex;
       align-items: center;
       gap: 8px;
     }
-    .aug-card img { width: 28px; height: 28px; border-radius: 5px; }
-    .aug-info { flex: 1; overflow: hidden; }
-    .aug-name { font-size: 11px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .aug-stats { font-size: 10px; font-family: var(--mono); color: var(--win-rate); font-weight: bold; }
-    .aug-stats span { color: var(--text-dim); font-weight: normal; margin-left: 4px; }
+    .trap-left img {
+      width: 28px;
+      height: 28px;
+      border: 1px solid var(--loss-border);
+      clip-path: var(--clip-notch);
+    }
+    .trap-desc {
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+    .trap-diff {
+      font-family: var(--font-num);
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--loss-bright);
+    }
 
-    /* 天胡三海克斯组合 (Augment Trios) */
-    .trio-card {
-      background: linear-gradient(135deg, rgba(31, 39, 59, 0.6), rgba(22, 28, 43, 0.6));
-      border: 1px solid rgba(240, 165, 0, 0.3);
-      border-radius: 8px;
+    /* 召唤师技能与技能加点规范 (Spells & Skill Leveling) */
+    .combo-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .combo-card {
+      background: var(--bg-sunken);
+      border: 1px solid var(--border-strong);
+      clip-path: var(--clip-notch);
+      padding: 8px 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .combo-icons {
+      display: flex;
+      gap: 3px;
+    }
+    .combo-icons img {
+      width: 26px;
+      height: 26px;
+      border: 1px solid var(--border-strong);
+      clip-path: var(--clip-notch);
+    }
+    .combo-name {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .combo-stats {
+      font-family: var(--font-num);
+      font-size: 10.5px;
+      color: var(--win-bright);
+    }
+
+    .skill-order-card {
+      background: var(--bg-sunken);
+      border: 1px solid var(--border-strong);
+      clip-path: var(--clip-corner-sm);
       padding: 10px 14px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 8px;
+      margin-bottom: 16px;
     }
-    .trio-icons { display: flex; gap: 6px; }
-    .trio-icons img { width: 30px; height: 30px; border-radius: 6px; border: 1px solid var(--primary); }
-    .trio-meta { text-align: right; }
-    .trio-wr { color: var(--win-rate); font-weight: 800; font-size: 13px; font-family: var(--mono); }
-    .trio-lbl { font-size: 10px; color: var(--text-dim); }
+    .skill-keys-chain {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .skill-key-badge {
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-num);
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--text-on-brand);
+      background: var(--brand-gradient);
+      clip-path: var(--clip-notch);
+    }
+    .skill-arrow {
+      color: var(--text-tertiary);
+      font-size: 10px;
+    }
 
-    /* 数据源对比差异卡 (Diff Comparison Banner) */
-    .diff-banner {
-      background: rgba(30, 41, 59, 0.8);
-      border: 1px solid #334155;
-      border-radius: 8px;
-      padding: 12px 16px;
+    /* ============================================================
+       海克斯符文：按品质色带分类的卡牌系统
+       ============================================================ */
+    .aug-category-bar {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+    .aug-rarity-chip {
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      clip-path: var(--clip-notch);
+      cursor: pointer;
+      border: 1px solid var(--border-strong);
+      background: transparent;
+      color: var(--text-secondary);
+    }
+    .aug-rarity-chip.all.active {
+      background: var(--brand-gradient);
+      color: var(--text-on-brand);
+      border-color: transparent;
+    }
+    .aug-rarity-chip.prismatic.active {
+      background: var(--rarity-prismatic-soft);
+      color: var(--rarity-prismatic);
+      border-color: var(--rarity-prismatic-border);
+    }
+    .aug-rarity-chip.gold.active {
+      background: var(--rarity-gold-soft);
+      color: var(--rarity-gold);
+      border-color: var(--rarity-gold-border);
+    }
+    .aug-rarity-chip.silver.active {
+      background: var(--rarity-silver-soft);
+      color: var(--rarity-silver);
+      border-color: var(--rarity-silver-border);
+    }
+
+    /* 强化卡片网格 */
+    .aug-cards-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
       margin-bottom: 20px;
-      font-size: 12px;
     }
-    .diff-title { font-weight: 700; color: var(--primary); margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
-    .diff-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px; }
-    .diff-col { background: rgba(15, 23, 42, 0.6); padding: 8px 12px; border-radius: 6px; }
-    .diff-col h4 { font-size: 11px; color: #fff; margin-bottom: 4px; }
-    .diff-col ul { padding-left: 16px; color: var(--text-muted); font-size: 11px; }
+    .aug-card {
+      background: var(--bg-sunken);
+      border: 1px solid var(--border-strong);
+      clip-path: var(--clip-corner-sm);
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      transition: all 0.15s ease;
+    }
+    .aug-card:hover {
+      background: var(--bg-raised);
+      border-color: var(--border-strong);
+    }
+    .aug-card.prismatic { border-left: 3px solid var(--rarity-prismatic); }
+    .aug-card.gold { border-left: 3px solid var(--rarity-gold); }
+    .aug-card.silver { border-left: 3px solid var(--rarity-silver); }
 
-    /* 滚动条美化 */
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-    ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+    .aug-card-icon {
+      width: 36px;
+      height: 36px;
+      border: 1px solid var(--border-strong);
+      clip-path: var(--clip-notch);
+      background: #000;
+      flex-shrink: 0;
+    }
+    .aug-card-main {
+      flex: 1;
+      overflow: hidden;
+    }
+    .aug-card-title-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .aug-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+    .aug-badge {
+      font-size: 9.5px;
+      font-weight: 700;
+      padding: 1px 6px;
+      border-radius: 2px;
+    }
+    .aug-badge.prismatic { background: var(--rarity-prismatic-soft); color: var(--rarity-prismatic); border: 1px solid var(--rarity-prismatic-border); }
+    .aug-badge.gold { background: var(--rarity-gold-soft); color: var(--rarity-gold); border: 1px solid var(--rarity-gold-border); }
+    .aug-badge.silver { background: var(--rarity-silver-soft); color: var(--rarity-silver); border: 1px solid var(--rarity-silver-border); }
+
+    .aug-desc {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      margin-top: 3px;
+      line-height: 1.4;
+    }
+    .aug-stats-side {
+      text-align: right;
+      flex-shrink: 0;
+    }
+    .aug-win-rate {
+      font-family: var(--font-num);
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--win-bright);
+    }
+    .aug-pick-rate {
+      font-size: 10.5px;
+      color: var(--text-tertiary);
+    }
+
+    /* 最佳三强化天胡羁绊组合 (Augment Trios) */
+    .trios-sec {
+      background: var(--bg-sunken);
+      border: 1px solid var(--brand-border);
+      clip-path: var(--clip-corner-sm);
+      padding: 14px;
+      margin-bottom: 20px;
+    }
+    .trio-card {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--border-subtle);
+      clip-path: var(--clip-notch);
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 8px;
+    }
+    .trio-icons {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .trio-rank {
+      font-family: var(--font-num);
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--brand);
+      width: 20px;
+    }
+    .trio-icons img {
+      width: 30px;
+      height: 30px;
+      border: 1px solid var(--border-strong);
+      clip-path: var(--clip-notch);
+    }
+    .trio-win {
+      font-family: var(--font-num);
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--win-bright);
+    }
+
+    /* 节奏曲线与六维属性 (Tempo & Radar) */
+    .tempo-box {
+      background: var(--bg-sunken);
+      border: 1px solid var(--border-strong);
+      clip-path: var(--clip-corner-sm);
+      padding: 14px;
+      margin-bottom: 16px;
+    }
+    .tempo-row {
+      display: grid;
+      grid-template-columns: 140px 60px 1fr;
+      align-items: center;
+      gap: 12px;
+      font-size: 11.5px;
+      margin-top: 8px;
+    }
+    .prog-bar {
+      height: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .prog-fill {
+      height: 100%;
+      background: var(--brand-gradient);
+    }
+    .prog-fill.win { background: var(--win-bright); }
+    .prog-fill.blue { background: var(--hx-cyan-300); }
+
+    /* 战术攻略卡 (Related Blogs) */
+    .blog-item {
+      background: var(--bg-sunken);
+      border: 1px solid var(--border-subtle);
+      clip-path: var(--clip-notch);
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 6px;
+      font-size: 11.5px;
+    }
+    .blog-item a {
+      color: var(--text-primary);
+      text-decoration: none;
+    }
+    .blog-item a:hover {
+      color: var(--brand);
+    }
+
+    /* 窄屏内联就地展开容器 (Accordion) */
+    .inline-fold-wrap {
+      margin-top: 14px;
+      border: 1px solid var(--brand);
+      background: var(--bg-surface);
+      border-radius: 4px;
+      overflow: hidden;
+      animation: foldIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .inline-fold-bar {
+      background: var(--brand-soft);
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--brand-border);
+      color: var(--brand);
+      font-weight: 700;
+    }
+    @keyframes foldIn {
+      from { opacity: 0; transform: translateY(-6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
   </style>
 </head>
 <body>
 
-  <!-- 顶部导航栏 -->
-  <header class="proto-nav">
-    <div class="brand">
-      <span>⚡ Antigravity</span> 海克斯大乱斗设计原型
+  <!-- 原型顶部控制栏 -->
+  <header class="proto-bar">
+    <div class="proto-title">
+      <span>Hextech Forge · 大乱斗设计原型 v2</span>
     </div>
-
-    <div class="nav-tabs">
-      <button class="nav-tab active">英雄榜 (Tier Matrix)</button>
-      <button class="nav-tab">强化符文 (Augments)</button>
-      <button class="nav-tab">选人助手 (Draft)</button>
-    </div>
-
-    <div class="layout-toggle-bar">
-      <span>布局模式体验：</span>
-      <button class="toggle-pill active" id="btnDualPane" onclick="switchLayout('dual')">🖥️ 宽屏分栏 (双看板联动)</button>
-      <button class="toggle-pill" id="btnSinglePane" onclick="switchLayout('single')">📱 AramMeta 同款 (就地下翻)</button>
+    <div class="proto-controls">
+      <span style="font-size: 12px; color: var(--text-tertiary);">交互模式：</span>
+      <button id="btnDualPane" class="btn active" onclick="switchLayout('dual')">🖥️ 宽屏分栏模式 (推荐)</button>
+      <button id="btnSinglePane" class="btn" onclick="switchLayout('single')">📱 就地下翻折叠模式</button>
     </div>
   </header>
 
-  <!-- 筛选行 -->
-  <div class="filter-bar">
-    <div class="role-pills">
-      <button class="role-pill active">★ 全部 (172)</button>
-      <button class="role-pill">刺客</button>
-      <button class="role-pill">战士</button>
-      <button class="role-pill">法师</button>
-      <button class="role-pill">射手</button>
-      <button class="role-pill">辅助</button>
-      <button class="role-pill">坦克</button>
-    </div>
-
-    <div class="search-box">
-      <span class="search-icon">🔍</span>
-      <input class="search-input" type="text" placeholder="搜寻英雄（中 / 英） Ctrl+F" />
-    </div>
-  </div>
-
-  <main class="app-viewport">
-
-    <!-- 数据源差异剖析条 -->
-    <div class="diff-banner">
-      <div class="diff-title">💡 深度审查：aramgg (我们本地源) vs arammeta (参考图) 的数据源与算法差异</div>
-      <div class="diff-grid">
-        <div class="diff-col">
-          <h4>🌐 aramgg (我们目前接入的 data.dtodo.cn)</h4>
-          <ul>
-            <li><b>数据口径</b>：国服特供对局上报（source: tencent / CN），样本基数极大（男枪 7,768 场）。</li>
-            <li><b>独家优势 1</b>：拥有 <code>augmentTrios</code>（天胡三海克斯羁绊胜率，高达 75%+）。</li>
-            <li><b>独家优势 2</b>：拥有 <code>relatedBlogs</code> 实战流派攻略（如 AP 男枪一枪 300%）。</li>
-            <li><b>出装形态</b>：分步流水线（<code>coreItems</code> 核心装 + <code>itemExtensions</code> 3级拓展项）。</li>
-          </ul>
+  <main class="app-container">
+    <!-- PageStage 复刻（应用主设计规范统一头部） -->
+    <section class="pstage">
+      <div>
+        <div class="pstage-kicker">
+          <span class="kicker-dot"></span>
+          MAYHEM · 海克斯大乱斗
         </div>
-        <div class="diff-col">
-          <h4>🎯 arammeta.com (参考图网站)</h4>
-          <ul>
-            <li><b>数据口径</b>：Riot 全球 API 抽样，样本量较小（参考图男枪仅 2,261 场，胜率 53.3%）。</li>
-            <li><b>独家展示 1</b>：六轴五维雷达图（伤害/坦度/控场/恢复/参团/金钱百分位）。</li>
-            <li><b>独家展示 2</b>：对局时间胜率节奏曲线（前期型 #24，前期 59% vs 后期 53%）。</li>
-            <li><b>出装形态</b>：单件胜率天梯 + <code>负协同（负 lift）常见但不推荐</code> 避坑装备。</li>
-          </ul>
-        </div>
+        <h1 class="pstage-title">大 乱 斗</h1>
+        <p class="pstage-sub">英雄强度 · 强化排行 · 国服 7,000+ 场次实战数据直通</p>
       </div>
-    </div>
 
-    <!-- 核心视图容器 -->
-    <div id="container" class="dual-pane">
+      <div class="pstage-actions">
+        <span class="mver-badge">数据 16.0.4 · 2026/08/27</span>
+        <button class="btn" style="border-color: var(--brand-border); color: var(--brand);">📻 监听已开启</button>
+        <button class="btn">👁️ 预览浮窗</button>
+        <button class="btn">⌨️ 手动三选一</button>
+        <button class="btn primary">🔄 刷新数据</button>
+      </div>
+    </section>
 
-      <!-- 左侧：紧凑 T 级英雄矩阵 -->
-      <section class="matrix-pane">
-
-        <!-- OP 梯队 -->
-        <div class="tier-section">
-          <div class="tier-header">
-            <span class="tier-badge op">OP</span>
-            <span class="tier-count">8 只 · 胜率 ≥ 55%</span>
+    <!-- 主布局网格 -->
+    <div id="matrixLayout" class="matrix-layout">
+      <!-- 左侧：英雄选择与梯队矩阵 -->
+      <section class="matrix-left">
+        <div class="filter-bar">
+          <div class="role-chips">
+            <button class="chip active" onclick="filterRole('all', this)">★ 全部 (172)</button>
+            <button class="chip" onclick="filterRole('marksman', this)">射手</button>
+            <button class="chip" onclick="filterRole('fighter', this)">战士</button>
+            <button class="chip" onclick="filterRole('assassin', this)">刺客</button>
+            <button class="chip" onclick="filterRole('mage', this)">法师</button>
+            <button class="chip" onclick="filterRole('tank', this)">坦克</button>
+            <button class="chip" onclick="filterRole('support', this)">辅助</button>
           </div>
-          <div class="hero-grid">
-            <div class="hero-tile op-border" onclick="selectHero('vayne')">
-              <img class="hero-avatar" src="https://cdn.dtodo.cn/hextech/champion-icons/67.png" alt="薇恩" />
-              <div class="hero-winrate hi">57.4%</div>
-            </div>
-            <div class="hero-tile op-border active" onclick="selectHero('graves')">
-              <img class="hero-avatar" src="https://cdn.dtodo.cn/hextech/champion-icons/104.png" alt="格雷福斯" />
-              <div class="hero-winrate hi">57.3%</div>
-              <span class="hero-my-badge">★ 72%</span>
-            </div>
-            <div class="hero-tile op-border" onclick="selectHero('sett')">
-              <img class="hero-avatar" src="https://cdn.dtodo.cn/hextech/champion-icons/875.png" alt="瑟提" />
-              <div class="hero-winrate hi">57.0%</div>
-            </div>
-            <div class="hero-tile op-border" onclick="selectHero('ahri')">
-              <img class="hero-avatar" src="https://cdn.dtodo.cn/hextech/champion-icons/103.png" alt="阿狸" />
-              <div class="hero-winrate hi">56.9%</div>
-            </div>
-            <div class="hero-tile op-border" onclick="selectHero('jinx')">
-              <img class="hero-avatar" src="https://cdn.dtodo.cn/hextech/champion-icons/222.png" alt="金克丝" />
-              <div class="hero-winrate hi">56.1%</div>
-            </div>
-            <div class="hero-tile op-border" onclick="selectHero('yasuo')">
-              <img class="hero-avatar" src="https://cdn.dtodo.cn/hextech/champion-icons/157.png" alt="亚索" />
-              <div class="hero-winrate hi">55.9%</div>
-            </div>
-            <div class="hero-tile op-border" onclick="selectHero('seraphine')">
-              <img class="hero-avatar" src="https://cdn.dtodo.cn/hextech/champion-icons/147.png" alt="萨勒芬妮" />
-              <div class="hero-winrate hi">55.5%</div>
-            </div>
-            <div class="hero-tile op-border" onclick="selectHero('gwen')">
-              <img class="hero-avatar" src="https://cdn.dtodo.cn/hextech/champion-icons/887.png" alt="格温" />
-              <div class="hero-winrate hi">55.2%</div>
-            </div>
+          <div class="search-wrap">
+            <span class="search-icon">🔍</span>
+            <input id="heroSearch" class="search-input" type="search" placeholder="搜寻英雄（中/英）…" oninput="onSearch(this.value)" />
           </div>
         </div>
 
-        <!-- T1 梯队 -->
-        <div class="tier-section">
-          <div class="tier-header">
-            <span class="tier-badge t1">T1</span>
-            <span class="tier-count">29 只 · 胜率 52% ~ 55%</span>
-          </div>
-          <div class="hero-grid">
-            <div class="hero-tile t1-border" onclick="selectHero('caitlyn')">
-              <img class="hero-avatar" src="https://cdn.dtodo.cn/hextech/champion-icons/51.png" alt="凯特琳" />
-              <div class="hero-winrate">54.4%</div>
-            </div>
-            <div class="hero-tile t1-border" onclick="selectHero('kayle')">
-              <img class="hero-avatar" src="https://cdn.dtodo.cn/hextech/champion-icons/10.png" alt="凯尔" />
-              <div class="hero-winrate">54.3%</div>
-            </div>
-            <div class="hero-tile t1-border" onclick="selectHero('sona')">
-              <img class="hero-avatar" src="https://cdn.dtodo.cn/hextech/champion-icons/37.png" alt="娑娜" />
-              <div class="hero-winrate">54.1%</div>
-            </div>
-            <div class="hero-tile t1-border" onclick="selectHero('hwei')">
-              <img class="hero-avatar" src="https://cdn.dtodo.cn/hextech/champion-icons/910.png" alt="彗" />
-              <div class="hero-winrate">54.1%</div>
-            </div>
-            <div class="hero-tile t1-border" onclick="selectHero('lillia')">
-              <img class="hero-avatar" src="https://cdn.dtodo.cn/hextech/champion-icons/876.png" alt="莉莉娅" />
-              <div class="hero-winrate">53.7%</div>
-            </div>
-            <div class="hero-tile t1-border" onclick="selectHero('aphelios')">
-              <img class="hero-avatar" src="https://cdn.dtodo.cn/hextech/champion-icons/523.png" alt="厄斐琉斯" />
-              <div class="hero-winrate">53.4%</div>
-            </div>
-            <div class="hero-tile t1-border" onclick="selectHero('swain')">
-              <img class="hero-avatar" src="https://cdn.dtodo.cn/hextech/champion-icons/50.png" alt="斯维因" />
-              <div class="hero-winrate">53.3%</div>
-            </div>
-            <div class="hero-tile t1-border" onclick="selectHero('morgana')">
-              <img class="hero-avatar" src="https://cdn.dtodo.cn/hextech/champion-icons/25.png" alt="莫甘娜" />
-              <div class="hero-winrate">53.3%</div>
-            </div>
-            <div class="hero-tile t1-border" onclick="selectHero('aatrox')">
-              <img class="hero-avatar" src="https://cdn.dtodo.cn/hextech/champion-icons/266.png" alt="亚托克斯" />
-              <div class="hero-winrate">53.1%</div>
-            </div>
-            <div class="hero-tile t1-border" onclick="selectHero('asol')">
-              <img class="hero-avatar" src="https://cdn.dtodo.cn/hextech/champion-icons/136.png" alt="奥利安娜" />
-              <div class="hero-winrate">53.0%</div>
-            </div>
-            <div class="hero-tile t1-border" onclick="selectHero('samira')">
-              <img class="hero-avatar" src="https://cdn.dtodo.cn/hextech/champion-icons/360.png" alt="莎弥拉" />
-              <div class="hero-winrate">53.0%</div>
-            </div>
-            <div class="hero-tile t1-border" onclick="selectHero('leona')">
-              <img class="hero-avatar" src="https://cdn.dtodo.cn/hextech/champion-icons/89.png" alt="蕾欧娜" />
-              <div class="hero-winrate">52.5%</div>
-            </div>
-          </div>
+        <div class="tier-sections" id="tierSections">
+          <!-- 梯队分组动态渲染在这里 -->
         </div>
-
-        <!-- T2 梯队 -->
-        <div class="tier-section">
-          <div class="tier-header">
-            <span class="tier-badge t2">T2</span>
-            <span class="tier-count">40 只 · 胜率 50% ~ 52%</span>
-          </div>
-          <div class="hero-grid">
-            <div class="hero-tile t2-border"><img class="hero-avatar" src="https://cdn.dtodo.cn/hextech/champion-icons/36.png" /><div class="hero-winrate">51.8%</div></div>
-            <div class="hero-tile t2-border"><img class="hero-avatar" src="https://cdn.dtodo.cn/hextech/champion-icons/112.png" /><div class="hero-winrate">51.7%</div></div>
-            <div class="hero-tile t2-border"><img class="hero-avatar" src="https://cdn.dtodo.cn/hextech/champion-icons/13.png" /><div class="hero-winrate">51.7%</div></div>
-            <div class="hero-tile t2-border"><img class="hero-avatar" src="https://cdn.dtodo.cn/hextech/champion-icons/84.png" /><div class="hero-winrate">51.6%</div></div>
-            <div class="hero-tile t2-border"><img class="hero-avatar" src="https://cdn.dtodo.cn/hextech/champion-icons/143.png" /><div class="hero-winrate">51.4%</div></div>
-            <div class="hero-tile t2-border"><img class="hero-avatar" src="https://cdn.dtodo.cn/hextech/champion-icons/17.png" /><div class="hero-winrate">51.4%</div></div>
-          </div>
-        </div>
-
       </section>
 
-      <!-- 右侧：即时联动详情看板 (Inspector) -->
-      <aside class="inspector-panel" id="inspectorPanel">
-        <!-- 顶栏英雄标题 -->
-        <div class="insp-header">
-          <div class="insp-hero-meta">
-            <img class="insp-hero-avatar" id="inspAvatar" src="https://cdn.dtodo.cn/hextech/champion-icons/104.png" alt="男枪" />
-            <div>
-              <div class="insp-hero-title">
-                <span id="inspName">格雷福斯</span>
-                <span class="role-tag" id="inspRole">射手</span>
-              </div>
-              <div class="buff-tags">
-                <span class="buff-tag">⚡ 造成伤害 105%</span>
-                <span class="buff-tag">🛡️ 承受伤害 95%</span>
-                <span class="buff-tag">⏱️ 急速 +15</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="insp-actions">
-            <button class="btn-action pri" title="通过 Tauri IPC 直接将此出装与符文推入英雄联盟客户端">⚡ 一键应用出装</button>
-            <button class="btn-action" title="复制战报文本到剪贴板">📋 分享</button>
-          </div>
-        </div>
-
-        <!-- 看板二级 Tabs -->
-        <nav class="insp-tabs">
-          <button class="insp-tab active" onclick="switchInspTab('overview')">概览</button>
-          <button class="insp-tab" onclick="switchInspTab('items')">出装与避坑</button>
-          <button class="insp-tab" onclick="switchInspTab('augments')">海克斯符文</button>
-          <button class="insp-tab" onclick="switchInspTab('ability')">英雄能力与节奏</button>
-        </nav>
-
-        <div class="insp-body">
-
-          <!-- TAB 1: 概览 -->
-          <div id="tab-overview">
-            <div class="stats-trio">
-              <div class="stat-box">
-                <div class="stat-val green">57.3%</div>
-                <div class="stat-lbl">胜率 (#2 / 172)</div>
-              </div>
-              <div class="stat-box">
-                <div class="stat-val">12.2%</div>
-                <div class="stat-lbl">选取率 (#14)</div>
-              </div>
-              <div class="stat-box">
-                <div class="stat-val">7,768</div>
-                <div class="stat-lbl">国服样本场次</div>
-              </div>
-            </div>
-
-            <div class="section-title">
-              <span>🎯 最强前两件路线 (由强到弱)</span>
-              <span style="font-size: 10px; color: var(--primary);">胜率 50.6% · 79.3% 选用</span>
-            </div>
-            <div class="build-route-card">
-              <div class="build-path">
-                <img class="item-icon" src="https://cdn.dtodo.cn/hextech/item-icons/6676.png" title="收集者" />
-                <span class="arrow-icon">▶</span>
-                <img class="item-icon" src="https://cdn.dtodo.cn/hextech/item-icons/3031.png" title="无尽之刃" />
-              </div>
-              <div class="build-rate-box">
-                <div class="build-wr">50.6% 胜率</div>
-                <div class="build-pr">收集者 + 无尽之刃</div>
-              </div>
-            </div>
-
-            <div class="section-title">📦 后续高协同装备</div>
-            <div class="items-scroll-row">
-              <div class="item-card">
-                <img src="https://cdn.dtodo.cn/hextech/item-icons/3036.png" />
-                <div class="item-name">多米尼克</div>
-                <div class="item-wr">51.7%</div>
-                <div class="item-pr">最常出</div>
-              </div>
-              <div class="item-card">
-                <img src="https://cdn.dtodo.cn/hextech/item-icons/3072.png" />
-                <div class="item-name">饮血剑</div>
-                <div class="item-wr">49.3%</div>
-                <div class="item-pr">39% 选</div>
-              </div>
-              <div class="item-card">
-                <img src="https://cdn.dtodo.cn/hextech/item-icons/6673.png" />
-                <div class="item-name">狂妄</div>
-                <div class="item-wr">50.6%</div>
-                <div class="item-pr">25.8% 选</div>
-              </div>
-              <div class="item-card">
-                <img src="https://cdn.dtodo.cn/hextech/item-icons/6675.png" />
-                <div class="item-name">不朽盾弓</div>
-                <div class="item-wr">52.0%</div>
-                <div class="item-pr">11.3% 选</div>
-              </div>
-            </div>
-
-            <div class="section-title">👞 推荐鞋子 & 技能组合</div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px;">
-              <div style="background: var(--bg-card); padding: 8px; border-radius: 6px; border: 1px solid var(--border); display: flex; align-items: center; gap: 8px;">
-                <img src="https://cdn.dtodo.cn/hextech/item-icons/3111.png" style="width:28px; height:28px; border-radius:4px;" />
-                <div>
-                  <div style="font-weight:700; color:#fff; font-size:11px;">水银之靴</div>
-                  <div style="font-size:10px; color:var(--win-rate); font-family:var(--mono);">49.1% · 25.3%</div>
-                </div>
-              </div>
-              <div style="background: var(--bg-card); padding: 8px; border-radius: 6px; border: 1px solid var(--border); display: flex; align-items: center; gap: 8px;">
-                <div style="display:flex; gap:2px;">
-                  <img src="https://cdn.dtodo.cn/hextech/summoner-spell-icons/4.png" style="width:24px; height:24px; border-radius:4px;" />
-                  <img src="https://cdn.dtodo.cn/hextech/summoner-spell-icons/32.png" style="width:24px; height:24px; border-radius:4px;" />
-                </div>
-                <div>
-                  <div style="font-weight:700; color:#fff; font-size:11px;">闪现 + 雪球</div>
-                  <div style="font-size:10px; color:var(--win-rate); font-family:var(--mono);">50.8% · 71.9%</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- TAB 2: 出装与避坑 (从 aramgg situationalItems 提炼) -->
-          <div id="tab-items" style="display: none;">
-            <div class="section-title">
-              <span>⚠️ 常见但不推荐 (避坑警示)</span>
-              <span style="color: var(--loss-rate); font-size: 10px;">负协同 (负 lift ≥ 5%)</span>
-            </div>
-            <div class="items-scroll-row">
-              <div class="item-card warn">
-                <img src="https://cdn.dtodo.cn/hextech/item-icons/6692.png" />
-                <div class="item-name">星蚀</div>
-                <div class="item-wr bad">48.4%</div>
-                <div class="item-pr">负协同 -25.2%</div>
-              </div>
-              <div class="item-card warn">
-                <img src="https://cdn.dtodo.cn/hextech/item-icons/3156.png" />
-                <div class="item-name">玛莫提乌斯</div>
-                <div class="item-wr bad">46.1%</div>
-                <div class="item-pr">负协同 -9.7%</div>
-              </div>
-              <div class="item-card warn">
-                <img src="https://cdn.dtodo.cn/hextech/item-icons/3153.png" />
-                <div class="item-name">破败王者之刃</div>
-                <div class="item-wr bad">47.8%</div>
-                <div class="item-pr">负协同 -1.9%</div>
-              </div>
-            </div>
-
-            <div class="section-title">⚔️ 单件装备强度天梯 (按实战 Lift 排序)</div>
-            <div class="items-scroll-row">
-              <div class="item-card">
-                <img src="https://cdn.dtodo.cn/hextech/item-icons/6673.png" />
-                <div class="item-name">狂妄</div>
-                <div class="item-wr">+22.9%</div>
-                <div class="item-pr">正协同 T0</div>
-              </div>
-              <div class="item-card">
-                <img src="https://cdn.dtodo.cn/hextech/item-icons/3072.png" />
-                <div class="item-name">饮血剑</div>
-                <div class="item-wr">+2.7%</div>
-                <div class="item-pr">57% 出场</div>
-              </div>
-              <div class="item-card">
-                <img src="https://cdn.dtodo.cn/hextech/item-icons/3046.png" />
-                <div class="item-name">幻影之舞</div>
-                <div class="item-wr">+0.9%</div>
-                <div class="item-pr">2.3% 奇效</div>
-              </div>
-              <div class="item-card">
-                <img src="https://cdn.dtodo.cn/hextech/item-icons/6675.png" />
-                <div class="item-name">不朽盾弓</div>
-                <div class="item-wr">+0.3%</div>
-                <div class="item-pr">7.4% 选用</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- TAB 3: 海克斯三色泳道 + 天胡三羁绊 -->
-          <div id="tab-augments" style="display: none;">
-            <div class="section-title">🌟 aramgg 独家：天胡三海克斯组合 (Augment Trios)</div>
-            <div class="trio-card">
-              <div class="trio-icons">
-                <img src="https://cdn.dtodo.cn/hextech/augment-icons/drawyoursord_small.png" title="亮出你的剑" />
-                <img src="https://cdn.dtodo.cn/hextech/augment-icons/shrinkray_small.png" title="缩小引擎" />
-                <img src="https://cdn.dtodo.cn/hextech/augment-icons/masteratwork_small.png" title="大师铸就" />
-              </div>
-              <div class="trio-meta">
-                <div class="trio-wr">75.54% 胜率</div>
-                <div class="trio-lbl">近战爆发突刺流 · 233场样本</div>
-              </div>
-            </div>
-
-            <!-- 彩色泳道 -->
-            <div class="aug-swimlane">
-              <span class="swimlane-badge prismatic">彩色 (Prismatic)</span>
-              <div class="aug-grid">
-                <div class="aug-card">
-                  <img src="https://cdn.dtodo.cn/hextech/augment-icons/drawyoursord_small.png" />
-                  <div class="aug-info">
-                    <div class="aug-name">亮出你的剑</div>
-                    <div class="aug-stats">58.8%<span>15.8%</span></div>
-                  </div>
-                </div>
-                <div class="aug-card">
-                  <img src="https://cdn.dtodo.cn/hextech/augment-icons/madscientist_small.png" />
-                  <div class="aug-info">
-                    <div class="aug-name">科学狂人</div>
-                    <div class="aug-stats">50.9%<span>2.1%</span></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- 金色泳道 -->
-            <div class="aug-swimlane">
-              <span class="swimlane-badge gold">金色 (Gold)</span>
-              <div class="aug-grid">
-                <div class="aug-card">
-                  <img src="https://cdn.dtodo.cn/hextech/augment-icons/toothfairy_small.png" />
-                  <div class="aug-info">
-                    <div class="aug-name">牙仙子</div>
-                    <div class="aug-stats">52.2%<span>5.4%</span></div>
-                  </div>
-                </div>
-                <div class="aug-card">
-                  <img src="https://cdn.dtodo.cn/hextech/augment-icons/shrinkray_small.png" />
-                  <div class="aug-info">
-                    <div class="aug-name">缩小引擎</div>
-                    <div class="aug-stats">52.5%<span>2.3%</span></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- 银色泳道 -->
-            <div class="aug-swimlane">
-              <span class="swimlane-badge silver">银色 (Silver)</span>
-              <div class="aug-grid">
-                <div class="aug-card">
-                  <img src="https://cdn.dtodo.cn/hextech/augment-icons/heavyhitter_small.png" />
-                  <div class="aug-info">
-                    <div class="aug-name">大力</div>
-                    <div class="aug-stats">50.9%<span>13.4%</span></div>
-                  </div>
-                </div>
-                <div class="aug-card">
-                  <img src="https://cdn.dtodo.cn/hextech/augment-icons/mindovermatter_small.png" />
-                  <div class="aug-info">
-                    <div class="aug-name">会心防御</div>
-                    <div class="aug-stats">50.8%<span>10.6%</span></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- TAB 4: 英雄能力与节奏 -->
-          <div id="tab-ability" style="display: none;">
-            <div class="section-title">📊 英雄六维属性百分位 (AramMeta 风格重现)</div>
-            <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 12px;">
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                <div>💥 伤害指数: <b style="color:var(--primary);">98</b> / 100</div>
-                <div>💰 打钱发育: <b style="color:var(--primary);">99</b> / 100</div>
-                <div>🛡️ 坦度防御: <b style="color:var(--text-muted);">47</b> / 100</div>
-                <div>🌀 团战控场: <b style="color:var(--text-muted);">56</b> / 100</div>
-                <div>❤️ 恢复续航: <b style="color:var(--text-muted);">51</b> / 100</div>
-                <div>⚔️ 参团率: <b style="color:var(--win-rate);">62</b> / 100</div>
-              </div>
-            </div>
-
-            <div class="section-title">⏱️ 对局节奏曲线</div>
-            <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 12px;">
-              <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-                <span style="font-weight:700; color:#ff9800;">前期型英雄 (#24)</span>
-                <span style="color:var(--text-dim); font-size:11px;">短局胜率高，尽早中推结束</span>
-              </div>
-              <div style="font-size: 11px; margin-top: 6px;">
-                <div>前期 (0-15分) 胜率: <span style="color:var(--win-rate); font-weight:700;">59%</span></div>
-                <div style="height:6px; background:#222; border-radius:3px; overflow:hidden; margin: 3px 0 8px;">
-                  <div style="width:59%; height:100%; background:#ff9800;"></div>
-                </div>
-                <div>后期 (20+分) 胜率: <span style="color:var(--text-muted); font-weight:700;">53%</span></div>
-                <div style="height:6px; background:#222; border-radius:3px; overflow:hidden; margin-top:3px;">
-                  <div style="width:53%; height:100%; background:#2979ff;"></div>
-                </div>
-              </div>
-            </div>
-          </div>
-
+      <!-- 右侧：奥术金工联动看板 (Sticky Inspector) -->
+      <aside class="matrix-right" id="rightAside">
+        <div class="inspector" id="inspectorContainer">
+          <!-- 联动看板内容动态渲染在这里 -->
         </div>
       </aside>
-
     </div>
   </main>
 
   <script>
-    // 切换双栏与内联折叠模式
-    function switchLayout(mode) {
-      const container = document.getElementById('container');
-      const btnDual = document.getElementById('btnDualPane');
-      const btnSingle = document.getElementById('btnSinglePane');
+    // ============================================================
+    // 真实结构化 Mock 数据（与 aramgg / champion-shards 完全对齐）
+    // ============================================================
+    const CHAMPIONS = [
+      {
+        id: 104,
+        title: "格雷福斯",
+        name: "法外狂徒",
+        alias: "Graves",
+        tier: "op",
+        tierLabel: "OP 梯队",
+        roles: ["marksman", "fighter"],
+        rolesText: ["射手", "战士"],
+        iconUrl: "https://game.gtimg.cn/images/lol/act/img/champion/Graves.png",
+        stats: { winRate: 0.573, pickRate: 0.122, games: 7768 },
+        myRecord: { games: 18, wins: 13 },
+        balanceTags: [
+          { label: "造成伤害 +5%", isBuff: true, desc: "极地大乱斗平衡强化" },
+          { label: "承受伤害 -5%", isBuff: true, desc: "极地大乱斗平衡强化" },
+          { label: "技能急速 +15", isBuff: true, desc: "技能轮转加速" }
+        ],
+        builds: [
+          {
+            name: "穿甲暴击爆发流 (主推)",
+            games: 5420,
+            winRate: 0.582,
+            pickRate: 0.698,
+            coreItems: [
+              { name: "收集者", id: 6676, img: "https://game.gtimg.cn/images/lol/act/img/item/6676.png" },
+              { name: "无尽之刃", id: 3031, img: "https://game.gtimg.cn/images/lol/act/img/item/3031.png" },
+              { name: "多米尼克领主的致意", id: 3036, img: "https://game.gtimg.cn/images/lol/act/img/item/3036.png" }
+            ],
+            starters: [
+              { name: "守护者之刃", id: 3177, img: "https://game.gtimg.cn/images/lol/act/img/item/3177.png" },
+              { name: "生命药水", id: 2003, img: "https://game.gtimg.cn/images/lol/act/img/item/2003.png" }
+            ],
+            extensions: [
+              { name: "狂妄", id: 6695, img: "https://game.gtimg.cn/images/lol/act/img/item/6695.png", winRate: 0.612 },
+              { name: "饮血剑", id: 3072, img: "https://game.gtimg.cn/images/lol/act/img/item/3072.png", winRate: 0.598 },
+              { name: "不朽盾弓", id: 6673, img: "https://game.gtimg.cn/images/lol/act/img/item/6673.png", winRate: 0.589 }
+            ],
+            spells: [
+              {
+                name: "闪现 + 标记(雪球)",
+                ids: [4, 32],
+                imgs: [
+                  "https://game.gtimg.cn/images/lol/act/img/spell/SummonerFlash.png",
+                  "https://game.gtimg.cn/images/lol/act/img/spell/SummonerSnowball.png"
+                ],
+                winRate: 0.586,
+                pickRate: 0.812
+              }
+            ],
+            skillOrder: {
+              summary: "主 Q 副 E",
+              keys: ["Q", "E", "W"],
+              winRate: 0.584
+            }
+          },
+          {
+            name: "渴血战士站撸流",
+            games: 2348,
+            winRate: 0.541,
+            pickRate: 0.302,
+            coreItems: [
+              { name: "黑曜石锋刃", id: 6692, img: "https://game.gtimg.cn/images/lol/act/img/item/6692.png" },
+              { name: "黑色切割者", id: 3071, img: "https://game.gtimg.cn/images/lol/act/img/item/3071.png" },
+              { name: "死亡之舞", id: 6333, img: "https://game.gtimg.cn/images/lol/act/img/item/6333.png" }
+            ],
+            starters: [
+              { name: "守护者战锤", id: 3184, img: "https://game.gtimg.cn/images/lol/act/img/item/3184.png" }
+            ],
+            extensions: [
+              { name: "斯特拉克的挑战护手", id: 3053, img: "https://game.gtimg.cn/images/lol/act/img/item/3053.png", winRate: 0.564 }
+            ],
+            spells: [
+              {
+                name: "闪现 + 虚弱",
+                ids: [4, 3],
+                imgs: [
+                  "https://game.gtimg.cn/images/lol/act/img/spell/SummonerFlash.png",
+                  "https://game.gtimg.cn/images/lol/act/img/spell/SummonerExhaust.png"
+                ],
+                winRate: 0.552,
+                pickRate: 0.188
+              }
+            ],
+            skillOrder: {
+              summary: "主 Q 副 E",
+              keys: ["Q", "E", "W"],
+              winRate: 0.547
+            }
+          }
+        ],
+        traps: [
+          { name: "星蚀", id: 6692, img: "https://game.gtimg.cn/images/lol/act/img/item/6692.png", diff: "-25.3%", reason: "缺乏暴击协同，伤害爆发严重滞后" },
+          { name: "玛莫提乌斯之噬", id: 3156, img: "https://game.gtimg.cn/images/lol/act/img/item/3156.png", diff: "-9.7%", reason: "吸血受近战折损，海克斯环境下容错极低" },
+          { name: "破败王者之刃", id: 3153, img: "https://game.gtimg.cn/images/lol/act/img/item/3153.png", diff: "-4.2%", reason: "散弹机制不吃百分比全额命中" }
+        ],
+        augments: [
+          {
+            name: "亮出你的剑！",
+            rarity: "prismatic",
+            rarityLabel: "棱彩",
+            winRate: 0.684,
+            pickRate: 0.182,
+            desc: "获得 120 攻击力。你的攻击射程降低为近战，但造成 150% 额外物理伤害。",
+            icon: "https://game.gtimg.cn/images/lol/act/img/item/6676.png"
+          },
+          {
+            name: "全心全意",
+            rarity: "prismatic",
+            rarityLabel: "棱彩",
+            winRate: 0.652,
+            pickRate: 0.142,
+            desc: "将暴击率超额部分转化为全能吸血与真实伤害。",
+            icon: "https://game.gtimg.cn/images/lol/act/img/item/3031.png"
+          },
+          {
+            name: "致命精准",
+            rarity: "gold",
+            rarityLabel: "黄金",
+            winRate: 0.612,
+            pickRate: 0.221,
+            desc: "获得 25% 暴击几率。暴击伤害提升 35%。",
+            icon: "https://game.gtimg.cn/images/lol/act/img/item/3036.png"
+          },
+          {
+            name: "连珠炮手",
+            rarity: "gold",
+            rarityLabel: "黄金",
+            winRate: 0.598,
+            pickRate: 0.194,
+            desc: "快速拔枪 (E) 冷却时间缩短 50%，且填充子弹翻倍。",
+            icon: "https://game.gtimg.cn/images/lol/act/img/item/3072.png"
+          },
+          {
+            name: "轻巧走位",
+            rarity: "silver",
+            rarityLabel: "白银",
+            winRate: 0.554,
+            pickRate: 0.284,
+            desc: "施放技能后获得 40 移速，持续 2.5 秒。",
+            icon: "https://game.gtimg.cn/images/lol/act/img/item/3177.png"
+          },
+          {
+            name: "重炮专精",
+            rarity: "silver",
+            rarityLabel: "白银",
+            winRate: 0.542,
+            pickRate: 0.312,
+            desc: "终极技能终极爆弹基础伤害提升 120 点。",
+            icon: "https://game.gtimg.cn/images/lol/act/img/item/2003.png"
+          }
+        ],
+        trios: [
+          {
+            rank: 1,
+            augmentNames: ["亮出你的剑！", "全心全意", "致命精准"],
+            icons: [
+              "https://game.gtimg.cn/images/lol/act/img/item/6676.png",
+              "https://game.gtimg.cn/images/lol/act/img/item/3031.png",
+              "https://game.gtimg.cn/images/lol/act/img/item/3036.png"
+            ],
+            winRate: 0.764,
+            games: 482
+          },
+          {
+            rank: 2,
+            augmentNames: ["连珠炮手", "致命精准", "轻巧走位"],
+            icons: [
+              "https://game.gtimg.cn/images/lol/act/img/item/3072.png",
+              "https://game.gtimg.cn/images/lol/act/img/item/3036.png",
+              "https://game.gtimg.cn/images/lol/act/img/item/3177.png"
+            ],
+            winRate: 0.698,
+            games: 812
+          }
+        ],
+        tempo: {
+          earlyWin: "59.4%",
+          lateWin: "52.8%",
+          summary: "前期爆发核心 (#18) · 建议 15 分钟内推进压制"
+        },
+        blogs: [
+          { title: "男枪「亮出你的剑」极地一枪流万字拆解 (aramgg)", url: "#" },
+          { title: "海克斯大乱斗 3.0：射手符文梯队深度报告", url: "#" }
+        ]
+      },
+      {
+        id: 222,
+        title: "金克丝",
+        name: "暴走萝莉",
+        alias: "Jinx",
+        tier: "op",
+        tierLabel: "OP 梯队",
+        roles: ["marksman"],
+        rolesText: ["射手"],
+        iconUrl: "https://game.gtimg.cn/images/lol/act/img/champion/Jinx.png",
+        stats: { winRate: 0.568, pickRate: 0.154, games: 8940 },
+        myRecord: { games: 22, wins: 16 },
+        balanceTags: [
+          { label: "承受伤害 +5%", isBuff: false, desc: "极地大乱斗削弱平衡" }
+        ],
+        builds: [
+          {
+            name: "致命节奏攻速暴击流",
+            games: 6840,
+            winRate: 0.574,
+            pickRate: 0.765,
+            coreItems: [
+              { name: "海妖杀手", id: 6672, img: "https://game.gtimg.cn/images/lol/act/img/item/6672.png" },
+              { name: "卢安娜的飓风", id: 3085, img: "https://game.gtimg.cn/images/lol/act/img/item/3085.png" },
+              { name: "无尽之刃", id: 3031, img: "https://game.gtimg.cn/images/lol/act/img/item/3031.png" }
+            ],
+            starters: [
+              { name: "正义之手", id: 3177, img: "https://game.gtimg.cn/images/lol/act/img/item/3177.png" }
+            ],
+            extensions: [
+              { name: "多米尼克领主的致意", id: 3036, img: "https://game.gtimg.cn/images/lol/act/img/item/3036.png", winRate: 0.592 }
+            ],
+            spells: [
+              {
+                name: "闪现 + 净化",
+                ids: [4, 1],
+                imgs: [
+                  "https://game.gtimg.cn/images/lol/act/img/spell/SummonerFlash.png",
+                  "https://game.gtimg.cn/images/lol/act/img/spell/SummonerBoost.png"
+                ],
+                winRate: 0.581,
+                pickRate: 0.42
+              }
+            ],
+            skillOrder: {
+              summary: "主 Q 副 W",
+              keys: ["Q", "W", "E"],
+              winRate: 0.578
+            }
+          }
+        ],
+        traps: [
+          { name: "魔宗", id: 3004, img: "https://game.gtimg.cn/images/lol/act/img/item/3004.png", diff: "-18.2%", reason: "大乱斗成型过慢，严重错失中盘团战高发期" }
+        ],
+        augments: [
+          {
+            name: "超速充能",
+            rarity: "prismatic",
+            rarityLabel: "棱彩",
+            winRate: 0.692,
+            pickRate: 0.22,
+            desc: "攻速上限突破至 5.0，罪恶快感被动延长至 12 秒。",
+            icon: "https://game.gtimg.cn/images/lol/act/img/item/3085.png"
+          },
+          {
+            name: "弹幕倾泻",
+            rarity: "gold",
+            rarityLabel: "黄金",
+            winRate: 0.624,
+            pickRate: 0.31,
+            desc: "火箭发射器攻击范围提升 150 码，伤害增加 15%。",
+            icon: "https://game.gtimg.cn/images/lol/act/img/item/6672.png"
+          },
+          {
+            name: "战地狂热",
+            rarity: "silver",
+            rarityLabel: "白银",
+            winRate: 0.558,
+            pickRate: 0.35,
+            desc: "参与击杀后立刻回复 15% 最大生命值。",
+            icon: "https://game.gtimg.cn/images/lol/act/img/item/3031.png"
+          }
+        ],
+        trios: [
+          {
+            rank: 1,
+            augmentNames: ["超速充能", "弹幕倾泻", "战地狂热"],
+            icons: [
+              "https://game.gtimg.cn/images/lol/act/img/item/3085.png",
+              "https://game.gtimg.cn/images/lol/act/img/item/6672.png",
+              "https://game.gtimg.cn/images/lol/act/img/item/3031.png"
+            ],
+            winRate: 0.781,
+            games: 620
+          }
+        ],
+        tempo: {
+          earlyWin: "51.2%",
+          lateWin: "61.8%",
+          summary: "后期收割巨兽 (#3) · 3件套后胜率飙升至 62%+"
+        },
+        blogs: [
+          { title: "金克丝海克斯弹幕机枪终极配置 (aramgg)", url: "#" }
+        ]
+      },
+      {
+        id: 157,
+        title: "亚索",
+        name: "疾风剑豪",
+        alias: "Yasuo",
+        tier: "t1",
+        tierLabel: "T1 梯队",
+        roles: ["fighter", "assassin"],
+        rolesText: ["战士", "刺客"],
+        iconUrl: "https://game.gtimg.cn/images/lol/act/img/champion/Yasuo.png",
+        stats: { winRate: 0.534, pickRate: 0.165, games: 9120 },
+        myRecord: { games: 12, wins: 7 },
+        balanceTags: [
+          { label: "造成伤害 +5%", isBuff: true, desc: "大乱斗增强" },
+          { label: "承受伤害 -5%", isBuff: true, desc: "大乱斗增强" }
+        ],
+        builds: [
+          {
+            name: "无尽不灭双暴流",
+            games: 7100,
+            winRate: 0.542,
+            pickRate: 0.78,
+            coreItems: [
+              { name: "海妖杀手", id: 6672, img: "https://game.gtimg.cn/images/lol/act/img/item/6672.png" },
+              { name: "无尽之刃", id: 3031, img: "https://game.gtimg.cn/images/lol/act/img/item/3031.png" },
+              { name: "斯特拉克的挑战护手", id: 3053, img: "https://game.gtimg.cn/images/lol/act/img/item/3053.png" }
+            ],
+            starters: [
+              { name: "守护者战锤", id: 3184, img: "https://game.gtimg.cn/images/lol/act/img/item/3184.png" }
+            ],
+            extensions: [
+              { name: "死亡之舞", id: 6333, img: "https://game.gtimg.cn/images/lol/act/img/item/6333.png", winRate: 0.562 }
+            ],
+            spells: [
+              {
+                name: "闪现 + 标记(雪球)",
+                ids: [4, 32],
+                imgs: [
+                  "https://game.gtimg.cn/images/lol/act/img/spell/SummonerFlash.png",
+                  "https://game.gtimg.cn/images/lol/act/img/spell/SummonerSnowball.png"
+                ],
+                winRate: 0.544,
+                pickRate: 0.88
+              }
+            ],
+            skillOrder: {
+              summary: "主 Q 副 E",
+              keys: ["Q", "E", "W"],
+              winRate: 0.545
+            }
+          }
+        ],
+        traps: [
+          { name: "狂风之啸", id: 6671, img: "https://game.gtimg.cn/images/lol/act/img/item/6671.png", diff: "-11.2%", reason: "身板太脆无法完成近身风暴输出" }
+        ],
+        augments: [
+          {
+            name: "绝息疾风斩",
+            rarity: "prismatic",
+            rarityLabel: "棱彩",
+            winRate: 0.672,
+            pickRate: 0.19,
+            desc: "大招对所有浮空目标必定暴击，击飞时间延长 1 秒。",
+            icon: "https://game.gtimg.cn/images/lol/act/img/item/3031.png"
+          },
+          {
+            name: "剑道精通",
+            rarity: "gold",
+            rarityLabel: "黄金",
+            winRate: 0.584,
+            pickRate: 0.28,
+            desc: "每次暴击缩短斩钢闪 0.3 秒冷却时间。",
+            icon: "https://game.gtimg.cn/images/lol/act/img/item/6672.png"
+          },
+          {
+            name: "踏前疾行",
+            rarity: "silver",
+            rarityLabel: "白银",
+            winRate: 0.538,
+            pickRate: 0.33,
+            desc: "E 技能无冷却且提供可叠加护盾。",
+            icon: "https://game.gtimg.cn/images/lol/act/img/item/3184.png"
+          }
+        ],
+        trios: [
+          {
+            rank: 1,
+            augmentNames: ["绝息疾风斩", "剑道精通", "踏前疾行"],
+            icons: [
+              "https://game.gtimg.cn/images/lol/act/img/item/3031.png",
+              "https://game.gtimg.cn/images/lol/act/img/item/6672.png",
+              "https://game.gtimg.cn/images/lol/act/img/item/3184.png"
+            ],
+            winRate: 0.724,
+            games: 340
+          }
+        ],
+        tempo: {
+          earlyWin: "50.1%",
+          lateWin: "55.8%",
+          summary: "阵容依赖型中后期核 · 极需队友击飞配合"
+        },
+        blogs: []
+      },
+      {
+        id: 99,
+        title: "拉克丝",
+        name: "光辉女郎",
+        alias: "Lux",
+        tier: "t2",
+        tierLabel: "T2 梯队",
+        roles: ["mage", "support"],
+        rolesText: ["法师", "辅助"],
+        iconUrl: "https://game.gtimg.cn/images/lol/act/img/champion/Lux.png",
+        stats: { winRate: 0.512, pickRate: 0.182, games: 10450 },
+        myRecord: { games: 9, wins: 4 },
+        balanceTags: [
+          { label: "造成伤害 -15%", isBuff: false, desc: "大乱斗重度削弱" },
+          { label: "承受伤害 +10%", isBuff: false, desc: "大乱斗重度削弱" },
+          { label: "技能急速 -20", isBuff: false, desc: "急速重度受限" }
+        ],
+        builds: [
+          {
+            name: "卢登爆发穿透流",
+            games: 8200,
+            winRate: 0.518,
+            pickRate: 0.82,
+            coreItems: [
+              { name: "卢登的伙伴", id: 6655, img: "https://game.gtimg.cn/images/lol/act/img/item/6655.png" },
+              { name: "影焰", id: 4645, img: "https://game.gtimg.cn/images/lol/act/img/item/4645.png" },
+              { name: "灭世者的死亡之帽", id: 3089, img: "https://game.gtimg.cn/images/lol/act/img/item/3089.png" }
+            ],
+            starters: [
+              { name: "遗失的章节", id: 3802, img: "https://game.gtimg.cn/images/lol/act/img/item/3802.png" }
+            ],
+            extensions: [
+              { name: "虚空之杖", id: 3135, img: "https://game.gtimg.cn/images/lol/act/img/item/3135.png", winRate: 0.534 }
+            ],
+            spells: [
+              {
+                name: "闪现 + 清晰术",
+                ids: [4, 13],
+                imgs: [
+                  "https://game.gtimg.cn/images/lol/act/img/spell/SummonerFlash.png",
+                  "https://game.gtimg.cn/images/lol/act/img/spell/SummonerMana.png"
+                ],
+                winRate: 0.514,
+                pickRate: 0.45
+              }
+            ],
+            skillOrder: {
+              summary: "主 E 副 Q",
+              keys: ["E", "Q", "W"],
+              winRate: 0.516
+            }
+          }
+        ],
+        traps: [
+          { name: "时光之杖", id: 6657, img: "https://game.gtimg.cn/images/lol/act/img/item/6657.png", diff: "-14.5%", reason: "大乱斗节奏极快，过度拖沓缺乏斩杀压迫力" }
+        ],
+        augments: [
+          {
+            name: "终极火炮",
+            rarity: "prismatic",
+            rarityLabel: "棱彩",
+            winRate: 0.632,
+            pickRate: 0.25,
+            desc: "终极闪光 (R) 击杀敌人立刻重置冷却并返还全部法力值。",
+            icon: "https://game.gtimg.cn/images/lol/act/img/item/6655.png"
+          },
+          {
+            name: "光之锁链",
+            rarity: "gold",
+            rarityLabel: "黄金",
+            winRate: 0.564,
+            pickRate: 0.28,
+            desc: "光之束缚 (Q) 可额外捆绑一个临近敌方英雄。",
+            icon: "https://game.gtimg.cn/images/lol/act/img/item/4645.png"
+          },
+          {
+            name: "法力激流",
+            rarity: "silver",
+            rarityLabel: "白银",
+            winRate: 0.521,
+            pickRate: 0.38,
+            desc: "最大法力值上限提升 400，并获得等量技能急速。",
+            icon: "https://game.gtimg.cn/images/lol/act/img/item/3802.png"
+          }
+        ],
+        trios: [
+          {
+            rank: 1,
+            augmentNames: ["终极火炮", "光之锁链", "法力激流"],
+            icons: [
+              "https://game.gtimg.cn/images/lol/act/img/item/6655.png",
+              "https://game.gtimg.cn/images/lol/act/img/item/4645.png",
+              "https://game.gtimg.cn/images/lol/act/img/item/3802.png"
+            ],
+            winRate: 0.692,
+            games: 512
+          }
+        ],
+        tempo: {
+          earlyWin: "54.8%",
+          lateWin: "47.2%",
+          summary: "前期长手 Poke 型 · 后期因承伤+10%惩罚极易被蒸发"
+        },
+        blogs: []
+      }
+    ];
 
-      if (mode === 'dual') {
-        container.className = 'dual-pane';
-        btnDual.classList.add('active');
-        btnSingle.classList.remove('active');
-      } else {
-        container.className = 'single-pane';
-        btnDual.classList.remove('active');
-        btnSingle.classList.add('active');
+    // 当前状态
+    let currentChampionId = 104;
+    let currentRole = 'all';
+    let currentSearch = '';
+    let currentInspectorTab = 'build'; // 'build' | 'augments' | 'traps' | 'tempo'
+    let currentBuildIndex = 0;
+    let currentAugmentRarity = 'all';
+    let currentLayout = 'dual'; // 'dual' | 'single'
+
+    function formatPct(val) {
+      if (val == null) return '--%';
+      return (val * 100).toFixed(1) + '%';
+    }
+
+    function switchLayout(mode) {
+      currentLayout = mode;
+      document.getElementById('btnDualPane').classList.toggle('active', mode === 'dual');
+      document.getElementById('btnSinglePane').classList.toggle('active', mode === 'single');
+      document.getElementById('matrixLayout').classList.toggle('single-pane', mode === 'single');
+      document.getElementById('rightAside').style.display = mode === 'dual' ? 'block' : 'none';
+      renderMatrix();
+    }
+
+    function selectChampion(id) {
+      currentChampionId = id;
+      currentBuildIndex = 0;
+      currentAugmentRarity = 'all';
+      renderMatrix();
+      if (currentLayout === 'dual') {
+        renderInspector(document.getElementById('inspectorContainer'));
       }
     }
 
-    // 切换看板 Tab
-    function switchInspTab(tabId) {
-      const tabs = ['overview', 'items', 'augments', 'ability'];
-      tabs.forEach(t => {
-        const el = document.getElementById('tab-' + t);
-        if (el) el.style.display = (t === tabId ? 'block' : 'none');
-      });
-      document.querySelectorAll('.insp-tab').forEach((b, i) => {
-        b.classList.toggle('active', tabs[i] === tabId);
+    function filterRole(role, btn) {
+      currentRole = role;
+      document.querySelectorAll('.role-chips .chip').forEach(c => c.classList.remove('active'));
+      btn.classList.add('active');
+      renderMatrix();
+    }
+
+    function onSearch(val) {
+      currentSearch = val.trim().toLowerCase();
+      renderMatrix();
+    }
+
+    function switchInspTab(tab) {
+      currentInspectorTab = tab;
+      if (currentLayout === 'dual') {
+        renderInspector(document.getElementById('inspectorContainer'));
+      } else {
+        const inlineBox = document.getElementById('inlineInspectorBox');
+        if (inlineBox) renderInspector(inlineBox);
+      }
+    }
+
+    function switchBuild(idx) {
+      currentBuildIndex = idx;
+      if (currentLayout === 'dual') {
+        renderInspector(document.getElementById('inspectorContainer'));
+      } else {
+        const inlineBox = document.getElementById('inlineInspectorBox');
+        if (inlineBox) renderInspector(inlineBox);
+      }
+    }
+
+    function filterAugRarity(rarity) {
+      currentAugmentRarity = rarity;
+      if (currentLayout === 'dual') {
+        renderInspector(document.getElementById('inspectorContainer'));
+      } else {
+        const inlineBox = document.getElementById('inlineInspectorBox');
+        if (inlineBox) renderInspector(inlineBox);
+      }
+    }
+
+    // 渲染左侧 T 级矩阵
+    function renderMatrix() {
+      const container = document.getElementById('tierSections');
+      container.innerHTML = '';
+
+      let list = CHAMPIONS;
+      if (currentRole !== 'all') {
+        list = list.filter(c => c.roles.includes(currentRole));
+      }
+      if (currentSearch) {
+        list = list.filter(c =>
+          c.title.toLowerCase().includes(currentSearch) ||
+          c.name.toLowerCase().includes(currentSearch) ||
+          c.alias.toLowerCase().includes(currentSearch)
+        );
+      }
+
+      const tiers = [
+        { key: 'op', label: 'OP 梯队', desc: '绝对核心 · 胜率 ≥ 55%' },
+        { key: 't1', label: 'T1 梯队', desc: '强势优选 · 胜率 52% ~ 55%' },
+        { key: 't2', label: 'T2 梯队', desc: '主流选择 · 胜率 50% ~ 52%' },
+        { key: 't3', label: 'T3 梯队', desc: '考验配合 · 胜率 < 50%' }
+      ];
+
+      tiers.forEach(tier => {
+        const heroes = list.filter(c => c.tier === tier.key);
+        if (!heroes.length) return;
+
+        const sec = document.createElement('div');
+        sec.className = 'tier-group';
+
+        sec.innerHTML = `
+          <div class="tier-group-header">
+            <span class="tier-badge ${tier.key}">${tier.label}</span>
+            <span class="tier-stat-summary">${tier.desc} · ${heroes.length} 只</span>
+          </div>
+          <div class="hero-grid">
+            ${heroes.map(c => `
+              <div class="hero-tile ${c.id === currentChampionId ? 'active' : ''}"
+                   onclick="selectChampion(${c.id})"
+                   title="${c.name} · ${c.title}">
+                <img src="${c.iconUrl}" alt="${c.title}" loading="lazy" />
+                <div class="tile-wr ${c.stats.winRate >= 0.52 ? 'win' : ''}">${formatPct(c.stats.winRate)}</div>
+                ${c.myRecord ? `<span class="my-badge">★ ${formatPct(c.myRecord.wins / c.myRecord.games)}</span>` : ''}
+              </div>
+            `).join('')}
+          </div>
+        `;
+
+        // 窄屏模式下，就地展开在包含当前选中英雄的组下方
+        if (currentLayout === 'single' && heroes.some(c => c.id === currentChampionId)) {
+          const foldWrap = document.createElement('div');
+          foldWrap.className = 'inline-fold-wrap';
+          foldWrap.innerHTML = `
+            <div class="inline-fold-bar">
+              <span>已就地展开详情：${heroes.find(c => c.id === currentChampionId).name} · ${heroes.find(c => c.id === currentChampionId).title}</span>
+              <button class="btn" style="padding: 2px 8px; font-size: 11px;" onclick="switchLayout('dual')">返回宽屏分栏</button>
+            </div>
+            <div id="inlineInspectorBox"></div>
+          `;
+          sec.appendChild(foldWrap);
+          setTimeout(() => renderInspector(document.getElementById('inlineInspectorBox')), 0);
+        }
+
+        container.appendChild(sec);
       });
     }
 
-    // 选中英雄交互模拟
-    function selectHero(hero) {
-      document.querySelectorAll('.hero-tile').forEach(t => t.classList.remove('active'));
-      event.currentTarget.classList.add('active');
+    // 渲染右侧或就地看板
+    function renderInspector(targetEl) {
+      if (!targetEl) return;
+      const c = CHAMPIONS.find(x => x.id === currentChampionId) || CHAMPIONS[0];
+      const activeBuild = c.builds[currentBuildIndex] || c.builds[0];
 
-      const data = {
-        graves: { name: '格雷福斯', role: '射手', img: 'https://cdn.dtodo.cn/hextech/champion-icons/104.png' },
-        vayne: { name: '薇恩', role: '射手 / 刺客', img: 'https://cdn.dtodo.cn/hextech/champion-icons/67.png' },
-        sett: { name: '瑟提', role: '战士 / 坦克', img: 'https://cdn.dtodo.cn/hextech/champion-icons/875.png' },
-        caitlyn: { name: '凯特琳', role: '射手', img: 'https://cdn.dtodo.cn/hextech/champion-icons/51.png' },
-        leona: { name: '蕾欧娜', role: '坦克 / 辅助', img: 'https://cdn.dtodo.cn/hextech/champion-icons/89.png' }
-      };
-      const info = data[hero] || data.graves;
-      document.getElementById('inspAvatar').src = info.img;
-      document.getElementById('inspName').innerText = info.name;
-      document.getElementById('inspRole').innerText = info.role;
+      // 筛选强化
+      let augList = c.augments;
+      if (currentAugmentRarity !== 'all') {
+        augList = augList.filter(a => a.rarity === currentAugmentRarity);
+      }
+
+      targetEl.innerHTML = `
+        <!-- 头部 Hero 区域 -->
+        <div class="insp-hero">
+          <div class="insp-hero-left">
+            <img class="insp-hero-avatar" src="${c.iconUrl}" alt="${c.title}" />
+            <div class="insp-hero-titles">
+              <div class="hero-name-row">
+                <span class="hero-name">${c.title}</span>
+                <span class="hero-alias">${c.name} · ${c.alias}</span>
+                <span class="tier-badge ${c.tier}">${c.tierLabel}</span>
+              </div>
+              <div class="hero-roles">
+                ${c.rolesText.map(r => `<i>${r}</i>`).join('')}
+                ${c.myRecord ? `<i style="color: var(--brand); border-color: var(--brand-border);">★ 本地绝活：${formatPct(c.myRecord.wins/c.myRecord.games)} (${c.myRecord.games}场)</i>` : ''}
+              </div>
+              <!-- 官方平衡性 Buff 芯片 -->
+              <div class="balance-tags">
+                ${c.balanceTags.map(b => `
+                  <span class="dbal ${b.isBuff ? 'buff' : 'nerf'}" title="${b.desc}">${b.label}</span>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 6px; align-items: flex-end;">
+            <button class="btn primary" onclick="alert('已将【${c.title}】的出装与符文一键应用到英雄联盟客户端！')">⚡ 应用配置</button>
+            <button class="btn" onclick="alert('已复制【${c.title}】的实战分析战报到剪贴板！')">📋 复制战报</button>
+          </div>
+        </div>
+
+        <!-- 4 大核心 Tab 导航 -->
+        <div class="insp-tabs">
+          <button class="insp-tab ${currentInspectorTab === 'build' ? 'active' : ''}" onclick="switchInspTab('build')">出装与流派 (${c.builds.length})</button>
+          <button class="insp-tab ${currentInspectorTab === 'augments' ? 'active' : ''}" onclick="switchInspTab('augments')">海克斯符文</button>
+          <button class="insp-tab ${currentInspectorTab === 'traps' ? 'active' : ''}" onclick="switchInspTab('traps')">避坑警示 (${c.traps.length})</button>
+          <button class="insp-tab ${currentInspectorTab === 'tempo' ? 'active' : ''}" onclick="switchInspTab('tempo')">节奏与攻略</button>
+        </div>
+
+        <!-- Tab 内容区 -->
+        <div class="insp-body">
+          ${renderTabContent(c, activeBuild, augList)}
+        </div>
+      `;
+    }
+
+    function renderTabContent(c, activeBuild, augList) {
+      // 1. 出装与流派 Tab
+      if (currentInspectorTab === 'build') {
+        return `
+          <!-- 三大统计指标 -->
+          <div class="stat-trio">
+            <div class="stat-card">
+              <div class="stat-card-val win">${formatPct(c.stats.winRate)}</div>
+              <div class="stat-card-lbl">大乱斗全服胜率</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-card-val">${formatPct(c.stats.pickRate)}</div>
+              <div class="stat-card-lbl">登场选用热度</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-card-val">${c.stats.games.toLocaleString()}</div>
+              <div class="stat-card-lbl">国服实战样本局</div>
+            </div>
+          </div>
+
+          <!-- 流派选择器 -->
+          <div class="section-title">⚔️ 玩法流派方案</div>
+          <div class="build-selector">
+            ${c.builds.map((b, i) => `
+              <button class="build-pill ${i === currentBuildIndex ? 'active' : ''}" onclick="switchBuild(${i})">
+                ${b.name} · ${formatPct(b.winRate)} (${b.games.toLocaleString()}场)
+              </button>
+            `).join('')}
+          </div>
+
+          <!-- 核心两件套/三件套 -->
+          <div class="section-title">🎯 核心出装链 (胜率最高组合)</div>
+          <div class="core-build-bar">
+            <div class="core-items-chain">
+              ${activeBuild.coreItems.map((item, idx) => `
+                <div class="item-icon-box" title="${item.name}">
+                  <img src="${item.img}" alt="${item.name}" />
+                </div>
+                ${idx < activeBuild.coreItems.length - 1 ? '<span class="chain-arrow">▶</span>' : ''}
+              `).join('')}
+            </div>
+            <div class="core-meta">
+              <div class="core-win">${formatPct(activeBuild.winRate)} 胜率</div>
+              <div class="core-pick">选用率 ${formatPct(activeBuild.pickRate)} · 主流标配</div>
+            </div>
+          </div>
+
+          <!-- 后续延伸件推荐 -->
+          <div class="section-title">📦 后续顺势延伸神装</div>
+          <div class="ext-grid">
+            ${activeBuild.extensions.map(ext => `
+              <div class="ext-card" title="${ext.name}">
+                <img src="${ext.img}" alt="${ext.name}" />
+                <div class="ext-info">
+                  <div class="ext-name">${ext.name}</div>
+                  <div class="ext-rate">${formatPct(ext.winRate)} 胜率</div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+
+          <!-- 出门装与召唤师技能组合 -->
+          <div class="combo-grid">
+            <div>
+              <div class="section-title">🛡️ 推荐出门装</div>
+              <div class="combo-card">
+                <div class="combo-icons">
+                  ${activeBuild.starters.map(st => `<img src="${st.img}" alt="${st.name}" title="${st.name}" />`).join('')}
+                </div>
+                <div>
+                  <div class="combo-name">${activeBuild.starters.map(s => s.name).join(' + ')}</div>
+                  <div class="combo-stats">平稳过渡抗压</div>
+                </div>
+              </div>
+            </div>
+            <div>
+              <div class="section-title">⚡ 召唤师技能组合</div>
+              <div class="combo-card">
+                <div class="combo-icons">
+                  ${activeBuild.spells[0].imgs.map(img => `<img src="${img}" />`).join('')}
+                </div>
+                <div>
+                  <div class="combo-name">${activeBuild.spells[0].name}</div>
+                  <div class="combo-stats">${formatPct(activeBuild.spells[0].winRate)} 胜率 · ${formatPct(activeBuild.spells[0].pickRate)} 选用</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 技能加点路线 -->
+          <div class="section-title">📈 技能加点路线</div>
+          <div class="skill-order-card">
+            <div class="skill-keys-chain">
+              <div class="skill-key-badge">${activeBuild.skillOrder.keys[0]}</div>
+              <span class="skill-arrow">▶</span>
+              <div class="skill-key-badge">${activeBuild.skillOrder.keys[1]}</div>
+              <span class="skill-arrow">▶</span>
+              <div class="skill-key-badge">${activeBuild.skillOrder.keys[2]}</div>
+              <span style="margin-left: 10px; font-weight: 600; color: var(--text-primary);">${activeBuild.skillOrder.summary} (有大点大)</span>
+            </div>
+            <div style="font-family: var(--font-num); font-weight: 700; color: var(--win-bright);">
+              ${formatPct(activeBuild.skillOrder.winRate)} 胜率
+            </div>
+          </div>
+        `;
+      }
+
+      // 2. 海克斯符文 Tab
+      if (currentInspectorTab === 'augments') {
+        return `
+          <!-- 天胡三强化组合 -->
+          <div class="trios-sec">
+            <div class="section-title" style="margin-top: 0;">🌟 天胡三海克斯联动羁绊 (Top Trios)</div>
+            ${c.trios.map(t => `
+              <div class="trio-card">
+                <div class="trio-icons">
+                  <span class="trio-rank">#${t.rank}</span>
+                  ${t.icons.map(ic => `<img src="${ic}" />`).join('')}
+                  <span style="font-size: 11.5px; font-weight: 600; margin-left: 6px;">${t.augmentNames.join(' + ')}</span>
+                </div>
+                <div style="text-align: right;">
+                  <div class="trio-win">${formatPct(t.winRate)} 胜率</div>
+                  <div style="font-size: 10px; color: var(--text-tertiary);">${t.games} 场天胡成型样本</div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+
+          <!-- 强化分类筛选条 -->
+          <div class="section-title">🎨 强化符文按品质色系归类</div>
+          <div class="aug-category-bar">
+            <button class="aug-rarity-chip all ${currentAugmentRarity === 'all' ? 'active' : ''}" onclick="filterAugRarity('all')">★ 全部品质 (${c.augments.length})</button>
+            <button class="aug-rarity-chip prismatic ${currentAugmentRarity === 'prismatic' ? 'active' : ''}" onclick="filterAugRarity('prismatic')">🟣 棱彩 (Prismatic)</button>
+            <button class="aug-rarity-chip gold ${currentAugmentRarity === 'gold' ? 'active' : ''}" onclick="filterAugRarity('gold')">🟡 黄金 (Gold)</button>
+            <button class="aug-rarity-chip silver ${currentAugmentRarity === 'silver' ? 'active' : ''}" onclick="filterAugRarity('silver')">⚪ 白银 (Silver)</button>
+          </div>
+
+          <!-- 强化卡片列表 -->
+          <div class="aug-cards-grid">
+            ${augList.map(a => `
+              <div class="aug-card ${a.rarity}">
+                <img class="aug-card-icon" src="${a.icon}" alt="${a.name}" />
+                <div class="aug-card-main">
+                  <div class="aug-card-title-row">
+                    <span class="aug-name">${a.name}</span>
+                    <span class="aug-badge ${a.rarity}">${a.rarityLabel}</span>
+                  </div>
+                  <div class="aug-desc">${a.desc}</div>
+                </div>
+                <div class="aug-stats-side">
+                  <div class="aug-win-rate">${formatPct(a.winRate)}</div>
+                  <div class="aug-pick-rate">选用 ${formatPct(a.pickRate)}</div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      }
+
+      // 3. 避坑警示 Tab
+      if (currentInspectorTab === 'traps') {
+        return `
+          <div class="traps-banner">
+            <div class="section-title warn" style="margin: 0 0 4px;">⚠️ 常见但不推荐 (负协同避坑警示)</div>
+            <p style="font-size: 11px; color: var(--text-secondary);">
+              以下装备在大乱斗对局中出装率高，但由于机制冲突或节奏脱节，导致实际胜率显著拉低，请务必规避：
+            </p>
+            <div class="traps-list">
+              ${c.traps.map(t => `
+                <div class="trap-item">
+                  <div class="trap-left">
+                    <img src="${t.img}" alt="${t.name}" />
+                    <div>
+                      <b style="color: var(--text-primary); font-size: 12px;">${t.name}</b>
+                      <div class="trap-desc">${t.reason}</div>
+                    </div>
+                  </div>
+                  <div class="trap-diff">${t.diff} 胜率拖累</div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      }
+
+      // 4. 节奏与攻略 Tab
+      if (currentInspectorTab === 'tempo') {
+        return `
+          <div class="section-title">⏱️ 对局时长与节奏偏好</div>
+          <div class="tempo-box">
+            <div style="font-weight: 700; color: var(--brand); font-size: 12px; margin-bottom: 4px;">${c.tempo.summary}</div>
+            <div class="tempo-row">
+              <span>前期 (0-15 分钟) 胜率</span>
+              <b style="color: var(--win-bright);">${c.tempo.earlyWin}</b>
+              <div class="prog-bar"><div class="prog-fill win" style="width: ${c.tempo.earlyWin};"></div></div>
+            </div>
+            <div class="tempo-row">
+              <span>后期 (20+ 分钟) 胜率</span>
+              <b>${c.tempo.lateWin}</b>
+              <div class="prog-bar"><div class="prog-fill blue" style="width: ${c.tempo.lateWin};"></div></div>
+            </div>
+          </div>
+
+          <div class="section-title">📖 国服进阶玩法攻略 (aramgg)</div>
+          ${c.blogs.length ? c.blogs.map(b => `
+            <div class="blog-item">
+              <span style="color: var(--brand);">💡</span>
+              <a href="${b.url}">${b.title}</a>
+            </div>
+          `).join('') : '<div style="color: var(--text-tertiary); font-size: 11px; padding: 8px 0;">暂无该英雄的进阶文章</div>'}
+        `;
+      }
+
+      return '';
+    }
+
+    // 页面初始化
+    renderMatrix();
+    if (currentLayout === 'dual') {
+      renderInspector(document.getElementById('inspectorContainer'));
     }
   </script>
 </body>
