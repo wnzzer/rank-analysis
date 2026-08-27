@@ -16,6 +16,9 @@ import { computeReviewAxes, radarPoints } from '@renderer/companion/review'
 import { matchDetailContextKey } from '../matchDetailContext'
 import { requestAIContent } from '@renderer/services/ai/stream'
 import { getChampionName } from '@renderer/services/ai/champion-names'
+import { useCopy } from '@renderer/composables/useCopy'
+import { Copy } from 'lucide-vue-next'
+import { formatReviewReport } from '@renderer/companion/reviewReport'
 
 const injectedCtx = inject(matchDetailContextKey)
 if (!injectedCtx) throw new Error('ReviewTab 必须在 MatchDetailInline 内使用')
@@ -116,6 +119,22 @@ async function generateJudges() {
     running.value = false
   }
 }
+
+const { copy } = useCopy()
+
+function copyReport() {
+  const p = judgePlayers.value.find(p => p.name === effectiveSelected.value)
+  if (!p) return
+  const queueId = injectedCtx?.game.value?.queueId
+  const queueName = queueId === 450 ? '极地大乱斗' : queueId === 2400 ? '海克斯大乱斗' : undefined
+  const text = formatReviewReport({
+    player: p,
+    badges: selectedBadges.value,
+    judges: judgedFor.value === effectiveSelected.value ? judgeResults.value : [],
+    queueName
+  })
+  copy(text)
+}
 </script>
 
 <template>
@@ -161,15 +180,24 @@ async function generateJudges() {
         <p v-else class="rv-muted">本局无徽章——稳定发挥也是一种实力。</p>
 
         <h4 style="margin-top: 16px">三裁判点评</h4>
-        <button class="rv-btn" :disabled="running" @click="generateJudges">
-          {{
-            running
-              ? '评审中…'
-              : judgedFor === effectiveSelected && judgeResults.length
-                ? '重新生成'
-                : '生成三裁判点评'
-          }}
-        </button>
+        <div class="rv-actions">
+          <button class="rv-btn" :disabled="running" @click="generateJudges">
+            {{
+              running
+                ? '评审中…'
+                : judgedFor === effectiveSelected && judgeResults.length
+                  ? '重新生成'
+                  : '生成三裁判点评'
+            }}
+          </button>
+          <button
+            class="rv-btn rv-btn--sec"
+            title="复制格式化战报文本到剪贴板，方便在开黑群分享"
+            @click="copyReport"
+          >
+            <Copy class="btn-ico" /> 复制战报
+          </button>
+        </div>
         <div v-if="judgeResults.length && judgedFor === effectiveSelected" class="rv-judges">
           <div v-for="j in judgeResults" :key="j.styleId" class="rv-judge">
             <b>{{ j.label }}</b>

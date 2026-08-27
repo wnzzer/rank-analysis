@@ -205,8 +205,7 @@
               :min="0.5"
               :max="1"
               :step="0.05"
-              style="width: 140px"
-              format-tooltip
+              :format-tooltip="(v: number) => `${Math.round(v * 100)}%`"
               @update:value="persistOverlay"
             />
             <span style="font-size: var(--font-size-sm); color: var(--text-secondary)">锚点</span>

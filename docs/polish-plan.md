@@ -38,6 +38,7 @@
 | R29 | 服务层与剪贴板测试化（http/platform/useCopy） |
 | R30 | 模式列表测试化 / configKeys 一致性核查 |
 | R31 | Mayhem 空态统一 / draft 缺口边界 / README 同步 |
+| R32 | 赛后战报文本格式化与快捷分享（E6）/ 单测补全 |
 
 ---
 
@@ -344,11 +345,18 @@
       覆盖 T 级榜单、流派出装、选人期助手与对局浮窗。
 - [x] R31-4 General.vue 浮窗描述优化与 rustfmt 格式合规修复。
 
-## Round 32 候选池
-- R32-1 `ai.apiKey` 是否应加入 CLOUD_ONLY_BLACKLIST 的产品决策与实施
+## Round 32 计划 赛后战报文本格式化与快捷分享（E6） ✅（2026-08-27）
+- [x] R32-1 纯函数抽取 formatReviewReport——针对游戏聊天室/开黑群（QQ/微信/KOOK/Discord）
+      格式化胜负、KDA（含 PERFECT 守卫）、伤害、承伤、徽章以及 AI 裁判点评，零外部依赖。
+- [x] R32-2 单元测试覆盖 reviewReport.spec.ts——全要素完整战报与 0 死亡边界覆盖。
+- [x] R32-3 MatchDetailReviewTab.vue 接入一键复制战报按钮，与 useCopy() 配合给出即时交互反馈。
+- [x] R32-4 polish-plan 轮次速览表滚动维护。
+
+## Round 33 候选池
+- R33-1 `ai.apiKey` 是否应加入 CLOUD_ONLY_BLACKLIST 的产品决策与实施
   （若排除：Rust 黑名单 + 单测 + README 数据说明三处同步）
-- R32-2 useEmberField 测试化（reduced-motion 分支已有实现，评估动画帧 mock 成本）
-- R32-3 大乱斗详情页/战绩卡纯文本与图片快捷分享支持（E6）
-- R32-4 polish-plan 轮次速览表滚动维护
+- R33-2 useEmberField 测试化（reduced-motion 分支已有实现，评估动画帧 mock 成本）
+- R33-3 PlayerCard 大乱斗强度角标与快捷悬浮推荐装
+- R33-4 polish-plan 轮次速览表滚动维护
 
 ## 归档说明

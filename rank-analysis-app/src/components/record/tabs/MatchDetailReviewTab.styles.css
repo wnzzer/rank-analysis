@@ -76,7 +76,12 @@
   color: var(--text-tertiary);
 }
 
-/* ---- 三裁判 ---- */
+.rv-actions {
+  display: flex;
+  gap: var(--space-8);
+  align-items: center;
+  flex-wrap: wrap;
+}
 .rv-btn {
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
@@ -86,6 +91,22 @@
   clip-path: var(--clip-notch);
   background: var(--brand-gradient);
   color: var(--text-on-brand);
+}
+.rv-btn--sec {
+  background: var(--surface-card, rgba(128, 128, 128, 0.12));
+  color: var(--text-primary);
+  border: 1px solid var(--border-strong);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.rv-btn--sec:hover {
+  border-color: var(--brand-border);
+  color: var(--brand);
+}
+.rv-btn--sec .btn-ico {
+  width: 12px;
+  height: 12px;
 }
 .rv-btn:disabled {
   opacity: 0.55;
