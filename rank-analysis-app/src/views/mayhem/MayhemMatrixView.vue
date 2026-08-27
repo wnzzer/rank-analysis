@@ -39,7 +39,7 @@
         <div v-for="grp in tierGroups" :key="grp.key" class="tier-section">
           <div class="tier-header">
             <span class="tier-badge" :class="grp.key">{{ grp.label }}</span>
-            <span class="tier-desc">{{ grp.desc }} · {{ grp.list.length }} 只</span>
+            <span class="tier-desc">{{ grp.desc }} · {{ grp.list.length }} 位</span>
           </div>
 
           <div v-if="grp.list.length" class="hero-matrix-grid">
@@ -63,7 +63,11 @@
               <div class="matrix-hero-wr" :class="{ hi: (c.stats.winRate ?? 0) >= 0.52 }">
                 {{ formatPct(c.stats.winRate) }}
               </div>
-              <span v-if="myRecordMap[c.id]" class="matrix-my-badge">
+              <span
+                v-if="myRecordMap[c.id]"
+                class="matrix-my-badge"
+                :title="`个人实战 ${myRecordMap[c.id].games} 场，胜率 ${formatPct(myRecordMap[c.id].wins / Math.max(myRecordMap[c.id].games, 1))}`"
+              >
                 ★ {{ formatPct(myRecordMap[c.id].wins / Math.max(myRecordMap[c.id].games, 1)) }}
               </span>
             </div>

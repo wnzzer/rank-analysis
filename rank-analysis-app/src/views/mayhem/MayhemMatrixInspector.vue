@@ -28,6 +28,7 @@ import {
   type SituationalItem
 } from '@renderer/features/mayhem/services/mayhemData'
 import { useMayhemStore } from '@renderer/features/mayhem/stores/mayhemStore'
+import { importRunePage } from '@renderer/services/importRunes'
 
 const mayhemStore = useMayhemStore()
 
@@ -244,11 +245,31 @@ function onCopyReport() {
   })
 }
 
-function onApplyConfig() {
-  applySuccess.value = true
-  setTimeout(() => {
-    applySuccess.value = false
-  }, 2500)
+const applying = ref(false)
+const applyMsg = ref('')
+
+async function onApplyConfig() {
+  if (applying.value || !detail.value) return
+  applying.value = true
+  applyMsg.value = ''
+  try {
+    const res = await importRunePage(props.championId)
+    applySuccess.value = true
+    applyMsg.value = `已成功写入【${res.pageName}】符文页`
+    setTimeout(() => {
+      applySuccess.value = false
+      applyMsg.value = ''
+    }, 2500)
+  } catch {
+    // 客户端未启动或暂无自采符文页，自动降级为复制实战指南
+    onCopyReport()
+    applyMsg.value = '客户端未连接，已自动复制实战指南到剪贴板！'
+    setTimeout(() => {
+      applyMsg.value = ''
+    }, 3500)
+  } finally {
+    applying.value = false
+  }
 }
 </script>
 
@@ -305,15 +326,23 @@ function onApplyConfig() {
         </div>
 
         <div class="insp-hero-actions">
-          <button class="insp-btn primary" @click="onApplyConfig">
+          <button
+            class="insp-btn primary"
+            :disabled="applying"
+            :title="applyMsg || '一键写入大乱斗实战符文页到游戏客户端'"
+            @click="onApplyConfig"
+          >
             <Zap class="btn-icon" />
-            {{ applySuccess ? '已应用配置！' : '应用配置' }}
+            {{ applying ? '应用中…' : applySuccess ? '已写入符文！' : '应用配置' }}
           </button>
-          <button class="insp-btn" @click="onCopyReport">
+          <button class="insp-btn" title="复制该英雄出装、加点与核心两件套" @click="onCopyReport">
             <Copy class="btn-icon" />
-            {{ copySuccess ? '已复制战报！' : '复制战报' }}
+            {{ copySuccess ? '已复制指南！' : '复制指南' }}
           </button>
         </div>
+      </div>
+      <div v-if="applyMsg" class="insp-notice-bar">
+        <span>{{ applyMsg }}</span>
       </div>
 
       <!-- 四大核心联动 Tab -->
@@ -753,6 +782,17 @@ function onApplyConfig() {
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
+}
+
+.insp-notice-bar {
+  padding: 6px 16px;
+  background: var(--brand-soft);
+  border-bottom: 1px solid var(--brand-border);
+  font-size: var(--font-size-xs);
+  color: var(--brand);
+  font-weight: 600;
+  text-align: center;
+  animation: fadeIn 0.15s ease-out;
 }
 
 .insp-hero-left {
