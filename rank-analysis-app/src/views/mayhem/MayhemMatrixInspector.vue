@@ -505,6 +505,9 @@ function onApplyConfig() {
             </div>
           </div>
         </template>
+        <div v-else class="insp-empty-section">
+          暂无该英雄的推荐出装流派数据
+        </div>
       </div>
 
       <!-- Tab 2: 海克斯符文 (按颜色品质规范分类) -->
@@ -659,7 +662,20 @@ function onApplyConfig() {
 
         <div class="insp-section">
           <div class="insp-sec-title">📖 国服进阶实战攻略 (aramgg)</div>
-          <div class="insp-blog-item">
+          <template v-if="detail?.relatedBlogs?.length">
+            <a
+              v-for="(b, bi) in detail.relatedBlogs"
+              :key="bi"
+              class="insp-blog-item"
+              :href="String(b.url || 'https://aramgg.com')"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <span class="insp-blog-icon">💡</span>
+              <span class="insp-blog-title">{{ String(b.title || '大乱斗实战进阶指南') }}</span>
+            </a>
+          </template>
+          <div v-else class="insp-blog-item">
             <span class="insp-blog-icon">💡</span>
             <span class="insp-blog-title">
               海克斯大乱斗核心卡组协同指南与流派克制深度拆解

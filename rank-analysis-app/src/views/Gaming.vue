@@ -668,16 +668,22 @@ function stopMayhemAssist() {
 }
 
 watch(
-  () => sessionData.phase,
-  phase => {
+  [() => sessionData.phase, () => sessionData.queueId],
+  ([phase, queueId]) => {
     if (phase === 'InProgress') {
       // 先建/显示窗口再首推：overlay 懒创建，若先 poll 后 show，
       // 首条 overlay:update 会落在窗口 mount+listen 就绪之前而丢失。
       void invoke('show_overlay_window').catch(() => {})
       lastNextActionAt = 0
       void pollNextActions()
-      nextActionTimer = setInterval(() => void pollNextActions(), NEXT_ACTION_POLL_MS)
-      startMayhemAssistIfNeeded()
+      if (!nextActionTimer) {
+        nextActionTimer = setInterval(() => void pollNextActions(), NEXT_ACTION_POLL_MS)
+      }
+      if (queueId === 2400) {
+        startMayhemAssistIfNeeded()
+      } else {
+        stopMayhemAssist()
+      }
     } else {
       if (nextActionTimer) {
         clearInterval(nextActionTimer)

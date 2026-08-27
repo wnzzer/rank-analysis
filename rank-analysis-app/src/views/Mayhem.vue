@@ -771,11 +771,8 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  if (assist?.running) {
-    assist.stop()
-    assistRunning.value = false
-  }
-  void invoke('hide_overlay_window').catch(() => {})
+  // 切页不强杀对局监听调度器，以便切至对局页或战绩页时后台监听依然存活；
+  // 用户可随时在顶栏点击开关手动启停，或在对局结束离开 InProgress 时由调度器自动收拢
 })
 </script>
 

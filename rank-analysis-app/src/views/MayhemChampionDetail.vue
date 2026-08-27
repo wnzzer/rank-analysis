@@ -7,10 +7,14 @@
     </PageStage>
 
     <div class="d-body">
-      <div v-if="error" class="m-alert">{{ error }}</div>
+      <div v-if="error" class="m-alert">
+        <span>{{ error }}</span>
+        <button class="chip" style="margin-left: 12px" @click="load">🔄 重新加载</button>
+      </div>
       <div v-if="loading" class="m-empty">正在加载…</div>
       <div v-else-if="!detail" class="m-empty">
-        暂无该英雄的大乱斗数据（可能尚未同步或上游未覆盖）
+        <p>暂无该英雄的大乱斗数据（可能尚未同步或上游未覆盖）</p>
+        <button class="btn gho sm" style="margin-top: 12px" @click="load">🔄 点击重新尝试</button>
       </div>
 
       <template v-else>
@@ -253,6 +257,7 @@ import {
   type MayhemBuild,
   type SituationalItem
 } from '../features/mayhem/services/mayhemData'
+import { useMayhemStore } from '../features/mayhem/stores/mayhemStore'
 
 const ROLE_LABELS: Record<string, string> = {
   tank: '坦克',
@@ -273,6 +278,7 @@ const RARITY_OPTIONS = [
 const route = useRoute()
 const router = useRouter()
 const assets = useRecordAssets()
+const mayhemStore = useMayhemStore()
 
 const detail = ref<ChampionDetailEntry | null>(null)
 const loading = ref(false)
@@ -447,13 +453,18 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    detail.value = await getMayhemChampionDetail(championId.value)
+    detail.value = await mayhemStore.getChampionDetail(championId.value)
+    if (!detail.value) {
+      detail.value = await getMayhemChampionDetail(championId.value)
+    }
     if (detail.value) {
       preloadNames(detail.value)
       const balance = await invoke<AramBalanceData | null>('get_aram_balance', {
         id: championId.value
       }).catch(() => null)
       balanceTags.value = buildBalanceTags(balance)
+    } else {
+      error.value = '暂未查询到该英雄的大乱斗数据（可能尚未同步或上游未覆盖）'
     }
   } catch (e) {
     error.value = `读取英雄详情失败：${String(e)}`
