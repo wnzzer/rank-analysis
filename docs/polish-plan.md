@@ -40,6 +40,7 @@
 | R31 | Mayhem 空态统一 / draft 缺口边界 / README 同步 |
 | R32 | 赛后战报文本格式化与快捷分享（E6）/ 单测补全 |
 | R33 | ai.apiKey 云端黑名单安全合规 / PlayerCard 大乱斗角标跳转 |
+| R34 | 大乱斗数据获取修复（data 键归一化 / 2400 队列映射 / 下载重试） |
 
 ---
 
@@ -358,10 +359,17 @@
 - [x] R33-2 PlayerCard.vue 大乱斗强度角标交互增强——官方 T 级角标显式提示出装强化，并支持点击一键跳转至对应英雄海克斯大乱斗流派详情。
 - [x] R33-3 polish-plan 轮次速览表滚动维护与 CI 打包全流程闭环验证。
 
-## Round 34 候选池
-- R34-1 useEmberField 测试化（reduced-motion 分支已有实现，评估动画帧 mock 成本）
-- R34-2 ai.baseUrl 针对非标准端点的 URL 自动规范化与协议头补齐
-- R34-3 SGP 历史对局详情容器评审 Tab 补强
-- R34-4 polish-plan 轮次速览表滚动维护
+## Round 34 计划 大乱斗数据获取修复与网络韧性增强 ✅（2026-08-27）
+- [x] R34-1 上游 champions.json 响应契约归一化与防御性解析——针对上游统一为 `data` 数组导致的 `res.champions` 为 undefined、英雄榜 0 英雄展示空态的问题，提供 `extractMayhemChampions` 纯函数并在 `getMayhemChampions` 与 `ensureMayhemChampionMeta` 中双向兼顾 `data` 与 `champions` 键。
+- [x] R34-2 模式映射拓展 `queueIdToOpggMode`——将海克斯大乱斗专用队列（queueId 2400）与 450 同等映射为 `aram` 模式，解决 OP.GG 在大乱斗中错误按 ranked 定位导致分路缺失和战力卡片数据获取失败。
+- [x] R34-3 Rust 下载客户端韧性增强——补充标准浏览器 User-Agent 标头避免 CDN/WAF 阻断，并在 43+ 个 shard 批量顺序下载场景下接入指数退避重试（最多 3 次），抗网络微抖动。
+- [x] R34-4 单元测试补强——`mayhemData.spec.ts` 补充 `extractMayhemChampions`（涵盖上游 data 键、旧版 champions 键、空态边界）及 `queueIdToOpggMode` 队列映射断言。
+- [x] R34-5 GitHub Actions 质量门禁与 Windows NSIS 安装包打包双绿闭环验证（Run 33051851846 & 33051859981）。
+
+## Round 35 候选池
+- R35-1 ai.baseUrl 针对非标准端点的 URL 自动规范化与协议头自动补全（防止用户误填导致请求失败）
+- R35-2 SGP 历史对局详情容器在纯大乱斗模式下的评审 Tab 兼容性兜底
+- R35-3 useEmberField 单元测试覆盖
+- R35-4 polish-plan 轮次速览表滚动维护
 
 ## 归档说明
