@@ -249,14 +249,34 @@ export async function syncMayhemData(force = false): Promise<MayhemSyncReport | 
   return (await invoke('mayhem_sync', { force })) as MayhemSyncReport | null
 }
 
-/** 英雄榜响应 */
+/** 英雄榜响应（上游 aramgg 契约统一以 data 为条目数组，保留 champions 兼容字段） */
 export interface MayhemChampionsResponse {
-  champions: MayhemChampion[]
+  total?: number
+  dataVersion?: string
+  champions?: MayhemChampion[]
+  data?: MayhemChampion[]
 }
 
-/** 读取英雄榜原始 JSON */
+/**
+ * 提取英雄榜条目数组（兼容上游 data 与 champions 两种响应形态）。
+ */
+export function extractMayhemChampions(
+  res: MayhemChampionsResponse | MayhemChampion[] | null | undefined
+): MayhemChampion[] {
+  if (!res) return []
+  if (Array.isArray(res)) return res
+  if (Array.isArray(res.data)) return res.data
+  if (Array.isArray(res.champions)) return res.champions
+  return []
+}
+
+/** 读取英雄榜原始 JSON 并归一化 champions 数组 */
 export async function getMayhemChampions(): Promise<MayhemChampionsResponse> {
-  return (await invoke('mayhem_get_champions')) as MayhemChampionsResponse
+  const raw = (await invoke('mayhem_get_champions')) as MayhemChampionsResponse
+  if (raw && !raw.champions && Array.isArray(raw.data)) {
+    raw.champions = raw.data
+  }
+  return raw
 }
 
 /** 强化榜响应（外层带 total/dataVersion 等元信息） */
@@ -264,11 +284,16 @@ export interface MayhemAugmentsResponse {
   total?: number
   dataVersion?: string
   data?: MayhemAugment[]
+  augments?: MayhemAugment[]
 }
 
-/** 读取强化榜原始 JSON */
+/** 读取强化榜原始 JSON 并归一化 data 数组 */
 export async function getMayhemAugments(): Promise<MayhemAugmentsResponse> {
-  return (await invoke('mayhem_get_augments')) as MayhemAugmentsResponse
+  const raw = (await invoke('mayhem_get_augments')) as MayhemAugmentsResponse
+  if (raw && !raw.data && Array.isArray(raw.augments)) {
+    raw.data = raw.augments
+  }
+  return raw
 }
 
 /** 读取单英雄大乱斗详情；null 表示未同步或该英雄无数据 */
@@ -388,7 +413,8 @@ export function ensureMayhemChampionMeta(): Promise<Map<number, MayhemChampionMe
     metaCachePromise = getMayhemChampions()
       .then(res => {
         const map = new Map<number, MayhemChampionMetaEntry>()
-        for (const c of res.champions ?? []) {
+        const list = extractMayhemChampions(res)
+        for (const c of list) {
           map.set(c.id, { tier: c.stats.tier, name: c.title })
         }
         return map

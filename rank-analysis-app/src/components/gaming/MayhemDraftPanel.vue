@@ -11,6 +11,7 @@ import { invoke } from '@tauri-apps/api/core'
 
 import { assetPrefix } from '@renderer/services/http'
 import {
+  extractMayhemChampions,
   getMayhemChampions,
   getMyChampionStats,
   type MayhemChampion,
@@ -94,7 +95,7 @@ async function loadMeta() {
         () => {}
       )
     ])
-    champions.value = champRes.champions ?? []
+    champions.value = extractMayhemChampions(champRes)
   } catch {
     /* 元数据失败不阻塞上下文展示 */
   }

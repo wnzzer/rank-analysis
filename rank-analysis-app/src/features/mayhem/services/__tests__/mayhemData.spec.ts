@@ -4,7 +4,8 @@
  */
 import { describe, expect, it } from 'vitest'
 
-import { bestStage, stripRichText } from '../mayhemData'
+import { bestStage, extractMayhemChampions, stripRichText } from '../mayhemData'
+import { queueIdToOpggMode } from '../../../../services/opgg'
 
 describe('stripRichText', () => {
   it('应剥除上游富文本标签并保留正文', () => {
@@ -54,5 +55,55 @@ describe('bestStage', () => {
     expect(bestStage([])).toBeNull()
     expect(bestStage([{ stage: 'x', stats: {} }])).toBeNull()
     expect(bestStage([{ stage: 1 }])).toBeNull()
+  })
+})
+
+describe('extractMayhemChampions', () => {
+  const dummyChamp = {
+    id: 67,
+    alias: 'Vayne',
+    name: '薇恩',
+    title: '暗夜猎手',
+    roles: ['marksman'],
+    iconUrl: 'https://cdn.dtodo.cn/67.png',
+    stats: {
+      tier: 1,
+      wins: null,
+      games: null,
+      winRate: 0.57,
+      pickRate: 0.13,
+      gamePatch: '16.16',
+      date: '',
+      source: '',
+      region: ''
+    }
+  }
+
+  it('应从上游 data 属性中安全提取英雄列表', () => {
+    const res = { total: 1, data: [dummyChamp] }
+    expect(extractMayhemChampions(res)).toEqual([dummyChamp])
+  })
+
+  it('应从旧版 champions 属性中提取英雄列表', () => {
+    const res = { champions: [dummyChamp] }
+    expect(extractMayhemChampions(res)).toEqual([dummyChamp])
+  })
+
+  it('空值或无匹配时返回空数组', () => {
+    expect(extractMayhemChampions(null)).toEqual([])
+    expect(extractMayhemChampions(undefined)).toEqual([])
+    expect(extractMayhemChampions({})).toEqual([])
+  })
+})
+
+describe('queueIdToOpggMode', () => {
+  it('应正确将极地大乱斗(450)和海克斯大乱斗(2400)映射为 aram 模式', () => {
+    expect(queueIdToOpggMode(450)).toBe('aram')
+    expect(queueIdToOpggMode(2400)).toBe('aram')
+  })
+
+  it('排位或其他常规模式映射为 ranked', () => {
+    expect(queueIdToOpggMode(420)).toBe('ranked')
+    expect(queueIdToOpggMode(440)).toBe('ranked')
   })
 })

@@ -119,9 +119,13 @@ pub fn parse_sha256_hex(hash: Option<&str>) -> Option<String> {
         .then_some(normalized)
 }
 
+const USER_AGENT: &str =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
+
 /// GET 一个 URL 并反序列化为 JSON。
 async fn fetch_json<T: DeserializeOwned>(url: &str) -> Result<T, String> {
     let client = reqwest::Client::builder()
+        .user_agent(USER_AGENT)
         .timeout(std::time::Duration::from_secs(30))
         .build()
         .map_err(|e| format!("build http client: {}", e))?;
@@ -151,6 +155,7 @@ pub async fn fetch_manifest(manifest_path: &str) -> Result<Manifest, String> {
 /// 流式下载文件到目标路径，校验 sha256（提供 hash 时）与字节数（提供 bytes 时）。
 ///
 /// 先写到同目录 `<dest>.part`，全部校验通过后原子重命名为最终路径——失败不留下半成品。
+/// 带轻量重试（最多 3 次），抵抗连续 40+ 文件批量下载时的网络抖动。
 ///
 /// # 返回值
 ///
@@ -161,21 +166,35 @@ pub async fn download_verified(
     dest: &Path,
 ) -> Result<u64, String> {
     let client = reqwest::Client::builder()
+        .user_agent(USER_AGENT)
         .timeout(std::time::Duration::from_secs(120))
         .build()
         .map_err(|e| format!("build http client: {}", e))?;
-    let resp = client
-        .get(url)
-        .send()
-        .await
-        .map_err(|e| format!("GET {}: {}", url, e))?;
-    if !resp.status().is_success() {
-        return Err(format!("GET {}: HTTP {}", url, resp.status()));
-    }
-    let body = resp
-        .bytes()
-        .await
-        .map_err(|e| format!("read {}: {}", url, e))?;
+
+    let mut attempts = 0;
+    let body = loop {
+        attempts += 1;
+        match client.get(url).send().await {
+            Ok(resp) if resp.status().is_success() => match resp.bytes().await {
+                Ok(bytes) => break bytes,
+                Err(e) if attempts < 3 => {
+                    tokio::time::sleep(std::time::Duration::from_millis(300 * attempts)).await;
+                    continue;
+                }
+                Err(e) => return Err(format!("read {}: {}", url, e)),
+            },
+            Ok(resp) if attempts < 3 && resp.status().is_server_error() => {
+                tokio::time::sleep(std::time::Duration::from_millis(300 * attempts)).await;
+                continue;
+            }
+            Ok(resp) => return Err(format!("GET {}: HTTP {}", url, resp.status())),
+            Err(e) if attempts < 3 => {
+                tokio::time::sleep(std::time::Duration::from_millis(300 * attempts)).await;
+                continue;
+            }
+            Err(e) => return Err(format!("GET {}: {}", url, e)),
+        }
+    };
 
     if let Some(hex) = parse_sha256_hex(expect_hash) {
         use sha2::{Digest, Sha256};

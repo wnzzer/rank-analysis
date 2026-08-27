@@ -115,11 +115,11 @@ export interface CounterHint {
 
 /**
  * 将队列 ID 转换为 OP.GG 模式
- * @param queueId - 队列 ID (450=ARAM, 其他=ranked)
+ * @param queueId - 队列 ID (450=极地大乱斗, 2400=海克斯大乱斗, 其他=ranked)
  * @returns 'aram' 或 'ranked'
  */
 export function queueIdToOpggMode(queueId: number): OpggMode {
-  return queueId === 450 ? 'aram' : 'ranked'
+  return queueId === 450 || queueId === 2400 ? 'aram' : 'ranked'
 }
 
 /**

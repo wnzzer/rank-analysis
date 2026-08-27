@@ -304,6 +304,7 @@ import { Download, Inbox, RefreshCw, SearchX } from 'lucide-vue-next'
 import { assetPrefix } from '../services/http'
 import {
   bestStage,
+  extractMayhemChampions,
   getMayhemAugments,
   getMayhemChampions,
   getMayhemStatus,
@@ -538,7 +539,7 @@ async function loadData() {
   error.value = ''
   try {
     const res = await getMayhemChampions()
-    champions.value = res.champions ?? []
+    champions.value = extractMayhemChampions(res)
   } catch (e) {
     error.value = `读取本地数据失败：${String(e)}（可尝试刷新数据）`
   } finally {
