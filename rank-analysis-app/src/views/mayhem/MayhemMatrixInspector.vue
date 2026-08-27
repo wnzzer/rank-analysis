@@ -20,18 +20,21 @@ import {
 
 import { assetPrefix } from '@renderer/services/http'
 import { useRecordAssets } from '@renderer/composables/useRecordAssets'
-import { buildBalanceTags, type BalanceTag } from '@renderer/composables/useAramBalance'
+import { buildBalanceTags, type BalanceTag, type AramBalanceData } from '@renderer/composables/useAramBalance'
 import {
-  getMayhemChampionDetail,
   type ChampionDetailEntry,
   type ItemExtension,
   type MayhemBuild,
   type SituationalItem
 } from '@renderer/features/mayhem/services/mayhemData'
+import { useMayhemStore } from '@renderer/features/mayhem/stores/mayhemStore'
+
+const mayhemStore = useMayhemStore()
 
 const props = defineProps<{
   championId: number
   myRecord?: { games: number; wins: number }
+  refreshKey?: number
 }>()
 
 const ROLE_LABELS: Record<string, string> = {
@@ -183,21 +186,25 @@ function preloadNames(entry: ChampionDetailEntry) {
   ])
 }
 
-async function loadDetail(id: number) {
+async function loadDetail(id: number, force = false) {
   if (!id) return
   loading.value = true
   error.value = ''
   try {
-    const data = await getMayhemChampionDetail(id)
+    const data = await mayhemStore.getChampionDetail(id, force)
     detail.value = data
     if (data) {
       preloadNames(data)
       try {
-        const rawBalance = await invoke('get_aram_balance_data', { championId: id })
-        balanceTags.value = buildBalanceTags(rawBalance as Parameters<typeof buildBalanceTags>[0])
+        const rawBalance = await invoke<AramBalanceData | null>('get_aram_balance', {
+          id
+        }).catch(() => null)
+        balanceTags.value = buildBalanceTags(rawBalance)
       } catch {
         balanceTags.value = []
       }
+    } else {
+      error.value = '暂未查询到该英雄的大乱斗详情数据'
     }
   } catch (e) {
     error.value = `加载详情失败：${String(e)}`
@@ -207,11 +214,13 @@ async function loadDetail(id: number) {
 }
 
 watch(
-  () => props.championId,
-  id => {
-    activeBuildIndex.value = 0
-    activeRarity.value = 'all'
-    if (id) void loadDetail(id)
+  [() => props.championId, () => props.refreshKey],
+  ([newId, _], [oldId, __]) => {
+    if (newId !== oldId) {
+      activeBuildIndex.value = 0
+      activeRarity.value = 'all'
+    }
+    if (newId) void loadDetail(newId)
   },
   { immediate: true }
 )
@@ -246,8 +255,10 @@ function onApplyConfig() {
 <template>
   <div class="insp-container">
     <div v-if="loading" class="insp-loading">正在读取奥术大数据…</div>
-    <div v-else-if="error" class="insp-alert">{{ error }}</div>
-    <div v-else-if="!detail" class="insp-empty">暂无该英雄的大乱斗详情数据</div>
+    <div v-else-if="error || !detail" class="insp-alert-box">
+      <p class="insp-alert-msg">{{ error || '暂无该英雄的大乱斗详情数据' }}</p>
+      <button class="insp-btn-retry" @click="loadDetail(props.championId, true)">🔄 点击重新加载</button>
+    </div>
 
     <template v-else>
       <!-- 头部：英雄核心信息与官方平衡 Buff 标签 -->
@@ -683,12 +694,37 @@ function onApplyConfig() {
   font-size: var(--font-size-sm);
 }
 
-.insp-alert {
-  padding: 12px 16px;
-  background: var(--loss-soft);
-  border: 1px solid var(--loss-border);
-  color: var(--text-primary);
+.insp-alert-box {
+  padding: 48px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  background: var(--bg-sunken);
+}
+
+.insp-alert-msg {
+  margin: 0;
+  color: var(--text-tertiary);
+}
+
+.insp-btn-retry {
+  padding: 6px 16px;
+  background: var(--brand-gradient);
+  border: 1px solid var(--brand-border);
+  color: var(--text-inverse);
+  clip-path: var(--clip-corner-sm);
   font-size: var(--font-size-xs);
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.insp-btn-retry:hover {
+  opacity: 0.9;
 }
 
 /* 顶部 Hero 区域 */

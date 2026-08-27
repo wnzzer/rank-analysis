@@ -8,7 +8,7 @@
 /* 宽屏双栏并排 (Dual-Pane) */
 .dual-pane {
   display: grid;
-  grid-template-columns: minmax(500px, 58%) minmax(380px, 42%);
+  grid-template-columns: minmax(360px, 1fr) minmax(360px, 460px);
   gap: var(--space-16, 16px);
   align-items: start;
 }

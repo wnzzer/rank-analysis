@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import {
   getMayhemChampions,
   getMayhemAugments,
+  getMayhemChampionDetail,
   getMayhemStatus,
   syncMayhemData,
   getMyChampionStats,
@@ -12,7 +13,8 @@ import {
   type MayhemAugment,
   type MayhemStatus,
   type MyChampionStat,
-  type MyAugmentStat
+  type MyAugmentStat,
+  type ChampionDetailEntry
 } from '../services/mayhemData'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 
@@ -137,6 +139,40 @@ export const useMayhemStore = defineStore('mayhem', () => {
     }
   }
 
+  const detailCache = new Map<number, ChampionDetailEntry>()
+
+  /**
+   * 获取单英雄详情（内存缓存优先，带 120ms 并发容错重试）
+   */
+  async function getChampionDetail(id: number, force = false): Promise<ChampionDetailEntry | null> {
+    if (!id) return null
+    if (!force && detailCache.has(id)) {
+      return detailCache.get(id)!
+    }
+    try {
+      const d = await getMayhemChampionDetail(id)
+      if (d) {
+        detailCache.set(id, d)
+        return d
+      }
+    } catch (e) {
+      console.warn(`[mayhemStore] getChampionDetail(${id}) first attempt failed:`, e)
+    }
+
+    // 容错重试：如果第一次读取因后台同步切换目录或文件锁短暂返回失败，延迟 120ms 重试
+    await new Promise(r => setTimeout(r, 120))
+    try {
+      const retry = await getMayhemChampionDetail(id)
+      if (retry) {
+        detailCache.set(id, retry)
+        return retry
+      }
+    } catch (e) {
+      console.error(`[mayhemStore] getChampionDetail(${id}) retry failed:`, e)
+    }
+    return null
+  }
+
   /**
    * 执行数据同步。
    */
@@ -146,6 +182,7 @@ export const useMayhemStore = defineStore('mayhem', () => {
     error.value = ''
     try {
       await syncMayhemData(force)
+      detailCache.clear()
       await Promise.all([loadChampions(true), loadAugments(true)])
       status.value = await getMayhemStatus()
     } catch (e) {
@@ -174,6 +211,7 @@ export const useMayhemStore = defineStore('mayhem', () => {
     loadChampions,
     loadAugments,
     loadMine,
+    getChampionDetail,
     sync
   }
 })

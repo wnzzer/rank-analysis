@@ -81,6 +81,7 @@
             </div>
             <MayhemMatrixInspector
               :champion-id="selectedChampion.id"
+              :refresh-key="clickStamp"
               :my-record="myRecordMap[selectedChampion.id]"
             />
           </div>
@@ -93,6 +94,7 @@
       <div v-if="selectedChampion" class="sticky-inspector">
         <MayhemMatrixInspector
           :champion-id="selectedChampion.id"
+          :refresh-key="clickStamp"
           :my-record="myRecordMap[selectedChampion.id]"
         />
       </div>
@@ -126,10 +128,11 @@ const ROLE_LABELS: Record<string, string> = {
 const activeRole = ref<string>('all')
 const search = ref('')
 const selectedId = ref<number | null>(mayhemStore.selectedChampionId || null)
+const clickStamp = ref(Date.now())
 
-// 响应式分栏宽度（>= 1200px 走宽屏左右分栏，< 1200px 走就地内联展开）
+// 响应式分栏宽度（>= 768px 走宽屏左右分栏，< 768px 走就地内联展开）
 const windowWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1400)
-const isWide = computed(() => windowWidth.value >= 1200)
+const isWide = computed(() => windowWidth.value >= 768)
 
 function onResize() {
   windowWidth.value = window.innerWidth
@@ -207,12 +210,16 @@ const selectedChampion = computed(() => {
 function onSelectChampion(id: number) {
   selectedId.value = id
   mayhemStore.selectedChampionId = id
+  clickStamp.value = Date.now()
 }
 
 watch(
-  () => selectedChampion.value?.id,
-  id => {
-    if (id) onSelectChampion(id)
+  () => champions.value.length,
+  len => {
+    if (len && !selectedId.value) {
+      selectedId.value = champions.value[0].id
+      clickStamp.value = Date.now()
+    }
   },
   { immediate: true }
 )

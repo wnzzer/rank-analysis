@@ -81,6 +81,10 @@ pub fn write_pointer_atomic_in(root: &Path, pointer: &ActivePointer) -> Result<(
     let mut f = std::fs::File::create(&tmp).map_err(|e| e.to_string())?;
     f.write_all(json.as_bytes()).map_err(|e| e.to_string())?;
     drop(f);
+    // Windows 下若目标已存在，直接 rename 易抛 AccessDenied/AlreadyExists；先移除旧文件
+    if path.exists() {
+        let _ = std::fs::remove_file(&path);
+    }
     std::fs::rename(&tmp, &path).map_err(|e| e.to_string())
 }
 
@@ -121,17 +125,35 @@ pub fn cleanup_other_versions_in(root: &Path, keep: &str) {
 /// 校验相对路径后从指定根目录的**激活版本**读取 JSON 文件。
 ///
 /// 错误语义：
-/// - 未同步 / 无指针 → `"mayhem data not synced yet"`
+/// - 未同步 / 无指针且无可用版本目录 → `"mayhem data not synced yet"`
 /// - 路径非法 → `"unsafe rel path"`（在读盘之前拒绝）
 pub fn read_local_json_in(root: &Path, rel_path: &str) -> Result<serde_json::Value, String> {
     // 路径校验最先执行：非法路径在任何 IO/状态检查之前一律拒绝
     if !is_safe_rel_path(rel_path) {
         return Err(format!("unsafe rel path: {}", rel_path));
     }
-    let Some(ptr) = read_pointer_in(root) else {
-        return Err("mayhem data not synced yet".to_string());
+    let version = if let Some(ptr) = read_pointer_in(root) {
+        ptr.data_version
+    } else {
+        // 如果 pointer 暂时读不到（并发更新或指针写入间隙），回退扫描 versions 目录现存合法版本
+        let mut fallback: Option<String> = None;
+        let versions_dir = root.join("versions");
+        if let Ok(entries) = std::fs::read_dir(&versions_dir) {
+            for entry in entries.flatten() {
+                if let Ok(file_type) = entry.file_type() {
+                    if file_type.is_dir() {
+                        if let Some(name) = entry.file_name().to_str() {
+                            if !name.ends_with(".staging") {
+                                fallback = Some(name.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        fallback.ok_or_else(|| "mayhem data not synced yet".to_string())?
     };
-    let path = root.join("versions").join(&ptr.data_version).join(rel_path);
+    let path = root.join("versions").join(&version).join(rel_path);
     let content =
         std::fs::read_to_string(&path).map_err(|e| format!("read {}: {}", path.display(), e))?;
     serde_json::from_str(&content).map_err(|e| format!("parse {}: {}", rel_path, e))
@@ -167,7 +189,9 @@ pub fn champion_detail_in(
         let Some(path) = shard["path"].as_str() else {
             continue;
         };
-        let shard_json = read_local_json_in(root, path)?;
+        let Ok(shard_json) = read_local_json_in(root, path) else {
+            continue;
+        };
         // 分片声称包含该英雄但条目缺失时，继续扫后续分片而非整体失败
         if let Some(detail) = shard_json["champions"].get(champion_id.to_string()) {
             return Ok(Some(detail.clone()));
