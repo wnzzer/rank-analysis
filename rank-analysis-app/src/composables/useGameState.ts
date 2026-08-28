@@ -1,4 +1,4 @@
-﻿import { ref, readonly, onMounted, onUnmounted } from 'vue'
+import { ref, readonly, onMounted, onUnmounted } from 'vue'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import router from '../router'
 import { isRecordChildWindow } from '@renderer/utils/windows'
@@ -54,6 +54,35 @@ let unlistenSession: UnlistenFn | null = null
 let listenerSetupPromise: Promise<void> | null = null
 let activeInstances = 0
 let lastPhase = ''
+/** 标记当前对局是否已执行过进入对局的自动跳转（同局内用户手动切页后不再强行踢回） */
+let autoNavigatedThisMatch = false
+
+function isGamingPhase(phase: string | null | undefined): boolean {
+  return phase === 'ChampSelect' || phase === 'GameStart' || phase === 'InProgress'
+}
+
+function handleSessionAutoNav(phase: string) {
+  if (isGamingPhase(phase)) {
+    // 仅在首次从非对局阶段（如大厅）进入对局阶段时自动跳转一次
+    if (!autoNavigatedThisMatch) {
+      autoNavigatedThisMatch = true
+      if (router.currentRoute.value.name !== 'Gaming' && !isRecordChildWindow()) {
+        console.log(`🎮 [Auto-Nav] New match entered (phase: ${phase}), navigating to Gaming...`)
+        router.push('/Gaming')
+      }
+    }
+  } else if (
+    phase === 'Lobby' ||
+    phase === 'Matchmaking' ||
+    phase === 'ReadyCheck' ||
+    phase === 'EndOfGame' ||
+    phase === 'PreEndOfGame' ||
+    phase === 'None'
+  ) {
+    // 对局已结束或回到大厅，重置跳转标记，供下一局使用
+    autoNavigatedThisMatch = false
+  }
+}
 
 /**
  * 断连宽限：一局结束前后 LCU 客户端常有秒级忙/重启窗口，
@@ -130,6 +159,9 @@ async function setupListeners() {
     reasonMessage.value = state.reasonMessage ?? null
 
     handleConnectionRoute(state)
+    if (state.phase) {
+      handleSessionAutoNav(state.phase)
+    }
   })
 
   // 2. 监听会话状态 (选人/游戏中)
@@ -137,14 +169,7 @@ async function setupListeners() {
     const phase = event.payload.phase
 
     if (phase !== lastPhase) {
-      if (
-        (phase === 'ChampSelect' || phase === 'InProgress' || phase === 'GameStart') &&
-        router.currentRoute.value.name !== 'Gaming' &&
-        !isRecordChildWindow()
-      ) {
-        console.log(`🎮 [Auto-Nav] Phase changed to ${phase}, navigating to Gaming...`)
-        router.push('/Gaming')
-      }
+      handleSessionAutoNav(phase)
       lastPhase = phase
     }
   })
