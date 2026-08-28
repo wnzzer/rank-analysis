@@ -110,7 +110,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useMayhemStore } from '../../features/mayhem/stores/mayhemStore'
 import { type MayhemChampion } from '../../features/mayhem/services/mayhemData'
 import MayhemMatrixInspector from './MayhemMatrixInspector.vue'
@@ -144,6 +144,10 @@ function onResize() {
 
 onMounted(() => {
   window.addEventListener('resize', onResize)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', onResize)
 })
 
 // 本人熟练度字典映射

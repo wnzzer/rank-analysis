@@ -22,6 +22,7 @@ import { assetPrefix } from '@renderer/services/http'
 import { useRecordAssets } from '@renderer/composables/useRecordAssets'
 import { buildBalanceTags, type BalanceTag, type AramBalanceData } from '@renderer/composables/useAramBalance'
 import {
+  getMayhemChampionDetail,
   type ChampionDetailEntry,
   type ItemExtension,
   type MayhemBuild,
@@ -192,7 +193,10 @@ async function loadDetail(id: number, force = false) {
   loading.value = true
   error.value = ''
   try {
-    const data = await mayhemStore.getChampionDetail(id, force)
+    let data = await mayhemStore.getChampionDetail(id, force)
+    if (!data) {
+      data = await getMayhemChampionDetail(id)
+    }
     detail.value = data
     if (data) {
       preloadNames(data)

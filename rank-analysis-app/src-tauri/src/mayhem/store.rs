@@ -132,27 +132,35 @@ pub fn read_local_json_in(root: &Path, rel_path: &str) -> Result<serde_json::Val
     if !is_safe_rel_path(rel_path) {
         return Err(format!("unsafe rel path: {}", rel_path));
     }
-    let version = if let Some(ptr) = read_pointer_in(root) {
-        ptr.data_version
-    } else {
-        // 如果 pointer 暂时读不到（并发更新或指针写入间隙），回退扫描 versions 目录现存合法版本
-        let mut fallback: Option<String> = None;
+
+    // 1. 优先使用当前 pointer.json 指定的激活版本
+    let mut chosen_version: Option<String> = read_pointer_in(root)
+        .map(|p| p.data_version)
+        .filter(|v| root.join("versions").join(v).join(rel_path).is_file());
+
+    // 2. 如果 pointer 指定的版本目录下找不到该文件，扫描 versions 目录下现存所有合法版本
+    if chosen_version.is_none() {
         let versions_dir = root.join("versions");
         if let Ok(entries) = std::fs::read_dir(&versions_dir) {
             for entry in entries.flatten() {
                 if let Ok(file_type) = entry.file_type() {
                     if file_type.is_dir() {
                         if let Some(name) = entry.file_name().to_str() {
-                            if !name.ends_with(".staging") {
-                                fallback = Some(name.to_string());
+                            if !name.ends_with(".staging")
+                                && !name.contains(".old_")
+                                && root.join("versions").join(name).join(rel_path).is_file()
+                            {
+                                chosen_version = Some(name.to_string());
+                                break;
                             }
                         }
                     }
                 }
             }
         }
-        fallback.ok_or_else(|| "mayhem data not synced yet".to_string())?
-    };
+    }
+
+    let version = chosen_version.ok_or_else(|| "mayhem data not synced yet".to_string())?;
     let path = root.join("versions").join(&version).join(rel_path);
     let content =
         std::fs::read_to_string(&path).map_err(|e| format!("read {}: {}", path.display(), e))?;
@@ -166,15 +174,25 @@ pub fn read_local_json(rel_path: &str) -> Result<serde_json::Value, String> {
 
 /// 从 champion-shards 里定位单个英雄详情（指定根目录变体）。
 ///
-/// 流程：读 `champion-shards/index.json` → 找包含该英雄的分片 → 读分片 → 取
-/// `champions.{id}`。索引缺失或英雄不存在返回 `Ok(None)`（调用方按无数据处理）。
+/// 流程：优先直读 `champions/{id}.json`（快速单文件路径）→ 回退扫描 `champion-shards/index.json`
+/// → 找包含该英雄的分片 → 读分片 → 取 `champions.{id}`。
 pub fn champion_detail_in(
     root: &Path,
     champion_id: i64,
 ) -> Result<Option<serde_json::Value>, String> {
+    // 1. 优先尝试直接读取 champions/{champion_id}.json（最快、最直接，O(1) 文件读取，单英雄独立解析）
+    let direct_path = format!("champions/{}.json", champion_id);
+    if let Ok(direct) = read_local_json_in(root, &direct_path) {
+        return Ok(Some(direct));
+    }
+
+    // 2. 回退到 champion-shards 查找分片
     let index: serde_json::Value = match read_local_json_in(root, "champion-shards/index.json") {
         Ok(v) => v,
-        Err(_) => return Ok(None),
+        Err(e) => {
+            log::warn!("[mayhem] champion-shards/index.json fallback read failed: {}", e);
+            return Ok(None);
+        }
     };
     let Some(shards) = index["shards"].as_array() else {
         return Ok(None);
@@ -452,9 +470,17 @@ pub async fn sync(force: bool) -> Result<Option<SyncReport>, String> {
         }
     }
 
-    // 校验全部通过后才落正式目录；目标已存在（上次中断残留）先移除
+    // 校验全部通过后才落正式目录：
+    // 在 Windows 下直接 remove_dir_all 容易因并发句柄被占用而失败并导致活跃数据丢失；
+    // 采用“重命名旧目录为 .old_xxx 暂存 → staging 提升为 final_dir → 写指针 → 异步清理 .old_xxx”的安全轮转策略。
+    let backup_dir = root
+        .join("versions")
+        .join(format!("{}.old_{}", config.data_version, now_secs()));
     if final_dir.exists() {
-        std::fs::remove_dir_all(&final_dir).map_err(|e| e.to_string())?;
+        if let Err(e) = std::fs::rename(&final_dir, &backup_dir) {
+            log::warn!("[mayhem] rename old final_dir to backup failed: {}", e);
+            let _ = std::fs::remove_dir_all(&final_dir);
+        }
     }
     std::fs::rename(&staging, &final_dir)
         .map_err(|e| format!("activate {}: {}", config.data_version, e))?;
@@ -466,6 +492,10 @@ pub async fn sync(force: bool) -> Result<Option<SyncReport>, String> {
             synced_at: now_secs(),
         },
     )?;
+
+    if backup_dir.exists() {
+        let _ = std::fs::remove_dir_all(&backup_dir);
+    }
 
     // 变动日志要在清理旧版本目录**之前**计算（需要读旧 augments.json）
     if let Some(from) = from_version.as_deref() {

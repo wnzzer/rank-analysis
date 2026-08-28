@@ -131,7 +131,8 @@ export const useMayhemStore = defineStore('mayhem', () => {
 
     try {
       status.value = await getMayhemStatus()
-      if (!status.value.ready && !syncing.value) {
+      // 仅当本地既无就绪状态、列表也为空且当前未在同步时，才触发首次静默拉取
+      if (!status.value.ready && !champions.value.length && !syncing.value) {
         void sync(false)
       }
     } catch (e) {
