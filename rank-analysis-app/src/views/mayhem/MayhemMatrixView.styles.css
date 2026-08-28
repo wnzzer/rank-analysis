@@ -1,4 +1,4 @@
-﻿/* MayhemMatrixView.styles.css —— 海克斯大乱斗 Meta 矩阵看板样式 */
+/* MayhemMatrixView.styles.css —— 海克斯大乱斗 Meta 矩阵看板样式 */
 
 .matrix-layout {
   display: block;
@@ -156,31 +156,42 @@
 .matrix-hero-tile {
   position: relative;
   aspect-ratio: 1;
-  border-radius: 6px;
+  clip-path: var(--clip-notch);
   overflow: hidden;
   cursor: pointer;
-  background: var(--bg-card, #161c2b);
-  border: 1.5px solid transparent;
-  transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+  background: var(--bg-surface, #141418);
+  border: 1px solid var(--border-strong, rgba(255, 255, 255, 0.14));
+  transition:
+    border-color var(--dur-fast) var(--ease-expo),
+    box-shadow var(--dur-fast) var(--ease-expo);
 }
 
 .matrix-hero-tile:hover {
-  transform: translateY(-2px);
-  border-color: rgba(255, 255, 255, 0.4);
+  border-color: var(--brand-border, rgba(212, 165, 72, 0.4));
   z-index: 2;
 }
 
 .matrix-hero-tile.active {
   border-color: var(--brand, #f0c96b) !important;
-  box-shadow: 0 0 12px rgba(240, 201, 107, 0.45);
-  transform: scale(1.04);
+  box-shadow: inset 0 0 0 1px var(--brand, #f0c96b);
   z-index: 3;
 }
 
-.matrix-hero-tile.op-border { border-color: rgba(184, 69, 237, 0.4); }
-.matrix-hero-tile.t1-border { border-color: rgba(230, 81, 0, 0.4); }
-.matrix-hero-tile.t2-border { border-color: rgba(212, 160, 23, 0.4); }
-.matrix-hero-tile.t3-border { border-color: rgba(60, 75, 105, 0.4); }
+.matrix-hero-tile.op-border {
+  border-color: rgba(184, 69, 237, 0.35);
+}
+
+.matrix-hero-tile.t1-border {
+  border-color: rgba(230, 81, 0, 0.35);
+}
+
+.matrix-hero-tile.t2-border {
+  border-color: rgba(212, 160, 23, 0.35);
+}
+
+.matrix-hero-tile.t3-border {
+  border-color: var(--border-subtle, rgba(255, 255, 255, 0.08));
+}
 
 .matrix-hero-avatar {
   width: 100%;
@@ -191,34 +202,47 @@
 
 .matrix-hero-wr {
   position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: rgba(10, 13, 20, 0.85);
-  backdrop-filter: blur(2px);
-  text-align: center;
-  font-size: 9.5px;
-  font-weight: 700;
-  padding: 1px 0;
+  top: 2px;
+  right: 4px;
+  background: transparent;
+  text-align: right;
+  font-size: 10.5px;
+  font-weight: 800;
+  line-height: 1;
+  padding: 0;
   color: var(--text-primary, #fff);
-  font-family: var(--font-mono, monospace);
+  font-family: var(--font-num, Bahnschrift, 'Segoe UI', monospace);
+  text-shadow:
+    0 1px 2px #000,
+    0 0 3px #000,
+    0 0 6px #000;
+  letter-spacing: -0.02em;
+  pointer-events: none;
+  z-index: 2;
 }
 
 .matrix-hero-wr.hi {
-  color: var(--win-bright, #3fbf8f);
+  color: var(--win-bright, #5cd9ab);
+  text-shadow:
+    0 1px 2px #000,
+    0 0 3px #000,
+    0 0 6px #000;
 }
 
 .matrix-my-badge {
   position: absolute;
-  top: 2px;
-  right: 2px;
+  bottom: 2px;
+  left: 3px;
   background: var(--brand, #f0c96b);
-  color: #000;
-  font-size: 8px;
+  color: var(--text-on-brand, #241a05);
+  font-family: var(--font-num, Bahnschrift, sans-serif);
+  font-size: 8.5px;
   font-weight: 800;
-  padding: 0 3px;
-  border-radius: 3px;
-  line-height: 11px;
+  padding: 0 4px;
+  clip-path: var(--clip-notch);
+  line-height: 12px;
+  pointer-events: none;
+  z-index: 2;
 }
 
 /* 详情看板容器 (Inspector) */
