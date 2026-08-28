@@ -141,6 +141,58 @@ pub async fn get_live_game_snapshot() -> Result<Option<LiveGameSnapshot>, String
         .map_err(|e| format!("liveclientdata 反序列化失败: {e}"))
 }
 
+/// 本方活跃玩家轻量状态（用于大乱斗等级驱动事件调度器，单次开销 < 1ms）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LiveActivePlayerSummary {
+    pub in_game: bool,
+    pub level: Option<u32>,
+    pub game_time: Option<f64>,
+    pub current_gold: Option<f64>,
+    pub champion_name: Option<String>,
+}
+
+/// 超轻量读取当前局内活跃玩家状态（优先请求 `/activeplayer` 极简端点）。
+pub async fn get_live_active_player() -> LiveActivePlayerSummary {
+    let url = format!("{LIVE_CLIENT_BASE}/liveclientdata/activeplayer");
+    if let Ok(resp) = live_client().get(&url).send().await {
+        if resp.status().is_success() {
+            if let Ok(val) = resp.json::<serde_json::Value>().await {
+                let level = val["level"].as_u64().map(|v| v as u32);
+                let current_gold = val["currentGold"].as_f64();
+                let champion_name = val["championName"].as_str().map(str::to_owned);
+                return LiveActivePlayerSummary {
+                    in_game: true,
+                    level,
+                    game_time: None,
+                    current_gold,
+                    champion_name,
+                };
+            }
+        }
+    }
+
+    // 回退到 /allgamedata 快照
+    if let Ok(Some(snapshot)) = get_live_game_snapshot().await {
+        let active = snapshot.players.first();
+        return LiveActivePlayerSummary {
+            in_game: true,
+            level: active.map(|p| p.level),
+            game_time: Some(snapshot.game_time),
+            current_gold: active.map(|p| p.gold.total as f64),
+            champion_name: active.map(|p| p.champion_name.clone()),
+        };
+    }
+
+    LiveActivePlayerSummary {
+        in_game: false,
+        level: None,
+        game_time: None,
+        current_gold: None,
+        champion_name: None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

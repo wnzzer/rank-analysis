@@ -1,141 +1,129 @@
-/**
- * 大乱斗助手触发调度器单测：阶段过滤、活跃度判定与启停生命周期。
- */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
+import { describe, expect, it, vi } from 'vitest'
 import {
-  ACTIVE_SLOTS_REQUIRED,
-  BAND_ACTIVE_THRESHOLD,
   createAssistScheduler,
-  type BandStatsDto
+  MAYHEM_AUGMENT_TARGET_LEVELS,
+  type BandStatsDto,
+  type LivePlayerStateDto
 } from '../trigger'
 
-function band(slot: number, stddev: number): BandStatsDto {
-  return { slot, rect: { x: 0, y: 0, w: 100, h: 20 }, stddev }
-}
-
-describe('assist scheduler', () => {
-  beforeEach(() => {
-    vi.useFakeTimers()
-  })
-  afterEach(() => {
-    vi.useRealTimers()
+describe('AssistScheduler - Smart Level-Driven Augment State Machine', () => {
+  it('has correct 4 augment target levels', () => {
+    expect(MAYHEM_AUGMENT_TARGET_LEVELS).toEqual([3, 7, 11, 15])
   })
 
-  it('非对局阶段直接短路，不请求截屏', async () => {
-    const getBandStats = vi.fn().mockResolvedValue([band(0, 60), band(1, 60), band(2, 5)])
-    const s = createAssistScheduler({ getPhase: () => Promise.resolve('Lobby'), getBandStats })
-    const tick = await s.tick()
-    expect(tick.note).toContain('非对局中')
+  it('stays in idle_sleep without capturing screen when level is below target', async () => {
+    const getBandStats = vi.fn().mockResolvedValue([])
+    const getPhase = vi.fn().mockResolvedValue('InProgress')
+    const getLivePlayer = vi.fn().mockResolvedValue({ inGame: true, level: 2 } as LivePlayerStateDto)
+
+    const scheduler = createAssistScheduler({
+      getPhase,
+      getLivePlayer,
+      getBandStats
+    })
+
+    const tick = await scheduler.tick()
+    expect(tick.mode).toBe('idle_sleep')
+    expect(tick.currentRound).toBe(1)
+    expect(tick.level).toBe(2)
     expect(tick.detected).toBe(false)
+    // In idle sleep below target level, screen capture must NOT be called (0% CPU)
     expect(getBandStats).not.toHaveBeenCalled()
   })
 
-  it('两条以上活跃带判定为三选一画面', async () => {
-    const stats = [
-      band(0, BAND_ACTIVE_THRESHOLD + 10),
-      band(1, BAND_ACTIVE_THRESHOLD + 1),
-      band(2, 3)
+  it('wakes up to burst_detecting and captures cards when level reaches 3', async () => {
+    const bandStats: BandStatsDto[] = [
+      { slot: 0, rect: { x: 0, y: 0, w: 100, h: 20 }, stddev: 25 },
+      { slot: 1, rect: { x: 100, y: 0, w: 100, h: 20 }, stddev: 30 },
+      { slot: 2, rect: { x: 200, y: 0, w: 100, h: 20 }, stddev: 22 }
     ]
-    const s = createAssistScheduler({
-      getPhase: () => Promise.resolve('InProgress'),
-      getBandStats: () => Promise.resolve(stats)
-    })
-    const tick = await s.tick()
-    expect(tick.activeSlots).toBe(ACTIVE_SLOTS_REQUIRED)
-    expect(tick.detected).toBe(true)
-    expect(tick.maxStddev).toBe(BAND_ACTIVE_THRESHOLD + 10)
-  })
+    const getBandStats = vi.fn().mockResolvedValue(bandStats)
+    const getPhase = vi.fn().mockResolvedValue('InProgress')
+    const getLivePlayer = vi.fn().mockResolvedValue({ inGame: true, level: 3 } as LivePlayerStateDto)
+    const onDetected = vi.fn().mockResolvedValue(undefined)
 
-  it('onDetected 仅在检测沿触发一次，冷却期内不重复', async () => {
-    vi.useFakeTimers()
-    try {
-      const onDetected = vi.fn().mockResolvedValue(undefined)
-      const stats = [band(0, 60), band(1, 60), band(2, 60)]
-      const s = createAssistScheduler(
-        {
-          getPhase: () => Promise.resolve('InProgress'),
-          getBandStats: () => Promise.resolve(stats),
-          onDetected,
-          detectCooldownMs: 8_000
-        },
-        1_000
-      )
-      s.start()
-      await vi.advanceTimersByTimeAsync(0)
-      await vi.advanceTimersByTimeAsync(1_000)
-      await vi.advanceTimersByTimeAsync(1_000)
-      expect(onDetected).toHaveBeenCalledTimes(1)
-
-      // 冷却（8s）过后再触发一次
-      await vi.advanceTimersByTimeAsync(7_000)
-      await vi.advanceTimersByTimeAsync(2_000)
-      expect(onDetected).toHaveBeenCalledTimes(2)
-      s.stop()
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it('onDetected 失败时 note 标记推送失败且不中断 tick 链', async () => {
-    const onDetected = vi.fn().mockRejectedValue(new Error('push down'))
-    const s = createAssistScheduler({
-      getPhase: () => Promise.resolve('InProgress'),
-      getBandStats: () => Promise.resolve([band(0, 60), band(1, 60), band(2, 5)]),
+    const scheduler = createAssistScheduler({
+      getPhase,
+      getLivePlayer,
+      getBandStats,
       onDetected
     })
-    const t1 = await s.tick()
-    expect(t1.note).toContain('推送失败')
-    // 冷却期内不再触发
-    const t2 = await s.tick()
-    expect(t2.note).not.toContain('推送失败')
-    expect(t2.detected).toBe(true)
+
+    // First tick: reaches level 3 -> transitions to burst and captures cards
+    const tick = await scheduler.tick()
+    expect(tick.mode).toBe('pushed_waiting_choice')
+    expect(tick.detected).toBe(true)
+    expect(tick.currentRound).toBe(1)
     expect(onDetected).toHaveBeenCalledTimes(1)
+    expect(getBandStats).toHaveBeenCalledTimes(1)
   })
 
-  it('截屏不可用时给出明确 note 而不抛错', async () => {
-    const s = createAssistScheduler({
-      getPhase: () => Promise.resolve('InProgress'),
-      getBandStats: () => Promise.resolve(null)
-    })
-    const tick = await s.tick()
-    expect(tick.note).toBe('截屏不可用')
-    expect(tick.detected).toBe(false)
-  })
+  it('advances to round 2 and returns to sleep when cards disappear after selection', async () => {
+    const activeBandStats: BandStatsDto[] = [
+      { slot: 0, rect: { x: 0, y: 0, w: 100, h: 20 }, stddev: 25 },
+      { slot: 1, rect: { x: 100, y: 0, w: 100, h: 20 }, stddev: 30 },
+      { slot: 2, rect: { x: 200, y: 0, w: 100, h: 20 }, stddev: 22 }
+    ]
+    const emptyBandStats: BandStatsDto[] = [
+      { slot: 0, rect: { x: 0, y: 0, w: 100, h: 20 }, stddev: 2 },
+      { slot: 1, rect: { x: 100, y: 0, w: 100, h: 20 }, stddev: 1 },
+      { slot: 2, rect: { x: 200, y: 0, w: 100, h: 20 }, stddev: 3 }
+    ]
 
-  it('tick 异常被吞成失败快照，调度器继续存活', async () => {
-    let calls = 0
-    const s = createAssistScheduler({
-      getPhase: () => {
-        calls += 1
-        return calls === 1 ? Promise.reject(new Error('lcu down')) : Promise.resolve('InProgress')
-      },
-      getBandStats: () => Promise.resolve([])
-    })
-    const tick = await s.tick()
-    expect(tick.note).toContain('tick 失败')
-
-    // 恢复后下一轮正常（空 stats 视为截屏不可用）
-    const ok = await s.tick()
-    expect(ok.note).toBe('截屏不可用')
-  })
-
-  it('start/stop 控制定时器，start 立即执行一轮', async () => {
+    let currentStats = activeBandStats
+    const getBandStats = vi.fn().mockImplementation(() => Promise.resolve(currentStats))
     const getPhase = vi.fn().mockResolvedValue('InProgress')
-    const s = createAssistScheduler({ getPhase, getBandStats: () => Promise.resolve([]) }, 5_000)
-    s.start()
-    expect(s.running).toBe(true)
-    await vi.advanceTimersByTimeAsync(0)
-    expect(getPhase).toHaveBeenCalledTimes(1)
+    let currentLevel = 3
+    const getLivePlayer = vi.fn().mockImplementation(() =>
+      Promise.resolve({ inGame: true, level: currentLevel } as LivePlayerStateDto)
+    )
 
-    await vi.advanceTimersByTimeAsync(5_000)
-    expect(getPhase).toHaveBeenCalledTimes(2)
+    const scheduler = createAssistScheduler({
+      getPhase,
+      getLivePlayer,
+      getBandStats
+    })
 
-    s.stop()
-    expect(s.running).toBe(false)
-    await vi.advanceTimersByTimeAsync(10_000)
-    expect(getPhase).toHaveBeenCalledTimes(2)
-    // 幂等 stop
-    s.stop()
+    // Tick 1: detects cards at Lv 3
+    const tick1 = await scheduler.tick()
+    expect(tick1.mode).toBe('pushed_waiting_choice')
+    expect(tick1.currentRound).toBe(1)
+
+    // Player selects augment -> cards disappear
+    currentStats = emptyBandStats
+    const tick2 = await scheduler.tick()
+    expect(tick2.mode).toBe('idle_sleep')
+    expect(tick2.currentRound).toBe(2)
+    expect(tick2.note).toContain('第 1 轮选择完毕')
+
+    // Tick 3: player is at Lv 5 (below round 2 target Lv 7) -> stays in sleep, 0 screen capture
+    currentLevel = 5
+    getBandStats.mockClear()
+    const tick3 = await scheduler.tick()
+    expect(tick3.mode).toBe('idle_sleep')
+    expect(tick3.currentRound).toBe(2)
+    expect(getBandStats).not.toHaveBeenCalled()
+  })
+
+  it('resets state machine to round 1 when leaving InProgress', async () => {
+    let phase = 'InProgress'
+    const getPhase = vi.fn().mockImplementation(() => Promise.resolve(phase))
+    const getLivePlayer = vi.fn().mockResolvedValue({ inGame: true, level: 12 } as LivePlayerStateDto)
+    const getBandStats = vi.fn().mockResolvedValue([])
+
+    const scheduler = createAssistScheduler({
+      getPhase,
+      getLivePlayer,
+      getBandStats
+    })
+
+    await scheduler.tick()
+
+    // Match ends
+    phase = 'EndOfGame'
+    const tickEnd = await scheduler.tick()
+    expect(tickEnd.mode).toBe('idle_sleep')
+    expect(tickEnd.currentRound).toBe(1)
+    expect(tickEnd.note).toContain('非对局中')
   })
 })

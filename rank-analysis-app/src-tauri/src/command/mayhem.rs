@@ -216,6 +216,13 @@ pub fn mayhem_ocr_match_sample(
     ))
 }
 
+/// 读取对局中本方实时等级与数据（Live Client API 极简端点，单次 < 1ms）。
+#[tauri::command]
+pub async fn mayhem_get_live_player(
+) -> Result<crate::lcu::api::live_game::LiveActivePlayerSummary, String> {
+    Ok(crate::lcu::api::live_game::get_live_active_player().await)
+}
+
 // ---------------------------------------------------------------------------
 // A3.1 屏幕捕获几何
 // ---------------------------------------------------------------------------

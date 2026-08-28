@@ -220,6 +220,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             command::mayhem::mayhem_capture_band_stats,
             command::mayhem::mayhem_capture_band_dump,
             command::mayhem::mayhem_gameflow_phase,
+            command::mayhem::mayhem_get_live_player,
             command::mayhem::mayhem_assist_tick,
             command::mayhem::mayhem_draft_context,
             command::mayhem::mayhem_assist_manual,
