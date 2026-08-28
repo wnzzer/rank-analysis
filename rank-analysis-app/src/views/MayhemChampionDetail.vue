@@ -95,8 +95,8 @@
             <div v-for="(t, i) in trios.slice(0, 5)" :key="i" class="dtrio">
               <span class="dtrio__rank">#{{ i + 1 }}</span>
               <img
-                v-for="aid in t.augmentIds"
-                :key="aid"
+                v-for="(aid, aidx) in t.augmentIds"
+                :key="`${aid}-${aidx}`"
                 :src="perkSrc(aid)"
                 :alt="augNameOf(aid)"
                 :title="augNameOf(aid)"
@@ -124,8 +124,8 @@
             <div class="d-corelist">
               <div v-for="(cs, ci) in b.coreItems.slice(0, 3)" :key="ci" class="d-coreset">
                 <img
-                  v-for="iid in cs.itemIds"
-                  :key="iid"
+                  v-for="(iid, iidx) in cs.itemIds"
+                  :key="`${iid}-${iidx}`"
                   :src="itemSrc(iid)"
                   :alt="itemName(iid)"
                   :title="`${itemName(iid)}（${fmtGames(cs.games)}）`"
@@ -143,8 +143,8 @@
             <div class="d-starters">
               <span v-for="(st, si) in b.startingItems.slice(0, 3)" :key="si" class="d-starter">
                 <img
-                  v-for="iid in st.itemIds"
-                  :key="iid"
+                  v-for="(iid, iidx) in st.itemIds"
+                  :key="`${iid}-${iidx}`"
                   :src="itemSrc(iid)"
                   :alt="itemName(iid)"
                   :title="itemName(iid)"
@@ -174,8 +174,8 @@
             <div class="d-spells">
               <span v-for="(sp, spi) in b.summonerSpells.slice(0, 3)" :key="spi" class="d-spell">
                 <img
-                  v-for="sid in sp.summonerSpellIds"
-                  :key="sid"
+                  v-for="(sid, sidx) in sp.summonerSpellIds"
+                  :key="`${sid}-${sidx}`"
                   :src="spellSrc(sid)"
                   :alt="spellName(sid)"
                   :title="spellName(sid)"

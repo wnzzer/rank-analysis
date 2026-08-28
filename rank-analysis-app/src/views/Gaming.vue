@@ -343,16 +343,7 @@ import { useSessionTiers } from '@renderer/composables/useSessionTiers'
 import { useGameState } from '@renderer/composables/useGameState'
 import { useReconnectBanner } from '@renderer/composables/useReconnectBanner'
 import { useAssetUrl } from '@renderer/composables/useAssetUrl'
-import {
-  createAssistScheduler,
-  type AssistScheduler,
-  type BandStatsDto
-} from '@renderer/features/mayhem/trigger'
-import {
-  setOverlayLayout,
-  pushOverlayPanel,
-  setOverlayClickThrough
-} from '@renderer/features/overlay/panels'
+import { getSharedAssistScheduler } from '@renderer/features/mayhem/trigger'
 import { usePickRules, useBanRules } from '@renderer/composables/useRules'
 import {
   ensureOpggData,
@@ -635,35 +626,19 @@ async function pollNextActions(): Promise<void> {
   }
 }
 
-let mayhemAssist: AssistScheduler | null = null
-
 function startMayhemAssistIfNeeded() {
   if (sessionData.queueId === 2400) {
-    if (!mayhemAssist) {
-      mayhemAssist = createAssistScheduler({
-        getPhase: () => invoke('mayhem_gameflow_phase') as Promise<string>,
-        getBandStats: () => invoke('mayhem_capture_band_stats') as Promise<BandStatsDto[]>,
-        onDetected: async () => {
-          const outcome = (await invoke('mayhem_assist_tick', { championId: null })) as {
-            pushed?: boolean
-            payload?: unknown
-          }
-          if (!outcome.pushed || !outcome.payload) return
-          await setOverlayLayout(560, 240, 'top-center')
-          await pushOverlayPanel('mayhem-augments', outcome.payload)
-        }
-      })
-    }
-    if (!mayhemAssist.running) {
-      void setOverlayClickThrough(true).catch(() => {})
-      mayhemAssist.start()
+    const s = getSharedAssistScheduler()
+    if (!s.running) {
+      s.start()
     }
   }
 }
 
 function stopMayhemAssist() {
-  if (mayhemAssist?.running) {
-    mayhemAssist.stop()
+  const s = getSharedAssistScheduler()
+  if (s.running) {
+    s.stop()
   }
 }
 

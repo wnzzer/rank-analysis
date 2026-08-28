@@ -360,19 +360,10 @@ import MayhemMatrixView from './mayhem/MayhemMatrixView.vue'
 import { useMayhemStore } from '../features/mayhem/stores/mayhemStore'
 import {
   assistManual,
-  previewAugmentOverlay,
-  pushOverlayPanel,
-  setOverlayClickThrough,
-  setOverlayLayout
+  previewAugmentOverlay
 } from '../features/overlay/panels'
 import { applyOverlayHotkey } from '../features/overlay/hotkeys'
-import {
-  createAssistScheduler,
-  type AssistScheduler,
-  type AssistTick,
-  type BandDumpDto,
-  type BandStatsDto
-} from '../features/mayhem/trigger'
+import type { BandDumpDto } from '../features/mayhem/trigger'
 import { loadOverlayPrefs } from '../utils/overlayPrefs'
 
 const TABS = [
@@ -396,9 +387,6 @@ const RARITY_OPTIONS = [
   { key: 'gold', label: '黄金' },
   { key: 'silver', label: '白银' }
 ]
-
-/** 对局监听调度器单例（跨 Tab 切换保持运行） */
-let assist: AssistScheduler | null = null
 
 const CHANGES_SEEN_KEY = 'mayhem-changes-seen-version'
 
@@ -458,8 +446,8 @@ const importNote = ref('')
 const mineLoadedOnce = ref(false)
 const versionChanges = ref<MayhemVersionChange[]>([])
 const previewing = ref(false)
-const assistRunning = ref(false)
-const lastTick = ref<AssistTick | null>(null)
+const assistRunning = computed(() => mayhemStore.assistRunning)
+const lastTick = computed(() => mayhemStore.lastAssistTick)
 const manualOpen = ref(false)
 const manualTexts = ref<string[]>(['', '', ''])
 const manualRerolls = ref<number>(2)
@@ -721,43 +709,11 @@ async function onManualAssist() {
 
 /** 对局监听：周期 tick 检测三选一画面；检测沿触发后端真管线并推送面板 */
 function toggleAssist() {
-  if (!assist) {
-    assist = createAssistScheduler({
-      getPhase: () => invoke('mayhem_gameflow_phase') as Promise<string>,
-      getBandStats: () => invoke('mayhem_capture_band_stats') as Promise<BandStatsDto[]>,
-      onTick: t => {
-        lastTick.value = t
-      },
-      onDetected: async () => {
-        const outcome = (await invoke('mayhem_assist_tick', { championId: null })) as {
-          pushed?: boolean
-          payload?: unknown
-        }
-        if (!outcome.pushed || !outcome.payload) return
-        await setOverlayLayout(560, 240, 'top-center')
-        await pushOverlayPanel('mayhem-augments', outcome.payload)
-      }
-    })
-  }
-  if (assist.running) {
-    assist.stop()
-    assistRunning.value = false
-    return
-  }
-  // 对局中浮窗必须保持穿透，避免挡操作；手动校正面板出现时再关穿透
-  void setOverlayClickThrough(true).catch(() => {})
-  assist.start()
-  assistRunning.value = true
+  mayhemStore.toggleAssist()
 }
 
 onMounted(async () => {
   await mayhemStore.init()
-
-  // 同步单例调度器现有状态（跨页切换保持状态一致）
-  if (assist?.running) {
-    assistRunning.value = true
-    lastTick.value = assist.lastTick()
-  }
 
   // 全局热键幂等应用（进入大乱斗页即确保 Alt+A 可用；失败仅告警）
   void applyOverlayHotkey(loadOverlayPrefs().hotkeyEnabled).catch(e =>

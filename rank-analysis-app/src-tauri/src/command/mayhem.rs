@@ -62,19 +62,46 @@ pub async fn mayhem_sync(force: Option<bool>) -> Result<Option<SyncReport>, Stri
 /// 查询本地数据状态（纯文件存在性自检，不阻塞 IPC 线程）。
 #[tauri::command]
 pub fn mayhem_status() -> Result<MayhemStatus, String> {
-    let ptr = crate::mayhem::store::read_pointer();
-    let (version, synced_at) = match ptr {
-        Some(p) => (Some(p.data_version.clone()), Some(p.synced_at)),
-        None => (None, None),
-    };
-    let ready = version.as_ref().map_or(false, |ver| {
-        let vdir = crate::mayhem::store::root_dir().join("versions").join(ver);
+    let root = crate::mayhem::store::root_dir();
+    let ptr = crate::mayhem::store::read_pointer_in(&root);
+    let mut active_version = ptr.as_ref().map(|p| p.data_version.clone());
+    let mut synced_at = ptr.as_ref().map(|p| p.synced_at);
+
+    let is_dir_ready = |v: &str| {
+        let vdir = root.join("versions").join(v);
         vdir.join("champions.json").is_file()
             && vdir.join("augments.json").is_file()
-            && vdir.join("champion-shards").join("index.json").is_file()
-    });
+            && (vdir.join("champion-shards").join("index.json").is_file()
+                || vdir.join("champions").is_dir())
+    };
+
+    let mut ready = active_version.as_deref().map_or(false, is_dir_ready);
+
+    // 若指针未就绪或对应目录损坏，扫描 versions 下是否存在其它现成完整版本
+    if !ready {
+        let versions_dir = root.join("versions");
+        if let Ok(entries) = std::fs::read_dir(&versions_dir) {
+            for entry in entries.flatten() {
+                if let Ok(ft) = entry.file_type() {
+                    if ft.is_dir() {
+                        if let Some(name) = entry.file_name().to_str() {
+                            if !name.ends_with(".staging")
+                                && !name.contains(".old_")
+                                && is_dir_ready(name)
+                            {
+                                active_version = Some(name.to_string());
+                                ready = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     Ok(MayhemStatus {
-        active_version: version,
+        active_version,
         synced_at,
         ready,
     })

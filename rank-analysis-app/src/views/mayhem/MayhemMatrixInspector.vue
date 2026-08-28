@@ -427,7 +427,7 @@ async function onApplyConfig() {
               class="insp-core-card"
             >
               <div class="insp-core-chain">
-                <template v-for="(id, idx) in cs.itemIds" :key="id">
+                <template v-for="(id, idx) in cs.itemIds" :key="`${id}-${idx}`">
                   <div class="insp-item-box" :title="itemName(id)">
                     <img :src="itemSrc(id)" :alt="itemName(id)" loading="lazy" />
                   </div>
@@ -471,8 +471,8 @@ async function onApplyConfig() {
               >
                 <div class="insp-starter-icons">
                   <img
-                    v-for="id in st.itemIds"
-                    :key="id"
+                    v-for="(id, idx) in st.itemIds"
+                    :key="`${id}-${idx}`"
                     :src="itemSrc(id)"
                     :alt="itemName(id)"
                     :title="itemName(id)"
@@ -497,8 +497,8 @@ async function onApplyConfig() {
               >
                 <div class="insp-spell-icons">
                   <img
-                    v-for="sid in sp.summonerSpellIds"
-                    :key="sid"
+                    v-for="(sid, sidx) in sp.summonerSpellIds"
+                    :key="`${sid}-${sidx}`"
                     :src="spellSrc(sid)"
                     :alt="spellName(sid)"
                     :title="spellName(sid)"
@@ -554,8 +554,8 @@ async function onApplyConfig() {
                 <span class="insp-trio-rank">#{{ i + 1 }}</span>
                 <div class="insp-trio-icons">
                   <img
-                    v-for="aid in t.augmentIds"
-                    :key="aid"
+                    v-for="(aid, aidx) in t.augmentIds"
+                    :key="`${aid}-${aidx}`"
                     :src="perkSrc(aid)"
                     :alt="augNameOf(aid)"
                     :title="augTooltip(aid)"

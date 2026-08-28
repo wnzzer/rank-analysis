@@ -272,11 +272,16 @@ export function extractMayhemChampions(
 
 /** 读取英雄榜原始 JSON 并归一化 champions 数组 */
 export async function getMayhemChampions(): Promise<MayhemChampionsResponse> {
-  const raw = (await invoke('mayhem_get_champions')) as MayhemChampionsResponse
-  if (raw && !raw.champions && Array.isArray(raw.data)) {
-    raw.champions = raw.data
+  try {
+    const raw = (await invoke('mayhem_get_champions')) as MayhemChampionsResponse
+    if (raw && !raw.champions && Array.isArray(raw.data)) {
+      raw.champions = raw.data
+    }
+    return raw ?? { data: [], champions: [] }
+  } catch (e) {
+    console.warn('[mayhemData] getMayhemChampions failed:', e)
+    return { data: [], champions: [] }
   }
-  return raw
 }
 
 /** 强化榜响应（外层带 total/dataVersion 等元信息） */
@@ -289,20 +294,30 @@ export interface MayhemAugmentsResponse {
 
 /** 读取强化榜原始 JSON 并归一化 data 数组 */
 export async function getMayhemAugments(): Promise<MayhemAugmentsResponse> {
-  const raw = (await invoke('mayhem_get_augments')) as MayhemAugmentsResponse
-  if (raw && !raw.data && Array.isArray(raw.augments)) {
-    raw.data = raw.augments
+  try {
+    const raw = (await invoke('mayhem_get_augments')) as MayhemAugmentsResponse
+    if (raw && !raw.data && Array.isArray(raw.augments)) {
+      raw.data = raw.augments
+    }
+    return raw ?? { data: [], augments: [] }
+  } catch (e) {
+    console.warn('[mayhemData] getMayhemAugments failed:', e)
+    return { data: [], augments: [] }
   }
-  return raw
 }
 
 /** 读取单英雄大乱斗详情；null 表示未同步或该英雄无数据 */
 export async function getMayhemChampionDetail(
   championId: number
 ): Promise<ChampionDetailEntry | null> {
-  return (await invoke('mayhem_get_champion_detail', {
-    championId
-  })) as ChampionDetailEntry | null
+  try {
+    return (await invoke('mayhem_get_champion_detail', {
+      championId
+    })) as ChampionDetailEntry | null
+  } catch (e) {
+    console.warn(`[mayhemData] getMayhemChampionDetail(${championId}) failed:`, e)
+    return null
+  }
 }
 
 // ---------------------------------------------------------------------------

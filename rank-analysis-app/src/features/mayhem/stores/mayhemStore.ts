@@ -17,6 +17,11 @@ import {
   type ChampionDetailEntry
 } from '../services/mayhemData'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
+import {
+  getSharedAssistScheduler,
+  type AssistTick
+} from '../trigger'
+import { setOverlayClickThrough } from '@renderer/features/overlay/panels'
 
 export type MayhemViewMode = 'matrix' | 'classic'
 
@@ -193,6 +198,40 @@ export const useMayhemStore = defineStore('mayhem', () => {
     }
   }
 
+  // -------------------------------------------------------------------------
+  // 对局监听单例调度器（全局唯一，避免 Gaming 与 Mayhem 跨页双重轮询截屏）
+  // -------------------------------------------------------------------------
+  const assistRunning = ref(false)
+  const lastAssistTick = ref<AssistTick | null>(null)
+
+  function startAssist(): void {
+    const s = getSharedAssistScheduler()
+    if (!s.running) {
+      void setOverlayClickThrough(true).catch(() => {})
+      s.start()
+      assistRunning.value = true
+    }
+  }
+
+  function stopAssist(): void {
+    const s = getSharedAssistScheduler()
+    if (s.running) {
+      s.stop()
+      assistRunning.value = false
+    }
+  }
+
+  function toggleAssist(): boolean {
+    const s = getSharedAssistScheduler()
+    if (s.running) {
+      stopAssist()
+      return false
+    } else {
+      startAssist()
+      return true
+    }
+  }
+
   return {
     champions,
     augments,
@@ -206,6 +245,8 @@ export const useMayhemStore = defineStore('mayhem', () => {
     selectedChampionId,
     viewMode,
     isDataReady,
+    assistRunning,
+    lastAssistTick,
     init,
     initViewMode,
     setViewMode,
@@ -213,6 +254,9 @@ export const useMayhemStore = defineStore('mayhem', () => {
     loadAugments,
     loadMine,
     getChampionDetail,
-    sync
+    sync,
+    startAssist,
+    stopAssist,
+    toggleAssist
   }
 })

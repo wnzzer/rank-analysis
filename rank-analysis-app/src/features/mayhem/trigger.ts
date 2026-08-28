@@ -146,3 +146,35 @@ export function createAssistScheduler(deps: AssistDeps, intervalMs = 10_000): As
     lastTick: () => last
   }
 }
+
+let sharedAssistScheduler: AssistScheduler | null = null
+
+export function getSharedAssistScheduler(): AssistScheduler {
+  if (!sharedAssistScheduler) {
+    // 延迟动态引入，避免在无 Tauri 环境单测中顶层执行 invoke 抛错
+    sharedAssistScheduler = createAssistScheduler({
+      getPhase: async () => {
+        const { invoke } = await import('@tauri-apps/api/core')
+        return (await invoke('mayhem_gameflow_phase')) as string
+      },
+      getBandStats: async () => {
+        const { invoke } = await import('@tauri-apps/api/core')
+        return (await invoke('mayhem_capture_band_stats')) as BandStatsDto[]
+      },
+      onDetected: async () => {
+        const { invoke } = await import('@tauri-apps/api/core')
+        const { setOverlayLayout, pushOverlayPanel } = await import(
+          '@renderer/features/overlay/panels'
+        )
+        const outcome = (await invoke('mayhem_assist_tick', { championId: null })) as {
+          pushed?: boolean
+          payload?: unknown
+        }
+        if (!outcome.pushed || !outcome.payload) return
+        await setOverlayLayout(560, 240, 'top-center')
+        await pushOverlayPanel('mayhem-augments', outcome.payload)
+      }
+    })
+  }
+  return sharedAssistScheduler
+}
