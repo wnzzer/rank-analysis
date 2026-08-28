@@ -15,14 +15,20 @@
         <div class="match-detail-team-title-wrap">
           <span class="match-detail-team-accent" />
           <span class="match-detail-team-title">{{ team.title }}</span>
-          <span class="match-detail-team-subtitle font-number">
-            {{ team.kills }}/{{ team.deaths }}/{{ team.assists }} ·
-            {{ formatCompactNumber(team.gold) }} 金币
+          <span class="match-detail-team-pill font-number">
+            ⚔️ {{ team.kills }} 击杀
+          </span>
+          <span class="match-detail-team-pill font-number">
+            💰 {{ formatCompactNumber(team.gold) }}
           </span>
         </div>
-        <div class="match-detail-team-subtitle font-number">
-          输出 {{ formatCompactNumber(team.damage) }} · 承伤
-          {{ formatCompactNumber(team.taken) }}
+        <div class="match-detail-team-stats-right font-number">
+          <span class="match-detail-team-stat-chip match-detail-team-stat-chip--dmg">
+            💥 输出 {{ formatCompactNumber(team.damage) }}
+          </span>
+          <span class="match-detail-team-stat-chip match-detail-team-stat-chip--taken">
+            🛡️ 承伤 {{ formatCompactNumber(team.taken) }}
+          </span>
         </div>
       </div>
 
@@ -484,24 +490,27 @@ function playerTier(player: DetailPlayer) {
 }
 
 .match-detail-team-card {
-  border: 1px solid color-mix(in srgb, var(--border-subtle) 80%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 90%, transparent);
   border-radius: var(--radius-lg);
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.015);
+  background: rgba(18, 22, 28, 0.45);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
 }
 
 .theme-light .match-detail-team-card {
   background: var(--bg-elevated);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
 }
 
-/* 队伍标签行：色点 + 色字 + 数据，纯排版、无底无框 */
+/* 队伍标签行：色点 + 色字 + 数据胶囊 */
 .match-detail-team-header {
   --team-color: var(--semantic-win);
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: var(--space-6);
-  padding: 0 var(--space-4);
+  padding: var(--space-2) var(--space-4);
 }
 
 .match-detail-team-header-win {
@@ -514,10 +523,10 @@ function playerTier(player: DetailPlayer) {
 
 .match-detail-team-accent {
   width: 4px;
-  height: 16px;
+  height: 18px;
   border-radius: var(--radius-xs);
   background: var(--team-color);
-  box-shadow: 0 0 8px color-mix(in srgb, var(--team-color) 55%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--team-color) 65%, transparent);
   flex-shrink: 0;
 }
 
@@ -534,10 +543,41 @@ function playerTier(player: DetailPlayer) {
   letter-spacing: 0.02em;
 }
 
-.match-detail-team-subtitle {
+.match-detail-team-pill {
   font-size: var(--font-size-xs);
   color: var(--text-secondary);
+  background: color-mix(in srgb, var(--team-color) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--team-color) 30%, transparent);
+  padding: 1px var(--space-6);
+  border-radius: var(--radius-pill);
   font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.match-detail-team-stats-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.match-detail-team-stat-chip {
+  font-size: var(--font-size-2xs);
+  padding: 2px var(--space-8);
+  border-radius: var(--radius-pill);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.match-detail-team-stat-chip--dmg {
+  color: var(--accent-gold-deep);
+  background: color-mix(in srgb, var(--accent-gold-deep) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-gold-deep) 32%, transparent);
+}
+
+.match-detail-team-stat-chip--taken {
+  color: var(--accent-blue);
+  background: color-mix(in srgb, var(--accent-blue) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-blue) 32%, transparent);
 }
 
 .match-detail-column-header,
@@ -1027,21 +1067,24 @@ function playerTier(player: DetailPlayer) {
 .match-detail-bar-fill--damage {
   background: linear-gradient(
     90deg,
-    color-mix(in srgb, var(--accent-gold-deep) 55%, transparent),
-    color-mix(in srgb, var(--accent-gold-deep) 95%, transparent)
+    #f59e0b,
+    #ef4444
   );
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.35);
 }
 
 .match-detail-bar-fill--taken {
   background: linear-gradient(
     90deg,
-    color-mix(in srgb, var(--accent-blue) 50%, transparent),
-    color-mix(in srgb, var(--accent-blue) 92%, transparent)
+    #3b82f6,
+    #6366f1
   );
+  box-shadow: 0 0 6px rgba(99, 102, 241, 0.35);
 }
 
 .match-detail-bar-fill--heal {
-  background: linear-gradient(90deg, rgba(88, 182, 109, 0.5), rgba(88, 182, 109, 0.92));
+  background: linear-gradient(90deg, #10b981, #059669);
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.35);
 }
 
 @media (max-width: 1100px) {

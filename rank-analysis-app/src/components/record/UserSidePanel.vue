@@ -318,26 +318,28 @@ function onPoolClick(championId: number) {
   display: flex;
   align-items: center;
   gap: var(--space-8);
-  padding: var(--space-4) var(--space-6);
+  padding: var(--space-4) var(--space-8);
   border-radius: var(--radius-sm);
-  cursor: default;
+  cursor: pointer;
   transition:
     background var(--dur-fast) var(--ease-expo),
-    opacity var(--dur-fast) var(--ease-expo);
+    opacity var(--dur-fast) var(--ease-expo),
+    transform var(--dur-fast) var(--ease-expo);
 }
 
 .hero-pool-row:hover {
-  background: var(--bg-hover);
+  background: var(--glass-bg-mid);
+  transform: translateX(2px);
 }
 
 .hero-pool-row-hovered {
-  background: var(--bg-hover);
-  box-shadow: inset 2px 0 0 var(--brand-deep);
+  background: var(--glass-bg-mid);
+  box-shadow: inset 2px 0 0 var(--accent-gold);
 }
 
 .hero-pool-row-active {
-  background: var(--bg-active);
-  box-shadow: inset 2px 0 0 var(--brand-deep);
+  background: var(--glass-bg-high);
+  box-shadow: inset 2px 0 0 var(--accent-gold);
 }
 
 .hero-pool-row-dimmed {
@@ -345,9 +347,9 @@ function onPoolClick(championId: number) {
 }
 
 .hero-pool-champ-img {
-  width: 26px;
-  height: 26px;
-  border-radius: var(--radius-xs);
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border-subtle);
   flex-shrink: 0;
 }

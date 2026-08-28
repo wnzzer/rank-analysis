@@ -801,7 +801,8 @@ watch(
 }
 
 .match-detail-tab--active {
-  color: var(--semantic-win-bright);
+  color: var(--text-primary);
+  font-weight: 700;
 }
 
 .match-detail-tab--active::after {
@@ -812,7 +813,8 @@ watch(
   bottom: -1px;
   height: 2px;
   border-radius: 2px 2px 0 0;
-  background: var(--semantic-win);
+  background: var(--accent-gold);
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.55);
 }
 
 /* tab 内容区：KeepAlive 组件挂载点 */
