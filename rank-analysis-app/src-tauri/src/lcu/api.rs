@@ -5,6 +5,7 @@
 
 pub mod asset;
 pub mod champion_select;
+pub mod chat;
 pub mod eog_stats;
 pub mod game_detail;
 pub mod game_queue;
