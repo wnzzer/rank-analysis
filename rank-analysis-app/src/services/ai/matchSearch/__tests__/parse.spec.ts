@@ -13,7 +13,7 @@ vi.mock('@renderer/services/ipc', () => ({
 import { invoke } from '@tauri-apps/api/core'
 import { requestAIContent } from '@renderer/services/ai/stream'
 import { getGameModesByIpc } from '@renderer/services/ipc'
-import { extractJson, parseMatchQuery, __resetParseCachesForTests } from '../parse'
+import { extractJson, parseMatchQuery, clearParseCache, __resetParseCachesForTests } from '../parse'
 
 const mockInvoke = invoke as ReturnType<typeof vi.fn>
 const mockRequest = requestAIContent as ReturnType<typeof vi.fn>
@@ -91,6 +91,16 @@ describe('parseMatchQuery', () => {
   it('返回内容不是 JSON 时抛错', async () => {
     mockRequest.mockResolvedValue({ success: true, content: '抱歉我做不到' })
     await expect(parseMatchQuery('x')).rejects.toThrow()
+  })
+
+  it('clearParseCache 清掉该句的 sessionStorage 缓存', async () => {
+    mockRequest.mockResolvedValue({ success: true, content: '{}' })
+    await parseMatchQuery('同一句')
+    // requestAIContent 被 mock,真正的缓存 key 由 parse 传入其第二参
+    const cacheKey = mockRequest.mock.calls[0][1] as string
+    sessionStorage.setItem(cacheKey, '{}')
+    clearParseCache('同一句')
+    expect(sessionStorage.getItem(cacheKey)).toBeNull()
   })
 
   it('英雄/模式清单只加载一次(模块级缓存)', async () => {

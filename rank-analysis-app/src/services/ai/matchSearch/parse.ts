@@ -32,6 +32,24 @@ async function loadContext(): Promise<Omit<PromptContext, 'today'>> {
   return ctxCache
 }
 
+/** 解析结果的 sessionStorage 缓存 key(与 parseMatchQuery 内部一致) */
+function parseCacheKey(text: string): string {
+  return `matchSearch:${new Date().toISOString().slice(0, 10)}:${text}`
+}
+
+/**
+ * 清除某句描述的解析缓存。
+ * requestAIContent 会缓存「成功但内容是垃圾」的响应(如非 JSON 闲聊),
+ * 重试前必须清掉,否则重试永远命中同一份坏缓存。
+ */
+export function clearParseCache(text: string): void {
+  try {
+    sessionStorage.removeItem(parseCacheKey(text))
+  } catch {
+    // sessionStorage 不可用时本来也不会有缓存
+  }
+}
+
 /**
  * 从模型输出里提取 JSON 对象(容忍 ```json 围栏与前后闲话)
  * @returns 解析出的对象;找不到合法 JSON 时返回 null
@@ -63,7 +81,7 @@ export async function parseMatchQuery(text: string): Promise<ParsedMatchQuery> {
   const today = new Date().toISOString().slice(0, 10)
   const { system, user } = buildMatchSearchPrompt(text, { today, champions, modes })
 
-  const result = await requestAIContent(user, `matchSearch:${today}:${text}`, system, undefined, {
+  const result = await requestAIContent(user, parseCacheKey(text), system, undefined, {
     jsonMode: true
   })
   if (!result.success || !result.content) {

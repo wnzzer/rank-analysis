@@ -9,18 +9,27 @@
     <Transition name="slide-fade" mode="out-in">
       <n-layout-content v-if="!isMobile" class="record-content" style="flex: 3">
         <div class="record-content-inner">
-          <MatchHistory />
+          <!-- aiq 存在 = AI 自然语言搜索结果视图;key 保证新搜索重建组件 -->
+          <AiSearchResults v-if="aiQuery" :key="aiQuery" />
+          <MatchHistory v-else />
         </div>
       </n-layout-content>
     </Transition>
   </n-layout>
 </template>
 <script lang="ts" setup>
+import { computed } from 'vue'
+import { useRoute } from 'vue-router'
 import MatchHistory from '../components/record/MatchHistory.vue'
+import AiSearchResults from '../components/record/AiSearchResults.vue'
 import UserRecord from '../components/record/UserRecord.vue'
 import { useBreakpoint } from '@renderer/composables/useBreakpoint'
 
 const { isMobile } = useBreakpoint()
+
+const route = useRoute()
+/** AI 自然语言搜索原文(Header 超级搜索的 AI 行跳转带入) */
+const aiQuery = computed(() => (route.query.aiq as string) ?? '')
 </script>
 <style scoped>
 /* 整页 token 覆盖:所有子组件 var(--font-size-*) 自动跟随 viewport 缩放 (1100→2200) */

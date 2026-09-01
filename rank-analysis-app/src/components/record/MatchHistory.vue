@@ -112,6 +112,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { championOption } from '../type'
 import type { Game, MatchHistory } from './match'
 import { openMatchDetailWindow } from './detailWindow'
+import { collectAssetIds } from './collectAssetIds'
 import { useRecordAssets } from '@renderer/composables/useRecordAssets'
 import { recordAssetsKey } from '@renderer/composables/recordAssetsKey'
 
@@ -121,37 +122,6 @@ import { recordAssetsKey } from '@renderer/composables/recordAssetsKey'
  */
 const recordAssets = useRecordAssets()
 provide(recordAssetsKey, recordAssets)
-
-function collectAssetIds(games: Game[] | undefined) {
-  const items = new Set<number>()
-  const spells = new Set<number>()
-  const perks = new Set<number>()
-  for (const g of games ?? []) {
-    const s = g.participants[0]?.stats
-    if (!s) continue
-    ;[s.item0, s.item1, s.item2, s.item3, s.item4, s.item5, s.item6].forEach(id => {
-      if (id > 0) items.add(id)
-    })
-    ;[g.participants[0].spell1Id, g.participants[0].spell2Id].forEach(id => {
-      if (id > 0) spells.add(id)
-    })
-    ;[
-      s.playerAugment1,
-      s.playerAugment2,
-      s.playerAugment3,
-      s.playerAugment4,
-      s.playerAugment5,
-      s.playerAugment6
-    ].forEach(id => {
-      if (id > 0) perks.add(id)
-    })
-  }
-  return {
-    items: [...items],
-    spells: [...spells],
-    perks: [...perks]
-  }
-}
 
 const filterQueueId = ref(0)
 const filterChampionId = ref(-1)
