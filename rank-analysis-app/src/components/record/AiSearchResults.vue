@@ -40,14 +40,7 @@
 
     <template v-else-if="phase === 'done'">
       <!-- 搜索范围说明 -->
-      <div class="meta-line">
-        已在{{
-          meta?.source === 'lcu' ? '最近 50 局(跨区服务不可用,已降级)' : searchScopeCn
-        }}
-        中搜索,命中 {{ results.length }} 局<template v-if="meta?.truncated"
-          >;已达检索上限,更早的对局未包含</template
-        >
-      </div>
+      <div class="meta-line">{{ metaLineCn }}</div>
 
       <!-- 相遇统计答案卡(count 意图) -->
       <div v-if="encounterStats" class="encounter-card">
@@ -125,8 +118,15 @@ const oldestDateCn = computed(() => {
   return Number.isNaN(d.getTime()) ? '' : `${d.getMonth() + 1}月${d.getDate()}日`
 })
 
-/** done 态的搜索范围文案 */
-const searchScopeCn = computed(() => `最近 ${meta.value?.searchedCount ?? 0} 局`)
+/** done 态的搜索范围整句文案(computed 拼接,避免模板断行产生多余空格) */
+const metaLineCn = computed(() => {
+  const scope =
+    meta.value?.source === 'lcu'
+      ? '最近 50 局(跨区服务不可用,已降级)'
+      : `最近 ${meta.value?.searchedCount ?? 0} 局`
+  const truncated = meta.value?.truncated ? ';已达检索上限,更早的对局未包含' : ''
+  return `已在${scope}中搜索,命中 ${results.value.length} 局${truncated}`
+})
 
 async function openDetail(game: Game): Promise<void> {
   await openMatchDetailWindow(game)

@@ -28,4 +28,11 @@ describe('buildMatchSearchPrompt', () => {
     expect(system).toContain('清单')
     expect(system).toContain('myTeamChampionIds')
   })
+
+  it('user prompt 含基于今天的时间换算示例(近30天/近7天)', () => {
+    const { user } = buildMatchSearchPrompt('这个月', CTX)
+    // 2026-09-01 往前 30 天 = 2026-08-02;往前 7 天 = 2026-08-25
+    expect(user).toContain('2026-08-02')
+    expect(user).toContain('2026-08-25')
+  })
 })

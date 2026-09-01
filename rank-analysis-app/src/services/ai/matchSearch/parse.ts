@@ -93,9 +93,15 @@ export async function parseMatchQuery(text: string): Promise<ParsedMatchQuery> {
     throw new Error('AI 未能解析这句描述,请换个说法重试')
   }
 
-  return validateParsedQuery(
+  const q = validateParsedQuery(
     raw,
     new Set(champions.map(c => c.value)),
     new Set(modes.map(m => m.value).filter(v => v > 0))
   )
+
+  // 确定性钳制:模型偶尔输出未来日期(如把「这个月」解析成整个日历月)。
+  // to 在未来 = 「至今」,置空;from 在未来则整个时间窗不可信,作废。
+  if (q.timeRange.to && q.timeRange.to > today) q.timeRange.to = null
+  if (q.timeRange.from && q.timeRange.from > today) q.timeRange = { from: null, to: null }
+  return q
 }

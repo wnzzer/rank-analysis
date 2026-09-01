@@ -93,6 +93,24 @@ describe('parseMatchQuery', () => {
     await expect(parseMatchQuery('x')).rejects.toThrow()
   })
 
+  it('时间窗钳制:to 晚于今天则置空;from 晚于今天则整窗作废', async () => {
+    const today = new Date().toISOString().slice(0, 10)
+    mockRequest.mockResolvedValueOnce({
+      success: true,
+      content: JSON.stringify({ timeRange: { from: '2020-01-01', to: '2999-12-31' } })
+    })
+    const q1 = await parseMatchQuery('to 在未来')
+    expect(q1.timeRange).toEqual({ from: '2020-01-01', to: null })
+
+    mockRequest.mockResolvedValueOnce({
+      success: true,
+      content: JSON.stringify({ timeRange: { from: '2999-01-01', to: '2999-12-31' } })
+    })
+    const q2 = await parseMatchQuery('from 在未来')
+    expect(q2.timeRange).toEqual({ from: null, to: null })
+    expect(today <= '2999-01-01').toBe(true)
+  })
+
   it('clearParseCache 清掉该句的 sessionStorage 缓存', async () => {
     mockRequest.mockResolvedValue({ success: true, content: '{}' })
     await parseMatchQuery('同一句')

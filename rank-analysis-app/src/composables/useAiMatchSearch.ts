@@ -81,7 +81,10 @@ export function useAiMatchSearch(): {
     meta.value = null
 
     try {
-      query.value = await parseMatchQuery(text)
+      // 英雄名与解析并行加载:chips computed 不依赖名字表的响应式,
+      // 必须保证 query 赋值(触发 chips 首次渲染)前名字表已就绪
+      const [parsed] = await Promise.all([parseMatchQuery(text), loadChampionNames()])
+      query.value = parsed
     } catch (e) {
       error.value = e instanceof Error ? e.message : String(e)
       phase.value = 'error'
@@ -105,8 +108,6 @@ export function useAiMatchSearch(): {
       return
     }
 
-    // chips 展示需要英雄中文名(懒加载一次,失败也不阻塞结果)
-    await loadChampionNames()
     applyFilter()
     phase.value = 'done'
   }

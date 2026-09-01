@@ -36,9 +36,25 @@ const SYSTEM_PROMPT = `你是英雄联盟战绩检索条件解析器。把玩家
 规则:
 1. 英雄 id 只能从下方英雄清单里选,俗称/绰号对照清单归一;清单里没有的英雄一律忽略。
 2. 「我用X」→ selfChampionIds;「队友有X」→ allyChampionIds;「对面/敌方有X」→ enemyChampionIds;「忘了自己玩的什么,但这边有X」这类不确定是不是自己在用的 → myTeamChampionIds。
-3. 相对时间(这个月/上周/前两天)按「今天」换算成绝对日期;完全没提时间就不要输出 timeRange。
+3. 相对时间按「今天」换算成绝对日期:口语的「这个月/最近一个月/近一个月」一律取最近 30 天(from = 今天-30天,to 省略);「上周/最近一周」取最近 7 天;「前两天」取最近 3 天;只有明确点名某个日历月(如「8月」)才用该月 1 日到月末。to 不得晚于今天,「至今」直接省略 to。完全没提时间就不要输出 timeRange。
 4. 「跟某某碰见/遇到几次」这类统计问题 → intent = "count_encounters",玩家名进 playerNames;其余 intent = "list"。
 5. 不确定的信息宁可省略,不要猜。所有数字必须来自清单,禁止编造。`
+
+/** 上个月的中文叫法(如「8月」),用于日历月示例 */
+function prevMonthCn(today: string): string {
+  const d = new Date(`${today}T00:00:00.000Z`)
+  d.setUTCMonth(d.getUTCMonth() - 1)
+  return `${d.getUTCMonth() + 1}月`
+}
+
+/** 上个月的边界 JSON(如 {"from":"2026-08-01","to":"2026-08-31"}) */
+function prevMonthRangeJson(today: string): string {
+  const d = new Date(`${today}T00:00:00.000Z`)
+  const first = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - 1, 1))
+  const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 0))
+  const iso = (x: Date): string => x.toISOString().slice(0, 10)
+  return JSON.stringify({ from: iso(first), to: iso(last) })
+}
 
 /**
  * 构造解析请求的 system/user prompt
@@ -57,7 +73,20 @@ export function buildMatchSearchPrompt(
     .map(m => `${m.value}|${m.label}`)
     .join('\n')
 
+  // few-shot 时间换算示例:qwen-flash 对抽象规则不敏感,给带具体日期的样例
+  const daysAgo = (n: number): string => {
+    const d = new Date(`${ctx.today}T00:00:00.000Z`)
+    d.setUTCDate(d.getUTCDate() - n)
+    return d.toISOString().slice(0, 10)
+  }
+
   const user = `今天是 ${ctx.today}。
+
+时间换算示例(严格照此风格):
+- 「这个月/最近一个月/近一个月」→ {"from":"${daysAgo(30)}","to":null}
+- 「上周/最近一周」→ {"from":"${daysAgo(7)}","to":null}
+- 「前两天」→ {"from":"${daysAgo(3)}","to":null}
+- 明确点名某日历月(如「${prevMonthCn(ctx.today)}」)才用该月边界 → ${prevMonthRangeJson(ctx.today)}
 
 英雄清单(id|官方名|昵称|称号):
 ${championLines}
