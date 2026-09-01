@@ -5,35 +5,7 @@
       <span class="header-title">Rank Analysis</span>
     </div>
     <div class="header-center">
-      <n-input
-        class="input-lolid header-search"
-        type="text"
-        size="small"
-        placeholder="召唤师名#Tag"
-        v-model:value="searchValue"
-        @keyup.enter="onClinkSearch"
-      >
-        <!-- 前缀：大区下拉（框内左侧，细分隔线隔开），整体仍是一个搜索框 -->
-        <template #prefix>
-          <n-dropdown
-            trigger="click"
-            size="small"
-            :options="regionDropdownOptions"
-            @select="onRegionSelect"
-          >
-            <button class="region-trigger" type="button" @mousedown.prevent>
-              <span class="region-trigger-label">{{ selectedRegionLabel }}</span>
-              <n-icon :size="11" class="region-trigger-caret"><ChevronDownOutline /></n-icon>
-            </button>
-          </n-dropdown>
-          <span class="region-divider" />
-        </template>
-        <template #suffix>
-          <n-button text quaternary @click="onClinkSearch" class="header-icon-btn">
-            <n-icon :component="Search" />
-          </n-button>
-        </template>
-      </n-input>
+      <SuperSearch />
     </div>
     <div class="header-right" data-tauri-drag-region>
       <!-- 升级药丸：只在探测到新版本时出现，点击直接走升级流程（不跳转关于页）。
@@ -112,16 +84,13 @@
 </template>
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
 import {
-  Search,
   LogoGithub,
   RemoveOutline,
   SquareOutline,
   CloseOutline,
   SunnyOutline,
   MoonOutline,
-  ChevronDownOutline,
   PowerOutline,
   ArrowUpCircleOutline
 } from '@vicons/ionicons5'
@@ -129,7 +98,7 @@ import { darkTheme, useMessage } from 'naive-ui'
 import { Window } from '@tauri-apps/api/window'
 import { openUrl } from '@tauri-apps/plugin-opener'
 
-import router from '@renderer/router'
+import SuperSearch from './SuperSearch.vue'
 import { useSettingsStore } from '@renderer/pinia/setting'
 import { useGameState, lcuConnected } from '@renderer/composables/useGameState'
 import { closeLeagueByIpc } from '@renderer/services/ipc'
@@ -155,35 +124,6 @@ import { GATE_SETTLE_MS, GATE_FALLBACK_MS } from '@renderer/composables/useStart
 
 /** 当前应用窗口实例，用于执行窗口控制操作 */
 const currentWindow = Window.getCurrent()
-
-/** 搜索输入框的值 */
-const searchValue = ref('')
-
-/** 选中的大区 platformId（空 = 当前区，走本地 LCU；非空走 SGP 跨区查询） */
-const selectedRegion = ref('')
-/** 大区下拉选项：当前区 + 各腾讯大区（来自后端 get_sgp_regions） */
-const regionOptions = ref<{ label: string; value: string }[]>([{ label: '当前区', value: '' }])
-
-onMounted(async () => {
-  try {
-    const regions = await invoke<{ label: string; value: string }[]>('get_sgp_regions')
-    regionOptions.value = [{ label: '当前区', value: '' }, ...regions]
-  } catch (e) {
-    console.error('加载大区列表失败', e)
-  }
-})
-
-/** n-dropdown 选项格式（key=platformId） */
-const regionDropdownOptions = computed(() =>
-  regionOptions.value.map(r => ({ label: r.label, key: r.value }))
-)
-/** 当前选中大区的显示文案（前缀按钮上的文字） */
-const selectedRegionLabel = computed(
-  () => regionOptions.value.find(r => r.value === selectedRegion.value)?.label ?? '当前区'
-)
-const onRegionSelect = (key: string): void => {
-  selectedRegion.value = key
-}
 
 /** 设置状态管理 Store */
 const settingsStore = useSettingsStore()
@@ -282,26 +222,6 @@ const openGithubLink = async (): Promise<void> => {
 }
 
 /**
- * 执行召唤师搜索
- * 将用户输入的召唤师名称作为查询参数跳转到战绩查询页面
- * 使用时间戳作为查询参数确保每次搜索都会触发页面刷新
- *
- * @example
- * 用户输入 "SummonerName" 后按回车或点击搜索按钮
- * 页面跳转到 /Record?name=SummonerName&t=1234567890
- */
-const onClinkSearch = async (): Promise<void> => {
-  if (!searchValue.value.trim()) return
-
-  await router.push({
-    path: '/Record',
-    // region 为空表示当前区，不带该参数即走原本地 LCU 流程
-    query: { name: searchValue.value, region: selectedRegion.value || undefined, t: Date.now() }
-  })
-  searchValue.value = ''
-}
-
-/**
  * 最小化应用窗口
  */
 const minimizeWindow = (): void => {
@@ -372,69 +292,6 @@ const closeWindow = (): void => {
   justify-content: center;
   max-width: 340px;
   margin: 0 auto;
-}
-
-.input-lolid {
-  -webkit-app-region: no-drag;
-  pointer-events: auto;
-}
-
-/* 单一搜索框：大区做成框内左侧下拉前缀，整体一个边框/背景/聚焦态 */
-.header-search {
-  width: 100%;
-  border-radius: var(--radius-md);
-}
-
-.header-search :deep(.n-input-wrapper) {
-  transition:
-    box-shadow var(--dur-fast) var(--ease-expo),
-    border-color var(--dur-fast) var(--ease-expo);
-}
-
-/* 聚焦时整框发光 */
-.header-center:focus-within .header-search :deep(.n-input-wrapper) {
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--semantic-win) 20%, transparent);
-  border-color: color-mix(in srgb, var(--semantic-win) 35%, transparent) !important;
-}
-
-/* 前缀：大区下拉触发器（小号文字 + 箭头，hover 淡底） */
-.region-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  height: 20px;
-  padding: 0 var(--space-4);
-  border: none;
-  border-radius: var(--radius-control);
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-  line-height: 1;
-  cursor: pointer;
-  white-space: nowrap;
-  -webkit-app-region: no-drag;
-  transition:
-    color var(--dur-fast) var(--ease-expo),
-    background-color var(--dur-fast) var(--ease-expo);
-}
-
-.region-trigger:hover {
-  color: var(--text-primary);
-  background: var(--glass-bg-high);
-}
-
-.region-trigger-caret {
-  color: var(--text-tertiary);
-  flex-shrink: 0;
-}
-
-/* 前缀与输入文本之间的细分隔线 */
-.region-divider {
-  width: 1px;
-  height: 14px;
-  margin: 0 var(--space-8) 0 5px;
-  background: var(--glass-border);
-  flex-shrink: 0;
 }
 
 .header-right {
