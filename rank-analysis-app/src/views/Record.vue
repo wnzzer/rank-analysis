@@ -9,8 +9,8 @@
     <Transition name="slide-fade" mode="out-in">
       <n-layout-content v-if="!isMobile" class="record-content" style="flex: 3">
         <div class="record-content-inner">
-          <!-- aiq 存在 = AI 自然语言搜索结果视图;key 保证新搜索重建组件 -->
-          <AiSearchResults v-if="aiQuery" :key="aiQuery" />
+          <!-- aiq 存在 = AI 自然语言搜索结果视图;key 含 t,同句重搜也能重建组件重跑管线 -->
+          <AiSearchResults v-if="aiQuery" :key="`${aiQuery}|${searchStamp}`" />
           <MatchHistory v-else />
         </div>
       </n-layout-content>
@@ -24,12 +24,15 @@ import MatchHistory from '../components/record/MatchHistory.vue'
 import AiSearchResults from '../components/record/AiSearchResults.vue'
 import UserRecord from '../components/record/UserRecord.vue'
 import { useBreakpoint } from '@renderer/composables/useBreakpoint'
+import { firstQueryValue } from '@renderer/utils/navigation'
 
 const { isMobile } = useBreakpoint()
 
 const route = useRoute()
 /** AI 自然语言搜索原文(Header 超级搜索的 AI 行跳转带入) */
-const aiQuery = computed(() => (route.query.aiq as string) ?? '')
+const aiQuery = computed(() => firstQueryValue(route.query.aiq))
+/** 每次搜索的时间戳,进 key 使「重复搜同一句」也触发重跑 */
+const searchStamp = computed(() => firstQueryValue(route.query.t))
 </script>
 <style scoped>
 /* 整页 token 覆盖:所有子组件 var(--font-size-*) 自动跟随 viewport 缩放 (1100→2200) */

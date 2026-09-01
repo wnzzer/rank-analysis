@@ -35,12 +35,16 @@ function idArray(raw: unknown, valid: Set<number>): number[] {
   return out
 }
 
-/** 校验 ISO 日期字符串(YYYY-MM-DD 开头且可被 Date 解析),非法返回 null */
+/**
+ * 校验并规范化为纯日期 YYYY-MM-DD,非法返回 null。
+ * 模型可能输出带时间的完整 ISO 串,必须截断——下游会再拼 `T00:00:00.000Z`,
+ * 原样透传会产生 NaN 日期使时间窗静默失效。
+ */
 function isoDateOrNull(raw: unknown): string | null {
   if (typeof raw !== 'string') return null
-  const s = raw.trim()
-  if (!/^\d{4}-\d{2}-\d{2}/.test(s)) return null
-  return Number.isNaN(new Date(s).getTime()) ? null : s
+  const s = raw.trim().slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null
+  return Number.isNaN(new Date(`${s}T00:00:00.000Z`).getTime()) ? null : s
 }
 
 /**

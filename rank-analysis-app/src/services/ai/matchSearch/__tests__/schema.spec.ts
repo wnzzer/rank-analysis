@@ -54,6 +54,15 @@ describe('validateParsedQuery', () => {
     expect(q.allyChampionIds).toEqual([])
   })
 
+  it('带时间的 ISO 串被规范化为纯日期(下游拼 T00:00:00 不会炸)', () => {
+    const q = validateParsedQuery(
+      { timeRange: { from: '2026-08-01T00:00:00Z', to: '2026-08-31T15:30:00.000Z' } },
+      CHAMPS,
+      QUEUES
+    )
+    expect(q.timeRange).toEqual({ from: '2026-08-01', to: '2026-08-31' })
+  })
+
   it('非法日期与 from>to 都降级为 null', () => {
     const bad = validateParsedQuery(
       { timeRange: { from: 'abc', to: '2026-08-01' } },

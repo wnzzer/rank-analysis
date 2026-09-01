@@ -5,7 +5,7 @@
       class="input-lolid header-search"
       type="text"
       size="small"
-      placeholder="召唤师名#Tag,或直接描述想找的对局"
+      placeholder="召唤师名#Tag / 描述战绩"
       v-model:value="searchValue"
       @focus="focused = true"
       @blur="focused = false"
@@ -43,7 +43,7 @@
           @mouseenter="activeIndex = i"
           @click="executeRow(row)"
         >
-          <n-icon :size="14" class="row-icon" :component="rowIcon(row)" />
+          <n-icon :size="12" class="row-icon" :component="rowIcon(row)" />
           <span class="row-label">{{ row.label }}</span>
           <span v-if="row.badge" class="row-badge">{{ row.badge }}</span>
         </div>
@@ -72,6 +72,7 @@ import {
   PersonOutline,
   TimeOutline,
   PricetagOutline,
+  GameControllerOutline,
   SparklesOutline
 } from '@vicons/ionicons5'
 import { useMessage } from 'naive-ui'
@@ -79,7 +80,7 @@ import router from '@renderer/router'
 import { useGameState } from '@renderer/composables/useGameState'
 import {
   useSearchSuggestions,
-  pushSearchHistory,
+  recordSearchHistory,
   type PlayerSuggestion
 } from '@renderer/composables/useSearchSuggestions'
 
@@ -133,7 +134,8 @@ const { playerSuggestions, riotIdLike } = useSearchSuggestions(searchValue)
 const SOURCE_BADGE: Record<PlayerSuggestion['source'], string> = {
   friend: '好友',
   note: '备注',
-  history: '历史'
+  history: '历史',
+  played: '对局过'
 }
 
 const rows = computed<SuggestRow[]>(() => {
@@ -169,6 +171,7 @@ function rowIcon(row: SuggestRow) {
   if (row.kind === 'exact') return Search
   if (row.suggestion?.source === 'history') return TimeOutline
   if (row.suggestion?.source === 'note') return PricetagOutline
+  if (row.suggestion?.source === 'played') return GameControllerOutline
   return PersonOutline
 }
 
@@ -209,7 +212,8 @@ async function executeRow(row: SuggestRow): Promise<void> {
   // 精确查人:exact 行用原文,player 行用候选的完整名字与其自带大区
   const name = row.kind === 'player' ? row.suggestion!.name : text
   const region = row.kind === 'player' ? (row.suggestion!.region ?? '') : selectedRegion.value
-  pushSearchHistory(name, region)
+  // fire-and-forget:候选行是已知玩家直接记;手输名字待验证成功后才入历史
+  void recordSearchHistory(name, region, { known: row.kind === 'player' })
   searchValue.value = ''
   inputRef.value?.blur()
   await router.push({
@@ -262,6 +266,12 @@ async function runAiSearch(text: string): Promise<void> {
   transition:
     box-shadow var(--dur-fast) var(--ease-expo),
     border-color var(--dur-fast) var(--ease-expo);
+}
+
+/* 未输入时的提示字调小一号并淡化:纯引导信息,不该有输入文字的视觉分量 */
+.header-search :deep(.n-input__placeholder) {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
 }
 
 /* 聚焦时整框发光 */
@@ -334,12 +344,14 @@ async function runAiSearch(text: string): Promise<void> {
 .suggest-row {
   display: flex;
   align-items: center;
-  gap: var(--space-8);
-  padding: var(--space-6) var(--space-8);
+  gap: var(--space-6);
+  padding: var(--space-4) var(--space-8);
   border-radius: var(--radius-sm);
   cursor: pointer;
   color: var(--text-secondary);
-  font-size: var(--font-size-sm);
+  /* 候选面板用小一号字:与 header 输入框的辅助层级一致,避免喧宾夺主 */
+  font-size: var(--font-size-xs);
+  line-height: 1.6;
   transition:
     background-color var(--dur-fast) var(--ease-expo),
     color var(--dur-fast) var(--ease-expo);

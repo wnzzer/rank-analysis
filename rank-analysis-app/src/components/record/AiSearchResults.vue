@@ -91,10 +91,11 @@ import { recordAssetsKey } from '@renderer/composables/recordAssetsKey'
 import { useAiMatchSearch } from '@renderer/composables/useAiMatchSearch'
 import { initModeOptions } from '@renderer/composables/useGameModes'
 import { clearParseCache } from '@renderer/services/ai/matchSearch/parse'
+import { firstQueryValue } from '@renderer/utils/navigation'
 import type { Game } from '@renderer/types/domain/match'
 
 const route = useRoute()
-const queryText = computed(() => (route.query.aiq as string) ?? '')
+const queryText = computed(() => firstQueryValue(route.query.aiq))
 
 const { phase, error, progress, chips, results, encounterStats, meta, run, removeChip } =
   useAiMatchSearch()
