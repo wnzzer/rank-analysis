@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { buildStage1Prompt } from '../prompts/stage1-attribution'
+import { buildStage2Prompt } from '../prompts/stage2-critique'
 import { classifyMode } from '../../shared/modeContext'
 import type { MatchSnapshot } from '../../shared/snapshot'
+import type { AttributionResult } from '../types'
 
 function makeSnapshot(opts: { queueId?: number; gameMode?: string } = {}): MatchSnapshot {
   const modeContext = classifyMode(opts.queueId ?? 420, opts.gameMode ?? 'CLASSIC')
@@ -58,6 +60,18 @@ describe('buildStage1Prompt — common skeleton', () => {
     expect(prompt).toContain('isMe')
   })
 
+  it('禁止过程性行为断言(快照无 timeline,防"还在刷野"式编造)', () => {
+    const prompt = buildStage1Prompt(snap, '')
+    expect(prompt).toContain('过程性行为')
+    expect(prompt).toContain('timeline')
+  })
+
+  it('打野的 cs 低不构成负面证据(与辅助保护规则同理)', () => {
+    const prompt = buildStage1Prompt(snap, '')
+    expect(prompt).toContain('JUNGLE')
+    expect(prompt).toContain('打野补刀天然低')
+  })
+
   it('appends the mode addon rules at the end', () => {
     const prompt = buildStage1Prompt(snap, '【MODE_RULES_MARKER】')
     expect(prompt).toContain('【MODE_RULES_MARKER】')
@@ -73,6 +87,42 @@ describe('buildStage1Prompt — common skeleton', () => {
 })
 
 import * as rankedPrompt from '../prompts/ranked'
+
+describe('buildStage2Prompt — 锐评硬规则', () => {
+  const attribution: AttributionResult = {
+    winReason: '测试',
+    verdicts: [
+      {
+        participantId: 1,
+        name: '玩家A',
+        label: '被连累',
+        champion: '圣枪游侠',
+        teamPosition: 'BOTTOM',
+        teamResult: '败方',
+        evidenceMetrics: [{ metric: 'kda', value: 0.5 }],
+        mitigatingFactors: [],
+        finalCall: '测试'
+      }
+    ]
+  } as unknown as AttributionResult
+
+  it('禁止过程性行为叙事(防"队友死了他还在刷野"式编造)', () => {
+    const prompt = buildStage2Prompt(attribution, makeSnapshot(), [])
+    expect(prompt).toContain('过程性行为叙事')
+    expect(prompt).toContain('timeline')
+  })
+
+  it('措辞立场必须与 label 一致(被连累不许写成拖后腿)', () => {
+    const prompt = buildStage2Prompt(attribution, makeSnapshot(), [])
+    expect(prompt).toContain('措辞立场必须与 label 一致')
+    expect(prompt).toContain('受害者')
+  })
+
+  it('名册没给分路的玩家不得提及分路', () => {
+    const prompt = buildStage2Prompt(attribution, makeSnapshot(), [])
+    expect(prompt).toContain('名册没给分路的玩家')
+  })
+})
 
 describe('ranked addon', () => {
   it('mentions lane / 对位 / 路位', () => {
