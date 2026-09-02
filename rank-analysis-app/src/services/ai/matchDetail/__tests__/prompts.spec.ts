@@ -1,9 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { buildStage1Prompt } from '../prompts/stage1-attribution'
-import { buildStage2Prompt } from '../prompts/stage2-critique'
 import { classifyMode } from '../../shared/modeContext'
 import type { MatchSnapshot } from '../../shared/snapshot'
-import type { AttributionResult } from '../types'
 
 function makeSnapshot(opts: { queueId?: number; gameMode?: string } = {}): MatchSnapshot {
   const modeContext = classifyMode(opts.queueId ?? 420, opts.gameMode ?? 'CLASSIC')
