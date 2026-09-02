@@ -17,6 +17,7 @@ import type {
 import { getChampionName } from '../champion-names'
 import { classifyMode } from './modeContext'
 import { inferTeamPosition } from './positionInfer'
+import { assignTeamPositions } from './positionAssign'
 import { spellIdsToNames } from './summonerSpells'
 import type { ModeContext, RecentPlayerProfile, TeamPosition } from './types'
 
@@ -100,6 +101,56 @@ function readTeamPosition(participant: Participant): TeamPosition {
   })
 }
 
+/**
+ * 分路解析:有分路模式且整队恰 5 人时按队伍排除法(吃野/补刀等强信号,
+ * 见 positionAssign)整体求解——逐人启发式对上单/非典型辅助推不出,
+ * 会让 stage1 的辅助保护规则与对位比较失效(真机实测一局错 4 人)。
+ * LCU 下发了真实 teamPosition 的成员始终透传优先。
+ * @returns participantId → 推断分路;不满足排除法条件的成员不在 map 中
+ */
+function buildTeamPositionMap(
+  participants: Participant[],
+  hasLanes: boolean
+): Map<number, TeamPosition> {
+  const map = new Map<number, TeamPosition>()
+  if (!hasLanes) return map
+
+  const byTeam = new Map<number, Participant[]>()
+  for (const p of participants) {
+    const list = byTeam.get(p.teamId) ?? []
+    list.push(p)
+    byTeam.set(p.teamId, list)
+  }
+
+  for (const team of byTeam.values()) {
+    if (team.length !== 5) continue
+    const assigned = assignTeamPositions(
+      team.map(p => ({
+        championId: p.championId,
+        spellIds: [p.spell1Id, p.spell2Id],
+        minionsKilled: p.stats.totalMinionsKilled ?? 0,
+        jungleMinionsKilled: p.stats.neutralMinionsKilled ?? 0
+      }))
+    )
+    team.forEach((p, i) => {
+      // 真实 teamPosition 优先于排除法结果
+      const real = (p as any).teamPosition
+      if (
+        real === 'TOP' ||
+        real === 'JUNGLE' ||
+        real === 'MIDDLE' ||
+        real === 'BOTTOM' ||
+        real === 'UTILITY'
+      ) {
+        map.set(p.participantId, real)
+      } else {
+        map.set(p.participantId, assigned[i])
+      }
+    })
+  }
+  return map
+}
+
 export function buildMatchSnapshot(
   game: Game,
   profileMap?: Map<string, RecentPlayerProfile | null>
@@ -127,6 +178,8 @@ export function buildMatchSnapshot(
     current.kills += participant.stats.kills
     teamTotals.set(participant.teamId, current)
   }
+
+  const teamPositionMap = buildTeamPositionMap(participants, modeContext.hasLanes)
 
   const players = participants.map((participant, index) => {
     const identity = identities[participant.participantId - 1] ?? identities[index]
@@ -169,7 +222,7 @@ export function buildMatchSnapshot(
       augments: getAugmentIds(stats),
 
       // NEW fields
-      teamPosition: readTeamPosition(participant),
+      teamPosition: teamPositionMap.get(participant.participantId) ?? readTeamPosition(participant),
       lane: tl.lane ?? '',
       role: tl.role ?? '',
       summonerSpells: spellIdsToNames([participant.spell1Id, participant.spell2Id]),

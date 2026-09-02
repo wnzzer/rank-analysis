@@ -140,6 +140,54 @@ describe('buildMatchSnapshot', () => {
     expect(snap.players[1].teamPosition).toBe('BOTTOM')
   })
 
+  it('5v5 有分路模式:整队排除法定分路(旧逐人启发式推不出的上单/辅助也能定)', () => {
+    // 真实回归锚点:2026-09-02 排位局,蛮王(上)/星籁歌姬(辅) 逐人启发式全 UNKNOWN
+    const mk = (id: number, champ: number, s1: number, s2: number, cs: number, jg: number) =>
+      makeParticipant({
+        participantId: id,
+        teamPosition: undefined,
+        championId: champ,
+        spell1Id: s1,
+        spell2Id: s2,
+        stats: { ...makeParticipant().stats, totalMinionsKilled: cs, neutralMinionsKilled: jg }
+      })
+    const team = [
+      mk(1, 23, 14, 6, 206, 4), // 蛮王 引燃+疾跑
+      mk(2, 104, 11, 4, 32, 164), // 男枪 惩戒
+      mk(3, 236, 4, 1, 150, 0), // 卢锡安 净化
+      mk(4, 112, 4, 12, 175, 0), // 维克托 传送
+      mk(5, 147, 4, 14, 50, 0) // 星籁歌姬 引燃
+    ]
+    const snap = buildMatchSnapshot(makeGame({ participants: team }))
+    expect(snap.players.map(p => p.teamPosition)).toEqual([
+      'TOP',
+      'JUNGLE',
+      'BOTTOM',
+      'MIDDLE',
+      'UTILITY'
+    ])
+  })
+
+  it('LCU 下发了真实 teamPosition 时透传优先,不被排除法覆盖', () => {
+    const mk = (id: number, champ: number, tp: string | undefined, cs: number, jg: number) =>
+      makeParticipant({
+        participantId: id,
+        teamPosition: tp,
+        championId: champ,
+        stats: { ...makeParticipant().stats, totalMinionsKilled: cs, neutralMinionsKilled: jg }
+      })
+    // 五人齐但其中一人带真实值:真实值保留
+    const team = [
+      mk(1, 23, 'MIDDLE', 206, 4), // LCU 说他是中单(哪怕反直觉也信数据)
+      mk(2, 104, undefined, 32, 164),
+      mk(3, 236, undefined, 150, 0),
+      mk(4, 112, undefined, 175, 0),
+      mk(5, 147, undefined, 50, 0)
+    ]
+    const snap = buildMatchSnapshot(makeGame({ participants: team }))
+    expect(snap.players[0].teamPosition).toBe('MIDDLE')
+  })
+
   it('passes through multiKills（后端曾丢字段导致恒 0 的回归锚点）', () => {
     const p = makeParticipant()
     p.stats.doubleKills = 3
