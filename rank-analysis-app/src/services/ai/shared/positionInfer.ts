@@ -6,23 +6,24 @@
 import type { TeamPosition } from './types'
 
 // 粗粒度英雄分类。仅覆盖常见英雄，未列出的归类为 unknown。
-const ADC_CHAMPIONS = new Set([
+// 导出供 positionAssign(按队伍排除法)复用同一份分类。
+export const ADC_CHAMPIONS = new Set([
   22, 51, 222, 119, 21, 42, 67, 81, 110, 145, 202, 236, 360, 429, 498, 18, 15, 96, 203, 523, 221,
   200, 532
 ])
-const SUPPORT_CHAMPIONS = new Set([
+export const SUPPORT_CHAMPIONS = new Set([
   117, 412, 25, 16, 37, 40, 43, 53, 89, 99, 111, 143, 201, 235, 267, 350, 432, 497, 555, 526, 901,
   223, 161
 ])
-const MAGE_CHAMPIONS = new Set([
+export const MAGE_CHAMPIONS = new Set([
   1, 8, 13, 17, 30, 34, 45, 50, 61, 63, 69, 74, 90, 101, 112, 115, 134, 142, 163, 268, 300, 99, 4,
   26, 27, 36, 950, 84
 ])
-const FIGHTER_CHAMPIONS = new Set([
+export const FIGHTER_CHAMPIONS = new Set([
   2, 23, 24, 39, 41, 48, 54, 57, 58, 62, 75, 77, 78, 80, 82, 83, 86, 92, 98, 102, 106, 113, 114,
   122, 126, 150, 154, 157, 164, 240, 254, 266, 421, 516, 517, 875, 887, 888
 ])
-const ASSASSIN_CHAMPIONS = new Set([
+export const ASSASSIN_CHAMPIONS = new Set([
   7, 28, 38, 55, 56, 60, 91, 103, 121, 131, 141, 238, 245, 246, 105, 35
 ])
 
