@@ -566,3 +566,39 @@ describe('validateAttribution', () => {
     })
   })
 })
+
+describe('Layer5 降级时 finalCall 一并中和(真机:胜方辅助 label 降正常但 finalCall 仍写「严重拖累」)', () => {
+  function snap(): MatchSnapshot {
+    const players = [
+      { participantId: 1, teamId: 100, win: true, killParticipation: 60 },
+      { participantId: 2, teamId: 200, win: false, killParticipation: 60 },
+      { participantId: 3, teamId: 100, win: true, killParticipation: 60 },
+      { participantId: 4, teamId: 200, win: false, killParticipation: 60 }
+    ].map(p => ({
+      ...p,
+      name: `P${p.participantId}`,
+      champion: `C${p.participantId}`,
+      recentProfile: null
+    }))
+    return { players } as unknown as MatchSnapshot
+  }
+
+  it('胜方「犯罪」降级为正常时,指控性 finalCall 被替换为中性文案', () => {
+    const v = { ...validVerdict(1, '犯罪'), finalCall: '表现严重拖累团队' }
+    const raw = JSON.stringify(validResult([v, validVerdict(2), validVerdict(3), validVerdict(4)]))
+    const out = validateAttribution(raw, snap())
+    expect(out.ok).toBe(true)
+    if (out.ok) {
+      expect(out.value.verdicts[0].label).toBe('正常')
+      expect(out.value.verdicts[0].finalCall).not.toContain('拖累')
+    }
+  })
+
+  it('未降级的 verdict finalCall 原样保留', () => {
+    const v = { ...validVerdict(2, '犯罪'), finalCall: '这锅背定了' }
+    const raw = JSON.stringify(validResult([v, validVerdict(1), validVerdict(3), validVerdict(4)]))
+    const out = validateAttribution(raw, snap())
+    expect(out.ok).toBe(true)
+    if (out.ok) expect(out.value.verdicts[0].finalCall).toBe('这锅背定了')
+  })
+})

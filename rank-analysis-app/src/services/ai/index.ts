@@ -109,6 +109,8 @@ export async function analyzeMatchDetailWithAIStream(
     vocabSamples?: string[]
     /** Stage 1 归因就绪回调(UI 用名册做章节确定性重排) */
     onAttribution?: (attribution: AttributionResult) => void
+    /** 单人复盘材料数字白名单回调(UI 用它剔除模型编造数字的句子) */
+    onStage2Material?: (allowedNumbers: Set<number>) => void
   }
 ): Promise<void> {
   try {
@@ -117,7 +119,8 @@ export async function analyzeMatchDetailWithAIStream(
       vocabSamples: extras?.vocabSamples,
       mode: options.mode,
       participantId: options.participantId,
-      onAttribution: extras?.onAttribution
+      onAttribution: extras?.onAttribution,
+      onStage2Material: extras?.onStage2Material
     })
     if (!out.ok && out.stage === 'critique' && out.fallbackMarkdown) {
       // The Stage 2 stream already called onError; emit the fallback so UI shows something

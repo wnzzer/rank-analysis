@@ -11,7 +11,12 @@
  */
 
 import MarkdownIt from 'markdown-it'
-import { dedupeSectionMentions, resectionByLabels, type SectionVerdict } from './postprocess'
+import {
+  dedupeSectionMentions,
+  resectionByLabels,
+  stripUngroundedSentences,
+  type SectionVerdict
+} from './postprocess'
 
 // html:false 阻断 AI/外部数据中夹带 raw HTML（XSS 防线，CSP 之外的纵深防御）
 const md = new MarkdownIt({ html: false, breaks: true, linkify: true })
@@ -54,10 +59,19 @@ const NUMBER_PATTERN = '\\d[\\d,]*(?:\\.\\d+)?(?:%|k|万)?'
  * 空输入返回空串；对部分 / 非法 markdown 不抛异常（流式每 chunk 都会调用）。
  * @param verdicts - 整局复盘的名册(name+label);传入时先按 label 确定性重排
  *   人物章节(模型排版不可信,见 postprocess.resectionByLabels),再去重。
+ * @param allowedNumbers - 材料数字白名单(单人复盘模式传入);传入时剔除含
+ *   材料外数字的句子(模型编数字不可信,见 postprocess.stripUngroundedSentences)。
  */
-export function renderAnalysisReport(markdown: string, verdicts?: SectionVerdict[]): string {
+export function renderAnalysisReport(
+  markdown: string,
+  verdicts?: SectionVerdict[],
+  allowedNumbers?: Set<number>
+): string {
   if (!markdown) return ''
-  const sectioned = verdicts?.length ? resectionByLabels(markdown, verdicts) : markdown
+  const grounded = allowedNumbers?.size
+    ? stripUngroundedSentences(markdown, allowedNumbers)
+    : markdown
+  const sectioned = verdicts?.length ? resectionByLabels(grounded, verdicts) : grounded
   // 确定性去重：模型偶发把同一玩家写进两个人物章节，代码层兜底（见 postprocess.ts）
   return enhance(md.render(dedupeSectionMentions(sectioned)))
 }

@@ -138,3 +138,60 @@ export function dedupeSectionMentions(markdown: string): string {
   }
   return out.join('\n')
 }
+
+/** 数字 token(支持千分位与小数),与 stripUngroundedSentences 共用 */
+const NUMBER_TOKEN = /\d[\d,]*(?:\.\d+)?/g
+
+/**
+ * 提取文本中出现的全部数字(千分位归一),供数字接地过滤做白名单。
+ * 通常直接对喂给模型的完整 prompt 调用——prompt 里有的数字才是模型可引用的。
+ */
+export function extractNumbers(text: string): Set<number> {
+  const out = new Set<number>()
+  for (const tok of text.match(NUMBER_TOKEN) ?? []) {
+    const n = Number.parseFloat(tok.replace(/,/g, ''))
+    if (Number.isFinite(n)) out.add(n)
+  }
+  return out
+}
+
+/**
+ * 单人复盘的数字接地过滤:剔除含材料外数字的句子。
+ *
+ * qwen-flash 在单人复盘的「责任归因」段落会编造数字(真机复现:材料只有
+ * 经济占比 14.3%,输出写成「14 次死亡、参团率 25%」)。prompt 禁令无效,
+ * 由代码兜底:凡句子里出现材料(prompt)中不存在的数字,整句剔除——
+ * 宁可少说一句,不给用户看编造数据。中文数字(如「三次」)不在覆盖范围,
+ * 属 fail-open。纯函数,流式中途的不完整 markdown 也安全(未完句暂时
+ * 被截也会随后续 chunk 恢复)。
+ *
+ * @param markdown - 模型输出(可为流式中间态)
+ * @param allowed - 材料数字白名单(空集 = 无材料可依,不过滤)
+ */
+export function stripUngroundedSentences(markdown: string, allowed: Set<number>): string {
+  if (!markdown || allowed.size === 0) return markdown
+  const nums = [...allowed]
+  // 容差 0.05:模型偶发把 8.20 写成 8.2 之类的等值变体;不容忍四舍五入级改写
+  const grounded = (t: number): boolean => nums.some(s => Math.abs(s - t) <= 0.05)
+
+  const out: string[] = []
+  for (const line of markdown.split('\n')) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) {
+      out.push(line)
+      continue
+    }
+    const bullet = line.match(/^(\s*[-*]\s+)([\s\S]*)$/)
+    const prefix = bullet ? bullet[1] : ''
+    const content = bullet ? bullet[2] : line
+    // 按句末标点切句(保留分隔符);句内出现任一未接地数字 → 整句剔除
+    const kept = content.split(/(?<=[。!?;！？；])/).filter(sentence => {
+      const tokens = sentence.match(NUMBER_TOKEN) ?? []
+      return tokens.every(tok => grounded(Number.parseFloat(tok.replace(/,/g, ''))))
+    })
+    const joined = kept.join('').trim()
+    if (!joined) continue
+    out.push(prefix + joined)
+  }
+  return out.join('\n')
+}

@@ -28,6 +28,8 @@ export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
   const aiState = ref<MatchAIState>('idle')
   /** 本次分析的 Stage 1 归因(名册),供渲染层按 label 确定性重排人物章节 */
   const aiAttribution = ref<AttributionResult | null>(null)
+  /** 单人复盘的材料数字白名单,供渲染层剔除模型编造数字的句子 */
+  const aiMaterialNumbers = ref<Set<number> | null>(null)
   const aiMode = ref<MatchDetailAnalysisMode>('overview')
   const aiTargetParticipantId = ref<number | null>(null)
 
@@ -49,7 +51,9 @@ export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
     renderAnalysisReport(
       aiResult.value,
       // 仅整局锐评有人物章节;单人复盘是另一套模板,不参与重排
-      aiMode.value === 'overview' ? (aiAttribution.value?.verdicts ?? undefined) : undefined
+      aiMode.value === 'overview' ? (aiAttribution.value?.verdicts ?? undefined) : undefined,
+      // 仅单人复盘做数字接地过滤(整局锐评的数字问题由重排/去重覆盖)
+      aiMode.value === 'player' ? (aiMaterialNumbers.value ?? undefined) : undefined
     )
   )
   const aiStateLabel = computed(() => {
@@ -108,6 +112,7 @@ export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
     aiLoading.value = true
     aiResult.value = ''
     aiAttribution.value = null
+    aiMaterialNumbers.value = null
     resultKey.value = currentKey()
     aiState.value = 'profiles'
 
@@ -156,6 +161,10 @@ export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
           onAttribution: attribution => {
             if (token !== runToken) return
             aiAttribution.value = attribution
+          },
+          onStage2Material: allowedNumbers => {
+            if (token !== runToken) return
+            aiMaterialNumbers.value = allowedNumbers
           }
         }
       )
