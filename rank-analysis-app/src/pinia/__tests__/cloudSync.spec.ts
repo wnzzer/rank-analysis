@@ -409,10 +409,11 @@ describe('useCloudSyncStore', () => {
       expect(store.pendingCloudConfig).toBeNull()
     })
 
-    it('后续同步:本地有未推送变更 → 推送胜过云端(后写胜)', async () => {
+    it('后续同步:本地有未推变更且云端未更新 → 推送并清持久 dirty 标记', async () => {
       mockGetConfig({ configSyncedOnce: true, configLastSyncAt: 50 })
       mockConfigInvoke({
-        pulled: { updatedAt: 100, config: { theme: { value: 'dark' } } },
+        // 云端行比上次同步旧(30 < 50):只有本机改过,放心推
+        pulled: { updatedAt: 30, config: { theme: { value: 'dark' } } },
         local: { theme: { value: 'light' } }
       })
       const store = useCloudSyncStore()
@@ -420,6 +421,83 @@ describe('useCloudSyncStore', () => {
       await store.syncNow()
       expect(mockInvoke).not.toHaveBeenCalledWith('apply_config_snapshot', expect.anything())
       expect(mockInvoke).toHaveBeenCalledWith('cloud_push_config', { puuid: 'me' })
+      expect(mockPut).toHaveBeenCalledWith('configDirtyAt', 0)
+    })
+
+    it('后续同步:两边都改过(本机 dirty 且云端更新) → 弹裁决而非盲推(维克托丢失回归锚点)', async () => {
+      mockGetConfig({ configSyncedOnce: true, configLastSyncAt: 50 })
+      mockConfigInvoke({
+        pulled: { updatedAt: 100, config: { theme: { value: 'dark' } } },
+        local: { theme: { value: 'light' } }
+      })
+      const store = useCloudSyncStore()
+      store.markConfigDirty()
+      await store.syncNow()
+      expect(store.pendingCloudConfig).not.toBeNull()
+      expect(mockInvoke).not.toHaveBeenCalledWith('cloud_push_config', expect.anything())
+      expect(mockInvoke).not.toHaveBeenCalledWith('apply_config_snapshot', expect.anything())
+    })
+
+    it('markConfigDirty 持久化 dirty 时间戳(防「改完就退出」丢推送)', async () => {
+      mockGetConfig({ configSyncedOnce: true })
+      const store = useCloudSyncStore()
+      store.markConfigDirty()
+      await flushAsync()
+      expect(mockPut).toHaveBeenCalledWith('configDirtyAt', expect.any(Number))
+    })
+
+    it('启动时恢复持久 dirty:上次会话未推送的变更在本次启动补推', async () => {
+      // 云端行更旧(30 < 50)且内容不同:恢复的 dirty 应触发补推而非静默应用
+      mockGetConfig({
+        configSyncedOnce: true,
+        configLastSyncAt: 50,
+        configDirtyAt: 123,
+        cloudSyncEnabled: true
+      })
+      mockConfigInvoke({
+        pulled: { updatedAt: 30, config: { theme: { value: 'dark' } } },
+        local: { theme: { value: 'light' } }
+      })
+      const store = useCloudSyncStore()
+      await store.init()
+      await flushAsync()
+      expect(mockInvoke).toHaveBeenCalledWith('cloud_push_config', { puuid: 'me' })
+      expect(mockInvoke).not.toHaveBeenCalledWith('apply_config_snapshot', expect.anything())
+    })
+
+    it('裁决「使用云端」时重新拉取最新快照,不套用陈旧 pending', async () => {
+      mockGetConfig({ configSyncedOnce: undefined })
+      // 第一次 pull 返回 v1(进入 pending),裁决时的第二次 pull 返回 v2
+      let pullCount = 0
+      mockInvoke.mockImplementation(async cmd => {
+        if (cmd === 'get_my_summoner') return { puuid: 'me' }
+        if (cmd === 'cloud_pull_notes') return []
+        if (cmd === 'cloud_pull_config') {
+          pullCount++
+          return pullCount === 1
+            ? { updatedAt: 100, config: { theme: { value: 'v1' } } }
+            : { updatedAt: 200, config: { theme: { value: 'v2' } } }
+        }
+        if (cmd === 'get_cloud_config_snapshot') return { theme: { value: 'local' } }
+        return undefined
+      })
+      const store = useCloudSyncStore()
+      await store.syncNow()
+      expect(store.pendingCloudConfig).not.toBeNull()
+      await store.resolveCloudConfig(true)
+      expect(mockInvoke).toHaveBeenCalledWith('apply_config_snapshot', {
+        snapshot: { theme: { value: 'v2' } }
+      })
+    })
+
+    it('内容一致时清掉持久 dirty 标记', async () => {
+      mockGetConfig({ configSyncedOnce: true, configLastSyncAt: 50 })
+      const same = { theme: { value: 'dark' } }
+      mockConfigInvoke({ pulled: { updatedAt: 100, config: same }, local: same })
+      const store = useCloudSyncStore()
+      store.markConfigDirty()
+      await store.syncNow()
+      expect(mockPut).toHaveBeenCalledWith('configDirtyAt', 0)
     })
 
     it('后续同步:内容一致 → 不 apply 不 push', async () => {

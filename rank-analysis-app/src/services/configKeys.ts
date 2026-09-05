@@ -28,6 +28,12 @@ export const CONFIG_KEYS = {
   /** 本设备上次推送/应用配置的时刻 ms(LWW 比较基准;设备级,不入备份) */
   configLastSyncAt: 'configLastSyncAt',
   /**
+   * 本设备最近一次未推送配置变更的时刻 ms,推送成功清零(设备级,不入备份)。
+   * 持久化是为了防「改完 30s 防抖内就退出」:下次启动恢复 dirty,补推而非被
+   * 启动拉取静默覆盖。
+   */
+  configDirtyAt: 'configDirtyAt',
+  /**
    * 游戏安装根目录（免 WeGame 一键启动用）。
    *
    * 由后端在客户端「已连接」时从运行进程反推并自动记忆（见 Rust `command::launcher`），
