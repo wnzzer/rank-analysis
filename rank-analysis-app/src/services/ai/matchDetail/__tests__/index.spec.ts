@@ -142,6 +142,24 @@ function fakeAttributionJson() {
 }
 
 describe('analyzeMatchDetail', () => {
+  it('重开局(时长<5分钟)不打模型,直接返回固定说明(真机:1分钟重开局出过一本正经的复盘)', async () => {
+    const g = { ...makeGame(), gameDuration: 90 }
+    const chunks: string[] = []
+    const out = await analyzeMatchDetail(g, null, {
+      onChunk: c => chunks.push(c),
+      onDone: () => {},
+      onError: () => {}
+    })
+    expect(out.ok).toBe(true)
+    if (out.ok) {
+      expect(out.markdown).toContain('重开')
+      expect(out.attribution.verdicts).toEqual([])
+    }
+    expect(chunks.join('')).toContain('重开')
+    expect(mockRequest).not.toHaveBeenCalled()
+    expect(mockStream).not.toHaveBeenCalled()
+  })
+
   it('completes both stages and returns ok with markdown', async () => {
     mockRequest.mockResolvedValueOnce({ success: true, content: fakeAttributionJson() })
     mockStream.mockImplementation(async (_p, callbacks) => {

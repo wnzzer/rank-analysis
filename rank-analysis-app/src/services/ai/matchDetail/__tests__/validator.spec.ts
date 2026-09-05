@@ -483,4 +483,86 @@ describe('validateAttribution', () => {
       }
     })
   })
+
+  describe('标签量化一致性降级(真机复现:qwen 违反量化标准打标)', () => {
+    /** 快照:p1 胜方,p2 败方;p3/p4 凑 verdict 数量下限。可注入参团率 */
+    function snapForLabels(kp: Record<number, number> = {}): MatchSnapshot {
+      const players = [
+        { participantId: 1, teamId: 100, win: true, killParticipation: kp[1] ?? 60 },
+        { participantId: 2, teamId: 200, win: false, killParticipation: kp[2] ?? 60 },
+        { participantId: 3, teamId: 100, win: true, killParticipation: kp[3] ?? 60 },
+        { participantId: 4, teamId: 200, win: false, killParticipation: kp[4] ?? 60 },
+        { participantId: 5, teamId: 200, win: false, killParticipation: kp[5] ?? 60 }
+      ].map(p => ({
+        ...p,
+        name: `P${p.participantId}`,
+        champion: `C${p.participantId}`,
+        recentProfile: null
+      }))
+      return { players } as unknown as MatchSnapshot
+    }
+
+    it('败方玩家被标「尽力」→ 降级为正常(尽力要求该队伍胜)', () => {
+      const raw = JSON.stringify(
+        validResult([validVerdict(2, '尽力'), validVerdict(1), validVerdict(3), validVerdict(4)])
+      )
+      const out = validateAttribution(raw, snapForLabels())
+      expect(out.ok).toBe(true)
+      if (out.ok) expect(out.value.verdicts[0].label).toBe('正常')
+    })
+
+    it('胜方玩家被标「犯罪」或「被连累」→ 降级为正常(二者都要求该队伍输)', () => {
+      const raw = JSON.stringify(
+        validResult([
+          validVerdict(1, '犯罪'),
+          validVerdict(3, '被连累'),
+          validVerdict(2),
+          validVerdict(4)
+        ])
+      )
+      const out = validateAttribution(raw, snapForLabels())
+      expect(out.ok).toBe(true)
+      if (out.ok) {
+        expect(out.value.verdicts[0].label).toBe('正常')
+        expect(out.value.verdicts[1].label).toBe('正常')
+      }
+    })
+
+    it('参团率不低于队均-15 的玩家被标「缚地灵」→ 降级为正常(真机:74%参团被标缚地灵)', () => {
+      // p2 参团 74,队(200)均值 (74+40+40)/3≈51.3 → 74 远高于均值,缚地灵不成立
+      const raw = JSON.stringify(
+        validResult([validVerdict(2, '缚地灵'), validVerdict(1), validVerdict(3), validVerdict(4)])
+      )
+      const out = validateAttribution(raw, snapForLabels({ 2: 74, 4: 40, 5: 40 }))
+      expect(out.ok).toBe(true)
+      if (out.ok) expect(out.value.verdicts[0].label).toBe('正常')
+    })
+
+    it('参团率确实低于队均-15 → 缚地灵保留', () => {
+      // p2 参团 20,队均 (20+70+70)/3=53.3,20 < 53.3-15 → 成立
+      const raw = JSON.stringify(
+        validResult([validVerdict(2, '缚地灵'), validVerdict(1), validVerdict(3), validVerdict(4)])
+      )
+      const out = validateAttribution(raw, snapForLabels({ 2: 20, 4: 70, 5: 70 }))
+      expect(out.ok).toBe(true)
+      if (out.ok) expect(out.value.verdicts[0].label).toBe('缚地灵')
+    })
+
+    it('败方「犯罪」与胜方「尽力」不受影响', () => {
+      const raw = JSON.stringify(
+        validResult([
+          validVerdict(2, '犯罪'),
+          validVerdict(1, '尽力'),
+          validVerdict(3),
+          validVerdict(4)
+        ])
+      )
+      const out = validateAttribution(raw, snapForLabels())
+      expect(out.ok).toBe(true)
+      if (out.ok) {
+        expect(out.value.verdicts[0].label).toBe('犯罪')
+        expect(out.value.verdicts[1].label).toBe('尽力')
+      }
+    })
+  })
 })

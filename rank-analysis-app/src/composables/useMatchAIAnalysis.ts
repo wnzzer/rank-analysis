@@ -8,6 +8,7 @@ import { useMessage } from 'naive-ui'
 import type { Game } from '@renderer/types/domain/match'
 import {
   analyzeMatchDetailWithAIStream,
+  type AttributionResult,
   type MatchDetailAnalysisMode,
   type MatchAIState
 } from '@renderer/services/ai'
@@ -25,6 +26,8 @@ export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
   const aiLoading = ref(false)
   const aiResult = ref('')
   const aiState = ref<MatchAIState>('idle')
+  /** 本次分析的 Stage 1 归因(名册),供渲染层按 label 确定性重排人物章节 */
+  const aiAttribution = ref<AttributionResult | null>(null)
   const aiMode = ref<MatchDetailAnalysisMode>('overview')
   const aiTargetParticipantId = ref<number | null>(null)
 
@@ -42,7 +45,13 @@ export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
    */
   let runToken = 0
 
-  const renderedAiResult = computed(() => renderAnalysisReport(aiResult.value))
+  const renderedAiResult = computed(() =>
+    renderAnalysisReport(
+      aiResult.value,
+      // 仅整局锐评有人物章节;单人复盘是另一套模板,不参与重排
+      aiMode.value === 'overview' ? (aiAttribution.value?.verdicts ?? undefined) : undefined
+    )
+  )
   const aiStateLabel = computed(() => {
     switch (aiState.value) {
       case 'profiles':
@@ -98,6 +107,7 @@ export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
     const token = ++runToken
     aiLoading.value = true
     aiResult.value = ''
+    aiAttribution.value = null
     resultKey.value = currentKey()
     aiState.value = 'profiles'
 
@@ -141,7 +151,13 @@ export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
           participantId:
             aiMode.value === 'player' ? (aiTargetParticipantId.value ?? undefined) : undefined
         },
-        { profileMap }
+        {
+          profileMap,
+          onAttribution: attribution => {
+            if (token !== runToken) return
+            aiAttribution.value = attribution
+          }
+        }
       )
     } catch (error: any) {
       if (token !== runToken) return
