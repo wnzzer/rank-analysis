@@ -15,6 +15,7 @@ import { DEFAULT_SYSTEM_PROMPT, requestAIContentStream } from './stream'
 import { buildPlayerAnalysisPrompt, buildTeamAnalysisPrompt } from './prompts/team'
 import { buildChampSelectPrompt } from './prompts/champSelect'
 import { analyzeMatchDetail } from './matchDetail'
+import type { AttributionResult } from './matchDetail'
 import type { RecentPlayerProfile } from './shared/types'
 
 export type {
@@ -106,6 +107,10 @@ export async function analyzeMatchDetailWithAIStream(
   extras?: {
     profileMap?: Map<string, RecentPlayerProfile | null> | null
     vocabSamples?: string[]
+    /** Stage 1 归因就绪回调(UI 用名册做章节确定性重排) */
+    onAttribution?: (attribution: AttributionResult) => void
+    /** 单人复盘材料数字白名单回调(UI 用它剔除模型编造数字的句子) */
+    onStage2Material?: (allowedNumbers: Set<number>) => void
   }
 ): Promise<void> {
   try {
@@ -113,7 +118,9 @@ export async function analyzeMatchDetailWithAIStream(
     const out = await analyzeMatchDetail(game, extras?.profileMap ?? null, callbacks, {
       vocabSamples: extras?.vocabSamples,
       mode: options.mode,
-      participantId: options.participantId
+      participantId: options.participantId,
+      onAttribution: extras?.onAttribution,
+      onStage2Material: extras?.onStage2Material
     })
     if (!out.ok && out.stage === 'critique' && out.fallbackMarkdown) {
       // The Stage 2 stream already called onError; emit the fallback so UI shows something

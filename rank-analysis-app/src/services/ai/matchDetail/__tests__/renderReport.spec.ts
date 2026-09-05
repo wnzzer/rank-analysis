@@ -94,3 +94,18 @@ describe('renderAnalysisReport', () => {
     expect(html).toContain('ai-section--evidence') // 建议
   })
 })
+
+describe('renderAnalysisReport + 数字接地过滤(单人复盘)', () => {
+  it('传入 allowedNumbers 时编造数字的句子不出现在 HTML 里', () => {
+    const md = '## 责任归因\n\n你没拖后腿。数字上是负资产——14次死亡、参团率25%。'
+    const html = renderAnalysisReport(md, undefined, new Set([8, 3, 18, 75]))
+    expect(html).toContain('你没拖后腿')
+    expect(html).not.toContain('14次死亡')
+  })
+
+  it('不传 allowedNumbers 时不过滤(整局锐评路径回归)', () => {
+    const md = '## 责任归因\n\n14次死亡。'
+    // 数字会被 ai-num 高亮 span 包裹,断言拆开的两段
+    expect(renderAnalysisReport(md)).toContain('次死亡')
+  })
+})

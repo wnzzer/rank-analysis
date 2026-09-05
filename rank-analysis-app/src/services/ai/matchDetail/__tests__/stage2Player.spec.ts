@@ -137,4 +137,11 @@ describe('buildStage2PlayerPrompt', () => {
     expect(prompt).toContain('击杀归属')
     expect(prompt).toContain('null 表示无数据')
   })
+
+  it('禁止过程性行为编造 + 打野/辅助位置本分不定罪', () => {
+    const prompt = buildStage2PlayerPrompt(attribution, makeSnapshot([target, laneOpponent]), 4, [])
+    expect(prompt).toContain('过程行为')
+    expect(prompt).toContain('timeline')
+    expect(prompt).toContain('打野时 cs')
+  })
 })

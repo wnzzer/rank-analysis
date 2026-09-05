@@ -160,6 +160,33 @@ export function validateAttribution(rawJson: string, snapshot: MatchSnapshot): V
     v.teamResult = playerSnap.win ? '胜方' : '败方'
   }
 
+  // ─── Layer 5: 标签量化一致性降级 ───
+  // prompt 里的标签量化标准 qwen-flash 并不总遵守(真机复现:74% 参团被标"缚地灵"、
+  // 胜方被标"被连累"且 finalCall 写"队伍仍输")。可量化的部分由 TS 复核,
+  // 不符一律降级"正常"——正常不进任何人物章节,连带矛盾文案一起消失。
+  // finalCall 必须随降级一并中和:降级后的 verdict 仍会作为材料喂给单人复盘,
+  // 残留的指控文案(如胜方辅助的"严重拖累团队")会把 Stage 2 带偏(真机复现)。
+  const downgrade = (v: Verdict): void => {
+    v.label = '正常'
+    v.finalCall = '整体表现正常，无功无过'
+  }
+  for (const v of result.verdicts) {
+    if (v.label === '尽力' && v.teamResult === '败方') downgrade(v)
+    if ((v.label === '犯罪' || v.label === '被连累') && v.teamResult === '胜方') downgrade(v)
+    if (v.label === '缚地灵') {
+      const playerSnap = snapshot.players.find(
+        (p: any) => p.participantId === v.participantId
+      ) as any
+      if (playerSnap) {
+        const teammates = (snapshot.players as any[]).filter(p => p.teamId === playerSnap.teamId)
+        const avgKp =
+          teammates.reduce((s, p) => s + (p.killParticipation ?? 0), 0) /
+          Math.max(teammates.length, 1)
+        if ((playerSnap.killParticipation ?? 0) >= avgKp - 15) downgrade(v)
+      }
+    }
+  }
+
   return { ok: true, value: result }
 }
 

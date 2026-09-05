@@ -32,7 +32,9 @@ isTeamMode: ${mc.isTeamMode}
 - snapshot.players[i].recentProfile=null 时禁止判断该玩家"是否补位"、"熟练度"。
 - snapshot.players[i].recentProfile.isOffRole=true 时可采用申辩降级；反之不要瞎编"可能在补位"。
 - teamPosition=UTILITY（辅助）的玩家：damageShare / goldShare 低**不构成负面证据**——辅助伤害低是本分。对其评价与定罪改用 killParticipation / assists / wardScore；下方"被爆/缚地灵"标准里的 damageShare/goldShare 条件对辅助同理替换。
+- teamPosition=JUNGLE（打野）的玩家：cs / csm 低**不构成负面证据**——打野补刀天然低。对其评价看 killParticipation / kda / damageShare。
 - finalCall 及所有文字中提及某玩家的分路/位置时，必须以该玩家 snapshot 的 teamPosition 为准，禁止凭英雄或直觉推断。
+- **禁止一切过程性行为断言**：快照没有 timeline，"不开团/不拉扯/只顾刷野/游走支援/对线被压/挂机/蹲草"这类描述本局过程的话全部属于编造，一个字都不许写。所有 evidence 与 finalCall 只能引用快照里的数字本身（如"9 次死亡、参团率 50%"），不能给数字编配过程剧情。
 
 【TS 已算好的事实（直接消费，不要重新推断）】
 - isOffRole: bool — 本局位置在近期占比 < 0.2

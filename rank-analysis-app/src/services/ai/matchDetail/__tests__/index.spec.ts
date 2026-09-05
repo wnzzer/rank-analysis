@@ -142,6 +142,24 @@ function fakeAttributionJson() {
 }
 
 describe('analyzeMatchDetail', () => {
+  it('重开局(时长<5分钟)不打模型,直接返回固定说明(真机:1分钟重开局出过一本正经的复盘)', async () => {
+    const g = { ...makeGame(), gameDuration: 90 }
+    const chunks: string[] = []
+    const out = await analyzeMatchDetail(g, null, {
+      onChunk: c => chunks.push(c),
+      onDone: () => {},
+      onError: () => {}
+    })
+    expect(out.ok).toBe(true)
+    if (out.ok) {
+      expect(out.markdown).toContain('重开')
+      expect(out.attribution.verdicts).toEqual([])
+    }
+    expect(chunks.join('')).toContain('重开')
+    expect(mockRequest).not.toHaveBeenCalled()
+    expect(mockStream).not.toHaveBeenCalled()
+  })
+
   it('completes both stages and returns ok with markdown', async () => {
     mockRequest.mockResolvedValueOnce({ success: true, content: fakeAttributionJson() })
     mockStream.mockImplementation(async (_p, callbacks) => {
@@ -287,5 +305,63 @@ describe('analyzeMatchDetail', () => {
     expect(out.ok).toBe(true)
     expect(chunks.join('')).toContain('单人新内容')
     expect(chunks.join('')).not.toContain('整局缓存内容')
+  })
+})
+
+describe('onStage2Material(单人复盘材料数字白名单)', () => {
+  it('player 模式实时路径:回调收到 prompt 中的数字集合', async () => {
+    sessionStorage.clear()
+    mockRequest.mockResolvedValue({ success: true, content: fakeAttributionJson() })
+    mockStream.mockImplementation(async (_p, callbacks) => {
+      callbacks.onChunk('## 一句话定档\n内容。\n')
+      callbacks.onDone()
+    })
+
+    let got: Set<number> | null = null
+    const out = await analyzeMatchDetail(
+      makeGame(),
+      null,
+      { onChunk: () => {}, onDone: () => {}, onError: () => {} },
+      { mode: 'player', participantId: 1, onStage2Material: n => (got = n) }
+    )
+    expect(out.ok).toBe(true)
+    expect(got).not.toBeNull()
+    expect(got!.size).toBeGreaterThan(0)
+  })
+
+  it('player 模式两级缓存命中:白名单从重建的 prompt 补发', async () => {
+    sessionStorage.clear()
+    sessionStorage.setItem('ai_match_detail_stage1_12345_ranked_qwen-flash', fakeAttributionJson())
+    sessionStorage.setItem('ai_match_detail_stage2_12345_ranked_p1', '## 一句话定档\n缓存内容')
+
+    let got: Set<number> | null = null
+    const out = await analyzeMatchDetail(
+      makeGame(),
+      null,
+      { onChunk: () => {}, onDone: () => {}, onError: () => {} },
+      { mode: 'player', participantId: 1, onStage2Material: n => (got = n) }
+    )
+    expect(out.ok).toBe(true)
+    expect(mockStream).toHaveBeenCalledTimes(0)
+    expect(got).not.toBeNull()
+    expect(got!.size).toBeGreaterThan(0)
+  })
+
+  it('overview 模式不触发该回调', async () => {
+    sessionStorage.clear()
+    mockRequest.mockResolvedValue({ success: true, content: fakeAttributionJson() })
+    mockStream.mockImplementation(async (_p, callbacks) => {
+      callbacks.onChunk('## 一句话定论\n内容。\n')
+      callbacks.onDone()
+    })
+
+    let called = false
+    await analyzeMatchDetail(
+      makeGame(),
+      null,
+      { onChunk: () => {}, onDone: () => {}, onError: () => {} },
+      { onStage2Material: () => (called = true) }
+    )
+    expect(called).toBe(false)
   })
 })

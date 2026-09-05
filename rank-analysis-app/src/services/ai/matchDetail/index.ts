@@ -34,6 +34,7 @@ import {
   type CritiqueCallbacks
 } from './critique'
 import { renderFallbackCritique } from './critiqueTemplate'
+import { extractNumbers } from './postprocess'
 import type { AttributionResult } from './types'
 
 export type { AttributionResult, MatchAIState } from './types'
@@ -45,6 +46,16 @@ export interface AnalyzeOptions {
   /** 'player' 时 Stage 2 输出单人复盘（需 participantId）；Stage 1 归因两模式共享 */
   mode?: 'overview' | 'player'
   participantId?: number
+  /**
+   * Stage 1 归因就绪时回调(缓存命中/实时均触发,先于 Stage 2 流式输出)。
+   * UI 渲染层用其中的名册(name+label)做人物章节的确定性重排。
+   */
+  onAttribution?: (attribution: AttributionResult) => void
+  /**
+   * 单人复盘模式下,Stage 2 prompt 定稿时回调材料数字白名单
+   * (缓存命中/实时均触发)。UI 渲染层用它剔除模型编造数字的句子。
+   */
+  onStage2Material?: (allowedNumbers: Set<number>) => void
 }
 
 export type AnalyzeOutcome =
@@ -73,12 +84,29 @@ function writeSession(key: string, value: string): void {
   }
 }
 
+/** 低于该时长(秒)视为重开局,不做 AI 复盘(数据无分析价值,模型只会硬编) */
+const REMAKE_MAX_SECONDS = 300
+
 export async function analyzeMatchDetail(
   game: Game,
   profileMap: Map<string, RecentPlayerProfile | null> | null,
   callbacks: CritiqueCallbacks,
   options: AnalyzeOptions = {}
 ): Promise<AnalyzeOutcome> {
+  // 重开局短路:1 分钟的对局也能让模型一本正经写出"高效刷野无贡献型"(真机复现),
+  // 不如不写。固定文案直接走 onChunk/onDone,UI 渲染路径不变。
+  if (game.gameDuration < REMAKE_MAX_SECONDS) {
+    const markdown =
+      '## 一句话定论\n本局为重开局(时长不足 5 分钟),没有可分析的对局数据,AI 复盘跳过。'
+    callbacks.onChunk(markdown)
+    callbacks.onDone()
+    return {
+      ok: true,
+      attribution: { winReason: '重开局,无胜负归因', verdicts: [] },
+      markdown
+    }
+  }
+
   const snapshot = buildMatchSnapshot(game, profileMap ?? undefined)
 
   // ─── Stage 1 缓存预检 ───
@@ -100,6 +128,14 @@ export async function analyzeMatchDetail(
     : `ai_match_detail_stage2_${snapshot.gameId}_${snapshot.modeContext.kind}`
   const cachedMarkdown = readSession(stage2Key)
   if (cachedAttribution && cachedMarkdown) {
+    options.onAttribution?.(cachedAttribution)
+    // 缓存命中不再经过 buildUserPrompt,材料数字白名单要在这里重建
+    // (prompt 构造是纯函数,重建成本可忽略)
+    if (isPlayerMode && options.onStage2Material) {
+      options.onStage2Material(
+        extractNumbers(buildCritiqueUserPrompt(cachedAttribution, snapshot, options))
+      )
+    }
     callbacks.onChunk(cachedMarkdown)
     callbacks.onDone()
     return { ok: true, attribution: cachedAttribution, markdown: cachedMarkdown }
@@ -118,7 +154,14 @@ export async function analyzeMatchDetail(
     },
     stage2: {
       buildSystemPrompt: () => STAGE2_SYSTEM_PROMPT,
-      buildUserPrompt: attribution => buildCritiqueUserPrompt(attribution, snapshot, options),
+      buildUserPrompt: attribution => {
+        // Stage 1 定稿、Stage 2 尚未开流的时点:把归因交给 UI(名册重排用)
+        options.onAttribution?.(attribution)
+        const prompt = buildCritiqueUserPrompt(attribution, snapshot, options)
+        // 单人复盘:prompt 里的数字就是模型可引用的全部数字,交给 UI 做接地过滤
+        if (isPlayerMode) options.onStage2Material?.(extractNumbers(prompt))
+        return prompt
+      },
       // Stage 2 是自由 markdown，无解析需求；流式 chunk 直接转发给调用方
       parse: raw => ({ ok: true, value: raw }),
       streamCallback: callbacks.onChunk,
