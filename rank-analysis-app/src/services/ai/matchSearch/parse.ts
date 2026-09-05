@@ -103,5 +103,11 @@ export async function parseMatchQuery(text: string): Promise<ParsedMatchQuery> {
   // to 在未来 = 「至今」,置空;from 在未来则整个时间窗不可信,作废。
   if (q.timeRange.to && q.timeRange.to > today) q.timeRange.to = null
   if (q.timeRange.from && q.timeRange.from > today) q.timeRange = { from: null, to: null }
+
+  // 确定性钳制:模型爱从英雄名脑补位置(真机复现「我玩亚索」→ TOP,prompt 禁不住)。
+  // 位置条件只有在原文出现位置词时才可信,否则清空(宁可少筛不误筛)。
+  const POSITION_WORDS = /上单|上路|打野|中单|中路|下路|辅助|射手|ADC?/i
+  if (q.selfPositions.length > 0 && !POSITION_WORDS.test(text)) q.selfPositions = []
+
   return q
 }

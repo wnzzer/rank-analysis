@@ -78,3 +78,13 @@ describe('removeChipFromQuery', () => {
     expect(removeChipFromQuery(q, 'nope')).toEqual(q)
   })
 })
+
+describe('selfPositions chips', () => {
+  it('位置条件产出中文 chip 且可删除', () => {
+    const q = { ...emptyQuery(), selfPositions: ['UTILITY' as const, 'JUNGLE' as const] }
+    const chips = queryToChips(q, championName, queueName)
+    expect(chips.map(c => c.label)).toEqual(['我玩: 辅助', '我玩: 打野'])
+    const next = removeChipFromQuery(q, 'pos:UTILITY')
+    expect(next.selfPositions).toEqual(['JUNGLE'])
+  })
+})

@@ -19,6 +19,7 @@ export function emptyQuery(): ParsedMatchQuery {
     result: 'any',
     queueIds: [],
     playerNames: [],
+    selfPositions: [],
     intent: 'list'
   }
 }
@@ -88,6 +89,18 @@ export function validateParsedQuery(
       if (name && !names.includes(name)) names.push(name)
     }
     q.playerNames = names
+  }
+
+  if (Array.isArray(r.selfPositions)) {
+    const POSITIONS = new Set(['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'])
+    q.selfPositions = [
+      ...new Set(
+        r.selfPositions.filter(
+          (v): v is ParsedMatchQuery['selfPositions'][number] =>
+            typeof v === 'string' && POSITIONS.has(v)
+        )
+      )
+    ]
   }
 
   if (r.intent === 'count_encounters') q.intent = 'count_encounters'

@@ -23,6 +23,8 @@ export interface ParsedMatchQuery {
   queueIds: number[]
   /** 出现过的玩家名(「跟 XXX#XXX 碰见过几次」),支持 名#tag 或纯名 */
   playerNames: string[]
+  /** 我玩的位置(「我玩辅助的那几把」),多个为其中之一;按排除法推断的分路匹配 */
+  selfPositions: ('TOP' | 'JUNGLE' | 'MIDDLE' | 'BOTTOM' | 'UTILITY')[]
   /** list = 列出对局;count_encounters = 统计与 playerNames 的相遇次数 */
   intent: 'list' | 'count_encounters'
 }

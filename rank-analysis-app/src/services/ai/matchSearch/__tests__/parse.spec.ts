@@ -111,6 +111,22 @@ describe('parseMatchQuery', () => {
     expect(today <= '2999-01-01').toBe(true)
   })
 
+  it('原文没有位置词时清空 selfPositions(模型爱从英雄名脑补位置,真机复现「玩亚索」→TOP)', async () => {
+    mockRequest.mockResolvedValueOnce({
+      success: true,
+      content: JSON.stringify({ selfChampionIds: [51], selfPositions: ['TOP'] })
+    })
+    const q1 = await parseMatchQuery('上周我玩女警的大乱斗')
+    expect(q1.selfPositions).toEqual([])
+
+    mockRequest.mockResolvedValueOnce({
+      success: true,
+      content: JSON.stringify({ selfPositions: ['JUNGLE'] })
+    })
+    const q2 = await parseMatchQuery('我打野赢的那把')
+    expect(q2.selfPositions).toEqual(['JUNGLE'])
+  })
+
   it('clearParseCache 清掉该句的 sessionStorage 缓存', async () => {
     mockRequest.mockResolvedValue({ success: true, content: '{}' })
     await parseMatchQuery('同一句')
