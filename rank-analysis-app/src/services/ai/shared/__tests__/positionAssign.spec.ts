@@ -11,7 +11,12 @@ const p = (
   spellIds: number[],
   cs: number,
   jungleCs: number
-): PositionAssignInput => ({ championId, spellIds, minionsKilled: cs, jungleMinionsKilled: jungleCs })
+): PositionAssignInput => ({
+  championId,
+  spellIds,
+  minionsKilled: cs,
+  jungleMinionsKilled: jungleCs
+})
 
 /** 败方:蛮王(上) 男枪(野) 卢锡安(下) 维克托(中) 星籁歌姬(辅) */
 const TEAM_LOSS = [
@@ -33,13 +38,7 @@ const TEAM_WIN = [
 
 describe('assignTeamPositions', () => {
   it('真实败方阵容:五个位置全部推对(含旧启发式推不出的上单/辅助)', () => {
-    expect(assignTeamPositions(TEAM_LOSS)).toEqual([
-      'TOP',
-      'JUNGLE',
-      'BOTTOM',
-      'MIDDLE',
-      'UTILITY'
-    ])
+    expect(assignTeamPositions(TEAM_LOSS)).toEqual(['TOP', 'JUNGLE', 'BOTTOM', 'MIDDLE', 'UTILITY'])
   })
 
   it('真实胜方阵容:五个位置全部推对', () => {
