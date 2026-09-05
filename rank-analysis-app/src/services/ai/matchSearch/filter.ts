@@ -10,6 +10,8 @@
  */
 
 import type { Game, Participant, MatchPlayerIdentity } from '@renderer/types/domain/match'
+import { assignTeamPositions } from '../shared/positionAssign'
+import { inferTeamPosition } from '../shared/positionInfer'
 import type { ParsedMatchQuery, EncounterStats } from './types'
 
 /** 一局对局按「我」的视角拆出的双方成员(带 identities 对齐下标) */
@@ -62,6 +64,37 @@ function identityMatches(identity: MatchPlayerIdentity, wanted: string): boolean
   return full === w || gameName === w || full.includes(w)
 }
 
+/**
+ * 推断「我」这一局的分路:优先对我方整队做排除法(与 AI 复盘同一套
+ * positionAssign 逻辑),gameDetail 缺阵容时退化为逐人启发式。
+ */
+function selfPositionOf(game: Game): string {
+  const self = game.participants[0]
+  if (!self) return 'UNKNOWN'
+  const myTeam = (game.gameDetail?.participants ?? []).filter(p => p.teamId === self.teamId)
+  if (myTeam.length > 0) {
+    const selfIdx = myTeam.findIndex(
+      p => p.championId === self.championId && p.teamId === self.teamId
+    )
+    if (selfIdx >= 0) {
+      const assigned = assignTeamPositions(
+        myTeam.map(p => ({
+          championId: p.championId,
+          spellIds: [p.spell1Id, p.spell2Id],
+          minionsKilled: p.stats?.totalMinionsKilled ?? 0,
+          jungleMinionsKilled: p.stats?.neutralMinionsKilled ?? 0
+        }))
+      )
+      return assigned[selfIdx]
+    }
+  }
+  return inferTeamPosition({
+    teamPosition: '',
+    spellIds: [self.spell1Id, self.spell2Id],
+    championId: self.championId
+  })
+}
+
 /** 时间窗 + 队列的前置过滤(list 与 count 两种意图共用) */
 function baseFilter(game: Game, q: ParsedMatchQuery): boolean {
   if (!inTimeRange(game, q.timeRange.from, q.timeRange.to)) return false
@@ -80,6 +113,10 @@ function gameMatches(game: Game, q: ParsedMatchQuery): boolean {
 
   // 我用的英雄:多个是「其中之一」(用户记不清备选)
   if (q.selfChampionIds.length > 0 && !q.selfChampionIds.includes(self.championId)) return false
+
+  // 我玩的位置:多个是「其中之一」
+  if (q.selfPositions.length > 0 && !(q.selfPositions as string[]).includes(selfPositionOf(game)))
+    return false
 
   const detail = game.gameDetail?.participants ?? []
   const { myTeam, enemyTeam, selfIndex } = splitTeams(game)

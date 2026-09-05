@@ -105,3 +105,18 @@ describe('validateParsedQuery', () => {
     expect(validateParsedQuery('gibberish', CHAMPS, QUEUES)).toEqual(emptyQuery())
   })
 })
+
+describe('selfPositions(我玩的位置)', () => {
+  it('合法位置通过,非法值剔除', () => {
+    const q = validateParsedQuery(
+      { selfPositions: ['UTILITY', 'JUNGLE', 'MID', 42, 'UTILITY'] },
+      CHAMPS,
+      QUEUES
+    )
+    expect(q.selfPositions).toEqual(['UTILITY', 'JUNGLE'])
+  })
+
+  it('缺省为空数组', () => {
+    expect(emptyQuery().selfPositions).toEqual([])
+  })
+})

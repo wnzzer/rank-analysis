@@ -126,6 +126,13 @@ pub fn get_champion_options() -> Result<Vec<ChampionOption>, String> {
         if champion.name.contains("末日人机") {
             continue;
         }
+        // 特殊模式实体不加入选项:玉剑传说等活动会往英雄表塞一整套大 id 变体
+        // (Jade_* 系列 60001+,中文名与真英雄完全相同),会污染英雄筛选下拉与
+        // AI 搜战绩的英雄清单(真机复现:「EZ」被解析成 60081 而非 81)。
+        // 真实可玩英雄 id 目前 < 1000,取 3000 留足余量。
+        if champion.id >= 3000 {
+            continue;
+        }
         options.push(ChampionOption {
             label: champion.name,
             value: champion.id,

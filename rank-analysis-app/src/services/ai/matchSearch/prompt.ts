@@ -30,6 +30,7 @@ const SYSTEM_PROMPT = `你是英雄联盟战绩检索条件解析器。把玩家
   "result": "win" | "loss" | "any",
   "queueIds": [队列id],
   "playerNames": ["提到的玩家名,保留原样(可含#tag)"],
+  "selfPositions": ["说话人自己玩的位置: TOP|JUNGLE|MIDDLE|BOTTOM|UTILITY"],
   "intent": "list" | "count_encounters"
 }
 
@@ -38,7 +39,9 @@ const SYSTEM_PROMPT = `你是英雄联盟战绩检索条件解析器。把玩家
 2. 「我用X」→ selfChampionIds;「队友有X」→ allyChampionIds;「对面/敌方有X」→ enemyChampionIds;「忘了自己玩的什么,但这边有X」这类不确定是不是自己在用的 → myTeamChampionIds。
 3. 相对时间按「今天」换算成绝对日期:口语的「这个月/最近一个月/近一个月」一律取最近 30 天(from = 今天-30天,to 省略);「上周/最近一周」取最近 7 天;「前两天」取最近 3 天;只有明确点名某个日历月(如「8月」)才用该月 1 日到月末。to 不得晚于今天,「至今」直接省略 to。完全没提时间就不要输出 timeRange。
 4. 「跟某某碰见/遇到几次」这类统计问题 → intent = "count_encounters",玩家名进 playerNames;其余 intent = "list"。
-5. 不确定的信息宁可省略,不要猜。所有数字必须来自清单,禁止编造。`
+5. selfPositions **只有用户明确说了位置词**(上单/上路=TOP、打野=JUNGLE、中单/中路=MIDDLE、下路/AD/射手=BOTTOM、辅助=UTILITY)才填;禁止从英雄名推断位置(「我玩亚索」只说明英雄,不说明位置);大乱斗/斗魂等无分路模式不填。
+6. 队列映射:「排位」没细分时 = [420,440];「单双排」=420;「灵活组排」=440;「匹配」=430;其余按队列清单名称对应。
+7. 不确定的信息宁可省略,不要猜。所有数字必须来自清单,禁止编造。`
 
 /** 上个月的中文叫法(如「8月」),用于日历月示例 */
 function prevMonthCn(today: string): string {

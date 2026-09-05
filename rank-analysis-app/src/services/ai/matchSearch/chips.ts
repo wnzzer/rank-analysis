@@ -7,6 +7,15 @@
 
 import type { ParsedMatchQuery, QueryChip } from './types'
 
+/** 分路 → 中文展示名 */
+const POSITION_CN: Record<string, string> = {
+  TOP: '上单',
+  JUNGLE: '打野',
+  MIDDLE: '中单',
+  BOTTOM: '下路',
+  UTILITY: '辅助'
+}
+
 /**
  * 把查询条件展开为 chips
  * @param q - 查询条件
@@ -39,6 +48,9 @@ export function queryToChips(
   if (q.result !== 'any')
     chips.push({ key: 'result', label: `结果: ${q.result === 'win' ? '胜' : '负'}` })
 
+  for (const p of q.selfPositions)
+    chips.push({ key: `pos:${p}`, label: `我玩: ${POSITION_CN[p] ?? p}` })
+
   for (const id of q.queueIds) chips.push({ key: `queue:${id}`, label: `模式: ${queueName(id)}` })
   for (const name of q.playerNames) chips.push({ key: `player:${name}`, label: `玩家: ${name}` })
 
@@ -58,7 +70,8 @@ export function removeChipFromQuery(q: ParsedMatchQuery, key: string): ParsedMat
     enemyChampionIds: [...q.enemyChampionIds],
     myTeamChampionIds: [...q.myTeamChampionIds],
     queueIds: [...q.queueIds],
-    playerNames: [...q.playerNames]
+    playerNames: [...q.playerNames],
+    selfPositions: [...q.selfPositions]
   }
 
   if (key === 'time') {
@@ -95,6 +108,9 @@ export function removeChipFromQuery(q: ParsedMatchQuery, key: string): ParsedMat
     case 'player':
       next.playerNames = next.playerNames.filter(n => n !== value)
       if (next.playerNames.length === 0) next.intent = 'list'
+      break
+    case 'pos':
+      next.selfPositions = next.selfPositions.filter(p => p !== value)
       break
   }
   return next

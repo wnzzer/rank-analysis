@@ -214,3 +214,21 @@ describe('countEncounters', () => {
     expect(stats.total).toBe(1)
   })
 })
+
+describe('selfPositions 筛选', () => {
+  it('按我玩的位置筛选:女警(治疗/ADC信号)判下路,命中 BOTTOM 不命中 JUNGLE', () => {
+    const games = [standardGame()]
+    expect(filterGames(games, { ...emptyQuery(), selfPositions: ['BOTTOM'] })).toHaveLength(1)
+    expect(filterGames(games, { ...emptyQuery(), selfPositions: ['JUNGLE'] })).toHaveLength(0)
+    // 多位置 = 其中之一
+    expect(
+      filterGames(games, { ...emptyQuery(), selfPositions: ['JUNGLE', 'BOTTOM'] })
+    ).toHaveLength(1)
+  })
+
+  it('缺 gameDetail 时退化用顶层 participants[0] 推断,不报错', () => {
+    const g = standardGame()
+    g.gameDetail.participants = []
+    expect(() => filterGames([g], { ...emptyQuery(), selfPositions: ['BOTTOM'] })).not.toThrow()
+  })
+})
