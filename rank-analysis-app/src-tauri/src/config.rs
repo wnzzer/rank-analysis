@@ -413,6 +413,7 @@ pub const BACKUP_BLACKLIST: &[&str] = &[
     "cloudSyncNoticeShown",
     "configSyncedOnce",
     "configLastSyncAt",
+    "configDirtyAt",
     "playerNotes",
 ];
 
@@ -736,6 +737,7 @@ mod tests {
             "cloudSyncNoticeShown",
             "configSyncedOnce",
             "configLastSyncAt",
+            "configDirtyAt",
             "playerNotes",
         ] {
             assert!(!allowed_in_backup(key), "{key} 不应进文件备份");

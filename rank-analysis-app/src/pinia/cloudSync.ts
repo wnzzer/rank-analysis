@@ -72,10 +72,22 @@ export const useCloudSyncStore = defineStore('cloudSync', () => {
   let applyingConfig = false
   let configWatchStarted = false
 
-  /** 标记本地配置已变更（config-changed 监听与测试共用入口） */
+  /**
+   * 标记本地配置已变更（config-changed 监听与测试共用入口）。
+   * 时间戳同步落盘：内存标记重启即失，30s 防抖窗口内退出会让变更永远推不出去，
+   * 下次启动的拉取还会把它静默覆盖——持久化后下次启动恢复 dirty、优先补推。
+   * （configDirtyAt 在黑名单中，这次落盘不会再触发 config-changed 回环。）
+   */
   function markConfigDirty(): void {
     if (applyingConfig) return
     configDirty = true
+    putConfigByIpc(CONFIG_KEYS.configDirtyAt, Date.now()).catch(() => {})
+  }
+
+  /** 清除 dirty（推送成功 / 应用云端 / 内容一致时） */
+  async function clearConfigDirty(): Promise<void> {
+    configDirty = false
+    await putConfigByIpc(CONFIG_KEYS.configDirtyAt, 0)
   }
 
   /**
@@ -95,7 +107,7 @@ export const useCloudSyncStore = defineStore('cloudSync', () => {
   /** 推送本机配置到云端并更新 LWW 基准 */
   async function pushConfig(puuid: string): Promise<void> {
     await invoke('cloud_push_config', { puuid })
-    configDirty = false
+    await clearConfigDirty()
     await putConfigByIpc(CONFIG_KEYS.configLastSyncAt, Date.now())
   }
 
@@ -107,7 +119,7 @@ export const useCloudSyncStore = defineStore('cloudSync', () => {
     } finally {
       applyingConfig = false
     }
-    configDirty = false
+    await clearConfigDirty()
     await putConfigByIpc(CONFIG_KEYS.configLastSyncAt, Date.now())
     // 立即生效：theme 是唯一初始化后不再读 config 的展示态，其余设置页打开时现读
     await useSettingsStore().initTheme()
@@ -146,23 +158,36 @@ export const useCloudSyncStore = defineStore('cloudSync', () => {
     }
 
     if (pulled && deepEqual(pulled.config, local)) {
-      configDirty = false
+      await clearConfigDirty()
+      return
+    }
+    const lastConfigSyncMs = (await getConfigByIpc<number>(CONFIG_KEYS.configLastSyncAt)) ?? 0
+    const cloudNewer = pulled !== null && pulled.updatedAt > lastConfigSyncMs
+    // 两边都改过(本机有未推变更 && 云端也比上次同步新):真冲突,交用户裁决。
+    // 曾经这里是「dirty 直接推送」——本机任何小改动都会整份覆盖另一台设备的
+    // 新配置(自动 ban/pick 规则丢失的根因),盲推必须废弃。
+    if (configDirty && cloudNewer) {
+      pendingPuuid = puuid
+      pendingCloudConfig.value = pulled
       return
     }
     if (configDirty) {
       await pushConfig(puuid)
       return
     }
-    const lastConfigSyncMs = (await getConfigByIpc<number>(CONFIG_KEYS.configLastSyncAt)) ?? 0
-    if (pulled && pulled.updatedAt > lastConfigSyncMs) {
-      await applyCloudConfig(pulled)
+    if (cloudNewer) {
+      await applyCloudConfig(pulled!)
     } else {
       await pushConfig(puuid)
     }
   }
 
   /**
-   * 首次确认弹窗的裁决入口（Framework 的弹窗按钮调用）。
+   * 确认弹窗的裁决入口（首次绑定与后续冲突共用,Framework/DataSync 的弹窗按钮调用）。
+   *
+   * 选「使用云端」时**重新拉取最新快照**再应用:pending 是侦测冲突那一刻的缓存,
+   * 裁决入口改成被动角标后可能挂很久,期间其他设备推送的新配置(如新增的
+   * ban/pick 规则)不能被陈旧快照静默吃掉。重拉失败退回 pending(有损但可用)。
    * @param useCloud - true 用云端覆盖本地；false 保留本地并推送覆盖云端
    */
   async function resolveCloudConfig(useCloud: boolean): Promise<void> {
@@ -173,7 +198,10 @@ export const useCloudSyncStore = defineStore('cloudSync', () => {
     syncing.value = true
     try {
       if (useCloud) {
-        await applyCloudConfig(pending)
+        const fresh = await invoke<CloudConfig | null>('cloud_pull_config', {
+          puuid: pendingPuuid
+        }).catch(() => null)
+        await applyCloudConfig(fresh ?? pending)
       } else {
         await pushConfig(pendingPuuid)
       }
@@ -255,6 +283,17 @@ export const useCloudSyncStore = defineStore('cloudSync', () => {
     }
     // 详情窗口只镜像开关状态，不承担同步（见 isStandaloneDetailWindow）
     if (isStandaloneDetailWindow()) return
+    // dev 构建不自动同步:target/debug 有独立 config,自动推送会以「隐形第三设备」
+    // 身份把调试配置整份顶到云端(真机取证:云端多行互踩的元凶之一)。
+    // 设置页「立即同步」仍可手动触发,联调不受影响。vitest 的 MODE 是 'test',不受此门限制。
+    if (import.meta.env.MODE === 'development') return
+    // 恢复上次会话未推送的变更标记(防抖窗口内退出的变更,本次启动补推)
+    try {
+      const dirtyAt = await getConfigByIpc<number>(CONFIG_KEYS.configDirtyAt)
+      if (dirtyAt && dirtyAt > 0) configDirty = true
+    } catch {
+      // 读不到按未变更处理
+    }
     startConnectionRetrigger()
     startConfigWatch()
     if (enabled.value) {

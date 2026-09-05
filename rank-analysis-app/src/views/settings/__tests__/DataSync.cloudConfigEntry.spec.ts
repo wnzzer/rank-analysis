@@ -73,7 +73,7 @@ describe('DataSync.vue 云端配置拉取入口', () => {
 
   it('无待裁决配置时不展示入口提示条，裁决框也不可见', () => {
     const w = mountDataSync()
-    expect(w.text()).not.toContain('检测到云端已有一份配置')
+    expect(w.text()).not.toContain('云端配置与本机不一致')
     expect(w.text()).not.toContain('云端已有一份配置')
     w.unmount()
   })
@@ -84,12 +84,12 @@ describe('DataSync.vue 云端配置拉取入口', () => {
     const w = mountDataSync()
     await w.vm.$nextTick()
 
-    expect(w.text()).toContain('检测到云端已有一份配置')
+    expect(w.text()).toContain('云端配置与本机不一致')
     // 裁决未决期间配置同步整段冻结（syncConfig 见 pendingCloudConfig 非空即
     // return），必须把后果讲清楚：本机改动不推云端 + 最终选云端会覆盖掉这期间
     // 的本机改动，否则用户会以为被动角标可以慢慢处理
     expect(w.text()).toContain('确认前，本机设置的改动不会同步到云端')
-    expect(w.text()).toContain('这期间的本机改动会被覆盖')
+    expect(w.text()).toContain('会以云端当下最新内容覆盖本机')
     // 裁决框组件已挂载，但 show=false，标题文案此刻不应出现在可交互 DOM 里
     expect(w.text()).not.toContain('云端存在一份配置(更新于')
 
