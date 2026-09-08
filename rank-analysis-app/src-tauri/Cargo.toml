@@ -10,6 +10,13 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
+[dev-dependencies]
+# 只在测试里需要「压」7z：正式构建仍是 default-features = false 的纯解压，
+# dev-dependencies 不进 release 产物，不影响体积。
+sevenz-rust2 = { version = "0.22", default-features = false, features = [
+    "compress",
+] }
+
 [profile.release]
 opt-level = "z"   # 优化级别设为 "z"，专注于大小优化
 lto = true        # 启用链接时优化
@@ -61,6 +68,15 @@ sentry = { version = "0.42", features = ["log", "logs"] }
 tauri-plugin-sentry = "0.5"
 # 匿名设备 ID（observability.rs 持久化生成，仅用于 Sentry DAU 去重）
 uuid = { version = "1", features = ["v4"] }
+# 便携包验签：与官方 updater 同一套 minisign 体系（同一把 key、同样的
+# base64(minisign 文本) 编码）。Cargo.lock 里本来就有它——tauri-plugin-updater 的传递依赖，
+# 提为直接依赖不增加依赖树。
+minisign-verify = "0.2"
+# 便携版自更新：解压 CI 用 `7z a -t7z` 打的便携包（LZMA2）。
+# default-features = false 砍掉 aes256 / bzip2 / ppmd / compress —— 我们只解压、只用 LZMA2，
+# 带上那些会平白拉进 aes / cipher / bzip2 / ppmd 一串依赖，与本项目的体积取向
+# （opt-level = "z"、~5MB 安装包）冲突。
+sevenz-rust2 = { version = "0.22", default-features = false }
 
 # ---- Windows 专属依赖 ----
 # 这些 crate 只在 Windows 编译，避免 macOS/Linux 上因目标平台不支持而编译失败。

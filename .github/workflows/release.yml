@@ -339,13 +339,37 @@ jobs:
             exit 1
           }
 
+          # 2.5 给便携包签名（便携版走自研自更新，客户端必须能校验下载包）
+          # 复用与安装包同一把 TAURI_SIGNING_PRIVATE_KEY，但签名值必须每产物一份——
+          # minisign 签的是文件字节，setup.exe 的签名换到 .7z 上必然校验失败。
+          $portable7zPath = Join-Path $releaseDir $portable7zName
+
+          if ([string]::IsNullOrEmpty($env:TAURI_PRIVATE_KEY)) {
+            Write-Error "TAURI_PRIVATE_KEY is missing; cannot sign portable archive."
+            exit 1
+          }
+          if ($null -eq $env:TAURI_PRIVATE_KEY_PASSWORD) {
+            $env:TAURI_PRIVATE_KEY_PASSWORD = ""
+          }
+
+          npx tauri signer sign "$portable7zPath"
+
+          $portableSigName = "$portable7zName.sig"
+          $portableSigCandidate = Join-Path $releaseDir $portableSigName
+          if (-not (Test-Path $portableSigCandidate)) {
+            Write-Error "Portable signature file missing: $portableSigCandidate"
+            exit 1
+          }
+
           # 3. 输出供 Release 步骤使用的路径
           $setupPath = "$($env:GITHUB_WORKSPACE)/rank-analysis-app/$nsisDir/$setupName"
           $portablePath = "$($env:GITHUB_WORKSPACE)/rank-analysis-app/$releaseDir/$portable7zName"
+          $portableSigPath = "$($env:GITHUB_WORKSPACE)/rank-analysis-app/$releaseDir/$portableSigName"
           
           echo "setup_path=$setupPath" >> $env:GITHUB_OUTPUT
           echo "portable_path=$portablePath" >> $env:GITHUB_OUTPUT
           echo "sig_path=$sigPath" >> $env:GITHUB_OUTPUT
+          echo "portable_sig_path=$portableSigPath" >> $env:GITHUB_OUTPUT
 
       - name: 🔍 Get Previous Tag
         id: get_prev_tag
@@ -459,6 +483,27 @@ jobs:
             // 注意：updater 用的必须是 .app.tar.gz，不能是 .dmg——dmg 不是 gzip 格式，
             // 客户端更新时会报 "invalid gzip header"（2026-08-17 排查确认）。dmg 仅用于
             // 首次手动安装，单独随 release 附件分发，不进 latest.json。
+            // 便携版（免安装 .7z）条目：官方 updater 对便携版只会下 setup.exe 再跑 NSIS
+            // 安装器，把新版装到标准安装目录，而原地那个便携 exe 一字未动——便携用户因此
+            // 永远停在旧版本。所以这里额外给出便携包地址与签名，客户端
+            // （command/portable_update.rs）据此下载、验签、原地替换自身。
+            //
+            // 这是自定义顶层字段：官方 updater 的 RemoteRelease 反序列化忽略未知字段，
+            // 不影响安装版升级；前端经 update.rawJson 拿到整份 manifest 后读它。
+            const portablePath = process.env.PORTABLE_PATH;
+            const portableSigPath = process.env.PORTABLE_SIG_PATH;
+            if (!portablePath || !portableSigPath || !fs.existsSync(portableSigPath)) {
+                console.error("ERROR: portable archive or its signature is missing.");
+                process.exit(1);
+            }
+            const portableFile = path.basename(portablePath);
+            // 必须 trim：签名尾部换行会让 base64 解码失败（对齐下面 macOS 分支的处理）
+            const portableSignature = fs.readFileSync(portableSigPath, "utf8").trim();
+            if (!portableSignature) {
+                console.error("ERROR: portable signature is empty.");
+                process.exit(1);
+            }
+
             const macDir = "macos-dist";
             let macPlatform = {};
             try {
@@ -496,6 +541,12 @@ jobs:
                         url: `https://github.com/wnzzer/rank-analysis/releases/download/${version}/${exeFile}`
                     },
                     ...macPlatform
+                },
+                portable: {
+                    "windows-x86_64": {
+                        signature: portableSignature,
+                        url: `https://github.com/wnzzer/rank-analysis/releases/download/${version}/${portableFile}`
+                    }
                 }
             };
 
@@ -507,6 +558,8 @@ jobs:
           NOTES: ${{ github.event.inputs.notes }}
           SETUP_PATH: ${{ steps.prepare_assets.outputs.setup_path }}
           SIG_PATH: ${{ steps.prepare_assets.outputs.sig_path }}
+          PORTABLE_PATH: ${{ steps.prepare_assets.outputs.portable_path }}
+          PORTABLE_SIG_PATH: ${{ steps.prepare_assets.outputs.portable_sig_path }}
 
       # --- 创建或更新 Release 并上传所有资源 ---
       - name: 🚀 Create or Update GitHub Release
@@ -603,11 +656,23 @@ jobs:
           # 2) latest.json 下载链接改写成 gitcode.com host 后再上传
           for p in lj:
               d = json.load(open(p))
+              changed = False
               setup = glob.glob("dist/*-setup.exe")
               if setup:
                   name = os.path.basename(setup[0])
                   d.setdefault("platforms", {}).setdefault("windows-x86_64", {})["url"] = \
                       f"https://gitcode.com/{owner}/{repo}/releases/download/{version}/{name}"
+                  changed = True
+              # 便携版自更新读的是自定义的 portable 字段，同样要指向国内镜像——
+              # 否则便携用户仍去 GitHub 拉 .7z，国内常拉不动，等于白做自更新。
+              # 签名不用改：minisign 签的是文件字节，两个 host 分发的是同一个包。
+              portable = glob.glob("dist/*-portable.7z")
+              if portable:
+                  name = os.path.basename(portable[0])
+                  d.setdefault("portable", {}).setdefault("windows-x86_64", {})["url"] = \
+                      f"https://gitcode.com/{owner}/{repo}/releases/download/{version}/{name}"
+                  changed = True
+              if changed:
                   json.dump(d, open(p, "w"), ensure_ascii=False, indent=2)
 
           # 3) 逐个产物：GET upload_url -> PUT 到 OBS（带回返回的全部 headers）

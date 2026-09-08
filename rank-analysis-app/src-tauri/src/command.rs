@@ -11,6 +11,7 @@
 //! | `fandom` | Fandom 外部数据（大乱斗平衡数据） |
 //! | `info` | 辅助信息查询（服务器名称等） |
 //! | `match_history` | 对局记录查询与筛选 |
+//! | `portable_update` | 安装形态探测（便携版 / 安装版）与便携版自更新 |
 //! | `rank` | 段位查询与胜率统计 |
 //! | `session` | 对局会话数据获取与处理 |
 //! | `user_tag` | 用户标签计算与近期数据分析 |
@@ -49,6 +50,7 @@ pub mod info;
 pub mod launcher;
 pub mod match_history;
 pub mod opgg;
+pub mod portable_update;
 pub mod rank;
 pub mod replay;
 pub mod rule_config;
