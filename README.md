@@ -38,6 +38,9 @@
     <a href="https://github.com/wnzzer/rank-analysis/releases">
       <img src="https://img.shields.io/github/downloads/wnzzer/rank-analysis/total?style=flat-square&color=success" alt="Downloads">
     </a>
+    <a href="https://gitcode.com/wnzzer/rank-analysis/releases">
+      <img src="https://gitcode.com/wnzzer/rank-analysis/download/badge.svg" alt="GitCodeDownloads" />
+    </a>
     <a href="https://github.com/wnzzer/rank-analysis/stargazers">
       <img src="https://img.shields.io/github/stars/wnzzer/rank-analysis?style=flat-square&color=orange" alt="Stars">
     </a>
