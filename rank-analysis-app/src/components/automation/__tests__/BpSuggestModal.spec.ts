@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 vi.mock('@renderer/services/ipc', () => ({
@@ -223,31 +223,60 @@ describe('BpSuggestModal', () => {
     // 都写 pickChampionSlice：不串行化会互相用旧读值覆盖对方的写入。
     vi.mocked(invoke).mockResolvedValue(okResult())
     let poolState: number[] = []
+    const pendingWrites: (() => void)[] = []
     vi.mocked(getConfigByIpc).mockImplementation(async () => [...poolState] as never)
-    vi.mocked(putConfigByIpc).mockImplementation(async (_key, value) => {
-      await new Promise(r => setTimeout(r, 5))
-      poolState = value as number[]
-    })
+    vi.mocked(putConfigByIpc).mockImplementation(
+      (_key, value) =>
+        new Promise<void>(resolve => {
+          pendingWrites.push(() => {
+            poolState = value as number[]
+            resolve()
+          })
+        })
+    )
     const w = mount(BpSuggestModal, {
       props: { show: true, championOptions },
       global: { stubs }
     })
-    await new Promise(r => setTimeout(r, 0))
-    await w.vm.$nextTick()
+    try {
+      await flushPromises()
 
-    const addBtn = w.findAll('button').find(b => b.text().includes('加入英雄池'))!
-    const convertBtn = w.findAll('button').find(b => b.text().includes('转入英雄池'))!
+      const addBtn = w.findAll('button').find(b => b.text().includes('加入英雄池'))!
+      const convertBtn = w.findAll('button').find(b => b.text().includes('转入英雄池'))!
 
-    // 不等待第一次点击完成就触发第二次，制造跨卡竞态
-    const p1 = addBtn.trigger('click')
-    const p2 = convertBtn.trigger('click')
-    await Promise.all([p1, p2])
-    await new Promise(r => setTimeout(r, 30))
+      // trigger 只等待 Vue 更新，不代表异步保存完成；手动放行写入，不依赖墙钟延时。
+      const p1 = addBtn.trigger('click')
+      const p2 = convertBtn.trigger('click')
+      await Promise.all([p1, p2])
+      await flushPromises()
 
-    expect(poolState).toHaveLength(2)
-    expect(poolState).toEqual(expect.arrayContaining([86, 157]))
-    const lastCall = vi.mocked(putConfigByIpc).mock.calls.at(-1)
-    expect(lastCall?.[1]).toEqual(expect.arrayContaining([86, 157]))
+      // 第一笔尚未落盘，第二笔不能提前读池或开始写入。
+      expect(getConfigByIpc).toHaveBeenCalledTimes(1)
+      expect(putConfigByIpc).toHaveBeenCalledTimes(1)
+      expect(poolState).toEqual([])
+      expect(w.emitted('adopted')).toBeUndefined()
+
+      pendingWrites.shift()!()
+      await flushPromises()
+
+      expect(poolState).toEqual([86])
+      expect(getConfigByIpc).toHaveBeenCalledTimes(2)
+      expect(putConfigByIpc).toHaveBeenNthCalledWith(
+        2,
+        'settings.auto.pickChampionSlice',
+        [86, 157]
+      )
+      expect(w.emitted('adopted')).toEqual([['pick']])
+
+      pendingWrites.shift()!()
+      await flushPromises()
+
+      expect(poolState).toEqual([86, 157])
+      expect(putConfigByIpc).toHaveBeenCalledTimes(2)
+      expect(w.emitted('adopted')).toEqual([['pick'], ['pick']])
+    } finally {
+      w.unmount()
+    }
   })
 
   it('shows a warning tag next to hot_t0 title when opgg_stale is true', async () => {
