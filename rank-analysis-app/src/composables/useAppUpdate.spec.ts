@@ -20,7 +20,19 @@ const notificationError = vi.fn()
 vi.mock('naive-ui', () => ({
   useDialog: () => ({ info: dialogInfo }),
   useNotification: () => ({ info: notificationInfo, error: notificationError }),
-  NProgress: {}
+  NProgress: {},
+  NButton: {}
+}))
+
+// 安装形态与便携版自更新命令：默认按安装版跑，便携用例里单独打开
+const mockIsPortable = vi.fn(() => false)
+vi.mock('../services/platform', () => ({
+  isPortable: () => mockIsPortable()
+}))
+
+const mockPortableSelfUpdate = vi.fn()
+vi.mock('../services/ipc', () => ({
+  portableSelfUpdateByIpc: (...args: unknown[]) => mockPortableSelfUpdate(...args)
 }))
 
 const mockCheck = vi.fn()
@@ -44,13 +56,39 @@ async function importFresh() {
 }
 
 /** 测试只用得到 version/body/downloadAndInstall，其余 Update/Resource 字段用类型断言略过 */
-function makeUpdate(overrides: Partial<{ version: string; body: string }> = {}): Update {
+function makeUpdate(
+  overrides: Partial<{ version: string; body: string; rawJson: Record<string, unknown> }> = {}
+): Update {
   return {
     version: overrides.version ?? '1.2.3',
     date: '2026-08-09',
     body: overrides.body ?? '- 修了个 bug',
+    // 官方 check() 会把整份 latest.json 原样挂在 rawJson 上，便携条目就是从这里读的
+    rawJson: overrides.rawJson ?? {},
     downloadAndInstall: vi.fn().mockResolvedValue(undefined)
   } as unknown as Update
+}
+
+/** 带便携条目的更新清单 */
+function portableRawJson(): Record<string, unknown> {
+  return {
+    portable: {
+      'windows-x86_64': {
+        url: 'https://example.com/rank-analysis-1.2.3-portable.7z',
+        signature: 'SIGNATURE_BASE64'
+      }
+    }
+  }
+}
+
+/** 弹出更新确认框并取出「立即更新」回调 */
+async function triggerUpgrade(
+  showUpdateDialog: (u: Update) => void,
+  update: Update
+): Promise<void> {
+  showUpdateDialog(update)
+  const onPositiveClick = dialogInfo.mock.calls[0][0].onPositiveClick as () => Promise<void>
+  await onPositiveClick()
 }
 
 describe('useAppUpdate', () => {
@@ -60,6 +98,9 @@ describe('useAppUpdate', () => {
     notificationError.mockReset()
     mockCheck.mockReset()
     mockRelaunch.mockReset()
+    mockPortableSelfUpdate.mockReset()
+    mockPortableSelfUpdate.mockResolvedValue(undefined)
+    mockIsPortable.mockReturnValue(false)
   })
 
   it('manual 模式查到更新：设置 availableUpdate 并弹出确认框，不弹"没有更新"通知', async () => {
@@ -196,5 +237,94 @@ describe('useAppUpdate', () => {
     expect(notificationError).toHaveBeenCalledTimes(1)
     expect(notificationError.mock.calls[0][0].title).toBe('更新失败')
     expect(mockRelaunch).not.toHaveBeenCalled()
+  })
+
+  it('便携版：走自研自更新，不碰官方 downloadAndInstall，也不额外 relaunch', async () => {
+    // 便携版若走官方路径，NSIS 会把新版装到标准安装目录，原地的便携 exe 一字未动
+    mockIsPortable.mockReturnValue(true)
+    const { useAppUpdate } = await importFresh()
+    const update = makeUpdate({ rawJson: portableRawJson() })
+    dialogInfo.mockReturnValue({ destroy: vi.fn() })
+
+    const { showUpdateDialog } = useAppUpdate()
+    await triggerUpgrade(showUpdateDialog, update)
+
+    expect(mockPortableSelfUpdate).toHaveBeenCalledTimes(1)
+    const [url, signature, onEvent] = mockPortableSelfUpdate.mock.calls[0]
+    expect(url).toBe('https://example.com/rank-analysis-1.2.3-portable.7z')
+    expect(signature).toBe('SIGNATURE_BASE64')
+    expect(typeof onEvent).toBe('function')
+    expect(update.downloadAndInstall).not.toHaveBeenCalled()
+    // 后端替换完会自己拉起新版并退出旧进程，前端再 relaunch 是多余且危险的
+    expect(mockRelaunch).not.toHaveBeenCalled()
+    expect(notificationError).not.toHaveBeenCalled()
+  })
+
+  it('便携版：进度事件能驱动弹窗状态，不抛异常', async () => {
+    mockIsPortable.mockReturnValue(true)
+    const { useAppUpdate } = await importFresh()
+    const update = makeUpdate({ rawJson: portableRawJson() })
+    dialogInfo.mockReturnValue({ destroy: vi.fn() })
+
+    const { showUpdateDialog } = useAppUpdate()
+    await triggerUpgrade(showUpdateDialog, update)
+
+    const onEvent = mockPortableSelfUpdate.mock.calls[0][2] as (e: unknown) => void
+    expect(() => {
+      onEvent({ event: 'started', data: 1024 })
+      onEvent({ event: 'progress', data: 512 })
+      // 服务端没给 Content-Length 时 data 为空，UI 会退化成只显示已下载字节
+      onEvent({ event: 'started', data: null })
+      onEvent({ event: 'finished' })
+    }).not.toThrow()
+  })
+
+  it('便携版：清单里没有便携条目时给出可读错误与手动下载出口', async () => {
+    // 旧版本的 latest.json 里没有 portable 字段，属正常情况，不能抛一个看不懂的错
+    mockIsPortable.mockReturnValue(true)
+    const { useAppUpdate } = await importFresh()
+    const update = makeUpdate({ rawJson: {} })
+    const destroy = vi.fn()
+    dialogInfo.mockReturnValue({ destroy })
+
+    const { showUpdateDialog } = useAppUpdate()
+    await triggerUpgrade(showUpdateDialog, update)
+
+    expect(mockPortableSelfUpdate).not.toHaveBeenCalled()
+    expect(destroy).toHaveBeenCalledTimes(1)
+    expect(notificationError).toHaveBeenCalledTimes(1)
+    expect(String(notificationError.mock.calls[0][0].content)).toContain('未提供便携版更新包')
+    expect(notificationError.mock.calls[0][0].action).toBeTypeOf('function')
+  })
+
+  it('便携版：自更新失败同样销毁弹窗、报错，并附手动下载出口', async () => {
+    mockIsPortable.mockReturnValue(true)
+    mockPortableSelfUpdate.mockRejectedValue(new Error('当前目录没有写入权限'))
+    const { useAppUpdate } = await importFresh()
+    const update = makeUpdate({ rawJson: portableRawJson() })
+    const destroy = vi.fn()
+    dialogInfo.mockReturnValue({ destroy })
+
+    const { showUpdateDialog } = useAppUpdate()
+    await triggerUpgrade(showUpdateDialog, update)
+
+    expect(destroy).toHaveBeenCalledTimes(1)
+    expect(notificationError.mock.calls[0][0].title).toBe('更新失败')
+    expect(String(notificationError.mock.calls[0][0].content)).toContain('写入权限')
+    expect(notificationError.mock.calls[0][0].action).toBeTypeOf('function')
+    expect(mockRelaunch).not.toHaveBeenCalled()
+  })
+
+  it('安装版：action 为空，仍走官方 updater 路径', async () => {
+    const { useAppUpdate } = await importFresh()
+    const update = makeUpdate()
+    vi.mocked(update.downloadAndInstall).mockRejectedValue(new Error('disk full'))
+    dialogInfo.mockReturnValue({ destroy: vi.fn() })
+
+    const { showUpdateDialog } = useAppUpdate()
+    await triggerUpgrade(showUpdateDialog, update)
+
+    expect(mockPortableSelfUpdate).not.toHaveBeenCalled()
+    expect(notificationError.mock.calls[0][0].action).toBeUndefined()
   })
 })

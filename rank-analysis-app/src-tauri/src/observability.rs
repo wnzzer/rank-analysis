@@ -136,6 +136,14 @@ pub fn init() -> Option<sentry::ClientInitGuard> {
             id: Some(device_id),
             ..Default::default()
         }));
+        // 安装形态（安装版 / 便携版）在启动瞬间就已知且此后恒定，所以在这里一次设好，
+        // 而不是仿 set_region_tag 那样等某个事件——早设才能让启动期的事件、结构化日志
+        // 和 Release Health session 全都带上它。便携版占比只能靠这个 tag 量化：
+        // 下载数里 setup.exe 会被老用户的自动更新反复计数，不能当使用占比看。
+        scope.set_tag(
+            "install_form",
+            crate::command::portable_update::install_form().as_str(),
+        );
     });
     log::info!("Sentry error reporting ENABLED");
     Some(guard)

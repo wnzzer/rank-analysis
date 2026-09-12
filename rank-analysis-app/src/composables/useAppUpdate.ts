@@ -17,10 +17,12 @@
  * @module composables/useAppUpdate
  */
 import { ref, shallowRef, h, computed, type Ref } from 'vue'
-import { useDialog, useNotification, NProgress } from 'naive-ui'
+import { useDialog, useNotification, NProgress, NButton } from 'naive-ui'
 import { check, type Update } from '@tauri-apps/plugin-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { openUrl } from '@tauri-apps/plugin-opener'
+import { isPortable } from '../services/platform'
+import { portableSelfUpdateByIpc } from '../services/ipc'
 import MarkdownIt from 'markdown-it'
 
 const md = new MarkdownIt()
@@ -48,6 +50,33 @@ export interface UseAppUpdateReturn {
    * 不需要重新联网查询一遍。
    */
   showUpdateDialog: (update: Update) => void
+}
+
+/** 手动下载兜底入口：自动更新失败时引导用户自己下新版。 */
+const RELEASE_PAGE_URL = 'https://github.com/wnzzer/rank-analysis/releases/latest'
+
+/** `latest.json` 中便携包条目的形状（自定义字段，官方 updater 会忽略它）。 */
+interface PortableAsset {
+  url: string
+  signature: string
+}
+
+/**
+ * 从更新清单里取出便携包的地址与签名。
+ *
+ * 官方 `check()` 会把 endpoint 返回的**整份 JSON** 原样挂在 `update.rawJson` 上，
+ * 所以我们塞进 `latest.json` 的自定义 `portable` 字段能直接读到，不需要自己再拉一次清单
+ * （也就不用重复实现 endpoint 轮询、超时和版本比较）。
+ *
+ * @throws 该版本没提供便携包时抛出中文说明——旧版本的清单里没有这个字段，属正常情况
+ */
+function readPortableAsset(update: Update): PortableAsset {
+  const raw = update.rawJson as { portable?: Record<string, Partial<PortableAsset>> }
+  const asset = raw?.portable?.['windows-x86_64']
+  if (!asset?.url || !asset?.signature) {
+    throw new Error('该版本未提供便携版更新包，请前往发布页手动下载')
+  }
+  return { url: asset.url, signature: asset.signature }
 }
 
 // ─── module-level singleton state ─────────────────────────────────────────
@@ -144,6 +173,30 @@ export function useAppUpdate(): UseAppUpdateReturn {
     })
 
     try {
+      if (isPortable()) {
+        // 便携版走自研路径：官方 updater 只会下 setup.exe 跑 NSIS 安装器，把新版装到
+        // 标准安装目录，用户原地的便携 exe 一字未动（详见 services/ipc.ts 的说明）。
+        // 进度事件形状与官方一致，上面那套弹窗与降级逻辑原样复用。
+        const asset = readPortableAsset(update)
+        await portableSelfUpdateByIpc(asset.url, asset.signature, event => {
+          switch (event.event) {
+            case 'started':
+              contentLength.value = event.data || 0
+              downloaded.value = 0
+              phase.value = 'downloading'
+              break
+            case 'progress':
+              downloaded.value += event.data || 0
+              break
+            case 'finished':
+              phase.value = 'installing'
+              break
+          }
+        })
+        // 到这里后端已经拉起新版并退出当前进程，不需要（也不应该）再调 relaunch()
+        return
+      }
+
       await update.downloadAndInstall(event => {
         switch (event.event) {
           case 'Started':
@@ -162,7 +215,20 @@ export function useAppUpdate(): UseAppUpdateReturn {
       await relaunch()
     } catch (e) {
       d.destroy()
-      notification.error({ title: '更新失败', content: String(e) })
+      notification.error({
+        title: '更新失败',
+        content: String(e),
+        // 便携版的失败原因多半是环境性的（目录只读、杀软拦截下载或写入），
+        // 光报错没用，直接给一个手动下载的出口
+        action: isPortable()
+          ? () =>
+              h(
+                NButton,
+                { text: true, type: 'primary', onClick: () => openUrl(RELEASE_PAGE_URL) },
+                { default: () => '前往手动下载' }
+              )
+          : undefined
+      })
     }
   }
 

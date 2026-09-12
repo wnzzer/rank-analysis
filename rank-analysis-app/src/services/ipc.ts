@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core'
+import { invoke, Channel } from '@tauri-apps/api/core'
 
 export interface AssetDetail {
   id: number
@@ -67,4 +67,33 @@ export async function launchLeagueByIpc(): Promise<void> {
  */
 export async function closeLeagueByIpc(): Promise<void> {
   await invoke('close_league')
+}
+
+/** 便携版自更新的下载进度事件（形状对齐官方 updater，便于复用同一套进度 UI）。 */
+export interface PortableUpdateEvent {
+  /** `started` 带总字节数（服务端未给 Content-Length 时为空）；`progress` 带本次新增字节；`finished` 无数据。 */
+  event: 'started' | 'progress' | 'finished'
+  data?: number | null
+}
+
+/**
+ * 便携版原地自更新：下载便携包 → 验签 → 解压 → 替换当前 exe → 拉起新版并退出旧进程。
+ *
+ * 便携版不能走官方 updater：那条路只会下载 setup.exe 跑 NSIS 安装器，把新版装到标准
+ * 安装目录，而用户原地那个便携 exe 一字未动，下次启动仍是旧版。
+ *
+ * @param url - 便携包地址，取自 `latest.json` 的自定义 `portable` 条目
+ * @param signature - 该包的 minisign 签名（与官方 updater 同一把密钥）
+ * @param onEvent - 下载进度回调
+ * @returns 成功时进程会被后端重启，Promise 通常不会正常 resolve 后还有后续 UI
+ * @throws 非便携版调用、目录不可写、下载失败、验签失败、替换失败时 reject 中文错误说明
+ */
+export async function portableSelfUpdateByIpc(
+  url: string,
+  signature: string,
+  onEvent: (event: PortableUpdateEvent) => void
+): Promise<void> {
+  const channel = new Channel<PortableUpdateEvent>()
+  channel.onmessage = onEvent
+  await invoke('portable_self_update', { url, signature, onEvent: channel })
 }

@@ -83,6 +83,11 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     // guard 必须存活到 .run() 返回，否则事件 / 日志无法 flush。
     let _sentry_guard = rank_analysis_lib::observability::init();
 
+    // 清理上一次便携版自更新留下的 .old / .new。放在这里而不是更早：此时 logger 与
+    // 上报都已就绪，清理结果能留痕。刚更新完的那次启动通常删不掉 .old（旧进程可能
+    // 还没退干净），属预期内，下次启动会再试。
+    rank_analysis_lib::command::portable_update::cleanup_stale_artifacts();
+
     let mut app_builder = tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
@@ -180,6 +185,8 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             command::system::get_device_id,
             command::system::get_asset_prefix,
             command::system::get_platform,
+            command::portable_update::get_install_form,
+            command::portable_update::portable_self_update,
             command::launcher::launch_league,
             command::launcher::close_league,
             command::replay::get_replay_availability,

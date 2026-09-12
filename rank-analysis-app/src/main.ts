@@ -7,14 +7,15 @@ import { useSettingsStore } from './pinia/setting'
 import { usePlayerNotesStore } from './pinia/playerNotes'
 import { useCloudSyncStore } from './pinia/cloudSync'
 import { initAssetPrefix } from './services/http'
-import { initPlatform } from './services/platform'
+import { initPlatform, initInstallForm } from './services/platform'
 import './global.css'
 import './styles/ai-report.css'
 
 async function bootstrap() {
-  // mount 前先拿到平台相关的两项：asset 协议前缀（决定图片 src 是否正确）与平台标识
-  // （决定 Windows 专属入口是否渲染）。两者互不依赖，并发取，不叠加启动延迟。
-  await Promise.all([initAssetPrefix(), initPlatform()])
+  // mount 前先拿到平台相关的三项：asset 协议前缀（决定图片 src 是否正确）、平台标识
+  // （决定 Windows 专属入口是否渲染）与安装形态（决定更新走官方 updater 还是便携版
+  // 自更新）。三者互不依赖，并发取，不叠加启动延迟。
+  await Promise.all([initAssetPrefix(), initPlatform(), initInstallForm()])
 
   const app = createApp(App)
   const pinia = createPinia()
