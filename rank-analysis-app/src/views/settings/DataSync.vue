@@ -8,10 +8,20 @@
          return）。裁决选"使用云端配置"时会**重新拉取当下最新的云端快照**再
          应用（不再套用侦测冲突那一刻的缓存），但本机搁置期间的改动仍会被
          云端覆盖——选云端即放弃本机，这一点必须在文案里说清楚。 -->
-    <n-alert v-if="cloudStore.pendingCloudConfig" type="warning" :bordered="false">
-      <n-space vertical :size="8" style="width: 100%">
+    <n-alert
+      v-if="cloudStore.pendingCloudConfig"
+      :type="isFirstBind ? 'success' : 'warning'"
+      :bordered="false"
+    >
+      <n-space v-if="isFirstBind" align="center" justify="space-between" style="width: 100%">
+        <span>云端存在可用的配置，是否使用</span>
+        <n-button size="small" type="success" @click="showCloudConfigDialog = true">
+          去处理
+        </n-button>
+      </n-space>
+      <n-space v-else vertical :size="8" style="width: 100%">
         <n-space align="center" justify="space-between" style="width: 100%">
-          <span>云端配置与本机不一致（首次绑定，或两台设备都改过），需要你确认使用哪一份。</span>
+          <span>云端配置与本机不一致（两台设备都改过），需要你确认使用哪一份。</span>
           <n-button size="small" type="warning" @click="showCloudConfigDialog = true">
             去处理
           </n-button>
@@ -141,6 +151,9 @@ const syncStatusText = computed(() => {
   if (cloudStore.lastSyncAt) return `上次同步：${formatSyncTime(cloudStore.lastSyncAt)}`
   return '本次启动尚未同步'
 })
+
+/** 首次绑定场景：云端配置基本等于白捡，不需要"覆盖本机改动"这类警告语气 */
+const isFirstBind = computed(() => cloudStore.pendingCloudConfigReason === 'first-bind')
 
 /**
  * 上次同步时间展示：当天只显时间，跨天补日期。
