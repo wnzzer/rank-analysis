@@ -299,6 +299,7 @@ describe('usePlayerNotesStore', () => {
       await store.setNote('p', { note: '', label: 'careful', gameName: 'G', tagLine: 'T' })
       const seqBefore = store.userMutationSeq
       const updatedAtBefore = store.getNote('p')!.updatedAt
+      mockPut.mockClear()
 
       await store.recordEncounters('p', [
         makeEncounter(1, '2026-05-20T10:00:00Z'),
@@ -309,6 +310,7 @@ describe('usePlayerNotesStore', () => {
       expect(note?.encounters?.map(e => e.gameId).sort()).toEqual([1, 2])
       expect(note!.updatedAt).toBeGreaterThan(updatedAtBefore)
       expect(store.userMutationSeq).toBeGreaterThan(seqBefore)
+      expect(mockPut).toHaveBeenCalledTimes(1)
     })
 
     it('全部 gameId 都已存在时不落盘、不推进 updatedAt（防止空转）', async () => {
