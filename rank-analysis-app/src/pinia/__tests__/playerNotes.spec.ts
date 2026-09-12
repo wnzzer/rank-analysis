@@ -24,7 +24,7 @@ import { usePlayerNotesStore } from '../playerNotes'
 const mockGet = vi.mocked(getConfigByIpc)
 const mockPut = vi.mocked(putConfigByIpc)
 
-/** 构造一条最小可用的同场对局记录，供 encounters / recordEncounters 用例复用 */
+/** 构造一条最小可用的同场对局记录，供 encounters / recordEncountersBatch 用例复用 */
 const makeEncounter = (gameId: number, gameCreatedAt: string, puuid = 'p') => ({
   gameCreatedAt,
   index: 0,
@@ -285,10 +285,12 @@ describe('usePlayerNotesStore', () => {
     })
   })
 
-  describe('recordEncounters（被动追踪）', () => {
+  describe('recordEncountersBatch（被动追踪）', () => {
     it('玩家没有备注时静默跳过，不新建备注', async () => {
       const store = usePlayerNotesStore()
-      await store.recordEncounters('nobody', [makeEncounter(1, '2026-05-20T10:00:00Z')])
+      await store.recordEncountersBatch([
+        { puuid: 'nobody', games: [makeEncounter(1, '2026-05-20T10:00:00Z')] }
+      ])
 
       expect(store.getNote('nobody')).toBeUndefined()
       expect(mockPut).not.toHaveBeenCalled()
@@ -301,9 +303,14 @@ describe('usePlayerNotesStore', () => {
       const updatedAtBefore = store.getNote('p')!.updatedAt
       mockPut.mockClear()
 
-      await store.recordEncounters('p', [
-        makeEncounter(1, '2026-05-20T10:00:00Z'),
-        makeEncounter(2, '2026-05-22T10:00:00Z')
+      await store.recordEncountersBatch([
+        {
+          puuid: 'p',
+          games: [
+            makeEncounter(1, '2026-05-20T10:00:00Z'),
+            makeEncounter(2, '2026-05-22T10:00:00Z')
+          ]
+        }
       ])
 
       const note = store.getNote('p')
@@ -325,7 +332,9 @@ describe('usePlayerNotesStore', () => {
       const updatedAtBefore = store.getNote('p')!.updatedAt
       mockPut.mockClear()
 
-      await store.recordEncounters('p', [makeEncounter(1, '2026-05-20T10:00:00Z')])
+      await store.recordEncountersBatch([
+        { puuid: 'p', games: [makeEncounter(1, '2026-05-20T10:00:00Z')] }
+      ])
 
       expect(store.getNote('p')!.updatedAt).toBe(updatedAtBefore)
       expect(mockPut).not.toHaveBeenCalled()
@@ -337,7 +346,9 @@ describe('usePlayerNotesStore', () => {
       await store.removeNote('p')
       mockPut.mockClear()
 
-      await store.recordEncounters('p', [makeEncounter(1, '2026-05-20T10:00:00Z')])
+      await store.recordEncountersBatch([
+        { puuid: 'p', games: [makeEncounter(1, '2026-05-20T10:00:00Z')] }
+      ])
 
       expect(store.getNote('p')).toBeUndefined()
       expect(mockPut).not.toHaveBeenCalled()
@@ -348,9 +359,25 @@ describe('usePlayerNotesStore', () => {
       await store.setNote('p', { note: '', label: 'careful', gameName: 'G', tagLine: 'T' })
       mockPut.mockClear()
 
-      await store.recordEncounters('p', [])
+      await store.recordEncountersBatch([{ puuid: 'p', games: [] }])
 
       expect(mockPut).not.toHaveBeenCalled()
+    })
+
+    it('多个 puuid 一次性合并，只落盘一次（不是每个 puuid 各自 persist）', async () => {
+      const store = usePlayerNotesStore()
+      await store.setNote('p1', { note: '', label: 'careful', gameName: 'G', tagLine: 'T' })
+      await store.setNote('p2', { note: '', label: 'careful', gameName: 'G', tagLine: 'T' })
+      mockPut.mockClear()
+
+      await store.recordEncountersBatch([
+        { puuid: 'p1', games: [makeEncounter(1, '2026-05-20T10:00:00Z', 'p1')] },
+        { puuid: 'p2', games: [makeEncounter(2, '2026-05-22T10:00:00Z', 'p2')] }
+      ])
+
+      expect(store.getNote('p1')?.encounters?.map(e => e.gameId)).toEqual([1])
+      expect(store.getNote('p2')?.encounters?.map(e => e.gameId)).toEqual([2])
+      expect(mockPut).toHaveBeenCalledTimes(1)
     })
   })
 

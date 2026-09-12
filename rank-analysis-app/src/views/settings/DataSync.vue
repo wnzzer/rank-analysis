@@ -1,13 +1,17 @@
 <template>
   <n-space vertical :size="12">
-    <!-- 云端配置待裁决入口：首次绑定与「两边都改过」的冲突共用。被动引导——
+    <!-- 云端配置待裁决入口：首次绑定（云端有份可用配置，本机大概率是默认值）与
+         「两边都改过」的真冲突共用同一个 pendingCloudConfig，按 pendingCloudConfigReason
+         分叉成两种语气——首次绑定走绿色友好文案，真冲突才保留下面这段"选云端会
+         覆盖本机改动"的警告（见下方 isFirstBind computed）。发现路径仍是被动引导：
          左侧「设置」导航与本页菜单项有呼吸角标指路，用户点「去处理」才弹裁决框。
 
          裁决未决期间配置同步（syncConfig）整段冻结（见 pinia/cloudSync.ts）：
          确认前本机设置改动不会推送云端（configDirty 置位后 syncConfig 直接
          return）。裁决选"使用云端配置"时会**重新拉取当下最新的云端快照**再
          应用（不再套用侦测冲突那一刻的缓存），但本机搁置期间的改动仍会被
-         云端覆盖——选云端即放弃本机，这一点必须在文案里说清楚。 -->
+         云端覆盖——这一点在真冲突分支的文案里必须说清楚（首次绑定没有这层
+         代价，不需要）。 -->
     <n-alert
       v-if="cloudStore.pendingCloudConfig"
       :type="isFirstBind ? 'success' : 'warning'"

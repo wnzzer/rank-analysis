@@ -32,32 +32,46 @@ function makeNote(): PlayerNote {
 }
 
 describe('autoTrackEncounters', () => {
-  it('map 为 null 时安全跳过，不调用 recordEncounters', () => {
+  it('map 为 null 时安全跳过，不调用 recordEncountersBatch', () => {
     const getNote = vi.fn()
-    const recordEncounters = vi.fn()
-    autoTrackEncounters(null, getNote, recordEncounters)
-    expect(recordEncounters).not.toHaveBeenCalled()
+    const recordEncountersBatch = vi.fn()
+    autoTrackEncounters(null, getNote, recordEncountersBatch)
+    expect(recordEncountersBatch).not.toHaveBeenCalled()
   })
 
-  it('只对已有备注的 puuid 调用 recordEncounters，其余跳过', () => {
+  it('只对已有备注的 puuid 调用 recordEncountersBatch，且只调用一次（批量，不是逐个调用）', () => {
     const map = {
       noted: [makeGame(1, 'noted')],
-      stranger: [makeGame(2, 'stranger')]
+      noted2: [makeGame(2, 'noted2')],
+      stranger: [makeGame(3, 'stranger')]
     }
-    const getNote = vi.fn((puuid: string) => (puuid === 'noted' ? makeNote() : undefined))
-    const recordEncounters = vi.fn()
+    const getNote = vi.fn((puuid: string) => (puuid.startsWith('noted') ? makeNote() : undefined))
+    const recordEncountersBatch = vi.fn(() => Promise.resolve())
 
-    autoTrackEncounters(map, getNote, recordEncounters)
+    autoTrackEncounters(map, getNote, recordEncountersBatch)
 
-    expect(recordEncounters).toHaveBeenCalledTimes(1)
-    expect(recordEncounters).toHaveBeenCalledWith('noted', map.noted)
+    expect(recordEncountersBatch).toHaveBeenCalledTimes(1)
+    expect(recordEncountersBatch).toHaveBeenCalledWith([
+      { puuid: 'noted', games: map.noted },
+      { puuid: 'noted2', games: map.noted2 }
+    ])
   })
 
-  it('recordEncounters 拒绝（reject）不会向上抛出', () => {
+  it('没有任何 puuid 命中备注时，不调用 recordEncountersBatch', () => {
+    const map = { stranger: [makeGame(1, 'stranger')] }
+    const getNote = vi.fn(() => undefined)
+    const recordEncountersBatch = vi.fn()
+
+    autoTrackEncounters(map, getNote, recordEncountersBatch)
+
+    expect(recordEncountersBatch).not.toHaveBeenCalled()
+  })
+
+  it('recordEncountersBatch 拒绝（reject）不会向上抛出', () => {
     const map = { noted: [makeGame(1, 'noted')] }
     const getNote = vi.fn(() => makeNote())
-    const recordEncounters = vi.fn(() => Promise.reject(new Error('落盘失败')))
+    const recordEncountersBatch = vi.fn(() => Promise.reject(new Error('落盘失败')))
 
-    expect(() => autoTrackEncounters(map, getNote, recordEncounters)).not.toThrow()
+    expect(() => autoTrackEncounters(map, getNote, recordEncountersBatch)).not.toThrow()
   })
 })

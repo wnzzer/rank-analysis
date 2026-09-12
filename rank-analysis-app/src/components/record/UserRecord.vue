@@ -295,11 +295,13 @@ const getTags = async (name: string, mode: number) => {
   // 被动追踪备注遇见记录：仅当查询对象是"我自己"时才扫描同场玩家映射，
   // 避免把两个陌生人之间的同场误记成"我的遇见"（见 utils/autoTrackEncounters.ts）。
   if (summoner.value.puuid && summoner.value.puuid === myGameStateSummoner.value?.puuid) {
-    autoTrackEncounters(
-      recentData.value.oneGamePlayersMap,
-      notesStore.getNote,
-      notesStore.recordEncounters
-    )
+    const map = recentData.value.oneGamePlayersMap
+    // 自己必然是自己最近 20 场里的固定同场玩家；若被自我标记过，不排除的话会把
+    // 自己的对局灌进自己的遇见记录——语义空洞，还会白白占满 20 条上限。
+    const othersMap = map
+      ? Object.fromEntries(Object.entries(map).filter(([puuid]) => puuid !== summoner.value.puuid))
+      : map
+    autoTrackEncounters(othersMap, notesStore.getNote, notesStore.recordEncountersBatch)
   }
 }
 
