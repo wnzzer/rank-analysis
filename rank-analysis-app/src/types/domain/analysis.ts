@@ -106,7 +106,12 @@ export interface RecentData {
   goldRate: number
   averageDamageDealtToChampions: number
   damageDealtToChampionsRate: number
-  oneGamePlayers: Record<string, OneGamePlayer[]>
+  /**
+   * 后端 `RecentData.one_game_players_map`：查询对象最近 20 场里，每个同场玩家
+   * puuid 对应的具体对局列表。用于「查看自己战绩时自动追踪备注遇见记录」
+   * （见 utils/autoTrackEncounters.ts）。后端 `Option<HashMap<..>>`，无数据时是 null。
+   */
+  oneGamePlayersMap: Record<string, OneGamePlayer[]> | null
   friendAndDispute: FriendAndDispute
 }
 
@@ -129,7 +134,7 @@ export function defaultRecentData(): RecentData {
     goldRate: 0,
     averageDamageDealtToChampions: 0,
     damageDealtToChampionsRate: 0,
-    oneGamePlayers: {},
+    oneGamePlayersMap: null,
     friendAndDispute: defaultFriendAndDispute()
   }
 }
