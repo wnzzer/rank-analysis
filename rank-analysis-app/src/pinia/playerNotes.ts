@@ -180,6 +180,42 @@ export const usePlayerNotesStore = defineStore('playerNotes', () => {
   }
 
   /**
+   * 被动合并多名玩家的遇见记录，不新建备注、不改动 note/label 内容。
+   *
+   * 用于「查看自己战绩」时的自动追踪（见 utils/autoTrackEncounters.ts）：一次战绩页
+   * 加载可能同时命中多个已标记玩家，若每人各自 persist() 一次，会在瞬间打出多份
+   * 并发的整表落盘 + 跨窗口广播——底层 config 写入没有互斥，并发写有相互覆盖甚至
+   * 交叉写坏 YAML 的风险（config.rs 的 write_config 是 File::create + 整份
+   * serde_yaml::to_writer，从 0 截断重写，不是原子/加锁操作）。这里合并成一次
+   * notes.value 赋值、一次 userMutationSeq++、一次 persist()，无论命中多少人。
+   *
+   * @param entries - 待合并的 (puuid, 对局列表) 列表；每项独立套用规则：不存在
+   *   备注/已是墓碑/空数组的条目静默跳过，全部 gameId 已存在时该条目视为无变化
+   */
+  async function recordEncountersBatch(
+    entries: Array<{ puuid: string; games: OneGamePlayer[] }>
+  ): Promise<void> {
+    const updates: PlayerNotesMap = {}
+    for (const { puuid, games } of entries) {
+      const existing = notes.value[puuid]
+      if (!existing || existing.deleted || games.length === 0) continue
+
+      const existingIds = new Set((existing.encounters ?? []).map(e => e.gameId))
+      const hasNew = games.some(g => !existingIds.has(g.gameId))
+      if (!hasNew) continue
+
+      let encounters = existing.encounters
+      for (const g of games) encounters = mergeEncounters(encounters, g)
+      updates[puuid] = { ...existing, updatedAt: nextTs(), encounters }
+    }
+
+    if (Object.keys(updates).length === 0) return
+    notes.value = { ...notes.value, ...updates }
+    userMutationSeq.value++
+    await persist()
+  }
+
+  /**
    * 删除某玩家的备注，并整体落盘。不存在（或已是墓碑）时静默返回。
    *
    * 不做物理删除而是写墓碑：直接 delete key 的话，云同步 pull 回的旧数据
@@ -252,5 +288,16 @@ export const usePlayerNotesStore = defineStore('playerNotes', () => {
     emit(NOTES_CHANGED_EVENT, { origin }).catch(() => {})
   }
 
-  return { notes, count, list, userMutationSeq, init, getNote, setNote, removeNote, importNotes }
+  return {
+    notes,
+    count,
+    list,
+    userMutationSeq,
+    init,
+    getNote,
+    setNote,
+    removeNote,
+    recordEncountersBatch,
+    importNotes
+  }
 })

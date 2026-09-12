@@ -64,6 +64,19 @@ export const useCloudSyncStore = defineStore('cloudSync', () => {
   /** 首次同步待确认的云端配置；非 null 时 UI 弹确认窗（Framework 渲染） */
   const pendingCloudConfig = ref<CloudConfig | null>(null)
 
+  /**
+   * pendingCloudConfig 对应的场景：
+   * - `'first-bind'`：本机从未同步过，云端有配置且和本机不一致（本机大概率是默认值，
+   *   选云端基本没有代价）。
+   * - `'conflict'`：本机已同步过、两边都真的改过设置，选云端会覆盖本机这期间的改动，
+   *   是有代价的决策。
+   *
+   * 与 pendingCloudConfig 同步维护（非 null ⇔ 非 null），供 UI（DataSync.vue）决定
+   * 提示条的配色与文案严重程度——同一个字段以前覆盖两种场景，读起来该轻松的时候像
+   * 警告、该郑重的时候又不够郑重。
+   */
+  const pendingCloudConfigReason = ref<'first-bind' | 'conflict' | null>(null)
+
   /** 待确认弹窗对应的 puuid（resolve 时推送/落标记用） */
   let pendingPuuid = ''
   /** 本地有未推送的配置变更（config-changed 事件置位，推送后清零） */
@@ -150,6 +163,7 @@ export const useCloudSyncStore = defineStore('cloudSync', () => {
       if (pulled && !deepEqual(pulled.config, local)) {
         pendingPuuid = puuid
         pendingCloudConfig.value = pulled
+        pendingCloudConfigReason.value = 'first-bind'
         return
       }
       if (!pulled) await pushConfig(puuid)
@@ -169,6 +183,7 @@ export const useCloudSyncStore = defineStore('cloudSync', () => {
     if (configDirty && cloudNewer) {
       pendingPuuid = puuid
       pendingCloudConfig.value = pulled
+      pendingCloudConfigReason.value = 'conflict'
       return
     }
     if (configDirty) {
@@ -194,6 +209,7 @@ export const useCloudSyncStore = defineStore('cloudSync', () => {
     const pending = pendingCloudConfig.value
     if (!pending) return
     pendingCloudConfig.value = null
+    pendingCloudConfigReason.value = null
     // 与 syncNow 互斥:裁决执行期间挡住防抖/手动触发的并发同步
     syncing.value = true
     try {
@@ -367,6 +383,7 @@ export const useCloudSyncStore = defineStore('cloudSync', () => {
     lastSyncAt,
     lastError,
     pendingCloudConfig,
+    pendingCloudConfigReason,
     init,
     setEnabled,
     syncNow,

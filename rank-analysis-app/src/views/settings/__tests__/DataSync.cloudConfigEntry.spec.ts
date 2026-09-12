@@ -44,6 +44,7 @@ vi.mock('naive-ui', async importOriginal => {
   return { ...actual, useMessage: () => messageMock }
 })
 
+import { NAlert } from 'naive-ui'
 import { useCloudSyncStore } from '@renderer/pinia/cloudSync'
 import DataSync from '../DataSync.vue'
 
@@ -165,6 +166,32 @@ describe('DataSync.vue 云端配置拉取入口', () => {
 
     expect(messageMock.error).toHaveBeenCalled()
     expect(w.text()).not.toContain('云端存在一份配置(更新于')
+    w.unmount()
+  })
+
+  it('首次绑定场景：提示条渲染为绿色友好文案，不带覆盖警告段落', async () => {
+    const store = useCloudSyncStore()
+    store.pendingCloudConfig = { updatedAt: 1700000000000, config: {} }
+    store.pendingCloudConfigReason = 'first-bind'
+    const w = mountDataSync()
+    await w.vm.$nextTick()
+
+    expect(w.findComponent(NAlert).props('type')).toBe('success')
+    expect(w.text()).toContain('云端存在可用的配置，是否使用')
+    expect(w.text()).not.toContain('确认前，本机设置的改动不会同步到云端')
+    w.unmount()
+  })
+
+  it('真冲突场景：提示条保持黄色警告文案', async () => {
+    const store = useCloudSyncStore()
+    store.pendingCloudConfig = { updatedAt: 1700000000000, config: {} }
+    store.pendingCloudConfigReason = 'conflict'
+    const w = mountDataSync()
+    await w.vm.$nextTick()
+
+    expect(w.findComponent(NAlert).props('type')).toBe('warning')
+    expect(w.text()).toContain('云端配置与本机不一致（两台设备都改过）')
+    expect(w.text()).toContain('确认前，本机设置的改动不会同步到云端')
     w.unmount()
   })
 })

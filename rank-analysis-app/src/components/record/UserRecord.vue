@@ -170,6 +170,8 @@ import RecentStatsTable from './RecentStatsTable.vue'
 import PlayerNoteBadge from '@renderer/components/common/PlayerNoteBadge.vue'
 import UnifiedTagRow from '@renderer/components/common/UnifiedTagRow.vue'
 import { usePlayerNotesStore } from '@renderer/pinia/playerNotes'
+import { useGameState } from '@renderer/composables/useGameState'
+import { autoTrackEncounters } from '@renderer/utils/autoTrackEncounters'
 
 const settingsStore = useSettingsStore()
 const isDark = computed(
@@ -279,6 +281,8 @@ const updateModel = (value: string | number, option: any) => {
 }
 
 const notesStore = usePlayerNotesStore()
+/** 当前登录的召唤师（判断"查询对象是不是我自己"，被动追踪只在查自己时触发） */
+const { summoner: myGameStateSummoner } = useGameState()
 /** 当前玩家是否已有手动备注（决定标签行在无系统标签时是否仍展示备注 chip） */
 const hasNote = computed(() => !!summoner.value.puuid && !!notesStore.getNote(summoner.value.puuid))
 
@@ -287,6 +291,18 @@ const getTags = async (name: string, mode: number) => {
   const user_tag = await invoke<UserTag>('get_user_tag_by_name', { name, mode })
   tags.value = user_tag.tag
   recentData.value = user_tag.recentData
+
+  // 被动追踪备注遇见记录：仅当查询对象是"我自己"时才扫描同场玩家映射，
+  // 避免把两个陌生人之间的同场误记成"我的遇见"（见 utils/autoTrackEncounters.ts）。
+  if (summoner.value.puuid && summoner.value.puuid === myGameStateSummoner.value?.puuid) {
+    const map = recentData.value.oneGamePlayersMap
+    // 自己必然是自己最近 20 场里的固定同场玩家；若被自我标记过，不排除的话会把
+    // 自己的对局灌进自己的遇见记录——语义空洞，还会白白占满 20 条上限。
+    const othersMap = map
+      ? Object.fromEntries(Object.entries(map).filter(([puuid]) => puuid !== summoner.value.puuid))
+      : map
+    autoTrackEncounters(othersMap, notesStore.getNote, notesStore.recordEncountersBatch)
+  }
 }
 
 const message = useMessage()

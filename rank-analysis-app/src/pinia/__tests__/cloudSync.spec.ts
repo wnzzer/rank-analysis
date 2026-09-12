@@ -338,6 +338,7 @@ describe('useCloudSyncStore', () => {
       const store = useCloudSyncStore()
       await store.syncNow()
       expect(store.pendingCloudConfig).not.toBeNull()
+      expect(store.pendingCloudConfigReason).toBe('first-bind')
       expect(mockInvoke).not.toHaveBeenCalledWith('apply_config_snapshot', expect.anything())
       // 弹窗未决前不写首次标记:中途关 app 下次重新走首次流程
       expect(mockPut).not.toHaveBeenCalledWith('configSyncedOnce', true)
@@ -358,6 +359,7 @@ describe('useCloudSyncStore', () => {
       expect(mockPut).toHaveBeenCalledWith('configSyncedOnce', true)
       expect(mockPut).toHaveBeenCalledWith('configLastSyncAt', expect.any(Number))
       expect(store.pendingCloudConfig).toBeNull()
+      expect(store.pendingCloudConfigReason).toBeNull()
     })
 
     it('首次同步:拒绝覆盖 → 推送本地覆盖云端', async () => {
@@ -434,6 +436,7 @@ describe('useCloudSyncStore', () => {
       store.markConfigDirty()
       await store.syncNow()
       expect(store.pendingCloudConfig).not.toBeNull()
+      expect(store.pendingCloudConfigReason).toBe('conflict')
       expect(mockInvoke).not.toHaveBeenCalledWith('cloud_push_config', expect.anything())
       expect(mockInvoke).not.toHaveBeenCalledWith('apply_config_snapshot', expect.anything())
     })
