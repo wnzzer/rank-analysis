@@ -166,7 +166,15 @@ export const useCloudSyncStore = defineStore('cloudSync', () => {
         pendingCloudConfigReason.value = 'first-bind'
         return
       }
-      if (!pulled) await pushConfig(puuid)
+      if (!pulled) {
+        await pushConfig(puuid)
+      } else {
+        // 走到这里=内容恰好一致,静默标记已同步。陈旧的 dirty 标记若不顺手清掉,
+        // 几十秒内任意一次无关的配置写入触发自动补同步时,会拿着这个陈旧标记
+        // 和云端时间戳,把用户从没做过的本机改动误判成"两边都改过"的真冲突,
+        // 凭空弹出一个从未发生过的警告。
+        await clearConfigDirty()
+      }
       await putConfigByIpc(CONFIG_KEYS.configSyncedOnce, true)
       return
     }
