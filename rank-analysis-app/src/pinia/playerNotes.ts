@@ -180,6 +180,35 @@ export const usePlayerNotesStore = defineStore('playerNotes', () => {
   }
 
   /**
+   * 被动合并某玩家的遇见记录，不新建备注、不改动 note/label 内容。
+   *
+   * 用于「查看自己战绩」时的自动追踪（见 utils/autoTrackEncounters.ts）：调用方只
+   * 负责判断触发时机与筛选目标玩家（只应对已有备注的 puuid 调用），本函数只负责
+   * 合并与判断是否需要落盘。
+   *
+   * @param puuid - 玩家唯一标识；不存在备注或已是墓碑时静默跳过，不新建
+   * @param games - 本次要并入的对局列表（通常来自后端 `RecentData.oneGamePlayersMap`）
+   */
+  async function recordEncounters(puuid: string, games: OneGamePlayer[]): Promise<void> {
+    const existing = notes.value[puuid]
+    if (!existing || existing.deleted || games.length === 0) return
+
+    const existingIds = new Set((existing.encounters ?? []).map(e => e.gameId))
+    const hasNew = games.some(g => !existingIds.has(g.gameId))
+    if (!hasNew) return
+
+    let encounters = existing.encounters
+    for (const g of games) encounters = mergeEncounters(encounters, g)
+
+    notes.value = {
+      ...notes.value,
+      [puuid]: { ...existing, updatedAt: nextTs(), encounters }
+    }
+    userMutationSeq.value++
+    await persist()
+  }
+
+  /**
    * 删除某玩家的备注，并整体落盘。不存在（或已是墓碑）时静默返回。
    *
    * 不做物理删除而是写墓碑：直接 delete key 的话，云同步 pull 回的旧数据
@@ -252,5 +281,16 @@ export const usePlayerNotesStore = defineStore('playerNotes', () => {
     emit(NOTES_CHANGED_EVENT, { origin }).catch(() => {})
   }
 
-  return { notes, count, list, userMutationSeq, init, getNote, setNote, removeNote, importNotes }
+  return {
+    notes,
+    count,
+    list,
+    userMutationSeq,
+    init,
+    getNote,
+    setNote,
+    removeNote,
+    recordEncounters,
+    importNotes
+  }
 })

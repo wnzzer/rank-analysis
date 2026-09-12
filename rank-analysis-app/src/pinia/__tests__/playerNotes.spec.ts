@@ -24,6 +24,23 @@ import { usePlayerNotesStore } from '../playerNotes'
 const mockGet = vi.mocked(getConfigByIpc)
 const mockPut = vi.mocked(putConfigByIpc)
 
+/** 构造一条最小可用的同场对局记录，供 encounters / recordEncounters 用例复用 */
+const makeEncounter = (gameId: number, gameCreatedAt: string, puuid = 'p') => ({
+  gameCreatedAt,
+  index: 0,
+  gameId,
+  puuid,
+  gameName: 'G',
+  tagLine: 'T',
+  championId: 1,
+  win: true,
+  kills: 1,
+  deaths: 2,
+  assists: 3,
+  isMyTeam: false,
+  queueIdCn: '极地大乱斗'
+})
+
 describe('usePlayerNotesStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -209,22 +226,6 @@ describe('usePlayerNotesStore', () => {
   })
 
   describe('encounters（遇见记录）', () => {
-    const makeEncounter = (gameId: number, gameCreatedAt: string) => ({
-      gameCreatedAt,
-      index: 0,
-      gameId,
-      puuid: 'p',
-      gameName: 'G',
-      tagLine: 'T',
-      championId: 1,
-      win: true,
-      kills: 1,
-      deaths: 2,
-      assists: 3,
-      isMyTeam: false,
-      queueIdCn: '极地大乱斗'
-    })
-
     it('保存时带 encounter 会记入遇见列表', async () => {
       const store = usePlayerNotesStore()
       await store.setNote('p', {
@@ -281,6 +282,73 @@ describe('usePlayerNotesStore', () => {
 
       expect(store.getNote('p')?.note).toBe('b')
       expect(store.getNote('p')?.encounters?.length).toBe(1)
+    })
+  })
+
+  describe('recordEncounters（被动追踪）', () => {
+    it('玩家没有备注时静默跳过，不新建备注', async () => {
+      const store = usePlayerNotesStore()
+      await store.recordEncounters('nobody', [makeEncounter(1, '2026-05-20T10:00:00Z')])
+
+      expect(store.getNote('nobody')).toBeUndefined()
+      expect(mockPut).not.toHaveBeenCalled()
+    })
+
+    it('已有备注时合并新的遇见局，推进 updatedAt 与 userMutationSeq', async () => {
+      const store = usePlayerNotesStore()
+      await store.setNote('p', { note: '', label: 'careful', gameName: 'G', tagLine: 'T' })
+      const seqBefore = store.userMutationSeq
+      const updatedAtBefore = store.getNote('p')!.updatedAt
+
+      await store.recordEncounters('p', [
+        makeEncounter(1, '2026-05-20T10:00:00Z'),
+        makeEncounter(2, '2026-05-22T10:00:00Z')
+      ])
+
+      const note = store.getNote('p')
+      expect(note?.encounters?.map(e => e.gameId).sort()).toEqual([1, 2])
+      expect(note!.updatedAt).toBeGreaterThan(updatedAtBefore)
+      expect(store.userMutationSeq).toBeGreaterThan(seqBefore)
+    })
+
+    it('全部 gameId 都已存在时不落盘、不推进 updatedAt（防止空转）', async () => {
+      const store = usePlayerNotesStore()
+      await store.setNote('p', {
+        note: '',
+        label: 'careful',
+        gameName: 'G',
+        tagLine: 'T',
+        encounter: makeEncounter(1, '2026-05-20T10:00:00Z')
+      })
+      const updatedAtBefore = store.getNote('p')!.updatedAt
+      mockPut.mockClear()
+
+      await store.recordEncounters('p', [makeEncounter(1, '2026-05-20T10:00:00Z')])
+
+      expect(store.getNote('p')!.updatedAt).toBe(updatedAtBefore)
+      expect(mockPut).not.toHaveBeenCalled()
+    })
+
+    it('已删除（墓碑）的备注不会被复活或追加遇见记录', async () => {
+      const store = usePlayerNotesStore()
+      await store.setNote('p', { note: 'x', label: 'normal', gameName: 'G', tagLine: 'T' })
+      await store.removeNote('p')
+      mockPut.mockClear()
+
+      await store.recordEncounters('p', [makeEncounter(1, '2026-05-20T10:00:00Z')])
+
+      expect(store.getNote('p')).toBeUndefined()
+      expect(mockPut).not.toHaveBeenCalled()
+    })
+
+    it('传入空数组时静默跳过', async () => {
+      const store = usePlayerNotesStore()
+      await store.setNote('p', { note: '', label: 'careful', gameName: 'G', tagLine: 'T' })
+      mockPut.mockClear()
+
+      await store.recordEncounters('p', [])
+
+      expect(mockPut).not.toHaveBeenCalled()
     })
   })
 
