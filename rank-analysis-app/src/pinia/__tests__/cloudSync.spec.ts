@@ -397,6 +397,21 @@ describe('useCloudSyncStore', () => {
       expect(mockPut).toHaveBeenCalledWith('configSyncedOnce', true)
     })
 
+    it('首次同步:云端与本地一致 → 顺带清掉陈旧的 dirty 标记(防止几十秒后被自己的陈旧脏标记打成假冲突)', async () => {
+      // 复现的真实场景:设备上残留一个跟本次同步无关的陈旧 dirty 标记(比如上次
+      // 会话某次改动触发了 config-changed 但没来得及推送就退出)。这条分支此前
+      // 只落 configSyncedOnce,从不清 dirty、也不刷新 configLastSyncAt——几十秒后
+      // 任意一次无关配置写入触发自动补同步,会拿着这个陈旧标记 + 云端时间戳,
+      // 把用户从没做过的"本机改动"误判成"两边都改过"的真冲突。
+      mockGetConfig({ configSyncedOnce: undefined })
+      const same = { theme: { value: 'dark' } }
+      mockConfigInvoke({ pulled: { updatedAt: 100, config: same }, local: same })
+      const store = useCloudSyncStore()
+      store.markConfigDirty()
+      await store.syncNow()
+      expect(mockPut).toHaveBeenCalledWith('configDirtyAt', 0)
+    })
+
     it('后续同步:云端更新且无本地未推变更 → 静默应用', async () => {
       mockGetConfig({ configSyncedOnce: true, configLastSyncAt: 50 })
       mockConfigInvoke({
