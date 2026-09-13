@@ -64,7 +64,12 @@
           :style="{ '--stagger-i': index }"
           class="list-item"
         >
-          <RecordCard :record-type="true" :games="game" @open-detail="openDetail(game)" />
+          <RecordCard
+            :record-type="true"
+            :games="game"
+            :opening="detailOpener.isOpening(game.gameId)"
+            @open-detail="detailOpener.open(game)"
+          />
         </div>
       </TransitionGroup>
     </template>
@@ -84,7 +89,7 @@ import { computed, provide, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { SparklesOutline } from '@vicons/ionicons5'
 import RecordCard from './RecordCard.vue'
-import { openMatchDetailWindow } from './detailWindow'
+import { useDetailOpener } from './detailWindow'
 import { collectAssetIds } from './collectAssetIds'
 import { useRecordAssets } from '@renderer/composables/useRecordAssets'
 import { recordAssetsKey } from '@renderer/composables/recordAssetsKey'
@@ -92,7 +97,6 @@ import { useAiMatchSearch } from '@renderer/composables/useAiMatchSearch'
 import { initModeOptions } from '@renderer/composables/useGameModes'
 import { clearParseCache } from '@renderer/services/ai/matchSearch/parse'
 import { firstQueryValue } from '@renderer/utils/navigation'
-import type { Game } from '@renderer/types/domain/match'
 
 const route = useRoute()
 const queryText = computed(() => firstQueryValue(route.query.aiq))
@@ -103,6 +107,9 @@ const { phase, error, progress, chips, results, encounterStats, meta, run, remov
 // 与 MatchHistory 相同的父级资产预载模式
 const recordAssets = useRecordAssets()
 provide(recordAssetsKey, recordAssets)
+
+/** 详情窗打开中态（与 MatchHistory 共用，见 detailWindow.ts） */
+const detailOpener = useDetailOpener()
 watch(results, games => {
   const { items, spells, perks } = collectAssetIds(games)
   recordAssets.preload([
@@ -128,10 +135,6 @@ const metaLineCn = computed(() => {
   const truncated = meta.value?.truncated ? ';已达检索上限,更早的对局未包含' : ''
   return `已在${scope}中搜索,命中 ${results.value.length} 局${truncated}`
 })
-
-async function openDetail(game: Game): Promise<void> {
-  await openMatchDetailWindow(game)
-}
 
 /** 错误重试:清掉这句的解析缓存(坏缓存会让重试原地失败)再跑一遍 */
 function retry(): void {

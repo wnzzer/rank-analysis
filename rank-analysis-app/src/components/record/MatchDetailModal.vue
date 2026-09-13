@@ -137,15 +137,9 @@
         </div>
 
         <!-- Team Sections -->
-        <!--
-          首屏分批渲染：胜方先入场（~50 张图先 race），败方延迟 80ms。
-          浏览器对 asset.localhost 并发限制 ~6/host，一次性 100+ 图同时请求会
-          排队拖慢首屏；错峰让胜方先抢满 channel，败方再补位。
-        -->
         <div class="match-detail-body">
           <section
-            v-for="(team, teamIdx) in teamSections"
-            v-show="teamIdx < visibleTeamCount"
+            v-for="team in teamSections"
             :key="team.teamId"
             class="match-detail-team-section"
           >
@@ -745,21 +739,24 @@ function loadAssetsIfNeeded() {
 }
 
 /**
- * 队伍分批渲染计数：onMounted 时只显示第 1 队（胜方），下一帧后再追加败方。
- * 这给浏览器一个错峰窗口避免 100+ asset 请求同时打满并发槽位。
+ * 首屏数据就绪：当前召唤师决定「我」是谁（头部主角与「我」行高亮），
+ * 详情窗据此决定何时亮出，避免亮窗后头部再换人。
+ *
+ * 两队同帧渲染（原 80ms 分批已移除）：详情窗在隐藏状态下完成首屏，分批错峰
+ * 反而会让败方在亮窗后才插入；图片仍经 LazyImg 淡入，尺寸固定不挤布局。
  */
-const visibleTeamCount = ref(1)
+let resolveReady: () => void = () => {}
+const ready = new Promise<void>(resolve => {
+  resolveReady = resolve
+})
 
 onMounted(async () => {
-  // 先 race 胜方再 race 败方：requestAnimationFrame 让胜方 paint，
-  // 80ms 后追加败方（够浏览器把胜方关键图取了大半）。
-  setTimeout(() => {
-    visibleTeamCount.value = teamSections.value.length
-  }, 80)
   try {
     currentSummoner.value = await invoke<Summoner>('get_my_summoner')
   } catch (error) {
     console.error('获取当前用户信息失败:', error)
+  } finally {
+    resolveReady()
   }
   loadAssetsIfNeeded()
 })
@@ -767,11 +764,6 @@ onMounted(async () => {
 watch(
   () => props.game?.gameId,
   () => {
-    // 切对局时重新走分批渲染，避免新对局的两队同时 race
-    visibleTeamCount.value = 1
-    setTimeout(() => {
-      visibleTeamCount.value = teamSections.value.length
-    }, 80)
     ai.resetOnGameChange(
       mySummary.value?.participantId ?? detailPlayers.value[0]?.participantId ?? null
     )
@@ -779,6 +771,11 @@ watch(
   },
   { immediate: true }
 )
+
+defineExpose({
+  /** 首屏数据（「我」已确定）就绪后 resolve；失败也会 resolve，不阻塞亮窗 */
+  whenReady: (): Promise<void> => ready
+})
 </script>
 
 <style scoped>
@@ -937,9 +934,9 @@ watch(
 }
 
 .match-detail-hero {
-  /* 48→60px 随 viewport (1100→2200)——头部主视觉，比正文头像大一档 */
-  width: clamp(48px, calc(48px + (100vw - 1100px) * 12 / 1100), 60px);
-  height: clamp(48px, calc(48px + (100vw - 1100px) * 12 / 1100), 60px);
+  /* 头部主视觉，比正文头像大一档；设计宽 1280 下的定值，整体缩放见 useDetailZoom */
+  width: 50px;
+  height: 50px;
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-subtle);
   display: block;
@@ -967,8 +964,8 @@ watch(
 }
 
 .match-detail-player-name {
-  /* 15→19px 随 viewport (1100→2200) */
-  font-size: clamp(15px, calc(15px + (100vw - 1100px) * 4 / 1100), 19px);
+  /* 设计宽 1280 下的定值；整体缩放见 useDetailZoom */
+  font-size: 16px;
   font-weight: 700;
   color: var(--text-primary);
 }
@@ -1202,9 +1199,9 @@ watch(
 }
 
 .match-detail-player-avatar {
-  /* 密集模式: 32→40 */
-  width: clamp(32px, calc(32px + (100vw - 1100px) * 8 / 1100), 40px);
-  height: clamp(32px, calc(32px + (100vw - 1100px) * 8 / 1100), 40px);
+  /* 密集模式；设计宽 1280 下的定值，整体缩放见 useDetailZoom */
+  width: 33px;
+  height: 33px;
   border-radius: var(--radius-md);
   border: 1px solid var(--border-subtle);
   flex-shrink: 0;
@@ -1235,8 +1232,9 @@ watch(
 }
 
 .match-detail-rank-icon {
-  width: clamp(20px, calc(20px + (100vw - 1100px) * 4 / 1100), 24px);
-  height: clamp(20px, calc(20px + (100vw - 1100px) * 4 / 1100), 24px);
+  /* 设计宽 1280 下的定值；整体缩放见 useDetailZoom */
+  width: 21px;
+  height: 21px;
   object-fit: contain;
   display: block;
 }
@@ -1413,9 +1411,9 @@ watch(
 .match-detail-spell-icon,
 .match-detail-item-icon,
 .match-detail-perk-icon {
-  /* 18→22px 随 viewport：比旧 16 大一档，看得清图标细节 */
-  width: clamp(18px, calc(18px + (100vw - 1100px) * 4 / 1100), 22px);
-  height: clamp(18px, calc(18px + (100vw - 1100px) * 4 / 1100), 22px);
+  /* 比旧 16 大一档，看得清图标细节；设计宽 1280 下的定值，整体缩放见 useDetailZoom */
+  width: 19px;
+  height: 19px;
   border-radius: var(--radius-control);
   border: 1px solid var(--border-subtle);
   background: var(--bg-elevated);
@@ -1435,9 +1433,9 @@ watch(
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  /* 紧凑: 16→20 跟 spell/item/perk 同步 */
-  width: clamp(16px, calc(16px + (100vw - 1100px) * 4 / 1100), 20px);
-  height: clamp(16px, calc(16px + (100vw - 1100px) * 4 / 1100), 20px);
+  /* 紧凑，比 spell/item/perk 小一圈；设计宽 1280 下的定值 */
+  width: 17px;
+  height: 17px;
   border-radius: var(--radius-control);
   border: 1px solid var(--augment-border);
   background: var(--augment-background);
@@ -1446,9 +1444,9 @@ watch(
 }
 
 .match-detail-augment-icon {
-  /* inner 11→15 跟 shell 同步 */
-  width: clamp(11px, calc(11px + (100vw - 1100px) * 4 / 1100), 15px);
-  height: clamp(11px, calc(11px + (100vw - 1100px) * 4 / 1100), 15px);
+  /* 内图标跟 shell 同步；设计宽 1280 下的定值 */
+  width: 12px;
+  height: 12px;
   object-fit: contain;
   filter: var(--augment-filter);
 }
@@ -1499,8 +1497,9 @@ watch(
 
 /* 空装备格：内凹暗槽，与实图标同尺寸——避免黑块被误读为图片加载失败 */
 .match-detail-item-empty {
-  width: clamp(18px, calc(18px + (100vw - 1100px) * 4 / 1100), 22px);
-  height: clamp(18px, calc(18px + (100vw - 1100px) * 4 / 1100), 22px);
+  /* 与实图标同尺寸（设计宽 1280 下的定值） */
+  width: 19px;
+  height: 19px;
   border-radius: var(--radius-control);
   border: 1px solid color-mix(in srgb, var(--border-subtle) 55%, transparent);
   background: color-mix(in srgb, var(--bg-elevated) 45%, transparent);
@@ -1635,28 +1634,5 @@ watch(
 
 .match-detail-empty-copy {
   font-size: var(--font-size-sm);
-}
-
-@media (max-width: 1100px) {
-  .match-detail-header {
-    grid-template-columns: 1fr;
-  }
-
-  .match-detail-summary-side {
-    align-items: flex-start;
-  }
-
-  .match-detail-column-header,
-  .match-detail-row {
-    grid-template-columns: 1fr;
-  }
-
-  .match-detail-column-header {
-    display: none;
-  }
-
-  .match-detail-row {
-    gap: var(--space-10);
-  }
 }
 </style>

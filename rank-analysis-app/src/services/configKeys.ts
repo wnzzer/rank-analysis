@@ -41,5 +41,7 @@ export const CONFIG_KEYS = {
    */
   gameInstallPath: 'gameInstallPath',
   /** 页面缩放比例（Ctrl+滚轮调节，0.7~1.5；见 composables/useZoom） */
-  zoomFactor: 'settings.ui.zoomFactor'
+  zoomFactor: 'settings.ui.zoomFactor',
+  /** 对局详情窗在「铺满」基础上的用户倍率（0.7~1.5；见 composables/useDetailZoom） */
+  detailZoomFactor: 'settings.ui.detailZoomFactor'
 } as const

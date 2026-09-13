@@ -17,7 +17,13 @@
       </n-dropdown>
     </n-flex>
 
-    <n-flex vertical class="recent-stats-rows">
+    <n-flex v-if="loading" vertical class="recent-stats-rows" aria-hidden="true">
+      <div v-for="i in 5" :key="i" class="recent-stats-row">
+        <span class="sk recent-stats-sk-label" />
+        <span class="sk recent-stats-sk-value" />
+      </div>
+    </n-flex>
+    <n-flex v-else vertical class="recent-stats-rows sk-reveal">
       <!-- KDA -->
       <div class="recent-stats-row">
         <div class="recent-stats-label-group">
@@ -99,6 +105,8 @@ defineProps<{
   recentData: RecentData
   mode: string
   isDark: boolean
+  /** 数据未到：行区渲染骨架而非 KDA 0 / 红色 0% 假值（标题与模式切换保留） */
+  loading?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -176,5 +184,18 @@ const cardContentStyle = 'padding: var(--space-12)'
 .recent-stats-icon-kda {
   color: var(--semantic-win);
   font-size: var(--font-size-lg);
+}
+
+/* 骨架行复用 .recent-stats-row 的 28px 最小行高；标签位宽对齐 74px 标签列 */
+.recent-stats-sk-label {
+  width: 44px;
+  height: 12px;
+  margin-right: 30px;
+  flex-shrink: 0;
+}
+
+.recent-stats-sk-value {
+  flex: 1;
+  height: 8px;
 }
 </style>

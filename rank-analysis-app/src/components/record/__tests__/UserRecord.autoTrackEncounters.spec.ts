@@ -76,6 +76,12 @@ const stubs = {
   UnifiedTagRow: true
 }
 
+/**
+ * 每个用例都要 resetModules 后重新动态 import UserRecord（换 invoke mock 所需），
+ * 组件 + naive-ui 的编译耗时计入用例时间；全量并行跑且机器忙时实测会超过默认 5s
+ */
+const IMPORT_HEAVY_TIMEOUT_MS = 15_000
+
 describe('UserRecord.vue 被动追踪接线', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -83,33 +89,41 @@ describe('UserRecord.vue 被动追踪接线', () => {
     mySummoner.value = { puuid: 'my-puuid' }
   })
 
-  it('查询对象是我自己时，调用 autoTrackEncounters', async () => {
-    const invoke = mockInvokeFor('my-puuid')
-    vi.resetModules()
-    vi.doMock('@tauri-apps/api/core', () => ({ invoke }))
-    const UserRecord = (await import('../UserRecord.vue')).default
+  it(
+    '查询对象是我自己时，调用 autoTrackEncounters',
+    async () => {
+      const invoke = mockInvokeFor('my-puuid')
+      vi.resetModules()
+      vi.doMock('@tauri-apps/api/core', () => ({ invoke }))
+      const UserRecord = (await import('../UserRecord.vue')).default
 
-    const w = mount(UserRecord, { global: { plugins: [naive], stubs } })
-    await vi.waitFor(() => expect(autoTrackEncountersMock).toHaveBeenCalledTimes(1))
-    expect(autoTrackEncountersMock).toHaveBeenCalledWith(
-      oneGamePlayersMap,
-      expect.any(Function),
-      expect.any(Function)
-    )
-    w.unmount()
-  })
+      const w = mount(UserRecord, { global: { plugins: [naive], stubs } })
+      await vi.waitFor(() => expect(autoTrackEncountersMock).toHaveBeenCalledTimes(1))
+      expect(autoTrackEncountersMock).toHaveBeenCalledWith(
+        oneGamePlayersMap,
+        expect.any(Function),
+        expect.any(Function)
+      )
+      w.unmount()
+    },
+    IMPORT_HEAVY_TIMEOUT_MS
+  )
 
-  it('查询别人时，不调用 autoTrackEncounters', async () => {
-    const invoke = mockInvokeFor('someone-else-puuid')
-    vi.resetModules()
-    vi.doMock('@tauri-apps/api/core', () => ({ invoke }))
-    const UserRecord = (await import('../UserRecord.vue')).default
+  it(
+    '查询别人时，不调用 autoTrackEncounters',
+    async () => {
+      const invoke = mockInvokeFor('someone-else-puuid')
+      vi.resetModules()
+      vi.doMock('@tauri-apps/api/core', () => ({ invoke }))
+      const UserRecord = (await import('../UserRecord.vue')).default
 
-    const w = mount(UserRecord, { global: { plugins: [naive], stubs } })
-    await vi.waitFor(() =>
-      expect(invoke).toHaveBeenCalledWith('get_user_tag_by_name', expect.anything())
-    )
-    expect(autoTrackEncountersMock).not.toHaveBeenCalled()
-    w.unmount()
-  })
+      const w = mount(UserRecord, { global: { plugins: [naive], stubs } })
+      await vi.waitFor(() =>
+        expect(invoke).toHaveBeenCalledWith('get_user_tag_by_name', expect.anything())
+      )
+      expect(autoTrackEncountersMock).not.toHaveBeenCalled()
+      w.unmount()
+    },
+    IMPORT_HEAVY_TIMEOUT_MS
+  )
 })

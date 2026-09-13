@@ -2,12 +2,18 @@
   <n-card
     :content-style="contentStyleStr"
     class="record-card"
-    :class="{ 'record-card-win': isWin, 'record-card-loss': !isWin }"
+    :class="{
+      'record-card-win': isWin,
+      'record-card-loss': !isWin,
+      'record-card--opening': opening
+    }"
     role="button"
     tabindex="0"
+    :aria-busy="opening"
     @click="openDetail"
     @keyup.enter="openDetail"
   >
+    <n-spin v-if="opening" :size="14" class="record-card-opening-spin" />
     <!-- 固定列网格：所有卡片共用同一套列轨道，行与行严格对齐
          （旧 space-between 弹性布局会让列落点随内容漂移） -->
     <div class="record-card-grid">
@@ -239,6 +245,8 @@ import { recordAssetsKey } from '@renderer/composables/recordAssetsKey'
 const props = defineProps<{
   recordType?: boolean
   games: Game
+  /** 详情窗打开中：保持按下态 + 小转圈，重复点击忽略（见 detailWindow.ts useDetailOpener） */
+  opening?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -346,6 +354,7 @@ function toNameRecord(name: string) {
 }
 
 function openDetail() {
+  if (props.opening) return
   emit('open-detail')
 }
 </script>
@@ -465,19 +474,28 @@ function openDetail() {
   transition-duration: var(--dur-instant);
 }
 
+/* 打开中：保持按下态 + 右上角小转圈，直到详情窗亮出（窗口隐藏创建约需半秒） */
+.record-card--opening,
+.record-card--opening:hover {
+  transform: scale(0.995);
+  cursor: progress;
+}
+
+.record-card-opening-spin {
+  position: absolute;
+  top: var(--space-6);
+  right: var(--space-8);
+  z-index: 2;
+}
+
 /* === 固定列网格：结果 | 头像 | 队列 | KDA+装备 | 三色条 | 队伍头像 ===
    所有卡片共用同一套列轨道 → 行与行严格对齐 */
 .record-card-grid {
   display: grid;
   /* 固定列轨道保证行间对齐；space-between 把富余空隙均摊到列间——
      还原原版的松弛呼吸感（1fr 会把空间全吞在一处，左侧显挤） */
-  grid-template-columns:
-    58px
-    clamp(42px, calc(42px + (100vw - 1100px) * 10 / 1100), 52px)
-    minmax(64px, 84px)
-    minmax(174px, 216px)
-    172px
-    140px;
+  /* 列轨道定义在 global.css（--record-card-columns），与骨架屏共用 */
+  grid-template-columns: var(--record-card-columns);
   justify-content: space-between;
   align-items: center;
   gap: var(--space-8);
