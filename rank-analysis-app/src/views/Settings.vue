@@ -141,7 +141,7 @@ const menuOptions = computed(() => [
 }
 
 :deep(.n-layout-sider) {
-  background: var(--glass-bg-low) !important;
+  background: var(--surface-shell) !important;
   border-right: 1px solid var(--glass-border) !important;
 }
 
@@ -150,7 +150,8 @@ const menuOptions = computed(() => [
 }
 
 :deep(.n-menu-item-content--selected) {
-  background: rgba(61, 155, 122, 0.13) !important;
+  /* 亮色为透明：只留 naive 自带那层轻着色（--menu-item-active） */
+  background: var(--settings-menu-active-bg) !important;
   color: var(--semantic-win) !important;
   font-weight: 700 !important;
   border-radius: var(--radius-md) !important;

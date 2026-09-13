@@ -129,7 +129,7 @@ function closeWindow() {
   background:
     linear-gradient(
       90deg,
-      color-mix(in srgb, var(--semantic-win) 12%, var(--bg-surface)),
+      color-mix(in srgb, var(--semantic-win) calc(12% * var(--fx-wash)), var(--bg-surface)),
       var(--bg-surface)
     ),
     var(--bg-surface);
@@ -162,16 +162,6 @@ function closeWindow() {
 .match-detail-window-close:hover {
   background: color-mix(in srgb, var(--semantic-loss) 18%, transparent);
   border-color: color-mix(in srgb, var(--semantic-loss) 35%, var(--border-subtle));
-}
-
-.theme-light .match-detail-window-bar {
-  background:
-    linear-gradient(
-      90deg,
-      color-mix(in srgb, var(--semantic-win) 10%, var(--bg-surface)),
-      var(--bg-surface)
-    ),
-    var(--bg-surface);
 }
 
 /* 可用区：未溢出时内容居中；Ctrl+滚轮放大超出窗口时 safe center 仍能滚到左缘。

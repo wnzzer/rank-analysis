@@ -65,7 +65,9 @@ defineProps<{ hint?: string }>()
   border-top-color: var(--semantic-win);
   border-right-color: color-mix(in srgb, var(--semantic-win) 35%, transparent);
   animation: loading-spin 1.2s cubic-bezier(0.6, 0.2, 0.4, 0.9) infinite;
-  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--semantic-win) 40%, transparent));
+  filter: drop-shadow(
+    0 0 6px color-mix(in srgb, var(--semantic-win) calc(40% * var(--fx-glow)), transparent)
+  );
 }
 
 .loading-text-block {
@@ -94,11 +96,5 @@ defineProps<{ hint?: string }>()
   to {
     transform: rotate(360deg);
   }
-}
-
-/* 亮色主题 */
-.theme-light .loading-ring {
-  border-right-color: color-mix(in srgb, var(--semantic-win) 30%, transparent);
-  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--semantic-win) 35%, transparent));
 }
 </style>

@@ -146,3 +146,16 @@ describe('useTheme', () => {
     })
   })
 })
+
+describe('syncThemeClass', () => {
+  it('should mirror the theme onto <html> synchronously', async () => {
+    const { ref } = await import('vue')
+    const { syncThemeClass } = await import('./useTheme')
+    const isDark = ref(false)
+    syncThemeClass(isDark)
+    expect(document.documentElement.classList.contains('theme-light')).toBe(true)
+    isDark.value = true
+    // flush:'sync'：不等 nextTick 就已翻转，保证随后重算的 naive 覆盖读到新 token
+    expect(document.documentElement.classList.contains('theme-light')).toBe(false)
+  })
+})

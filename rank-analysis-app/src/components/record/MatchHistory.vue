@@ -368,7 +368,7 @@ onMounted(async () => {
 }
 
 .filter-select :deep(.n-base-selection) {
-  background: var(--glass-bg-low) !important;
+  background: var(--surface-control) !important;
   border-color: var(--glass-border) !important;
   transition: border-color var(--dur-fast) var(--ease-expo) !important;
 }
@@ -416,7 +416,7 @@ onMounted(async () => {
 }
 
 .pagination :deep(.n-button) {
-  background: var(--glass-bg-low) !important;
+  background: var(--surface-control) !important;
   border: 1px solid var(--glass-border) !important;
   transition:
     transform var(--dur-fast) var(--ease-spring),

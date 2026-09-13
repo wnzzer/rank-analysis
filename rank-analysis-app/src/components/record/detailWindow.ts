@@ -77,13 +77,10 @@ function fitToWorkArea() {
 
 /**
  * 当前主题底色，作为新窗口的原生背景色——隐藏创建到首帧之间任何情况都不露白。
- *
- * `theme-light` 类挂在 n-config-provider 根上而非 documentElement（见 App.vue），
- * 直接读 :root 的 --bg-base 在亮色下会拿到暗色值，所以从该元素读。
+ * theme-light 挂在 <html> 上（见 useTheme.syncThemeClass），直接读根元素即可。
  */
 function currentThemeBackground(): string {
-  const host = document.querySelector('.n-config-provider') ?? document.documentElement
-  const value = getComputedStyle(host).getPropertyValue('--bg-base').trim()
+  const value = getComputedStyle(document.documentElement).getPropertyValue('--bg-base').trim()
   return value || '#0d0d0f'
 }
 

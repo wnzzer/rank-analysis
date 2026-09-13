@@ -317,7 +317,7 @@ watch(
   }
   50% {
     opacity: 1;
-    box-shadow: 0 0 9px 1px rgba(230, 193, 90, 0.22);
+    box-shadow: 0 0 9px 1px rgba(230, 193, 90, 0.22); /* theme-fixed: 情报卡状态动画 */
   }
 }
 
@@ -416,7 +416,7 @@ watch(
   }
   40% {
     filter: brightness(1.6);
-    box-shadow: 0 0 10px 2px rgba(230, 193, 90, 0.55);
+    box-shadow: 0 0 10px 2px rgba(230, 193, 90, 0.55); /* theme-fixed: 情报卡状态动画 */
   }
   100% {
     filter: brightness(1);

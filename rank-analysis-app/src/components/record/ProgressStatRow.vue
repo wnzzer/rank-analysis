@@ -14,7 +14,7 @@
           :color="color"
           :height="6"
           :show-indicator="false"
-          rail-color="rgba(255, 255, 255, 0.1)"
+          rail-color="var(--progress-rail)"
         />
       </div>
       <span class="progress-stat-value-text" :style="{ color }">{{ percent }}%</span>

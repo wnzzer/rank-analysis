@@ -97,7 +97,7 @@ const placeholderCount = computed(() =>
   gap: var(--space-4);
   padding: var(--space-6);
   border-radius: var(--radius-md);
-  background: var(--glass-bg-mid);
+  background: var(--surface-group);
   border: 1px solid var(--glass-border);
   min-height: 0;
   height: 100%;

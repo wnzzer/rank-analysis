@@ -207,7 +207,7 @@ watch(
 .encounter-card {
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
-  background: var(--glass-bg-low);
+  background: var(--surface-sunken);
   padding: var(--space-12) var(--space-16);
   display: flex;
   flex-direction: column;

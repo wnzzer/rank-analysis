@@ -101,7 +101,7 @@ defineEmits<{
   max-width: calc(100vw - 48px);
   padding: var(--space-28, 28px) var(--space-24, 24px) var(--space-24, 24px);
   background: var(--bg-surface, #141418);
-  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.09));
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-xl, 16px);
   box-shadow: var(--shadow-lg, 0 8px 24px rgba(0, 0, 0, 0.55));
   overflow: hidden;
@@ -119,7 +119,7 @@ defineEmits<{
   height: 180px;
   background: radial-gradient(
     ellipse at center,
-    color-mix(in srgb, var(--semantic-win) 26%, transparent) 0%,
+    color-mix(in srgb, var(--semantic-win) calc(26% * var(--fx-wash)), transparent) 0%,
     transparent 70%
   );
   pointer-events: none;
@@ -169,8 +169,8 @@ defineEmits<{
   display: flex;
   flex-direction: column;
   gap: var(--space-12, 12px);
-  background: var(--glass-bg-low, rgba(255, 255, 255, 0.03));
-  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.09));
+  background: var(--glass-bg-low);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg, 12px);
 }
 .consent-point {
@@ -223,8 +223,8 @@ defineEmits<{
 }
 /* 否定项：真实可点的中性按钮，不弱化到看不见，但不与主操作争视觉 */
 .consent-btn-ghost {
-  background: var(--glass-bg-low, rgba(255, 255, 255, 0.03));
-  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.12));
+  background: var(--glass-bg-low);
+  border: 1px solid var(--glass-border);
 }
 .consent-btn-primary {
   box-shadow: 0 4px 14px color-mix(in srgb, var(--semantic-win) 30%, transparent);

@@ -598,7 +598,7 @@ onMounted(async () => {
 
 .stage-step-active .stage-dot {
   background: var(--semantic-win);
-  box-shadow: 0 0 6px 1px rgba(61, 155, 122, 0.55);
+  box-shadow: 0 0 6px 1px rgba(61, 155, 122, calc(0.55 * var(--fx-glow)));
 }
 
 .stage-step-done .stage-dot {

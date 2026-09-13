@@ -118,14 +118,14 @@ const hasGames = computed(
 }
 
 .stats-card {
-  background: var(--glass-bg-low);
+  background: var(--surface-sunken);
   border-radius: var(--radius-md);
   padding: var(--space-6);
   transition:
     background var(--dur-normal) var(--ease-expo),
     border-color var(--dur-normal) var(--ease-expo),
     box-shadow var(--dur-normal) var(--ease-expo);
-  border: 1px solid var(--glass-border);
+  border: 1px solid var(--sunken-border);
 }
 
 .stats-card.is-expanded {
