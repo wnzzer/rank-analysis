@@ -2,7 +2,7 @@
  * 主题管理 Composable
  * 提供暗黑模式检测和主题相关工具
  */
-import { computed } from 'vue'
+import { computed, watch, type WatchSource } from 'vue'
 import { useSettingsStore } from '@renderer/pinia/setting'
 
 export function useTheme() {
@@ -25,4 +25,22 @@ export function useTheme() {
     isLight,
     themeName
   }
+}
+
+/**
+ * 把 `theme-light` 类同步到 `<html>`（`flush: 'sync'` + `immediate`）
+ *
+ * 挂 `<html>` 而非 n-config-provider：teleport 到 body 的浮层（popover / dropdown /
+ * modal）才能拿到亮色 token——实测挂在 provider 上时备注面板标题白字压白底。
+ * `sync` 保证切换主题时类先翻转，随后重算的 naive 主题覆盖从 `<html>` 读到新 token。
+ * @param isDark - 当前是否暗色
+ */
+export function syncThemeClass(isDark: WatchSource<boolean>): void {
+  watch(
+    isDark,
+    dark => {
+      document.documentElement.classList.toggle('theme-light', !dark)
+    },
+    { flush: 'sync', immediate: true }
+  )
 }

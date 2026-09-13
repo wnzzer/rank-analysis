@@ -25,7 +25,10 @@
     U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
-:root {
+/* 暗色 token。第二个选择器：naive 亮色主题的 tooltip 仍是深底气泡，
+   气泡内沿用暗色 token（theme-light 挂 <html> 后，否则会深字压深底） */
+:root,
+.theme-light .n-tooltip {
   font-family: 'Inter', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -159,6 +162,15 @@
   --status-dot-glow-win: 0 0 5px color-mix(in srgb, var(--semantic-win-bright) 60%, transparent);
   --status-dot-glow-sky: 0 0 5px color-mix(in srgb, var(--accent-sky) 50%, transparent);
 
+  /* === naive 覆盖读取的材质 / 强调 token（必须字面色值，见 theme/overrides.ts）=== */
+  --surface-card: rgba(255, 255, 255, 0.05);
+  --surface-input: rgba(255, 255, 255, 0.05);
+  --accent-hover: #378b6e;
+  --accent-pressed: #317c62;
+  --focus-ring-soft: rgba(61, 155, 122, 0.35);
+  --menu-item-active: rgba(61, 155, 122, 0.14);
+  --menu-item-active-hover: rgba(61, 155, 122, 0.18);
+
   /* === 骨架屏（加载占位）=== */
   --sk-base: rgba(255, 255, 255, 0.06);
   --sk-highlight: rgba(255, 255, 255, 0.07);
@@ -222,6 +234,14 @@
   --status-dot-win-bg: var(--semantic-win);
   --status-dot-glow-win: 0 0 4px color-mix(in srgb, var(--semantic-win-bright) 40%, transparent);
   --status-dot-glow-sky: 0 0 4px color-mix(in srgb, var(--accent-sky) 35%, transparent);
+
+  --surface-card: #ffffff;
+  --surface-input: #ffffff;
+  --accent-hover: #1a7a5a;
+  --accent-pressed: #166a4e;
+  --focus-ring-soft: rgba(31, 138, 102, 0.35);
+  --menu-item-active: rgba(31, 138, 102, 0.09);
+  --menu-item-active-hover: rgba(31, 138, 102, 0.13);
 
   --sk-base: rgba(20, 30, 35, 0.07);
   --sk-highlight: rgba(255, 255, 255, 0.75);

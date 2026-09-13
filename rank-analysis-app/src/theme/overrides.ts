@@ -1,75 +1,65 @@
 import type { GlobalThemeOverrides } from 'naive-ui'
 
-/**
- * 读取 CSS 变量值，带 fallback
- *
- * SSR 或首屏 `getComputedStyle` 可能返回空字符串，必须提供 fallback。
- */
-function cssVar(name: string, fallback: string): string {
-  if (typeof window === 'undefined') return fallback
-  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
-  return value || fallback
-}
+/** 读取一个 CSS token 的计算值 */
+export type TokenReader = (name: string) => string
 
 /**
- * 构建 naive-ui 主题 overrides
+ * 默认读取器：从 `<html>` 读计算后的 token
  *
- * @param isDark 当前是否暗色主题（用于选取 Layout.color 等主题相关 fallback）
+ * `theme-light` 类挂在 `<html>` 上（见 useTheme.syncThemeClass），这里读到的就是当前
+ * 主题的值；自定义属性的计算值已替换内部 var() 引用。
  */
-export function buildThemeOverrides(isDark: boolean): GlobalThemeOverrides {
-  const radiusControl = cssVar('--radius-control', '4px')
-  const radiusOverlay = cssVar('--radius-overlay', '8px')
-  const radiusMd = cssVar('--radius-md', '8px')
-  const radiusLg = cssVar('--radius-lg', '12px')
-  const radiusPill = cssVar('--radius-pill', '999px')
-  const space8 = cssVar('--space-8', '8px')
-  const space12 = cssVar('--space-12', '12px')
-  const fontSizeBase = cssVar('--font-size-base', '13px')
-  // Theme-dependent values can't go through cssVar() — .theme-light class is on
-  // n-config-provider's root, not document.documentElement, so getComputedStyle
-  // always returns :root values. Use isDark ternaries directly (matches pre-refactor behavior).
-  // 浅色值与 global.css .theme-light 的冷瓷基调保持一致（冷墨 20,30,35）
-  const bgBase = isDark ? '#0d0d0f' : '#eff1f3'
-  const glassMid = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(20,30,35,0.04)'
-  const glassBorder = isDark ? 'rgba(255,255,255,0.09)' : 'rgba(20,30,35,0.09)'
-  const shadowMd = isDark ? '0 2px 8px rgba(0,0,0,0.45)' : '0 4px 10px rgba(20,30,35,0.09)'
-  const semanticWin = isDark ? '#3d9b7a' : '#2d8a6c'
-  const textPrimary = isDark ? 'rgba(255,255,255,0.92)' : 'rgba(20,30,35,0.94)'
-  // 镂空描边控件：静默态细边，hover 只提亮边框（不加底色）
-  const controlBorder = isDark ? 'rgba(255,255,255,0.16)' : 'rgba(20,30,35,0.2)'
-  const controlBorderHover = isDark ? 'rgba(255,255,255,0.34)' : 'rgba(20,30,35,0.4)'
-  // 主色统一到应用强调色（semantic-win），hover/pressed 逐级变深（Int UI 惯例，与 macOS 提亮相反）
-  const primary = semanticWin
-  const primaryHover = isDark ? '#378b6e' : '#28795f'
-  const primaryPressed = isDark ? '#317c62' : '#236a53'
-  const focusRing = isDark ? 'rgba(61,155,122,0.35)' : 'rgba(45,138,108,0.35)'
+export const readRootToken: TokenReader = name =>
+  getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+
+/**
+ * 构建 naive-ui 主题覆盖
+ *
+ * 颜色全部经 token 读取，单一数据源在 global.css（`:root` 暗色 / `.theme-light` 亮色）。
+ * 被读取的 token 必须是字面色值（hex / rgba）：naive 会对 common.* 等键做 JS 颜色运算，
+ * `color-mix()` / `var()` 字符串会让其运行时报错（seemly 解析器直接 throw）。
+ * @param read - token 读取器，默认读 `<html>`，测试时注入
+ */
+export function buildThemeOverrides(read: TokenReader = readRootToken): GlobalThemeOverrides {
+  const radiusControl = read('--radius-control')
+  const radiusOverlay = read('--radius-overlay')
+  const radiusMd = read('--radius-md')
+  const radiusLg = read('--radius-lg')
+  const fontSizeBase = read('--font-size-base')
+  const win = read('--semantic-win')
+  const accentHover = read('--accent-hover')
+  const textPrimary = read('--text-primary')
+  const glassBorder = read('--glass-border')
+  const controlBorder = read('--border-control')
+  const controlBorderHover = read('--border-control-hover')
 
   return {
     common: {
       borderRadius: radiusControl,
-      borderRadiusSmall: cssVar('--radius-xs', '3px'),
+      borderRadiusSmall: read('--radius-xs'),
       fontSize: fontSizeBase,
       fontSizeMedium: fontSizeBase,
       heightMedium: '28px',
       heightSmall: '24px',
-      primaryColor: primary,
-      primaryColorHover: primaryHover,
-      primaryColorPressed: primaryPressed,
-      primaryColorSuppl: primaryHover
+      // 主色统一到应用强调色，hover/pressed 逐级变深（Int UI 惯例，与 macOS 提亮相反）
+      primaryColor: win,
+      primaryColorHover: accentHover,
+      primaryColorPressed: read('--accent-pressed'),
+      primaryColorSuppl: accentHover
     },
     Card: {
       borderRadius: radiusLg,
-      color: glassMid,
-      boxShadow: shadowMd,
+      color: read('--surface-card'),
+      boxShadow: read('--shadow-md'),
       borderColor: glassBorder
     },
     Input: {
-      // 输入/筛选类控件用 8px 档:比 JB 的 4px 控件档更圆润(用户口味),按钮仍走 4px
+      // 输入/筛选类控件用 8px 档：比 JB 的 4px 控件档更圆润（用户口味），按钮仍走 4px
       borderRadius: radiusMd,
-      color: glassMid,
+      color: read('--surface-input'),
       border: `1px solid ${glassBorder}`,
-      borderFocus: `1px solid ${primary}`,
-      boxShadowFocus: `0 0 0 2px ${focusRing}`
+      borderFocus: `1px solid ${win}`,
+      boxShadowFocus: `0 0 0 2px ${read('--focus-ring-soft')}`
     },
     Button: {
       borderRadiusSmall: radiusControl,
@@ -78,7 +68,7 @@ export function buildThemeOverrides(isDark: boolean): GlobalThemeOverrides {
       color: 'transparent',
       colorHover: 'transparent',
       colorFocus: 'transparent',
-      colorPressed: glassMid,
+      colorPressed: read('--glass-bg-mid'),
       border: `1px solid ${controlBorder}`,
       borderHover: `1px solid ${controlBorderHover}`,
       borderFocus: `1px solid ${controlBorderHover}`,
@@ -94,11 +84,11 @@ export function buildThemeOverrides(isDark: boolean): GlobalThemeOverrides {
       itemBorderRadius: radiusControl
     },
     Tag: {
-      borderRadius: radiusPill
+      borderRadius: read('--radius-pill')
     },
     Tooltip: {
       borderRadius: radiusOverlay,
-      padding: `${space8} ${space12}`
+      padding: `${read('--space-8')} ${read('--space-12')}`
     },
     Popover: {
       borderRadius: radiusOverlay
@@ -110,14 +100,14 @@ export function buildThemeOverrides(isDark: boolean): GlobalThemeOverrides {
       borderRadius: radiusMd
     },
     Layout: {
-      color: bgBase
+      color: read('--bg-base')
     },
     Menu: {
-      itemColorActive: isDark ? 'rgba(61,155,122,0.14)' : 'rgba(45,138,108,0.12)',
-      itemColorActiveHover: isDark ? 'rgba(61,155,122,0.18)' : 'rgba(45,138,108,0.18)',
+      itemColorActive: read('--menu-item-active'),
+      itemColorActiveHover: read('--menu-item-active-hover'),
       itemBorderRadius: radiusLg,
-      itemTextColorActive: semanticWin,
-      itemIconColorActive: semanticWin
+      itemTextColorActive: win,
+      itemIconColorActive: win
     }
   }
 }
