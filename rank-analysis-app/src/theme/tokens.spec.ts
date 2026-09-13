@@ -50,6 +50,7 @@ const PAIRED = [
   '--detail-team-card-shadow',
   '--detail-column-header-bg',
   '--detail-row-me-bg',
+  '--result-row-bg',
   '--fx-glow',
   '--fx-wash',
   '--fx-ambient'

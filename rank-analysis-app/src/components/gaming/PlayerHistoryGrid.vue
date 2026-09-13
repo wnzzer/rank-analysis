@@ -68,12 +68,12 @@ defineProps<{ games: Game[] }>()
 }
 
 .history-item {
-  background: var(--glass-bg-low);
+  background: var(--surface-sunken);
   border-radius: var(--radius-sm);
   /* P0 收紧到 4px 配合 1 屏 4 场布局 */
   padding: var(--space-4) 5px;
   font-size: var(--font-size-2xs);
-  border: 1px solid var(--glass-border);
+  border: 1px solid var(--sunken-border);
   /* P1: 左侧锚点 2px + 半透明，更轻盈 */
   border-left-width: 2px;
   border-left-color: color-mix(in srgb, var(--semantic-loss) 70%, transparent);

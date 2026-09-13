@@ -191,6 +191,8 @@
   --detail-team-card-shadow: 0 0 #0000;
   --detail-column-header-bg: transparent;
   --detail-row-me-bg: color-mix(in srgb, var(--semantic-win) 10%, transparent);
+  /* 带胜负色渐变的小条（遇见记录）底色：暗色渐变铺透明底，亮色渐变消失后露出凹面 */
+  --result-row-bg: transparent;
 
   /* === 效果强度开关：暗色 1 / 亮色 0。组件写 calc(N% * var(--fx-glow)) 等，
      暗色计算结果与原写法完全一致，亮色则整体消失（白底上光晕 / 色块读作污渍）=== */
@@ -288,6 +290,7 @@
   --detail-team-card-shadow: var(--shadow-card);
   --detail-column-header-bg: var(--surface-sunken);
   --detail-row-me-bg: color-mix(in srgb, var(--semantic-win) 8%, transparent);
+  --result-row-bg: var(--surface-sunken);
   --fx-glow: 0;
   --fx-wash: 0;
   --fx-ambient: 0;

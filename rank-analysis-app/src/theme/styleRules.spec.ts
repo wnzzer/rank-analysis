@@ -27,10 +27,7 @@ const RULES: Record<RuleId, (line: string) => boolean> = {
 const PENDING: Record<string, RuleId[]> = {
   'components/LoadingComponent.vue': ['theme-light', 'glow'],
   'components/common/ErrorReportingConsentDialog.vue': ['white-alpha'],
-  'components/common/PlayerNoteBadge.vue': ['white-alpha'],
-  'components/gaming/ChampionIntelCard.vue': ['glow'],
-  'components/gaming/PlayerCard.vue': ['glow'],
-  'views/Gaming.vue': ['glow']
+  'components/common/PlayerNoteBadge.vue': ['white-alpha']
 }
 
 function vueFiles(dir: string, acc: string[] = []): string[] {

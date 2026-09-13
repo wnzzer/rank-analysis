@@ -91,7 +91,7 @@ defineProps<{
   align-items: center;
   padding: var(--space-6) var(--space-8);
   border-radius: var(--radius-md);
-  background-color: var(--glass-bg-low);
+  background-color: var(--surface-sunken);
   border: 1px solid transparent;
   transition: all var(--dur-fast) var(--ease-expo);
   /* 固定 48px 行高：保证栅格视觉对齐 */
@@ -112,13 +112,17 @@ defineProps<{
 
 .game-card.is-win {
   border-left: 3px solid var(--semantic-win);
-  /* tinted gradient：保留 rgba 平铺，仅作为半透明背景渲染 */
-  background: linear-gradient(90deg, rgba(139, 223, 183, 0.1) 0%, rgba(0, 0, 0, 0) 100%);
+  /* 胜负色渐变：暗色铺在透明底上；亮色 --fx-wash=0 渐变消失，底色为凹面（--result-row-bg） */
+  background:
+    linear-gradient(90deg, rgba(139, 223, 183, calc(0.1 * var(--fx-wash))) 0%, transparent 100%),
+    var(--result-row-bg);
 }
 
 .game-card.is-loss {
   border-left: 3px solid var(--semantic-loss);
-  background: linear-gradient(90deg, rgba(186, 63, 83, 0.1) 0%, rgba(0, 0, 0, 0) 100%);
+  background:
+    linear-gradient(90deg, rgba(186, 63, 83, calc(0.1 * var(--fx-wash))) 0%, transparent 100%),
+    var(--result-row-bg);
 }
 
 .champion-section {

@@ -381,7 +381,7 @@ watch(
   display: flex;
   flex-direction: column;
   border-radius: var(--radius-md);
-  background: var(--glass-bg-mid) !important;
+  background: var(--surface-card) !important;
   border: 1px solid var(--glass-border) !important;
   box-shadow: var(--shadow-md), var(--glass-highlight) !important;
   transition: box-shadow var(--dur-normal) var(--ease-expo);
@@ -711,6 +711,7 @@ watch(
  * 边框色/宽度走静态声明——靠复合选择器 `.player-card.pc-xxx` 的更高特异度 + 同为
  * !important 正常参与层叠，无需动画介入。逗号组合规则同情报卡：fade-up 恒第一位，
  * 状态动画第二位，delay 列表对应（stagger 延迟, 0s）。
+ * 发光标 theme-fixed：状态反馈一闪而过、不读作污渍，两主题一致，不接 --fx-glow。
  */
 .player-card.pc-intent {
   border-width: 1px !important;
@@ -726,7 +727,7 @@ watch(
     filter: drop-shadow(0 0 0 transparent);
   }
   50% {
-    filter: drop-shadow(0 0 6px rgba(230, 193, 90, 0.22));
+    filter: drop-shadow(0 0 6px rgba(230, 193, 90, 0.22)); /* theme-fixed */
   }
 }
 
@@ -744,7 +745,7 @@ watch(
     filter: drop-shadow(0 0 0 rgba(34, 197, 94, 0));
   }
   50% {
-    filter: drop-shadow(0 0 5px rgba(34, 197, 94, 0.25));
+    filter: drop-shadow(0 0 5px rgba(34, 197, 94, 0.25)); /* theme-fixed */
   }
 }
 
@@ -764,7 +765,7 @@ watch(
     filter: drop-shadow(0 0 0 rgba(239, 68, 68, 0));
   }
   50% {
-    filter: drop-shadow(0 0 3px rgba(239, 68, 68, 0.12));
+    filter: drop-shadow(0 0 3px rgba(239, 68, 68, 0.12)); /* theme-fixed */
   }
 }
 
@@ -779,11 +780,11 @@ watch(
 @keyframes pc-lock-in {
   0% {
     transform: scale(0.99);
-    filter: drop-shadow(0 0 6px rgba(34, 197, 94, 0.28));
+    filter: drop-shadow(0 0 6px rgba(34, 197, 94, 0.28)); /* theme-fixed */
   }
   60% {
     transform: scale(1.008);
-    filter: drop-shadow(0 0 3px rgba(34, 197, 94, 0.14));
+    filter: drop-shadow(0 0 3px rgba(34, 197, 94, 0.14)); /* theme-fixed */
   }
   100% {
     transform: scale(1);
