@@ -89,8 +89,9 @@ const isStandaloneDetailWindow = computed(() => currentWindow.label.startsWith('
  */
 useGameState()
 
-// 浏览器式缩放（Ctrl+滚轮 / Ctrl±0）：Framework 是所有窗口的根，详情窗一并生效
-useZoom()
+// 浏览器式缩放（Ctrl+滚轮 / Ctrl±0）只作用于主窗口；详情窗由 useDetailZoom 以
+// CSS zoom 铺满 + 倍率管理（见 views/MatchDetail.vue），不能叠加 webview 缩放
+if (!isStandaloneDetailWindow.value) useZoom()
 
 const message = useMessage()
 
