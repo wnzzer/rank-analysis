@@ -51,8 +51,17 @@ describe('computeDetailScale', () => {
   })
 })
 
-/** 挂一个最小宿主组件，把 jsdom 里恒为 0 的尺寸换成给定值 */
-function mountHarness(size: { availW: number; availH: number; contentH: number }) {
+/**
+ * 挂一个最小宿主组件，把 jsdom 里恒为 0 的尺寸换成给定值
+ * @param size.contentH - 固定自然高度，或按测量次序返回的高度序列（模拟不同 zoom 下取整差异）
+ */
+function mountHarness(size: { availW: number; availH: number; contentH: number | number[] }) {
+  let measureCount = 0
+  const contentHeightAt = () => {
+    const h = size.contentH
+    if (!Array.isArray(h)) return h
+    return h[Math.min(measureCount++, h.length - 1)]
+  }
   let api!: ReturnType<typeof useDetailZoom>
   const Harness = defineComponent({
     setup() {
@@ -69,7 +78,7 @@ function mountHarness(size: { availW: number; availH: number; contentH: number }
   Object.defineProperty(areaEl, 'clientHeight', { configurable: true, get: () => size.availH })
   Object.defineProperty(containerEl, 'scrollHeight', {
     configurable: true,
-    get: () => size.contentH
+    get: contentHeightAt
   })
   return { wrapper, api, containerEl }
 }
@@ -90,8 +99,22 @@ describe('useDetailZoom', () => {
       contentH: 845
     })
     api.recompute()
-    expect(api.scale.value).toBe(1.565)
-    expect(parseFloat(containerEl.style.height)).toBeCloseTo(1323 / 1.565, 1)
+    // 高度约束：按目标比例复量时计入 2px 余量 → 1323 / 847 向下取整
+    expect(api.scale.value).toBe(1.561)
+    expect(parseFloat(containerEl.style.height)).toBeCloseTo(1323 / 1.561, 1)
+    wrapper.unmount()
+  })
+
+  it('should shrink when the content grows under the target zoom', () => {
+    // 回归：1 倍量得 832，放大到 1.639 倍后因行高取整变 837，队伍区多出滚动条
+    const { api, containerEl, wrapper } = mountHarness({
+      availW: 2560,
+      availH: 1364,
+      contentH: [832, 837]
+    })
+    api.recompute()
+    expect(api.scale.value).toBe(1.625)
+    expect(parseFloat(containerEl.style.height) * api.scale.value).toBeCloseTo(1364, 1)
     wrapper.unmount()
   })
 

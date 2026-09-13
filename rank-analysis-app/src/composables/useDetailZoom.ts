@@ -23,6 +23,8 @@ export const DETAIL_FIT_MIN = 0.8
 export const DETAIL_FIT_MAX = 2
 /** 倍率提示显示时长 */
 const BADGE_MS = 1200
+/** 按目标比例复量自然高度时的余量：吸收再次换比例后的 ±1px 行高取整 */
+const FIT_SLACK_PX = 2
 
 /**
  * 计算详情内容的缩放比例（纯函数，便于单测）
@@ -76,7 +78,17 @@ export function useDetailZoom({ area, container }: DetailZoomOptions) {
   let observer: ResizeObserver | null = null
 
   /**
-   * 重新测量并应用缩放。全程同步：测量用的中间态（1 倍、不限高）在同一任务内被覆盖，
+   * 按给定比例测内容自然高度（不限高；标准化 zoom 下 scrollHeight 是元素自身坐标，
+   * 已含该比例下的行高取整）
+   */
+  function measureNaturalHeight(el: HTMLElement, zoom: number): number {
+    el.style.setProperty('zoom', String(zoom))
+    el.style.height = 'auto'
+    return el.scrollHeight
+  }
+
+  /**
+   * 重新测量并应用缩放。全程同步：测量用的中间态（不限高）在同一任务内被覆盖，
    * 不会被绘制。直接写 style 而不走 Vue 绑定——绑定值不变时 Vue 不会重新下发，
    * 测量写入的中间态会残留。
    */
@@ -84,12 +96,18 @@ export function useDetailZoom({ area, container }: DetailZoomOptions) {
     const areaEl = area.value
     const el = container.value
     if (!areaEl || !el) return
-    el.style.setProperty('zoom', '1')
-    el.style.height = 'auto'
-    const contentH = el.scrollHeight
     const availW = areaEl.clientWidth
     const availH = areaEl.clientHeight
-    const next = computeDetailScale(availW, availH, contentH, userFactor.value)
+    const first = computeDetailScale(availW, availH, measureNaturalHeight(el, 1), userFactor.value)
+    // 文字行高按设备像素取整，自然高度随比例轻微变化（实测 1 倍 832 → 1.639 倍 837，
+    // 最大化时队伍区因此多出滚动条）：按目标比例再量一次，只往小修正
+    const refined = computeDetailScale(
+      availW,
+      availH,
+      measureNaturalHeight(el, first) + FIT_SLACK_PX,
+      userFactor.value
+    )
+    const next = Math.min(first, refined)
     el.style.setProperty('zoom', String(next))
     // 视觉高正好等于可用高：头部固定、队伍区在 MatchDetailModal 内部滚动
     el.style.height = `${availH / next}px`
