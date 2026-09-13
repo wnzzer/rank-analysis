@@ -33,10 +33,11 @@ const BADGE_MS = 1200
  * @param availH - 标题栏以下可用高（CSS px）
  * @param contentH - 内容在设计宽下的自然高度；≤0 表示尚未渲染，只按宽度铺满
  * @param userFactor - 用户倍率（Ctrl+滚轮），1 = 纯铺满
- * @returns 三位小数的 zoom 比例
+ * @returns 三位小数的 zoom 比例（向下取整：四舍五入会让 1280×比例 超出可用宽零点几像素，
+ *   实测在 1300 宽窗口里冒出一条横向滚动条）
  * @example
  * ```ts
- * computeDetailScale(2485, 1323, 845, 1) // ≈ 1.566（最大化，由高度约束）
+ * computeDetailScale(2485, 1323, 845, 1) // 1.565（最大化，由高度约束）
  * ```
  */
 export function computeDetailScale(
@@ -48,7 +49,7 @@ export function computeDetailScale(
   const widthFit = availW / DETAIL_DESIGN_WIDTH
   const heightFit = contentH > 0 ? Math.max(availH / contentH, 1) : Infinity
   const fit = Math.min(DETAIL_FIT_MAX, Math.max(DETAIL_FIT_MIN, Math.min(widthFit, heightFit)))
-  return Math.round(fit * userFactor * 1000) / 1000
+  return Math.floor(fit * userFactor * 1000) / 1000
 }
 
 /** useDetailZoom 需要的两个元素 */

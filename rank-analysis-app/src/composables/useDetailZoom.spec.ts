@@ -16,11 +16,18 @@ import { computeDetailScale, useDetailZoom, DETAIL_FIT_MIN, DETAIL_FIT_MAX } fro
 
 describe('computeDetailScale', () => {
   it('should stay about 1x in the default 1300x900 window', () => {
-    expect(computeDetailScale(1300, 872, 810, 1)).toBeCloseTo(1.016, 3)
+    expect(computeDetailScale(1300, 872, 810, 1)).toBe(1.015)
+  })
+
+  it('should never make the scaled design wider than the available width', () => {
+    // 回归：四舍五入成 1.016 时 1280×1.016=1300.48 > 1300，冒出横向滚动条
+    for (const availW of [1040, 1300, 1366, 1920, 2485]) {
+      expect(1280 * computeDetailScale(availW, 2000, 810, 1)).toBeLessThanOrEqual(availW)
+    }
   })
 
   it('should be bounded by height when maximized so all 10 players fit', () => {
-    expect(computeDetailScale(2485, 1323, 845, 1)).toBeCloseTo(1.566, 3)
+    expect(computeDetailScale(2485, 1323, 845, 1)).toBe(1.565)
   })
 
   it('should not shrink for tall content and scroll instead', () => {
@@ -36,11 +43,11 @@ describe('computeDetailScale', () => {
   })
 
   it('should multiply the user factor on top of fit', () => {
-    expect(computeDetailScale(1300, 872, 810, 1.1)).toBeCloseTo(1.117, 3)
+    expect(computeDetailScale(1300, 872, 810, 1.1)).toBe(1.117)
   })
 
   it('should fit width only before content is measured', () => {
-    expect(computeDetailScale(1300, 872, 0, 1)).toBeCloseTo(1.016, 3)
+    expect(computeDetailScale(1300, 872, 0, 1)).toBe(1.015)
   })
 })
 
@@ -83,8 +90,8 @@ describe('useDetailZoom', () => {
       contentH: 845
     })
     api.recompute()
-    expect(api.scale.value).toBeCloseTo(1.566, 3)
-    expect(parseFloat(containerEl.style.height)).toBeCloseTo(1323 / 1.566, 1)
+    expect(api.scale.value).toBe(1.565)
+    expect(parseFloat(containerEl.style.height)).toBeCloseTo(1323 / 1.565, 1)
     wrapper.unmount()
   })
 
@@ -93,7 +100,7 @@ describe('useDetailZoom', () => {
     const { api, wrapper } = mountHarness({ availW: 1300, availH: 872, contentH: 810 })
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '=', ctrlKey: true }))
     expect(api.userFactor.value).toBe(1.1)
-    expect(api.scale.value).toBeCloseTo(1.117, 3)
+    expect(api.scale.value).toBe(1.117)
     expect(api.badge.value).toBe('110%')
     await vi.advanceTimersByTimeAsync(1300)
     expect(api.badge.value).toBeNull()
