@@ -111,6 +111,17 @@
 - 显而易见的代码
 - 自解释的函数名
 
+### 6. 主题材质规则（亮 / 暗）
+
+亮暗差异**只能经 `src/global.css` 的 token 表达**，组件 `<style>` 里不写 `.theme-light` 补丁（`src/theme/styleRules.spec.ts` 守门）。
+
+- **材质语义 token**：卡面 `--surface-card`、凹面 `--surface-sunken`（+ `--sunken-border` / `--sunken-shadow`）、自绘控件 `--surface-control`、分组容器 `--surface-group`、外壳 `--surface-shell` / `--surface-sidebar`、轨道 `--track-bg` / `--progress-rail`；个别组件专用的放 `--detail-*` / `--result-row-bg` 这类具名 token。暗色值 = 迁移前实际值，亮色为「浅灰画布 → 白卡 → 淡灰凹面」三级实心面。新增 token 必须两主题成对定义（`src/theme/tokens.spec.ts` 守门）。
+- **效果强度开关**：`--fx-glow`（外发光）/ `--fx-wash`（色块渐变、径向光晕）/ `--fx-ambient`（氛围底图），暗色 1、亮色 0。写法 `color-mix(in srgb, X calc(16% * var(--fx-glow)), transparent)`、`rgba(r, g, b, calc(0.35 * var(--fx-glow)))`、`opacity: calc(0.3 * var(--fx-ambient))`。
+- **不得裸写** `rgba(255, 255, 255, …)`；带颜色的静态外发光必须乘 `--fx-glow`。
+- **`/* theme-fixed */` 豁免**：只用于与主题无关的固定色（徽章自身内高光、图片蒙层）和一闪而过的状态反馈动画（选人呼吸 / 锁定闪光）。
+- **naive 覆盖**（`src/theme/overrides.ts`）从 `<html>` 读 token；被读取的 token 必须是字面色值（hex / rgba），`color-mix()` / `var()` 会让 naive 颜色运算报错（`src/theme/tokens.spec.ts` 守门）。
+- `theme-light` 类挂在 `<html>`（`useTheme.syncThemeClass`），teleport 出去的浮层也能取到亮色 token；naive 亮色主题的 tooltip 是深底气泡，气泡内沿用暗色 token（`global.css` 的 `.theme-light .n-tooltip`）。
+
 ## ✅ 质量检查清单
 
 ### 提交前检查
