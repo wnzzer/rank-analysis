@@ -43,8 +43,11 @@ function persistMatchDetail(storageKey: string, game: Game) {
 
 /** 宽屏下的理想尺寸（内容按 1280 设计宽等比缩放，见 composables/useDetailZoom.ts）。 */
 const PREFERRED_SIZE = { width: 1300, height: 900 }
-/** 尺寸下限——再小表格会挤成一团；仅在工作区放得下时才生效。 */
-const FLOOR_SIZE = { width: 900, height: 560 }
+/**
+ * 尺寸下限：宽 1040 ≈ 0.8（DETAIL_FIT_MIN）× 1280 设计宽 + 边距，最小窗口里也不出横向滚动；
+ * 仅在工作区放得下时才生效（fitToWorkArea）。
+ */
+const FLOOR_SIZE = { width: 1040, height: 560 }
 /** 与屏幕边缘留出的余量（左右/上下合计）。 */
 const WORK_AREA_MARGIN = 40
 

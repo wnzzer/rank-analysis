@@ -934,9 +934,9 @@ defineExpose({
 }
 
 .match-detail-hero {
-  /* 48→60px 随 viewport (1100→2200)——头部主视觉，比正文头像大一档 */
-  width: clamp(48px, calc(48px + (100vw - 1100px) * 12 / 1100), 60px);
-  height: clamp(48px, calc(48px + (100vw - 1100px) * 12 / 1100), 60px);
+  /* 头部主视觉，比正文头像大一档；设计宽 1280 下的定值，整体缩放见 useDetailZoom */
+  width: 50px;
+  height: 50px;
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-subtle);
   display: block;
@@ -964,8 +964,8 @@ defineExpose({
 }
 
 .match-detail-player-name {
-  /* 15→19px 随 viewport (1100→2200) */
-  font-size: clamp(15px, calc(15px + (100vw - 1100px) * 4 / 1100), 19px);
+  /* 设计宽 1280 下的定值；整体缩放见 useDetailZoom */
+  font-size: 16px;
   font-weight: 700;
   color: var(--text-primary);
 }
@@ -1199,9 +1199,9 @@ defineExpose({
 }
 
 .match-detail-player-avatar {
-  /* 密集模式: 32→40 */
-  width: clamp(32px, calc(32px + (100vw - 1100px) * 8 / 1100), 40px);
-  height: clamp(32px, calc(32px + (100vw - 1100px) * 8 / 1100), 40px);
+  /* 密集模式；设计宽 1280 下的定值，整体缩放见 useDetailZoom */
+  width: 33px;
+  height: 33px;
   border-radius: var(--radius-md);
   border: 1px solid var(--border-subtle);
   flex-shrink: 0;
@@ -1232,8 +1232,9 @@ defineExpose({
 }
 
 .match-detail-rank-icon {
-  width: clamp(20px, calc(20px + (100vw - 1100px) * 4 / 1100), 24px);
-  height: clamp(20px, calc(20px + (100vw - 1100px) * 4 / 1100), 24px);
+  /* 设计宽 1280 下的定值；整体缩放见 useDetailZoom */
+  width: 21px;
+  height: 21px;
   object-fit: contain;
   display: block;
 }
@@ -1410,9 +1411,9 @@ defineExpose({
 .match-detail-spell-icon,
 .match-detail-item-icon,
 .match-detail-perk-icon {
-  /* 18→22px 随 viewport：比旧 16 大一档，看得清图标细节 */
-  width: clamp(18px, calc(18px + (100vw - 1100px) * 4 / 1100), 22px);
-  height: clamp(18px, calc(18px + (100vw - 1100px) * 4 / 1100), 22px);
+  /* 比旧 16 大一档，看得清图标细节；设计宽 1280 下的定值，整体缩放见 useDetailZoom */
+  width: 19px;
+  height: 19px;
   border-radius: var(--radius-control);
   border: 1px solid var(--border-subtle);
   background: var(--bg-elevated);
@@ -1432,9 +1433,9 @@ defineExpose({
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  /* 紧凑: 16→20 跟 spell/item/perk 同步 */
-  width: clamp(16px, calc(16px + (100vw - 1100px) * 4 / 1100), 20px);
-  height: clamp(16px, calc(16px + (100vw - 1100px) * 4 / 1100), 20px);
+  /* 紧凑，比 spell/item/perk 小一圈；设计宽 1280 下的定值 */
+  width: 17px;
+  height: 17px;
   border-radius: var(--radius-control);
   border: 1px solid var(--augment-border);
   background: var(--augment-background);
@@ -1443,9 +1444,9 @@ defineExpose({
 }
 
 .match-detail-augment-icon {
-  /* inner 11→15 跟 shell 同步 */
-  width: clamp(11px, calc(11px + (100vw - 1100px) * 4 / 1100), 15px);
-  height: clamp(11px, calc(11px + (100vw - 1100px) * 4 / 1100), 15px);
+  /* 内图标跟 shell 同步；设计宽 1280 下的定值 */
+  width: 12px;
+  height: 12px;
   object-fit: contain;
   filter: var(--augment-filter);
 }
@@ -1496,8 +1497,9 @@ defineExpose({
 
 /* 空装备格：内凹暗槽，与实图标同尺寸——避免黑块被误读为图片加载失败 */
 .match-detail-item-empty {
-  width: clamp(18px, calc(18px + (100vw - 1100px) * 4 / 1100), 22px);
-  height: clamp(18px, calc(18px + (100vw - 1100px) * 4 / 1100), 22px);
+  /* 与实图标同尺寸（设计宽 1280 下的定值） */
+  width: 19px;
+  height: 19px;
   border-radius: var(--radius-control);
   border: 1px solid color-mix(in srgb, var(--border-subtle) 55%, transparent);
   background: color-mix(in srgb, var(--bg-elevated) 45%, transparent);
@@ -1632,28 +1634,5 @@ defineExpose({
 
 .match-detail-empty-copy {
   font-size: var(--font-size-sm);
-}
-
-@media (max-width: 1100px) {
-  .match-detail-header {
-    grid-template-columns: 1fr;
-  }
-
-  .match-detail-summary-side {
-    align-items: flex-start;
-  }
-
-  .match-detail-column-header,
-  .match-detail-row {
-    grid-template-columns: 1fr;
-  }
-
-  .match-detail-column-header {
-    display: none;
-  }
-
-  .match-detail-row {
-    gap: var(--space-10);
-  }
 }
 </style>
