@@ -20,6 +20,7 @@
         "decorations": false,
         "transparent": true,
         "center": true,
+        "visible": false,
         "theme": "Dark",
         "dragDropEnabled": false
       }

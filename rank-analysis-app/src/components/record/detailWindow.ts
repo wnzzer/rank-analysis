@@ -1,8 +1,17 @@
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import type { Game } from './match'
 
+/** 详情窗 label 前缀；capability `match-detail-*` 与各处「是否详情窗」判断都依赖它 */
+export const MATCH_DETAIL_LABEL_PREFIX = 'match-detail-'
+
+/** 当前 webview 是否为独立对局详情窗 */
+export function isMatchDetailWindow(): boolean {
+  return getCurrentWindow().label.startsWith(MATCH_DETAIL_LABEL_PREFIX)
+}
+
 function getMatchDetailWindowLabel(game: Game) {
-  return `match-detail-${game.gameId}`
+  return `${MATCH_DETAIL_LABEL_PREFIX}${game.gameId}`
 }
 
 function getMatchDetailStorageKey(game: Game) {
