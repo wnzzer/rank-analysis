@@ -25,9 +25,12 @@ vi.mock('vue-router', async importOriginal => {
   }
 })
 
+// 静态导入（vi.mock 会被提升到其前）：组件 + naive-ui 的编译耗时计入收集阶段，
+// 不占用例 5s 超时（动态 import 在 dev 版并行运行时实测会超时）
+import MatchHistory from '../MatchHistory.vue'
+
 describe('MatchHistory', () => {
   it('mounts without crashing', async () => {
-    const MatchHistory = (await import('../MatchHistory.vue')).default
     const wrapper = mount(MatchHistory, {
       global: {
         stubs: {

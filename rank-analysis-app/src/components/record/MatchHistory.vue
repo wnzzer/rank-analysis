@@ -58,7 +58,12 @@
           :style="{ '--stagger-i': index }"
           class="list-item"
         >
-          <RecordCard :record-type="true" :games="game" @open-detail="openDetail(game)" />
+          <RecordCard
+            :record-type="true"
+            :games="game"
+            :opening="detailOpener.isOpening(game.gameId)"
+            @open-detail="detailOpener.open(game)"
+          />
         </div>
       </TransitionGroup>
 
@@ -111,7 +116,7 @@ import { modeOptions, initModeOptions } from './composition'
 import { invoke } from '@tauri-apps/api/core'
 import { championOption } from '../type'
 import type { Game, MatchHistory } from './match'
-import { openMatchDetailWindow } from './detailWindow'
+import { useDetailOpener } from './detailWindow'
 import { collectAssetIds } from './collectAssetIds'
 import { useRecordAssets } from '@renderer/composables/useRecordAssets'
 import { recordAssetsKey } from '@renderer/composables/recordAssetsKey'
@@ -122,6 +127,9 @@ import { recordAssetsKey } from '@renderer/composables/recordAssetsKey'
  */
 const recordAssets = useRecordAssets()
 provide(recordAssetsKey, recordAssets)
+
+/** 详情窗打开中态（点击后到窗口亮出之间卡片保持按下 + 转圈） */
+const detailOpener = useDetailOpener()
 
 const filterQueueId = ref(0)
 const filterChampionId = ref(-1)
@@ -170,10 +178,6 @@ const hasFilter = computed(() => filterChampionId.value > 0 || filterQueueId.val
 const noMoreMatches = computed(() =>
   hasFilter.value ? games.value.length === 0 : games.value.length < 10
 )
-
-async function openDetail(game: Game) {
-  await openMatchDetailWindow(game)
-}
 
 // 获取历史记录
 const getHistoryMatch = async (name: string, begIndex: number, endIndex: number) => {

@@ -137,15 +137,9 @@
         </div>
 
         <!-- Team Sections -->
-        <!--
-          首屏分批渲染：胜方先入场（~50 张图先 race），败方延迟 80ms。
-          浏览器对 asset.localhost 并发限制 ~6/host，一次性 100+ 图同时请求会
-          排队拖慢首屏；错峰让胜方先抢满 channel，败方再补位。
-        -->
         <div class="match-detail-body">
           <section
-            v-for="(team, teamIdx) in teamSections"
-            v-show="teamIdx < visibleTeamCount"
+            v-for="team in teamSections"
             :key="team.teamId"
             class="match-detail-team-section"
           >
@@ -745,21 +739,24 @@ function loadAssetsIfNeeded() {
 }
 
 /**
- * 队伍分批渲染计数：onMounted 时只显示第 1 队（胜方），下一帧后再追加败方。
- * 这给浏览器一个错峰窗口避免 100+ asset 请求同时打满并发槽位。
+ * 首屏数据就绪：当前召唤师决定「我」是谁（头部主角与「我」行高亮），
+ * 详情窗据此决定何时亮出，避免亮窗后头部再换人。
+ *
+ * 两队同帧渲染（原 80ms 分批已移除）：详情窗在隐藏状态下完成首屏，分批错峰
+ * 反而会让败方在亮窗后才插入；图片仍经 LazyImg 淡入，尺寸固定不挤布局。
  */
-const visibleTeamCount = ref(1)
+let resolveReady: () => void = () => {}
+const ready = new Promise<void>(resolve => {
+  resolveReady = resolve
+})
 
 onMounted(async () => {
-  // 先 race 胜方再 race 败方：requestAnimationFrame 让胜方 paint，
-  // 80ms 后追加败方（够浏览器把胜方关键图取了大半）。
-  setTimeout(() => {
-    visibleTeamCount.value = teamSections.value.length
-  }, 80)
   try {
     currentSummoner.value = await invoke<Summoner>('get_my_summoner')
   } catch (error) {
     console.error('获取当前用户信息失败:', error)
+  } finally {
+    resolveReady()
   }
   loadAssetsIfNeeded()
 })
@@ -767,11 +764,6 @@ onMounted(async () => {
 watch(
   () => props.game?.gameId,
   () => {
-    // 切对局时重新走分批渲染，避免新对局的两队同时 race
-    visibleTeamCount.value = 1
-    setTimeout(() => {
-      visibleTeamCount.value = teamSections.value.length
-    }, 80)
     ai.resetOnGameChange(
       mySummary.value?.participantId ?? detailPlayers.value[0]?.participantId ?? null
     )
@@ -779,6 +771,11 @@ watch(
   },
   { immediate: true }
 )
+
+defineExpose({
+  /** 首屏数据（「我」已确定）就绪后 resolve；失败也会 resolve，不阻塞亮窗 */
+  whenReady: (): Promise<void> => ready
+})
 </script>
 
 <style scoped>

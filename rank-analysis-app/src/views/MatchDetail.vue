@@ -6,22 +6,27 @@
     </div>
     <div class="match-detail-window-body">
       <div class="match-detail-window-inner">
-        <MatchDetailModal :game="game" />
+        <MatchDetailModal ref="modal" :game="game" />
       </div>
     </div>
   </div>
 </template>
 
 <script lang="ts" setup>
-import { onMounted, ref } from 'vue'
+import { nextTick, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import MatchDetailModal from '../components/record/MatchDetailModal.vue'
 import type { Game } from '../components/record/match'
+import { isMatchDetailWindow, revealCurrentDetailWindow } from '../components/record/detailWindow'
+
+/** 首屏数据（「我」是谁）等待上限：LCU 慢时不因此一直不亮窗 */
+const FIRST_DATA_WAIT_MS = 800
 
 const route = useRoute()
 const game = ref<Game | null>(null)
 const currentWindow = getCurrentWindow()
+const modal = ref<InstanceType<typeof MatchDetailModal> | null>(null)
 
 function getStorageKeyFromWindowLabel() {
   if (!currentWindow.label.startsWith('match-detail-')) {
@@ -51,10 +56,25 @@ function readGameFromStorage(storageKey?: string | null) {
   }
 }
 
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+/**
+ * 首帧即最终态：读对局 → 等首屏数据 → 字体就绪 → 亮窗。
+ * 窗口此前一直隐藏（detailWindow.ts visible:false），中间态用户看不到。
+ * 不等 requestAnimationFrame：隐藏的 WebView 可能暂停 rAF。
+ */
 onMounted(async () => {
   const storageKey =
     (route.query.storageKey as string | undefined) ?? getStorageKeyFromWindowLabel()
   readGameFromStorage(storageKey)
+  await nextTick()
+  await Promise.race([modal.value?.whenReady(), delay(FIRST_DATA_WAIT_MS)])
+  await nextTick()
+  // 字体到位后文本度量才是终稿（document.fonts 在测试环境可能缺失）
+  await document.fonts?.ready
+  if (isMatchDetailWindow()) await revealCurrentDetailWindow()
 })
 
 function closeWindow() {

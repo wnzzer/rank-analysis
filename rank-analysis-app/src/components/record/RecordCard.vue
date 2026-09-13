@@ -2,12 +2,18 @@
   <n-card
     :content-style="contentStyleStr"
     class="record-card"
-    :class="{ 'record-card-win': isWin, 'record-card-loss': !isWin }"
+    :class="{
+      'record-card-win': isWin,
+      'record-card-loss': !isWin,
+      'record-card--opening': opening
+    }"
     role="button"
     tabindex="0"
+    :aria-busy="opening"
     @click="openDetail"
     @keyup.enter="openDetail"
   >
+    <n-spin v-if="opening" :size="14" class="record-card-opening-spin" />
     <!-- 固定列网格：所有卡片共用同一套列轨道，行与行严格对齐
          （旧 space-between 弹性布局会让列落点随内容漂移） -->
     <div class="record-card-grid">
@@ -239,6 +245,8 @@ import { recordAssetsKey } from '@renderer/composables/recordAssetsKey'
 const props = defineProps<{
   recordType?: boolean
   games: Game
+  /** 详情窗打开中：保持按下态 + 小转圈，重复点击忽略（见 detailWindow.ts useDetailOpener） */
+  opening?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -346,6 +354,7 @@ function toNameRecord(name: string) {
 }
 
 function openDetail() {
+  if (props.opening) return
   emit('open-detail')
 }
 </script>
@@ -463,6 +472,20 @@ function openDetail() {
 .record-card:active {
   transform: scale(0.995);
   transition-duration: var(--dur-instant);
+}
+
+/* 打开中：保持按下态 + 右上角小转圈，直到详情窗亮出（窗口隐藏创建约需半秒） */
+.record-card--opening,
+.record-card--opening:hover {
+  transform: scale(0.995);
+  cursor: progress;
+}
+
+.record-card-opening-spin {
+  position: absolute;
+  top: var(--space-6);
+  right: var(--space-8);
+  z-index: 2;
 }
 
 /* === 固定列网格：结果 | 头像 | 队列 | KDA+装备 | 三色条 | 队伍头像 ===
