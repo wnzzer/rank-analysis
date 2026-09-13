@@ -127,8 +127,8 @@ const cardContentStyle = 'padding: var(--space-10)'
   border-radius: var(--radius-sm);
   font-size: var(--font-size-sm);
   font-weight: bold;
-  background: var(--glass-bg-low);
-  border: 1px solid var(--glass-border);
+  background: var(--surface-sunken);
+  border: 1px solid var(--sunken-border);
 }
 
 .rank-card-win-badge.good {

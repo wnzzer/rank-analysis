@@ -87,7 +87,7 @@
   padding: var(--space-6) var(--space-12);
   border-left: 2px solid var(--border-subtle);
   border-radius: var(--radius-sm);
-  background: var(--glass-bg-low);
+  background: var(--surface-sunken);
 }
 
 .ai-report h2.ai-section--effort + ul li {
@@ -126,7 +126,7 @@
   margin: var(--space-8) 0;
   padding: var(--space-8) var(--space-12);
   border-left: 3px solid var(--semantic-warn);
-  background: var(--glass-bg-low);
+  background: var(--surface-sunken);
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
 }

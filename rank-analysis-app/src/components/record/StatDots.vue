@@ -101,13 +101,8 @@ const iconStyle = computed<CSSProperties>(() => ({
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background: var(--border-subtle);
+  background: var(--stat-dot-empty);
   flex-shrink: 0;
-}
-
-.theme-light .stat-dot {
-  /* 冷墨基调，避免纯黑 alpha 在彩色卡面上发灰发脏 */
-  background: rgba(20, 30, 35, 0.2);
 }
 
 .stat-dot-filled {

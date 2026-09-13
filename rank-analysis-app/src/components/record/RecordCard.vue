@@ -370,7 +370,7 @@ function openDetail() {
   transition:
     transform var(--dur-normal) var(--ease-expo),
     box-shadow var(--dur-normal) var(--ease-expo);
-  background: var(--glass-bg-mid) !important;
+  background: var(--surface-card) !important;
   border: 1px solid var(--glass-border) !important;
   box-shadow: var(--shadow-md), var(--glass-highlight) !important;
 }
@@ -405,63 +405,28 @@ function openDetail() {
   box-shadow: var(--glow-loss);
 }
 
-/* 胜负色 wash：极淡的结果色从左向右渐隐铺满卡面——胜负情绪不再只挤在
-   左缘 3px 里（op.gg/WeGame 的行业语言；详情页头部环境光同款手法） */
+/* 胜负色 wash：极淡的结果色从左向右渐隐铺满卡面（op.gg/WeGame 的行业语言）；
+   亮色 --fx-wash=0 整体消失，只留左侧色条——白底上的色块读作污渍 */
 .record-card-win {
   background:
     linear-gradient(
       90deg,
-      color-mix(in srgb, var(--semantic-win) 9%, transparent),
-      color-mix(in srgb, var(--semantic-win) 3%, transparent) 34%,
+      color-mix(in srgb, var(--semantic-win) calc(9% * var(--fx-wash)), transparent),
+      color-mix(in srgb, var(--semantic-win) calc(3% * var(--fx-wash)), transparent) 34%,
       transparent 58%
     ),
-    var(--glass-bg-mid) !important;
+    var(--surface-card) !important;
 }
 
 .record-card-loss {
   background:
     linear-gradient(
       90deg,
-      color-mix(in srgb, var(--semantic-loss) 8%, transparent),
-      color-mix(in srgb, var(--semantic-loss) 3%, transparent) 34%,
+      color-mix(in srgb, var(--semantic-loss) calc(8% * var(--fx-wash)), transparent),
+      color-mix(in srgb, var(--semantic-loss) calc(3% * var(--fx-wash)), transparent) 34%,
       transparent 58%
     ),
-    var(--glass-bg-mid) !important;
-}
-
-/* 浅色：底必须是白纸（bg-elevated）而非灰玻璃——灰底叠胜负色渐变会发浊，
-   白底上的色彩 wash 才干净（同报纸彩色套印的道理） */
-.theme-light .record-card-win {
-  background:
-    linear-gradient(
-      90deg,
-      color-mix(in srgb, var(--semantic-win) 7%, transparent),
-      transparent 55%
-    ),
-    var(--bg-elevated) !important;
-}
-
-.theme-light .record-card-loss {
-  background:
-    linear-gradient(
-      90deg,
-      color-mix(in srgb, var(--semantic-loss) 6%, transparent),
-      transparent 55%
-    ),
-    var(--bg-elevated) !important;
-}
-
-/* 浅色：卡内嵌套容器（指标盒/队伍胶囊）用白色 scrim 而非灰玻璃——
-   灰色压在胜负色调的卡面上是「脏」感的主要来源；白 scrim 读作磨砂纸层。
-   另外内嵌层不该有投影（海拔语法：只有卡片本体浮起） */
-.theme-light .record-card-stats-block {
-  background: rgba(255, 255, 255, 0.6);
-  border-color: rgba(20, 30, 35, 0.07);
-  box-shadow: none;
-}
-
-.theme-light .record-card-teams .n-tag {
-  background-color: rgba(255, 255, 255, 0.6);
+    var(--surface-card) !important;
 }
 
 .record-card:hover {
@@ -555,12 +520,14 @@ function openDetail() {
 /* 胜负色细环：呼应左侧胜负条，一眼扫过整列即读出胜负节奏 */
 .record-card-win .record-card-champion-img {
   border-color: color-mix(in srgb, var(--semantic-win) 45%, transparent);
-  box-shadow: 0 0 10px color-mix(in srgb, var(--semantic-win) 16%, transparent);
+  box-shadow: 0 0 10px
+    color-mix(in srgb, var(--semantic-win) calc(16% * var(--fx-glow)), transparent);
 }
 
 .record-card-loss .record-card-champion-img {
   border-color: color-mix(in srgb, var(--semantic-loss) 40%, transparent);
-  box-shadow: 0 0 10px color-mix(in srgb, var(--semantic-loss) 14%, transparent);
+  box-shadow: 0 0 10px
+    color-mix(in srgb, var(--semantic-loss) calc(14% * var(--fx-glow)), transparent);
 }
 
 /* MVP/SVP 徽章：金/银渐变 + 内高光 + 微光晕（替代平面色块贴纸） */
@@ -579,7 +546,7 @@ function openDetail() {
   text-align: center;
   border-radius: var(--radius-pill);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45) /* theme-fixed: 金银徽章自身的内高光 */,
     var(--shadow-sm);
 }
 
@@ -587,16 +554,16 @@ function openDetail() {
   color: #201500;
   background: linear-gradient(180deg, #f6d365, #d4a017);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.5),
-    0 0 8px rgba(244, 198, 88, 0.35);
+    inset 0 1px 0 rgba(255, 255, 255, 0.5) /* theme-fixed: 徽章内高光 */,
+    0 0 8px rgba(244, 198, 88, calc(0.35 * var(--fx-glow)));
 }
 
 .record-card-mvp-silver {
   color: #1c232b;
   background: linear-gradient(180deg, #eef3f9, #aab8c8);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.6),
-    0 0 8px rgba(190, 205, 222, 0.3);
+    inset 0 1px 0 rgba(255, 255, 255, 0.6) /* theme-fixed: 徽章内高光 */,
+    0 0 8px rgba(190, 205, 222, calc(0.3 * var(--fx-glow)));
 }
 
 /* === 队列名 === */
@@ -640,11 +607,12 @@ function openDetail() {
   flex-direction: column;
   gap: 0;
   padding: var(--space-4) var(--space-8);
-  background: var(--glass-bg-low);
-  border: 1px solid var(--glass-border);
+  /* 凹面不浮起：暗色玻璃盒 + 细边 + 小投影，亮色淡灰凹面、无边无影 */
+  background: var(--surface-sunken);
+  border: 1px solid var(--sunken-border);
   border-radius: var(--radius-md);
   min-width: 0;
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--sunken-shadow);
 }
 
 /* === 队伍头像列：两行胶囊 = 我方/敌方，列宽足够 5 人单行排布 === */

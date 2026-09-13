@@ -31,8 +31,6 @@ const PENDING: Record<string, RuleId[]> = {
   'components/gaming/ChampionIntelCard.vue': ['glow'],
   'components/gaming/PlayerCard.vue': ['glow'],
   'components/record/MatchDetailModal.vue': ['theme-light', 'white-alpha', 'glow'],
-  'components/record/RecordCard.vue': ['theme-light', 'white-alpha', 'glow'],
-  'components/record/StatDots.vue': ['theme-light'],
   'views/Gaming.vue': ['glow'],
   'views/MatchDetail.vue': ['theme-light']
 }
