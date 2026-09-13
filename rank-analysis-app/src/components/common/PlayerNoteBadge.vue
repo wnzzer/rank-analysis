@@ -198,7 +198,7 @@ async function onDelete() {
   transition: background var(--dur-fast, 0.15s) var(--ease-expo, ease);
 }
 .note-trigger:hover {
-  background: var(--glass-bg-low, rgba(255, 255, 255, 0.06));
+  background: var(--glass-bg-low);
 }
 .note-trigger.size-normal {
   padding: 3px;
@@ -265,7 +265,7 @@ async function onDelete() {
   height: 16px;
   padding: 0 var(--space-4);
   border-radius: var(--radius-pill, 999px);
-  background: var(--glass-bg-low, rgba(255, 255, 255, 0.06));
+  background: var(--glass-bg-low);
   color: var(--text-tertiary);
   font-size: var(--font-size-2xs);
 }
@@ -307,7 +307,7 @@ async function onDelete() {
   padding: 5px var(--space-2);
   font-size: var(--font-size-xs, 12px);
   color: var(--text-secondary);
-  background: var(--glass-bg-low, rgba(255, 255, 255, 0.04));
+  background: var(--glass-bg-low);
   border: 1px solid var(--glass-border, transparent);
   border-radius: var(--radius-sm, 6px);
   cursor: pointer;

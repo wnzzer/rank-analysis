@@ -23,13 +23,6 @@ const RULES: Record<RuleId, (line: string) => boolean> = {
   glow: line => GLOW.test(line) && COLOR.test(line) && !line.includes('--fx-glow')
 }
 
-/** 迁移中尚未处理的文件与规则（逐任务删除；清空后本守门全面生效） */
-const PENDING: Record<string, RuleId[]> = {
-  'components/LoadingComponent.vue': ['theme-light', 'glow'],
-  'components/common/ErrorReportingConsentDialog.vue': ['white-alpha'],
-  'components/common/PlayerNoteBadge.vue': ['white-alpha']
-}
-
 function vueFiles(dir: string, acc: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
     const p = join(dir, name)
@@ -65,22 +58,11 @@ function scan(): Map<string, Map<RuleId, string[]>> {
 describe('component styles follow the theme material rules', () => {
   const violations = scan()
 
-  it('has no violations outside the pending migration list', () => {
-    const unexpected: string[] = []
+  it('has no violations', () => {
+    const report: string[] = []
     for (const [file, byRule] of violations) {
-      for (const [id, lines] of byRule) {
-        if (!(PENDING[file] ?? []).includes(id))
-          unexpected.push(`${file} [${id}]\n  ${lines.join('\n  ')}`)
-      }
+      for (const [id, lines] of byRule) report.push(`${file} [${id}]\n  ${lines.join('\n  ')}`)
     }
-    expect(unexpected, unexpected.join('\n')).toEqual([])
-  })
-
-  it('has no stale entries in the pending migration list', () => {
-    const stale: string[] = []
-    for (const [file, ids] of Object.entries(PENDING)) {
-      for (const id of ids) if (!violations.get(file)?.has(id)) stale.push(`${file} [${id}]`)
-    }
-    expect(stale, `已修复，请从 PENDING 移除：\n${stale.join('\n')}`).toEqual([])
+    expect(report, report.join('\n')).toEqual([])
   })
 })
