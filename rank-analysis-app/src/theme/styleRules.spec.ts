@@ -30,9 +30,7 @@ const PENDING: Record<string, RuleId[]> = {
   'components/common/PlayerNoteBadge.vue': ['white-alpha'],
   'components/gaming/ChampionIntelCard.vue': ['glow'],
   'components/gaming/PlayerCard.vue': ['glow'],
-  'components/record/MatchDetailModal.vue': ['theme-light', 'white-alpha', 'glow'],
-  'views/Gaming.vue': ['glow'],
-  'views/MatchDetail.vue': ['theme-light']
+  'views/Gaming.vue': ['glow']
 }
 
 function vueFiles(dir: string, acc: string[] = []): string[] {

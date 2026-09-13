@@ -800,12 +800,12 @@ defineExpose({
   background:
     radial-gradient(
       circle at top left,
-      color-mix(in srgb, var(--semantic-win) 14%, transparent),
+      color-mix(in srgb, var(--semantic-win) calc(14% * var(--fx-wash)), transparent),
       transparent 28%
     ),
     radial-gradient(
       circle at top right,
-      color-mix(in srgb, var(--accent-blue) 16%, transparent),
+      color-mix(in srgb, var(--accent-blue) calc(16% * var(--fx-wash)), transparent),
       transparent 32%
     ),
     var(--bg-base);
@@ -833,8 +833,8 @@ defineExpose({
   gap: var(--space-8);
   padding: var(--space-10) var(--space-12);
   border-bottom: 1px solid var(--border-subtle);
-  /* 头部单独一层极轻的表面色，与正文区分层次 */
-  background: linear-gradient(180deg, var(--glass-bg-low), transparent);
+  /* 头部表面：暗色一层极轻渐变与正文分层，亮色为白卡面（token 见 global.css） */
+  background: var(--detail-header-bg);
 }
 
 .match-detail-header--win {
@@ -852,7 +852,7 @@ defineExpose({
   inset: 0;
   background: radial-gradient(
     120% 190% at 7% 18%,
-    color-mix(in srgb, var(--hdr-color) 17%, transparent),
+    color-mix(in srgb, var(--hdr-color) calc(17% * var(--fx-wash)), transparent),
     transparent 56%
   );
   pointer-events: none;
@@ -870,14 +870,11 @@ defineExpose({
   height: 300px;
   object-fit: cover;
   filter: blur(2px) brightness(1.3) saturate(1.15);
-  opacity: 0.3;
+  /* 亮色 --fx-ambient=0：白底上的英雄虚影读作脏污，整体隐去 */
+  opacity: calc(0.3 * var(--fx-ambient));
   pointer-events: none;
   -webkit-mask-image: radial-gradient(circle at 34% 50%, rgba(0, 0, 0, 0.9) 22%, transparent 68%);
   mask-image: radial-gradient(circle at 34% 50%, rgba(0, 0, 0, 0.9) 22%, transparent 68%);
-}
-
-.theme-light .match-detail-header-ambient {
-  opacity: 0.1;
 }
 
 .match-detail-header-main,
@@ -898,7 +895,7 @@ defineExpose({
   background: color-mix(in srgb, var(--result-color) 13%, transparent);
   box-shadow:
     inset 0 0 0 1px color-mix(in srgb, var(--result-color) 38%, transparent),
-    0 0 12px color-mix(in srgb, var(--result-color) 16%, transparent);
+    0 0 12px color-mix(in srgb, var(--result-color) calc(16% * var(--fx-glow)), transparent);
 }
 
 .match-detail-result-pill--win {
@@ -947,14 +944,14 @@ defineExpose({
   border-color: color-mix(in srgb, var(--semantic-win) 55%, transparent);
   box-shadow:
     0 0 0 1px color-mix(in srgb, var(--semantic-win) 25%, transparent),
-    0 0 14px color-mix(in srgb, var(--semantic-win) 22%, transparent);
+    0 0 14px color-mix(in srgb, var(--semantic-win) calc(22% * var(--fx-glow)), transparent);
 }
 
 .match-detail-hero--loss {
   border-color: color-mix(in srgb, var(--semantic-loss) 50%, transparent);
   box-shadow:
     0 0 0 1px color-mix(in srgb, var(--semantic-loss) 22%, transparent),
-    0 0 14px color-mix(in srgb, var(--semantic-loss) 18%, transparent);
+    0 0 14px color-mix(in srgb, var(--semantic-loss) calc(18% * var(--fx-glow)), transparent);
 }
 
 .match-detail-player-copy {
@@ -1068,11 +1065,8 @@ defineExpose({
   border: 1px solid color-mix(in srgb, var(--border-subtle) 80%, transparent);
   border-radius: var(--radius-lg);
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.015);
-}
-
-.theme-light .match-detail-team-card {
-  background: var(--bg-elevated);
+  background: var(--detail-team-card-bg);
+  box-shadow: var(--detail-team-card-shadow);
 }
 
 /* 队伍标签行：色点 + 色字 + 数据，纯排版、无底无框 */
@@ -1098,7 +1092,7 @@ defineExpose({
   height: 16px;
   border-radius: var(--radius-xs);
   background: var(--team-color);
-  box-shadow: 0 0 8px color-mix(in srgb, var(--team-color) 55%, transparent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--team-color) calc(55% * var(--fx-glow)), transparent);
   flex-shrink: 0;
 }
 
@@ -1138,7 +1132,7 @@ defineExpose({
   font-size: var(--font-size-2xs);
   font-weight: 600;
   letter-spacing: 0.08em;
-  background: transparent;
+  background: var(--detail-column-header-bg);
   border-bottom: 1px solid var(--border-subtle);
   text-transform: none;
 }
@@ -1151,10 +1145,6 @@ defineExpose({
 /* 条形区列头与条形区内容同步左缩进 */
 .match-detail-bars-header {
   padding-left: var(--space-8);
-}
-
-.theme-light .match-detail-column-header {
-  background: var(--glass-bg-low);
 }
 
 .match-detail-team-rows {
@@ -1180,16 +1170,12 @@ defineExpose({
 
 /* "我" 行高亮：与主题 accent 同色系（wash + 左条），不再蓝绿混用 */
 .match-detail-row-me {
-  background: color-mix(in srgb, var(--semantic-win) 10%, transparent);
+  background: var(--detail-row-me-bg);
   box-shadow: inset 3px 0 0 0 var(--semantic-win);
 }
 
 .match-detail-row-me:hover {
   background: color-mix(in srgb, var(--semantic-win) 16%, transparent);
-}
-
-.theme-light .match-detail-row-me {
-  background: color-mix(in srgb, var(--semantic-win) 8%, transparent);
 }
 
 .match-detail-player-main {
@@ -1578,12 +1564,8 @@ defineExpose({
 .match-detail-bar-track {
   height: 4px;
   border-radius: var(--radius-xs);
-  background: var(--glass-bg-mid);
+  background: var(--track-bg);
   overflow: hidden;
-}
-
-.theme-light .match-detail-bar-track {
-  background: var(--glass-bg-high);
 }
 
 .match-detail-bar-fill {
