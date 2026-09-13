@@ -2,72 +2,81 @@
   <n-flex vertical class="user-record-container" :size="12">
     <!-- User Info Card -->
     <n-card class="record-panel-card panel-glass user-record-card" :bordered="false" size="small">
-      <n-flex align="center" :size="12">
-        <div class="avatar-wrapper user-record-avatar">
-          <n-avatar
-            round
-            :size="58"
-            :src="`${assetPrefix}/profile/${summoner?.profileIconId}`"
-            fallback-src="https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png"
-            class="user-record-avatar-img"
-          />
-          <div class="level-badge">{{ summoner.summonerLevel }}</div>
+      <div v-if="profileLoading" class="user-record-identity-sk" aria-hidden="true">
+        <span class="sk sk-circle user-record-identity-sk-avatar" />
+        <div class="user-record-identity-sk-lines">
+          <span class="sk user-record-identity-sk-name" />
+          <span class="sk user-record-identity-sk-tag" />
         </div>
-        <n-flex vertical :size="2" class="user-record-identity">
-          <n-flex align="center" :size="4" :wrap="false">
-            <n-ellipsis class="user-record-nickname">
-              {{ summoner.gameName }}
-            </n-ellipsis>
-            <n-button text size="tiny" @click="copyName">
-              <template #icon>
-                <n-icon><copy-outline /></n-icon>
-              </template>
-            </n-button>
-            <PlayerNoteBadge
-              v-if="summoner.puuid"
-              :puuid="summoner.puuid"
-              :game-name="summoner.gameName"
-              :tag-line="summoner.tagLine"
-              size="normal"
+      </div>
+      <div v-else class="sk-reveal">
+        <n-flex align="center" :size="12">
+          <div class="avatar-wrapper user-record-avatar">
+            <n-avatar
+              round
+              :size="58"
+              :src="`${assetPrefix}/profile/${summoner?.profileIconId}`"
+              fallback-src="https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png"
+              class="user-record-avatar-img"
             />
-          </n-flex>
-          <n-flex align="center" :size="6">
-            <n-text depth="3" class="user-record-tagline">#{{ summoner.tagLine }}</n-text>
-            <n-popover trigger="hover" v-if="serverDescription">
-              <template #trigger>
-                <n-tag
-                  size="small"
-                  :bordered="false"
-                  type="default"
-                  class="user-record-platform-tag"
-                >
-                  {{ platformIdCn }}
-                </n-tag>
-              </template>
-              <span>{{ serverDescription }}</span>
-            </n-popover>
-            <n-tag
-              v-else
-              size="small"
-              :bordered="false"
-              type="default"
-              class="user-record-platform-tag"
-            >
-              {{ platformIdCn }}
-            </n-tag>
+            <div class="level-badge">{{ summoner.summonerLevel }}</div>
+          </div>
+          <n-flex vertical :size="2" class="user-record-identity">
+            <n-flex align="center" :size="4" :wrap="false">
+              <n-ellipsis class="user-record-nickname">
+                {{ summoner.gameName }}
+              </n-ellipsis>
+              <n-button text size="tiny" @click="copyName">
+                <template #icon>
+                  <n-icon><copy-outline /></n-icon>
+                </template>
+              </n-button>
+              <PlayerNoteBadge
+                v-if="summoner.puuid"
+                :puuid="summoner.puuid"
+                :game-name="summoner.gameName"
+                :tag-line="summoner.tagLine"
+                size="normal"
+              />
+            </n-flex>
+            <n-flex align="center" :size="6">
+              <n-text depth="3" class="user-record-tagline">#{{ summoner.tagLine }}</n-text>
+              <n-popover trigger="hover" v-if="serverDescription">
+                <template #trigger>
+                  <n-tag
+                    size="small"
+                    :bordered="false"
+                    type="default"
+                    class="user-record-platform-tag"
+                  >
+                    {{ platformIdCn }}
+                  </n-tag>
+                </template>
+                <span>{{ serverDescription }}</span>
+              </n-popover>
+              <n-tag
+                v-else
+                size="small"
+                :bordered="false"
+                type="default"
+                class="user-record-platform-tag"
+              >
+                {{ platformIdCn }}
+              </n-tag>
+            </n-flex>
           </n-flex>
         </n-flex>
-      </n-flex>
 
-      <!-- Tags：系统标签 + 备注 chip 统一行（备注为空且无标签时整行隐藏，避免空 margin） -->
-      <UnifiedTagRow
-        v-if="tags.length > 0 || hasNote"
-        class="user-record-tags"
-        :tags="tags"
-        :puuid="summoner.puuid"
-        :game-name="summoner.gameName"
-        :tag-line="summoner.tagLine"
-      />
+        <!-- Tags：系统标签 + 备注 chip 统一行（备注为空且无标签时整行隐藏，避免空 margin） -->
+        <UnifiedTagRow
+          v-if="tags.length > 0 || hasNote"
+          class="user-record-tags"
+          :tags="tags"
+          :puuid="summoner.puuid"
+          :game-name="summoner.gameName"
+          :tag-line="summoner.tagLine"
+        />
+      </div>
     </n-card>
 
     <!-- 跨区提示：段位/关系/近期数据不跨区，仅战绩可用 -->
@@ -83,7 +92,12 @@
     </n-card>
 
     <!-- Friends & Rivals：双空时收成一行，不让两块空态占据侧栏黄金位置 -->
-    <n-flex v-if="!isCrossRegion && hasRelations" :wrap="false" align="stretch" :size="12">
+    <span
+      v-if="!isCrossRegion && recentLoading"
+      class="sk user-record-relationship-sk"
+      aria-hidden="true"
+    />
+    <n-flex v-else-if="!isCrossRegion && hasRelations" :wrap="false" align="stretch" :size="12">
       <RelationshipPanel
         variant="friend"
         :summoners="recentData.friendAndDispute.friendsSummoner"
@@ -110,11 +124,13 @@
         label="单双排"
         :queue-info="rank.queueMap.RANKED_SOLO_5x5"
         :recent="solo5v5RecentWinRate"
+        :loading="profileLoading"
       />
       <RankCard
         label="灵活组排"
         :queue-info="rank.queueMap.RANKED_FLEX_SR"
         :recent="flexRecentWinRate"
+        :loading="profileLoading"
       />
     </n-flex>
 
@@ -124,6 +140,7 @@
       :recent-data="recentData"
       :mode="mode"
       :is-dark="isDark"
+      :loading="recentLoading"
       @mode-change="updateModel"
     />
   </n-flex>
@@ -196,6 +213,16 @@ const solo5v5RecentWinRate = ref<RecentWinRate>(defaultRecentWinRate())
 const flexRecentWinRate = ref<RecentWinRate>(defaultRecentWinRate())
 const recentData = ref<RecentData>(defaultRecentData())
 
+/**
+ * 区块加载态：数据回来前渲染骨架，不渲染默认假值（无段位 / KDA 0 / 红色 0%）。
+ * profileLoading 覆盖身份卡 + 两张段位卡（同一批并发请求）；recentLoading 覆盖
+ * 近期表现 + 好友/宿敌。切换玩家时重新置 true；请求失败置 false 回落默认渲染。
+ */
+const profileLoading = ref(true)
+const recentLoading = ref(true)
+/** 加载序号：快速切换玩家时丢弃上一个人迟到的响应，避免串数据或提前结束骨架 */
+let loadSeq = 0
+
 /** 好友/宿敌任一有数据才铺开双栏，双空时用单行占位（见模板注释） */
 const hasRelations = computed(
   () =>
@@ -213,6 +240,8 @@ const loadSummonerData = async (summonerName: string) => {
   if (!summonerName) return
 
   name = summonerName
+  const seq = ++loadSeq
+  const isStale = () => seq !== loadSeq
 
   // 跨区：段位/胜率/标签不支持跨区，只展示玩家名与大区，其余置默认。
   // 对局战绩由右侧 MatchHistory 走 SGP，不在此处加载。
@@ -224,6 +253,9 @@ const loadSummonerData = async (summonerName: string) => {
     flexRecentWinRate.value = defaultRecentWinRate()
     recentData.value = defaultRecentData()
     tags.value = []
+    // 跨区的段位/近期区块整体隐藏，身份卡数据已就位，无需骨架
+    profileLoading.value = false
+    recentLoading.value = false
     try {
       const regions = await invoke<{ label: string; value: string }[]>('get_sgp_regions')
       platformIdCn.value = regions.find(r => r.value === region.value)?.label ?? region.value
@@ -233,26 +265,41 @@ const loadSummonerData = async (summonerName: string) => {
     return
   }
 
-  // 需要 summoner 作为其余请求的依据，单独先取；其余调用互相独立，并行
-  summoner.value = await invoke<Summoner>('get_summoner_by_name', { name })
+  profileLoading.value = true
+  recentLoading.value = true
+  try {
+    // 需要 summoner 作为其余请求的依据，单独先取；其余调用互相独立，并行
+    const summonerValue = await invoke<Summoner>('get_summoner_by_name', { name })
+    if (isStale()) return
 
-  const [rankValue, modeValue, platformValue, solo, flex] = await Promise.all([
-    invoke<Rank>('get_rank_by_name', { name }),
-    // 历史上 reader 用 `selectMode`、writer 用 `settings.user.selectMode`，
-    // 导致用户切换的模式从来没被持久化读到。统一为 writer 用的 key。
-    getConfigByIpc<number>('settings.user.selectMode').then(v => v ?? 0),
-    invoke<string>('get_platform_name_by_name', { name }),
-    invoke<RecentWinRate>('get_win_rate_by_name_mode', { name, mode: 420 }),
-    invoke<RecentWinRate>('get_win_rate_by_name_mode', { name, mode: 440 })
-  ])
+    const [rankValue, modeValue, platformValue, solo, flex] = await Promise.all([
+      invoke<Rank>('get_rank_by_name', { name }),
+      // 历史上 reader 用 `selectMode`、writer 用 `settings.user.selectMode`，
+      // 导致用户切换的模式从来没被持久化读到。统一为 writer 用的 key。
+      getConfigByIpc<number>('settings.user.selectMode').then(v => v ?? 0),
+      invoke<string>('get_platform_name_by_name', { name }),
+      invoke<RecentWinRate>('get_win_rate_by_name_mode', { name, mode: 420 }),
+      invoke<RecentWinRate>('get_win_rate_by_name_mode', { name, mode: 440 })
+    ])
+    if (isStale()) return
 
-  rank.value = rankValue
-  mode.value = modeOptions.value.find(option => option.key === modeValue)?.label || '全部'
-  platformIdCn.value = platformValue
-  solo5v5RecentWinRate.value = solo
-  flexRecentWinRate.value = flex
+    summoner.value = summonerValue
+    rank.value = rankValue
+    mode.value = modeOptions.value.find(option => option.key === modeValue)?.label || '全部'
+    platformIdCn.value = platformValue
+    solo5v5RecentWinRate.value = solo
+    flexRecentWinRate.value = flex
+    profileLoading.value = false
 
-  getTags(name, modeValue)
+    await getTags(name, modeValue)
+  } catch (error) {
+    console.error('[UserRecord] loadSummonerData failed', error)
+  } finally {
+    if (!isStale()) {
+      profileLoading.value = false
+      recentLoading.value = false
+    }
+  }
 }
 
 onMounted(async () => {
@@ -440,5 +487,41 @@ const copyName = () => {
 
 .relationship-empty-text {
   color: var(--text-tertiary);
+}
+
+/* 身份卡骨架：与真实头像（58px 圆）+ 名字/Tag 两行同尺寸 */
+.user-record-identity-sk {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+}
+
+.user-record-identity-sk-avatar {
+  width: 58px;
+  height: 58px;
+  flex-shrink: 0;
+}
+
+.user-record-identity-sk-lines {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.user-record-identity-sk-name {
+  width: 60%;
+  height: 16px;
+}
+
+.user-record-identity-sk-tag {
+  width: 40%;
+  height: 12px;
+}
+
+/* 好友/宿敌骨架：与空态单行（.relationship-empty-row）同高 */
+.user-record-relationship-sk {
+  height: 34px;
+  border-radius: var(--radius-md);
 }
 </style>

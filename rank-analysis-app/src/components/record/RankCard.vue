@@ -5,7 +5,18 @@
     size="small"
     :content-style="cardContentStyle"
   >
-    <div class="rank-card-content">
+    <div v-if="loading" class="rank-card-content" aria-hidden="true">
+      <div class="rank-card-icon-wrapper">
+        <span class="rank-card-type-label">{{ label }}</span>
+        <span class="sk sk-circle rank-card-sk-emblem" />
+        <span class="sk rank-card-sk-tier" />
+      </div>
+      <div class="rank-card-stats">
+        <span class="sk rank-card-sk-badge" />
+        <span class="sk rank-card-sk-line" />
+      </div>
+    </div>
+    <div v-else class="rank-card-content sk-reveal">
       <div class="rank-card-icon-wrapper">
         <span class="rank-card-type-label">{{ label }}</span>
         <img :src="tierImage(queueInfo.tier)" class="rank-card-img" />
@@ -38,6 +49,8 @@ const props = defineProps<{
   label: string
   queueInfo: QueueInfo
   recent: RecentWinRate
+  /** 数据未到：渲染骨架而非「无段位 / 暂无对局 / 0 胜 0 负」假值 */
+  loading?: boolean
 }>()
 
 /** 0 胜 0 负说明该队列没打过，红色「胜率 0%」会被误读成连败 */
@@ -138,5 +151,27 @@ const cardContentStyle = 'padding: var(--space-10)'
 
 .rank-card-win-badge.normal {
   color: var(--text-secondary);
+}
+
+/* 骨架尺寸对齐真实内容：徽标 56px + 段位文字行 ≈ 66px 高，不因揭晓而跳 */
+.rank-card-sk-emblem {
+  width: 56px;
+  height: 56px;
+}
+
+.rank-card-sk-tier {
+  width: 52px;
+  height: 10px;
+}
+
+.rank-card-sk-badge {
+  width: 72px;
+  height: 22px;
+}
+
+.rank-card-sk-line {
+  width: 100%;
+  height: 12px;
+  margin-top: var(--space-8);
 }
 </style>
