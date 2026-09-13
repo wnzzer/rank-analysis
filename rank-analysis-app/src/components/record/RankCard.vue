@@ -68,12 +68,6 @@ const cardContentStyle = 'padding: var(--space-10)'
 </script>
 
 <style scoped>
-.panel-glass {
-  background: transparent !important;
-  border: 1px solid var(--border-subtle) !important;
-  box-shadow: none !important;
-}
-
 .rank-card-content {
   display: flex;
   align-items: center;

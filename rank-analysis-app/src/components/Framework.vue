@@ -141,11 +141,10 @@ const contentStyle = computed(() => ({
   height: 36px;
   line-height: 36px;
   text-align: center;
-  background-color: var(--glass-bg-low) !important;
+  /* 壳层材质走 token：暗色半透玻璃 + 顶部高光，亮色实心浅面、无投影 */
+  background-color: var(--surface-shell) !important;
   border-bottom: 1px solid var(--glass-border) !important;
-  box-shadow:
-    0 1px 0 rgba(0, 0, 0, 0.15),
-    var(--glass-highlight);
+  box-shadow: var(--shell-header-shadow);
 }
 
 .content {
@@ -155,7 +154,7 @@ const contentStyle = computed(() => ({
 .left {
   width: 68px;
   min-width: 68px;
-  background-color: var(--bg-base) !important;
+  background-color: var(--surface-sidebar) !important;
   border-right: 1px solid var(--glass-border) !important;
   overflow: hidden;
 }

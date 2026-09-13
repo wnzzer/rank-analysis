@@ -437,12 +437,6 @@ const copyName = () => {
   box-shadow: var(--shadow-card);
 }
 
-.panel-glass {
-  background: transparent !important;
-  border: 1px solid var(--border-subtle) !important;
-  box-shadow: none !important;
-}
-
 /* 好友/宿敌双空时的单行占位：虚线轻容器，明示「没有」而不是占两块空面板 */
 .relationship-empty-row {
   display: flex;
