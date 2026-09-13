@@ -494,13 +494,8 @@ function openDetail() {
   display: grid;
   /* 固定列轨道保证行间对齐；space-between 把富余空隙均摊到列间——
      还原原版的松弛呼吸感（1fr 会把空间全吞在一处，左侧显挤） */
-  grid-template-columns:
-    58px
-    clamp(42px, calc(42px + (100vw - 1100px) * 10 / 1100), 52px)
-    minmax(64px, 84px)
-    minmax(174px, 216px)
-    172px
-    140px;
+  /* 列轨道定义在 global.css（--record-card-columns），与骨架屏共用 */
+  grid-template-columns: var(--record-card-columns);
   justify-content: space-between;
   align-items: center;
   gap: var(--space-8);

@@ -1,17 +1,16 @@
 <template>
   <div class="loading-wrap">
     <div class="loading-content">
+      <!-- 只保留一个转圈：原中心 ⚔ emoji 跨系统渲染不一致，下方扫光条与转圈是重复的加载指示 -->
       <div class="loading-visual" aria-hidden="true">
         <div class="loading-track" />
         <div class="loading-ring" />
-        <div class="loading-center">⚔</div>
       </div>
       <div class="loading-text-block">
         <p class="loading-text"><slot /></p>
         <p class="loading-hint">{{ hint ?? '请确保英雄联盟客户端已启动' }}</p>
         <slot name="action" />
       </div>
-      <div class="loading-shimmer-bar" />
     </div>
   </div>
 </template>
@@ -69,21 +68,6 @@ defineProps<{ hint?: string }>()
   filter: drop-shadow(0 0 6px color-mix(in srgb, var(--semantic-win) 40%, transparent));
 }
 
-.loading-center {
-  position: relative;
-  z-index: 1;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--semantic-win) 8%, transparent);
-  border: 1px solid color-mix(in srgb, var(--semantic-win) 20%, transparent);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--font-size-base);
-  animation: loading-pulse 2s ease-in-out infinite;
-}
-
 .loading-text-block {
   display: flex;
   flex-direction: column;
@@ -106,37 +90,9 @@ defineProps<{ hint?: string }>()
   letter-spacing: 0.02em;
 }
 
-.loading-shimmer-bar {
-  width: 120px;
-  height: 2px;
-  border-radius: var(--radius-pill);
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--semantic-win) 0%, transparent) 0%,
-    color-mix(in srgb, var(--semantic-win) 50%, transparent) 40%,
-    color-mix(in srgb, var(--semantic-win) 70%, transparent) 50%,
-    color-mix(in srgb, var(--semantic-win) 50%, transparent) 60%,
-    color-mix(in srgb, var(--semantic-win) 0%, transparent) 100%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.8s ease-in-out infinite;
-}
-
 @keyframes loading-spin {
   to {
     transform: rotate(360deg);
-  }
-}
-
-@keyframes loading-pulse {
-  0%,
-  100% {
-    transform: scale(0.95);
-    opacity: 0.7;
-  }
-  50% {
-    transform: scale(1.05);
-    opacity: 1;
   }
 }
 
@@ -144,17 +100,5 @@ defineProps<{ hint?: string }>()
 .theme-light .loading-ring {
   border-right-color: color-mix(in srgb, var(--semantic-win) 30%, transparent);
   filter: drop-shadow(0 0 5px color-mix(in srgb, var(--semantic-win) 35%, transparent));
-}
-
-.theme-light .loading-shimmer-bar {
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--semantic-win) 0%, transparent) 0%,
-    color-mix(in srgb, var(--semantic-win) 40%, transparent) 40%,
-    color-mix(in srgb, var(--semantic-win) 60%, transparent) 50%,
-    color-mix(in srgb, var(--semantic-win) 40%, transparent) 60%,
-    color-mix(in srgb, var(--semantic-win) 0%, transparent) 100%
-  );
-  background-size: 200% 100%;
 }
 </style>

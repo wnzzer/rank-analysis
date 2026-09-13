@@ -158,6 +158,14 @@
   --status-dot-win-bg: var(--semantic-win-bright);
   --status-dot-glow-win: 0 0 5px color-mix(in srgb, var(--semantic-win-bright) 60%, transparent);
   --status-dot-glow-sky: 0 0 5px color-mix(in srgb, var(--accent-sky) 50%, transparent);
+
+  /* === 骨架屏（加载占位）=== */
+  --sk-base: rgba(255, 255, 255, 0.06);
+  --sk-highlight: rgba(255, 255, 255, 0.07);
+
+  /* === 战绩卡固定列轨道：RecordCard 与其骨架屏共用，骨架→真卡原地替换不跳 === */
+  --record-card-columns: 58px clamp(42px, calc(42px + (100vw - 1100px) * 10 / 1100), 52px)
+    minmax(64px, 84px) minmax(174px, 216px) 172px 140px;
 }
 
 /* 浅色主题 Token —— 冷瓷（porcelain）
@@ -214,6 +222,9 @@
   --status-dot-win-bg: var(--semantic-win);
   --status-dot-glow-win: 0 0 4px color-mix(in srgb, var(--semantic-win-bright) 40%, transparent);
   --status-dot-glow-sky: 0 0 4px color-mix(in srgb, var(--accent-sky) 35%, transparent);
+
+  --sk-base: rgba(20, 30, 35, 0.07);
+  --sk-highlight: rgba(255, 255, 255, 0.75);
 }
 
 .font-number {
@@ -330,6 +341,48 @@
   }
   100% {
     background-position: 200% 0;
+  }
+}
+
+/* ========== 骨架屏占位 ==========
+   全局共用：主题感知底色 + 一道淡扫光（复用 shimmer）。战绩卡骨架与左栏各块共用，
+   避免各组件各写一套颜色导致明暗主题下走样；尺寸由使用方给 */
+.sk {
+  display: block;
+  border-radius: var(--radius-sm);
+  background-color: var(--sk-base);
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--sk-highlight) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+.sk-circle {
+  border-radius: 50%;
+}
+
+/* 真实内容替换骨架时的淡入（v-if 切换时新元素插入即播放） */
+.sk-reveal {
+  animation: sk-reveal var(--dur-fast) var(--ease-expo) both;
+}
+
+@keyframes sk-reveal {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sk {
+    animation: none;
   }
 }
 

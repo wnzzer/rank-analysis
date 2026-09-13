@@ -32,7 +32,9 @@
         </n-tooltip>
       </n-flex>
 
-      <template v-if="isRequestingMatchHostory && !matchHistory">
+      <!-- 首屏无数据即骨架：onMounted 先 await 模式/英雄选项，那段时间请求尚未发出，
+           旧条件（requesting && !matchHistory）为假，列表区是一片空白 -->
+      <template v-if="!matchHistory && !loadError">
         <div class="match-history-list">
           <RecordCardSkeleton v-for="i in 10" :key="`skel-${i}`" />
         </div>
@@ -51,7 +53,13 @@
           </template>
         </n-empty>
       </template>
-      <TransitionGroup v-else name="list" tag="div" class="match-history-list">
+      <TransitionGroup
+        v-else
+        name="list"
+        tag="div"
+        class="match-history-list"
+        :class="{ 'match-history-list--refreshing': isRefreshing }"
+      >
         <div
           v-for="(game, index) in games"
           :key="game.gameId"
@@ -99,6 +107,7 @@
             </n-button>
           </template>
         </n-pagination>
+        <n-spin v-if="isRefreshing" :size="14" />
       </div>
     </n-flex>
   </div>
@@ -109,7 +118,7 @@ import RecordCard from './RecordCard.vue'
 import RecordCardSkeleton from './RecordCardSkeleton.vue'
 import { ArrowBack, ArrowForward, RepeatOutline } from '@vicons/ionicons5'
 import { computed, onMounted, provide, ref, watch } from 'vue'
-import { NEmpty, NButton, useLoadingBar } from 'naive-ui'
+import { NEmpty, NButton } from 'naive-ui'
 import { useRoute } from 'vue-router'
 import { renderSingleSelectTag, renderLabel, filterChampionFunc } from '../composition'
 import { modeOptions, initModeOptions } from './composition'
@@ -151,7 +160,6 @@ const handleUpdateValue = () => {
 }
 
 const matchHistory = ref<MatchHistory>()
-const loadingBar = useLoadingBar()
 const isRequestingMatchHostory = ref(false)
 const loadError = ref(false)
 const page = ref(1)
@@ -172,6 +180,12 @@ const games = computed<Game[]>(() => matchHistory.value?.games?.games ?? [])
 const hasFilter = computed(() => filterChampionId.value > 0 || filterQueueId.value > 0)
 
 /**
+ * 翻页/筛选请求中且已有旧列表：旧列表就地变淡 + 分页旁小转圈，
+ * 替代原先顶部的全局加载条（只有首屏无数据时才显示骨架）
+ */
+const isRefreshing = computed(() => isRequestingMatchHostory.value && !!matchHistory.value)
+
+/**
  * 已到最后一页：无筛选时每页固定请求 10 条，不满 10 条即无下页；
  * 筛选分页按命中数续推，只能以"当前页为空"兜底判断。
  */
@@ -181,7 +195,6 @@ const noMoreMatches = computed(() =>
 
 // 获取历史记录
 const getHistoryMatch = async (name: string, begIndex: number, endIndex: number) => {
-  loadingBar.start()
   isRequestingMatchHostory.value = true
   loadError.value = false
   try {
@@ -214,13 +227,9 @@ const getHistoryMatch = async (name: string, begIndex: number, endIndex: number)
     }
   } catch (err) {
     loadError.value = true
-    loadingBar.error()
     console.error('[MatchHistory] getHistoryMatch failed', err)
   } finally {
     isRequestingMatchHostory.value = false
-    if (!loadError.value) {
-      loadingBar.finish()
-    }
   }
 }
 
@@ -305,6 +314,13 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: var(--space-8);
+  transition: opacity var(--dur-fast) var(--ease-expo);
+}
+
+/* 翻页/筛选请求中：旧列表立即变淡且不可点（顶部加载条移除后的就地反馈） */
+.match-history-list--refreshing {
+  opacity: 0.5;
+  pointer-events: none;
 }
 
 .match-history-empty {
@@ -394,6 +410,9 @@ onMounted(async () => {
   background: var(--bg-base);
   padding: var(--space-8) 0;
   margin-top: var(--space-8);
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
 }
 
 .pagination :deep(.n-button) {
