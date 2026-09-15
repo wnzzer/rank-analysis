@@ -5,23 +5,43 @@
  * 单行：主系 + 基石 · 核心三件套 · 依据（出场率 / 胜率 / 样本量）。hover 符文块看完整
  * 9 个符文。依据永远带样本量——与项目「数据可验证」的一贯风格一致，样本不足时明说。
  *
- * 纯展示组件：取数与状态由 useChampionBuild 负责。
+ * 纯展示组件：取数与写入状态由 useChampionBuild 负责，点击只发出 `apply`。
  */
 import { computed, watch } from 'vue'
 import { useRecordAssets } from '@renderer/composables/useRecordAssets'
+import type { ApplyState } from '@renderer/composables/useChampionBuild'
 import { pickRecommendedRune } from '@renderer/services/championBuild'
 import type { ChampionBuild } from '@renderer/types/championBuild'
 
-const props = defineProps<{
-  /** 推荐构筑；null 且不在拉取中 = 无数据，整条栏不渲染 */
-  build: ChampionBuild | null
-  loading: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    /** 推荐构筑；null 且不在拉取中 = 无数据，整条栏不渲染 */
+    build: ChampionBuild | null
+    loading: boolean
+    /** 符文写入状态 */
+    applyState?: ApplyState
+  }>(),
+  { applyState: 'idle' }
+)
+
+defineEmits<{ (e: 'apply'): void }>()
+
+const APPLY_LABELS: Record<ApplyState, string> = {
+  idle: '应用符文',
+  applying: '应用中…',
+  applied: '已应用',
+  failed: '应用失败，重试'
+}
 
 const assets = useRecordAssets()
 
 const recommended = computed(() => pickRecommendedRune(props.build))
 const rune = computed(() => recommended.value.rune)
+
+/** 样本不足不让写；写入中防连点。已应用仍可再点（用户手动切走后想切回来） */
+const applyDisabled = computed(
+  () => !recommended.value.sufficient || props.applyState === 'applying'
+)
 
 /** 核心三件套：取出场率最高的那组核心装 */
 const coreItems = computed(() => props.build?.core_items[0]?.ids.slice(0, 3) ?? [])
@@ -126,6 +146,16 @@ const runeRows = computed(() => {
       {{ evidence }}<template v-if="build.stale"> · 版本 {{ build.patch }}</template>
     </span>
     <span v-if="!recommended.sufficient" class="build-insufficient">样本不足，仅供参考</span>
+
+    <button
+      type="button"
+      class="build-apply"
+      :class="`build-apply-${applyState}`"
+      :disabled="applyDisabled"
+      @click="$emit('apply')"
+    >
+      {{ APPLY_LABELS[applyState] }}
+    </button>
   </div>
 </template>
 
@@ -197,6 +227,33 @@ const runeRows = computed(() => {
 .build-insufficient {
   color: var(--semantic-loss);
   white-space: nowrap;
+}
+
+.build-apply {
+  margin-left: auto;
+  padding: var(--space-2) var(--space-8);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+
+.build-apply:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.build-apply-applied {
+  color: var(--semantic-win);
+  border-color: var(--semantic-win);
+}
+
+.build-apply-failed {
+  color: var(--semantic-loss);
+  border-color: var(--semantic-loss);
 }
 
 .build-rune-tree {

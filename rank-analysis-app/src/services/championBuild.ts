@@ -8,7 +8,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core'
-import type { ChampionBuild, RuneBuild } from '@renderer/types/championBuild'
+import type { ApplyRuneResult, ChampionBuild, RuneBuild } from '@renderer/types/championBuild'
 
 /**
  * 样本阈值：低于它的构筑不作为推荐 / 自动应用候选。
@@ -37,6 +37,47 @@ export async function fetchChampionBuild(
   } catch (error) {
     console.warn(`[championBuild] fetch failed for champion ${championId}:`, error)
     return null
+  }
+}
+
+/**
+ * 把一套符文写成客户端的临时符文页（找到自己建的「(RA)」页就原地改写，否则新建）
+ * @param championId - 英雄 ID（决定页名）
+ * @param position - 构筑分路（LCU 小写，大乱斗 none）
+ * @param rune - 要写入的那套符文
+ * @returns 写入结果；命令本身异常（IPC 故障）也归一成 `ok=false`，不向上抛
+ */
+export async function applyRunePage(
+  championId: number,
+  position: string,
+  rune: RuneBuild
+): Promise<ApplyRuneResult> {
+  try {
+    return await invoke<ApplyRuneResult>('apply_rune_page', { championId, position, rune })
+  } catch (error) {
+    console.warn(`[championBuild] apply failed for champion ${championId}:`, error)
+    return { ok: false, page_id: null, reason: 'lcu_unavailable' }
+  }
+}
+
+/**
+ * 写入失败原因 → 用户可读文案
+ *
+ * 页满时明确让用户自己删一页——我们绝不替用户删符文页。
+ *
+ * @param reason - ApplyRuneResult.reason
+ * @returns toast 文案
+ */
+export function applyFailureText(reason: string | null): string {
+  switch (reason) {
+    case 'page_limit_full':
+      return '符文页已满，请手动删除一页后重试'
+    case 'lcu_rejected':
+      return '客户端拒绝了这套符文，可能是版本不一致'
+    case 'lcu_unavailable':
+      return '未连接到客户端，符文未写入'
+    default:
+      return '符文应用失败'
   }
 }
 

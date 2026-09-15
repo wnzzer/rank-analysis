@@ -152,6 +152,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             command::bp::get_bp_decision,
             command::bp_suggest::get_bp_suggest,
             command::champion_build::get_champion_build,
+            command::rune_page::apply_rune_page,
             command::config::put_config,
             command::config::get_config,
             // command::config::get_http_server_port,

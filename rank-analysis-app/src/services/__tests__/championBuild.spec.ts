@@ -3,7 +3,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 
 import { invoke } from '@tauri-apps/api/core'
-import { fetchChampionBuild, pickRecommendedRune } from '../championBuild'
+import {
+  applyRunePage,
+  applyFailureText,
+  fetchChampionBuild,
+  pickRecommendedRune
+} from '../championBuild'
 import type { ChampionBuild, RuneBuild } from '@renderer/types/championBuild'
 
 const mockInvoke = vi.mocked(invoke)
@@ -80,6 +85,45 @@ describe('fetchChampionBuild', () => {
     expect(await fetchChampionBuild(157, 'CLASSIC', 'middle')).toBeNull()
     expect(warn).toHaveBeenCalled()
     warn.mockRestore()
+  })
+})
+
+describe('applyRunePage', () => {
+  it('把英雄 / 分路 / 符文原样交给后端写临时页', async () => {
+    mockInvoke.mockResolvedValue({ ok: true, page_id: 42, reason: null })
+    const r = rune(1000)
+
+    const got = await applyRunePage(157, 'middle', r)
+
+    expect(mockInvoke).toHaveBeenCalledWith('apply_rune_page', {
+      championId: 157,
+      position: 'middle',
+      rune: r
+    })
+    expect(got).toEqual({ ok: true, page_id: 42, reason: null })
+  })
+
+  it('命令本身异常时归一成失败结果，不向上抛', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    mockInvoke.mockRejectedValue('ipc down')
+
+    const got = await applyRunePage(157, 'middle', rune(1000))
+
+    expect(got.ok).toBe(false)
+    expect(got.reason).toBe('lcu_unavailable')
+    warn.mockRestore()
+  })
+})
+
+describe('applyFailureText', () => {
+  it('页满时明确让用户自己删页，绝不暗示我们会删', () => {
+    expect(applyFailureText('page_limit_full')).toBe('符文页已满，请手动删除一页后重试')
+  })
+
+  it('其余原因给出可读文案', () => {
+    expect(applyFailureText('lcu_unavailable')).toContain('客户端')
+    expect(applyFailureText('lcu_rejected')).toContain('拒绝')
+    expect(applyFailureText(null)).toContain('失败')
   })
 })
 

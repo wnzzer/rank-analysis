@@ -53,8 +53,13 @@ function build(overrides: Partial<ChampionBuild> = {}): ChampionBuild {
   }
 }
 
-const mountBar = (props: { build: ChampionBuild | null; loading: boolean }) =>
-  mount(BuildRecommendBar, { props, global: { plugins: [naive] } })
+const mountBar = (props: {
+  build: ChampionBuild | null
+  loading: boolean
+  applyState?: 'idle' | 'applying' | 'applied' | 'failed'
+}) => mount(BuildRecommendBar, { props, global: { plugins: [naive] } })
+
+const applyButton = (w: ReturnType<typeof mountBar>) => w.find('.build-apply')
 
 describe('BuildRecommendBar', () => {
   it('拉取中显示骨架条，不显示按钮', () => {
@@ -97,8 +102,31 @@ describe('BuildRecommendBar', () => {
     expect(mountBar({ build: build(), loading: false }).text()).not.toContain('版本')
   })
 
-  it('全部构筑低于样本阈值时标注仅供参考', () => {
+  it('全部构筑低于样本阈值时标注仅供参考，且应用按钮禁用', () => {
     const w = mountBar({ build: build({ runes: [rune({ play: 120, win: 60 })] }), loading: false })
     expect(w.text()).toContain('样本不足，仅供参考')
+    expect(applyButton(w).attributes('disabled')).toBeDefined()
+  })
+
+  it('手动模式显示「应用符文」，点击发出 apply', async () => {
+    const w = mountBar({ build: build(), loading: false })
+    expect(applyButton(w).text()).toBe('应用符文')
+    await applyButton(w).trigger('click')
+    expect(w.emitted('apply')).toHaveLength(1)
+  })
+
+  it('写入中禁用按钮防连点', () => {
+    const w = mountBar({ build: build(), loading: false, applyState: 'applying' })
+    expect(applyButton(w).text()).toBe('应用中…')
+    expect(applyButton(w).attributes('disabled')).toBeDefined()
+  })
+
+  it('写入成功显示已应用，失败给出可重试的按钮', () => {
+    expect(
+      applyButton(mountBar({ build: build(), loading: false, applyState: 'applied' })).text()
+    ).toBe('已应用')
+    const failed = mountBar({ build: build(), loading: false, applyState: 'failed' })
+    expect(applyButton(failed).text()).toBe('应用失败，重试')
+    expect(applyButton(failed).attributes('disabled')).toBeUndefined()
   })
 })

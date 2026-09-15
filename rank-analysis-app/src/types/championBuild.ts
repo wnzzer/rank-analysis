@@ -41,6 +41,16 @@ export interface SkillBuild {
   pick_rate: number
 }
 
+/**
+ * 符文页写入结果（Rust `command::rune_page::ApplyRuneResult`）
+ * @property reason - 失败原因：page_limit_full | lcu_rejected | lcu_unavailable
+ */
+export interface ApplyRuneResult {
+  ok: boolean
+  page_id: number | null
+  reason: string | null
+}
+
 /** 某英雄在某分路 / 模式 / 段位下的推荐构筑 */
 export interface ChampionBuild {
   schema_version: number

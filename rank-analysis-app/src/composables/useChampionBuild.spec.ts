@@ -3,14 +3,27 @@ import { nextTick, reactive } from 'vue'
 import { withSetup } from '@renderer/test-utils/withSetup'
 import { useChampionBuild, type BuildQuery } from './useChampionBuild'
 import { bumpOpggRevision } from '@renderer/services/opgg'
-import type { ChampionBuild } from '@renderer/types/championBuild'
+import type { ChampionBuild, RuneBuild } from '@renderer/types/championBuild'
 
 const invokeMock = vi.fn()
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: (...args: unknown[]) => invokeMock(...args)
 }))
 
-function build(championId: number): ChampionBuild {
+function rune(play: number): RuneBuild {
+  return {
+    primary_style_id: 8000,
+    sub_style_id: 8400,
+    primary_perk_ids: [8008, 9101, 9104, 8299],
+    sub_perk_ids: [8444, 8451],
+    stat_mod_ids: [5005, 5008, 5001],
+    play,
+    win: Math.round(play / 2),
+    pick_rate: 0.3
+  }
+}
+
+function build(championId: number, runePlay = 1000): ChampionBuild {
   return {
     schema_version: 1,
     champion_id: championId,
@@ -21,7 +34,7 @@ function build(championId: number): ChampionBuild {
     fetched_at: 0,
     play: 1000,
     win_rate: 0.5,
-    runes: [],
+    runes: [rune(runePlay)],
     spells: [],
     starter_items: [],
     boots: [],
@@ -159,6 +172,74 @@ describe('useChampionBuild', () => {
     release(build(86))
     await flush()
     expect(r.loading.value).toBe(false)
+    app.unmount()
+  })
+
+  it('手动应用：把推荐那套符文交给后端，成功后标已应用', async () => {
+    const s = session()
+    const [r, app] = withSetup(() => useChampionBuild(() => s))
+    await flush()
+    invokeMock.mockImplementation(async (cmd: string) =>
+      cmd === 'apply_rune_page' ? { ok: true, page_id: 42, reason: null } : undefined
+    )
+
+    const pending = r.apply()
+    expect(r.applyState.value).toBe('applying')
+    await pending
+
+    const call = invokeMock.mock.calls.find(c => c[0] === 'apply_rune_page')
+    expect(call?.[1]).toEqual({ championId: 157, position: 'middle', rune: rune(1000) })
+    expect(r.applyState.value).toBe('applied')
+    app.unmount()
+  })
+
+  it('应用失败时保留原因供提示', async () => {
+    const s = session()
+    const [r, app] = withSetup(() => useChampionBuild(() => s))
+    await flush()
+    invokeMock.mockResolvedValue({ ok: false, page_id: null, reason: 'page_limit_full' })
+
+    await r.apply()
+
+    expect(r.applyState.value).toBe('failed')
+    expect(r.applyReason.value).toBe('page_limit_full')
+    app.unmount()
+  })
+
+  it('样本不足时不写入', async () => {
+    invokeMock.mockImplementation(async (cmd: string, args: { championId: number }) =>
+      cmd === 'get_champion_build' ? build(args.championId, 120) : undefined
+    )
+    const s = session()
+    const [r, app] = withSetup(() => useChampionBuild(() => s))
+    await flush()
+
+    await r.apply()
+
+    expect(invokeMock.mock.calls.some(c => c[0] === 'apply_rune_page')).toBe(false)
+    expect(r.applyState.value).toBe('idle')
+    app.unmount()
+  })
+
+  it('换人后应用状态复位，旧英雄的写入结果不串到新英雄', async () => {
+    let release: (v: unknown) => void = () => {}
+    const s = session()
+    const [r, app] = withSetup(() => useChampionBuild(() => s))
+    await flush()
+    invokeMock.mockImplementation((cmd: string, args: { championId: number }) =>
+      cmd === 'apply_rune_page'
+        ? new Promise(res => (release = res))
+        : Promise.resolve(build(args.championId))
+    )
+
+    const pending = r.apply()
+    s.championId = 86
+    await flush()
+    release({ ok: true, page_id: 1, reason: null })
+    await pending
+    await flush()
+
+    expect(r.applyState.value).toBe('idle')
     app.unmount()
   })
 

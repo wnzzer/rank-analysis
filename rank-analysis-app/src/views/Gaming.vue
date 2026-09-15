@@ -178,6 +178,8 @@
           v-if="sessionData.phase === 'ChampSelect'"
           :build="championBuild.build.value"
           :loading="championBuild.loading.value"
+          :apply-state="championBuild.applyState.value"
+          @apply="handleApplyRunes"
         />
       </div>
 
@@ -231,6 +233,7 @@ import {
   type OpggTier
 } from '@renderer/services/opgg'
 import { useOpggTier } from '@renderer/composables/useOpggTier'
+import { applyFailureText } from '@renderer/services/championBuild'
 import { buildRuleDraft } from '@renderer/services/bpRuleDraft'
 import { getChampionName, loadChampionNames } from '@renderer/services/ai/champion-names'
 import type { Position, PickRule, BanRule } from '@renderer/types/rules'
@@ -466,6 +469,12 @@ async function handleSaveRule(): Promise<void> {
   } finally {
     savingRule.value = false
   }
+}
+
+/** 手动应用推荐符文；失败原因用 toast 讲清楚（页满时让用户自己删页，我们不删） */
+async function handleApplyRunes(): Promise<void> {
+  const result = await championBuild.apply()
+  if (result && !result.ok) message.error(applyFailureText(result.reason))
 }
 
 const handleUpdateConfig = async (value: number | null) => {

@@ -55,6 +55,7 @@ pub mod portable_update;
 pub mod rank;
 pub mod replay;
 pub mod rule_config;
+pub mod rune_page;
 pub mod session;
 pub mod sgp;
 pub mod system;

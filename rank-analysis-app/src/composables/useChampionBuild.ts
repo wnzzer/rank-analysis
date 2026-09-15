@@ -7,9 +7,16 @@
  */
 
 import { computed, ref, watch, type ComputedRef, type Ref } from 'vue'
-import { fetchChampionBuild, pickRecommendedRune } from '@renderer/services/championBuild'
+import {
+  applyRunePage,
+  fetchChampionBuild,
+  pickRecommendedRune
+} from '@renderer/services/championBuild'
 import { opggRevision } from '@renderer/services/opgg'
-import type { ChampionBuild, RuneBuild } from '@renderer/types/championBuild'
+import type { ApplyRuneResult, ChampionBuild, RuneBuild } from '@renderer/types/championBuild'
+
+/** 符文写入状态：未写 / 写入中 / 已写入当前推荐 / 失败 */
+export type ApplyState = 'idle' | 'applying' | 'applied' | 'failed'
 
 /**
  * 取数入参
@@ -33,7 +40,8 @@ export interface BuildQuery {
  * LP 等字段的 playerSignature），每一轮无关更新都会触发一次白拉。
  *
  * @param source - 返回当前取数入参的 getter（传 getter 而非 ref，便于调用方从 reactive 会话里现算）
- * @returns build（当前构筑，拉取中 / 无数据为 null）、loading、recommended（推荐的那套符文与样本是否充足）
+ * @returns build（当前构筑，拉取中 / 无数据为 null）、loading、recommended（推荐的那套符文与样本是否充足）、
+ *   applyState / applyReason（符文写入状态与失败原因）、apply（把推荐符文写成临时符文页）
  * @example
  * ```ts
  * const cb = useChampionBuild(() => ({
@@ -48,11 +56,16 @@ export function useChampionBuild(source: () => BuildQuery): {
   build: Ref<ChampionBuild | null>
   loading: Ref<boolean>
   recommended: ComputedRef<{ rune: RuneBuild | null; sufficient: boolean }>
+  applyState: Ref<ApplyState>
+  applyReason: Ref<string | null>
+  apply: () => Promise<ApplyRuneResult | null>
 } {
   const build = ref<ChampionBuild | null>(null)
   const loading = ref(false)
+  const applyState = ref<ApplyState>('idle')
+  const applyReason = ref<string | null>(null)
 
-  /** 请求序号：快速换人时旧请求可能后到，只认最后一次 */
+  /** 请求序号：快速换人时旧请求（取数或写入）可能后到，只认最后一次 */
   let seq = 0
 
   const key = computed(() => {
@@ -66,6 +79,8 @@ export function useChampionBuild(source: () => BuildQuery): {
     async k => {
       const mine = ++seq
       build.value = null
+      applyState.value = 'idle'
+      applyReason.value = null
       if (!k) {
         loading.value = false
         return
@@ -82,5 +97,23 @@ export function useChampionBuild(source: () => BuildQuery): {
 
   const recommended = computed(() => pickRecommendedRune(build.value))
 
-  return { build, loading, recommended }
+  /**
+   * 把推荐的那套符文写成临时符文页。样本不足、无数据或写入中时不动作（返回 null）；
+   * 写入期间换了人，结果作废，不把旧英雄的「已应用」串到新英雄上。
+   */
+  async function apply(): Promise<ApplyRuneResult | null> {
+    const b = build.value
+    const { rune, sufficient } = recommended.value
+    if (!b || !rune || !sufficient || applyState.value === 'applying') return null
+    const mine = seq
+    applyState.value = 'applying'
+    applyReason.value = null
+    const result = await applyRunePage(b.champion_id, b.position, rune)
+    if (mine !== seq) return result
+    applyState.value = result.ok ? 'applied' : 'failed'
+    applyReason.value = result.reason
+    return result
+  }
+
+  return { build, loading, recommended, applyState, applyReason, apply }
 }
