@@ -5,6 +5,7 @@
 //! - 自动开始寻找对局
 //! - 自动选择英雄
 //! - 自动禁用英雄
+//! - 自动应用推荐符文（临时符文页）
 //!
 //! # 架构
 //!
@@ -898,6 +899,165 @@ async fn start_ban_champion() -> Result<(), String> {
     apply_bp_decision(&select_session, &decision).await
 }
 
+/// 同一份写入内容最多尝试的次数。
+///
+/// 符文写入的失败多是确定性的（LCU 拒绝、页满），每 2s 无脑重试只会在开启 Sentry
+/// 日志转发时刷满 error；内容一变（换人 / 构筑刷新）重新计数。
+const MAX_RUNE_APPLY_ATTEMPTS: u32 = 3;
+
+/// 自动应用的失败计数：只跟踪「最近一次失败的内容」。
+#[derive(Debug, Default, Clone, PartialEq)]
+struct RuneApplyFailures {
+    key: Option<crate::command::rune_page::AppliedKey>,
+    count: u32,
+}
+
+impl RuneApplyFailures {
+    /// 记一次失败：同一内容累加，换了内容从 1 重新计
+    fn record(&mut self, key: &crate::command::rune_page::AppliedKey) {
+        if self.key.as_ref() == Some(key) {
+            self.count += 1;
+        } else {
+            self.key = Some(key.clone());
+            self.count = 1;
+        }
+    }
+
+    /// 该内容是否已用尽重试次数
+    fn exhausted(&self, key: &crate::command::rune_page::AppliedKey) -> bool {
+        self.key.as_ref() == Some(key) && self.count >= MAX_RUNE_APPLY_ATTEMPTS
+    }
+}
+
+/// 本 tick 是否要写符文页。
+///
+/// 不能用「本局只执行一次」（锁定后仍能换人），也不能照搬 BP 的「每 tick 无脑重试」
+/// ——BP 的 PATCH 幂等，符文写入每次都让客户端可见地切一次页。所以按写入内容比较：
+/// 与上次成功写入的完全相同就跳过，失败到上限也跳过。
+fn should_apply_runes(
+    key: &crate::command::rune_page::AppliedKey,
+    last_applied: Option<&crate::command::rune_page::AppliedKey>,
+    failures: &RuneApplyFailures,
+) -> bool {
+    last_applied != Some(key) && !failures.exhausted(key)
+}
+
+/// 离开选人期：清空写入记录与失败计数，下一局从头来。
+fn reset_rune_apply_state(failures: &mut RuneApplyFailures) {
+    crate::command::rune_page::clear_applied();
+    *failures = RuneApplyFailures::default();
+}
+
+/// 推给前端的自动应用结果（`rune-apply-result` 事件）
+#[derive(serde::Serialize, Clone, Debug)]
+struct RuneApplyEvent {
+    champion_id: i32,
+    perk_ids: Vec<i32>,
+    ok: bool,
+    reason: Option<String>,
+}
+
+/// 自动应用推荐符文任务（opt-in，`settings.auto.applyRunesSwitch`）。
+///
+/// 只认**已锁定**的英雄（`champion_id > 0`，不看悬停意向）：悬停就写页会在用户挑英雄
+/// 时来回切页。大乱斗开局即分配英雄，同样满足。锁定到进游戏之间任何时候写都来得及，
+/// 故不需要 BP 那套阶段门与计时器校正。
+///
+/// 写入走 `apply_rune_page_core`（原地改写自己的临时页，绝不 DELETE），结果经
+/// `rune-apply-result` 事件推给推荐栏。
+async fn start_apply_runes_automation(app: tauri::AppHandle) {
+    use tauri::{Emitter, Manager};
+
+    log::info!("Starting apply runes automation");
+    let mut ticker = interval(Duration::from_secs(2));
+    ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
+    // 开关刚打开时不信任已有记录（可能来自本局更早的手动应用），宁可多写一次同样的内容
+    let mut failures = RuneApplyFailures::default();
+    reset_rune_apply_state(&mut failures);
+
+    loop {
+        ticker.tick().await;
+
+        match get_phase().await {
+            Ok(phase) if phase == CHAMPSELECT => {}
+            Ok(_) => {
+                reset_rune_apply_state(&mut failures);
+                continue;
+            }
+            Err(_) => continue,
+        }
+
+        let session = match get_champion_select_session().await {
+            Ok(s) => s,
+            Err(e) => {
+                log::debug!("apply runes: no champ select session: {}", e);
+                continue;
+            }
+        };
+        let my_puuid = match crate::lcu::api::summoner::Summoner::get_my_summoner().await {
+            Ok(s) => s.puuid,
+            Err(_) => continue,
+        };
+        // 口径对齐 rule_engine::detect_my_position：按 puuid 在我方队伍里定位自己
+        let Some(me) = session.my_team.iter().find(|p| p.puuid == my_puuid) else {
+            continue;
+        };
+        if me.champion_id <= 0 {
+            continue;
+        }
+        let game_mode = match crate::lcu::api::session::Session::get_session().await {
+            Ok(s) => s.game_data.queue.game_mode,
+            Err(e) => {
+                log::debug!("apply runes: no gameflow session: {}", e);
+                continue;
+            }
+        };
+
+        let state = app.state::<crate::state::AppState>();
+        let Some(build) = crate::command::champion_build::resolve_champion_build(
+            &state,
+            me.champion_id,
+            &game_mode,
+            Some(&me.assigned_position),
+        )
+        .await
+        else {
+            continue;
+        };
+        let Some(rune) = build.auto_rune() else {
+            continue;
+        };
+
+        let key = crate::command::rune_page::AppliedKey::of(me.champion_id, &build.position, rune);
+        let last = crate::command::rune_page::last_applied();
+        if !should_apply_runes(&key, last.as_ref(), &failures) {
+            continue;
+        }
+
+        let result =
+            crate::command::rune_page::apply_rune_page_core(me.champion_id, &build.position, rune)
+                .await;
+        if !result.ok {
+            failures.record(&key);
+            log::error!(
+                "Auto apply runes failed ({}/{}): {:?}",
+                failures.count,
+                MAX_RUNE_APPLY_ATTEMPTS,
+                result.reason
+            );
+        }
+        let event = RuneApplyEvent {
+            champion_id: key.champion_id,
+            perk_ids: key.perk_ids,
+            ok: result.ok,
+            reason: result.reason,
+        };
+        if let Err(e) = app.emit("rune-apply-result", &event) {
+            log::warn!("emit rune-apply-result failed: {}", e);
+        }
+    }
+}
+
 /// 初始化并启动自动化任务。
 ///
 /// 根据配置文件中的开关状态启动对应的自动化任务。
@@ -908,6 +1068,7 @@ async fn start_ban_champion() -> Result<(), String> {
 /// - `accept_match`: 自动接受匹配（`settings.auto.acceptMatchSwitch`）
 /// - `ban_champion`: 自动禁用英雄（`settings.auto.banChampionSwitch`）
 /// - `pick_champion`: 自动选择英雄（`settings.auto.pickChampionSwitch`）
+/// - `apply_runes`: 自动应用推荐符文（`settings.auto.applyRunesSwitch`）
 ///
 /// # 配置格式
 ///
@@ -973,6 +1134,19 @@ async fn init_run_automation(app: tauri::AppHandle) {
         }
     }
 
+    match get_config("settings.auto.applyRunesSwitch").await {
+        Ok(value) => {
+            log::info!("Auto-apply runes config value: {:?}", value);
+            if let Some(true) = extract_bool(&value) {
+                log::info!("Auto-apply runes is enabled, starting task");
+                manager.start_task("apply_runes", start_apply_runes_automation(app.clone()));
+            }
+        }
+        Err(e) => {
+            log::error!("Failed to get applyRunesSwitch config: {}", e);
+        }
+    }
+
     log::info!("Automation tasks initialization completed");
 }
 
@@ -991,6 +1165,7 @@ async fn init_run_automation(app: tauri::AppHandle) {
 /// - `settings.auto.acceptMatchSwitch`: 自动接受匹配
 /// - `settings.auto.pickChampionSwitch`: 自动选择英雄
 /// - `settings.auto.banChampionSwitch`: 自动禁用英雄
+/// - `settings.auto.applyRunesSwitch`: 自动应用推荐符文
 ///
 /// # 使用示例
 ///
@@ -1009,10 +1184,11 @@ async fn init_run_automation(app: tauri::AppHandle) {
 /// ```
 pub async fn start_automation(app: tauri::AppHandle) {
     log::info!("========== Starting Automation System ==========");
-    init_run_automation(app).await;
+    init_run_automation(app.clone()).await;
     log::info!("Registering configuration change callbacks");
 
-    register_on_change_callback(|key: &str, new_value: &Value| {
+    // apply_runes 需要 AppHandle（取 AppState、向前端推事件），回调里按需克隆
+    register_on_change_callback(move |key: &str, new_value: &Value| {
         log::info!("Config changed: {} = {:?}", key, new_value);
 
         // 确保 manager 已经初始化
@@ -1075,6 +1251,20 @@ pub async fn start_automation(app: tauri::AppHandle) {
                     }
                 } else {
                     log::warn!("Invalid value for banChampionSwitch: {:?}", new_value);
+                }
+            }
+            "settings.auto.applyRunesSwitch" => {
+                if let Some(enabled) = extract_bool(new_value) {
+                    if enabled {
+                        log::info!("Config: Enabling apply runes automation");
+                        manager
+                            .start_task("apply_runes", start_apply_runes_automation(app.clone()));
+                    } else {
+                        log::info!("Config: Disabling apply runes automation");
+                        manager.stop_task("apply_runes");
+                    }
+                } else {
+                    log::warn!("Invalid value for applyRunesSwitch: {:?}", new_value);
                 }
             }
             _ => {
@@ -1174,6 +1364,77 @@ mod tests {
         assert_eq!(rules.len(), 1);
         assert_eq!(rules[0].id, "b1");
         assert_eq!(rules[0].action.champion_id, 55);
+    }
+}
+
+#[cfg(test)]
+mod apply_runes_tests {
+    use super::*;
+    use crate::command::rune_page::{last_applied, record_applied, AppliedKey};
+
+    fn key(champion_id: i32, last_perk: i32) -> AppliedKey {
+        AppliedKey {
+            champion_id,
+            position: "middle".into(),
+            primary_style_id: 8000,
+            sub_style_id: 8400,
+            perk_ids: vec![8008, 9101, 9104, 8299, 8444, 8451, 5005, 5008, last_perk],
+        }
+    }
+
+    #[test]
+    fn should_skip_when_identical_content_already_applied() {
+        let k = key(157, 5001);
+        assert!(!should_apply_runes(
+            &k,
+            Some(&k),
+            &RuneApplyFailures::default()
+        ));
+    }
+
+    #[test]
+    fn should_rewrite_when_champion_or_content_changes() {
+        let failures = RuneApplyFailures::default();
+        assert!(should_apply_runes(&key(157, 5001), None, &failures));
+        assert!(
+            should_apply_runes(&key(86, 5001), Some(&key(157, 5001)), &failures),
+            "换人"
+        );
+        assert!(
+            should_apply_runes(&key(157, 5011), Some(&key(157, 5001)), &failures),
+            "数据刷新出了不同构筑"
+        );
+    }
+
+    #[test]
+    fn should_stop_retrying_same_content_after_max_failures() {
+        let k = key(157, 5001);
+        let mut failures = RuneApplyFailures::default();
+        for _ in 0..MAX_RUNE_APPLY_ATTEMPTS {
+            assert!(should_apply_runes(&k, None, &failures));
+            failures.record(&k);
+        }
+        assert!(
+            !should_apply_runes(&k, None, &failures),
+            "同一内容失败到上限后不再刷"
+        );
+        assert!(
+            should_apply_runes(&key(86, 5001), None, &failures),
+            "内容变了重新计数"
+        );
+    }
+
+    #[test]
+    fn leaving_champ_select_should_clear_applied_record_and_failures() {
+        let k = key(157, 5001);
+        record_applied(k.clone());
+        let mut failures = RuneApplyFailures::default();
+        failures.record(&k);
+
+        reset_rune_apply_state(&mut failures);
+
+        assert!(last_applied().is_none());
+        assert_eq!(failures, RuneApplyFailures::default());
     }
 }
 

@@ -179,6 +179,8 @@
           :build="championBuild.build.value"
           :loading="championBuild.loading.value"
           :apply-state="championBuild.applyState.value"
+          :auto-apply="autoApplyRunes"
+          :locked="myPlayer?.pickState === 'locked'"
           @apply="handleApplyRunes"
         />
       </div>
@@ -234,6 +236,7 @@ import {
 } from '@renderer/services/opgg'
 import { useOpggTier } from '@renderer/composables/useOpggTier'
 import { applyFailureText } from '@renderer/services/championBuild'
+import { CONFIG_KEYS } from '@renderer/services/configKeys'
 import { buildRuleDraft } from '@renderer/services/bpRuleDraft'
 import { getChampionName, loadChampionNames } from '@renderer/services/ai/champion-names'
 import type { Position, PickRule, BanRule } from '@renderer/types/rules'
@@ -470,6 +473,18 @@ async function handleSaveRule(): Promise<void> {
     savingRule.value = false
   }
 }
+
+/**
+ * 自动应用推荐符文开关。只在挂载时读一次：开关在设置页，切过去再回来本页会重新挂载。
+ */
+const autoApplyRunes = ref(false)
+onMounted(async () => {
+  try {
+    autoApplyRunes.value = (await getConfigByIpc<boolean>(CONFIG_KEYS.applyRunesSwitch)) ?? false
+  } catch (e) {
+    console.error(e)
+  }
+})
 
 /** 手动应用推荐符文；失败原因用 toast 讲清楚（页满时让用户自己删页，我们不删） */
 async function handleApplyRunes(): Promise<void> {

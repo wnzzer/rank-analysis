@@ -171,6 +171,12 @@ impl GameStateMonitor {
             reason_message,
         };
 
+        // 符文写入记录只在一次选人期内有效：手动应用没有常驻任务替它收尾，
+        // 由这里统一清掉，推荐栏才不会把上一局的写入显示成本局「已应用」。
+        if new_state.phase.as_deref() != Some(crate::constant::game::CHAMPSELECT) {
+            crate::command::rune_page::clear_applied();
+        }
+
         // 检查状态是否改变（含 reason_code，使提权引导能及时出现/消失）
         let state_changed = new_state.connected != self.last_state.connected
             || new_state.phase != self.last_state.phase

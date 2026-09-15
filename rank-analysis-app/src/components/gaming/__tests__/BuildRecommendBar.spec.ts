@@ -57,6 +57,8 @@ const mountBar = (props: {
   build: ChampionBuild | null
   loading: boolean
   applyState?: 'idle' | 'applying' | 'applied' | 'failed'
+  autoApply?: boolean
+  locked?: boolean
 }) => mount(BuildRecommendBar, { props, global: { plugins: [naive] } })
 
 const applyButton = (w: ReturnType<typeof mountBar>) => w.find('.build-apply')
@@ -128,5 +130,41 @@ describe('BuildRecommendBar', () => {
     const failed = mountBar({ build: build(), loading: false, applyState: 'failed' })
     expect(applyButton(failed).text()).toBe('应用失败，重试')
     expect(applyButton(failed).attributes('disabled')).toBeUndefined()
+  })
+
+  describe('自动应用开启时按钮退化为状态指示', () => {
+    it('已锁定、等待写入：自动应用中…（不可点）', () => {
+      const w = mountBar({ build: build(), loading: false, autoApply: true, locked: true })
+      expect(applyButton(w).text()).toBe('自动应用中…')
+      expect(applyButton(w).attributes('disabled')).toBeDefined()
+    })
+
+    it('还在悬停（未锁定）：说明锁定后才写，不给假承诺', () => {
+      const w = mountBar({ build: build(), loading: false, autoApply: true, locked: false })
+      expect(applyButton(w).text()).toBe('锁定后自动应用')
+      expect(applyButton(w).attributes('disabled')).toBeDefined()
+    })
+
+    it('写入成功显示已应用；失败时仍可手动重试', async () => {
+      const applied = mountBar({
+        build: build(),
+        loading: false,
+        autoApply: true,
+        locked: true,
+        applyState: 'applied'
+      })
+      expect(applyButton(applied).text()).toBe('已应用')
+
+      const failed = mountBar({
+        build: build(),
+        loading: false,
+        autoApply: true,
+        locked: true,
+        applyState: 'failed'
+      })
+      expect(applyButton(failed).text()).toBe('应用失败，重试')
+      await applyButton(failed).trigger('click')
+      expect(failed.emitted('apply')).toHaveLength(1)
+    })
   })
 })

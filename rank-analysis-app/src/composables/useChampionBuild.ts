@@ -6,14 +6,22 @@
  * @module composables/useChampionBuild
  */
 
-import { computed, ref, watch, type ComputedRef, type Ref } from 'vue'
+import { computed, onUnmounted, ref, watch, type ComputedRef, type Ref } from 'vue'
+import { listen } from '@tauri-apps/api/event'
 import {
   applyRunePage,
   fetchChampionBuild,
+  fetchLastAppliedRune,
+  isSameRune,
   pickRecommendedRune
 } from '@renderer/services/championBuild'
 import { opggRevision } from '@renderer/services/opgg'
-import type { ApplyRuneResult, ChampionBuild, RuneBuild } from '@renderer/types/championBuild'
+import type {
+  ApplyRuneResult,
+  ChampionBuild,
+  RuneApplyEvent,
+  RuneBuild
+} from '@renderer/types/championBuild'
 
 /** 符文写入状态：未写 / 写入中 / 已写入当前推荐 / 失败 */
 export type ApplyState = 'idle' | 'applying' | 'applied' | 'failed'
@@ -68,6 +76,8 @@ export function useChampionBuild(source: () => BuildQuery): {
   /** 请求序号：快速换人时旧请求（取数或写入）可能后到，只认最后一次 */
   let seq = 0
 
+  const recommended = computed(() => pickRecommendedRune(build.value))
+
   const key = computed(() => {
     const q = source()
     if (!q.active || !(q.championId > 0)) return ''
@@ -91,11 +101,42 @@ export function useChampionBuild(source: () => BuildQuery): {
       if (mine !== seq) return
       build.value = result
       loading.value = false
+      if (result) await restoreApplied(mine)
     },
     { immediate: true }
   )
 
-  const recommended = computed(() => pickRecommendedRune(build.value))
+  /**
+   * 恢复「已应用」：写入发生在后端（自动任务）或本组件上次挂载期间（切到别的页再回来），
+   * 本地状态不知道。后端的写入记录只在本次选人期有效，可以放心当真。
+   */
+  async function restoreApplied(mine: number): Promise<void> {
+    const applied = await fetchLastAppliedRune()
+    const b = build.value
+    const rune = recommended.value.rune
+    if (mine !== seq || !applied || !b || !rune || applyState.value !== 'idle') return
+    if (isSameRune(b.champion_id, rune, applied)) applyState.value = 'applied'
+  }
+
+  /** 自动应用任务的写入结果：只认「当前英雄的当前推荐」，别的英雄的结果不串过来 */
+  function onApplyEvent(event: RuneApplyEvent): void {
+    const b = build.value
+    const rune = recommended.value.rune
+    if (!b || !rune || !isSameRune(b.champion_id, rune, event)) return
+    applyState.value = event.ok ? 'applied' : 'failed'
+    applyReason.value = event.reason
+  }
+
+  let unlisten: (() => void) | null = null
+  let disposed = false
+  void listen<RuneApplyEvent>('rune-apply-result', e => onApplyEvent(e.payload)).then(off => {
+    if (disposed) off()
+    else unlisten = off
+  })
+  onUnmounted(() => {
+    disposed = true
+    unlisten?.()
+  })
 
   /**
    * 把推荐的那套符文写成临时符文页。样本不足、无数据或写入中时不动作（返回 null）；

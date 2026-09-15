@@ -10,6 +10,17 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: (...args: unknown[]) => invokeMock(...args)
 }))
 
+/** 按事件名收集回调，供测试手动派发后端事件 */
+const eventHandlers: Record<string, (e: { payload: unknown }) => void> = {}
+vi.mock('@tauri-apps/api/event', () => ({
+  listen: vi.fn(async (name: string, cb: (e: { payload: unknown }) => void) => {
+    eventHandlers[name] = cb
+    return () => delete eventHandlers[name]
+  })
+}))
+
+const PERKS = [8008, 9101, 9104, 8299, 8444, 8451, 5005, 5008, 5001]
+
 function rune(play: number): RuneBuild {
   return {
     primary_style_id: 8000,
@@ -240,6 +251,66 @@ describe('useChampionBuild', () => {
     await flush()
 
     expect(r.applyState.value).toBe('idle')
+    app.unmount()
+  })
+
+  it('挂载时从后端恢复本次选人期的写入记录（切页回来仍显示已应用）', async () => {
+    invokeMock.mockImplementation(async (cmd: string, args: { championId: number }) => {
+      if (cmd === 'get_champion_build') return build(args.championId)
+      if (cmd === 'get_last_applied_rune') {
+        return {
+          champion_id: 157,
+          position: 'middle',
+          primary_style_id: 8000,
+          sub_style_id: 8400,
+          perk_ids: PERKS
+        }
+      }
+    })
+    const s = session()
+    const [r, app] = withSetup(() => useChampionBuild(() => s))
+    await flush()
+
+    expect(r.applyState.value).toBe('applied')
+    app.unmount()
+  })
+
+  it('写入记录属于别的英雄时不算已应用', async () => {
+    invokeMock.mockImplementation(async (cmd: string, args: { championId: number }) => {
+      if (cmd === 'get_champion_build') return build(args.championId)
+      if (cmd === 'get_last_applied_rune') {
+        return {
+          champion_id: 86,
+          position: 'top',
+          primary_style_id: 8000,
+          sub_style_id: 8400,
+          perk_ids: PERKS
+        }
+      }
+    })
+    const s = session()
+    const [r, app] = withSetup(() => useChampionBuild(() => s))
+    await flush()
+
+    expect(r.applyState.value).toBe('idle')
+    app.unmount()
+  })
+
+  it('自动应用事件：当前推荐内容成功 → 已应用，失败 → 带原因的失败', async () => {
+    const s = session()
+    const [r, app] = withSetup(() => useChampionBuild(() => s))
+    await flush()
+    const emit = (payload: unknown) => eventHandlers['rune-apply-result']?.({ payload })
+
+    emit({ champion_id: 86, perk_ids: PERKS, ok: true, reason: null })
+    expect(r.applyState.value).toBe('idle') // 别的英雄的结果不认
+
+    emit({ champion_id: 157, perk_ids: PERKS, ok: false, reason: 'lcu_rejected' })
+    expect(r.applyState.value).toBe('failed')
+    expect(r.applyReason.value).toBe('lcu_rejected')
+
+    emit({ champion_id: 157, perk_ids: PERKS, ok: true, reason: null })
+    expect(r.applyState.value).toBe('applied')
     app.unmount()
   })
 

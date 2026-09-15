@@ -20,8 +20,12 @@ const props = withDefaults(
     loading: boolean
     /** 符文写入状态 */
     applyState?: ApplyState
+    /** 是否开启了自动应用（settings.auto.applyRunesSwitch） */
+    autoApply?: boolean
+    /** 我是否已锁定英雄——自动应用只在锁定后写入 */
+    locked?: boolean
   }>(),
-  { applyState: 'idle' }
+  { applyState: 'idle', autoApply: false, locked: false }
 )
 
 defineEmits<{ (e: 'apply'): void }>()
@@ -38,9 +42,26 @@ const assets = useRecordAssets()
 const recommended = computed(() => pickRecommendedRune(props.build))
 const rune = computed(() => recommended.value.rune)
 
-/** 样本不足不让写；写入中防连点。已应用仍可再点（用户手动切走后想切回来） */
+/**
+ * 按钮文案。自动应用开启时按钮退化为状态指示：还没锁定就说明「锁定后」才写，
+ * 不给一个此刻不会兑现的「应用中」。
+ */
+const applyLabel = computed(() => {
+  if (props.autoApply && props.applyState === 'idle' && recommended.value.sufficient) {
+    return props.locked ? '自动应用中…' : '锁定后自动应用'
+  }
+  return APPLY_LABELS[props.applyState]
+})
+
+/**
+ * 样本不足不让写；写入中防连点；自动模式等待写入时是状态指示不可点。
+ * 已应用仍可再点（用户手动切走后想切回来），失败永远可手动重试。
+ */
 const applyDisabled = computed(
-  () => !recommended.value.sufficient || props.applyState === 'applying'
+  () =>
+    !recommended.value.sufficient ||
+    props.applyState === 'applying' ||
+    (props.autoApply && props.applyState === 'idle')
 )
 
 /** 核心三件套：取出场率最高的那组核心装 */
@@ -154,7 +175,7 @@ const runeRows = computed(() => {
       :disabled="applyDisabled"
       @click="$emit('apply')"
     >
-      {{ APPLY_LABELS[applyState] }}
+      {{ applyLabel }}
     </button>
   </div>
 </template>

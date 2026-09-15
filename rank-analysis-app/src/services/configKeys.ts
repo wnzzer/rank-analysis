@@ -43,5 +43,10 @@ export const CONFIG_KEYS = {
   /** 页面缩放比例（Ctrl+滚轮调节，0.7~1.5；见 composables/useZoom） */
   zoomFactor: 'settings.ui.zoomFactor',
   /** 对局详情窗在「铺满」基础上的用户倍率（0.7~1.5；见 composables/useDetailZoom） */
-  detailZoomFactor: 'settings.ui.detailZoomFactor'
+  detailZoomFactor: 'settings.ui.detailZoomFactor',
+  /**
+   * 选人期锁定英雄后自动把推荐符文写成临时符文页（opt-in，默认关）。
+   * 与 Rust `automation.rs` 的 `apply_runes` 任务开关对应——改这里也要同步 Rust。
+   */
+  applyRunesSwitch: 'settings.auto.applyRunesSwitch'
 } as const

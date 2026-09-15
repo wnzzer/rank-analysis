@@ -256,6 +256,15 @@ pub async fn apply_rune_page(
     Ok(apply_rune_page_core(champion_id, &position, &rune).await)
 }
 
+/// 本次选人期最近一次成功写入的内容（推荐栏挂载时据此恢复「已应用」）。
+///
+/// 记录的生命周期 = 一次选人期：`game_state_monitor` 与 `apply_runes` 任务在离开
+/// 选人期时都会清空，不会把上一局的写入误报成本局已应用。
+#[tauri::command]
+pub fn get_last_applied_rune() -> Option<AppliedKey> {
+    last_applied()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

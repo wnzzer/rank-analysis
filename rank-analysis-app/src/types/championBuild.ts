@@ -51,6 +51,26 @@ export interface ApplyRuneResult {
   reason: string | null
 }
 
+/**
+ * 最近一次成功写入的内容（Rust `command::rune_page::AppliedKey`），生命周期 = 一次选人期
+ * @property perk_ids - 9 个符文，顺序主系 4 → 副系 2 → 属性 3
+ */
+export interface AppliedRuneKey {
+  champion_id: number
+  position: string
+  primary_style_id: number
+  sub_style_id: number
+  perk_ids: number[]
+}
+
+/** 自动应用任务每次写入后推送的 `rune-apply-result` 事件载荷 */
+export interface RuneApplyEvent {
+  champion_id: number
+  perk_ids: number[]
+  ok: boolean
+  reason: string | null
+}
+
 /** 某英雄在某分路 / 模式 / 段位下的推荐构筑 */
 export interface ChampionBuild {
   schema_version: number

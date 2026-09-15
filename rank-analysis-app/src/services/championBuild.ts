@@ -8,7 +8,12 @@
  */
 
 import { invoke } from '@tauri-apps/api/core'
-import type { ApplyRuneResult, ChampionBuild, RuneBuild } from '@renderer/types/championBuild'
+import type {
+  AppliedRuneKey,
+  ApplyRuneResult,
+  ChampionBuild,
+  RuneBuild
+} from '@renderer/types/championBuild'
 
 /**
  * 样本阈值：低于它的构筑不作为推荐 / 自动应用候选。
@@ -58,6 +63,48 @@ export async function applyRunePage(
     console.warn(`[championBuild] apply failed for champion ${championId}:`, error)
     return { ok: false, page_id: null, reason: 'lcu_unavailable' }
   }
+}
+
+/**
+ * 本次选人期最近一次成功写入的内容（手动或自动），用于恢复「已应用」状态
+ * @returns 写入记录；没有或查询失败为 null
+ */
+export async function fetchLastAppliedRune(): Promise<AppliedRuneKey | null> {
+  try {
+    return (await invoke<AppliedRuneKey | null>('get_last_applied_rune')) ?? null
+  } catch (error) {
+    console.warn('[championBuild] fetch last applied rune failed:', error)
+    return null
+  }
+}
+
+/**
+ * LCU `selectedPerkIds` 顺序的 9 个符文：主系 4 → 副系 2 → 属性 3
+ * @param rune - 一套符文构筑
+ * @returns 9 个符文 id
+ */
+export function perkIdsOf(rune: RuneBuild): number[] {
+  return [...rune.primary_perk_ids, ...rune.sub_perk_ids, ...rune.stat_mod_ids]
+}
+
+/**
+ * 一条写入记录是否就是「这个英雄的这套符文」
+ * @param championId - 当前英雄
+ * @param rune - 当前推荐的那套符文
+ * @param applied - 后端的写入记录或事件（只看英雄与 9 个符文）
+ * @returns 英雄相同且 9 个符文逐位相同
+ */
+export function isSameRune(
+  championId: number,
+  rune: RuneBuild,
+  applied: { champion_id: number; perk_ids: number[] }
+): boolean {
+  const ids = perkIdsOf(rune)
+  return (
+    applied.champion_id === championId &&
+    applied.perk_ids.length === ids.length &&
+    applied.perk_ids.every((id, i) => id === ids[i])
+  )
 }
 
 /**

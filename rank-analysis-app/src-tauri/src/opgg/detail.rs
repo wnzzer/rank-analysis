@@ -75,6 +75,14 @@ pub struct ChampionBuild {
     pub stale: bool,
 }
 
+impl ChampionBuild {
+    /// 自动应用的候选：按出场率顺序第一套样本达标（`play >= MIN_BUILD_PLAY`）的构筑。
+    /// 全部不达标返回 None——宁可不写，也不把长尾构筑自动塞进用户的当前页。
+    pub fn auto_rune(&self) -> Option<&RuneBuild> {
+        self.runes.iter().find(|r| r.play >= MIN_BUILD_PLAY)
+    }
+}
+
 /// 一套完整的符文构筑，字段与 LCU 符文页一一对应、无需转换表。
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct RuneBuild {
@@ -651,6 +659,18 @@ mod tests {
         assert!(b.runes.iter().all(|r| r.perk_ids().len() == 9));
         assert_eq!(b.runes[0].play, 519);
         assert_eq!(b.runes.len(), 3);
+    }
+
+    #[test]
+    fn auto_rune_should_pick_first_build_meeting_sample_threshold() {
+        let mut b = parse_build(RANKED_FIXTURE, &ranked_mid(), 157, 0).unwrap();
+        b.runes[0].play = MIN_BUILD_PLAY - 1;
+        assert_eq!(b.auto_rune(), Some(&b.runes[1]), "头一套样本不足时顺延");
+
+        for r in b.runes.iter_mut() {
+            r.play = 10;
+        }
+        assert_eq!(b.auto_rune(), None, "全都不达标就不自动写");
     }
 
     #[test]
