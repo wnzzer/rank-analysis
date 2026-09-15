@@ -144,6 +144,18 @@ pub fn cache_file(name: &str) -> PathBuf {
     cache_file_in(&std::env::temp_dir(), name)
 }
 
+/// 某个缓存**目录**的绝对路径（系统临时目录下，带应用前缀）。
+///
+/// 与 [`cache_file`] 同一落点规则，区别只在用途：条目多到不适合平铺进临时目录时
+/// （如按英雄分片的 OP.GG 详情缓存，几百个文件）收进一个子目录，清理时整目录删除。
+/// 本函数只算路径，不负责创建。
+///
+/// # 参数
+/// - `name`: 不含前缀的目录名，如 `"builds"` → `{temp}/rank-analysis-builds`
+pub fn cache_subdir(name: &str) -> PathBuf {
+    cache_file_in(&std::env::temp_dir(), name)
+}
+
 /// 确保某个文件路径的父目录存在（不存在则递归创建）。
 ///
 /// macOS 首次运行时 `~/Library/Application Support/<bundle id>` 尚不存在，写配置前
@@ -218,6 +230,18 @@ mod tests {
     #[test]
     fn cache_file_must_be_absolute_never_cwd_relative() {
         assert!(cache_file("x.json").is_absolute());
+    }
+
+    #[test]
+    fn cache_subdir_should_be_namespaced_absolute_directory() {
+        let dir = cache_subdir("builds");
+
+        assert!(dir.is_absolute(), "{:?}", dir);
+        assert_eq!(dir.parent(), Some(std::env::temp_dir().as_path()));
+        assert_eq!(
+            dir.file_name().and_then(|n| n.to_str()),
+            Some("rank-analysis-builds")
+        );
     }
 
     #[test]

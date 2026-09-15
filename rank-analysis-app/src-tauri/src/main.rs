@@ -151,6 +151,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             command::asset::get_asset_details,
             command::bp::get_bp_decision,
             command::bp_suggest::get_bp_suggest,
+            command::champion_build::get_champion_build,
             command::config::put_config,
             command::config::get_config,
             // command::config::get_http_server_port,

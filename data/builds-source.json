@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "strategy": "direct",
+  "urlTemplate": "https://lol-api-champion.op.gg/api/global/champions/{mode}/{champion_id}/{position}?tier={tier}",
+  "mirrorBase": null
+}

@@ -82,7 +82,9 @@ fn snapshot_status(snap: &OpggSnapshot, stale: bool) -> OpggStatus {
 }
 
 /// 查某英雄的元数据：指定分路精确命中 → 回退主分路 → None。
-fn select_meta(
+///
+/// `pub(crate)`：推荐构筑在无分配分路（匹配自选 / 自定义）时借它取主分路。
+pub(crate) fn select_meta(
     snap: &OpggSnapshot,
     champion_id: i32,
     position: Option<&str>,
