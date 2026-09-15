@@ -27,19 +27,6 @@
         <div class="setting-item">
           <span class="setting-label">
             <n-icon size="20" class="setting-item-icon setting-item-icon-start">
-              <ColorWandOutline />
-            </n-icon>
-            自动应用推荐符文
-            <span class="setting-item-hint"
-              >锁定英雄后写成临时符文页，不占页位、不改你的符文页</span
-            >
-          </span>
-          <n-switch v-model:value="autoRunes" @update:value="updateRunesSwitch" />
-        </div>
-
-        <div class="setting-item">
-          <span class="setting-label">
-            <n-icon size="20" class="setting-item-icon setting-item-icon-start">
               <BulbOutline />
             </n-icon>
             智能推荐（英雄池 / Ban 池）
@@ -257,6 +244,9 @@
       />
     </n-card>
 
+    <!-- 自动应用符文：总开关 + 我的符文方案 + 兜底策略，与上面两张卡同构 -->
+    <RunePresetsCard :champion-options="options" />
+
     <BpSuggestModal
       v-model:show="suggestModalShow"
       :champion-options="options"
@@ -274,11 +264,9 @@ import {
   FlashOutline,
   Close,
   PlayCircleOutline,
-  BulbOutline,
-  ColorWandOutline
+  BulbOutline
 } from '@vicons/ionicons5'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
-import { CONFIG_KEYS } from '@renderer/services/configKeys'
 import { assetPrefix } from '@renderer/services/http'
 import type { championOption } from '@renderer/types/domain/champion'
 import { invoke } from '@tauri-apps/api/core'
@@ -287,6 +275,7 @@ import { useOpggTier } from '@renderer/composables/useOpggTier'
 import type { OpggTier } from '@renderer/services/opgg'
 import RuleEditModal from '@renderer/components/automation/RuleEditModal.vue'
 import BpSuggestModal from '@renderer/components/automation/BpSuggestModal.vue'
+import RunePresetsCard from '@renderer/components/automation/RunePresetsCard.vue'
 import { hasNoExecutableTarget } from '@renderer/components/automation/autoBpHint'
 import type { PickRule, BanRule, PickAction } from '@renderer/types/rules'
 
@@ -333,7 +322,6 @@ onMounted(async () => {
   myPickData.value = (await getConfigByIpc<number[]>('settings.auto.pickChampionSlice')) ?? []
   myBanData.value = (await getConfigByIpc<number[]>('settings.auto.banChampionSlice')) ?? []
   autoStart.value = (await getConfigByIpc<boolean>('settings.auto.startMatchSwitch')) ?? false
-  autoRunes.value = (await getConfigByIpc<boolean>(CONFIG_KEYS.applyRunesSwitch)) ?? false
   await loadOpggTier()
   await reloadPickRules()
   await reloadBanRules()
@@ -414,8 +402,6 @@ const autoAccept = ref(false)
 const autoPick = ref(false)
 const autoBan = ref(false)
 const autoStart = ref(false)
-/** 自动应用推荐符文（opt-in，默认关；后端 apply_runes 任务随它启停） */
-const autoRunes = ref(false)
 
 const selectPickChampionId = ref(null)
 const selectBanChampionId = ref(null)
@@ -460,9 +446,6 @@ const updateBanData = async () => {
 }
 const updateStartSwitch = async () => {
   await putConfigByIpc('settings.auto.startMatchSwitch', autoStart.value)
-}
-const updateRunesSwitch = async () => {
-  await putConfigByIpc(CONFIG_KEYS.applyRunesSwitch, autoRunes.value)
 }
 
 const deleteBanData = async (value: any) => {
@@ -516,11 +499,6 @@ const addPickData = async (value: any) => {
 
 .setting-item-icon {
   flex-shrink: 0;
-}
-.setting-item-hint {
-  margin-left: var(--space-8);
-  font-size: var(--font-size-sm);
-  color: var(--text-tertiary);
 }
 .setting-item-icon-accept {
   color: var(--accent-blue);

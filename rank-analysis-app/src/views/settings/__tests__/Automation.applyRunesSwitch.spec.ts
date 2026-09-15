@@ -41,11 +41,21 @@ async function settle(w: { vm: { $nextTick: () => Promise<void> } }): Promise<vo
   await w.vm.$nextTick()
 }
 
-/** 「自动应用推荐符文」这一行里的 n-switch */
+/** 「自动应用符文」卡片头部的总开关（已从「基本设置」挪成独立卡片，与自动选择英雄同构） */
 function runesSwitch(w: ReturnType<typeof mount>) {
-  const row = w.findAll('.setting-item').find(r => r.text().includes('自动应用推荐符文'))
-  expect(row, '基本设置里应有「自动应用推荐符文」一行').toBeDefined()
-  return row!.find('[role="switch"]')
+  expect(
+    w.findAll('.setting-item').some(r => r.text().includes('自动应用推荐符文')),
+    '「基本设置」里不应再有旧的那一行'
+  ).toBe(false)
+  const card = w
+    .findAll('.n-card')
+    .find(
+      c =>
+        c.find('.n-card-header').exists() &&
+        c.find('.n-card-header').text().includes('自动应用符文')
+    )
+  expect(card, '应有独立的「自动应用符文」卡片').toBeDefined()
+  return card!.find('.n-card-header [role="switch"]')
 }
 
 let stored = false
