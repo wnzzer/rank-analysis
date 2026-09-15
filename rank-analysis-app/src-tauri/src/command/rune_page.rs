@@ -101,9 +101,57 @@ pub fn last_applied() -> Option<AppliedKey> {
         .clone()
 }
 
-/// 清空写入记录（离开选人期时由自动任务调用）
+/// 本次选人期被用户手动接管的 `(champion_id, position)`。
+///
+/// 自动任务按「写入内容」判重：用户手动写了别的方案后，自动方案与 `LAST_APPLIED` 不同，
+/// 下一 tick 就会把页写回去——与用户抢方向盘。手动应用成功即记下，自动任务对同一英雄
+/// 同一分路不再写入（沿用 BP「你已接管，本阶段不再自动」的先例）。
+static MANUAL_OVERRIDE: Mutex<Option<(i32, String)>> = Mutex::new(None);
+
+/// 记录一次手动接管（仅手动应用路径调用）
+pub fn mark_manual_override(champion_id: i32, position: &str) {
+    *MANUAL_OVERRIDE.lock().unwrap_or_else(|p| p.into_inner()) =
+        Some((champion_id, position.to_string()));
+}
+
+/// 该英雄该分路本次选人期是否已被手动接管
+pub fn is_manual_override(champion_id: i32, position: &str) -> bool {
+    override_matches(
+        &MANUAL_OVERRIDE.lock().unwrap_or_else(|p| p.into_inner()),
+        champion_id,
+        position,
+    )
+}
+
+fn override_matches(stored: &Option<(i32, String)>, champion_id: i32, position: &str) -> bool {
+    stored
+        .as_ref()
+        .is_some_and(|(c, p)| *c == champion_id && p == position)
+}
+
+/// 清空写入记录与手动接管（离开选人期时调用：两者的生命周期都是一次选人期）
 pub fn clear_applied() {
     *LAST_APPLIED.lock().unwrap_or_else(|p| p.into_inner()) = None;
+    *MANUAL_OVERRIDE.lock().unwrap_or_else(|p| p.into_inner()) = None;
+}
+
+/// `get_last_applied_rune` 的返回：写入内容（扁平展开，前端沿用原字段）+ 是否已被手动接管
+#[derive(Serialize, Debug, Clone, PartialEq)]
+pub struct LastAppliedRune {
+    #[serde(flatten)]
+    pub key: AppliedKey,
+    /// 该写入的英雄 + 分路是否已被手动接管——前端据此不再显示「自动应用中…」
+    pub manual_override: bool,
+}
+
+fn last_applied_view(
+    last: Option<AppliedKey>,
+    manual: Option<(i32, String)>,
+) -> Option<LastAppliedRune> {
+    last.map(|key| LastAppliedRune {
+        manual_override: override_matches(&manual, key.champion_id, &key.position),
+        key,
+    })
 }
 
 /// LCU 分路 → 页名里的中文位置；大乱斗 / 未知返回 None（页名省略位置段）
@@ -247,22 +295,32 @@ pub async fn apply_rune_page_core(
 ///
 /// # 返回值
 /// 业务失败（页满 / 被拒 / 客户端未连接）走 `ok=false` + `reason`，不是 `Err`。
+///
+/// 这是**手动**路径：成功后记下手动接管，本次选人期自动任务不再为这个英雄这条路写入。
 #[tauri::command]
 pub async fn apply_rune_page(
     champion_id: i32,
     position: String,
     rune: RuneBuild,
 ) -> Result<ApplyRuneResult, String> {
-    Ok(apply_rune_page_core(champion_id, &position, &rune).await)
+    let result = apply_rune_page_core(champion_id, &position, &rune).await;
+    if result.ok {
+        mark_manual_override(champion_id, &position);
+    }
+    Ok(result)
 }
 
-/// 本次选人期最近一次成功写入的内容（推荐栏挂载时据此恢复「已应用」）。
+/// 本次选人期最近一次成功写入的内容与是否已被手动接管（推荐栏挂载时据此恢复状态）。
 ///
 /// 记录的生命周期 = 一次选人期：`game_state_monitor` 与 `apply_runes` 任务在离开
 /// 选人期时都会清空，不会把上一局的写入误报成本局已应用。
 #[tauri::command]
-pub fn get_last_applied_rune() -> Option<AppliedKey> {
-    last_applied()
+pub fn get_last_applied_rune() -> Option<LastAppliedRune> {
+    let manual = MANUAL_OVERRIDE
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .clone();
+    last_applied_view(last_applied(), manual)
 }
 
 #[cfg(test)]
@@ -362,6 +420,34 @@ mod tests {
             classify_failure(&LcuWriteError::Transport("refused".into())),
             "lcu_unavailable"
         );
+    }
+
+    #[test]
+    fn override_should_match_same_champion_and_position_only() {
+        let stored = Some((157, "middle".to_string()));
+        assert!(override_matches(&stored, 157, "middle"));
+        assert!(
+            !override_matches(&stored, 86, "middle"),
+            "换了英雄就不再算接管"
+        );
+        assert!(!override_matches(&stored, 157, "top"));
+        assert!(!override_matches(&None, 157, "middle"));
+    }
+
+    #[test]
+    fn last_applied_view_should_flatten_key_and_flag_override() {
+        let key = AppliedKey::of(157, "middle", &rune());
+        let view = last_applied_view(Some(key.clone()), Some((157, "middle".into()))).unwrap();
+        assert!(view.manual_override);
+        let json = serde_json::to_value(&view).unwrap();
+        // 前端沿用原来的扁平字段（champion_id / perk_ids ...），只多一个 manual_override
+        assert_eq!(json["champion_id"], 157);
+        assert_eq!(json["perk_ids"].as_array().unwrap().len(), 9);
+        assert_eq!(json["manual_override"], true);
+
+        let other = last_applied_view(Some(key), Some((86, "middle".into()))).unwrap();
+        assert!(!other.manual_override);
+        assert!(last_applied_view(None, Some((157, "middle".into()))).is_none());
     }
 
     #[test]

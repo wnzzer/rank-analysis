@@ -963,6 +963,10 @@ struct RuneApplyEvent {
 /// 时来回切页。大乱斗开局即分配英雄，同样满足。锁定到进游戏之间任何时候写都来得及，
 /// 故不需要 BP 那套阶段门与计时器校正。
 ///
+/// 写什么：「我的符文方案」（`settings.auto.runePresets`，按英雄 + 分路匹配）优先，
+/// 没有时按 `settings.auto.runeFallback` 决定是否用 OP.GG 推荐兜底；用户本次选人期
+/// 手动应用过的英雄 + 分路不再写（手动接管）。
+///
 /// 写入走 `apply_rune_page_core`（原地改写自己的临时页，绝不 DELETE），结果经
 /// `rune-apply-result` 事件推给推荐栏。
 async fn start_apply_runes_automation(app: tauri::AppHandle) {
@@ -1013,8 +1017,11 @@ async fn start_apply_runes_automation(app: tauri::AppHandle) {
             }
         };
 
+        use crate::command::{champion_build, rune_page, rune_preset};
+
         let state = app.state::<crate::state::AppState>();
-        let Some(build) = crate::command::champion_build::resolve_champion_build(
+        // 先只算分路（不拉 OP.GG）：匹配我的方案只需要它
+        let Some(target) = champion_build::resolve_build_target(
             &state,
             me.champion_id,
             &game_mode,
@@ -1024,19 +1031,39 @@ async fn start_apply_runes_automation(app: tauri::AppHandle) {
         else {
             continue;
         };
-        let Some(rune) = build.auto_rune() else {
+        // 用户本次选人期手动应用过这个英雄这条路：不再自动写，免得把他选的页改回去
+        if rune_page::is_manual_override(me.champion_id, &target.position) {
+            continue;
+        }
+
+        let presets = rune_preset::parse_presets(
+            &get_config("settings.auto.runePresets")
+                .await
+                .unwrap_or(Value::Null),
+        );
+        let fallback = rune_preset::parse_fallback(
+            &get_config("settings.auto.runeFallback")
+                .await
+                .unwrap_or(Value::Null),
+        );
+        let preset = rune_preset::find_preset(&presets, me.champion_id, &target.position);
+        // 有方案就不必拉 OP.GG；没有方案且兜底为「不写」同样不必拉
+        let build = if preset.is_none() && fallback == rune_preset::Fallback::Opgg {
+            champion_build::fetch_build_for_target(&state, me.champion_id, &target).await
+        } else {
+            None
+        };
+        let Some(rune) = rune_preset::choose_auto_rune(preset, build.as_ref(), fallback) else {
             continue;
         };
 
-        let key = crate::command::rune_page::AppliedKey::of(me.champion_id, &build.position, rune);
-        let last = crate::command::rune_page::last_applied();
+        let key = rune_page::AppliedKey::of(me.champion_id, &target.position, &rune);
+        let last = rune_page::last_applied();
         if !should_apply_runes(&key, last.as_ref(), &failures) {
             continue;
         }
 
-        let result =
-            crate::command::rune_page::apply_rune_page_core(me.champion_id, &build.position, rune)
-                .await;
+        let result = rune_page::apply_rune_page_core(me.champion_id, &target.position, &rune).await;
         if !result.ok {
             failures.record(&key);
             log::error!(

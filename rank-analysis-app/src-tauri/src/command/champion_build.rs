@@ -114,21 +114,21 @@ where
     }
 }
 
-/// 取某英雄的推荐构筑（命令层与 `apply_runes` 自动化共用）。
+/// 解析某英雄的请求目标（模式 / 分路 / 段位），**不拉 OP.GG 详情**。
+///
+/// 单独拆出来给 `apply_runes` 用：匹配「我的符文方案」只需要分路，方案存在时不该为了
+/// 算分路去拉一次详情——OP.GG 挂了方案也得照样能写。
 ///
 /// # 参数
 /// - `champion_id`: 英雄 ID（≤0 直接 None）
 /// - `game_mode`: LCU `gameMode`，决定 ranked / aram / 不推荐
-/// - `position`: 我的 `assignedPosition`，无分配为 None / ""
-///
-/// # 返回值
-/// 无数据（模式不支持、源被关闭、拉取失败且无缓存）一律 `None`，不报错。
-pub async fn resolve_champion_build(
+/// - `position`: 我的 `assignedPosition`，无分配为 None / ""（ranked 时退回列表快照里的主分路）
+pub async fn resolve_build_target(
     state: &AppState,
     champion_id: i32,
     game_mode: &str,
     position: Option<&str>,
-) -> Option<ChampionBuild> {
+) -> Option<BuildTarget> {
     if champion_id <= 0 {
         return None;
     }
@@ -145,8 +145,29 @@ pub async fn resolve_champion_build(
         .await
         .and_then(|snap| crate::command::opgg::select_meta(&snap, champion_id, None))
         .map(|m| m.position);
-    let target = detail::resolve_target(game_mode, position, main_position.as_deref(), tier)?;
+    detail::resolve_target(game_mode, position, main_position.as_deref(), tier)
+}
 
+/// 取某英雄的推荐构筑（命令层与 `apply_runes` 自动化共用）。
+///
+/// 参数语义见 [`resolve_build_target`]。无数据（模式不支持、源被关闭、拉取失败且无缓存）
+/// 一律 `None`，不报错。
+pub async fn resolve_champion_build(
+    state: &AppState,
+    champion_id: i32,
+    game_mode: &str,
+    position: Option<&str>,
+) -> Option<ChampionBuild> {
+    let target = resolve_build_target(state, champion_id, game_mode, position).await?;
+    fetch_build_for_target(state, champion_id, &target).await
+}
+
+/// 按已解析的目标取构筑：内存 → 磁盘 → HTTP → stale，见模块文档「降级链」。
+pub async fn fetch_build_for_target(
+    state: &AppState,
+    champion_id: i32,
+    target: &BuildTarget,
+) -> Option<ChampionBuild> {
     let source = source::get_or_fetch().await;
     let current_patch = state
         .opgg_cache
@@ -159,7 +180,7 @@ pub async fn resolve_champion_build(
         &state.build_cache,
         &detail::builds_root(),
         &source,
-        &target,
+        target,
         champion_id,
         current_patch.as_deref(),
         |url| async move { detail::fetch_build(&url, &fetch_target, champion_id).await },
