@@ -41,15 +41,17 @@ OP.GG 详情接口实测（2026-09-15，均返回 200）：
 
 以下是 LCU 侧的**推定**，mac 无法验证，必须在装有客户端的机器上确认后再写实现——沿用 `automation.rs:728-732`（`BAN_HOVER_ENABLED = false`）那套「未验证先关掉」的做法。
 
-| # | 待验证 | 影响 |
-|---|---|---|
-| V1 | `POST /lol-perks/v1/pages` 传 `isTemporary: true` 是否被接受，还是被静默忽略建成持久页 | 决定整个隔离策略。不成立则退回「固定复用一个持久页 + 按 puuid 存 pageId」的备选方案 |
-| V2 | 临时页是否**不计入页位上限**（对比建页前后 `/lol-perks/v1/inventory` 的 `ownedPageCount`） | 这是临时页方案的最大收益点 |
-| V3 | 临时页的生命周期：对局结束清除 / 客户端重启清除 / 被下一个临时页顶掉 | 决定换人（swap）时是覆盖还是新增 |
-| V4 | 建页后是否需要额外 `PUT /lol-perks/v1/currentpage` 才选中，还是 POST body 带 `current: true` 即可 | 决定写入是一步还是两步 |
-| V5 | 排位选人期是否存在符文页写入锁定窗口 | 决定触发时机能否放到 FINALIZATION |
+| # | 待验证 | 影响 | 真机结论（2026-09-15，国服客户端，大厅外，页位 2/2 已满） |
+|---|---|---|---|
+| V1 | `POST /lol-perks/v1/pages` 传 `isTemporary: true` 是否被接受，还是被静默忽略建成持久页 | 决定整个隔离策略。不成立则退回「固定复用一个持久页 + 按 puuid 存 pageId」的备选方案 | ✅ 被接受，返回页 `isTemporary: true` |
+| V2 | 临时页是否**不计入页位上限**（对比建页前后 `/lol-perks/v1/inventory` 的 `ownedPageCount`） | 这是临时页方案的最大收益点 | ✅ 不计入：`ownedPageCount` / `customPageCount` 前后均为 2，且 `canAddCustomPage: false` 时照样建成 |
+| V3 | 临时页的生命周期：对局结束清除 / 客户端重启清除 / 被下一个临时页顶掉 | 决定换人（swap）时是覆盖还是新增 | ⚠️ **不会被顶掉**：连建两个临时页两个都在。据此换人改为**原地改写自己建的那一页**（见 `apply_rune_page`）。对局结束 / 重启是否清除待选人期 + 开一局补测 |
+| V4 | 建页后是否需要额外 `PUT /lol-perks/v1/currentpage` 才选中，还是 POST body 带 `current: true` 即可 | 决定写入是一步还是两步 | ✅ 一步：POST 后新页自动成为当前页（body `current: false` 也一样，且 POST 响应体里 `current` 仍显示 false）；`PUT /lol-perks/v1/pages/{id}` 改写同样自动选中并保留 `isTemporary` |
+| V5 | 排位选人期是否存在符文页写入锁定窗口 | 决定触发时机能否放到 FINALIZATION | ⏳ 待排位选人期实测；实现上同一幂等键失败最多重试 3 次，不刷屏 |
 
-**验证方法**（比凭空推字段可靠）：进选人期，用客户端自带的「推荐符文」点一次，让官方自己建一个临时页，然后 `GET /lol-perks/v1/pages` 照抄它的字段形状。验证脚本见实施拆分第 1 步。
+附带发现：**删掉当前页后客户端处于「无当前页」**（`currentpage` 为空），必须另行 PUT 选回——产品代码任何分支都不 DELETE，这条再次佐证。
+
+**验证方法**（比凭空推字段可靠）：进选人期，用客户端自带的「推荐符文」点一次，让官方自己建一个临时页，然后 `GET /lol-perks/v1/pages` 照抄它的字段形状。脚本 `scripts/lcu-probe/perks-probe.mjs`（`dump` / `diff` / `try-temp [--twice] [--update]` / `watch`）；实施中对本文的其余偏离（OP.GG position 命名、大乱斗 tier、mode 判定等）见 `docs/superpowers/plans/2026-09-15-rune-recommend.md`「与 spec 的偏离」。
 
 ## 非目标
 
@@ -316,10 +318,10 @@ pub struct ApplyRuneResult {
 }
 ```
 
-流程（**以 V1 验证通过为前提**）：
+流程（V1 / V2 / V4 已真机验证通过）：
 
 1. 拼页名：`{英雄中文名} · {位置中文名} (RA)`，位置为 `none` 时省略位置段。中文名走 `command/config.rs:116 get_champion_options` 的同源数据。
-2. `POST /lol-perks/v1/pages`（经 `lcu_post_no_retry`），body：
+2. `GET /lol-perks/v1/pages` 找**自己建的页**（`isTemporary && name 以 " (RA)" 结尾`）：找到 → `PUT /lol-perks/v1/pages/{id}` 原地改写（V3：临时页不会互相顶掉，每次新建会越堆越多）；找不到 → `POST /lol-perks/v1/pages`（经 `lcu_post_no_retry`），body：
    ```json
    {
      "name": "亚索 · 中单 (RA)",
@@ -331,7 +333,7 @@ pub struct ApplyRuneResult {
    }
    ```
    `selectedPerkIds` = `primary_perk_ids`(4) ++ `sub_perk_ids`(2) ++ `stat_mod_ids`(3)，**顺序不可乱**。
-3. 若 V4 验证结论是「需要两步」，追加 `PUT /lol-perks/v1/currentpage`，body 为返回的 page id。
+3. ~~若 V4 验证结论是「需要两步」，追加 `PUT /lol-perks/v1/currentpage`~~——V4 实测一步即可，POST / PUT 都会自动选中。
 4. 失败分类：HTTP 4xx 且 body 含页数上限语义 → `reason = "page_limit_full"`；其余 → `"lcu_rejected"`。**任何分支都不发起 DELETE**。
 
 **本命令不删除任何符文页。** 临时页由客户端自行回收（V3 确认生命周期）。
