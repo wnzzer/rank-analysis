@@ -75,7 +75,13 @@ watch(
     assets.preload([
       {
         kind: 'perk',
-        ids: [r.primary_style_id, r.sub_style_id, ...r.primary_perk_ids, ...r.sub_perk_ids]
+        ids: [
+          r.primary_style_id,
+          r.sub_style_id,
+          ...r.primary_perk_ids,
+          ...r.sub_perk_ids,
+          ...r.stat_mod_ids
+        ]
       }
     ])
   },

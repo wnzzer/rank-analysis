@@ -160,6 +160,10 @@ async fn fetch_remote() -> Option<BuildsSource> {
                         log::info!("builds source: {} (from {})", src.strategy, url);
                         return Some(src);
                     }
+                    // 2026-09-15 实测 GitCode 的 /raw/ 对任意路径都回 200 + HTML 页面，
+                    // 不打这行的话「源失效」在日志里完全不可见
+                    let head: String = text.chars().take(60).collect();
+                    log::warn!("builds source {} 返回的不是合法 manifest: {:?}", url, head);
                 }
                 Err(e) => log::warn!("builds source read {} failed: {}", url, e),
             },

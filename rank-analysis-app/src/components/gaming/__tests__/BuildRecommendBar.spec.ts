@@ -7,9 +7,11 @@ import type { ChampionBuild, RuneBuild } from '@renderer/types/championBuild'
 /** 符文 / 符文系名字：真实数据来自 LCU perks.json / perkstyles.json */
 const NAMES: Record<number, string> = { 8000: '精密', 8008: '致命节奏', 8400: '坚决' }
 
+const preloadSpy = vi.hoisted(() => vi.fn())
+
 vi.mock('@renderer/composables/useRecordAssets', () => ({
   useRecordAssets: () => ({
-    preload: vi.fn(),
+    preload: preloadSpy,
     detailOf: (_kind: string, id: number) =>
       NAMES[id] ? { id, name: NAMES[id], description: '' } : null,
     srcOf: (kind: string, id: number) => `/${kind}/${id}`
@@ -88,6 +90,13 @@ describe('BuildRecommendBar', () => {
     expect(text).toContain('2.4万场')
     const items = w.findAll('.build-item-icon')
     expect(items.map(i => i.attributes('src'))).toEqual(['/item/3153', '/item/6673', '/item/3031'])
+  })
+
+  it('预取完整 9 个符文与两个系的名字（hover 浮层里属性碎片也要有名字）', () => {
+    preloadSpy.mockClear()
+    mountBar({ build: build(), loading: false })
+    const ids = preloadSpy.mock.calls[0][0][0].ids as number[]
+    expect(ids).toEqual(expect.arrayContaining([8000, 8400, 8008, 8444, 5005, 5008, 5001]))
   })
 
   it('样本不足万场时按原数显示', () => {
