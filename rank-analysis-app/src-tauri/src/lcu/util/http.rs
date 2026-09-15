@@ -1,7 +1,10 @@
 //! # LCU HTTP 客户端
 //!
-//! 使用本地认证（token + port）向 LCU 发起 HTTPS 请求，支持 GET/POST/PATCH；
+//! 使用本地认证（token + port）向 LCU 发起 HTTPS 请求，支持 GET/POST/PATCH/PUT；
 //! 认证失败时自动刷新并重试一次。图片接口支持 Base64 或二进制返回。
+//!
+//! 非幂等的写操作走 [`lcu_put`] / [`lcu_post_no_retry`]：只在请求确定没生效时重发，
+//! 不像 [`lcu_post`] / [`lcu_patch`] 那样对任何非 2xx 盲重试。
 
 use crate::lcu::util::token::get_auth;
 use base64::engine::general_purpose;
@@ -227,6 +230,138 @@ pub async fn lcu_post<T: DeserializeOwned, D: Serialize>(uri: &str, data: &D) ->
         }
     }
     Err("POST请求失败或认证失效".to_string())
+}
+
+/// LCU 写请求（[`lcu_put`] / [`lcu_post_no_retry`]）的失败。
+///
+/// 与读请求把一切失败压成一句字符串不同：写操作的上层要按「送达但被拒」的状态码
+/// 与 body 分类（如符文页数上限），所以保留结构。
+#[derive(Debug, Clone, PartialEq)]
+pub enum LcuWriteError {
+    /// 请求送达，LCU 返回非 2xx
+    Rejected { status: u16, body: String },
+    /// 认证拿不到 / 连接失败 / 超时——请求可能根本没送达（通常即客户端未运行）
+    Transport(String),
+    /// 2xx 但响应体解析失败
+    Decode(String),
+}
+
+impl std::fmt::Display for LcuWriteError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Rejected { status, body } => {
+                let snippet: String = body.chars().take(200).collect();
+                write!(f, "LCU 拒绝（{}）: {}", status, snippet)
+            }
+            Self::Transport(e) => write!(f, "LCU 请求未送达: {}", e),
+            Self::Decode(e) => write!(f, "LCU 响应解析失败: {}", e),
+        }
+    }
+}
+
+/// 一次写请求尝试的结果。
+#[derive(Debug)]
+enum WriteAttempt {
+    /// 收到了 HTTP 响应（无论状态码）
+    Response { status: u16, body: String },
+    /// TCP 连接没建立：请求确定没送达
+    ConnectFailed(String),
+    /// 超时等其他传输错误：请求**可能已送达并生效**
+    OtherError(String),
+}
+
+/// 写请求是否可以刷新认证后重发一次。
+///
+/// 只有「请求确定没产生副作用」才重发：连接没建立（客户端重启换了端口），或 401
+/// （LCU 在执行前就因 token 失效拒了）。其余一切——哪怕 5xx 或超时——都可能已经
+/// 生效，重放就是重复写。现有 [`lcu_post`] 对任何非 2xx 盲重试一次，用在
+/// `POST /lol-perks/v1/pages` 上会建出两个符文页，这就是写操作要另起封装的原因。
+fn should_retry_write(attempt: &WriteAttempt) -> bool {
+    matches!(
+        attempt,
+        WriteAttempt::ConnectFailed(_) | WriteAttempt::Response { status: 401, .. }
+    )
+}
+
+/// 把最后一次尝试转换成调用方结果（2xx 的空 body 按 `null` 解析，见 [`deserialize_lcu_body`]）。
+fn finish_write<T: DeserializeOwned>(attempt: WriteAttempt) -> Result<T, LcuWriteError> {
+    match attempt {
+        WriteAttempt::Response { status, body } if (200..300).contains(&status) => {
+            deserialize_lcu_body::<T>(&body).map_err(LcuWriteError::Decode)
+        }
+        WriteAttempt::Response { status, body } => Err(LcuWriteError::Rejected { status, body }),
+        WriteAttempt::ConnectFailed(e) | WriteAttempt::OtherError(e) => {
+            Err(LcuWriteError::Transport(e))
+        }
+    }
+}
+
+/// 写请求的公共实现：至多两次尝试，是否重发由 [`should_retry_write`] 裁决。
+///
+/// 走读请求同一个并发信号量；**不走 singleflight**——那 100ms 去重是为 GET 设计的，
+/// 两次写请求被合并成一次会静默吞掉其中一个。
+async fn lcu_write<T: DeserializeOwned, D: Serialize>(
+    method: reqwest::Method,
+    uri: &str,
+    data: &D,
+) -> Result<T, LcuWriteError> {
+    let _permit = LCU_SEMAPHORE
+        .acquire()
+        .await
+        .map_err(|e| LcuWriteError::Transport(format!("Semaphore error: {}", e)))?;
+
+    let mut attempt = WriteAttempt::OtherError("未发起请求".to_string());
+    for round in 0..2 {
+        let (token, port) =
+            get_auth_pair().map_err(|e| LcuWriteError::Transport(format!("LCU认证失败: {}", e)))?;
+        let url = build_url(&token, uri, &port);
+        attempt = match get_client()
+            .request(method.clone(), &url)
+            .json(data)
+            .send()
+            .await
+        {
+            Ok(r) => {
+                let status = r.status().as_u16();
+                let body = r.text().await.unwrap_or_default();
+                WriteAttempt::Response { status, body }
+            }
+            Err(e) if e.is_connect() => WriteAttempt::ConnectFailed(e.to_string()),
+            Err(e) => WriteAttempt::OtherError(e.to_string()),
+        };
+        if round == 0 && should_retry_write(&attempt) {
+            log::info!(
+                "LCU {} {} 未生效，刷新认证后重试: {:?}",
+                method,
+                uri,
+                attempt
+            );
+            if let Err(e) = refresh_auth() {
+                log::info!("刷新LCU认证失败（可先打开游戏再重试）: {}", e);
+            }
+            continue;
+        }
+        break;
+    }
+    finish_write(attempt)
+}
+
+/// 向 LCU 发起 PUT 请求（JSON body），**不做非 2xx 重试**，重试策略见 [`should_retry_write`]。
+pub async fn lcu_put<T: DeserializeOwned, D: Serialize>(
+    uri: &str,
+    data: &D,
+) -> Result<T, LcuWriteError> {
+    lcu_write(reqwest::Method::PUT, uri, data).await
+}
+
+/// 向 LCU 发起 POST 请求（JSON body），**不做非 2xx 重试**。
+///
+/// 用于非幂等的创建类接口（如建符文页）：[`lcu_post`] 的盲重试会让一次创建变两次。
+pub async fn lcu_post_no_retry<T: DeserializeOwned, D: Serialize>(
+    uri: &str,
+    data: &D,
+) -> Result<T, LcuWriteError> {
+    lcu_write(reqwest::Method::POST, uri, data).await
 }
 
 /// 向 LCU 发起 PATCH 请求，请求体为 JSON。失败时刷新认证并重试一次。
@@ -456,5 +591,76 @@ mod tests {
     fn deserialize_body_reports_malformed_json() {
         // 非空但不是合法 JSON 时仍应报错（不要把坏数据吞成默认值）。
         assert!(deserialize_lcu_body::<Vec<i32>>("{not json").is_err());
+    }
+
+    // ---- 写请求重试策略 ----
+
+    fn response(status: u16) -> WriteAttempt {
+        WriteAttempt::Response {
+            status,
+            body: String::new(),
+        }
+    }
+
+    #[test]
+    fn write_should_retry_only_when_request_surely_had_no_effect() {
+        // 连接没建立（客户端重启换了端口）：请求没送达，刷新认证再试是安全的
+        assert!(should_retry_write(&WriteAttempt::ConnectFailed(
+            "refused".into()
+        )));
+        // 401：LCU 在执行前就拒了（token 过期），同样没有副作用
+        assert!(should_retry_write(&response(401)));
+    }
+
+    #[test]
+    fn write_should_never_retry_after_request_reached_lcu() {
+        // 回归：lcu_post 对任何非 2xx 盲重试，用在建符文页上会建出两页
+        for status in [200, 204, 400, 404, 409, 500, 503] {
+            assert!(!should_retry_write(&response(status)), "status {}", status);
+        }
+        // 超时等其他传输错误：请求可能已送达并生效，不能重放
+        assert!(!should_retry_write(&WriteAttempt::OtherError(
+            "timeout".into()
+        )));
+    }
+
+    #[test]
+    fn finish_write_should_parse_success_bodies() {
+        let unit: Result<(), _> = finish_write(response(204));
+        assert!(unit.is_ok(), "204 空 body 应视为成功");
+        let v: Vec<i32> = finish_write(WriteAttempt::Response {
+            status: 201,
+            body: "[1,2]".into(),
+        })
+        .unwrap();
+        assert_eq!(v, vec![1, 2]);
+    }
+
+    #[test]
+    fn finish_write_should_keep_status_and_body_on_rejection() {
+        let err = finish_write::<()>(WriteAttempt::Response {
+            status: 400,
+            body: r#"{"message":"Max pages reached"}"#.into(),
+        })
+        .unwrap_err();
+        assert_eq!(
+            err,
+            LcuWriteError::Rejected {
+                status: 400,
+                body: r#"{"message":"Max pages reached"}"#.into()
+            }
+        );
+    }
+
+    #[test]
+    fn finish_write_should_report_transport_failures() {
+        let err = finish_write::<()>(WriteAttempt::ConnectFailed("refused".into())).unwrap_err();
+        assert!(matches!(err, LcuWriteError::Transport(_)));
+        let err = finish_write::<Vec<i32>>(WriteAttempt::Response {
+            status: 200,
+            body: "{bad".into(),
+        })
+        .unwrap_err();
+        assert!(matches!(err, LcuWriteError::Decode(_)));
     }
 }
