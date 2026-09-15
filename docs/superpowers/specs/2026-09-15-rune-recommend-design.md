@@ -45,7 +45,7 @@ OP.GG 详情接口实测（2026-09-15，均返回 200）：
 |---|---|---|---|
 | V1 | `POST /lol-perks/v1/pages` 传 `isTemporary: true` 是否被接受，还是被静默忽略建成持久页 | 决定整个隔离策略。不成立则退回「固定复用一个持久页 + 按 puuid 存 pageId」的备选方案 | ✅ 被接受，返回页 `isTemporary: true` |
 | V2 | 临时页是否**不计入页位上限**（对比建页前后 `/lol-perks/v1/inventory` 的 `ownedPageCount`） | 这是临时页方案的最大收益点 | ✅ 不计入：`ownedPageCount` / `customPageCount` 前后均为 2，且 `canAddCustomPage: false` 时照样建成 |
-| V3 | 临时页的生命周期：对局结束清除 / 客户端重启清除 / 被下一个临时页顶掉 | 决定换人（swap）时是覆盖还是新增 | ⚠️ **不会被顶掉**：连建两个临时页两个都在。据此换人改为**原地改写自己建的那一页**（见 `apply_rune_page`）。对局结束 / 重启是否清除待选人期 + 开一局补测 |
+| V3 | 临时页的生命周期：对局结束清除 / 客户端重启清除 / 被下一个临时页顶掉 | 决定换人（swap）时是覆盖还是新增 | ⚠️ **不会被顶掉**：连建两个临时页两个都在。据此换人改为**原地改写自己建的那一页**（见 `apply_rune_page`）。**对局结束也不清**：用户一局排位里客户端「推荐符文」建的官方临时页（`维克托「奥术先驱 - 冥火之触」`、`recommendationChampionId: 112`），到 EndOfGame 仍在且仍是当前页；回大厅 / 重启客户端是否清除仍待补测 |
 | V4 | 建页后是否需要额外 `PUT /lol-perks/v1/currentpage` 才选中，还是 POST body 带 `current: true` 即可 | 决定写入是一步还是两步 | ✅ 一步：POST 后新页自动成为当前页（body `current: false` 也一样，且 POST 响应体里 `current` 仍显示 false）；`PUT /lol-perks/v1/pages/{id}` 改写同样自动选中并保留 `isTemporary` |
 | V5 | 排位选人期是否存在符文页写入锁定窗口 | 决定触发时机能否放到 FINALIZATION | ⏳ 待排位选人期实测；实现上同一幂等键失败最多重试 3 次，不刷屏 |
 
