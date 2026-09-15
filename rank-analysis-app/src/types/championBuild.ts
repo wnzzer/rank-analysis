@@ -63,6 +63,50 @@ export interface AppliedRuneKey {
   perk_ids: number[]
 }
 
+/**
+ * `get_last_applied_rune` 的返回：写入记录 + 该英雄该分路是否已被手动接管
+ * （手动应用过后自动任务本次选人期不再写入，前端据此不显示「自动应用中…」）
+ */
+export interface LastAppliedRune extends AppliedRuneKey {
+  manual_override: boolean
+}
+
+/**
+ * 我的符文方案（Rust `command::rune_preset::RunePreset`），按「英雄 + 分路」唯一，
+ * 存于配置 `settings.auto.runePresets`
+ * @property position - LCU 小写分路；大乱斗为 none
+ * @property saved_at - 保存时刻（unix 毫秒）
+ * @property source - 本期恒为 opgg；预留 client（记住客户端当前页）
+ */
+export interface RunePreset {
+  champion_id: number
+  position: string
+  primary_style_id: number
+  sub_style_id: number
+  primary_perk_ids: number[]
+  sub_perk_ids: number[]
+  stat_mod_ids: number[]
+  saved_at: number
+  source: 'opgg' | 'client'
+}
+
+/** 没记住方案的英雄用什么兜底（配置 `settings.auto.runeFallback`，缺省 opgg） */
+export type RuneFallback = 'opgg' | 'none'
+
+/**
+ * 推荐栏里的一张方案卡
+ * @property key - opgg-{序号} 或 preset（我的方案且不在 OP.GG 列表里）
+ * @property starred - 是否就是「我的方案」
+ * @property sufficient - 样本是否达标（我的方案恒为 true）
+ */
+export interface RuneOption {
+  key: string
+  rune: RuneBuild
+  source: 'preset' | 'opgg'
+  starred: boolean
+  sufficient: boolean
+}
+
 /** 自动应用任务每次写入后推送的 `rune-apply-result` 事件载荷 */
 export interface RuneApplyEvent {
   champion_id: number

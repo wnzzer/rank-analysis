@@ -48,5 +48,15 @@ export const CONFIG_KEYS = {
    * 选人期锁定英雄后自动把推荐符文写成临时符文页（opt-in，默认关）。
    * 与 Rust `automation.rs` 的 `apply_runes` 任务开关对应——改这里也要同步 Rust。
    */
-  applyRunesSwitch: 'settings.auto.applyRunesSwitch'
+  applyRunesSwitch: 'settings.auto.applyRunesSwitch',
+  /**
+   * 我的符文方案（`RunePreset[]`，按英雄 + 分路唯一），自动应用时优先写它。
+   * 与 Rust `command::rune_preset::parse_presets` 读的是同一个键。
+   */
+  runePresets: 'settings.auto.runePresets',
+  /**
+   * 没记住方案的英雄用什么兜底：`opgg` | `none`，未配置（空串）按 opgg。
+   * 刻意不用 `*Switch` 布尔：Rust 侧 `*Switch` 键缺省读成 false，而本项默认要用 OP.GG。
+   */
+  runeFallback: 'settings.auto.runeFallback'
 } as const
