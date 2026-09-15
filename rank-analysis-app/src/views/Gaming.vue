@@ -173,6 +173,12 @@
           :display-secs="bp.displaySecs.value"
           @save-rule="handleSaveRule"
         />
+
+        <BuildRecommendBar
+          v-if="sessionData.phase === 'ChampSelect'"
+          :build="championBuild.build.value"
+          :loading="championBuild.loading.value"
+        />
       </div>
 
       <div class="gaming-grid" :class="{ 'gaming-grid-multi': sessionData.isMultiTeam }">
@@ -207,8 +213,10 @@ import { useMessage } from 'naive-ui'
 import LoadingComponent from '@renderer/components/LoadingComponent.vue'
 import SubteamCard from '@renderer/components/gaming/SubteamCard.vue'
 import BpDecisionBar from '@renderer/components/gaming/BpDecisionBar.vue'
+import BuildRecommendBar from '@renderer/components/gaming/BuildRecommendBar.vue'
 import { useGamingAIAnalysis } from '@renderer/composables/useGamingAIAnalysis'
 import { useBpDecision } from '@renderer/composables/useBpDecision'
+import { useChampionBuild } from '@renderer/composables/useChampionBuild'
 import { useSessionSync } from '@renderer/composables/useSessionSync'
 import { useSessionTiers } from '@renderer/composables/useSessionTiers'
 import { useGameState } from '@renderer/composables/useGameState'
@@ -352,16 +360,31 @@ const bp = useBpDecision(() => sessionData.phase)
 
 const router = useRouter()
 
-/** 我的分路，取自会话里标着「我」的那名玩家；ARAM 等无分路模式为 null */
-const myPosition = computed<Position | null>(() => {
-  const me = orderedSubteams.value
+/** 会话里标着「我」的那名玩家；自己的 puuid 未知或尚未入会话时为 undefined */
+const myPlayer = computed(() =>
+  orderedSubteams.value
     .flatMap(s => s.players)
     .find(p => p.summoner.puuid === mySummonerPuuid.value)
-  const p = me?.assignedPosition?.toLowerCase()
+)
+
+/** 我的分路，取自会话里标着「我」的那名玩家；ARAM 等无分路模式为 null */
+const myPosition = computed<Position | null>(() => {
+  const p = myPlayer.value?.assignedPosition?.toLowerCase()
   return p === 'top' || p === 'jungle' || p === 'middle' || p === 'bottom' || p === 'utility'
     ? p
     : null
 })
+
+/**
+ * 选人期推荐符文。championId 是「我这一格展示的英雄」（已锁定，否则悬停意向），
+ * 悬停时就能预览；模式由后端按 gameMode 判定，分路原样透传。
+ */
+const championBuild = useChampionBuild(() => ({
+  active: sessionData.phase === 'ChampSelect',
+  gameMode: sessionData.gameMode,
+  championId: myPlayer.value?.championId ?? 0,
+  position: myPlayer.value?.assignedPosition ?? null
+}))
 
 const showConfig = ref(false)
 const matchCount = ref(4)
