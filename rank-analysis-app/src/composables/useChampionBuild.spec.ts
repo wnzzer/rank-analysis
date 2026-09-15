@@ -3,7 +3,7 @@ import { nextTick, reactive } from 'vue'
 import { withSetup } from '@renderer/test-utils/withSetup'
 import { useChampionBuild, type BuildQuery } from './useChampionBuild'
 import { bumpOpggRevision } from '@renderer/services/opgg'
-import type { ChampionBuild, RuneBuild } from '@renderer/types/championBuild'
+import type { ChampionBuild, RuneBuild, RunePreset } from '@renderer/types/championBuild'
 
 const invokeMock = vi.fn()
 vi.mock('@tauri-apps/api/core', () => ({
@@ -19,13 +19,11 @@ vi.mock('@tauri-apps/api/event', () => ({
   })
 }))
 
-const PERKS = [8008, 9101, 9104, 8299, 8444, 8451, 5005, 5008, 5001]
-
-function rune(play: number): RuneBuild {
+function rune(play: number, keystone = 8008): RuneBuild {
   return {
     primary_style_id: 8000,
     sub_style_id: 8400,
-    primary_perk_ids: [8008, 9101, 9104, 8299],
+    primary_perk_ids: [keystone, 9101, 9104, 8299],
     sub_perk_ids: [8444, 8451],
     stat_mod_ids: [5005, 5008, 5001],
     play,
@@ -34,7 +32,9 @@ function rune(play: number): RuneBuild {
   }
 }
 
-function build(championId: number, runePlay = 1000): ChampionBuild {
+const perks = (keystone: number) => [keystone, 9101, 9104, 8299, 8444, 8451, 5005, 5008, 5001]
+
+function build(championId: number, runes: RuneBuild[] = [rune(1000)]): ChampionBuild {
   return {
     schema_version: 1,
     champion_id: championId,
@@ -45,7 +45,7 @@ function build(championId: number, runePlay = 1000): ChampionBuild {
     fetched_at: 0,
     play: 1000,
     win_rate: 0.5,
-    runes: [rune(runePlay)],
+    runes,
     spells: [],
     starter_items: [],
     boots: [],
@@ -56,15 +56,58 @@ function build(championId: number, runePlay = 1000): ChampionBuild {
   }
 }
 
+function preset(championId: number, position: string, keystone: number): RunePreset {
+  const r = rune(0, keystone)
+  return {
+    champion_id: championId,
+    position,
+    primary_style_id: r.primary_style_id,
+    sub_style_id: r.sub_style_id,
+    primary_perk_ids: r.primary_perk_ids,
+    sub_perk_ids: r.sub_perk_ids,
+    stat_mod_ids: r.stat_mod_ids,
+    saved_at: 1,
+    source: 'opgg'
+  }
+}
+
 /** 让 watch 回调与 await 链落定 */
 async function flush() {
   await nextTick()
   await new Promise(r => setTimeout(r, 0))
   await nextTick()
+  await new Promise(r => setTimeout(r, 0))
 }
 
-/** 只统计取数命令的调用（排除其他 invoke） */
-const buildCalls = () => invokeMock.mock.calls.filter(c => c[0] === 'get_champion_build')
+/** 模拟后端：构筑、写入、写入记录、配置 */
+let buildFor: (championId: number) => ChampionBuild | null
+let config: Record<string, unknown>
+let lastApplied: unknown
+
+function installBackend() {
+  invokeMock.mockImplementation(async (cmd: string, args: Record<string, unknown>) => {
+    switch (cmd) {
+      case 'get_champion_build':
+        return buildFor(args.championId as number)
+      case 'get_last_applied_rune':
+        return lastApplied
+      case 'get_config': {
+        const k = args.key as string
+        return k in config ? { value: config[k] } : null
+      }
+      case 'put_config':
+        config[args.key as string] = (args.value as { value: unknown }).value
+        return null
+      case 'apply_rune_page':
+        return { ok: true, page_id: 42, reason: null }
+      default:
+        return undefined
+    }
+  })
+}
+
+/** 只统计某个命令的调用 */
+const calls = (cmd: string) => invokeMock.mock.calls.filter(c => c[0] === cmd)
 
 /** 模拟会话：key 字段之外还有「战绩渐进到达」这类无关字段在变 */
 function session(overrides: Partial<BuildQuery> = {}) {
@@ -80,19 +123,25 @@ function session(overrides: Partial<BuildQuery> = {}) {
 
 beforeEach(() => {
   invokeMock.mockReset()
-  invokeMock.mockImplementation(async (cmd: string, args: { championId: number }) =>
-    cmd === 'get_champion_build' ? build(args.championId) : undefined
-  )
+  for (const k of Object.keys(eventHandlers)) delete eventHandlers[k]
+  buildFor = id => build(id)
+  config = {}
+  lastApplied = null
+  installBackend()
 })
 
-describe('useChampionBuild', () => {
+describe('useChampionBuild 取数', () => {
   it('选人期且有英雄时拉取构筑', async () => {
     const s = session()
     const [r, app] = withSetup(() => useChampionBuild(() => s))
     await flush()
 
-    expect(buildCalls()).toHaveLength(1)
-    expect(buildCalls()[0][1]).toEqual({ championId: 157, gameMode: 'CLASSIC', position: 'middle' })
+    expect(calls('get_champion_build')).toHaveLength(1)
+    expect(calls('get_champion_build')[0][1]).toEqual({
+      championId: 157,
+      gameMode: 'CLASSIC',
+      position: 'middle'
+    })
     expect(r.build.value?.champion_id).toBe(157)
     expect(r.loading.value).toBe(false)
     app.unmount()
@@ -102,12 +151,12 @@ describe('useChampionBuild', () => {
     const s = session({ active: false })
     const [r, app] = withSetup(() => useChampionBuild(() => s))
     await flush()
-    expect(buildCalls()).toHaveLength(0)
+    expect(calls('get_champion_build')).toHaveLength(0)
 
     s.active = true
     s.championId = 0
     await flush()
-    expect(buildCalls()).toHaveLength(0)
+    expect(calls('get_champion_build')).toHaveLength(0)
     expect(r.build.value).toBeNull()
     app.unmount()
   })
@@ -120,7 +169,7 @@ describe('useChampionBuild', () => {
     s.championId = 86
     await flush()
 
-    expect(buildCalls()).toHaveLength(2)
+    expect(calls('get_champion_build')).toHaveLength(2)
     expect(r.build.value?.champion_id).toBe(86)
     app.unmount()
   })
@@ -135,7 +184,7 @@ describe('useChampionBuild', () => {
     s.matchHistoryLength = 20
     await flush()
 
-    expect(buildCalls()).toHaveLength(1)
+    expect(calls('get_champion_build')).toHaveLength(1)
     app.unmount()
   })
 
@@ -144,16 +193,22 @@ describe('useChampionBuild', () => {
     const [, app] = withSetup(() => useChampionBuild(() => s))
     await flush()
 
-    expect(buildCalls()[0][1]).toEqual({ championId: 157, gameMode: 'ARAM', position: null })
+    expect(calls('get_champion_build')[0][1]).toEqual({
+      championId: 157,
+      gameMode: 'ARAM',
+      position: null
+    })
     app.unmount()
   })
 
   it('快速换人时丢弃过期响应', async () => {
     let releaseFirst: (b: ChampionBuild) => void = () => {}
-    invokeMock.mockImplementation((cmd: string, args: { championId: number }) => {
-      if (cmd !== 'get_champion_build') return Promise.resolve(undefined)
-      if (args.championId === 157) return new Promise(res => (releaseFirst = res))
-      return Promise.resolve(build(args.championId))
+    const base = invokeMock.getMockImplementation()!
+    invokeMock.mockImplementation((cmd: string, args: Record<string, unknown>) => {
+      if (cmd === 'get_champion_build' && args.championId === 157) {
+        return new Promise(res => (releaseFirst = res))
+      }
+      return base(cmd, args)
     })
     const s = session()
     const [r, app] = withSetup(() => useChampionBuild(() => s))
@@ -173,7 +228,10 @@ describe('useChampionBuild', () => {
     const s = session()
     const [r, app] = withSetup(() => useChampionBuild(() => s))
     await flush()
-    invokeMock.mockImplementation(() => new Promise(res => (release = res)))
+    const base = invokeMock.getMockImplementation()!
+    invokeMock.mockImplementation((cmd: string, args: Record<string, unknown>) =>
+      cmd === 'get_champion_build' ? new Promise(res => (release = res)) : base(cmd, args)
+    )
 
     s.championId = 86
     await flush()
@@ -186,21 +244,127 @@ describe('useChampionBuild', () => {
     app.unmount()
   })
 
-  it('手动应用：把推荐那套符文交给后端，成功后标已应用', async () => {
+  it('段位切换（opggRevision 变化）触发重拉', async () => {
+    const s = session()
+    const [, app] = withSetup(() => useChampionBuild(() => s))
+    await flush()
+
+    bumpOpggRevision()
+    await flush()
+
+    expect(calls('get_champion_build')).toHaveLength(2)
+    app.unmount()
+  })
+})
+
+describe('useChampionBuild 方案卡与选中', () => {
+  it('默认选中第一套样本达标的 OP.GG 构筑', async () => {
+    buildFor = id => build(id, [rune(150, 8021), rune(900, 8010)])
     const s = session()
     const [r, app] = withSetup(() => useChampionBuild(() => s))
     await flush()
-    invokeMock.mockImplementation(async (cmd: string) =>
-      cmd === 'apply_rune_page' ? { ok: true, page_id: 42, reason: null } : undefined
-    )
+
+    expect(r.options.value.map(o => o.key)).toEqual(['opgg-0', 'opgg-1'])
+    expect(r.selectedKey.value).toBe('opgg-1')
+    app.unmount()
+  })
+
+  it('有我的方案时默认选中它；不在 OP.GG 里则单独成卡', async () => {
+    config['settings.auto.runePresets'] = [preset(157, 'middle', 8229)]
+    const s = session()
+    const [r, app] = withSetup(() => useChampionBuild(() => s))
+    await flush()
+
+    expect(r.options.value[0].key).toBe('preset')
+    expect(r.selectedKey.value).toBe('preset')
+    expect(r.remembered.value).toBe(true)
+    app.unmount()
+  })
+
+  it('OP.GG 拉不到时仍给出我的方案卡', async () => {
+    buildFor = () => null
+    config['settings.auto.runePresets'] = [preset(157, 'middle', 8229)]
+    const s = session()
+    const [r, app] = withSetup(() => useChampionBuild(() => s))
+    await flush()
+
+    expect(r.build.value).toBeNull()
+    expect(r.options.value.map(o => o.key)).toEqual(['preset'])
+    app.unmount()
+  })
+
+  it('点选切换；换英雄后回到默认选中', async () => {
+    buildFor = id => build(id, [rune(900, 8008), rune(900, 8021)])
+    const s = session()
+    const [r, app] = withSetup(() => useChampionBuild(() => s))
+    await flush()
+
+    r.select('opgg-1')
+    expect(r.selectedKey.value).toBe('opgg-1')
+
+    s.championId = 86
+    await flush()
+    expect(r.selectedKey.value).toBe('opgg-0')
+    app.unmount()
+  })
+
+  it('自动目标：有方案写方案，否则按兜底取样本达标的第一套', async () => {
+    buildFor = id => build(id, [rune(150, 8021), rune(900, 8010)])
+    const s = session()
+    const [r, app] = withSetup(() => useChampionBuild(() => s))
+    await flush()
+    expect(r.autoTarget.value).toBe('opgg-1')
+    app.unmount()
+
+    config['settings.auto.runeFallback'] = 'none'
+    const [r2, app2] = withSetup(() => useChampionBuild(() => s))
+    await flush()
+    expect(r2.autoTarget.value).toBeNull()
+    app2.unmount()
+
+    config['settings.auto.runePresets'] = [preset(157, 'middle', 8021)]
+    const [r3, app3] = withSetup(() => useChampionBuild(() => s))
+    await flush()
+    expect(r3.autoTarget.value).toBe('opgg-0')
+    app3.unmount()
+  })
+})
+
+describe('useChampionBuild 应用与记住', () => {
+  it('应用写入选中的那套，成功后标已应用并视为手动接管', async () => {
+    buildFor = id => build(id, [rune(900, 8008), rune(900, 8021)])
+    const s = session()
+    const [r, app] = withSetup(() => useChampionBuild(() => s))
+    await flush()
+    r.select('opgg-1')
 
     const pending = r.apply()
     expect(r.applyState.value).toBe('applying')
     await pending
 
-    const call = invokeMock.mock.calls.find(c => c[0] === 'apply_rune_page')
-    expect(call?.[1]).toEqual({ championId: 157, position: 'middle', rune: rune(1000) })
+    expect(calls('apply_rune_page')[0][1]).toEqual({
+      championId: 157,
+      position: 'middle',
+      rune: rune(900, 8021)
+    })
     expect(r.applyState.value).toBe('applied')
+    expect(r.overridden.value).toBe(true)
+    expect(r.autoTarget.value).toBeNull()
+    // 切到另一张卡：那套没写过
+    r.select('opgg-0')
+    expect(r.applyState.value).toBe('idle')
+    app.unmount()
+  })
+
+  it('样本少的方案也允许手动应用（用户主动点选即知情）', async () => {
+    buildFor = id => build(id, [rune(120, 8008)])
+    const s = session()
+    const [r, app] = withSetup(() => useChampionBuild(() => s))
+    await flush()
+
+    await r.apply()
+
+    expect(calls('apply_rune_page')).toHaveLength(1)
     app.unmount()
   })
 
@@ -208,7 +372,12 @@ describe('useChampionBuild', () => {
     const s = session()
     const [r, app] = withSetup(() => useChampionBuild(() => s))
     await flush()
-    invokeMock.mockResolvedValue({ ok: false, page_id: null, reason: 'page_limit_full' })
+    const base = invokeMock.getMockImplementation()!
+    invokeMock.mockImplementation((cmd: string, args: Record<string, unknown>) =>
+      cmd === 'apply_rune_page'
+        ? Promise.resolve({ ok: false, page_id: null, reason: 'page_limit_full' })
+        : base(cmd, args)
+    )
 
     await r.apply()
 
@@ -217,30 +386,14 @@ describe('useChampionBuild', () => {
     app.unmount()
   })
 
-  it('样本不足时不写入', async () => {
-    invokeMock.mockImplementation(async (cmd: string, args: { championId: number }) =>
-      cmd === 'get_champion_build' ? build(args.championId, 120) : undefined
-    )
-    const s = session()
-    const [r, app] = withSetup(() => useChampionBuild(() => s))
-    await flush()
-
-    await r.apply()
-
-    expect(invokeMock.mock.calls.some(c => c[0] === 'apply_rune_page')).toBe(false)
-    expect(r.applyState.value).toBe('idle')
-    app.unmount()
-  })
-
   it('换人后应用状态复位，旧英雄的写入结果不串到新英雄', async () => {
     let release: (v: unknown) => void = () => {}
     const s = session()
     const [r, app] = withSetup(() => useChampionBuild(() => s))
     await flush()
-    invokeMock.mockImplementation((cmd: string, args: { championId: number }) =>
-      cmd === 'apply_rune_page'
-        ? new Promise(res => (release = res))
-        : Promise.resolve(build(args.championId))
+    const base = invokeMock.getMockImplementation()!
+    invokeMock.mockImplementation((cmd: string, args: Record<string, unknown>) =>
+      cmd === 'apply_rune_page' ? new Promise(res => (release = res)) : base(cmd, args)
     )
 
     const pending = r.apply()
@@ -254,75 +407,81 @@ describe('useChampionBuild', () => {
     app.unmount()
   })
 
-  it('挂载时从后端恢复本次选人期的写入记录（切页回来仍显示已应用）', async () => {
-    invokeMock.mockImplementation(async (cmd: string, args: { championId: number }) => {
-      if (cmd === 'get_champion_build') return build(args.championId)
-      if (cmd === 'get_last_applied_rune') {
-        return {
-          champion_id: 157,
-          position: 'middle',
-          primary_style_id: 8000,
-          sub_style_id: 8400,
-          perk_ids: PERKS
-        }
-      }
-    })
+  it('记住选中的那套（按英雄 + 分路落盘），再点即取消', async () => {
+    buildFor = id => build(id, [rune(900, 8008), rune(900, 8021)])
+    const s = session()
+    const [r, app] = withSetup(() => useChampionBuild(() => s))
+    await flush()
+    r.select('opgg-1')
+
+    expect(await r.toggleRemember()).toBe('remembered')
+    const saved = config['settings.auto.runePresets'] as RunePreset[]
+    expect(saved).toHaveLength(1)
+    expect(saved[0]).toMatchObject({ champion_id: 157, position: 'middle' })
+    expect(saved[0].primary_perk_ids[0]).toBe(8021)
+    expect(r.remembered.value).toBe(true)
+    expect(r.selectedKey.value).toBe('opgg-1')
+
+    expect(await r.toggleRemember()).toBe('forgotten')
+    expect(config['settings.auto.runePresets']).toEqual([])
+    expect(r.remembered.value).toBe(false)
+    app.unmount()
+  })
+})
+
+describe('useChampionBuild 恢复与事件', () => {
+  it('挂载时恢复本次选人期的写入记录与手动接管', async () => {
+    lastApplied = {
+      champion_id: 157,
+      position: 'middle',
+      primary_style_id: 8000,
+      sub_style_id: 8400,
+      perk_ids: perks(8008),
+      manual_override: true
+    }
     const s = session()
     const [r, app] = withSetup(() => useChampionBuild(() => s))
     await flush()
 
     expect(r.applyState.value).toBe('applied')
+    expect(r.overridden.value).toBe(true)
+    expect(r.autoTarget.value).toBeNull()
     app.unmount()
   })
 
   it('写入记录属于别的英雄时不算已应用', async () => {
-    invokeMock.mockImplementation(async (cmd: string, args: { championId: number }) => {
-      if (cmd === 'get_champion_build') return build(args.championId)
-      if (cmd === 'get_last_applied_rune') {
-        return {
-          champion_id: 86,
-          position: 'top',
-          primary_style_id: 8000,
-          sub_style_id: 8400,
-          perk_ids: PERKS
-        }
-      }
-    })
+    lastApplied = {
+      champion_id: 86,
+      position: 'top',
+      primary_style_id: 8000,
+      sub_style_id: 8400,
+      perk_ids: perks(8008),
+      manual_override: true
+    }
     const s = session()
     const [r, app] = withSetup(() => useChampionBuild(() => s))
     await flush()
 
     expect(r.applyState.value).toBe('idle')
+    expect(r.overridden.value).toBe(false)
     app.unmount()
   })
 
-  it('自动应用事件：当前推荐内容成功 → 已应用，失败 → 带原因的失败', async () => {
+  it('自动应用事件：选中那套成功 → 已应用，失败 → 带原因的失败', async () => {
     const s = session()
     const [r, app] = withSetup(() => useChampionBuild(() => s))
     await flush()
     const emit = (payload: unknown) => eventHandlers['rune-apply-result']?.({ payload })
 
-    emit({ champion_id: 86, perk_ids: PERKS, ok: true, reason: null })
+    emit({ champion_id: 86, perk_ids: perks(8008), ok: true, reason: null })
     expect(r.applyState.value).toBe('idle') // 别的英雄的结果不认
 
-    emit({ champion_id: 157, perk_ids: PERKS, ok: false, reason: 'lcu_rejected' })
+    emit({ champion_id: 157, perk_ids: perks(8008), ok: false, reason: 'lcu_rejected' })
     expect(r.applyState.value).toBe('failed')
     expect(r.applyReason.value).toBe('lcu_rejected')
 
-    emit({ champion_id: 157, perk_ids: PERKS, ok: true, reason: null })
+    emit({ champion_id: 157, perk_ids: perks(8008), ok: true, reason: null })
     expect(r.applyState.value).toBe('applied')
-    app.unmount()
-  })
-
-  it('段位切换（opggRevision 变化）触发重拉', async () => {
-    const s = session()
-    const [, app] = withSetup(() => useChampionBuild(() => s))
-    await flush()
-
-    bumpOpggRevision()
-    await flush()
-
-    expect(buildCalls()).toHaveLength(2)
     app.unmount()
   })
 })

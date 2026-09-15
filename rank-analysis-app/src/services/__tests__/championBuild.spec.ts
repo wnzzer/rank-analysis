@@ -10,7 +10,6 @@ import {
   buildRuneOptions,
   defaultOptionKey,
   fetchChampionBuild,
-  pickRecommendedRune,
   presetFromRune,
   presetPositionOf,
   presetToRune
@@ -130,25 +129,6 @@ describe('applyFailureText', () => {
     expect(applyFailureText('lcu_unavailable')).toContain('客户端')
     expect(applyFailureText('lcu_rejected')).toContain('拒绝')
     expect(applyFailureText(null)).toContain('失败')
-  })
-})
-
-describe('pickRecommendedRune', () => {
-  it('取第一套样本达标的构筑', () => {
-    const got = pickRecommendedRune(build([rune(150, 8021), rune(900, 8008)]))
-    expect(got.sufficient).toBe(true)
-    expect(got.rune?.primary_perk_ids[0]).toBe(8008)
-  })
-
-  it('全部低于阈值时退回第一套并标样本不足', () => {
-    const got = pickRecommendedRune(build([rune(199, 8021), rune(50, 8008)]))
-    expect(got.sufficient).toBe(false)
-    expect(got.rune?.primary_perk_ids[0]).toBe(8021)
-  })
-
-  it('无符文或无数据时 rune 为 null', () => {
-    expect(pickRecommendedRune(build([])).rune).toBeNull()
-    expect(pickRecommendedRune(null).rune).toBeNull()
   })
 })
 

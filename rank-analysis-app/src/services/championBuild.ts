@@ -91,26 +91,6 @@ export function perkIdsOf(rune: RuneBuild): number[] {
 }
 
 /**
- * 一条写入记录是否就是「这个英雄的这套符文」
- * @param championId - 当前英雄
- * @param rune - 当前推荐的那套符文
- * @param applied - 后端的写入记录或事件（只看英雄与 9 个符文）
- * @returns 英雄相同且 9 个符文逐位相同
- */
-export function isSameRune(
-  championId: number,
-  rune: RuneBuild,
-  applied: { champion_id: number; perk_ids: number[] }
-): boolean {
-  const ids = perkIdsOf(rune)
-  return (
-    applied.champion_id === championId &&
-    applied.perk_ids.length === ids.length &&
-    applied.perk_ids.every((id, i) => id === ids[i])
-  )
-}
-
-/**
  * 写入失败原因 → 用户可读文案
  *
  * 页满时明确让用户自己删一页——我们绝不替用户删符文页。
@@ -129,30 +109,6 @@ export function applyFailureText(reason: string | null): string {
     default:
       return '符文应用失败'
   }
-}
-
-/**
- * 从构筑里挑出要推荐 / 应用的那套符文
- *
- * 取第一套样本达标（`play >= MIN_BUILD_PLAY`）的构筑；全部不达标时仍给第一套
- * 供参考，但 `sufficient=false`——展示可以，应用按钮要禁用。
- *
- * @param build - 推荐构筑，可为 null
- * @returns 推荐符文（无符文时为 null）与样本是否充足
- * @example
- * ```ts
- * const { rune, sufficient } = pickRecommendedRune(build)
- * if (rune && sufficient) await applyRunePage(...)
- * ```
- */
-export function pickRecommendedRune(build: ChampionBuild | null): {
-  rune: RuneBuild | null
-  sufficient: boolean
-} {
-  const runes = build?.runes ?? []
-  const qualified = runes.find(r => r.play >= MIN_BUILD_PLAY)
-  if (qualified) return { rune: qualified, sufficient: true }
-  return { rune: runes[0] ?? null, sufficient: false }
 }
 
 // ---- 符文方案（多方案卡片 + 我的方案）----

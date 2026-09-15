@@ -178,10 +178,19 @@
           v-if="sessionData.phase === 'ChampSelect'"
           :build="championBuild.build.value"
           :loading="championBuild.loading.value"
+          :options="championBuild.options.value"
+          :selected-key="championBuild.selectedKey.value"
           :apply-state="championBuild.applyState.value"
           :auto-apply="autoApplyRunes"
           :locked="myPlayer?.pickState === 'locked'"
+          :is-auto-target="
+            championBuild.autoTarget.value !== null &&
+            championBuild.autoTarget.value === championBuild.selectedKey.value
+          "
+          :remembered="championBuild.remembered.value"
+          @select="championBuild.select"
           @apply="handleApplyRunes"
+          @toggle-remember="handleToggleRemember"
         />
       </div>
 
@@ -486,10 +495,32 @@ onMounted(async () => {
   }
 })
 
-/** 手动应用推荐符文；失败原因用 toast 讲清楚（页满时让用户自己删页，我们不删） */
+/**
+ * 手动应用选中的方案；失败原因用 toast 讲清楚（页满时让用户自己删页，我们不删）。
+ * 我的方案被客户端拒绝多半是版本更新删了其中某个符文，提示重新记住。
+ */
 async function handleApplyRunes(): Promise<void> {
+  const fromPreset = championBuild.selected.value?.source === 'preset'
   const result = await championBuild.apply()
-  if (result && !result.ok) message.error(applyFailureText(result.reason))
+  if (!result || result.ok) return
+  const stale = fromPreset && result.reason === 'lcu_rejected'
+  message.error(applyFailureText(result.reason) + (stale ? '，方案可能已过期，可重新记住' : ''))
+}
+
+/** 记住 / 取消记住选中的方案；总开关关着时照样保存，但要说清楚「下次自动」还差一步 */
+async function handleToggleRemember(): Promise<void> {
+  const outcome = await championBuild.toggleRemember()
+  if (outcome === 'remembered') {
+    message.success(
+      autoApplyRunes.value
+        ? '已记住，下次锁定这个英雄会自动写入'
+        : '已记住。开启「自动应用符文」后下次自动写入'
+    )
+  } else if (outcome === 'forgotten') {
+    message.info('已取消记住')
+  } else {
+    message.warning('暂时无法确定分路，稍后再记住')
+  }
 }
 
 const handleUpdateConfig = async (value: number | null) => {
