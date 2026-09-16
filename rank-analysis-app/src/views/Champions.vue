@@ -21,6 +21,7 @@ import {
 } from '@renderer/services/opgg'
 import { useOpggTier } from '@renderer/composables/useOpggTier'
 import ChampionTierTable from '@renderer/components/champions/ChampionTierTable.vue'
+import ChampionDetailPanel from '@renderer/components/champions/ChampionDetailPanel.vue'
 import {
   filterRows,
   sortRows,
@@ -91,6 +92,11 @@ async function onTierChange(next: OpggTier): Promise<void> {
   if (!ok) message.error('段位数据拉取失败，已保持原段位显示')
 }
 
+/** 抽屉关闭即清空选中行：面板据此停掉取数、下次打开重新拉 */
+function onDrawer(show: boolean): void {
+  if (!show) selected.value = null
+}
+
 function onSort(key: SortKey): void {
   if (sortKey.value === key) sortDesc.value = !sortDesc.value
   else {
@@ -159,6 +165,12 @@ watch(opggRevision, () => void load())
       @select="(row: TierRow) => (selected = row)"
       @sort="onSort"
     />
+
+    <n-drawer :show="!!selected" :width="520" placement="right" @update:show="onDrawer">
+      <n-drawer-content :title="selected ? `${selected.name} 详情` : ''" closable>
+        <ChampionDetailPanel :row="selected" />
+      </n-drawer-content>
+    </n-drawer>
   </div>
 </template>
 
