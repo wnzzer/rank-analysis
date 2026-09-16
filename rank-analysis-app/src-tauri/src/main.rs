@@ -183,6 +183,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             command::opgg::update_opgg_data,
             command::opgg::get_champion_meta,
             command::opgg::get_lane_counters,
+            command::opgg::list_champion_metas,
             command::opgg::get_opgg_status,
             command::system::relaunch_as_admin,
             command::system::get_device_id,
