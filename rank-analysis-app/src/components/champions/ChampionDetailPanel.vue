@@ -17,7 +17,7 @@ import { getLaneCounters, type LaneCounter } from '@renderer/services/opgg'
 import type { ChampionBuild, RuneBuild } from '@renderer/types/championBuild'
 import type { TierRow } from './championTier'
 
-const props = defineProps<{ row: TierRow | null }>()
+const props = defineProps<{ row: TierRow | null; nameOf: (id: number) => string }>()
 
 const assets = useRecordAssets()
 const presetsApi = useRunePresets()
@@ -206,6 +206,7 @@ const itemGroups = computed(() => {
       <div class="detail-section-title">苦手对位</div>
       <div v-for="c in counters" :key="c.opponentId" class="detail-counter-row">
         <img :src="`${assetPrefix}/champion/${c.opponentId}`" alt="" />
+        <span class="detail-counter-name">{{ nameOf(c.opponentId) }}</span>
         <span>对位胜率 {{ pct(c.subjectWinRate) }}</span>
         <em>{{ c.play }} 场</em>
       </div>
@@ -336,6 +337,17 @@ const itemGroups = computed(() => {
   align-items: center;
   gap: 2px;
   margin-right: var(--space-12);
+}
+
+/* 一件套的图标贴紧，出场率要离开图标，否则数字像是图标的一部分 */
+.detail-item-entry em,
+.detail-spell-row em {
+  margin-left: var(--space-4);
+}
+
+.detail-counter-name {
+  min-width: 72px;
+  color: var(--text-secondary);
 }
 
 .detail-item-entry img,

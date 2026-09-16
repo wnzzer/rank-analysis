@@ -105,7 +105,10 @@ beforeEach(() => {
 })
 
 async function mountPanel(row: TierRow | null = ROW) {
-  const w = mount(ChampionDetailPanel, { props: { row }, global: { plugins: [naive] } })
+  const w = mount(ChampionDetailPanel, {
+    props: { row, nameOf: (id: number) => `英雄${id}` },
+    global: { plugins: [naive] }
+  })
   for (let i = 0; i < 4; i++) {
     await new Promise(r => setTimeout(r, 0))
     await w.vm.$nextTick()
@@ -146,6 +149,7 @@ describe('ChampionDetailPanel', () => {
     const counters = w.find('.detail-counters').text()
     expect(counters).toContain('44.0%')
     expect(counters).toContain('3302')
+    expect(counters).toContain('英雄')
   })
 
   it('构筑拉不到时只降级这几块，头部与苦手照常', async () => {

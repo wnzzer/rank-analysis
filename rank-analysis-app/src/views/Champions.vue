@@ -168,7 +168,7 @@ watch(opggRevision, () => void load())
 
     <n-drawer :show="!!selected" :width="520" placement="right" @update:show="onDrawer">
       <n-drawer-content :title="selected ? `${selected.name} 详情` : ''" closable>
-        <ChampionDetailPanel :row="selected" />
+        <ChampionDetailPanel :row="selected" :name-of="nameOf" />
       </n-drawer-content>
     </n-drawer>
   </div>
