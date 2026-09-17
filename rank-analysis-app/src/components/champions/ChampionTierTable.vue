@@ -1,18 +1,20 @@
 <script setup lang="ts">
 /**
- * 英雄榜表格
+ * 英雄榜表格（单路榜单）
  *
- * 纯展示：行数据、排序状态都由页面给出，点行只发 select。自绘表格而不是
- * n-data-table——行里要塞头像 / T 级色块 / 趋势箭头，列头排序也只有三列需要，
- * 自绘比给 n-data-table 写一堆 render 函数更好读。
+ * 纯展示：行数据、排序状态、迷你条的归一基准都由页面给出，点行只发 select。
+ * 自绘表格而不是 n-data-table——行里要塞头像 / T 级徽章 / 迷你条 / 趋势徽章，
+ * 列头排序也只有三列需要，自绘比给 n-data-table 写一堆 render 函数更好读。
  */
 import { computed } from 'vue'
 import { assetPrefix } from '@renderer/services/http'
-import type { SortKey, TierRow } from './championTier'
+import { notableTrend, type MetricMaxima, type SortKey, type TierRow } from './championTier'
 
 const props = withDefaults(
   defineProps<{
     rows: TierRow[]
+    /** 当前分路全量行的三个指标最大值（见 championTier 的 maximaOf） */
+    maxima: MetricMaxima
     loading?: boolean
     sortKey?: SortKey
     sortDesc?: boolean
@@ -25,40 +27,34 @@ defineEmits<{
   (e: 'sort', key: SortKey): void
 }>()
 
-const POSITION_LABELS: Record<string, string> = {
-  TOP: '上单',
-  JUNGLE: '打野',
-  MIDDLE: '中单',
-  BOTTOM: '下路',
-  UTILITY: '辅助'
-}
-
-/** 可排序的三列 */
-const METRIC_COLUMNS: Array<{ key: SortKey; label: string; of: (r: TierRow) => number }> = [
-  { key: 'winRate', label: '胜率', of: r => r.winRate },
-  { key: 'pickRate', label: '登场率', of: r => r.pickRate },
-  { key: 'banRate', label: 'Ban 率', of: r => r.banRate }
+/** 可排序的三列；key 同时是 TierRow 与 MetricMaxima 的字段名 */
+const METRIC_COLUMNS: Array<{ key: keyof MetricMaxima & SortKey; label: string }> = [
+  { key: 'winRate', label: '胜率' },
+  { key: 'pickRate', label: '登场率' },
+  { key: 'banRate', label: 'Ban 率' }
 ]
 
 const pct = (v: number) => `${(v * 100).toFixed(1)}%`
-const positionLabel = (p: string) => POSITION_LABELS[p] ?? p
+
+/**
+ * 迷你条宽度
+ *
+ * 基准是页面传来的全量最大值而不是当前行集：搜索只剩一个英雄时，按行集算会让
+ * 它的条变满格，看着像它最强。
+ */
+function barWidth(key: keyof MetricMaxima, row: TierRow): string {
+  const max = props.maxima[key]
+  return max > 0 ? `${Math.round((row[key] / max) * 100)}%` : '0%'
+}
 
 const empty = computed(() => !props.loading && props.rows.length === 0)
-
-function trendText(row: TierRow): string {
-  const { dir, delta } = row.trend
-  if (dir === 'none') return '—'
-  if (dir === 'flat') return '→'
-  return `${dir === 'up' ? '↑' : '↓'}${delta}`
-}
 </script>
 
 <template>
   <div class="champion-table">
     <div class="champion-head">
-      <span class="col-index">#</span>
+      <span class="col-rank">榜位</span>
       <span class="col-champion">英雄</span>
-      <span class="col-position">分路</span>
       <span class="col-tier">T 级</span>
       <button
         v-for="c in METRIC_COLUMNS"
@@ -74,30 +70,42 @@ function trendText(row: TierRow): string {
     </div>
 
     <div v-if="loading" class="champion-skeleton">
-      <span v-for="i in 8" :key="i" class="sk champion-sk-row" />
+      <div v-for="i in 8" :key="i" class="champion-sk-row">
+        <span v-for="n in 7" :key="n" class="sk sk-cell" />
+      </div>
     </div>
 
     <div v-else-if="empty" class="champion-empty">没有匹配的英雄</div>
 
     <template v-else>
       <div
-        v-for="(row, i) in rows"
+        v-for="row in rows"
         :key="`${row.championId}-${row.position}`"
         class="champion-row"
         @click="$emit('select', row)"
       >
-        <span class="col-index">{{ i + 1 }}</span>
+        <span class="col-rank">{{ row.rank }}</span>
         <span class="col-champion">
           <img class="champion-avatar" :src="`${assetPrefix}/champion/${row.championId}`" alt="" />
           {{ row.name }}
         </span>
-        <span class="col-position">{{ positionLabel(row.position) }}</span>
-        <span class="col-tier" :class="`tier-${row.tier}`">T{{ row.tier }}</span>
-        <span v-for="c in METRIC_COLUMNS" :key="c.key" class="col-metric">{{
-          pct(c.of(row))
-        }}</span>
-        <span class="col-trend champion-trend" :class="`trend-${row.trend.dir}`">
-          {{ trendText(row) }}
+        <span class="col-tier">
+          <span class="tier-badge" :class="`tier-${row.tier}`">T{{ row.tier }}</span>
+        </span>
+        <span v-for="c in METRIC_COLUMNS" :key="c.key" class="col-metric">
+          <b>{{ pct(row[c.key]) }}</b>
+          <span class="metric-track">
+            <span
+              class="metric-fill"
+              :class="`fill-${c.key}`"
+              :style="{ width: barWidth(c.key, row) }"
+            />
+          </span>
+        </span>
+        <span class="col-trend">
+          <span v-if="notableTrend(row.trend)" class="trend-badge" :class="`trend-${row.trend.dir}`">
+            {{ row.trend.dir === 'up' ? '↑' : '↓' }}{{ row.trend.delta }}
+          </span>
         </span>
       </div>
     </template>
@@ -112,15 +120,17 @@ function trendText(row: TierRow): string {
 }
 
 .champion-head,
-.champion-row {
+.champion-row,
+.champion-sk-row {
   display: grid;
-  grid-template-columns: 40px minmax(140px, 1.4fr) 72px 56px repeat(3, 84px) 64px;
+  grid-template-columns: 40px minmax(120px, 1fr) 60px repeat(3, 116px) 56px;
   align-items: center;
   gap: var(--space-8);
-  padding: var(--space-6) var(--space-12);
+  padding: 0 var(--space-12);
 }
 
 .champion-head {
+  height: 30px;
   color: var(--text-tertiary);
   border-bottom: 1px solid var(--border-subtle);
   position: sticky;
@@ -130,6 +140,7 @@ function trendText(row: TierRow): string {
 }
 
 .champion-row {
+  height: 38px;
   border-bottom: 1px solid var(--border-subtle);
   cursor: pointer;
   transition: background-color var(--dur-fast) var(--ease-expo);
@@ -139,22 +150,97 @@ function trendText(row: TierRow): string {
   background: var(--surface-sunken);
 }
 
+.col-rank {
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
 .col-champion {
   display: flex;
   align-items: center;
   gap: var(--space-8);
   font-weight: 600;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .champion-avatar {
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   border-radius: var(--radius-sm);
+  flex: none;
+}
+
+/* T 级徽章：0 最强，5 最弱 */
+.tier-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 18px;
+  border-radius: var(--radius-xs);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+}
+
+.tier-0 {
+  background: var(--accent-gold);
+  /* 金底配深字，亮暗两套都是同一块金色，不随主题走 (theme-fixed) */
+  color: #1b1205;
+}
+.tier-1 {
+  background: color-mix(in srgb, var(--semantic-win) 18%, transparent);
+  color: var(--semantic-win);
+}
+.tier-2 {
+  background: color-mix(in srgb, var(--accent-sky) 16%, transparent);
+  color: var(--accent-sky);
+}
+.tier-3 {
+  background: color-mix(in srgb, var(--text-secondary) 14%, transparent);
+  color: var(--text-secondary);
+}
+.tier-4,
+.tier-5 {
+  background: color-mix(in srgb, var(--text-tertiary) 10%, transparent);
+  color: var(--text-tertiary);
 }
 
 .col-metric {
-  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.col-metric b {
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
+}
+
+.metric-track {
+  width: 100%;
+  height: 3px;
+  border-radius: var(--radius-xs);
+  background: color-mix(in srgb, var(--text-tertiary) 22%, transparent);
+  overflow: hidden;
+}
+
+.metric-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-xs);
+}
+
+.fill-winRate {
+  background: var(--semantic-win);
+}
+.fill-pickRate {
+  background: var(--accent-blue);
+}
+.fill-banRate {
+  background: var(--semantic-loss);
 }
 
 .col-sortable {
@@ -164,6 +250,7 @@ function trendText(row: TierRow): string {
   cursor: pointer;
   font-size: inherit;
   padding: 0;
+  align-items: flex-end;
 }
 
 .col-sorted {
@@ -175,31 +262,23 @@ function trendText(row: TierRow): string {
   text-align: right;
 }
 
-/* T 级：1 最强，5 最弱 */
-.tier-1 {
-  color: var(--semantic-win);
-  font-weight: 700;
-}
-.tier-2 {
-  color: var(--accent-sky);
-}
-.tier-3 {
-  color: var(--text-secondary);
-}
-.tier-4,
-.tier-5 {
-  color: var(--text-tertiary);
+.trend-badge {
+  display: inline-block;
+  padding: 1px var(--space-6);
+  border-radius: var(--radius-xs);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 .trend-up {
+  background: color-mix(in srgb, var(--semantic-win) 14%, transparent);
   color: var(--semantic-win);
 }
+
 .trend-down {
+  background: color-mix(in srgb, var(--semantic-loss) 12%, transparent);
   color: var(--semantic-loss);
-}
-.trend-flat,
-.trend-none {
-  color: var(--text-tertiary);
 }
 
 .champion-empty {
@@ -211,11 +290,15 @@ function trendText(row: TierRow): string {
 .champion-skeleton {
   display: flex;
   flex-direction: column;
-  gap: var(--space-8);
-  padding: var(--space-12);
 }
 
 .champion-sk-row {
-  height: 28px;
+  height: 38px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.sk-cell {
+  height: 10px;
+  border-radius: var(--radius-xs);
 }
 </style>
