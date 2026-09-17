@@ -9,6 +9,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useMessage } from 'naive-ui'
 import { invoke } from '@tauri-apps/api/core'
+import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import {
   ensureOpggData,
   getOpggStatus,
@@ -33,7 +34,6 @@ import type { championOption } from '@renderer/types/domain/champion'
 
 /** 分路筛选项；值与快照里的 LCU 大写命名一致 */
 const POSITION_OPTIONS = [
-  { label: '全部分路', value: 'all' },
   { label: '上单', value: 'TOP' },
   { label: '打野', value: 'JUNGLE' },
   { label: '中单', value: 'MIDDLE' },
@@ -41,13 +41,17 @@ const POSITION_OPTIONS = [
   { label: '辅助', value: 'UTILITY' }
 ]
 
+/** 分路记在配置里：下次进来还落在同一条路 */
+const POSITION_KEY = 'settings.opgg.position'
+const DEFAULT_POSITION = 'MIDDLE'
+
 const message = useMessage()
 const metas = ref<ChampionMeta[]>([])
 const options = ref<championOption[]>([])
 const status = ref<OpggStatus | null>(null)
 const loading = ref(true)
 const refreshing = ref(false)
-const position = ref('all')
+const position = ref(DEFAULT_POSITION)
 const keyword = ref('')
 const sortKey = ref<SortKey>('default')
 const sortDesc = ref(true)
@@ -92,6 +96,20 @@ async function onTierChange(next: OpggTier): Promise<void> {
   if (!ok) message.error('段位数据拉取失败，已保持原段位显示')
 }
 
+/** 切分路即记住，下次进来还落在这条路 */
+async function onPositionChange(next: string): Promise<void> {
+  position.value = next
+  await putConfigByIpc(POSITION_KEY, next)
+}
+
+/** 没设置过时后端给的是空串（不是 null）；空串与非法值一律落回默认分路 */
+async function loadPosition(): Promise<void> {
+  const saved = await getConfigByIpc(POSITION_KEY)
+  if (typeof saved === 'string' && POSITION_OPTIONS.some(o => o.value === saved)) {
+    position.value = saved
+  }
+}
+
 /** 抽屉关闭即清空选中行：面板据此停掉取数、下次打开重新拉 */
 function onDrawer(show: boolean): void {
   if (!show) selected.value = null
@@ -107,6 +125,7 @@ function onSort(key: SortKey): void {
 
 onMounted(async () => {
   options.value = await invoke<championOption[]>('get_champion_options')
+  await loadPosition()
   await loadTier()
   await load()
 })
@@ -124,7 +143,7 @@ watch(opggRevision, () => void load())
         :options="POSITION_OPTIONS"
         size="small"
         class="toolbar-select"
-        @update:value="(v: string) => (position = v)"
+        @update:value="onPositionChange"
       />
       <n-select
         :value="tier"

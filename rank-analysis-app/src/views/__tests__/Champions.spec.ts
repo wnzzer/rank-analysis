@@ -49,6 +49,7 @@ function meta(id: number, position: string, o: Partial<ChampionMeta> = {}): Cham
 let metas: ChampionMeta[]
 // 段位切换后 useOpggTier 会校验拿到的快照确实换了段位，mock 必须跟着变
 let currentTier = 'emerald_plus'
+let currentPosition = 'MIDDLE'
 
 async function settle(w: { vm: { $nextTick: () => Promise<void> } }) {
   await new Promise(r => setTimeout(r, 0))
@@ -70,14 +71,22 @@ const stubs = {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  metas = [meta(86, 'TOP'), meta(157, 'MIDDLE', { tier: 2, rank: 15 })]
+  metas = [
+    meta(157, 'MIDDLE', { tier: 1, rank: 3 }),
+    meta(86, 'MIDDLE', { tier: 2, rank: 15 }),
+    meta(86, 'TOP', { isMainPosition: false, tier: 3, rank: 40 })
+  ]
   currentTier = 'emerald_plus'
-  vi.mocked(getConfigByIpc).mockImplementation(async (key: string) =>
-    key === 'settings.opgg.tier' ? currentTier : undefined
-  )
+  currentPosition = 'MIDDLE'
+  vi.mocked(getConfigByIpc).mockImplementation(async (key: string) => {
+    if (key === 'settings.opgg.tier') return currentTier
+    if (key === 'settings.opgg.position') return currentPosition
+    return undefined
+  })
   // 切段位先写配置再重拉；useOpggTier 会校验拿到的快照确实换了段位，mock 必须跟着变
   vi.mocked(putConfigByIpc).mockImplementation(async (key: string, value: unknown) => {
     if (key === 'settings.opgg.tier') currentTier = value as string
+    if (key === 'settings.opgg.position') currentPosition = value as string
   })
   const status = () => ({
     mode: 'ranked',
@@ -103,12 +112,53 @@ beforeEach(() => {
 const mountPage = () => mount(Champions, { global: { plugins: [naive], stubs } })
 
 describe('Champions.vue', () => {
-  it('渲染榜单行与数据版本', async () => {
+  it('只渲染配置里那条路的行', async () => {
+    const w = mountPage()
+    await settle(w)
+
+    // 夹具里 MIDDLE 两行、TOP 一行
+    expect(w.findAll('.champion-row')).toHaveLength(2)
+    expect(w.text()).toContain('16.18')
+    w.unmount()
+  })
+
+  it('配置里存的是别的路，就落在那条路上', async () => {
+    currentPosition = 'TOP'
+    const w = mountPage()
+    await settle(w)
+
+    expect(w.findAll('.champion-row')).toHaveLength(1)
+    expect(w.find('.champion-row').text()).toContain('盖伦')
+    w.unmount()
+  })
+
+  it('没设置过（空串）时落回中单', async () => {
+    currentPosition = ''
     const w = mountPage()
     await settle(w)
 
     expect(w.findAll('.champion-row')).toHaveLength(2)
-    expect(w.text()).toContain('16.18')
+    w.unmount()
+  })
+
+  it('切分路：写配置并只留该路的行', async () => {
+    const w = mountPage()
+    await settle(w)
+
+    const positionSelect = w.findAll('select')[0]
+    await positionSelect.setValue('TOP')
+    await settle(w)
+
+    expect(putConfigByIpc).toHaveBeenCalledWith('settings.opgg.position', 'TOP')
+    expect(w.findAll('.champion-row')).toHaveLength(1)
+    w.unmount()
+  })
+
+  it('分路选择器没有「全部分路」', async () => {
+    const w = mountPage()
+    await settle(w)
+
+    expect(w.findAll('select')[0].text()).not.toContain('全部分路')
     w.unmount()
   })
 
