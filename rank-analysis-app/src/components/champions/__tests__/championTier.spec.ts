@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest'
-import { filterRows, sortRows, toRows, trendOf } from '../championTier'
+import {
+  filterRows,
+  maximaOf,
+  notableTrend,
+  sortRows,
+  toRows,
+  trendOf,
+  TREND_MIN_DELTA
+} from '../championTier'
 import type { ChampionMeta } from '@renderer/services/opgg'
 
 function meta(
@@ -49,35 +57,73 @@ describe('toRows', () => {
     meta(86, 'TOP', { tier: 1, rank: 2 })
   ]
 
-  it('全部分路时每个英雄只出现一次，取主分路那条', () => {
-    const rows = toRows(metas, 'all', nameOf)
-    expect(rows.map(r => [r.championId, r.position])).toEqual([
-      [157, 'MIDDLE'],
-      [86, 'TOP']
-    ])
-    expect(rows[0].name).toBe('亚索')
-  })
-
-  it('没有主分路标记时退回第一条', () => {
-    const rows = toRows([meta(99, 'JUNGLE', { isMainPosition: false })], 'all', nameOf)
-    expect(rows).toHaveLength(1)
-    expect(rows[0].position).toBe('JUNGLE')
-  })
-
-  it('指定分路时只留该分路，含非主分路的条目', () => {
+  it('只返回该分路的行，含非主分路的条目', () => {
     const rows = toRows(metas, 'TOP', nameOf)
-    expect(rows.map(r => r.championId).sort((a, b) => a - b)).toEqual([86, 157])
-    expect(rows.find(r => r.championId === 157)?.tier).toBe(3)
+    expect(rows.map(r => [r.championId, r.tier])).toEqual([
+      [157, 3],
+      [86, 1]
+    ])
+  })
+
+  it('同一英雄的其他分路不出现', () => {
+    const rows = toRows(metas, 'MIDDLE', nameOf)
+    expect(rows).toHaveLength(1)
+    expect(rows[0].name).toBe('亚索')
+    expect(rows[0].rank).toBe(15)
+  })
+
+  it('这条路一个英雄都没有时给空数组', () => {
+    expect(toRows(metas, 'UTILITY', nameOf)).toEqual([])
   })
 
   it('带上趋势，供表格直接渲染', () => {
-    const rows = toRows([meta(86, 'TOP', { rank: 2, rankPrevPatch: 6 })], 'all', nameOf)
+    const rows = toRows([meta(86, 'TOP', { rank: 2, rankPrevPatch: 6 })], 'TOP', nameOf)
     expect(rows[0].trend).toEqual({ dir: 'up', delta: 4 })
   })
 })
 
+describe('maximaOf', () => {
+  const rows = toRows(
+    [
+      meta(1, 'TOP', { winRate: 0.53, pickRate: 0.02, banRate: 0.3 }),
+      meta(2, 'TOP', { winRate: 0.49, pickRate: 0.2, banRate: 0.01 })
+    ],
+    'TOP',
+    nameOf
+  )
+
+  it('三个指标各取最大值', () => {
+    expect(maximaOf(rows)).toEqual({ winRate: 0.53, pickRate: 0.2, banRate: 0.3 })
+  })
+
+  it('空数组给全 0，供调用方判零', () => {
+    expect(maximaOf([])).toEqual({ winRate: 0, pickRate: 0, banRate: 0 })
+  })
+})
+
+describe('notableTrend', () => {
+  it('阈值就是 10 名', () => {
+    expect(TREND_MIN_DELTA).toBe(10)
+  })
+
+  it('挪动不到阈值的当噪音丢掉', () => {
+    expect(notableTrend({ dir: 'up', delta: 9 })).toBeNull()
+    expect(notableTrend({ dir: 'down', delta: 9 })).toBeNull()
+  })
+
+  it('够阈值的原样返回', () => {
+    expect(notableTrend({ dir: 'up', delta: 10 })).toEqual({ dir: 'up', delta: 10 })
+    expect(notableTrend({ dir: 'down', delta: 23 })).toEqual({ dir: 'down', delta: 23 })
+  })
+
+  it('持平与无数据都没得标', () => {
+    expect(notableTrend({ dir: 'flat', delta: 0 })).toBeNull()
+    expect(notableTrend({ dir: 'none', delta: 0 })).toBeNull()
+  })
+})
+
 describe('filterRows', () => {
-  const rows = toRows([meta(86, 'TOP'), meta(157, 'MIDDLE')], 'all', nameOf)
+  const rows = toRows([meta(86, 'TOP'), meta(157, 'TOP')], 'TOP', nameOf)
 
   it('空关键词返回全部', () => {
     expect(filterRows(rows, '', textsOf)).toHaveLength(2)

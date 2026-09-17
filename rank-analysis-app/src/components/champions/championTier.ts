@@ -53,7 +53,8 @@ export function trendOf(rank: number, rankPrevPatch: number): Trend {
 /**
  * 摊平的元数据 → 表格行
  * @param metas - `list_champion_metas` 的结果（英雄 × 分路各一条）
- * @param position - 'all' 或 LCU 大写分路；'all' 时每个英雄只留主分路那条
+ * @param position - LCU 大写分路。榜单永远是单路：T 级与 rank 都是分路内口径，
+ *   跨分路混排无论怎么排都不可比（v2 据此去掉了「全部分路」）
  * @param nameOf - 英雄 ID → 中文名
  * @returns 表格行，顺序保持入参顺序（排序另行调用 sortRows）
  */
@@ -62,31 +63,58 @@ export function toRows(
   position: string,
   nameOf: (championId: number) => string
 ): TierRow[] {
-  // Map 而非对象：对象的数字键会被 JS 重排成升序，这里要保持入参顺序（可预期、可测）
-  const picked =
-    position === 'all'
-      ? [
-          ...metas
-            .reduce<Map<number, ChampionMeta>>((acc, m) => {
-              // 主分路优先；没有主分路标记的英雄退回第一条
-              if (!acc.has(m.championId) || m.isMainPosition) acc.set(m.championId, m)
-              return acc
-            }, new Map())
-            .values()
-        ]
-      : metas.filter(m => m.position === position)
+  return metas
+    .filter(m => m.position === position)
+    .map(m => ({
+      championId: m.championId,
+      name: nameOf(m.championId),
+      position: m.position,
+      tier: m.tier,
+      rank: m.rank,
+      winRate: m.winRate,
+      pickRate: m.pickRate,
+      banRate: m.banRate,
+      trend: trendOf(m.rank, m.rankPrevPatch)
+    }))
+}
 
-  return picked.map(m => ({
-    championId: m.championId,
-    name: nameOf(m.championId),
-    position: m.position,
-    tier: m.tier,
-    rank: m.rank,
-    winRate: m.winRate,
-    pickRate: m.pickRate,
-    banRate: m.banRate,
-    trend: trendOf(m.rank, m.rankPrevPatch)
-  }))
+/** 名次挪动到多少才值得在榜上标出来：小于它的是版本噪音 */
+export const TREND_MIN_DELTA = 10
+
+/**
+ * 只留下值得标注的趋势
+ *
+ * 榜上每行都挂一个 ↑/↓ 会把右边缘变成一串红绿箭头，而多数英雄的名次变化只是抖动。
+ * @param trend - `trendOf` 的结果
+ * @returns 挪动达到 {@link TREND_MIN_DELTA} 时原样返回，否则 null（持平 / 无上版本数据同样返回 null）
+ */
+export function notableTrend(trend: Trend): Trend | null {
+  if (trend.dir !== 'up' && trend.dir !== 'down') return null
+  return trend.delta >= TREND_MIN_DELTA ? trend : null
+}
+
+/** 三个指标在一组行里的最大值，用作迷你条的归一基准 */
+export interface MetricMaxima {
+  winRate: number
+  pickRate: number
+  banRate: number
+}
+
+/**
+ * 算迷你条的归一基准
+ *
+ * 调用方必须传**当前分路的全量行**（搜索过滤之前）：按过滤后的行算，搜索只剩一个
+ * 英雄时它的条会变满格，看着像它最强。
+ * @param rows - 当前分路的全量行
+ * @returns 三个指标各自的最大值；空数组返回全 0
+ */
+export function maximaOf(rows: TierRow[]): MetricMaxima {
+  const maxOf = (of: (r: TierRow) => number) => rows.reduce((m, r) => Math.max(m, of(r)), 0)
+  return {
+    winRate: maxOf(r => r.winRate),
+    pickRate: maxOf(r => r.pickRate),
+    banRate: maxOf(r => r.banRate)
+  }
 }
 
 /**
