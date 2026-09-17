@@ -93,30 +93,6 @@ export function notableTrend(trend: Trend): Trend | null {
   return trend.delta >= TREND_MIN_DELTA ? trend : null
 }
 
-/** 三个指标在一组行里的最大值，用作迷你条的归一基准 */
-export interface MetricMaxima {
-  winRate: number
-  pickRate: number
-  banRate: number
-}
-
-/**
- * 算迷你条的归一基准
- *
- * 调用方必须传**当前分路的全量行**（搜索过滤之前）：按过滤后的行算，搜索只剩一个
- * 英雄时它的条会变满格，看着像它最强。
- * @param rows - 当前分路的全量行
- * @returns 三个指标各自的最大值；空数组返回全 0
- */
-export function maximaOf(rows: TierRow[]): MetricMaxima {
-  const maxOf = (of: (r: TierRow) => number) => rows.reduce((m, r) => Math.max(m, of(r)), 0)
-  return {
-    winRate: maxOf(r => r.winRate),
-    pickRate: maxOf(r => r.pickRate),
-    banRate: maxOf(r => r.banRate)
-  }
-}
-
 /**
  * 按关键词过滤（英雄名 / 称号 / 别名）
  * @param rows - 表格行

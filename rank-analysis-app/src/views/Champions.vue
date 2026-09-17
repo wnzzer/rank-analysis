@@ -25,7 +25,6 @@ import ChampionTierTable from '@renderer/components/champions/ChampionTierTable.
 import ChampionDetailPanel from '@renderer/components/champions/ChampionDetailPanel.vue'
 import {
   filterRows,
-  maximaOf,
   sortRows,
   toRows,
   type SortKey,
@@ -71,13 +70,6 @@ const rows = computed<TierRow[]>(() => {
   const base = toRows(metas.value, position.value, nameOf)
   return sortRows(filterRows(base, keyword.value, textsOf), sortKey.value, sortDesc.value)
 })
-
-/**
- * 迷你条的归一基准：当前分路的全量行（搜索过滤之前）
- *
- * 基准不能随搜索变，否则搜出一个英雄时它的条会满格，看着像它最强。
- */
-const maxima = computed(() => maximaOf(toRows(metas.value, position.value, nameOf)))
 
 /** 快照里一条数据都没有：给「数据未就绪」而不是空表格（空表格看着像「这版本没英雄」） */
 const noData = computed(() => !loading.value && metas.value.length === 0)
@@ -186,7 +178,6 @@ watch(opggRevision, () => void load())
     <ChampionTierTable
       v-else
       :rows="rows"
-      :maxima="maxima"
       :loading="loading"
       :sort-key="sortKey"
       :sort-desc="sortDesc"

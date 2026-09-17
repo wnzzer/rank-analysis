@@ -33,12 +33,9 @@ const rows = toRows(
   id => NAMES[id] ?? `英雄${id}`
 )
 
-/** 全量最大值：胜率 51.8%、登场率 8.2%、Ban 率 3.1% */
-const maxima = { winRate: 0.518, pickRate: 0.082, banRate: 0.031 }
-
 const mountTable = (props: Record<string, unknown> = {}) =>
   mount(ChampionTierTable, {
-    props: { rows, loading: false, maxima, ...props },
+    props: { rows, loading: false, ...props },
     global: { plugins: [naive] }
   })
 
@@ -67,24 +64,6 @@ describe('ChampionTierTable', () => {
     const w = mountTable({ rows: [...rows].reverse() })
     expect(bodyRows(w)[0].find('.col-rank').text()).toBe('15')
     expect(bodyRows(w)[1].find('.col-rank').text()).toBe('3')
-  })
-
-  it('迷你条按传入的全量最大值归一', () => {
-    const w = mountTable()
-    const fills = bodyRows(w)[0].findAll('.metric-fill')
-    expect(fills[0].attributes('style')).toContain('width: 100%')
-    // 亚索胜率 25.9% / 最大 51.8% = 50%
-    expect(bodyRows(w)[1].findAll('.metric-fill')[0].attributes('style')).toContain('width: 50%')
-  })
-
-  it('只剩一行时条长仍按全量最大值算，不会变成满格', () => {
-    const w = mountTable({ rows: [rows[1]] })
-    expect(bodyRows(w)[0].findAll('.metric-fill')[0].attributes('style')).toContain('width: 50%')
-  })
-
-  it('最大值为 0 时条长归零，不做除零', () => {
-    const w = mountTable({ maxima: { winRate: 0, pickRate: 0, banRate: 0 } })
-    expect(bodyRows(w)[0].findAll('.metric-fill')[0].attributes('style')).toContain('width: 0%')
   })
 
   it('趋势只标挪动 ≥10 名的，其余留空', () => {

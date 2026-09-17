@@ -8,13 +8,11 @@
  */
 import { computed } from 'vue'
 import { assetPrefix } from '@renderer/services/http'
-import { notableTrend, type MetricMaxima, type SortKey, type TierRow } from './championTier'
+import { notableTrend, type SortKey, type TierRow } from './championTier'
 
 const props = withDefaults(
   defineProps<{
     rows: TierRow[]
-    /** 当前分路全量行的三个指标最大值（见 championTier 的 maximaOf） */
-    maxima: MetricMaxima
     loading?: boolean
     sortKey?: SortKey
     sortDesc?: boolean
@@ -27,25 +25,14 @@ defineEmits<{
   (e: 'sort', key: SortKey): void
 }>()
 
-/** 可排序的三列；key 同时是 TierRow 与 MetricMaxima 的字段名 */
-const METRIC_COLUMNS: Array<{ key: keyof MetricMaxima & SortKey; label: string }> = [
+/** 可排序的三列；key 同时是 TierRow 的字段名 */
+const METRIC_COLUMNS: Array<{ key: 'winRate' | 'pickRate' | 'banRate'; label: string }> = [
   { key: 'winRate', label: '胜率' },
   { key: 'pickRate', label: '登场率' },
   { key: 'banRate', label: 'Ban 率' }
 ]
 
 const pct = (v: number) => `${(v * 100).toFixed(1)}%`
-
-/**
- * 迷你条宽度
- *
- * 基准是页面传来的全量最大值而不是当前行集：搜索只剩一个英雄时，按行集算会让
- * 它的条变满格，看着像它最强。
- */
-function barWidth(key: keyof MetricMaxima, row: TierRow): string {
-  const max = props.maxima[key]
-  return max > 0 ? `${Math.round((row[key] / max) * 100)}%` : '0%'
-}
 
 const empty = computed(() => !props.loading && props.rows.length === 0)
 </script>
@@ -92,16 +79,9 @@ const empty = computed(() => !props.loading && props.rows.length === 0)
         <span class="col-tier">
           <span class="tier-badge" :class="`tier-${row.tier}`">T{{ row.tier }}</span>
         </span>
-        <span v-for="c in METRIC_COLUMNS" :key="c.key" class="col-metric">
-          <b>{{ pct(row[c.key]) }}</b>
-          <span class="metric-track">
-            <span
-              class="metric-fill"
-              :class="`fill-${c.key}`"
-              :style="{ width: barWidth(c.key, row) }"
-            />
-          </span>
-        </span>
+        <span v-for="c in METRIC_COLUMNS" :key="c.key" class="col-metric">{{
+          pct(row[c.key])
+        }}</span>
         <span class="col-trend">
           <span
             v-if="notableTrend(row.trend)"
@@ -127,7 +107,7 @@ const empty = computed(() => !props.loading && props.rows.length === 0)
 .champion-row,
 .champion-sk-row {
   display: grid;
-  grid-template-columns: 40px minmax(120px, 1fr) 60px repeat(3, 116px) 56px;
+  grid-template-columns: 44px minmax(120px, 220px) 64px repeat(3, minmax(88px, 1fr)) 60px;
   align-items: center;
   gap: var(--space-8);
   padding: 0 var(--space-12);
@@ -212,39 +192,8 @@ const empty = computed(() => !props.loading && props.rows.length === 0)
 }
 
 .col-metric {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 3px;
-}
-
-.col-metric b {
-  font-weight: 600;
+  text-align: right;
   font-variant-numeric: tabular-nums;
-}
-
-.metric-track {
-  width: 100%;
-  height: 3px;
-  border-radius: var(--radius-xs);
-  background: color-mix(in srgb, var(--text-tertiary) 22%, transparent);
-  overflow: hidden;
-}
-
-.metric-fill {
-  display: block;
-  height: 100%;
-  border-radius: var(--radius-xs);
-}
-
-.fill-winRate {
-  background: var(--semantic-win);
-}
-.fill-pickRate {
-  background: var(--accent-blue);
-}
-.fill-banRate {
-  background: var(--semantic-loss);
 }
 
 .col-sortable {
@@ -254,7 +203,6 @@ const empty = computed(() => !props.loading && props.rows.length === 0)
   cursor: pointer;
   font-size: inherit;
   padding: 0;
-  align-items: flex-end;
 }
 
 .col-sorted {

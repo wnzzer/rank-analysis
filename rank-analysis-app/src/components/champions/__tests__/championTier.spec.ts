@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
   filterRows,
-  maximaOf,
   notableTrend,
   sortRows,
   toRows,
@@ -79,25 +78,6 @@ describe('toRows', () => {
   it('带上趋势，供表格直接渲染', () => {
     const rows = toRows([meta(86, 'TOP', { rank: 2, rankPrevPatch: 6 })], 'TOP', nameOf)
     expect(rows[0].trend).toEqual({ dir: 'up', delta: 4 })
-  })
-})
-
-describe('maximaOf', () => {
-  const rows = toRows(
-    [
-      meta(1, 'TOP', { winRate: 0.53, pickRate: 0.02, banRate: 0.3 }),
-      meta(2, 'TOP', { winRate: 0.49, pickRate: 0.2, banRate: 0.01 })
-    ],
-    'TOP',
-    nameOf
-  )
-
-  it('三个指标各取最大值', () => {
-    expect(maximaOf(rows)).toEqual({ winRate: 0.53, pickRate: 0.2, banRate: 0.3 })
-  })
-
-  it('空数组给全 0，供调用方判零', () => {
-    expect(maximaOf([])).toEqual({ winRate: 0, pickRate: 0, banRate: 0 })
   })
 })
 
