@@ -82,17 +82,17 @@ describe('toRows', () => {
 })
 
 describe('notableTrend', () => {
-  it('阈值就是 10 名', () => {
-    expect(TREND_MIN_DELTA).toBe(10)
+  it('阈值就是 5 名', () => {
+    expect(TREND_MIN_DELTA).toBe(5)
   })
 
   it('挪动不到阈值的当噪音丢掉', () => {
-    expect(notableTrend({ dir: 'up', delta: 9 })).toBeNull()
-    expect(notableTrend({ dir: 'down', delta: 9 })).toBeNull()
+    expect(notableTrend({ dir: 'up', delta: 4 })).toBeNull()
+    expect(notableTrend({ dir: 'down', delta: 4 })).toBeNull()
   })
 
   it('够阈值的原样返回', () => {
-    expect(notableTrend({ dir: 'up', delta: 10 })).toEqual({ dir: 'up', delta: 10 })
+    expect(notableTrend({ dir: 'up', delta: 5 })).toEqual({ dir: 'up', delta: 5 })
     expect(notableTrend({ dir: 'down', delta: 23 })).toEqual({ dir: 'down', delta: 23 })
   })
 

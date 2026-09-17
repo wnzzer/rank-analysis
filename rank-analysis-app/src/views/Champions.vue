@@ -198,15 +198,19 @@ watch(opggRevision, () => void load())
   padding: var(--space-16);
   height: 100%;
   box-sizing: border-box;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
+/* 工具栏不跟着滚：榜单有五六十行，滚下去还能随手换分路 / 段位 / 搜 */
 .champions-toolbar {
   display: flex;
   align-items: center;
   gap: var(--space-8);
   margin-bottom: var(--space-12);
   flex-wrap: wrap;
+  flex: none;
 }
 
 .champions-title {

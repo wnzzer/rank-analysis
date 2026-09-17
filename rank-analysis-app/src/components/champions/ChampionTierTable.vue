@@ -69,6 +69,7 @@ const empty = computed(() => !props.loading && props.rows.length === 0)
         v-for="row in rows"
         :key="`${row.championId}-${row.position}`"
         class="champion-row"
+        :class="`row-tier-${row.tier}`"
         @click="$emit('select', row)"
       >
         <span class="col-rank">{{ row.rank }}</span>
@@ -97,10 +98,20 @@ const empty = computed(() => !props.loading && props.rows.length === 0)
 </template>
 
 <style scoped>
+/*
+ * 行是一张张小卡而不是画横线的表：亮色主题是「浅灰画布 → 白卡」，直接在画布上
+ * 画线会变成线表。与战绩页的对局卡同一套材质（卡面 / 细边 / 软阴影 / 左侧色条）。
+ */
 .champion-table {
   display: flex;
   flex-direction: column;
+  gap: var(--space-4);
   font-size: var(--font-size-sm);
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  /* 给卡片阴影与悬浮上浮留出余量，否则会被滚动容器裁掉 */
+  padding: 0 var(--space-6) var(--space-8) var(--space-2);
 }
 
 .champion-head,
@@ -111,27 +122,69 @@ const empty = computed(() => !props.loading && props.rows.length === 0)
   align-items: center;
   gap: var(--space-8);
   padding: 0 var(--space-12);
+  /* 表格是竖排 flex 的滚动容器：不禁止收缩的话，行会被压到头像高度（38px → 24px） */
+  flex: none;
 }
 
 .champion-head {
   height: 30px;
   color: var(--text-tertiary);
-  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--font-size-xs);
+  /* 与卡片行的 1px 边框对齐 */
+  border: 1px solid transparent;
   position: sticky;
   top: 0;
-  background: var(--surface-card);
-  z-index: 1;
+  /* 必须是不透明底色：--surface-card 是半透明叠加层，行会从表头字底下透出来 */
+  background: var(--bg-base);
+  z-index: 2;
 }
 
 .champion-row {
-  height: 38px;
-  border-bottom: 1px solid var(--border-subtle);
+  height: 42px;
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-sm), var(--glass-highlight);
   cursor: pointer;
-  transition: background-color var(--dur-fast) var(--ease-expo);
+  transition:
+    transform var(--dur-fast) var(--ease-expo),
+    box-shadow var(--dur-fast) var(--ease-expo);
+}
+
+/* 左侧 T 级色条：一眼扫出这条路的强弱分层，呼应对局卡的胜负条 */
+.champion-row::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--tier-accent, transparent);
+}
+
+.row-tier-0 {
+  --tier-accent: var(--accent-gold);
+}
+.row-tier-1 {
+  --tier-accent: var(--semantic-win);
+}
+.row-tier-2 {
+  --tier-accent: var(--accent-sky);
+}
+.row-tier-3 {
+  --tier-accent: color-mix(in srgb, var(--text-tertiary) 55%, transparent);
 }
 
 .champion-row:hover {
-  background: var(--surface-sunken);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md), var(--glass-highlight);
+}
+
+.champion-row:active {
+  transform: scale(0.998);
+  transition-duration: var(--dur-instant);
 }
 
 .col-rank {
@@ -245,8 +298,10 @@ const empty = computed(() => !props.loading && props.rows.length === 0)
 }
 
 .champion-sk-row {
-  height: 38px;
-  border-bottom: 1px solid var(--border-subtle);
+  height: 42px;
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  border: 1px solid var(--glass-border);
 }
 
 .sk-cell {

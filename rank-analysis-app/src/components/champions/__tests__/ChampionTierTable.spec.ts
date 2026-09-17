@@ -66,7 +66,13 @@ describe('ChampionTierTable', () => {
     expect(bodyRows(w)[1].find('.col-rank').text()).toBe('3')
   })
 
-  it('趋势只标挪动 ≥10 名的，其余留空', () => {
+  it('行带 T 级 class，左侧色条据此上色', () => {
+    const w = mountTable()
+    expect(bodyRows(w)[0].classes()).toContain('row-tier-1')
+    expect(bodyRows(w)[1].classes()).toContain('row-tier-2')
+  })
+
+  it('趋势只标挪动够阈值的，其余留空', () => {
     const w = mountTable()
     // 盖伦 6 → 3 只挪了 3 名
     expect(bodyRows(w)[0].find('.trend-badge').exists()).toBe(false)
