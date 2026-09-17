@@ -1,6 +1,7 @@
 # 英雄榜（OP.GG 独立页）设计文档
 
 日期：2026-09-16
+后续：`2026-09-17-champion-tier-list-v2-design.md` 推翻了本文的「全部分路」与表格外观两处，其余仍然有效。
 分支：feat/rune-recommend（数据层已在前两期落地，见 `2026-09-15-rune-recommend-design.md` / `2026-09-16-rune-presets-design.md`）
 
 ## 背景与目标
