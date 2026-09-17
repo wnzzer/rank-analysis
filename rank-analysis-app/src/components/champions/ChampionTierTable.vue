@@ -103,7 +103,11 @@ const empty = computed(() => !props.loading && props.rows.length === 0)
           </span>
         </span>
         <span class="col-trend">
-          <span v-if="notableTrend(row.trend)" class="trend-badge" :class="`trend-${row.trend.dir}`">
+          <span
+            v-if="notableTrend(row.trend)"
+            class="trend-badge"
+            :class="`trend-${row.trend.dir}`"
+          >
             {{ row.trend.dir === 'up' ? '↑' : '↓' }}{{ row.trend.delta }}
           </span>
         </span>

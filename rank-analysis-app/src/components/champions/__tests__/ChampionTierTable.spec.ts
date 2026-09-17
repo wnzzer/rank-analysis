@@ -25,7 +25,10 @@ function meta(id: number, position: string, o: Partial<ChampionMeta> = {}): Cham
 
 const NAMES: Record<number, string> = { 86: '盖伦', 157: '亚索' }
 const rows = toRows(
-  [meta(86, 'MIDDLE'), meta(157, 'MIDDLE', { tier: 2, rank: 15, rankPrevPatch: 40, winRate: 0.259 })],
+  [
+    meta(86, 'MIDDLE'),
+    meta(157, 'MIDDLE', { tier: 2, rank: 15, rankPrevPatch: 40, winRate: 0.259 })
+  ],
   'MIDDLE',
   id => NAMES[id] ?? `英雄${id}`
 )
