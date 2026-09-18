@@ -244,6 +244,9 @@
       />
     </n-card>
 
+    <!-- 自动应用符文：总开关 + 我的符文方案 + 兜底策略，与上面两张卡同构 -->
+    <RunePresetsCard :champion-options="options" />
+
     <BpSuggestModal
       v-model:show="suggestModalShow"
       :champion-options="options"
@@ -272,6 +275,7 @@ import { useOpggTier } from '@renderer/composables/useOpggTier'
 import type { OpggTier } from '@renderer/services/opgg'
 import RuleEditModal from '@renderer/components/automation/RuleEditModal.vue'
 import BpSuggestModal from '@renderer/components/automation/BpSuggestModal.vue'
+import RunePresetsCard from '@renderer/components/automation/RunePresetsCard.vue'
 import { hasNoExecutableTarget } from '@renderer/components/automation/autoBpHint'
 import type { PickRule, BanRule, PickAction } from '@renderer/types/rules'
 

@@ -82,7 +82,9 @@ fn snapshot_status(snap: &OpggSnapshot, stale: bool) -> OpggStatus {
 }
 
 /// 查某英雄的元数据：指定分路精确命中 → 回退主分路 → None。
-fn select_meta(
+///
+/// `pub(crate)`：推荐构筑在无分配分路（匹配自选 / 自定义）时借它取主分路。
+pub(crate) fn select_meta(
     snap: &OpggSnapshot,
     champion_id: i32,
     position: Option<&str>,
@@ -98,6 +100,20 @@ fn select_meta(
         .find(|m| m.is_main_position)
         .or_else(|| metas.first())
         .cloned()
+}
+
+/// 把快照摊平成「英雄 × 分路」一行的列表（英雄榜用）。
+///
+/// 按英雄 ID 升序输出、同英雄保持快照内的分路顺序：champions 是 HashMap，
+/// 直接遍历的顺序每次进程都不同，榜单会莫名其妙抖动。
+/// 过滤 / 排序 / 搜索都交给前端——整份约 400 行，一次取齐比来回请求划算。
+fn flatten_metas(snap: &OpggSnapshot) -> Vec<ChampionMeta> {
+    let mut ids: Vec<&i32> = snap.champions.keys().collect();
+    ids.sort_unstable();
+    ids.into_iter()
+        .filter_map(|id| snap.champions.get(id))
+        .flat_map(|metas| metas.iter().cloned())
+        .collect()
 }
 
 /// 批量收集指定英雄的克制数据（快照中没有的英雄直接缺席结果）。
@@ -240,6 +256,22 @@ pub async fn get_champion_meta(
     }
 }
 
+/// 列出某模式下全部「英雄 × 分路」的元数据（英雄榜）。
+///
+/// 非法模式返回 Err；数据未拉取仍是 Ok(空列表)——数据缺失是常态降级，
+/// 前端据此渲染「数据未就绪」而不是空表格。
+#[tauri::command]
+pub async fn list_champion_metas(
+    mode: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<ChampionMeta>, String> {
+    validate_mode(&mode)?;
+    match state.opgg_cache.get(&mode).await {
+        Some(snap) => Ok(flatten_metas(&snap)),
+        None => Ok(vec![]),
+    }
+}
+
 /// 批量查询多个英雄的对线克制数据（服务本局 10 英雄一次取齐）。
 ///
 /// 非法模式返回 Err；数据未拉取仍是 Ok(空 map)。
@@ -333,6 +365,37 @@ mod tests {
         assert_eq!(m.position, "TOP");
         // 未知英雄 → None
         assert!(select_meta(&snap, 12345, None).is_none());
+    }
+
+    #[test]
+    fn flatten_metas_should_list_every_champion_position_pair() {
+        let mut champions = HashMap::new();
+        champions.insert(86, vec![meta(86, "TOP", true), meta(86, "MIDDLE", false)]);
+        champions.insert(157, vec![meta(157, "MIDDLE", true)]);
+        let snap = OpggSnapshot {
+            champions,
+            ..snapshot()
+        };
+
+        let rows = flatten_metas(&snap);
+
+        assert_eq!(rows.len(), 3, "条数 = 各英雄分路条数之和");
+        // 顺序稳定：按英雄 ID 升序，同英雄保持快照内顺序（HashMap 遍历序不可依赖）
+        assert_eq!(
+            rows.iter()
+                .map(|m| (m.champion_id, m.position.as_str()))
+                .collect::<Vec<_>>(),
+            vec![(86, "TOP"), (86, "MIDDLE"), (157, "MIDDLE")]
+        );
+    }
+
+    #[test]
+    fn flatten_metas_should_be_empty_for_empty_snapshot() {
+        let snap = OpggSnapshot {
+            champions: HashMap::new(),
+            ..snapshot()
+        };
+        assert!(flatten_metas(&snap).is_empty());
     }
 
     #[test]

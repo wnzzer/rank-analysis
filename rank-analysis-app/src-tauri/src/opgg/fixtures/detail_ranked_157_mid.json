@@ -1,0 +1,372 @@
+{
+  "data": {
+    "summary": {
+      "id": 157,
+      "average_stats": {
+        "play": 129026,
+        "win_rate": 0.494474,
+        "ban_rate": 0.20981
+      },
+      "positions": [
+        {
+          "name": "MID",
+          "stats": {
+            "play": 77441,
+            "win_rate": 0.491419,
+            "role_rate": 0.600197
+          }
+        },
+        {
+          "name": "TOP",
+          "stats": {
+            "play": 30442,
+            "win_rate": 0.491361,
+            "role_rate": 0.235937
+          }
+        },
+        {
+          "name": "ADC",
+          "stats": {
+            "play": 20418,
+            "win_rate": 0.51435,
+            "role_rate": 0.158247
+          }
+        }
+      ]
+    },
+    "summoner_spells": [
+      {
+        "ids": [4, 14],
+        "win": 20775,
+        "play": 42568,
+        "pick_rate": 0.5769
+      },
+      {
+        "ids": [3, 4],
+        "win": 12872,
+        "play": 25762,
+        "pick_rate": 0.3492
+      },
+      {
+        "ids": [4, 12],
+        "win": 1557,
+        "play": 3282,
+        "pick_rate": 0.0445
+      }
+    ],
+    "core_items": [
+      {
+        "ids": [3153, 3031, 6673],
+        "play": 864,
+        "win": 477,
+        "pick_rate": 0.0189
+      },
+      {
+        "ids": [3153, 6673, 3036],
+        "play": 1240,
+        "win": 675,
+        "pick_rate": 0.0271
+      },
+      {
+        "ids": [1038, 3095, 6673, 3031],
+        "play": 1720,
+        "win": 918,
+        "pick_rate": 0.0376
+      },
+      {
+        "ids": [3153, 6673, 3033],
+        "play": 3020,
+        "win": 1588,
+        "pick_rate": 0.066
+      },
+      {
+        "ids": [6672, 6673, 3031],
+        "play": 3929,
+        "win": 2135,
+        "pick_rate": 0.0858
+      },
+      {
+        "ids": [6673, 3031, 6333],
+        "play": 4828,
+        "win": 2839,
+        "pick_rate": 0.1055
+      },
+      {
+        "ids": [3153, 6673, 3031],
+        "play": 7603,
+        "win": 4157,
+        "pick_rate": 0.1661
+      }
+    ],
+    "mythic_items": [],
+    "boots": [
+      {
+        "ids": [3006],
+        "play": 65459,
+        "win": 32244,
+        "pick_rate": 0.878
+      },
+      {
+        "ids": [3111],
+        "play": 4230,
+        "win": 2005,
+        "pick_rate": 0.0567
+      },
+      {
+        "ids": [3047],
+        "play": 2472,
+        "win": 1225,
+        "pick_rate": 0.0332
+      },
+      {
+        "ids": [3009],
+        "play": 1666,
+        "win": 889,
+        "pick_rate": 0.0223
+      }
+    ],
+    "starter_items": [
+      {
+        "ids": [1086, 2003, 2003],
+        "play": 57355,
+        "win": 28314,
+        "pick_rate": 0.7598
+      },
+      {
+        "ids": [1055, 2003],
+        "play": 9882,
+        "win": 4782,
+        "pick_rate": 0.1309
+      },
+      {
+        "ids": [1054, 2003],
+        "play": 6288,
+        "win": 3038,
+        "pick_rate": 0.0833
+      }
+    ],
+    "last_items": [
+      {
+        "ids": [6673],
+        "play": 54547,
+        "win": 27995,
+        "pick_rate": 0.7363
+      },
+      {
+        "ids": [3031],
+        "play": 37131,
+        "win": 20193,
+        "pick_rate": 0.5012
+      },
+      {
+        "ids": [3153],
+        "play": 31441,
+        "win": 14982,
+        "pick_rate": 0.4244
+      },
+      {
+        "ids": [6333],
+        "play": 16050,
+        "win": 9008,
+        "pick_rate": 0.2166
+      },
+      {
+        "ids": [6672],
+        "play": 14683,
+        "win": 7077,
+        "pick_rate": 0.1982
+      },
+      {
+        "ids": [3095],
+        "play": 12069,
+        "win": 6226,
+        "pick_rate": 0.1629
+      },
+      {
+        "ids": [3033],
+        "play": 9539,
+        "win": 4895,
+        "pick_rate": 0.1288
+      },
+      {
+        "ids": [1038],
+        "play": 8861,
+        "win": 4726,
+        "pick_rate": 0.1196
+      }
+    ],
+    "rune_pages": [
+      {
+        "id": 8008,
+        "primary_page_id": 8000,
+        "secondary_page_id": 8400,
+        "play": 59319,
+        "win": 29044,
+        "pick_rate": 0.7856,
+        "builds": [
+          {
+            "id": 8008,
+            "primary_page_id": 8000,
+            "primary_rune_ids": [8008, 9101, 9104, 8299],
+            "secondary_page_id": 8400,
+            "secondary_rune_ids": [8444, 8451],
+            "stat_mod_ids": [5005, 5008, 5001],
+            "play": 24385,
+            "win": 11314,
+            "pick_rate": 0.4111
+          },
+          {
+            "id": 8008,
+            "primary_page_id": 8000,
+            "primary_rune_ids": [8008, 9111, 9104, 8299],
+            "secondary_page_id": 8400,
+            "secondary_rune_ids": [8401, 8473],
+            "stat_mod_ids": [5005, 5008, 5011],
+            "play": 3861,
+            "win": 2014,
+            "pick_rate": 0.0651
+          },
+          {
+            "id": 8008,
+            "primary_page_id": 8000,
+            "primary_rune_ids": [8008, 9111, 9104, 8299],
+            "secondary_page_id": 8400,
+            "secondary_rune_ids": [8401, 8473],
+            "stat_mod_ids": [5005, 5008, 5001],
+            "play": 3687,
+            "win": 1907,
+            "pick_rate": 0.0622
+          },
+          {
+            "id": 8008,
+            "primary_page_id": 8000,
+            "primary_rune_ids": [8008, 9101, 9104, 8299],
+            "secondary_page_id": 8400,
+            "secondary_rune_ids": [8451, 8473],
+            "stat_mod_ids": [5005, 5008, 5001],
+            "play": 2328,
+            "win": 1154,
+            "pick_rate": 0.0392
+          },
+          {
+            "id": 8008,
+            "primary_page_id": 8000,
+            "primary_rune_ids": [8008, 9101, 9104, 8299],
+            "secondary_page_id": 8400,
+            "secondary_rune_ids": [8401, 8473],
+            "stat_mod_ids": [5005, 5008, 5001],
+            "play": 1883,
+            "win": 979,
+            "pick_rate": 0.0317
+          }
+        ]
+      }
+    ],
+    "runes": [
+      {
+        "id": 8008,
+        "primary_page_id": 8000,
+        "primary_rune_ids": [8008, 9101, 9104, 8299],
+        "secondary_page_id": 8400,
+        "secondary_rune_ids": [8444, 8451],
+        "stat_mod_ids": [5005, 5008, 5001],
+        "play": 24385,
+        "win": 11314,
+        "pick_rate": 0.3229
+      },
+      {
+        "id": 8021,
+        "primary_page_id": 8000,
+        "primary_rune_ids": [8021, 9101, 9104, 8299],
+        "secondary_page_id": 8400,
+        "secondary_rune_ids": [8444, 8451],
+        "stat_mod_ids": [5005, 5008, 5001],
+        "play": 4668,
+        "win": 2254,
+        "pick_rate": 0.0618
+      },
+      {
+        "id": 8008,
+        "primary_page_id": 8000,
+        "primary_rune_ids": [8008, 9111, 9104, 8299],
+        "secondary_page_id": 8400,
+        "secondary_rune_ids": [8401, 8473],
+        "stat_mod_ids": [5005, 5008, 5011],
+        "play": 3861,
+        "win": 2014,
+        "pick_rate": 0.0511
+      },
+      {
+        "id": 8008,
+        "primary_page_id": 8000,
+        "primary_rune_ids": [8008, 9111, 9104, 8299],
+        "secondary_page_id": 8400,
+        "secondary_rune_ids": [8401, 8473],
+        "stat_mod_ids": [5005, 5008, 5001],
+        "play": 3687,
+        "win": 1907,
+        "pick_rate": 0.0488
+      },
+      {
+        "id": 8008,
+        "primary_page_id": 8000,
+        "primary_rune_ids": [8008, 9101, 9104, 8299],
+        "secondary_page_id": 8400,
+        "secondary_rune_ids": [8451, 8473],
+        "stat_mod_ids": [5005, 5008, 5001],
+        "play": 2328,
+        "win": 1154,
+        "pick_rate": 0.0308
+      }
+    ],
+    "skill_masteries": [],
+    "skills": [
+      {
+        "order": ["Q", "E", "W", "Q", "Q", "R", "Q", "E", "Q", "E", "R", "E", "E", "W", "W"],
+        "play": 25610,
+        "win": 14113,
+        "pick_rate": 0.522
+      },
+      {
+        "order": ["E", "Q", "W", "Q", "Q", "R", "Q", "E", "Q", "E", "R", "E", "E", "W", "W"],
+        "play": 13123,
+        "win": 7400,
+        "pick_rate": 0.2675
+      },
+      {
+        "order": ["Q", "E", "Q", "W", "Q", "R", "Q", "E", "Q", "E", "R", "E", "E", "W", "W"],
+        "play": 3271,
+        "win": 1894,
+        "pick_rate": 0.0667
+      }
+    ],
+    "skill_evolves": [],
+    "trends": {
+      "total_rank": 241
+    },
+    "game_lengths": [
+      {
+        "game_length": 0,
+        "rate": 0.510888,
+        "average": 0.5,
+        "rank": 21
+      }
+    ],
+    "counters": [
+      {
+        "champion_id": 777,
+        "play": 3302,
+        "win": 1549
+      },
+      {
+        "champion_id": 238,
+        "play": 3254,
+        "win": 1659
+      }
+    ]
+  },
+  "meta": {
+    "version": "16.18",
+    "cached_at": "2026-09-15 23:00:11"
+  }
+}

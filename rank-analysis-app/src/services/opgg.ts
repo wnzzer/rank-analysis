@@ -154,6 +154,20 @@ export async function getLaneCounters(
 }
 
 /**
+ * 列出某模式下全部「英雄 × 分路」的元数据（英雄榜用，约 400 行一次取齐）
+ * @param mode - 游戏模式
+ * @returns 元数据列表；数据未就绪或出错时为空数组
+ */
+export async function listChampionMetas(mode: OpggMode): Promise<ChampionMeta[]> {
+  try {
+    return await invoke<ChampionMeta[]>('list_champion_metas', { mode })
+  } catch (error) {
+    console.warn(`[opgg] listChampionMetas failed for mode ${mode}:`, error)
+    return []
+  }
+}
+
+/**
  * 获取 OP.GG 数据状态
  * @param mode - 游戏模式
  * @returns 状态对象或 null

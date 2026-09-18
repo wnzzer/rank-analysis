@@ -7,6 +7,7 @@ import {
   getChampionMeta,
   findCounterHints,
   ensureOpggData,
+  listChampionMetas,
   opggRevision,
   bumpOpggRevision,
   TIER_OPTIONS,
@@ -63,6 +64,18 @@ describe('opgg service', () => {
     expect(opggRevision.value).toBe(before + 1)
     bumpOpggRevision()
     expect(opggRevision.value).toBe(before + 2)
+  })
+
+  it('listChampionMetas 透传模式，失败时返回空列表（数据缺失是常态降级）', async () => {
+    const rows = [{ championId: 86, position: 'TOP' }]
+    vi.mocked(invoke).mockResolvedValueOnce(rows)
+    await expect(listChampionMetas('ranked')).resolves.toEqual(rows)
+    expect(invoke).toHaveBeenCalledWith('list_champion_metas', { mode: 'ranked' })
+
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.mocked(invoke).mockRejectedValueOnce('boom')
+    await expect(listChampionMetas('ranked')).resolves.toEqual([])
+    warn.mockRestore()
   })
 
   it('TIER_OPTIONS 与 Rust 侧 VALID_TIERS 同白名单，且含默认段位', () => {

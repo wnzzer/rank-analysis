@@ -21,6 +21,18 @@
         <n-icon :size="18"><GameControllerOutline /></n-icon>
         <span class="nav-item-label">对局</span>
       </button>
+      <!-- 英雄榜不依赖对局，未连接客户端时也能看（数据来自 OP.GG 快照） -->
+      <button
+        type="button"
+        class="nav-item"
+        :class="{
+          'nav-item--active': getFirstPath(router.currentRoute.value.path) === 'Champions'
+        }"
+        @click="handleMenuClick('Champions')"
+      >
+        <n-icon :size="18"><TrophyOutline /></n-icon>
+        <span class="nav-item-label">英雄</span>
+      </button>
       <!-- 设置不依赖 LCU 连接，未连接（Loading 页）时也保持可见可进 -->
       <button
         type="button"
@@ -82,6 +94,7 @@ import {
   BarChartOutline,
   GameControllerOutline,
   SettingsOutline,
+  TrophyOutline,
   LinkOutline
 } from '@vicons/ionicons5'
 import { computed, ref, watch } from 'vue'

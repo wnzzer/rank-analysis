@@ -8,7 +8,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 const BASE_URL: &str = "https://lol-api-champion.op.gg/api/global/champions";
 /// 同 fandom::api 风格的浏览器 UA——OP.GG 对无 UA 请求可能拒绝。
-const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
+pub(crate) const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 
 /// 段位白名单：OP.GG 支持的 tier 参数取值（实测均返回有效数据）。
 pub const VALID_TIERS: [&str; 6] = [

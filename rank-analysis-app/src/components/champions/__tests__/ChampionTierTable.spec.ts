@@ -1,0 +1,106 @@
+import { describe, it, expect, vi } from 'vitest'
+import { mount } from '@vue/test-utils'
+import naive from 'naive-ui'
+import ChampionTierTable from '../ChampionTierTable.vue'
+import { toRows } from '../championTier'
+import type { ChampionMeta } from '@renderer/services/opgg'
+
+vi.mock('@renderer/services/http', () => ({ assetPrefix: '' }))
+
+function meta(id: number, position: string, o: Partial<ChampionMeta> = {}): ChampionMeta {
+  return {
+    championId: id,
+    position,
+    tier: 1,
+    rank: 3,
+    rankPrevPatch: 6,
+    winRate: 0.518,
+    pickRate: 0.082,
+    banRate: 0.031,
+    roleRate: 0.7,
+    isMainPosition: true,
+    ...o
+  }
+}
+
+const NAMES: Record<number, string> = { 86: '盖伦', 157: '亚索' }
+const rows = toRows(
+  [
+    meta(86, 'MIDDLE'),
+    meta(157, 'MIDDLE', { tier: 2, rank: 15, rankPrevPatch: 40, winRate: 0.259 })
+  ],
+  'MIDDLE',
+  id => NAMES[id] ?? `英雄${id}`
+)
+
+const mountTable = (props: Record<string, unknown> = {}) =>
+  mount(ChampionTierTable, {
+    props: { rows, loading: false, ...props },
+    global: { plugins: [naive] }
+  })
+
+const bodyRows = (w: ReturnType<typeof mountTable>) => w.findAll('.champion-row')
+
+describe('ChampionTierTable', () => {
+  it('每行渲染英雄、T 级与三个百分比，不再有分路列', () => {
+    const w = mountTable()
+    expect(bodyRows(w)).toHaveLength(2)
+    const first = bodyRows(w)[0].text()
+    expect(first).toContain('盖伦')
+    expect(first).toContain('T1')
+    expect(first).toContain('51.8%')
+    expect(first).toContain('8.2%')
+    expect(first).toContain('3.1%')
+    expect(first).not.toContain('中单')
+  })
+
+  it('榜位列是 OP.GG 的本路排名，不是行号', () => {
+    const w = mountTable()
+    expect(bodyRows(w)[0].find('.col-rank').text()).toBe('3')
+    expect(bodyRows(w)[1].find('.col-rank').text()).toBe('15')
+  })
+
+  it('换个顺序传进来，榜位跟着行走而不是重新编号', () => {
+    const w = mountTable({ rows: [...rows].reverse() })
+    expect(bodyRows(w)[0].find('.col-rank').text()).toBe('15')
+    expect(bodyRows(w)[1].find('.col-rank').text()).toBe('3')
+  })
+
+  it('行带 T 级 class，左侧色条据此上色', () => {
+    const w = mountTable()
+    expect(bodyRows(w)[0].classes()).toContain('row-tier-1')
+    expect(bodyRows(w)[1].classes()).toContain('row-tier-2')
+  })
+
+  it('趋势只标挪动够阈值的，其余留空', () => {
+    const w = mountTable()
+    // 盖伦 6 → 3 只挪了 3 名
+    expect(bodyRows(w)[0].find('.trend-badge').exists()).toBe(false)
+    // 亚索 40 → 15 挪了 25 名
+    expect(bodyRows(w)[1].find('.trend-badge').text()).toBe('↑25')
+  })
+
+  it('点行发出 select，带上那一行', () => {
+    const w = mountTable()
+    bodyRows(w)[1].trigger('click')
+    expect(w.emitted('select')?.[0][0]).toMatchObject({ championId: 157, position: 'MIDDLE' })
+  })
+
+  it('点列头发出 sort', () => {
+    const w = mountTable()
+    w.findAll('.col-sortable')[0].trigger('click')
+    expect(w.emitted('sort')?.[0][0]).toBe('winRate')
+  })
+
+  it('无数据时给空态文案，不渲染空表', () => {
+    const w = mountTable({ rows: [] })
+    expect(bodyRows(w)).toHaveLength(0)
+    expect(w.text()).toContain('没有匹配的英雄')
+  })
+
+  it('加载中显示骨架，不显示空态', () => {
+    const w = mountTable({ rows: [], loading: true })
+    expect(w.find('.champion-skeleton').exists()).toBe(true)
+    expect(w.text()).not.toContain('没有匹配的英雄')
+  })
+})

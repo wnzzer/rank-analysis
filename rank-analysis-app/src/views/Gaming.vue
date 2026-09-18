@@ -173,6 +173,25 @@
           :display-secs="bp.displaySecs.value"
           @save-rule="handleSaveRule"
         />
+
+        <BuildRecommendBar
+          v-if="sessionData.phase === 'ChampSelect'"
+          :build="championBuild.build.value"
+          :loading="championBuild.loading.value"
+          :options="championBuild.options.value"
+          :selected-key="championBuild.selectedKey.value"
+          :apply-state="championBuild.applyState.value"
+          :auto-apply="autoApplyRunes"
+          :locked="myPlayer?.pickState === 'locked'"
+          :is-auto-target="
+            championBuild.autoTarget.value !== null &&
+            championBuild.autoTarget.value === championBuild.selectedKey.value
+          "
+          :remembered="championBuild.remembered.value"
+          @select="championBuild.select"
+          @apply="handleApplyRunes"
+          @toggle-remember="handleToggleRemember"
+        />
       </div>
 
       <div class="gaming-grid" :class="{ 'gaming-grid-multi': sessionData.isMultiTeam }">
@@ -207,8 +226,10 @@ import { useMessage } from 'naive-ui'
 import LoadingComponent from '@renderer/components/LoadingComponent.vue'
 import SubteamCard from '@renderer/components/gaming/SubteamCard.vue'
 import BpDecisionBar from '@renderer/components/gaming/BpDecisionBar.vue'
+import BuildRecommendBar from '@renderer/components/gaming/BuildRecommendBar.vue'
 import { useGamingAIAnalysis } from '@renderer/composables/useGamingAIAnalysis'
 import { useBpDecision } from '@renderer/composables/useBpDecision'
+import { useChampionBuild } from '@renderer/composables/useChampionBuild'
 import { useSessionSync } from '@renderer/composables/useSessionSync'
 import { useSessionTiers } from '@renderer/composables/useSessionTiers'
 import { useGameState } from '@renderer/composables/useGameState'
@@ -223,6 +244,8 @@ import {
   type OpggTier
 } from '@renderer/services/opgg'
 import { useOpggTier } from '@renderer/composables/useOpggTier'
+import { applyFailureText } from '@renderer/services/championBuild'
+import { CONFIG_KEYS } from '@renderer/services/configKeys'
 import { buildRuleDraft } from '@renderer/services/bpRuleDraft'
 import { getChampionName, loadChampionNames } from '@renderer/services/ai/champion-names'
 import type { Position, PickRule, BanRule } from '@renderer/types/rules'
@@ -352,16 +375,31 @@ const bp = useBpDecision(() => sessionData.phase)
 
 const router = useRouter()
 
-/** 我的分路，取自会话里标着「我」的那名玩家；ARAM 等无分路模式为 null */
-const myPosition = computed<Position | null>(() => {
-  const me = orderedSubteams.value
+/** 会话里标着「我」的那名玩家；自己的 puuid 未知或尚未入会话时为 undefined */
+const myPlayer = computed(() =>
+  orderedSubteams.value
     .flatMap(s => s.players)
     .find(p => p.summoner.puuid === mySummonerPuuid.value)
-  const p = me?.assignedPosition?.toLowerCase()
+)
+
+/** 我的分路，取自会话里标着「我」的那名玩家；ARAM 等无分路模式为 null */
+const myPosition = computed<Position | null>(() => {
+  const p = myPlayer.value?.assignedPosition?.toLowerCase()
   return p === 'top' || p === 'jungle' || p === 'middle' || p === 'bottom' || p === 'utility'
     ? p
     : null
 })
+
+/**
+ * 选人期推荐符文。championId 是「我这一格展示的英雄」（已锁定，否则悬停意向），
+ * 悬停时就能预览；模式由后端按 gameMode 判定，分路原样透传。
+ */
+const championBuild = useChampionBuild(() => ({
+  active: sessionData.phase === 'ChampSelect',
+  gameMode: sessionData.gameMode,
+  championId: myPlayer.value?.championId ?? 0,
+  position: myPlayer.value?.assignedPosition ?? null
+}))
 
 const showConfig = ref(false)
 const matchCount = ref(4)
@@ -442,6 +480,46 @@ async function handleSaveRule(): Promise<void> {
     message.error('保存规则失败: ' + (e instanceof Error ? e.message : String(e)))
   } finally {
     savingRule.value = false
+  }
+}
+
+/**
+ * 自动应用推荐符文开关。只在挂载时读一次：开关在设置页，切过去再回来本页会重新挂载。
+ */
+const autoApplyRunes = ref(false)
+onMounted(async () => {
+  try {
+    autoApplyRunes.value = (await getConfigByIpc<boolean>(CONFIG_KEYS.applyRunesSwitch)) ?? false
+  } catch (e) {
+    console.error(e)
+  }
+})
+
+/**
+ * 手动应用选中的方案；失败原因用 toast 讲清楚（页满时让用户自己删页，我们不删）。
+ * 我的方案被客户端拒绝多半是版本更新删了其中某个符文，提示重新记住。
+ */
+async function handleApplyRunes(): Promise<void> {
+  const fromPreset = championBuild.selected.value?.source === 'preset'
+  const result = await championBuild.apply()
+  if (!result || result.ok) return
+  const stale = fromPreset && result.reason === 'lcu_rejected'
+  message.error(applyFailureText(result.reason) + (stale ? '，方案可能已过期，可重新记住' : ''))
+}
+
+/** 记住 / 取消记住选中的方案；总开关关着时照样保存，但要说清楚「下次自动」还差一步 */
+async function handleToggleRemember(): Promise<void> {
+  const outcome = await championBuild.toggleRemember()
+  if (outcome === 'remembered') {
+    message.success(
+      autoApplyRunes.value
+        ? '已记住，下次锁定这个英雄会自动写入'
+        : '已记住。开启「自动应用符文」后下次自动写入'
+    )
+  } else if (outcome === 'forgotten') {
+    message.info('已取消记住')
+  } else {
+    message.warning('暂时无法确定分路，稍后再记住')
   }
 }
 

@@ -90,6 +90,14 @@ pub struct AppState {
     /// 永远拿不到数据。新鲜度由 `opgg::cache::is_fresh` 单独裁决；键至多
     /// 2 个（"ranked"/"aram"），无内存压力。
     pub opgg_cache: Cache<String, std::sync::Arc<crate::opgg::data::OpggSnapshot>>,
+
+    /// OP.GG 英雄详情（推荐构筑）内存缓存。
+    ///
+    /// 键为 `mode:tier:champion_id:position`，值为裁剪后的构筑（约 2.5 KB）。与
+    /// `opgg_cache` 一样不设 TTL（旧 patch 条目兼作拉取失败时的 stale 兜底，新鲜度按
+    /// patch 裁决，见 `command::champion_build`），但**必须设 `max_capacity`**：
+    /// 键随英雄 × 分路 × 段位增长，不设上限就永不驱逐。
+    pub build_cache: Cache<String, std::sync::Arc<crate::opgg::detail::ChampionBuild>>,
 }
 
 impl Default for AppState {
@@ -100,6 +108,7 @@ impl Default for AppState {
     /// - `http_port`: 未初始化的 `OnceLock`
     /// - `fandom_cache`: 2 小时 TTL 的 Moka 缓存
     /// - `opgg_cache`: 无 TTL 的 Moka 缓存（理由见字段文档）
+    /// - `build_cache`: 无 TTL、上限 120 条的 Moka 缓存
     ///
     /// # 示例
     ///
@@ -115,6 +124,7 @@ impl Default for AppState {
                 .time_to_live(Duration::from_secs(2 * 60 * 60))
                 .build(),
             opgg_cache: Cache::builder().build(),
+            build_cache: Cache::builder().max_capacity(120).build(),
         }
     }
 }
