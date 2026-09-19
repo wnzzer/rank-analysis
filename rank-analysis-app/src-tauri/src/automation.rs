@@ -905,15 +905,23 @@ async fn start_ban_champion() -> Result<(), String> {
 /// 日志转发时刷满 error；内容一变（换人 / 构筑刷新）重新计数。
 const MAX_RUNE_APPLY_ATTEMPTS: u32 = 3;
 
-/// 自动应用的失败计数：只跟踪「最近一次失败的内容」。
+/// 同一选人期内同一份内容最多补写几次。
+///
+/// 客户端的符文推荐器抢一次我们抢回一次，正常一个选人期只会发生一两次（真机实测）。
+/// 设上限是防最坏情况下两边每 2s 互相改写：那样符文页会在客户端里可见地来回跳。
+const MAX_RUNE_REASSERTS: u32 = 5;
+
+/// 「最近一份内容」的次数计数：失败重试与被抢后的补写共用。
+///
+/// 只跟踪最近一份内容：内容一变（换人 / 构筑刷新）就重新计数。
 #[derive(Debug, Default, Clone, PartialEq)]
-struct RuneApplyFailures {
+struct KeyedAttempts {
     key: Option<crate::command::rune_page::AppliedKey>,
     count: u32,
 }
 
-impl RuneApplyFailures {
-    /// 记一次失败：同一内容累加，换了内容从 1 重新计
+impl KeyedAttempts {
+    /// 记一次：同一内容累加，换了内容从 1 重新计
     fn record(&mut self, key: &crate::command::rune_page::AppliedKey) {
         if self.key.as_ref() == Some(key) {
             self.count += 1;
@@ -923,9 +931,9 @@ impl RuneApplyFailures {
         }
     }
 
-    /// 该内容是否已用尽重试次数
-    fn exhausted(&self, key: &crate::command::rune_page::AppliedKey) -> bool {
-        self.key.as_ref() == Some(key) && self.count >= MAX_RUNE_APPLY_ATTEMPTS
+    /// 该内容是否已到上限
+    fn reached(&self, key: &crate::command::rune_page::AppliedKey, limit: u32) -> bool {
+        self.key.as_ref() == Some(key) && self.count >= limit
     }
 }
 
@@ -933,19 +941,36 @@ impl RuneApplyFailures {
 ///
 /// 不能用「本局只执行一次」（锁定后仍能换人），也不能照搬 BP 的「每 tick 无脑重试」
 /// ——BP 的 PATCH 幂等，符文写入每次都让客户端可见地切一次页。所以按写入内容比较：
-/// 与上次成功写入的完全相同就跳过，失败到上限也跳过。
+/// 还没写过这套就写，失败到上限就不写。
+///
+/// **只比「我们自己记的写入内容」不够**：客户端自带的符文推荐器会在我们写完之后把
+/// 当前的临时页原地改写成它的推荐（真机时序：我们 11:12:28 建页 → 客户端 11:14:25
+/// 改写并切页 → 进游戏用的是它的基石）。所以写过之后还要看客户端**实际当前页**：
+/// 被改掉了就抢回来，用户自己切到持久页则视为接管、不抢。
 fn should_apply_runes(
     key: &crate::command::rune_page::AppliedKey,
     last_applied: Option<&crate::command::rune_page::AppliedKey>,
-    failures: &RuneApplyFailures,
+    current: crate::command::rune_page::CurrentPage,
+    failures: &KeyedAttempts,
+    reasserts: &KeyedAttempts,
 ) -> bool {
-    last_applied != Some(key) && !failures.exhausted(key)
+    use crate::command::rune_page::CurrentPage;
+
+    if failures.reached(key, MAX_RUNE_APPLY_ATTEMPTS) {
+        return false;
+    }
+    if last_applied != Some(key) {
+        return true;
+    }
+    // 已经写过这套：只有「被抢走」才补写
+    current == CurrentPage::Reclaimable && !reasserts.reached(key, MAX_RUNE_REASSERTS)
 }
 
-/// 离开选人期：清空写入记录与失败计数，下一局从头来。
-fn reset_rune_apply_state(failures: &mut RuneApplyFailures) {
+/// 离开选人期：清空写入记录、失败与补写计数，下一局从头来。
+fn reset_rune_apply_state(failures: &mut KeyedAttempts, reasserts: &mut KeyedAttempts) {
     crate::command::rune_page::clear_applied();
-    *failures = RuneApplyFailures::default();
+    *failures = KeyedAttempts::default();
+    *reasserts = KeyedAttempts::default();
 }
 
 /// 推给前端的自动应用结果（`rune-apply-result` 事件）
@@ -976,8 +1001,9 @@ async fn start_apply_runes_automation(app: tauri::AppHandle) {
     let mut ticker = interval(Duration::from_secs(2));
     ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
     // 开关刚打开时不信任已有记录（可能来自本局更早的手动应用），宁可多写一次同样的内容
-    let mut failures = RuneApplyFailures::default();
-    reset_rune_apply_state(&mut failures);
+    let mut failures = KeyedAttempts::default();
+    let mut reasserts = KeyedAttempts::default();
+    reset_rune_apply_state(&mut failures, &mut reasserts);
 
     loop {
         ticker.tick().await;
@@ -985,7 +1011,7 @@ async fn start_apply_runes_automation(app: tauri::AppHandle) {
         match get_phase().await {
             Ok(phase) if phase == CHAMPSELECT => {}
             Ok(_) => {
-                reset_rune_apply_state(&mut failures);
+                reset_rune_apply_state(&mut failures, &mut reasserts);
                 continue;
             }
             Err(_) => continue,
@@ -1059,8 +1085,31 @@ async fn start_apply_runes_automation(app: tauri::AppHandle) {
 
         let key = rune_page::AppliedKey::of(me.champion_id, &target.position, &rune);
         let last = rune_page::last_applied();
-        if !should_apply_runes(&key, last.as_ref(), &failures) {
+        // 只在「这套已经写过」时才去读当前页：首写路径的 LCU 请求数与从前一致
+        let current = if last.as_ref() == Some(&key) {
+            match rune_page::fetch_current_page().await {
+                Ok(page) => rune_page::inspect_current_page(page.as_ref(), &rune),
+                Err(e) => {
+                    log::debug!("apply runes: read current page failed: {}", e);
+                    rune_page::CurrentPage::Unknown
+                }
+            }
+        } else {
+            rune_page::CurrentPage::Unknown
+        };
+        if !should_apply_runes(&key, last.as_ref(), current, &failures, &reasserts) {
             continue;
+        }
+        // 写过又要再写 = 被客户端推荐器抢走后的补写，单独计数防两边来回改写
+        let reasserting = last.as_ref() == Some(&key);
+        if reasserting {
+            reasserts.record(&key);
+            log::info!(
+                "符文页被改写，抢回（第 {}/{} 次，英雄 {}）",
+                reasserts.count,
+                MAX_RUNE_REASSERTS,
+                me.champion_id
+            );
         }
 
         let result = rune_page::apply_rune_page_core(me.champion_id, &target.position, &rune).await;
@@ -1397,7 +1446,7 @@ mod tests {
 #[cfg(test)]
 mod apply_runes_tests {
     use super::*;
-    use crate::command::rune_page::{last_applied, record_applied, AppliedKey};
+    use crate::command::rune_page::{last_applied, record_applied, AppliedKey, CurrentPage};
 
     fn key(champion_id: i32, last_perk: i32) -> AppliedKey {
         AppliedKey {
@@ -1409,26 +1458,101 @@ mod apply_runes_tests {
         }
     }
 
+    /// 失败与补写两个计数器的初值
+    fn fresh() -> (KeyedAttempts, KeyedAttempts) {
+        (KeyedAttempts::default(), KeyedAttempts::default())
+    }
+
     #[test]
-    fn should_skip_when_identical_content_already_applied() {
+    fn should_skip_when_our_page_is_still_the_current_page() {
         let k = key(157, 5001);
+        let (failures, reasserts) = fresh();
         assert!(!should_apply_runes(
             &k,
             Some(&k),
-            &RuneApplyFailures::default()
+            CurrentPage::Matches,
+            &failures,
+            &reasserts
+        ));
+    }
+
+    #[test]
+    fn should_reclaim_when_client_rewrote_our_temporary_page() {
+        // 真机根因：客户端自带的符文推荐器在我们写完后把当前的临时页改成它的推荐。
+        // 只比 LAST_APPLIED 会以为「已应用」，于是整局用的都是它的基石。
+        let k = key(157, 5001);
+        let (failures, reasserts) = fresh();
+        assert!(should_apply_runes(
+            &k,
+            Some(&k),
+            CurrentPage::Reclaimable,
+            &failures,
+            &reasserts
+        ));
+    }
+
+    #[test]
+    fn should_not_fight_user_who_picked_their_own_page() {
+        let k = key(157, 5001);
+        let (failures, reasserts) = fresh();
+        assert!(!should_apply_runes(
+            &k,
+            Some(&k),
+            CurrentPage::UserOwned,
+            &failures,
+            &reasserts
+        ));
+    }
+
+    #[test]
+    fn should_keep_old_behaviour_when_current_page_cannot_be_read() {
+        // 观测失败不该改变决策：写过就不再写（老行为），免得读不到当前页时每 2s 刷一次页
+        let k = key(157, 5001);
+        let (failures, reasserts) = fresh();
+        assert!(!should_apply_runes(
+            &k,
+            Some(&k),
+            CurrentPage::Unknown,
+            &failures,
+            &reasserts
         ));
     }
 
     #[test]
     fn should_rewrite_when_champion_or_content_changes() {
-        let failures = RuneApplyFailures::default();
-        assert!(should_apply_runes(&key(157, 5001), None, &failures));
+        let (failures, reasserts) = fresh();
+        // 还没写过这套：当前页是谁的都要写（此时当前页通常正是用户自己的持久页）
+        for current in [
+            CurrentPage::Unknown,
+            CurrentPage::UserOwned,
+            CurrentPage::Matches,
+        ] {
+            assert!(should_apply_runes(
+                &key(157, 5001),
+                None,
+                current,
+                &failures,
+                &reasserts
+            ));
+        }
         assert!(
-            should_apply_runes(&key(86, 5001), Some(&key(157, 5001)), &failures),
+            should_apply_runes(
+                &key(86, 5001),
+                Some(&key(157, 5001)),
+                CurrentPage::UserOwned,
+                &failures,
+                &reasserts
+            ),
             "换人"
         );
         assert!(
-            should_apply_runes(&key(157, 5011), Some(&key(157, 5001)), &failures),
+            should_apply_runes(
+                &key(157, 5011),
+                Some(&key(157, 5001)),
+                CurrentPage::Matches,
+                &failures,
+                &reasserts
+            ),
             "数据刷新出了不同构筑"
         );
     }
@@ -1436,32 +1560,88 @@ mod apply_runes_tests {
     #[test]
     fn should_stop_retrying_same_content_after_max_failures() {
         let k = key(157, 5001);
-        let mut failures = RuneApplyFailures::default();
+        let (mut failures, reasserts) = fresh();
         for _ in 0..MAX_RUNE_APPLY_ATTEMPTS {
-            assert!(should_apply_runes(&k, None, &failures));
+            assert!(should_apply_runes(
+                &k,
+                None,
+                CurrentPage::Unknown,
+                &failures,
+                &reasserts
+            ));
             failures.record(&k);
         }
         assert!(
-            !should_apply_runes(&k, None, &failures),
+            !should_apply_runes(&k, None, CurrentPage::Unknown, &failures, &reasserts),
             "同一内容失败到上限后不再刷"
         );
         assert!(
-            should_apply_runes(&key(86, 5001), None, &failures),
+            should_apply_runes(
+                &key(86, 5001),
+                None,
+                CurrentPage::Unknown,
+                &failures,
+                &reasserts
+            ),
             "内容变了重新计数"
         );
     }
 
     #[test]
-    fn leaving_champ_select_should_clear_applied_record_and_failures() {
+    fn should_stop_reclaiming_same_content_after_max_reasserts() {
+        // 最坏情况：客户端每次都把我们的页改回去。抢到上限就停手，
+        // 否则两边每 2s 互相改写，符文页会在客户端里可见地来回跳。
+        let k = key(157, 5001);
+        let (failures, mut reasserts) = fresh();
+        for _ in 0..MAX_RUNE_REASSERTS {
+            assert!(should_apply_runes(
+                &k,
+                Some(&k),
+                CurrentPage::Reclaimable,
+                &failures,
+                &reasserts
+            ));
+            reasserts.record(&k);
+        }
+        assert!(
+            !should_apply_runes(
+                &k,
+                Some(&k),
+                CurrentPage::Reclaimable,
+                &failures,
+                &reasserts
+            ),
+            "抢到上限后停手"
+        );
+        assert!(
+            should_apply_runes(
+                &key(86, 5001),
+                None,
+                CurrentPage::Reclaimable,
+                &failures,
+                &reasserts
+            ),
+            "换了内容重新计数"
+        );
+    }
+
+    #[test]
+    fn leaving_champ_select_should_clear_applied_record_and_counters() {
         let k = key(157, 5001);
         record_applied(k.clone());
-        let mut failures = RuneApplyFailures::default();
+        let (mut failures, mut reasserts) = fresh();
         failures.record(&k);
+        reasserts.record(&k);
 
-        reset_rune_apply_state(&mut failures);
+        reset_rune_apply_state(&mut failures, &mut reasserts);
 
         assert!(last_applied().is_none());
-        assert_eq!(failures, RuneApplyFailures::default());
+        assert!(
+            crate::command::rune_page::owned_page_id().is_none(),
+            "自有页 id 的生命周期也是一次选人期"
+        );
+        assert_eq!(failures, KeyedAttempts::default());
+        assert_eq!(reasserts, KeyedAttempts::default());
     }
 }
 
