@@ -467,6 +467,39 @@ pub async fn external_get_json<T: DeserializeOwned>(url: &str) -> Result<T, Stri
         .map_err(|e| format!("external JSON 反序列化失败: {}", e))
 }
 
+/// 外部 HTTP GET 取图片二进制（不走 LCU 认证/限流，用于 CommunityDragon 镜像兜底）。
+///
+/// 返回 `(字节, content-type)`，与 [`lcu_get_img_as_binary`] 签名一致——调用方可以
+/// 在「LCU 本地」和「公网镜像」两条来源之间无缝切换。
+///
+/// # 参数
+/// - `url`: 完整的外网图片 URL
+///
+/// # 错误
+/// 请求失败、非 2xx、或读取 body 失败时返回 Err（调用方负责降级，不 panic）
+pub async fn external_get_img_as_binary(url: &str) -> Result<(Vec<u8>, String), String> {
+    let resp = external_client()
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| format!("external 图片请求失败: {}", e))?;
+    if !resp.status().is_success() {
+        return Err(format!("external 图片非 2xx: {}", resp.status()));
+    }
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("image/png")
+        .to_string();
+    let bytes = resp
+        .bytes()
+        .await
+        .map_err(|e| format!("读取 external 图片失败: {}", e))?
+        .to_vec();
+    Ok((bytes, content_type))
+}
+
 /// SGP（腾讯跨区网关）专用 HTTP 客户端。
 ///
 /// 与 LCU 客户端（[`get_client`]，`danger_accept_invalid_certs`）**刻意隔离**：SGP

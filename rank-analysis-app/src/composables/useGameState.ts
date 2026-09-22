@@ -72,11 +72,44 @@ function isStandaloneDetailRoute() {
   return getCurrentWindow().label.startsWith('match-detail-')
 }
 
-/** 处理连接状态的路由切换。 */
-function handleConnectionRoute(state: GameStateEvent) {
-  const currentPath = router.currentRoute.value.path
+/**
+ * 处理连接状态的路由切换。
+ *
+ * 断开时把用户推回 Loading，但 `meta.offlineCapable` 的页面豁免——因为
+ * `game-state-changed` 是 ≤10s 一次的心跳（见 game_state_monitor.rs 的
+ * `state_changed || diff_time > 10s`），**状态没变也会推**，不豁免的页面在未开
+ * 客户端时最多待 10 秒就被弹走，等于完全不可用。
+ *
+ * 豁免名单放在路由 meta 而不是这里硬编码路径前缀：后者已经漏过一次——`/Champions`
+ * （#168 新增，数据走 OP.GG 与 LCU 无关）没进名单，未开客户端时进去必被踢回。
+ */
+/**
+ * 连接断开时，当前路由是否该被推回 Loading。
+ *
+ * 提成纯函数只为可测：这条判定是「未开客户端能不能用某个页面」的唯一开关，
+ * 之前没有任何测试守护，`/Champions` 因此漏了整整一个版本。
+ *
+ * @param route - 当前路由的路径与 meta（只取判定需要的两个字段）
+ * @returns true 表示该把用户推回 Loading
+ */
+export function shouldRedirectToLoading(route: {
+  path: string
+  meta: { offlineCapable?: boolean }
+}): boolean {
+  // 已经在 Loading 就别再推一次，否则心跳会不断产生重复导航
+  if (route.path === '/Loading') {
+    return false
+  }
+  return route.meta.offlineCapable !== true
+}
 
-  if (isStandaloneDetailRoute() || currentPath === '/MatchDetail') {
+function handleConnectionRoute(state: GameStateEvent) {
+  const currentRoute = router.currentRoute.value
+  const currentPath = currentRoute.path
+
+  // 独立详情窗有自己的生命周期，不参与主窗口的连接态导航（窗口 label 判断，
+  // 无法用路由 meta 表达，故单独前置）
+  if (isStandaloneDetailRoute()) {
     return
   }
 
@@ -92,9 +125,8 @@ function handleConnectionRoute(state: GameStateEvent) {
       console.log('📍 Auto navigated to Record page')
     }
   } else {
-    // 游戏客户端断开连接，跳转 Loading。设置页豁免：设置不依赖 LCU 连接，
-    // 且状态事件每 ≤10s 心跳一次，不豁免会把正在改设置的用户反复踢回 Loading
-    if (currentPath !== '/Loading' && !currentPath.startsWith('/Settings')) {
+    // 游戏客户端断开连接，跳转 Loading（离线可用页豁免）
+    if (shouldRedirectToLoading(currentRoute)) {
       router.push({
         path: '/Loading'
       })
