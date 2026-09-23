@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildWhitelist, validateExtraction } from './validate.mjs'
+import { buildTitleIndex, buildWhitelist, validateExtraction } from './validate.mjs'
 
 // CommunityDragon zh_cn：name=称号、description=中文名
 const SUMMARY = [
@@ -43,6 +43,30 @@ test('happy path：通过并富化 championId/alias', () => {
 test('拒绝：isPatchNotes 不为 true', () => {
   const r = validateExtraction({ isPatchNotes: false, champions: [champ()] }, wl(), ARTICLE)
   assert.equal(r.ok, false)
+})
+
+test('称号回退：AI 照抄公告里的称号时归一成中文名', () => {
+  const r = validateExtraction(
+    extracted(champ({ name: '唤潮鲛姬' })),
+    wl(),
+    ARTICLE,
+    buildTitleIndex(SUMMARY)
+  )
+  assert.equal(r.ok, true)
+  assert.equal(r.champions[0].championId, 267)
+  assert.equal(r.champions[0].name, '娜美')
+})
+
+test('称号与中文名混用时合并为同一英雄', () => {
+  const r = validateExtraction(
+    extracted(champ(), champ({ name: '唤潮鲛姬', lines: ['基础护甲：28 → 30'] })),
+    wl(),
+    ARTICLE,
+    buildTitleIndex(SUMMARY)
+  )
+  assert.equal(r.ok, true)
+  assert.equal(r.champions.length, 1)
+  assert.deepEqual(r.champions[0].lines, ['治疗量：60 → 65', '基础护甲：28 → 30'])
 })
 
 test('拒绝：英雄名不在白名单（AI 幻觉名）', () => {

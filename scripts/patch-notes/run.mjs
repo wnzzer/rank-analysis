@@ -81,8 +81,8 @@ if (Array.isArray(extracted.champions) && extracted.champions.length === 0) {
   process.exit(0)
 }
 
-const whitelist = await fetchWhitelist()
-const result = validateExtraction(extracted, whitelist, text)
+const { whitelist, titles } = await fetchWhitelist()
+const result = validateExtraction(extracted, whitelist, text, titles)
 if (!result.ok) {
   console.error('校验闸门未通过，保留旧数据：\n- ' + result.errors.join('\n- '))
   process.exit(1)

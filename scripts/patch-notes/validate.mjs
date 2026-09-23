@@ -25,13 +25,28 @@ export function buildWhitelist(summary) {
   return map
 }
 
+/**
+ * 称号 → 中文名 的回退索引。
+ * 部分公告（如 26.19）只用称号称呼英雄（「暗裔剑魔」而非「亚托克斯」），AI 会照抄称号；
+ * 校验时先把称号归一成中文名再查白名单，产出的 name 始终是中文名。
+ * Jade_* 变体与本体同称号同中文名，重复写入无害。
+ */
+export function buildTitleIndex(summary) {
+  const map = new Map()
+  for (const c of summary) {
+    if (c.id > 0 && c.name && c.description) map.set(c.name.trim(), c.description.trim())
+  }
+  return map
+}
+
+/** @returns {{ whitelist: Map, titles: Map }} 中文名白名单与称号回退索引 */
 export async function fetchWhitelist(fetchFn = fetch) {
   const res = await fetchFn(CHAMPION_SUMMARY_URL)
   if (!res.ok) throw new Error(`champion-summary HTTP ${res.status}`)
   const summary = await res.json()
-  const map = buildWhitelist(summary)
-  if (map.size < 100) throw new Error(`白名单异常：仅 ${map.size} 个英雄`)
-  return map
+  const whitelist = buildWhitelist(summary)
+  if (whitelist.size < 100) throw new Error(`白名单异常：仅 ${whitelist.size} 个英雄`)
+  return { whitelist, titles: buildTitleIndex(summary) }
 }
 
 const DIRECTIONS = new Set(['buff', 'nerf', 'adjusted'])
@@ -67,7 +82,7 @@ function matchArticleLines(line, articleLines, normedLines) {
   return null
 }
 
-export function validateExtraction(extracted, whitelist, articleText) {
+export function validateExtraction(extracted, whitelist, articleText, titles = new Map()) {
   const errors = []
   if (extracted?.isPatchNotes !== true) errors.push('isPatchNotes 不为 true')
   const champs = extracted?.champions
@@ -81,10 +96,11 @@ export function validateExtraction(extracted, whitelist, articleText) {
   /** 同一英雄被 AI 拆成多个条目时合并到首次出现的位置，避免客户端出现重复卡片 */
   const seen = new Map()
   for (const c of champs) {
-    const name = (c?.name ?? '').trim()
+    const rawName = (c?.name ?? '').trim()
+    const name = whitelist.has(rawName) ? rawName : (titles.get(rawName) ?? rawName)
     const hit = whitelist.get(name)
     if (!hit) {
-      errors.push(`英雄名不在白名单: ${name || '(空)'}`)
+      errors.push(`英雄名不在白名单: ${rawName || '(空)'}`)
       continue
     }
     if (!DIRECTIONS.has(c.direction)) {
