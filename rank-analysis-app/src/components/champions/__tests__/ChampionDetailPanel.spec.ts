@@ -141,10 +141,13 @@ describe('ChampionDetailPanel', () => {
     expect(w.find('.detail-rune-row').text()).toContain('精密 · 致命节奏')
     expect(w.find('.detail-items').exists()).toBe(true)
     expect(w.find('.detail-skills').text()).toContain('Q')
+    // 主升顺序按「点满的等级」先后：Q 第 9 级满、E 第 13 级、W 第 15 级
+    expect(w.findAll('.detail-skill-key').map(k => k.text())).toEqual(['Q', 'E', 'W'])
+    expect(w.findAll('.detail-skill-cell')).toHaveLength(15)
     expect(w.find('.detail-spells').exists()).toBe(true)
   })
 
-  it('苦手对位来自克制数据，带胜率与样本量', async () => {
+  it('被克制对位来自克制数据，带胜率与样本量', async () => {
     const w = await mountPanel()
     const counters = w.find('.detail-counters').text()
     expect(counters).toContain('44.0%')
@@ -152,7 +155,7 @@ describe('ChampionDetailPanel', () => {
     expect(counters).toContain('英雄')
   })
 
-  it('构筑拉不到时只降级这几块，头部与苦手照常', async () => {
+  it('构筑拉不到时只降级这几块，头部与被克制对位照常', async () => {
     build = null
     const w = await mountPanel()
     expect(w.find('.detail-head').exists()).toBe(true)
