@@ -1,5 +1,25 @@
 import { createRouter, createWebHashHistory, RouteRecordRaw } from 'vue-router'
 
+declare module 'vue-router' {
+  interface RouteMeta {
+    /** 侧栏 / 标题栏展示名 */
+    title?: string
+    /**
+     * 该页是否不依赖 LCU 连接。
+     *
+     * `useGameState` 的连接监听在「客户端断开」时会把用户推回 Loading，而
+     * `game-state-changed` 是 ≤10s 一次的心跳（见 game_state_monitor.rs 的
+     * `state_changed || diff_time > 10s`）——所以任何不声明本标记的页面，在未开
+     * 客户端时最多待 10 秒就会被弹走。
+     *
+     * 数据源不来自 LCU 的页面（英雄榜走 OP.GG 快照、设置读本地配置）必须声明
+     * `true`，否则压根没法用。改成 meta 驱动而非在 useGameState 里硬编码路径
+     * 前缀，是因为后者漏过一次：`/Champions`（#168 新增）就没进豁免名单。
+     */
+    offlineCapable?: boolean
+  }
+}
+
 const routes: Array<RouteRecordRaw> = [
   {
     path: '/',
@@ -15,7 +35,7 @@ const routes: Array<RouteRecordRaw> = [
     path: '/MatchDetail',
     name: 'MatchDetail',
     component: () => import('@renderer/views/MatchDetail.vue'),
-    meta: { title: '对局详情' }
+    meta: { title: '对局详情', offlineCapable: true } // 独立窗口 / 详情页读的是已取回的对局数据
   },
   {
     path: '/Gaming',
@@ -27,7 +47,7 @@ const routes: Array<RouteRecordRaw> = [
     path: '/Champions',
     name: 'Champions',
     component: () => import('@renderer/views/Champions.vue'),
-    meta: { title: '英雄榜' }
+    meta: { title: '英雄榜', offlineCapable: true } // 榜单数据来自 OP.GG 快照，与 LCU 无关
   },
   {
     path: '/Loading',
@@ -47,7 +67,7 @@ const routes: Array<RouteRecordRaw> = [
     name: 'Settings',
     redirect: '/Settings/Automation',
     component: () => import('@renderer/views/Settings.vue'),
-    meta: { title: '设置' },
+    meta: { title: '设置', offlineCapable: true }, // 设置只读写本地配置
     children: [
       {
         path: '/Settings/General',

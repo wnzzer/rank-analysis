@@ -1,6 +1,6 @@
 use crate::{
     constant,
-    lcu::util::http::{self, external_get_json, lcu_get},
+    lcu::util::http::{self, external_get_img_as_binary, external_get_json, lcu_get},
 };
 use regex::Regex;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -316,50 +316,29 @@ async fn init_once() {
 async fn init_lcu_assets() {
     log::info!("Initializing asset API caches (LCU lists)");
     let t0 = std::time::Instant::now();
-    let items = match lcu_get::<Vec<Item>>(constant::api::ITEM_URI).await {
-        Ok(v) => v,
-        Err(e) => {
-            log::warn!("未从 LCU 加载物品列表（可先启动英雄联盟客户端）: {}", e);
-            Vec::new()
-        }
-    };
-    let champions = match lcu_get::<Vec<Champion>>(constant::api::CHAMPION_URI).await {
-        Ok(v) => v,
-        Err(e) => {
-            log::warn!("未从 LCU 加载英雄列表（可先启动英雄联盟客户端）: {}", e);
-            Vec::new()
-        }
-    };
-    let spells = match lcu_get::<Vec<Spell>>(constant::api::SPELL_URI).await {
-        Ok(v) => v,
-        Err(e) => {
-            log::warn!("未从 LCU 加载召唤师技能列表: {}", e);
-            Vec::new()
-        }
-    };
-    let perk_styles = match lcu_get::<PerkStylesResponse>(constant::api::PERK_URI).await {
-        Ok(v) => v,
-        Err(e) => {
-            log::warn!("未从 LCU 加载符文风格列表: {}", e);
-            PerkStylesResponse { styles: Vec::new() }
-        }
-    };
-    let perks = match lcu_get::<Vec<Perk>>(constant::api::PERKS_URI).await {
-        Ok(v) => v,
-        Err(e) => {
-            log::warn!("未从 LCU 加载符文列表: {}", e);
-            Vec::new()
-        }
-    };
+    let items = lcu_list_or_mirror::<Vec<Item>>(constant::api::ITEM_URI, "物品列表")
+        .await
+        .unwrap_or_default();
+    let champions = lcu_list_or_mirror::<Vec<Champion>>(constant::api::CHAMPION_URI, "英雄列表")
+        .await
+        .unwrap_or_default();
+    let spells = lcu_list_or_mirror::<Vec<Spell>>(constant::api::SPELL_URI, "召唤师技能列表")
+        .await
+        .unwrap_or_default();
+    let perk_styles =
+        lcu_list_or_mirror::<PerkStylesResponse>(constant::api::PERK_URI, "符文风格列表")
+            .await
+            .unwrap_or(PerkStylesResponse { styles: Vec::new() });
+    let perks = lcu_list_or_mirror::<Vec<Perk>>(constant::api::PERKS_URI, "符文列表")
+        .await
+        .unwrap_or_default();
     // per-item 解析，单条字段坏了不影响其他 augment 入缓存
-    let cherry_augments_raw =
-        match lcu_get::<Vec<serde_json::Value>>(constant::api::CHERRY_AUGMENTS_URI).await {
-            Ok(v) => v,
-            Err(error) => {
-                log::warn!("Failed to fetch cherry augments raw JSON: {}", error);
-                Vec::new()
-            }
-        };
+    let cherry_augments_raw = lcu_list_or_mirror::<Vec<serde_json::Value>>(
+        constant::api::CHERRY_AUGMENTS_URI,
+        "海克斯强化列表",
+    )
+    .await
+    .unwrap_or_default();
 
     let mut cherry_augments: Vec<CherryAugment> = Vec::with_capacity(cherry_augments_raw.len());
     let mut parse_fail_count = 0usize;
@@ -612,13 +591,57 @@ where
 async fn ensure_caches_ready() {
     static ASSET_INIT_LOCK: LazyLock<tokio::sync::Mutex<()>> =
         LazyLock::new(|| tokio::sync::Mutex::new(()));
+    if init_retry_in_cooldown() {
+        return;
+    }
     run_once_if_empty(champion_cache_is_empty, &ASSET_INIT_LOCK, init_once).await;
+}
+
+/// init 失败后的重试冷却窗口。
+const ASSET_INIT_RETRY_COOLDOWN: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// 上一次 init 尝试的时刻（None = 还没试过）。
+static LAST_INIT_ATTEMPT: LazyLock<std::sync::Mutex<Option<std::time::Instant>>> =
+    LazyLock::new(|| std::sync::Mutex::new(None));
+
+/// 是否处于失败重试冷却中——是则本次跳过 init。
+///
+/// [`run_once_if_empty`] 的判据是「CHAMPION_CACHE 为空」，这在**没开客户端时永远成立**，
+/// 而每个图标请求都会走一次 [`ensure_caches_ready`]。于是一屏几十个图标 = 几十次
+/// 全量 init，每次把 6 个 LCU 端点各重试一遍、各做一轮进程扫描，日志被刷爆
+/// （实测同一秒内 `Initializing asset API caches` 出现 3 次以上）。
+///
+/// 注意这里用「尝试即打点」而非「失败才打点」：成功的那次会填上缓存，
+/// `run_once_if_empty` 自己的 `is_empty` 短路会先生效，冷却不会拖慢正常路径。
+///
+/// 副作用：打点本身在本函数内完成（返回 false 时即记录本次尝试）。
+fn init_retry_in_cooldown() -> bool {
+    let mut guard = match LAST_INIT_ATTEMPT.lock() {
+        Ok(g) => g,
+        // 锁被毒化时宁可放行：多跑一次 init 只是浪费，卡住则永久无图
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    let now = std::time::Instant::now();
+    if let Some(last) = *guard {
+        if now.duration_since(last) < ASSET_INIT_RETRY_COOLDOWN {
+            return true;
+        }
+    }
+    *guard = Some(now);
+    false
 }
 
 // 新增：返回二进制与 content-type，便于通过 HTTP 下发
 pub async fn get_asset_binary(type_string: String, id: i64) -> Result<(Vec<u8>, String), String> {
     let cache_key = build_asset_key(&type_string, id);
     if let Some(hit) = BINARY_CACHE.get(&cache_key).await {
+        return Ok(hit);
+    }
+
+    // 磁盘缓存：BINARY_CACHE 是纯进程内的，退出即丢。这一层让「开过一次客户端」
+    // 之后的每次冷启动都能直接出图，不必再依赖 LCU 在线。
+    if let Some(hit) = read_icon_from_disk(&type_string, id) {
+        BINARY_CACHE.insert(cache_key, hit.clone()).await;
         return Ok(hit);
     }
 
@@ -635,13 +658,175 @@ pub async fn get_asset_binary(type_string: String, id: i64) -> Result<(Vec<u8>, 
         _ => Err("Invalid type string".to_string()),
     }?;
 
-    // 写入缓存
+    // 写入缓存（磁盘 + 进程内）
+    write_icon_to_disk(&type_string, id, &result.0, &result.1);
     BINARY_CACHE.insert(cache_key, result.clone()).await;
     Ok(result)
 }
 
+// ─── CommunityDragon 镜像兜底 ───────────────────────────────────────────────
+//
+// 图标此前**只有 LCU 一个来源**，没开客户端就全是裂图——mac 上更是永久裂图
+// （客户端只有 Windows 版，CHAMPION_CACHE 恒为空）。CommunityDragon 把 LCU 的
+// `/lol-game-data/assets/` 整棵树镜像到了公网且路径一一对应，所以一个转换函数
+// 就能同时给「列表 JSON」和「所有类型的图标」兜底。
+//
+// 两个根刻意分开（实测结论）：
+// - 列表 JSON 走 zh_cn：英雄名/物品名要与国服客户端一致（"黑暗之女" 而非 "Annie"）
+// - 图片走 default：zh_cn 下没有图片资源，一律 404
+const CDRAGON_DATA_ROOT: &str =
+    "https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/zh_cn";
+const CDRAGON_IMAGE_ROOT: &str =
+    "https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default";
+
+/// LCU asset 路径 → CommunityDragon 镜像 URL。
+///
+/// # 参数
+/// - `root`: [`CDRAGON_DATA_ROOT`]（列表）或 [`CDRAGON_IMAGE_ROOT`]（图片）
+/// - `lcu_path`: LCU 侧路径。列表里的 iconPath 带前导斜杠
+///   （`/lol-game-data/assets/v1/champion-icons/1.png`），`constant::api` 的 URI 不带，
+///   两种都能吃——只认 `lol-game-data/assets/` 这个标记再取其后的尾巴。
+///
+/// # 行为
+/// 尾巴**必须小写**：cdragon 的文件树是全小写的，而 LCU 的 item/perk iconPath 带大写
+/// （如 `ASSETS/Items/Icons2D/1001_Class_T1_BootsOfSpeed.png`），原样请求 404。
+///
+/// # 返回值
+/// 路径里没有 `lol-game-data/assets/` 标记时返回 `None`（不是 LCU 资源路径，无从镜像）
+fn cdragon_url(root: &str, lcu_path: &str) -> Option<String> {
+    const MARKER: &str = "lol-game-data/assets/";
+    let idx = lcu_path.find(MARKER)?;
+    let tail = &lcu_path[idx + MARKER.len()..];
+    Some(format!("{}/{}", root, tail.to_lowercase()))
+}
+
+/// 图标磁盘缓存支持的扩展名。扩展名同时承载 content-type（见 [`mime_for_ext`]），
+/// 省掉一个并行的元数据文件。
+const ICON_CACHE_EXTS: [&str; 4] = ["png", "jpg", "webp", "gif"];
+
+/// content-type → 落盘扩展名。
+fn ext_for_mime(mime: &str) -> &'static str {
+    if mime.contains("jpeg") || mime.contains("jpg") {
+        "jpg"
+    } else if mime.contains("webp") {
+        "webp"
+    } else if mime.contains("gif") {
+        "gif"
+    } else {
+        "png"
+    }
+}
+
+/// 落盘扩展名 → content-type。
+fn mime_for_ext(ext: &str) -> &'static str {
+    match ext {
+        "jpg" => "image/jpeg",
+        "webp" => "image/webp",
+        "gif" => "image/gif",
+        _ => "image/png",
+    }
+}
+
+/// 图标磁盘缓存目录。
+fn icon_cache_dir() -> std::path::PathBuf {
+    crate::paths::cache_subdir("icons")
+}
+
+/// 单个图标在指定目录下的缓存路径。
+fn icon_cache_path_in(dir: &std::path::Path, kind: &str, id: i64, ext: &str) -> std::path::PathBuf {
+    dir.join(format!("{}-{}.{}", kind, id, ext))
+}
+
+/// 从磁盘缓存读图标；未命中 / 空文件返回 None。
+///
+/// 无 TTL 是刻意的：图标按 id 寻址且内容几乎不变，而这份缓存的全部意义就是
+/// **未开客户端也能出图**——加了过期反而会在离线时把唯一的来源判死。
+/// 系统清理 temp 时自然刷新。
+fn read_icon_from_disk(kind: &str, id: i64) -> Option<(Vec<u8>, String)> {
+    read_icon_in(&icon_cache_dir(), kind, id)
+}
+
+/// [`read_icon_from_disk`] 的纯 IO 内核（目录可注入，便于单测）。
+///
+/// 空文件视为未命中：写盘不是原子的，进程在 `std::fs::write` 中途被杀会留下
+/// 0 字节文件，若当成命中就会永久返回一张坏图（本层无 TTL，不会自然过期）。
+fn read_icon_in(dir: &std::path::Path, kind: &str, id: i64) -> Option<(Vec<u8>, String)> {
+    for ext in ICON_CACHE_EXTS {
+        let path = icon_cache_path_in(dir, kind, id, ext);
+        match std::fs::read(&path) {
+            Ok(bytes) if !bytes.is_empty() => {
+                return Some((bytes, mime_for_ext(ext).to_string()));
+            }
+            _ => continue,
+        }
+    }
+    None
+}
+
+/// 把图标写入磁盘缓存（失败仅记日志，绝不影响本次出图）。
+fn write_icon_to_disk(kind: &str, id: i64, bytes: &[u8], mime: &str) {
+    write_icon_in(&icon_cache_dir(), kind, id, bytes, mime);
+}
+
+/// [`write_icon_to_disk`] 的纯 IO 内核（目录可注入，便于单测）。
+fn write_icon_in(dir: &std::path::Path, kind: &str, id: i64, bytes: &[u8], mime: &str) {
+    let path = icon_cache_path_in(dir, kind, id, ext_for_mime(mime));
+    if let Err(e) = crate::paths::ensure_parent_dir(&path) {
+        log::warn!("创建图标缓存目录失败: {}", e);
+        return;
+    }
+    if let Err(e) = std::fs::write(&path, bytes) {
+        log::warn!("写入图标缓存失败({}): {}", path.display(), e);
+    }
+}
+
+/// 取图标二进制：先 LCU（本地、与客户端版本严格一致），失败再走 CommunityDragon 镜像。
+///
+/// 顺序不能反：LCU 是本地请求且版本与玩家客户端对齐，镜像是 `latest`，
+/// 版本更新当天可能与客户端有出入。
 async fn fetch_binary(url: &str) -> Result<(Vec<u8>, String), String> {
-    http::lcu_get_img_as_binary(url).await
+    match http::lcu_get_img_as_binary(url).await {
+        Ok(hit) => Ok(hit),
+        Err(lcu_err) => {
+            let Some(mirror) = cdragon_url(CDRAGON_IMAGE_ROOT, url) else {
+                return Err(lcu_err);
+            };
+            log::debug!("LCU 取图失败({})，改走镜像: {}", lcu_err, mirror);
+            external_get_img_as_binary(&mirror)
+                .await
+                .map_err(|cdn_err| format!("LCU: {} / 镜像: {}", lcu_err, cdn_err))
+        }
+    }
+}
+
+/// 取 LCU 列表，失败则回退 CommunityDragon 镜像（zh_cn，中文名）。
+///
+/// 这一层兜底不只为了图标：`get_champion_options`（英雄筛选下拉、AI 搜战绩的英雄
+/// 清单）直接读 CHAMPION_CACHE，列表空则下拉整个是空的。
+///
+/// # 参数
+/// - `uri`: `constant::api` 里的 LCU 资源 URI
+/// - `what`: 日志里的人类可读名称
+async fn lcu_list_or_mirror<T: serde::de::DeserializeOwned + 'static>(
+    uri: &str,
+    what: &str,
+) -> Option<T> {
+    match lcu_get::<T>(uri).await {
+        Ok(v) => Some(v),
+        Err(lcu_err) => {
+            let mirror = cdragon_url(CDRAGON_DATA_ROOT, uri)?;
+            match external_get_json::<T>(&mirror).await {
+                Ok(v) => {
+                    log::info!("{}：LCU 不可用({})，已从镜像加载", what, lcu_err);
+                    Some(v)
+                }
+                Err(cdn_err) => {
+                    log::warn!("{}：LCU({}) 与镜像({}) 均失败", what, lcu_err, cdn_err);
+                    None
+                }
+            }
+        }
+    }
 }
 
 // 新增：各类型的二进制获取
@@ -1048,6 +1233,122 @@ mod tests {
         let got = read_cached_desc_map(&path, 3600, std::time::SystemTime::now());
         assert_eq!(got.as_ref(), Some(&map));
         let _ = std::fs::remove_file(&path);
+    }
+
+    // ─── CommunityDragon 镜像兜底 ──────────────────────────────────────────
+    //
+    // `cdragon_url` 是整条离线兜底链的单点：它错了，未开客户端时所有图标和所有
+    // 列表一起失效，而失败表现只是「图裂 + 下拉空」，没有任何报错指向这里。
+
+    #[test]
+    fn cdragon_url_converts_icon_path_from_list() {
+        // 列表里的 iconPath 带前导斜杠
+        let got = cdragon_url(
+            CDRAGON_IMAGE_ROOT,
+            "/lol-game-data/assets/v1/champion-icons/1.png",
+        );
+
+        assert_eq!(
+            got.as_deref(),
+            Some(concat!(
+                "https://raw.communitydragon.org/latest/plugins/",
+                "rcp-be-lol-game-data/global/default/v1/champion-icons/1.png"
+            ))
+        );
+    }
+
+    #[test]
+    fn cdragon_url_converts_bare_uri_constant() {
+        // constant::api 里的 URI 不带前导斜杠，同一个函数要能吃
+        let got = cdragon_url(CDRAGON_DATA_ROOT, constant::api::CHAMPION_URI);
+
+        assert_eq!(
+            got.as_deref(),
+            Some(concat!(
+                "https://raw.communitydragon.org/latest/plugins/",
+                "rcp-be-lol-game-data/global/zh_cn/v1/champion-summary.json"
+            ))
+        );
+    }
+
+    #[test]
+    fn cdragon_url_lowercases_path() {
+        // cdragon 的文件树全小写，而 LCU 的 item/perk iconPath 带大写驼峰。
+        // 不小写化就是 404——这条是实测踩出来的，务必守住。
+        let got = cdragon_url(
+            CDRAGON_IMAGE_ROOT,
+            "/lol-game-data/assets/ASSETS/Items/Icons2D/1001_Class_T1_BootsOfSpeed.png",
+        );
+
+        assert_eq!(
+            got.as_deref(),
+            Some(concat!(
+                "https://raw.communitydragon.org/latest/plugins/",
+                "rcp-be-lol-game-data/global/default/",
+                "assets/items/icons2d/1001_class_t1_bootsofspeed.png"
+            ))
+        );
+    }
+
+    #[test]
+    fn cdragon_url_rejects_non_lcu_path() {
+        // 不是 LCU 资源路径就无从镜像，返回 None 让调用方保留原始 LCU 错误
+        assert!(cdragon_url(CDRAGON_IMAGE_ROOT, "lol-game-queues/v1/queues").is_none());
+        assert!(cdragon_url(CDRAGON_IMAGE_ROOT, "").is_none());
+    }
+
+    #[test]
+    fn icon_mime_ext_maps_both_ways() {
+        // 扩展名是 content-type 的唯一载体（不另存元数据文件），必须能往返
+        for (mime, ext) in [
+            ("image/jpeg", "jpg"),
+            ("image/webp", "webp"),
+            ("image/gif", "gif"),
+            ("image/png", "png"),
+        ] {
+            assert_eq!(ext_for_mime(mime), ext, "mime {} → ext", mime);
+            assert_eq!(mime_for_ext(ext), mime, "ext {} → mime", ext);
+        }
+        // 未知 content-type 落到 png（LCU 图标绝大多数是 png）
+        assert_eq!(ext_for_mime("application/octet-stream"), "png");
+    }
+
+    #[test]
+    fn icon_disk_cache_roundtrip_preserves_mime() {
+        let dir = std::env::temp_dir().join("test-icon-cache-roundtrip");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("create temp icon dir");
+
+        write_icon_in(&dir, "profile", 29, b"\x89PNG-fake", "image/jpeg");
+        let got = read_icon_in(&dir, "profile", 29);
+
+        // content-type 经由扩展名还原，不能退化成默认 png
+        assert_eq!(
+            got,
+            Some((b"\x89PNG-fake".to_vec(), "image/jpeg".to_string()))
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn icon_disk_cache_missing_returns_none() {
+        let dir = std::env::temp_dir().join("test-icon-cache-missing");
+        let _ = std::fs::remove_dir_all(&dir);
+
+        assert!(read_icon_in(&dir, "champion", 404).is_none());
+    }
+
+    #[test]
+    fn icon_disk_cache_treats_empty_file_as_miss() {
+        // 写盘非原子：进程在 write 中途被杀会留下 0 字节文件。本层无 TTL，
+        // 若当成命中就是永久坏图。
+        let dir = std::env::temp_dir().join("test-icon-cache-empty");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("create temp icon dir");
+        std::fs::write(icon_cache_path_in(&dir, "champion", 7, "png"), b"").expect("write empty");
+
+        assert!(read_icon_in(&dir, "champion", 7).is_none());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
