@@ -145,8 +145,8 @@ describe('Champions.vue', () => {
     const w = mountPage()
     await settle(w)
 
-    const positionSelect = w.findAll('select')[0]
-    await positionSelect.setValue('TOP')
+    const topTab = w.findAll('.position-tab').find(t => t.text() === '上单')!
+    await topTab.trigger('click')
     await settle(w)
 
     expect(putConfigByIpc).toHaveBeenCalledWith('settings.opgg.position', 'TOP')
@@ -154,11 +154,12 @@ describe('Champions.vue', () => {
     w.unmount()
   })
 
-  it('分路选择器没有「全部分路」', async () => {
+  it('分路标签没有「全部分路」', async () => {
     const w = mountPage()
     await settle(w)
 
-    expect(w.findAll('select')[0].text()).not.toContain('全部分路')
+    const tabs = w.findAll('.position-tab').map(t => t.text())
+    expect(tabs).toEqual(['上单', '打野', '中单', '下路', '辅助'])
     w.unmount()
   })
 
@@ -190,7 +191,7 @@ describe('Champions.vue', () => {
     await settle(w)
     mockInvoke.mockClear()
 
-    const tierSelect = w.findAll('select')[1]
+    const tierSelect = w.findAll('select')[0]
     await tierSelect.setValue('master_plus')
     await settle(w)
 
