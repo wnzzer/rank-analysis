@@ -6,7 +6,7 @@
       'lazy-img-error': state === 'error'
     }"
   >
-    <img :src="src" :alt="alt" loading="lazy" @load="onLoad" @error="onError" />
+    <img :src="currentSrc" :alt="alt" loading="lazy" @load="onLoad" @error="onError" />
   </span>
 </template>
 
@@ -14,14 +14,16 @@
 /**
  * 懒加载图片组件
  *
- * 在图片加载完成前显示 shimmer 占位动画，加载失败时降低透明度作为错误回退。
+ * 在图片加载完成前显示 shimmer 占位动画，加载失败时降低透明度作为错误回退，
+ * 并按 {@link LAZY_IMG_RETRY_DELAYS_MS} 延时重试（后端资源列表就绪后自动补图）。
  *
  * @example
  * ```vue
  * <LazyImg src="/champion/1.png" alt="champion" />
  * ```
  */
-import { ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { LAZY_IMG_RETRY_DELAYS_MS, withRetryParam } from './lazyImgRetry'
 
 const props = defineProps<{
   /** 图片地址 */
@@ -31,14 +33,31 @@ const props = defineProps<{
 }>()
 
 const state = ref<'loading' | 'loaded' | 'error'>('loading')
+/** 已发起的重试次数 */
+const attempt = ref(0)
+let retryTimer: ReturnType<typeof setTimeout> | undefined
 
-// src 变化时重置回 loading, 否则列表复用同一实例切图时新图片不显示 shimmer / 残留 error 态
+const currentSrc = computed(() => withRetryParam(props.src, attempt.value))
+
+function clearRetryTimer() {
+  if (retryTimer !== undefined) {
+    clearTimeout(retryTimer)
+    retryTimer = undefined
+  }
+}
+
+// src 变化时重置回 loading, 否则列表复用同一实例切图时新图片不显示 shimmer / 残留 error 态；
+// 旧图的重试也要作废，否则会把新图换成旧图的重试地址
 watch(
   () => props.src,
   () => {
+    clearRetryTimer()
+    attempt.value = 0
     state.value = 'loading'
   }
 )
+
+onBeforeUnmount(clearRetryTimer)
 
 function onLoad() {
   state.value = 'loaded'
@@ -46,6 +65,13 @@ function onLoad() {
 
 function onError() {
   state.value = 'error'
+  const delay = LAZY_IMG_RETRY_DELAYS_MS[attempt.value]
+  if (delay === undefined || retryTimer !== undefined) return
+  retryTimer = setTimeout(() => {
+    retryTimer = undefined
+    attempt.value += 1
+    state.value = 'loading'
+  }, delay)
 }
 </script>
 
