@@ -297,10 +297,60 @@ pub fn champion_cache_is_empty() -> bool {
     CHAMPION_CACHE.read().map(|g| g.is_empty()).unwrap_or(true)
 }
 
+/// 当前缓存里的列表是否**全部**来自 LCU（而非磁盘 / 镜像兜底）。
+///
+/// 兜底数据可能与客户端版本不一致（磁盘是上次的、镜像是 `latest`），新版本里的
+/// 新物品查不到就是裂图，所以连上客户端后要据此决定是否再刷一次。
+static LOADED_FROM_LCU: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// 任一核心列表（champion/item/spell/perk）为空。
+///
+/// 以前只看 CHAMPION_CACHE：离线启动时镜像拉英雄列表成功、物品列表超时，
+/// 英雄非空 → 永不重试 → 这次会话里没见过的物品全部裂图，连上客户端也救不回来。
+fn any_core_cache_empty() -> bool {
+    fn empty<T>(cache: &RwLock<HashMap<i64, T>>) -> bool {
+        cache.read().map(|g| g.is_empty()).unwrap_or(true)
+    }
+    empty(&CHAMPION_CACHE) || empty(&ITEM_CACHE) || empty(&SPELL_CACHE) || empty(&PERK_CACHE)
+}
+
+/// 缓存不完整，或还不是来自 LCU（连上客户端后应当刷新）。
+fn caches_not_from_lcu() -> bool {
+    any_core_cache_empty() || !LOADED_FROM_LCU.load(std::sync::atomic::Ordering::Acquire)
+}
+
 /// 公共入口：确保资源缓存就绪（图标可用）。幂等、单飞——main.rs setup 与图标协议处理器
 /// 都走这里并合并到同一把锁，避免冷启动并发跑两次 init。
 pub async fn init() {
     ensure_caches_ready().await;
+}
+
+/// LCU 连上后刷新的最大尝试次数与间隔。
+///
+/// 刚连上时 `lol-game-data` 插件可能还没就绪（列表请求失败 → 又落回磁盘/镜像），
+/// 所以不是一次定输赢，隔几秒再试。
+const LCU_REFRESH_ATTEMPTS: u32 = 4;
+const LCU_REFRESH_INTERVAL: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// LCU 刚连上时调用：缓存还不是来自 LCU 就重拉，**不受失败冷却限制**。
+///
+/// 冷却是为了防止离线时图标请求把 init 刷爆；而「客户端刚连上」恰恰是最该重试的时刻，
+/// 不能因为 30s 内刚离线失败过一次就错过。离线兜底数据（磁盘上次的 / 镜像 latest）
+/// 可能缺当前版本的新物品，只有换成 LCU 数据才能保证不裂图。
+pub async fn refresh_on_lcu_connected() {
+    for attempt in 0..LCU_REFRESH_ATTEMPTS {
+        if !caches_not_from_lcu() {
+            return;
+        }
+        if attempt > 0 {
+            tokio::time::sleep(LCU_REFRESH_INTERVAL).await;
+        }
+        log::info!(
+            "LCU 已连接，资源缓存非 LCU 来源或不完整，重新拉取（第 {} 次）",
+            attempt + 1
+        );
+        run_once_if_empty(caches_not_from_lcu, &ASSET_INIT_LOCK, init_once).await;
+    }
 }
 
 /// 一次性初始化：先用 LCU 列表填好图标缓存（快、本地，实测 <1s）让图标立刻可用；
@@ -316,29 +366,38 @@ async fn init_once() {
 async fn init_lcu_assets() {
     log::info!("Initializing asset API caches (LCU lists)");
     let t0 = std::time::Instant::now();
-    let items = lcu_list_or_mirror::<Vec<Item>>(constant::api::ITEM_URI, "物品列表")
-        .await
-        .unwrap_or_default();
-    let champions = lcu_list_or_mirror::<Vec<Champion>>(constant::api::CHAMPION_URI, "英雄列表")
-        .await
-        .unwrap_or_default();
-    let spells = lcu_list_or_mirror::<Vec<Spell>>(constant::api::SPELL_URI, "召唤师技能列表")
-        .await
-        .unwrap_or_default();
-    let perk_styles =
-        lcu_list_or_mirror::<PerkStylesResponse>(constant::api::PERK_URI, "符文风格列表")
-            .await
-            .unwrap_or(PerkStylesResponse { styles: Vec::new() });
-    let perks = lcu_list_or_mirror::<Vec<Perk>>(constant::api::PERKS_URI, "符文列表")
-        .await
-        .unwrap_or_default();
-    // per-item 解析，单条字段坏了不影响其他 augment 入缓存
-    let cherry_augments_raw = lcu_list_or_mirror::<Vec<serde_json::Value>>(
-        constant::api::CHERRY_AUGMENTS_URI,
-        "海克斯强化列表",
-    )
-    .await
-    .unwrap_or_default();
+    // 并发拉取：离线时每条都要走「LCU 失败 → 磁盘/镜像」，串行会把各自的耗时叠加起来
+    let (items, champions, spells, perk_styles, perks, cherry_augments_raw) = tokio::join!(
+        lcu_list_or_mirror::<Vec<Item>>(constant::api::ITEM_URI, "物品列表"),
+        lcu_list_or_mirror::<Vec<Champion>>(constant::api::CHAMPION_URI, "英雄列表"),
+        lcu_list_or_mirror::<Vec<Spell>>(constant::api::SPELL_URI, "召唤师技能列表"),
+        lcu_list_or_mirror::<PerkStylesResponse>(constant::api::PERK_URI, "符文风格列表"),
+        lcu_list_or_mirror::<Vec<Perk>>(constant::api::PERKS_URI, "符文列表"),
+        // per-item 解析，单条字段坏了不影响其他 augment 入缓存
+        lcu_list_or_mirror::<Vec<serde_json::Value>>(
+            constant::api::CHERRY_AUGMENTS_URI,
+            "海克斯强化列表",
+        ),
+    );
+    // 六条列表都来自 LCU 才算「与客户端版本对齐」；否则连上客户端时要再刷一次
+    let all_from_lcu = [
+        items.as_ref().map(|l| l.source),
+        champions.as_ref().map(|l| l.source),
+        spells.as_ref().map(|l| l.source),
+        perk_styles.as_ref().map(|l| l.source),
+        perks.as_ref().map(|l| l.source),
+        cherry_augments_raw.as_ref().map(|l| l.source),
+    ]
+    .iter()
+    .all(|s| *s == Some(ListSource::Lcu));
+    let items = items.map(|l| l.value).unwrap_or_default();
+    let champions = champions.map(|l| l.value).unwrap_or_default();
+    let spells = spells.map(|l| l.value).unwrap_or_default();
+    let perk_styles = perk_styles
+        .map(|l| l.value)
+        .unwrap_or(PerkStylesResponse { styles: Vec::new() });
+    let perks = perks.map(|l| l.value).unwrap_or_default();
+    let cherry_augments_raw = cherry_augments_raw.map(|l| l.value).unwrap_or_default();
 
     let mut cherry_augments: Vec<CherryAugment> = Vec::with_capacity(cherry_augments_raw.len());
     let mut parse_fail_count = 0usize;
@@ -438,8 +497,10 @@ async fn init_lcu_assets() {
             map.insert(augment.id, augment);
         }
     }
+    LOADED_FROM_LCU.store(all_from_lcu, std::sync::atomic::Ordering::Release);
     log::info!(
-        "[asset] LCU 资源就绪（图标可用）{} ms — item {} / champion {} / spell {} / perkStyle {} / perk {} / augment {}",
+        "[asset] 资源列表就绪（图标可用，全部来自 LCU: {}）{} ms — item {} / champion {} / spell {} / perkStyle {} / perk {} / augment {}",
+        all_from_lcu,
         t0.elapsed().as_millis(),
         item_count,
         champion_count,
@@ -589,13 +650,18 @@ where
 /// init 会发多次 LCU 请求、耗时较长，绝不可在同步处理器里 `block_on`，否则会占满
 /// webview 资源加载线程导致 UI 卡死。
 async fn ensure_caches_ready() {
-    static ASSET_INIT_LOCK: LazyLock<tokio::sync::Mutex<()>> =
-        LazyLock::new(|| tokio::sync::Mutex::new(()));
-    if init_retry_in_cooldown() {
+    // 只在真缺列表时阻塞图标请求；「兜底数据换成 LCU 数据」交给 refresh_on_lcu_connected，
+    // 否则离线时每 30s 就有一个图标请求被 6 个 LCU 端点的失败重试拖住。
+    // 就绪快路径放在冷却之前：别让无谓的打点把真正需要的那次重试推迟 30s。
+    if !any_core_cache_empty() || init_retry_in_cooldown() {
         return;
     }
-    run_once_if_empty(champion_cache_is_empty, &ASSET_INIT_LOCK, init_once).await;
+    run_once_if_empty(any_core_cache_empty, &ASSET_INIT_LOCK, init_once).await;
 }
+
+/// 资源 init 的单飞锁（[`ensure_caches_ready`] 与 [`refresh_on_lcu_connected`] 共用）。
+static ASSET_INIT_LOCK: LazyLock<tokio::sync::Mutex<()>> =
+    LazyLock::new(|| tokio::sync::Mutex::new(()));
 
 /// init 失败后的重试冷却窗口。
 const ASSET_INIT_RETRY_COOLDOWN: std::time::Duration = std::time::Duration::from_secs(30);
@@ -606,7 +672,7 @@ static LAST_INIT_ATTEMPT: LazyLock<std::sync::Mutex<Option<std::time::Instant>>>
 
 /// 是否处于失败重试冷却中——是则本次跳过 init。
 ///
-/// [`run_once_if_empty`] 的判据是「CHAMPION_CACHE 为空」，这在**没开客户端时永远成立**，
+/// [`run_once_if_empty`] 的判据是「核心列表有空的」，这在**没开客户端且兜底失败时一直成立**，
 /// 而每个图标请求都会走一次 [`ensure_caches_ready`]。于是一屏几十个图标 = 几十次
 /// 全量 init，每次把 6 个 LCU 端点各重试一遍、各做一轮进程扫描，日志被刷爆
 /// （实测同一秒内 `Initializing asset API caches` 出现 3 次以上）。
@@ -799,34 +865,99 @@ async fn fetch_binary(url: &str) -> Result<(Vec<u8>, String), String> {
     }
 }
 
-/// 取 LCU 列表，失败则回退 CommunityDragon 镜像（zh_cn，中文名）。
+/// 资源列表的来源。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ListSource {
+    /// LCU 本地，与客户端版本严格一致
+    Lcu,
+    /// 上次成功拉取后落盘的副本
+    Disk,
+    /// CommunityDragon 镜像（latest）
+    Mirror,
+}
+
+/// 带来源标记的列表。
+struct SourcedList<T> {
+    value: T,
+    source: ListSource,
+}
+
+/// 资源列表磁盘缓存的文件路径：按 URI 的文件名区分（`items.json` → `…-asset-list-items.json`）。
+fn list_cache_path(uri: &str) -> std::path::PathBuf {
+    let name = uri.rsplit('/').next().unwrap_or(uri);
+    crate::paths::cache_file(&format!("asset-list-{}", name))
+}
+
+/// 读列表磁盘缓存；不存在 / 损坏返回 None。
+///
+/// 无 TTL，理由同图标磁盘缓存：它只在 LCU 不可用时顶上，过期判死反而离线无图；
+/// 版本差异由 [`refresh_on_lcu_connected`] 在连上客户端后纠正。
+fn read_list_cache(path: &std::path::Path) -> Option<serde_json::Value> {
+    serde_json::from_slice(&std::fs::read(path).ok()?).ok()
+}
+
+/// 写列表磁盘缓存：先写临时文件再 rename，避免进程中途被杀留下半截 JSON。
+fn write_list_cache(path: &std::path::Path, value: &serde_json::Value) {
+    let tmp = path.with_extension("json.tmp");
+    let result = serde_json::to_vec(value)
+        .map_err(|e| e.to_string())
+        .and_then(|bytes| std::fs::write(&tmp, bytes).map_err(|e| e.to_string()))
+        .and_then(|_| std::fs::rename(&tmp, path).map_err(|e| e.to_string()));
+    if let Err(e) = result {
+        log::warn!("写入资源列表缓存失败({}): {}", path.display(), e);
+    }
+}
+
+/// 取资源列表：LCU → 磁盘副本 → CommunityDragon 镜像（zh_cn，中文名）。
 ///
 /// 这一层兜底不只为了图标：`get_champion_options`（英雄筛选下拉、AI 搜战绩的英雄
 /// 清单）直接读 CHAMPION_CACHE，列表空则下拉整个是空的。
 ///
+/// 磁盘排在镜像前面：国内直连 cdragon 很慢，实测 `items.json`（~600KB）50s 超时
+/// 而英雄列表 7s 成功——结果就是离线启动「英雄有图、物品全裂」。落盘后只有
+/// 「从没连过客户端也没拉成过镜像」的首次运行才需要走镜像。
+///
 /// # 参数
 /// - `uri`: `constant::api` 里的 LCU 资源 URI
 /// - `what`: 日志里的人类可读名称
-async fn lcu_list_or_mirror<T: serde::de::DeserializeOwned + 'static>(
+async fn lcu_list_or_mirror<T: serde::de::DeserializeOwned>(
     uri: &str,
     what: &str,
-) -> Option<T> {
-    match lcu_get::<T>(uri).await {
-        Ok(v) => Some(v),
+) -> Option<SourcedList<T>> {
+    let cache_path = list_cache_path(uri);
+    let (raw, source) = match lcu_get::<serde_json::Value>(uri).await {
+        Ok(v) => (v, ListSource::Lcu),
         Err(lcu_err) => {
-            let mirror = cdragon_url(CDRAGON_DATA_ROOT, uri)?;
-            match external_get_json::<T>(&mirror).await {
-                Ok(v) => {
-                    log::info!("{}：LCU 不可用({})，已从镜像加载", what, lcu_err);
-                    Some(v)
-                }
-                Err(cdn_err) => {
-                    log::warn!("{}：LCU({}) 与镜像({}) 均失败", what, lcu_err, cdn_err);
-                    None
+            if let Some(v) = read_list_cache(&cache_path) {
+                log::info!("{}：LCU 不可用({})，已从磁盘缓存加载", what, lcu_err);
+                (v, ListSource::Disk)
+            } else {
+                let mirror = cdragon_url(CDRAGON_DATA_ROOT, uri)?;
+                match external_get_json::<serde_json::Value>(&mirror).await {
+                    Ok(v) => {
+                        log::info!("{}：LCU 不可用({})，已从镜像加载", what, lcu_err);
+                        (v, ListSource::Mirror)
+                    }
+                    Err(cdn_err) => {
+                        log::warn!("{}：LCU({}) 与镜像({}) 均失败", what, lcu_err, cdn_err);
+                        return None;
+                    }
                 }
             }
         }
+    };
+    let value = match T::deserialize(&raw) {
+        Ok(v) => v,
+        Err(e) => {
+            log::warn!("{}：解析失败({:?} 来源): {}", what, source, e);
+            return None;
+        }
+    };
+    // 解析通过才落盘，坏数据不进缓存；磁盘来源不必回写
+    if source != ListSource::Disk {
+        write_list_cache(&cache_path, &raw);
     }
+    Some(SourcedList { value, source })
 }
 
 // 新增：各类型的二进制获取
@@ -1295,6 +1426,49 @@ mod tests {
         // 不是 LCU 资源路径就无从镜像，返回 None 让调用方保留原始 LCU 错误
         assert!(cdragon_url(CDRAGON_IMAGE_ROOT, "lol-game-queues/v1/queues").is_none());
         assert!(cdragon_url(CDRAGON_IMAGE_ROOT, "").is_none());
+    }
+
+    // ─── 资源列表磁盘缓存 ──────────────────────────────────────────────────
+    //
+    // 离线启动时它排在镜像前面：国内直连 cdragon 拉 items.json 会超时，
+    // 这层坏了就回到「英雄有图、物品全裂」。
+
+    #[test]
+    fn list_cache_path_is_distinct_per_uri() {
+        let items = list_cache_path(constant::api::ITEM_URI);
+        let champs = list_cache_path(constant::api::CHAMPION_URI);
+
+        assert_ne!(items, champs);
+        assert!(items.to_string_lossy().ends_with("asset-list-items.json"));
+    }
+
+    #[test]
+    fn list_cache_roundtrip() {
+        let path = std::env::temp_dir().join("test-asset-list-roundtrip.json");
+        let _ = std::fs::remove_file(&path);
+        let value =
+            serde_json::json!([{ "id": 3145, "name": "海克斯科技发电机", "iconPath": "/x.png" }]);
+
+        write_list_cache(&path, &value);
+        let got = read_list_cache(&path).expect("cache should be readable");
+
+        let items: Vec<Item> = serde_json::from_value(got).expect("parse items");
+        assert_eq!(items[0].id, 3145);
+        assert!(
+            !path.with_extension("json.tmp").exists(),
+            "tmp file must be renamed away"
+        );
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn list_cache_corrupt_file_is_miss() {
+        // 半截 JSON（例如老版本非原子写入留下的）不能让离线兜底崩掉
+        let path = std::env::temp_dir().join("test-asset-list-corrupt.json");
+        std::fs::write(&path, b"[{\"id\": 1, \"na").expect("write corrupt");
+
+        assert!(read_list_cache(&path).is_none());
+        let _ = std::fs::remove_file(&path);
     }
 
     #[test]
