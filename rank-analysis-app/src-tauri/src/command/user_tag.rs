@@ -41,8 +41,10 @@
 use crate::command::user_tag_config;
 use crate::lcu::api::match_history::MatchHistory;
 use crate::lcu::api::summoner::Summoner;
+use moka::future::Cache;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::LazyLock;
 
 /// 单场对局中的一名玩家摘要（用于「遇到过的人」等展示）。
 ///
@@ -264,6 +266,45 @@ pub async fn get_user_tag_by_name(name: &str, mode: i32) -> Result<UserTag, Stri
 /// 6. 计算好友/纠纷统计
 #[tauri::command]
 pub async fn get_user_tag_by_puuid(
+    puuid: &str,
+    mode: i32,
+    champion_id: Option<i32>,
+) -> Result<UserTag, String> {
+    let key = user_tag_cache_key(puuid, mode, champion_id);
+    USER_TAG_CACHE
+        .try_get_with(key, compute_user_tag(puuid, mode, champion_id))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 用户标签缓存，key 见 [`user_tag_cache_key`]。
+///
+/// 标签只由近 20 场战绩与标签配置决定：战绩与本缓存在换局时一起清空
+/// （[`crate::game_cache`]），标签配置保存时单独清空（[`save_tag_configs`]）。
+/// 选人期 session 每轮重建都要为 10 人算标签，缓存后只有换了英雄的人需要重算。
+///
+/// [`save_tag_configs`]: crate::command::user_tag_config::save_tag_configs
+static USER_TAG_CACHE: LazyLock<Cache<String, UserTag>> = LazyLock::new(|| {
+    Cache::builder()
+        .expire_after(crate::game_cache::GameScopedExpiry)
+        .max_capacity(100)
+        .build()
+});
+
+/// 标签缓存 key：puuid + 模式 + 当前英雄。
+///
+/// 模式决定近期数据的统计口径；英雄参与 `CurrentChampion` 条件，换英雄必须重算。
+fn user_tag_cache_key(puuid: &str, mode: i32, champion_id: Option<i32>) -> String {
+    format!("{}|{}|{}", puuid, mode, champion_id.unwrap_or(0))
+}
+
+/// 清空用户标签缓存（换局、标签配置变更时调用）。
+pub fn invalidate_cache() {
+    USER_TAG_CACHE.invalidate_all();
+}
+
+/// 计算用户标签（不走缓存），流程见 [`get_user_tag_by_puuid`]。
+async fn compute_user_tag(
     puuid: &str,
     mode: i32,
     champion_id: Option<i32>,

@@ -85,7 +85,10 @@ pub async fn get_all_tag_configs() -> Result<Vec<TagConfig>, String> {
 #[tauri::command]
 pub async fn save_tag_configs(configs: Vec<TagConfig>) -> Result<(), String> {
     let val = tags_to_value(&configs);
-    config::put_config("userTags".to_string(), val).await
+    config::put_config("userTags".to_string(), val).await?;
+    // 已缓存的标签是按旧规则算的，改完规则要立刻生效
+    crate::command::user_tag::invalidate_cache();
+    Ok(())
 }
 
 // --- Foundational Types ---
@@ -1317,7 +1320,7 @@ mod tests {
     fn make_game_with_damage_rate(win: bool, rate: i32) -> Game {
         let mut g = make_game(1, win, QUEUE_SOLO_5X5);
         g.participants[0].stats.damage_dealt_to_champions_rate = rate;
-        g.game_detail.participants = vec![Default::default()];
+        std::sync::Arc::make_mut(&mut g.game_detail).participants = vec![Default::default()];
         g
     }
 
@@ -1522,7 +1525,7 @@ mod tests {
         g.participants[0].stats.damage_dealt_to_champions_rate = 30;
         assert!(extract_game_metric(&g, "damageShare").is_nan());
         // 有 detail 时读 calculate() 预计算占比（0-100 → 0.0-1.0）
-        g.game_detail.participants = vec![Default::default()];
+        std::sync::Arc::make_mut(&mut g.game_detail).participants = vec![Default::default()];
         assert!((extract_game_metric(&g, "damageShare") - 0.30).abs() < 1e-9);
     }
 
@@ -1532,7 +1535,7 @@ mod tests {
         g.participants[0].stats.kills = 3;
         g.participants[0].stats.assists = 5;
         // 本方（team 100）总击杀 16（含本人 3），敌方 50 不计入
-        g.game_detail.participants = vec![
+        std::sync::Arc::make_mut(&mut g.game_detail).participants = vec![
             Participant {
                 team_id: 100,
                 stats: Stats {
@@ -1561,7 +1564,7 @@ mod tests {
         assert!((extract_game_metric(&g, "participation") - 0.5).abs() < 1e-9);
         // 有 detail 但全队 0 击杀 → 0.0 不 panic（区别于 detail 缺失的 NAN）
         let mut g2 = make_game(1, true, QUEUE_SOLO_5X5);
-        g2.game_detail.participants = vec![Default::default()];
+        std::sync::Arc::make_mut(&mut g2.game_detail).participants = vec![Default::default()];
         assert_eq!(extract_game_metric(&g2, "participation"), 0.0);
         // detail 缺失 → NAN
         let g3 = make_game(1, true, QUEUE_SOLO_5X5);
@@ -1575,7 +1578,8 @@ mod tests {
             let mut g = make_game(1, true, QUEUE_SOLO_5X5);
             g.participants[0].stats.damage_dealt_to_champions_rate = 30;
             if with_detail {
-                g.game_detail.participants = vec![Default::default()];
+                std::sync::Arc::make_mut(&mut g.game_detail).participants =
+                    vec![Default::default()];
             }
             g
         };
@@ -1612,7 +1616,7 @@ mod tests {
             },
             ..Default::default()
         };
-        g.game_detail.participants = vec![
+        std::sync::Arc::make_mut(&mut g.game_detail).participants = vec![
             mk_detail(1, 2), // 本人
             mk_detail(1, 2), // 同 subteam 队友
             mk_detail(2, 6), // 其他 subteam（同大组），不应计入分母

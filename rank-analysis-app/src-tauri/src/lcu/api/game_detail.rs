@@ -2,7 +2,7 @@
 //!
 //! 对应 `lol-match-history/v1/games/{gameId}`，单场对局的详细数据（参与者、身份、结算等）；带缓存。
 
-use std::sync::LazyLock;
+use std::sync::{Arc, LazyLock};
 
 use moka::future::Cache;
 use serde::{Deserialize, Serialize};
@@ -61,20 +61,24 @@ pub struct GameDetailPlayer {
     #[serde(rename = "summonerId")]
     pub summoner_id: i64,
 }
-static GAME_DETAIL_CACHE: LazyLock<Cache<i64, GameDetail>> =
+/// 按 gameId 缓存的对局详情。已结束对局的详情不会再变，故不设过期。
+///
+/// 值用 `Arc` 包裹：一份详情含 10 人完整数据，session 重建与标签计算会反复读取，
+/// 命中时只复制指针。
+static GAME_DETAIL_CACHE: LazyLock<Cache<i64, Arc<GameDetail>>> =
     LazyLock::new(|| Cache::builder().max_capacity(500).build());
 
 impl GameDetail {
     /// 按对局 ID 获取对局详情（带缓存）。
-    pub async fn get_game_detail_by_id(game_id: &i64) -> Result<Self, String> {
+    pub async fn get_game_detail_by_id(game_id: &i64) -> Result<Arc<Self>, String> {
         if let Some(cached) = GAME_DETAIL_CACHE.get(game_id).await {
             return Ok(cached);
         }
         let uri = format!("lol-match-history/v1/games/{}", game_id);
-        let game_detail = crate::lcu::util::http::lcu_get::<Self>(&uri).await?;
+        let game_detail = Arc::new(crate::lcu::util::http::lcu_get::<Self>(&uri).await?);
         // 缓存游戏详情
         GAME_DETAIL_CACHE
-            .insert(*game_id, game_detail.clone())
+            .insert(*game_id, Arc::clone(&game_detail))
             .await;
         Ok(game_detail)
     }

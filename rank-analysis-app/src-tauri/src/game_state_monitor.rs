@@ -188,6 +188,9 @@ impl GameStateMonitor {
 
         // 如果刚连接上（之前未连接，现在连接了），补全资源缓存并启动 WebSocket 监听
         if new_state.connected && !self.last_state.connected {
+            // 可能换了账号或重启过客户端：上一段会话的战绩/段位/标签缓存一律作废
+            crate::game_cache::invalidate_all("重新连接客户端");
+
             // 记忆游戏安装目录：此刻客户端在线，可反推安装根目录并持久化，
             // 之后即便游戏关闭也能免 WeGame 一键启动（见 command::launcher）。
             tokio::spawn(async {

@@ -100,7 +100,7 @@ pub async fn get_replay_availability(game_id: i64) -> ReplayAvailability {
         Err(_) => return ReplayAvailability::blocked("未检测到游戏客户端，请先启动游戏"),
     };
     let game_version = match GameDetail::get_game_detail_by_id(&game_id).await {
-        Ok(detail) => detail.game_version,
+        Ok(detail) => detail.game_version.clone(),
         // 拿不到对局详情不阻拦，交给点击后的真实流程给出结论
         Err(_) => String::new(),
     };

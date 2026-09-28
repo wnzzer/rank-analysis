@@ -2,7 +2,10 @@
 //!
 //! 对应 `lol-ranked`：按 PUUID 获取排位统计；含单双排与灵活组排队列信息。
 
+use std::sync::LazyLock;
+
 use crate::constant::game;
+use moka::future::Cache;
 use serde::{Deserialize, Serialize};
 
 /// 段位概览：各队列的段位信息映射（如 RANKED_SOLO_5x5、RANKED_FLEX_SR）。
@@ -56,12 +59,32 @@ pub struct QueueMap {
     pub ranked_flex_sr: QueueInfo,
 }
 
+/// 按 puuid 缓存的段位。
+static RANK_CACHE: LazyLock<Cache<String, Rank>> = LazyLock::new(|| {
+    Cache::builder()
+        .expire_after(crate::game_cache::GameScopedExpiry)
+        .max_capacity(100)
+        .build()
+});
+
+/// 清空段位缓存（由 [`crate::game_cache::invalidate_all`] 在换局时调用）。
+pub fn invalidate_cache() {
+    RANK_CACHE.invalidate_all();
+}
+
 impl Rank {
     /// 按 PUUID 获取段位数据（`lol-ranked/v1/ranked-stats/{puuid}`）。
+    ///
+    /// 带对局级缓存（存活时间见 [`crate::game_cache`]）：选人期 session 每轮重建都要
+    /// 取 10 人段位，未缓存时每轮就是 10 个 LCU 请求。
     pub async fn get_rank_by_puuid(puuid: &str) -> Result<Self, String> {
-        let uri = format!("lol-ranked/v1/ranked-stats/{}", puuid);
-        let rank: Self = crate::lcu::util::http::lcu_get(&uri).await?;
-        Ok(rank)
+        RANK_CACHE
+            .try_get_with(puuid.to_string(), async {
+                let uri = format!("lol-ranked/v1/ranked-stats/{}", puuid);
+                crate::lcu::util::http::lcu_get::<Self>(&uri).await
+            })
+            .await
+            .map_err(|e| e.to_string())
     }
 
     /// 为队列类型与 tier 填充中文描述（queue_type_cn、tier_cn）。
