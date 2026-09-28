@@ -22,6 +22,13 @@ static LAST_REFRESH_TIME: OnceLock<Mutex<Instant>> = OnceLock::new();
 /// 最大并发 LCU GET 请求数
 static LCU_SEMAPHORE: LazyLock<Semaphore> = LazyLock::new(|| Semaphore::new(10));
 
+/// 写请求（[`lcu_put`] / [`lcu_post_no_retry`]）专用并发上限，与读请求分开。
+///
+/// 选人开始时 session 冷启动要拉上百个对局详情，把读信号量占满；自动禁选、写符文页
+/// 这类写操作恰好也在这时发生，共用一个信号量就得排在这些读请求后面。写请求本身
+/// 很少，单独给几个名额即可。
+static LCU_WRITE_SEMAPHORE: LazyLock<Semaphore> = LazyLock::new(|| Semaphore::new(4));
+
 /// Singleflight：相同 URI 的并发 GET 请求只发一次，100ms TTL
 static SINGLEFLIGHT: LazyLock<moka::future::Cache<String, String>> = LazyLock::new(|| {
     moka::future::Cache::builder()
@@ -298,14 +305,15 @@ fn finish_write<T: DeserializeOwned>(attempt: WriteAttempt) -> Result<T, LcuWrit
 
 /// 写请求的公共实现：至多两次尝试，是否重发由 [`should_retry_write`] 裁决。
 ///
-/// 走读请求同一个并发信号量；**不走 singleflight**——那 100ms 去重是为 GET 设计的，
-/// 两次写请求被合并成一次会静默吞掉其中一个。
+/// 走写请求专用信号量（[`LCU_WRITE_SEMAPHORE`]），不与读请求排队；**不走
+/// singleflight**——那 100ms 去重是为 GET 设计的，两次写请求被合并成一次会静默吞掉
+/// 其中一个。
 async fn lcu_write<T: DeserializeOwned, D: Serialize>(
     method: reqwest::Method,
     uri: &str,
     data: &D,
 ) -> Result<T, LcuWriteError> {
-    let _permit = LCU_SEMAPHORE
+    let _permit = LCU_WRITE_SEMAPHORE
         .acquire()
         .await
         .map_err(|e| LcuWriteError::Transport(format!("Semaphore error: {}", e)))?;
