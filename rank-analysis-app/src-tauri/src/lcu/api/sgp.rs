@@ -289,7 +289,7 @@ pub fn map_sgp_to_match_history(raw: &Value, platform_id: &str, my_puuid: &str) 
             games.push(Game {
                 mvp: String::new(),
                 queue_name: String::new(),
-                game_detail,
+                game_detail: std::sync::Arc::new(game_detail),
                 game_id: json.get("gameId").and_then(Value::as_i64).unwrap_or(0),
                 game_creation_date: iso,
                 game_duration,

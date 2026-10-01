@@ -3,7 +3,7 @@
 //! 对应 `lol-match-history`：按 PUUID/「me」分页获取对局列表；支持详情增强与中文信息。
 
 use std::collections::HashMap;
-use std::{sync::LazyLock, time::Duration};
+use std::sync::{Arc, LazyLock};
 
 use crate::lcu::api::model::{Participant, ParticipantIdentity, Stats};
 use moka::future::Cache;
@@ -101,8 +101,9 @@ pub struct Game {
     #[serde(rename = "queueName", default)]
     pub queue_name: String, // 中文名，对queueId的中文翻译
 
+    /// 对局详情（10 人完整数据）；与对局详情缓存共享同一份，故用 `Arc`。
     #[serde(rename = "gameDetail", default)]
-    pub game_detail: GameDetail,
+    pub game_detail: Arc<GameDetail>,
     #[serde(rename = "gameId")]
     pub game_id: i64,
     #[serde(rename = "gameCreationDate")]
@@ -124,12 +125,22 @@ pub struct Game {
     pub participant_identities: Vec<ParticipantIdentity>,
     pub participants: Vec<Participant>,
 }
-static MATCH_HISTORY_CACHE: LazyLock<Cache<String, MatchHistory>> = LazyLock::new(|| {
+/// 按 puuid 缓存的整包战绩（0..=[`MAX_CACHE_END`]）。
+///
+/// 值用 `Arc` 包裹：命中时只复制指针，再由 [`MatchHistory::slice_page`] 切出调用方
+/// 要的那一页——否则每次命中都要深拷贝整包 50 场。存活时间按对局管理，见
+/// [`crate::game_cache`]。
+static MATCH_HISTORY_CACHE: LazyLock<Cache<String, Arc<MatchHistory>>> = LazyLock::new(|| {
     Cache::builder()
-        .time_to_live(Duration::from_secs(60))
+        .expire_after(crate::game_cache::GameScopedExpiry)
         .max_capacity(50)
         .build()
 });
+
+/// 清空战绩列表缓存（由 [`crate::game_cache::invalidate_all`] 在换局时调用）。
+pub fn invalidate_cache() {
+    MATCH_HISTORY_CACHE.invalidate_all();
+}
 
 /// LCU 整包缓存窗口上限（0..=49 共 50 场）。
 ///
@@ -158,7 +169,7 @@ impl MatchHistory {
     /// 按 PUUID 与索引范围获取对局记录。
     ///
     /// 无论调用方要哪一页，实际打 LCU 的永远是 0..=[`MAX_CACHE_END`] 整包
-    /// （Moka 缓存 60s），再本地切片出请求页；超出窗口的区间被 clamp，
+    /// （Moka 缓存，存活时间见 [`crate::game_cache`]），再本地切片出请求页；超出窗口的区间被 clamp，
     /// 起始越界得到空页让前端翻页自然终止。
     pub async fn get_match_history_by_puuid(
         puuid: &str,
@@ -188,13 +199,15 @@ impl MatchHistory {
 
         let history = MATCH_HISTORY_CACHE
             .try_get_with(puuid.to_string(), async {
-                MatchHistory::get_by_puuid(puuid, 0, MAX_CACHE_END).await
+                MatchHistory::get_by_puuid(puuid, 0, MAX_CACHE_END)
+                    .await
+                    .map(Arc::new)
             })
             .await
             .map_err(|e| e.to_string())?;
 
         Ok(Self::slice_page(
-            history,
+            &history,
             beg_index as usize,
             end_in_window as usize,
         ))
@@ -206,15 +219,17 @@ impl MatchHistory {
     /// 此时重拉 LCU 只会拿回整包（warm puuid 的区间参数被忽略，见
     /// [`Self::get_by_puuid`]），曾导致翻页内容整包重复——一律本地切片。
     /// 起始索引越界时返回空页而非报错，让前端翻页自然终止。
-    fn slice_page(history: MatchHistory, beg_index: usize, end_index: usize) -> MatchHistory {
+    fn slice_page(history: &MatchHistory, beg_index: usize, end_index: usize) -> MatchHistory {
         let total = history.games.games.len();
         let end = std::cmp::min(end_index + 1, total);
         let beg = std::cmp::min(beg_index, end);
         MatchHistory {
+            platform_id: history.platform_id.clone(),
+            beg_index: history.beg_index,
+            end_index: history.end_index,
             games: GamesWrapper {
                 games: history.games.games[beg..end].to_vec(),
             },
-            ..history
         }
     }
 
@@ -436,7 +451,8 @@ mod mvp_score_tests {
             participants: vec![me],
             ..Default::default()
         };
-        game.game_detail.participants = vec![farmer(), carry(), loser()];
+        std::sync::Arc::make_mut(&mut game.game_detail).participants =
+            vec![farmer(), carry(), loser()];
         MatchHistory {
             games: GamesWrapper { games: vec![game] },
             ..Default::default()
@@ -510,7 +526,7 @@ mod slice_page_tests {
 
     #[test]
     fn slices_requested_page_within_range() {
-        let page = MatchHistory::slice_page(history_of(15), 0, 9);
+        let page = MatchHistory::slice_page(&history_of(15), 0, 9);
         assert_eq!(ids(&page), (0..10).collect::<Vec<_>>());
     }
 
@@ -518,7 +534,7 @@ mod slice_page_tests {
     /// 而不是重拉 LCU 拿回整包 15 场导致翻页内容重复。
     #[test]
     fn clamps_tail_page_past_total() {
-        let page = MatchHistory::slice_page(history_of(15), 10, 19);
+        let page = MatchHistory::slice_page(&history_of(15), 10, 19);
         assert_eq!(ids(&page), (10..15).collect::<Vec<_>>());
     }
 
@@ -526,7 +542,7 @@ mod slice_page_tests {
     /// （前端 noMoreMatches 依赖 games.length < 10 终止翻页），而非报错。
     #[test]
     fn returns_empty_page_when_beg_past_total() {
-        let page = MatchHistory::slice_page(history_of(10), 10, 19);
+        let page = MatchHistory::slice_page(&history_of(10), 10, 19);
         assert!(ids(&page).is_empty());
     }
 
@@ -534,21 +550,21 @@ mod slice_page_tests {
     /// 应得空页终止翻页，而非旧行为直连 LCU 拿回整包重复数据。
     #[test]
     fn returns_empty_page_beyond_cache_window() {
-        let page = MatchHistory::slice_page(history_of(50), 50, 49);
+        let page = MatchHistory::slice_page(&history_of(50), 50, 49);
         assert!(ids(&page).is_empty());
     }
 
     /// 零场次新号请求 0..49：应返回空页而非报错（rank 页等调用方 beg 恒为 0）。
     #[test]
     fn returns_empty_for_zero_game_account() {
-        let page = MatchHistory::slice_page(history_of(0), 0, 49);
+        let page = MatchHistory::slice_page(&history_of(0), 0, 49);
         assert!(ids(&page).is_empty());
     }
 
     /// 整包顶层字段（platform_id 等）应随切片保留。
     #[test]
     fn keeps_top_level_fields() {
-        let page = MatchHistory::slice_page(history_of(15), 10, 19);
+        let page = MatchHistory::slice_page(&history_of(15), 10, 19);
         assert_eq!(page.platform_id, "TJ100");
     }
 }

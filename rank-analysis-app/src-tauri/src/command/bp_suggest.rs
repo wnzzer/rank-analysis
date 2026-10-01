@@ -491,7 +491,8 @@ mod tests {
                 participants,
                 participant_identities: identities,
                 ..Default::default()
-            },
+            }
+            .into(),
             ..Default::default()
         }
     }

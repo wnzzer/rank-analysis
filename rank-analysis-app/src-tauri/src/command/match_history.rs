@@ -290,7 +290,7 @@ pub async fn get_game_by_id(game_id: i64) -> Result<Game, String> {
     // 构造 Game 对象，使用 game_detail 中的字段
     let mut game = Game {
         game_id,
-        game_detail: game_detail.clone(),
+        game_detail: std::sync::Arc::clone(&game_detail),
         game_creation_date: game_detail.game_creation_date.clone(),
         game_duration: game_detail.game_duration,
         game_mode: game_detail.game_mode.clone(),
