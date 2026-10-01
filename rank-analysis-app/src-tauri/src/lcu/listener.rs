@@ -2,6 +2,8 @@ use base64::{engine::general_purpose, Engine as _};
 use futures_util::{SinkExt, StreamExt};
 use reqwest::header::{HeaderValue, AUTHORIZATION};
 use serde_json::{json, Value};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::time::Duration;
 
 use tauri::AppHandle;
 use tokio::net::TcpStream;
@@ -10,6 +12,44 @@ use tokio_tungstenite::{
     tungstenite::{client::IntoClientRequest, handshake::client::Request, protocol::Message},
 };
 use url::Url;
+
+/// Session 刷新的合并窗口。
+///
+/// 窗口内的事件合并成一次刷新：刷新最多延迟这么久，选人期每秒最多重建 4 轮。
+const SESSION_REFRESH_WINDOW: Duration = Duration::from_millis(250);
+
+static SESSION_REFRESH: RefreshCoalescer = RefreshCoalescer::new();
+
+/// 把一串触发请求合并成「窗口末尾执行一次」。
+///
+/// 第一个请求负责调度一次延迟执行，窗口内后续请求只计数；执行时 [`take`](Self::take)
+/// 重置状态，此后到来的请求会再调度新的一次，因此执行期间发生的变化不会丢。
+/// 与「每来一个事件就重置计时」的防抖不同，持续不断的事件流不会把刷新无限推迟。
+struct RefreshCoalescer {
+    pending: AtomicBool,
+    merged: AtomicU32,
+}
+
+impl RefreshCoalescer {
+    const fn new() -> Self {
+        Self {
+            pending: AtomicBool::new(false),
+            merged: AtomicU32::new(0),
+        }
+    }
+
+    /// 登记一次刷新请求；返回 `true` 表示调用方需要调度这次刷新。
+    fn request(&self) -> bool {
+        self.merged.fetch_add(1, Ordering::SeqCst);
+        !self.pending.swap(true, Ordering::SeqCst)
+    }
+
+    /// 即将执行刷新：重置状态并返回本窗口合并的请求数。
+    fn take(&self) -> u32 {
+        self.pending.store(false, Ordering::SeqCst);
+        self.merged.swap(0, Ordering::SeqCst)
+    }
+}
 
 pub struct LcuListener {
     app_handle: AppHandle,
@@ -162,15 +202,48 @@ impl LcuListener {
             {
                 log::info!("收到 LCU 事件: {}", uri);
 
-                // 触发后端的会话数据刷新逻辑
-                if let Err(e) =
-                    crate::command::session::get_session_data(self.app_handle.clone()).await
-                {
-                    log::error!("通过 WebSocket 更新 Session 数据失败: {}", e);
-                } else {
-                    log::info!("通过 WebSocket 事件 [{}] 更新了 Session 数据", uri);
+                // 选人期 champ-select 事件一秒数次，逐个触发会 10 人全量重建好几轮；
+                // 合并到窗口末尾只刷一次（窗口内最后的状态以重建时现拉为准，不会丢）。
+                if !SESSION_REFRESH.request() {
+                    return;
                 }
+                let app_handle = self.app_handle.clone();
+                tokio::spawn(async move {
+                    tokio::time::sleep(SESSION_REFRESH_WINDOW).await;
+                    let merged = SESSION_REFRESH.take();
+                    log::info!("刷新 Session 数据（合并了 {} 个 LCU 事件）", merged);
+                    if let Err(e) = crate::command::session::get_session_data(app_handle).await {
+                        log::error!("通过 WebSocket 更新 Session 数据失败: {}", e);
+                    }
+                });
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_schedule_only_first_request_in_window() {
+        let c = RefreshCoalescer::new();
+
+        assert!(c.request());
+        assert!(!c.request());
+        assert!(!c.request());
+
+        assert_eq!(c.take(), 3);
+    }
+
+    #[test]
+    fn should_schedule_again_after_take() {
+        let c = RefreshCoalescer::new();
+        c.request();
+        c.take();
+
+        // 刷新执行期间 / 之后到来的事件要能触发新的一轮
+        assert!(c.request());
+        assert_eq!(c.take(), 1);
     }
 }

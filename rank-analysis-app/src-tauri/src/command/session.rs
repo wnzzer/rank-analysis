@@ -837,6 +837,21 @@ async fn process_subteam_parallel(
                 }
             }
 
+            // 已被更新的任务取代：本任务的结果不会再推送，省掉最重的标签计算
+            // （每人 20 局对局详情）。返回的无标签数据只会被调用方丢弃。
+            if !is_latest_task(&SESSION_TASK_SEQ, seq) {
+                return SessionSummoner {
+                    champion_id: player.champion_id,
+                    champion_key: format!("champion_{}", player.champion_id),
+                    summoner,
+                    match_history,
+                    rank,
+                    pick_state: player.pick_state.clone(),
+                    assigned_position: player.assigned_position.clone(),
+                    ..Default::default()
+                };
+            }
+
             let user_tag =
                 crate::command::user_tag::get_user_tag_by_puuid(&puuid, mode, champion_id)
                     .await
