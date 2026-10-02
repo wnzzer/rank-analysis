@@ -35,11 +35,26 @@
  * @property updatedAt - 云端配置的更新时刻(毫秒)
  * @emits decide - true=用云端覆盖本机;false=保留本机并推送覆盖云端
  */
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { NModal, NSpace, NText, NButton } from 'naive-ui'
 
 const props = defineProps<{ show: boolean; updatedAt: number }>()
 const emit = defineEmits<{ decide: [useCloud: boolean] }>()
 
-const updatedAtText = computed(() => new Date(props.updatedAt).toLocaleString())
+/**
+ * 最近一次有效的更新时刻。resolveCloudConfig 一开始就清空 pendingCloudConfig，
+ * 父组件传入的值回落成 0，而弹窗要等网络往返结束才关——直接渲染会闪出 1970 年。
+ */
+const lastValidUpdatedAt = ref(0)
+watch(
+  () => props.updatedAt,
+  v => {
+    if (v > 0) lastValidUpdatedAt.value = v
+  },
+  { immediate: true }
+)
+
+const updatedAtText = computed(() =>
+  lastValidUpdatedAt.value > 0 ? new Date(lastValidUpdatedAt.value).toLocaleString() : '未知时间'
+)
 </script>
