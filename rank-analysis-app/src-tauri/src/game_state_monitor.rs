@@ -193,11 +193,12 @@ impl GameStateMonitor {
 
             // 记忆游戏安装目录：此刻客户端在线，可反推安装根目录并持久化，
             // 之后即便游戏关闭也能免 WeGame 一键启动（见 command::launcher）。
-            tokio::spawn(async {
+            let purge_handle = self.app_handle.clone();
+            tokio::spawn(async move {
                 crate::command::launcher::remember_install_root().await;
-                // 顺手清除登录客户端注册的 LOL 开机自启项：能连上国服客户端说明
-                // 本工具已提权，此刻删 HKLM 值必然有权限（见 command::launcher）。
-                crate::command::launcher::purge_login_client_autostart();
+                // 顺手清除登录客户端注册的 LOL 开机自启项。删 HKLM 值需要管理员，
+                // 而普通权限也能连上客户端；无权限时由前端引导一键提权清理。
+                crate::command::launcher::purge_and_report(&purge_handle);
             });
 
             // 维度标签：把当前登录大区（HN1/TJ100…）挂到 Sentry 全局 scope，
@@ -243,8 +244,9 @@ impl GameStateMonitor {
         // 刚断开（之前连接，现在断开）：客户端退出时可能重新注册了 LOL 开机
         // 自启，再清一次，避免"最后一局退出后残留自启项"。
         if !new_state.connected && self.last_state.connected {
-            tokio::spawn(async {
-                crate::command::launcher::purge_login_client_autostart();
+            let purge_handle = self.app_handle.clone();
+            tokio::spawn(async move {
+                crate::command::launcher::purge_and_report(&purge_handle);
             });
         }
 
