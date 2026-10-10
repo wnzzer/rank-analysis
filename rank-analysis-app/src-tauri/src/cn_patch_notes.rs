@@ -23,10 +23,12 @@ pub const FRESH_SECS: i64 = 21 * 24 * 60 * 60;
 /// 当前支持的数据 schema 版本
 pub const SCHEMA_VERSION: u32 = 1;
 
-/// 分发源，按序尝试：jsDelivr CDN（国内可达）→ GitCode raw（仓库镜像）
+/// 分发源，按序尝试：jsDelivr CDN（国内可达）→ GitCode（仓库镜像）。
+/// GitCode 的 `/raw/` 网页地址对程序返回的是它的前端页面（HTML）而不是文件，
+/// 所以走它的 v5 API 取原始文件：匿名可读、内容与仓库逐字节一致、无缓存。
 const SOURCES: [&str; 2] = [
     "https://cdn.jsdelivr.net/gh/wnzzer/rank-analysis@main/data/patch-notes/cn-latest.json",
-    "https://gitcode.com/wnzzer/rank-analysis/raw/main/data/patch-notes/cn-latest.json",
+    "https://api.gitcode.com/api/v5/repos/wnzzer/rank-analysis/raw/data%2Fpatch-notes%2Fcn-latest.json?ref=main",
 ];
 
 const UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
