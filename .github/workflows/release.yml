@@ -159,27 +159,19 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  build-and-release:
-    name: Build & Upload Assets (Windows)
+  # --- 任务一：Windows 构建（与 macOS 并行，产物交给 release 任务统一发版）---
+  build-windows:
+    name: Build Windows (x86_64)
     runs-on: windows-latest
-    # 等 macOS 产物就绪后再发版，好让 latest.json 一次写全两个平台。
-    # build-macos 是 continue-on-error，失败也不会卡住这里。
-    needs: build-macos
 
     # 定义全局工作目录，适用于所有 run 步骤
     defaults:
       run:
         working-directory: ./rank-analysis-app
 
-    # 导出版本号给下一个 Job 使用
-    outputs:
-      tauri_version: ${{ steps.get_version.outputs.tauri_version }}
-
     steps:
       - name: 📥 Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: 🛠️ Setup Node.js (v20)
         uses: actions/setup-node@v4
@@ -241,6 +233,11 @@ jobs:
       - name: 🔨 Build Tauri App (Signed)
         run: npm run tauri build
         env:
+          # Windows 用 thin LTO 覆盖 Cargo.toml 的 fat LTO：2026-10 实测（两轮均值）lzma 压缩后
+          # 体积与 fat 相差 <0.1%（用户下载的 NSIS 安装包不变，安装后 exe 大 ~0.9MB），
+          # clean build −20%、自身 crate 重编 −32%。macOS 不覆盖：thin 在 mac 上 gzip 后
+          # 大 ~15%，而 mac updater 下的正是 gzip 的 .app.tar.gz。
+          CARGO_PROFILE_RELEASE_LTO: thin
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_KEY_PASSWORD }}
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }} # 兼容旧版
@@ -370,6 +367,100 @@ jobs:
           echo "portable_path=$portablePath" >> $env:GITHUB_OUTPUT
           echo "sig_path=$sigPath" >> $env:GITHUB_OUTPUT
           echo "portable_sig_path=$portableSigPath" >> $env:GITHUB_OUTPUT
+
+      # 扁平目录上传（理由同 macOS：避免 upload-artifact 保留公共父目录结构）
+      - name: 📦 Collect Windows artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path windows-out | Out-Null
+          Copy-Item -Destination windows-out -Path `
+            "${{ steps.prepare_assets.outputs.setup_path }}", `
+            "${{ steps.prepare_assets.outputs.sig_path }}", `
+            "${{ steps.prepare_assets.outputs.portable_path }}", `
+            "${{ steps.prepare_assets.outputs.portable_sig_path }}"
+          Get-ChildItem windows-out
+
+      - name: ⬆️ Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-dist
+          path: rank-analysis-app/windows-out/*
+          if-no-files-found: error
+          retention-days: 7
+
+  # --- 任务二：汇总两个平台产物，生成 changelog / latest.json 并创建 GitHub Release ---
+  # 两个构建任务并行跑完后才发版，好让 latest.json 一次写全两个平台。
+  # build-macos 是 continue-on-error，失败也不会卡住这里；build-windows 失败则不发版。
+  release:
+    name: Publish GitHub Release
+    runs-on: windows-latest
+    needs: [build-macos, build-windows]
+
+    defaults:
+      run:
+        working-directory: ./rank-analysis-app
+
+    # 导出版本号给下一个 Job 使用
+    outputs:
+      tauri_version: ${{ steps.get_version.outputs.tauri_version }}
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🛠️ Setup Node.js (v20)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # 版本解析与构建任务保持同一套规则（tag 名为唯一真相源）
+      - name: 🔍 Get App Version
+        id: get_version
+        shell: pwsh
+        run: |
+          if ("${{ github.ref_type }}" -eq "tag") {
+              $tauriVersion = "${{ github.ref_name }}"
+          } else {
+              $tauriVersion = "${{ github.event.inputs.version }}"
+          }
+          if ([string]::IsNullOrWhiteSpace($tauriVersion)) {
+              Write-Error "No version resolved. Push a tag like v1.8.8, or provide the 'version' input on manual run."
+              exit 1
+          }
+          if ($tauriVersion -notlike 'v*') {
+              $tauriVersion = "v$tauriVersion"
+          }
+          echo "tauri_version=$tauriVersion" >> $env:GITHUB_OUTPUT
+
+      - name: 📥 Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-dist
+          path: rank-analysis-app/windows-dist
+
+      # 输出与构建任务 prepare_assets 同名的路径，下游 latest.json / Release 步骤无需改动
+      - name: 🔎 Locate Windows artifacts
+        id: prepare_assets
+        shell: pwsh
+        run: |
+          $clean = "${{ steps.get_version.outputs.tauri_version }}" -replace '^v',''
+          $dir = "$($env:GITHUB_WORKSPACE)/rank-analysis-app/windows-dist"
+          $files = [ordered]@{
+            setup_path        = "rank-analysis-$clean-setup.exe"
+            sig_path          = "rank-analysis-$clean-setup.exe.sig"
+            portable_path     = "rank-analysis-$clean-portable.7z"
+            portable_sig_path = "rank-analysis-$clean-portable.7z.sig"
+          }
+          foreach ($key in $files.Keys) {
+            $p = "$dir/$($files[$key])"
+            if (-not (Test-Path $p)) {
+              Write-Error "Windows artifact missing: $p"
+              exit 1
+            }
+            echo "$key=$p" >> $env:GITHUB_OUTPUT
+          }
 
       - name: 🔍 Get Previous Tag
         id: get_prev_tag
@@ -579,7 +670,7 @@ jobs:
           fail_on_unmatched_files: false
 
 
-  # --- 任务二：同步 Release（含安装包）到 GitCode 国内镜像 ---
+  # --- 任务三：同步 Release（含安装包）到 GitCode 国内镜像 ---
   # GitCode 走华为云 OBS 预签名上传：GET upload_url -> PUT 文件（OBS 自动回调注册附件）。
   # 注意：API 返回的 browser_download_url 用 api.gitcode.com（会 404），真正能匿名下载的是
   # gitcode.com host，所以 latest.json 里的下载链接改写成 gitcode.com。
@@ -589,12 +680,12 @@ jobs:
   # 条目保持指向 GitHub，功能正确——这不是遗漏。
   gitcode-release:
     name: Sync Release to GitCode
-    needs: build-and-release
+    needs: release
     runs-on: ubuntu-latest
     env:
       OWNER: wnzzer
       REPO: rank-analysis
-      VERSION: ${{ needs.build-and-release.outputs.tauri_version }}
+      VERSION: ${{ needs.release.outputs.tauri_version }}
       COMMITISH: ${{ github.sha }}
       GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
