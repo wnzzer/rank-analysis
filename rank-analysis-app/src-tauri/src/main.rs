@@ -9,6 +9,12 @@ use tauri::Manager;
 
 // NOTE: main is no longer async
 fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    // 提权辅助模式（一键启动 / 清理 LOL 开机自启项时以 runas 拉起本程序）：
+    // 跑完即退，不碰迁移 / 日志 / 上报 / 窗口。必须早于下方一切初始化。
+    if let Some(code) = rank_analysis_lib::command::launcher::run_helper_from_args() {
+        std::process::exit(code);
+    }
+
     // 必须是第一条语句：下面的 reporting_enabled() 会直读 config.yaml，
     // observability::init() 会在 device_id 缺失时生成并写盘。
     // 迁移晚于任一处，老用户的配置或匿名设备 ID 就会被新生成的空数据挤掉。
@@ -193,6 +199,8 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             command::portable_update::portable_self_update,
             command::launcher::launch_league,
             command::launcher::close_league,
+            command::launcher::get_lol_autostart_blocked,
+            command::launcher::purge_lol_autostart_elevated,
             command::replay::get_replay_availability,
             command::replay::start_replay_download,
             command::replay::is_replay_ready,
@@ -226,6 +234,13 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     }
 
     app_builder = app_builder.setup(move |app| {
+        // 启动时先清一次 LOL 开机自启项：覆盖「游戏没开就用工具」的场景；
+        // 无权限残留由前端挂载后查询 get_lol_autostart_blocked 得知。
+        let purge_handle = app.handle().clone();
+        tauri::async_runtime::spawn(async move {
+            command::launcher::purge_and_report(&purge_handle);
+        });
+
         // 主窗口隐藏启动（tauri.conf.json visible:false），由前端 mount 后 show（src/boot.ts）。
         // 3s 兜底：前端脚本加载失败等异常时仍把窗口亮出来，防止窗口永不出现
         let reveal_handle = app.handle().clone();

@@ -69,6 +69,23 @@ export async function closeLeagueByIpc(): Promise<void> {
   await invoke('close_league')
 }
 
+/**
+ * 是否存在「发现了但因无权限未能清理」的 LOL 开机自启项（腾讯登录客户端注册的 startup_runner）。
+ */
+export async function getLolAutostartBlockedByIpc(): Promise<boolean> {
+  return await invoke<boolean>('get_lol_autostart_blocked')
+}
+
+/**
+ * 弹 UAC 以管理员身份清理 LOL 开机自启项。
+ *
+ * 用户取消 UAC、拉起失败或清理后复查仍有残留时，reject 一个中文错误说明
+ * （取消授权的文案以「已取消」开头）。
+ */
+export async function purgeLolAutostartElevatedByIpc(): Promise<void> {
+  await invoke('purge_lol_autostart_elevated')
+}
+
 /** 便携版自更新的下载进度事件（形状对齐官方 updater，便于复用同一套进度 UI）。 */
 export interface PortableUpdateEvent {
   /** `started` 带总字节数（服务端未给 Content-Length 时为空）；`progress` 带本次新增字节；`finished` 无数据。 */

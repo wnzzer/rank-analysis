@@ -50,6 +50,7 @@ import ErrorReportingConsentDialog from '@renderer/components/common/ErrorReport
 import { useGameState } from '@renderer/composables/useGameState'
 import { useZoom } from '@renderer/composables/useZoom'
 import { useStartupDialogs } from '@renderer/composables/useStartupDialogs'
+import { useLolAutostartGuard } from '@renderer/composables/useLolAutostartGuard'
 import { useStarPrompt } from '@renderer/composables/useStarPrompt'
 
 /**
@@ -94,6 +95,8 @@ useGameState()
 // CSS zoom 铺满 + 倍率管理（见 views/MatchDetail.vue），不能叠加 webview 缩放
 if (!isStandaloneDetailWindow.value) useZoom()
 
+// 腾讯登录客户端注册的 LOL 开机自启无权限清理时，提示用户一键提权关闭（仅主窗口）
+if (!isStandaloneDetailWindow.value) useLolAutostartGuard()
 // 累计使用满几天后一次性求 Star（仅主窗口）
 if (!isStandaloneDetailWindow.value) useStarPrompt()
 
