@@ -105,6 +105,42 @@ pub struct GameStateMonitor {
     last_state: GameStateEvent,
     /// 上次推送时间
     last_push_time: SystemTime,
+    /// 连续探测失败次数（成功即清零），供 [`debounce_connected`] 判定断开
+    consecutive_failures: u32,
+}
+
+/// 进程仍在时，连续失败多少次才判定为断开。
+///
+/// 轮询间隔 2 秒，3 次 ≈ 6 秒。单次 `current-summoner` 非 200 在线上很常见
+/// （Sentry 48h 内 8 万+ 条「请求失败或认证失效」），若一次失败就推 `connected=false`，
+/// 前端会把用户从战绩页踢回 Loading、再跳回**自己**的战绩，表现为「一会能查一会
+/// 查不了」（#183）。
+const DISCONNECT_GRACE_TICKS: u32 = 3;
+
+/// 对连接探测结果做防抖，返回 `(是否视为已连接, 新的连续失败次数)`。
+///
+/// # 参数
+/// - `was_connected`: 上次推送的连接状态
+/// - `probe_ok`: 本次 `current-summoner` 是否成功
+/// - `process_present`: 客户端进程与认证信息是否仍可获取
+/// - `failures`: 本次之前的连续失败次数
+///
+/// # 行为
+/// - 探测成功：立即视为已连接并清零
+/// - 进程已不在（真退出 / 无权限）：立即断开，不等宽限
+/// - 进程仍在、此前已连接：宽限 [`DISCONNECT_GRACE_TICKS`] 次后才断开
+fn debounce_connected(
+    was_connected: bool,
+    probe_ok: bool,
+    process_present: bool,
+    failures: u32,
+) -> (bool, u32) {
+    if probe_ok {
+        return (true, 0);
+    }
+    let failures = failures.saturating_add(1);
+    let hold = was_connected && process_present && failures < DISCONNECT_GRACE_TICKS;
+    (hold, failures)
 }
 
 impl GameStateMonitor {
@@ -128,6 +164,7 @@ impl GameStateMonitor {
                 reason_message: None,
             },
             last_push_time: SystemTime::now(),
+            consecutive_failures: 0,
         }
     }
 
@@ -149,26 +186,44 @@ impl GameStateMonitor {
         // 尝试获取 summoner 信息
         let summoner_result = Summoner::get_my_summoner().await;
         let phase_result = get_phase().await;
-        let connected = summoner_result.is_ok();
+        let probe_ok = summoner_result.is_ok();
 
         // 未连接时进一步归类原因：区分"游戏没开"（正常等待）与"权限不足"
         // （需引导用户提权）。已连接，或仅是 API 短暂抖动（进程在但请求失败）时
         // 不展示任何告警，避免误导。
-        let (reason_code, reason_message) = if connected {
-            (None, None)
+        let auth_err = if probe_ok {
+            None
         } else {
-            match crate::lcu::util::token::get_auth_detailed() {
-                Ok(_) => (None, None),
-                Err(e) => (Some(e.code().to_string()), Some(e.to_string())),
-            }
+            crate::lcu::util::token::get_auth_detailed().err()
         };
 
-        let new_state = GameStateEvent {
-            connected,
-            phase: phase_result.ok(),
-            summoner: summoner_result.ok(),
-            reason_code,
-            reason_message,
+        let (connected, failures) = debounce_connected(
+            self.last_state.connected,
+            probe_ok,
+            auth_err.is_none(),
+            self.consecutive_failures,
+        );
+        self.consecutive_failures = failures;
+
+        let new_state = if connected && !probe_ok {
+            // 宽限期内：沿用上次快照，前端感知不到这次抖动
+            log::warn!(
+                "LCU 探测失败（第 {} 次），宽限期内维持已连接: {}",
+                failures,
+                summoner_result.err().unwrap_or_default()
+            );
+            GameStateEvent {
+                phase: phase_result.ok().or_else(|| self.last_state.phase.clone()),
+                ..self.last_state.clone()
+            }
+        } else {
+            GameStateEvent {
+                connected,
+                phase: phase_result.ok(),
+                summoner: summoner_result.ok(),
+                reason_code: auth_err.as_ref().map(|e| e.code().to_string()),
+                reason_message: auth_err.as_ref().map(|e| e.to_string()),
+            }
         };
 
         // 符文写入记录只在一次选人期内有效：手动应用没有常驻任务替它收尾，
@@ -315,4 +370,39 @@ pub async fn start_game_state_monitor(app_handle: AppHandle) {
     });
 
     log::info!("Game state monitor started");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_connect_and_reset_failures_when_probe_succeeds() {
+        assert_eq!(debounce_connected(false, true, true, 0), (true, 0));
+        assert_eq!(debounce_connected(true, true, true, 2), (true, 0));
+    }
+
+    #[test]
+    fn should_hold_connection_within_grace_when_process_present() {
+        assert_eq!(debounce_connected(true, false, true, 0), (true, 1));
+        assert_eq!(debounce_connected(true, false, true, 1), (true, 2));
+    }
+
+    #[test]
+    fn should_disconnect_after_grace_exhausted() {
+        assert_eq!(
+            debounce_connected(true, false, true, DISCONNECT_GRACE_TICKS - 1),
+            (false, DISCONNECT_GRACE_TICKS)
+        );
+    }
+
+    #[test]
+    fn should_disconnect_immediately_when_process_gone() {
+        assert_eq!(debounce_connected(true, false, false, 0), (false, 1));
+    }
+
+    #[test]
+    fn should_stay_disconnected_when_never_connected() {
+        assert_eq!(debounce_connected(false, false, true, 0), (false, 1));
+    }
 }

@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import router from '../router'
 import LoadingComponent from '../components/LoadingComponent.vue'
-import { useGameState } from '../composables/useGameState'
+import { resumeRouteAfterReconnect, useGameState } from '../composables/useGameState'
 import { launchLeagueByIpc } from '../services/ipc'
 import { isWindows } from '../services/platform'
 
@@ -23,10 +23,7 @@ watch(
   isConnected,
   connected => {
     if (connected && summoner.value) {
-      router.push({
-        path: '/Record',
-        query: { name: `${summoner.value.gameName}#${summoner.value.tagLine}` }
-      })
+      router.push(resumeRouteAfterReconnect(router.currentRoute.value.query.from, summoner.value))
     }
   },
   { immediate: true }
