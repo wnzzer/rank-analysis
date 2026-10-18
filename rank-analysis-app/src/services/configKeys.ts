@@ -40,6 +40,8 @@ export const CONFIG_KEYS = {
    * 前端一般无需读写；列在此处以收口该共享键名。
    */
   gameInstallPath: 'gameInstallPath',
+  /** 一次性求 Star 提示的使用天数与已提示标记（设备级,不入备份;见 composables/useStarPrompt） */
+  starPrompt: 'starPrompt',
   /** 页面缩放比例（Ctrl+滚轮调节，0.7~1.5；见 composables/useZoom） */
   zoomFactor: 'settings.ui.zoomFactor',
   /** 对局详情窗在「铺满」基础上的用户倍率（0.7~1.5；见 composables/useDetailZoom） */

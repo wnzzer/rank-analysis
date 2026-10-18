@@ -50,6 +50,7 @@ import ErrorReportingConsentDialog from '@renderer/components/common/ErrorReport
 import { useGameState } from '@renderer/composables/useGameState'
 import { useZoom } from '@renderer/composables/useZoom'
 import { useStartupDialogs } from '@renderer/composables/useStartupDialogs'
+import { useStarPrompt } from '@renderer/composables/useStarPrompt'
 
 /**
  * 应用主布局框架组件
@@ -92,6 +93,9 @@ useGameState()
 // 浏览器式缩放（Ctrl+滚轮 / Ctrl±0）只作用于主窗口；详情窗由 useDetailZoom 以
 // CSS zoom 铺满 + 倍率管理（见 views/MatchDetail.vue），不能叠加 webview 缩放
 if (!isStandaloneDetailWindow.value) useZoom()
+
+// 累计使用满几天后一次性求 Star（仅主窗口）
+if (!isStandaloneDetailWindow.value) useStarPrompt()
 
 const message = useMessage()
 

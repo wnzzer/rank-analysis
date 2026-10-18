@@ -414,6 +414,7 @@ pub const BACKUP_BLACKLIST: &[&str] = &[
     "configSyncedOnce",
     "configLastSyncAt",
     "configDirtyAt",
+    "starPrompt",
     "playerNotes",
 ];
 
@@ -738,6 +739,7 @@ mod tests {
             "configSyncedOnce",
             "configLastSyncAt",
             "configDirtyAt",
+            "starPrompt",
             "playerNotes",
         ] {
             assert!(!allowed_in_backup(key), "{key} 不应进文件备份");
