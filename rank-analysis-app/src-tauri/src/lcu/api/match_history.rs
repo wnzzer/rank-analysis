@@ -151,8 +151,15 @@ impl MatchHistory {
         );
         log::info!("build url {}", uri);
 
-        let match_history = lcu_get::<Self>(&uri).await?;
-        Ok(match_history)
+        // 失败原先静默上抛，线上「查不了战绩」在日志里无迹可查（#183）
+        lcu_get::<Self>(&uri).await.inspect_err(|e| {
+            log::warn!(
+                "Fetch match history failed ({}..={}): {}",
+                begin_index,
+                end_index,
+                e
+            )
+        })
     }
 
     /// 按 PUUID 与索引范围获取对局记录。
