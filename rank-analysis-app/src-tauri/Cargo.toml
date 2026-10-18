@@ -5,7 +5,9 @@ edition = "2021"
 
 [lib]
 name = "rank_analysis_lib"
-crate-type = ["staticlib", "cdylib", "rlib"]
+# 只留 rlib：staticlib / cdylib 是 Tauri 模板为 iOS / Android 预留的，本项目仅桌面端。
+# 多出的两种产物在 fat LTO 下各多跑一遍整程序优化；2026-10 实测去掉后 clean build −13%，体积不变。
+crate-type = ["rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -19,7 +21,7 @@ sevenz-rust2 = { version = "0.22", default-features = false, features = [
 
 [profile.release]
 opt-level = "z"   # 优化级别设为 "z"，专注于大小优化
-lto = true        # 启用链接时优化
+lto = true        # 启用链接时优化（Windows 发版在 release.yml 里覆盖为 thin，见该处注释）
 codegen-units = 1 # 减少代码生成单元，提高优化效果
 panic = "abort"   # 恐慌时直接中止，减少错误处理代码
 strip = true      # 剥离符号信息，减小二进制大小

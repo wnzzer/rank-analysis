@@ -71,7 +71,9 @@ pub async fn get_sgp_match_history_by_name(
     count: i32,
 ) -> Result<MatchHistory, String> {
     crate::observability::track_feature("sgp_cross_region_query");
-    sgp::get_match_history_by_name(&region, &name, beg_index, count).await
+    sgp::get_match_history_by_name(&region, &name, beg_index, count)
+        .await
+        .inspect_err(|e| log::warn!("SGP match history failed (region={}): {}", region, e))
 }
 
 #[cfg(test)]

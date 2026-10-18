@@ -57,7 +57,6 @@
             type="button"
             class="status-icon-btn"
             :class="{ 'status-icon-btn--on': isConnected }"
-            :disabled="!isConnected"
             @click="toMe"
           >
             <n-icon :size="15"><LinkOutline /></n-icon>
@@ -67,7 +66,7 @@
             />
           </button>
         </template>
-        {{ isConnected ? `已连接：${mySummoner.gameName}` : '未连接客户端' }}
+        {{ isConnected ? `已连接：${mySummoner.gameName}` : '未连接客户端，点击前往连接' }}
       </n-tooltip>
       <n-tooltip placement="right" :delay="200">
         <template #trigger>
@@ -143,8 +142,17 @@ const isInGame = computed(() => {
   return !!p && VALID_GAME_PHASES.includes(p)
 })
 
+/**
+ * 连接状态灯点击：已连接进自己的战绩；未连接回 Loading 页（等待连接 / 一键启动）。
+ *
+ * 未连接时这是侧栏唯一能回 Loading 的入口——战绩/对局此时隐藏，而设置、英雄是
+ * offlineCapable 页面，断开态下不会被自动推回 Loading，不留这个出口就回不去了。
+ */
 const toMe = () => {
-  if (!isConnected.value) return
+  if (!isConnected.value) {
+    router.push({ path: '/Loading' })
+    return
+  }
   router.push({
     path: '/Record',
     query: { name: mySummoner.value.gameName + '#' + mySummoner.value.tagLine }
@@ -284,14 +292,9 @@ const goGaming = () => {
   -webkit-app-region: no-drag;
 }
 
-.status-icon-btn:hover:not(:disabled) {
+.status-icon-btn:hover {
   background: var(--hover-bg);
   color: var(--text-secondary);
-}
-
-.status-icon-btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
 }
 
 .status-icon-btn--on {

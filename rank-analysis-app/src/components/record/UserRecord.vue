@@ -294,6 +294,8 @@ const loadSummonerData = async (summonerName: string) => {
     await getTags(name, modeValue)
   } catch (error) {
     console.error('[UserRecord] loadSummonerData failed', error)
+    // 失败若只打 console，用户看到的就是「点不进去」且毫无反馈（#183）
+    if (!isStale()) message.error(`查询召唤师 ${summonerName} 失败：${String(error)}`)
   } finally {
     if (!isStale()) {
       profileLoading.value = false

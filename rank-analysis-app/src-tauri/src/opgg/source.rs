@@ -19,10 +19,12 @@ pub const SOURCE_SCHEMA_VERSION: u32 = 1;
 /// manifest 缓存有效期：6 小时（秒），与 `cn_patch_notes` 同档
 pub const SOURCE_TTL_SECS: i64 = 6 * 60 * 60;
 
-/// 分发源，按序尝试：jsDelivr CDN（国内可达）→ GitCode raw（仓库镜像）
+/// 分发源，按序尝试：jsDelivr CDN（国内可达）→ GitCode（仓库镜像）。
+/// GitCode 的 `/raw/` 网页地址对程序返回 HTML 而不是文件，因此走 v5 API 取原始文件
+/// （同 `cn_patch_notes::SOURCES`）。
 const SOURCES: [&str; 2] = [
     "https://cdn.jsdelivr.net/gh/wnzzer/rank-analysis@main/data/builds-source.json",
-    "https://gitcode.com/wnzzer/rank-analysis/raw/main/data/builds-source.json",
+    "https://api.gitcode.com/api/v5/repos/wnzzer/rank-analysis/raw/data%2Fbuilds-source.json?ref=main",
 ];
 
 /// 编译期默认 URL 模板，必须与仓库 `data/builds-source.json` 一致（契约测试守护）。

@@ -227,7 +227,7 @@
 <script lang="ts" setup>
 import { Time, CalendarNumber, FlameOutline, ShieldOutline, HeartOutline } from '@vicons/ionicons5'
 import { computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { formatCompactNumber } from '@renderer/utils/format'
 import { healColorAndTaken, otherColor } from '@renderer/utils/colors'
 import { assetPrefix } from '@renderer/services/http'
@@ -330,6 +330,7 @@ onMounted(() => {
 })
 
 const router = useRouter()
+const route = useRoute()
 
 const formattedDate = computed(() => {
   const date = new Date(props.games.gameCreationDate)
@@ -346,10 +347,18 @@ const currentPlayerKey = computed(() => {
   return `${p.gameName}#${p.tagLine}`
 })
 
+/**
+ * 跳转到对局内某玩家的战绩页。
+ *
+ * 必须沿用当前页的 `region`：跨区战绩里的玩家都在目标大区，丢掉 region 会退回
+ * 本区 LCU 按名查询，必然查不到（#183）。
+ * @param name - 玩家「名字#TAG」
+ */
 function toNameRecord(name: string) {
+  const region = route.query.region as string | undefined
   return router.push({
     path: '/Record',
-    query: { name, t: Date.now() }
+    query: region ? { name, region, t: Date.now() } : { name, t: Date.now() }
   })
 }
 

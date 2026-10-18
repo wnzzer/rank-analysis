@@ -22,7 +22,7 @@ vi.mock('@tauri-apps/api/window', () => ({
   getCurrentWindow: () => ({ label: 'main' })
 }))
 
-import { shouldRedirectToLoading } from './useGameState'
+import { resumeRouteAfterReconnect, shouldRedirectToLoading } from './useGameState'
 import router from '../router'
 
 describe('shouldRedirectToLoading', () => {
@@ -74,5 +74,30 @@ describe('route offlineCapable contract', () => {
     const matched = router.resolve('/Settings/General')
 
     expect(matched.meta.offlineCapable).toBe(true)
+  })
+})
+
+describe('resumeRouteAfterReconnect', () => {
+  const me = { gameName: '我', tagLine: '1' }
+
+  it('should return to the page the user was kicked from', () => {
+    const target = resumeRouteAfterReconnect('/Record?name=Other%23233&t=1', me)
+
+    expect(target).toBe('/Record?name=Other%23233&t=1')
+  })
+
+  it('should fall back to own record when no from is recorded', () => {
+    expect(resumeRouteAfterReconnect(undefined, me)).toEqual({
+      path: '/Record',
+      query: { name: '我#1' }
+    })
+  })
+
+  it('should reject Loading itself and non-path values to avoid loops', () => {
+    const fallback = { path: '/Record', query: { name: '我#1' } }
+
+    expect(resumeRouteAfterReconnect('/Loading?from=/Record', me)).toEqual(fallback)
+    expect(resumeRouteAfterReconnect('https://evil.example', me)).toEqual(fallback)
+    expect(resumeRouteAfterReconnect(['/Record'], me)).toEqual(fallback)
   })
 })

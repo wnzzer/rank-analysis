@@ -44,11 +44,13 @@
       </n-popconfirm>
       <n-tooltip trigger="hover">
         <template #trigger>
-          <n-button quaternary circle class="header-icon-btn" @click="openGithubLink">
-            <n-icon :component="LogoGithub" />
-          </n-button>
+          <button type="button" class="star-pill" @click="openGithubLink">
+            <n-icon :size="13" :component="LogoGithub" />
+            <n-icon :size="12" :component="StarOutline" class="star-pill-star" />
+            <span>Star</span>
+          </button>
         </template>
-        访问 wnzzer 的项目主页
+        觉得好用？去 GitHub 点个 Star 支持一下
       </n-tooltip>
       <n-divider vertical />
       <n-switch
@@ -92,7 +94,8 @@ import {
   SunnyOutline,
   MoonOutline,
   PowerOutline,
-  ArrowUpCircleOutline
+  ArrowUpCircleOutline,
+  StarOutline
 } from '@vicons/ionicons5'
 import { darkTheme, useMessage } from 'naive-ui'
 import { Window } from '@tauri-apps/api/window'
@@ -103,6 +106,7 @@ import { useSettingsStore } from '@renderer/pinia/setting'
 import { useGameState, lcuConnected } from '@renderer/composables/useGameState'
 import { closeLeagueByIpc } from '@renderer/services/ipc'
 import { useAppUpdate } from '@renderer/composables/useAppUpdate'
+import { REPO_URL } from '@renderer/composables/useStarPrompt'
 import { GATE_SETTLE_MS, GATE_FALLBACK_MS } from '@renderer/composables/useStartupDialogs'
 
 /**
@@ -214,11 +218,11 @@ onMounted(() => {
 })
 
 /**
- * 打开项目 GitHub 主页
+ * 打开项目 GitHub 主页（顶栏 Star 胶囊）
  * 使用 Tauri 的 open API 打开项目仓库链接
  */
 const openGithubLink = async (): Promise<void> => {
-  await openUrl('https://github.com/wnzzer/rank-analysis')
+  await openUrl(REPO_URL)
 }
 
 /**
@@ -352,6 +356,41 @@ const closeWindow = (): void => {
 .update-pill-fade-leave-to {
   opacity: 0;
   transform: scale(0.85);
+}
+
+/* Star 胶囊：常驻引流入口，刻意比升级药丸低调（中性描边、不着色），
+   hover 才亮出金色星标，避免和真正需要处理的升级提示抢注意力 */
+.star-pill {
+  -webkit-app-region: no-drag;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  height: 22px;
+  padding: 0 var(--space-8);
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--glass-bg-high);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition:
+    background-color var(--dur-fast) var(--ease-expo),
+    color var(--dur-fast) var(--ease-expo),
+    transform var(--dur-fast) var(--ease-expo);
+}
+
+.star-pill:hover {
+  color: var(--text-primary);
+  background-color: var(--glass-bg-high);
+  transform: scale(1.04);
+}
+
+.star-pill:hover .star-pill-star {
+  color: var(--accent-gold);
 }
 
 .header-icon-btn:hover {

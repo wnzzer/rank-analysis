@@ -45,7 +45,10 @@ impl Summoner {
             return Ok(cached.clone());
         }
         let uri = format!("lol-summoner/v1/summoners/?name={}", url_encoding);
-        let summoner = lcu_get::<Self>(&uri).await?;
+        // 失败原先静默上抛，线上「点不进去」在日志里无迹可查（#183）；名字不入日志
+        let summoner = lcu_get::<Self>(&uri)
+            .await
+            .inspect_err(|e| log::warn!("Get summoner by name failed: {}", e))?;
         SUMMONER_CACHE
             .insert(name.to_string(), summoner.clone())
             .await;

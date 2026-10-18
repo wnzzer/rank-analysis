@@ -103,6 +103,32 @@ export function shouldRedirectToLoading(route: {
   return route.meta.offlineCapable !== true
 }
 
+/**
+ * 重连后应回到的路由。
+ *
+ * 断开时被推回 Loading 的页面记在 `/Loading?from=` 里；重连后回到原处，而不是一律
+ * 跳到自己的战绩——否则用户正在看别人的战绩时客户端一抖，就被拽回自己的页面（#183）。
+ *
+ * @param from - Loading 路由上的 `from` 参数（被踢回前的 fullPath）
+ * @param summoner - 当前登录召唤师，用于无 `from` 时的默认落点
+ * @returns 可直接交给 `router.push` 的路径或位置对象
+ * @example
+ * ```ts
+ * resumeRouteAfterReconnect('/Record?name=A%231', me) // '/Record?name=A%231'
+ * resumeRouteAfterReconnect(undefined, me)            // { path: '/Record', query: { name: '我#1' } }
+ * ```
+ */
+export function resumeRouteAfterReconnect(
+  from: unknown,
+  summoner: { gameName: string; tagLine: string }
+): string | { path: string; query: { name: string } } {
+  // 只接受站内路径，且不能回到 Loading 自身（否则死循环）
+  if (typeof from === 'string' && from.startsWith('/') && !from.startsWith('/Loading')) {
+    return from
+  }
+  return { path: '/Record', query: { name: `${summoner.gameName}#${summoner.tagLine}` } }
+}
+
 function handleConnectionRoute(state: GameStateEvent) {
   const currentRoute = router.currentRoute.value
   const currentPath = currentRoute.path
@@ -116,19 +142,15 @@ function handleConnectionRoute(state: GameStateEvent) {
   if (state.connected && state.summoner) {
     // 游戏客户端已连接，且当前在 Loading 页，则跳转首页 (Record)
     if (currentPath === '/Loading') {
-      router.push({
-        path: '/Record',
-        query: {
-          name: `${state.summoner.gameName}#${state.summoner.tagLine}`
-        }
-      })
-      console.log('📍 Auto navigated to Record page')
+      router.push(resumeRouteAfterReconnect(currentRoute.query.from, state.summoner))
+      console.log('📍 Auto navigated back after reconnect')
     }
   } else {
-    // 游戏客户端断开连接，跳转 Loading（离线可用页豁免）
+    // 游戏客户端断开连接，跳转 Loading（离线可用页豁免），记下原页面供重连后返回
     if (shouldRedirectToLoading(currentRoute)) {
       router.push({
-        path: '/Loading'
+        path: '/Loading',
+        query: { from: currentRoute.fullPath }
       })
       console.log('📍 Auto navigated to Loading page')
     }
