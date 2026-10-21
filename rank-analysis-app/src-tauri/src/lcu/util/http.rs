@@ -17,7 +17,7 @@ use tokio::sync::Semaphore;
 
 static HTTP_CLIENT: OnceLock<Client> = OnceLock::new();
 static AUTH: OnceLock<Mutex<(String, String)>> = OnceLock::new();
-static LAST_REFRESH_TIME: OnceLock<Mutex<Instant>> = OnceLock::new();
+static LAST_REFRESH_TIME: OnceLock<Mutex<Option<Instant>>> = OnceLock::new();
 
 /// 最大并发 LCU GET 请求数
 static LCU_SEMAPHORE: LazyLock<Semaphore> = LazyLock::new(|| Semaphore::new(10));
@@ -75,7 +75,11 @@ fn lock_or_recover<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     }
 }
 
-fn get_auth_pair() -> Result<(String, String), String> {
+/// 取当前缓存的 LCU 认证 `(token, port)`，缓存为空时现查一次。
+///
+/// HTTP 请求与 WebSocket 监听（[`crate::lcu::listener`]）共用这一份认证：客户端重启
+/// 换了端口/令牌后，任一方刷新过的结果另一方立刻可用，不会各自握着过期副本。
+pub(crate) fn get_auth_pair() -> Result<(String, String), String> {
     let auth = AUTH.get_or_init(|| Mutex::new((String::new(), String::new())));
     let mut guard = lock_or_recover(auth);
     if guard.0.is_empty() || guard.1.is_empty() {
@@ -86,18 +90,22 @@ fn get_auth_pair() -> Result<(String, String), String> {
     Ok(guard.clone())
 }
 
-fn refresh_auth() -> Result<(String, String), String> {
-    let last_refresh = LAST_REFRESH_TIME.get_or_init(|| Mutex::new(Instant::now()));
+/// 重新探测客户端进程刷新认证缓存，1 秒内的重复调用直接返回缓存。
+pub(crate) fn refresh_auth() -> Result<(String, String), String> {
+    let last_refresh = LAST_REFRESH_TIME.get_or_init(|| Mutex::new(None));
     let mut last_refresh_guard = lock_or_recover(last_refresh);
 
     let now = Instant::now();
-    if now.duration_since(*last_refresh_guard) < Duration::from_secs(1) {
-        let auth = AUTH.get().expect("AUTH not initialized");
-        let auth_guard = lock_or_recover(auth);
-        return Ok(auth_guard.clone());
+    // 首次调用（None）必须真刷新：若用 now 初始化，第一次刷新会被节流成空操作，
+    // 而此时 AUTH 可能尚未初始化（原先这里的 expect 在 panic = "abort" 下会直接退出进程）。
+    if let Some(last) = *last_refresh_guard {
+        if now.duration_since(last) < Duration::from_secs(1) {
+            let auth = AUTH.get_or_init(|| Mutex::new((String::new(), String::new())));
+            return Ok(lock_or_recover(auth).clone());
+        }
     }
 
-    *last_refresh_guard = now;
+    *last_refresh_guard = Some(now);
 
     let (token, port) = get_auth()?;
     let auth = AUTH.get_or_init(|| Mutex::new((String::new(), String::new())));

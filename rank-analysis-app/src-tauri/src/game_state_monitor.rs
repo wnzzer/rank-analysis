@@ -7,7 +7,7 @@
 //! - **连接检测**: 检测 LCU 客户端是否运行
 //! - **阶段监听**: 监控游戏阶段变化（大厅、选人、对局中、结算等）
 //! - **事件推送**: 通过 Tauri 事件向前端推送状态变更
-//! - **WebSocket 启动**: 在 LCU 连接时自动启动 WebSocket 监听
+//! - **WebSocket 生命周期**: LCU 连接时启动 WebSocket 监听，断开时停止（任一时刻至多一个）
 //!
 //! ## 监听机制
 //!
@@ -49,6 +49,7 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 use tauri::{AppHandle, Emitter};
 use tokio::sync::RwLock;
+use tokio::task::JoinHandle;
 use tokio::time::interval;
 
 use crate::lcu::api::phase::get_phase;
@@ -107,6 +108,31 @@ pub struct GameStateMonitor {
     last_push_time: SystemTime,
     /// 连续探测失败次数（成功即清零），供 [`debounce_connected`] 判定断开
     consecutive_failures: u32,
+    /// 当前的 WebSocket 监听任务（至多一个）
+    listener_task: TaskSlot,
+}
+
+/// 至多持有一个后台任务的槽位：放入新任务前先 abort 旧任务。
+///
+/// 用于 WebSocket 监听：连接状态每翻转一次（含防抖宽限耗尽后的误判断开）都会
+/// 重新启动监听，若不 abort 旧任务，客户端在线时两个 listener 同时连上，
+/// 每个 LCU 事件会被处理两遍。
+#[derive(Default)]
+struct TaskSlot(Option<JoinHandle<()>>);
+
+impl TaskSlot {
+    /// abort 旧任务（如有）并持有新任务
+    fn replace(&mut self, handle: JoinHandle<()>) {
+        self.abort();
+        self.0 = Some(handle);
+    }
+
+    /// abort 当前任务（如有）并清空槽位
+    fn abort(&mut self) {
+        if let Some(handle) = self.0.take() {
+            handle.abort();
+        }
+    }
 }
 
 /// 进程仍在时，连续失败多少次才判定为断开。
@@ -165,6 +191,7 @@ impl GameStateMonitor {
             },
             last_push_time: SystemTime::now(),
             consecutive_failures: 0,
+            listener_task: TaskSlot::default(),
         }
     }
 
@@ -277,28 +304,16 @@ impl GameStateMonitor {
                 });
             }
             log::info!("LCU 已连接，正在启动 WebSocket 监听...");
-            let app_handle = self.app_handle.clone();
-            tokio::spawn(async move {
-                match crate::lcu::util::token::get_auth() {
-                    Ok((token, port_str)) => {
-                        if let Ok(port) = port_str.parse::<u16>() {
-                            let listener =
-                                crate::lcu::listener::LcuListener::new(app_handle, port, token);
-                            listener.start().await;
-                        } else {
-                            log::error!("解析端口失败: {}", port_str);
-                        }
-                    }
-                    Err(e) => {
-                        log::error!("获取 LCU 认证信息失败: {}", e);
-                    }
-                }
-            });
+            let listener = crate::lcu::listener::LcuListener::new(self.app_handle.clone());
+            self.listener_task
+                .replace(tokio::spawn(async move { listener.start().await }));
         }
 
         // 刚断开（之前连接，现在断开）：客户端退出时可能重新注册了 LOL 开机
         // 自启，再清一次，避免"最后一局退出后残留自启项"。
         if !new_state.connected && self.last_state.connected {
+            // listener 不会自行退出，断开时必须停掉，否则会对着已失效的端口一直重连
+            self.listener_task.abort();
             let purge_handle = self.app_handle.clone();
             tokio::spawn(async move {
                 crate::command::launcher::purge_and_report(&purge_handle);
@@ -406,5 +421,45 @@ mod tests {
     #[test]
     fn should_stay_disconnected_when_never_connected() {
         assert_eq!(debounce_connected(false, false, true, 0), (false, 1));
+    }
+
+    /// 等到任务真正结束（abort 在任务下一次被调度时生效），超时视为没被停掉
+    async fn wait_finished(handle: &tokio::task::AbortHandle) -> bool {
+        tokio::time::timeout(Duration::from_secs(1), async {
+            while !handle.is_finished() {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .is_ok()
+    }
+
+    #[tokio::test]
+    async fn task_slot_should_abort_previous_task_on_replace() {
+        let mut slot = TaskSlot::default();
+        let first = tokio::spawn(std::future::pending::<()>());
+        let first_abort = first.abort_handle();
+        slot.replace(first);
+
+        let second = tokio::spawn(std::future::pending::<()>());
+        let second_abort = second.abort_handle();
+        slot.replace(second);
+
+        assert!(wait_finished(&first_abort).await);
+        assert!(!second_abort.is_finished());
+        slot.abort();
+    }
+
+    #[tokio::test]
+    async fn task_slot_should_abort_current_task_and_tolerate_empty() {
+        let mut slot = TaskSlot::default();
+        slot.abort(); // 空槽位 abort 是 no-op
+
+        let task = tokio::spawn(std::future::pending::<()>());
+        let task_abort = task.abort_handle();
+        slot.replace(task);
+        slot.abort();
+
+        assert!(wait_finished(&task_abort).await);
     }
 }
