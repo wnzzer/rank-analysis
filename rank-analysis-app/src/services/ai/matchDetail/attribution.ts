@@ -21,13 +21,11 @@ export const STAGE1_SYSTEM_PROMPT =
   '不要返回 markdown / 解释 / 前后缀，只返回纯 JSON 对象。'
 
 /**
- * Stage 1 模型：qwen-flash。
- * 真实基准（33k 字符 Stage 1 prompt，见 tests/bench-ai-models.mjs）：
- * - qwen-flash 总耗时 ~12s、2/2 校验通过、归因精准（mitigatingFactors 正确绑定 recentProfile）；
- * - qwen-plus 总耗时 ~40s 且约半数概率吐非法 JSON（超长破坏结构），是"加载不出来"的主因。
- * flash 在速度（3.4×）与有效率上全面胜出，故切换。
+ * Stage 1 内置默认模型（远程配置 `matchAttribution` 场景拉不到时用，见 ../modelConfig.ts）。
+ * deepseek-v4.1-flash-1017：tests/bench-ai-quality.ts 实测 ~16s，标签规则违反 0（qwen-flash
+ * 每次 ~1.25 处，靠 validator 降级兜底），预期判定命中 100%（qwen-flash 75%）。
  */
-export const STAGE1_MODEL = 'qwen-flash'
+export const STAGE1_MODEL = 'deepseek-v4.1-flash-1017'
 
 /** Stage 1 user prompt：公共骨架 + 按 modeContext 路由的模式追加规则 */
 export function buildAttributionUserPrompt(snapshot: MatchSnapshot): string {
@@ -39,9 +37,9 @@ export function buildAttributionUserPrompt(snapshot: MatchSnapshot): string {
  * Stage 1 缓存键。requestAIContent 用它缓存原始输出，外层门面也用同一键做
  * 短路预检——必须单一键，曾因门面与请求层各持一键导致重试失效错键（重试空转）。
  */
-export function stage1CacheKey(snapshot: MatchSnapshot): string {
+export function stage1CacheKey(snapshot: MatchSnapshot, model: string = STAGE1_MODEL): string {
   const addon = getModePromptAddon(snapshot.modeContext)
-  return `ai_match_detail_stage1_${snapshot.gameId}_${addon.kind}_${STAGE1_MODEL}`
+  return `ai_match_detail_stage1_${snapshot.gameId}_${addon.kind}_${model}`
 }
 
 /**

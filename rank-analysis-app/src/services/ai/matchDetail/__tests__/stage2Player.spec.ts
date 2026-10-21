@@ -95,7 +95,34 @@ describe('buildStage2PlayerPrompt', () => {
     expect(prompt).toContain('【目标玩家】')
     expect(prompt).toContain('幽默的二次元#12510')
     expect(prompt).toContain('赏金猎人')
-    expect(prompt).toContain('"triple":1')
+    expect(prompt).toContain('三杀 1 次')
+    // 每行数字都以主人英雄名开头（防张冠李戴）
+    expect(prompt).toContain('- 赏金猎人 战绩：5 杀 / 3 死 / 7 助攻')
+  })
+
+  it('标明对位玩家数字的归属，并给出双方队伍与对位差', () => {
+    const snap = makeSnapshot([
+      {
+        ...target,
+        vsLaneOpponent: {
+          opponentName: '对面AD#1',
+          opponentChampion: '虚空之女',
+          goldDiff: 3500,
+          csDiff: -10,
+          kdaDiff: 0,
+          killsDiff: 2,
+          deathsDiff: -1,
+          damageShareDiff: 4.5
+        }
+      },
+      laneOpponent
+    ])
+    const prompt = buildStage2PlayerPrompt(attribution, snap, 4, [])
+    expect(prompt).toContain('这里的数字属于对位玩家')
+    expect(prompt).toContain('- 虚空之女 经济：12000 金币')
+    expect(prompt).toContain('赏金猎人 对比对位 虚空之女：经济多 3500 金币，补刀少 10')
+    expect(prompt).toContain('【双方队伍】')
+    expect(prompt).toContain('每个数字只能写在它的主人名下')
   })
 
   it('includes 对位玩家区块 when 敌方存在同分路玩家', () => {
@@ -142,6 +169,9 @@ describe('buildStage2PlayerPrompt', () => {
     const prompt = buildStage2PlayerPrompt(attribution, makeSnapshot([target, laneOpponent]), 4, [])
     expect(prompt).toContain('过程行为')
     expect(prompt).toContain('timeline')
-    expect(prompt).toContain('打野时 cs')
+    expect(prompt).toContain('roleBenchmark')
+    expect(prompt).toContain('打野补刀低')
+    // 结构化字段名不许漏进给玩家看的正文
+    expect(prompt).toContain('禁止出现任何英文字段名')
   })
 })

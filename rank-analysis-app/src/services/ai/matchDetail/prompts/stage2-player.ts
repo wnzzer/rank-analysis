@@ -8,33 +8,11 @@
 
 import type { MatchSnapshot } from '../../shared/snapshot'
 import type { AttributionResult } from '../types'
+import { identity, laneDiffText, playerFactCard, teamFactLines } from './factCard'
+import { STAGE2_PLAIN_LANGUAGE_RULE } from './plainLanguage'
 
 /** 有对线意义的分路值（UNKNOWN/'' 等一律视为无对位） */
 const LANE_POSITIONS = new Set(['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'])
-
-/** 单个玩家 → 喂给模型的紧凑 JSON（剔除 isMe 等无关字段，保留全量数值证据） */
-function playerBrief(p: any): string {
-  return JSON.stringify({
-    name: p.name,
-    champion: p.champion,
-    teamPosition: p.teamPosition,
-    result: p.win ? '胜方' : '败方',
-    kda: p.kda,
-    kills: p.kills,
-    deaths: p.deaths,
-    assists: p.assists,
-    damageShare: p.damageShare,
-    damageTakenShare: p.damageTakenShare,
-    goldShare: p.goldShare,
-    killParticipation: p.killParticipation,
-    dpm: p.dpm,
-    gpm: p.gpm,
-    csm: p.csm,
-    wardScore: p.wardScore,
-    multiKills: p.multiKills,
-    recentProfile: p.recentProfile
-  })
-}
 
 /**
  * 构建单人复盘 prompt
@@ -49,9 +27,11 @@ export function buildStage2PlayerPrompt(
   participantId: number,
   vocabSamples: string[]
 ): string {
-  const players = snapshot.players as any[]
+  const players = snapshot.players
   const targetPlayer = players.find(p => p.participantId === participantId)
-  const targetBlock = targetPlayer ? playerBrief(targetPlayer) : '（未找到目标玩家快照）'
+  const targetBlock = targetPlayer
+    ? `${identity(targetPlayer)}\n${playerFactCard(targetPlayer)}`
+    : '（未找到目标玩家快照）'
 
   const opponent =
     targetPlayer && LANE_POSITIONS.has(targetPlayer.teamPosition)
@@ -60,8 +40,9 @@ export function buildStage2PlayerPrompt(
         )
       : undefined
   const opponentBlock = opponent
-    ? playerBrief(opponent)
+    ? `${identity(opponent)}\n${playerFactCard(opponent)}`
     : '无同位对位数据（该模式无分路概念，或对面缺同分路玩家）。'
+  const laneDiff = (targetPlayer && laneDiffText(targetPlayer)) || '无对位差数据。'
 
   const targetVerdict = attribution.verdicts.find(v => v.participantId === participantId)
   const verdictBlock = targetVerdict
@@ -81,11 +62,17 @@ ${snapshot.modeContext.description}
 【整局胜负因果】
 ${attribution.winReason}
 
-【目标玩家】（快照事实，本次复盘的唯一主角）
+【双方队伍】（提到队伍总数据只能照抄这里，并分清是哪一方的）
+${teamFactLines(snapshot, targetPlayer?.teamId)}
+
+【目标玩家】（快照事实，本次复盘的唯一主角；每行开头的英雄名就是该行数字的主人）
 ${targetBlock}
 
-【对位玩家】（同分路的对面玩家，用于数字对比）
+【对位玩家】（同分路的对面玩家，用于数字对比；这里的数字属于对位玩家，不是目标玩家的）
 ${opponentBlock}
+
+【对位差】（已算好，对比时直接照抄，禁止自己做减法）
+${laneDiff}
 
 【整局归因中的判定】
 ${verdictBlock}
@@ -99,7 +86,8 @@ ${verdictBlock}
 - 3-4 条 bullet，逐项解读目标玩家最突出的数字（好坏都要说），每条带数字
 
 ## 对位对比
-- 与对位玩家的关键数字对比（KDA/伤害占比/经济/补刀），谁压谁一目了然
+- 与对位玩家的关键数字对比（KDA/伤害占比/经济/补刀），谁压谁一目了然；
+  差值只能照抄【对位差】，禁止自己做减法
 - 无对位数据时写"无同位对位数据，跳过对比"
 
 ## 责任归因
@@ -113,18 +101,21 @@ ${verdictBlock}
 
 【硬规则（违反任意一条即为废稿）】
 - 玩家的分路、英雄、胜负方只能照抄材料，禁止写材料之外的分路或英雄定位。
+- **每个数字只能写在它的主人名下**：事实卡每行开头的英雄名就是该行数字的主人，【对位玩家】的数字属于对位玩家，【双方队伍】的数字属于对应的一方。把别人的数字写成目标玩家的（或反过来）即为废稿。
 - 数字证据只能来自上面的材料，不能编造新数字；禁止做材料里没有字段支撑的数据性比较或断言（含击杀归属、"第几高"类排名、时间点——材料里都没有）。
 - 禁止推荐或点评具体装备/符文/强化——材料未提供出装数据，装备名一律不许出现。
 - 材料字段值为 null 表示无数据（如国服战绩不下发视野数据），禁止当 0 解读、禁止据此评价。
 - **禁止把材料没有的过程行为当作本局事实**：材料无 timeline，"他一直在刷野""对线被压""没参与团战"这类过程描述全是编造。解读只能落在数字本身；「改进建议」可以给"多参团/少单带"式的未来建议，但不得断言本局发生过什么行为。
   禁例：×「被越塔成渣」×「每次开团都在」×「游走支援不及时」;合规：「14 次死亡、参团率 25%，数字上是团队的负资产」。
-- 目标玩家是打野时 cs/csm 低、是辅助时 damageShare/goldShare 低，都不构成负面证据（位置本分），不要据此定档。
-- recentProfile 为 null 时禁止评价熟练度/补位；isOffRole=true 时用"补位"宽容措辞。
+- 位置职责以事实卡括号里的位置水平为准：标注「属于该位置正常水平」「高于该位置常见水平」的项不构成负面证据（如辅助伤害占比低、打野补刀低），不要据此定档；只有「低于该位置常见水平」才能说"低"（roleBenchmark 判定）。
+- 近期画像为「无数据」时禁止评价熟练度/补位；标注「补位」时用"补位"宽容措辞。
 - 禁止编造技能机制或版本改动——材料没给就不提。${
     snapshot.modeContext.hasLanes
       ? ''
       : '\n- 本模式无分路：全文禁止出现任何分路词（上单/中单/下路/打野/辅助位/上路/中路/对线）。'
   }
+
+${STAGE2_PLAIN_LANGUAGE_RULE}
 
 【语气原则】
 - 锐评感优先：有梗、戏谑、网感

@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "models": {
+    "default": "deepseek-v4.1-flash-1017",
+    "tagSuggest": "qwen-plus"
+  }
+}

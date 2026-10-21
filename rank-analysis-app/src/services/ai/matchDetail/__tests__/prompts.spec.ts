@@ -64,10 +64,16 @@ describe('buildStage1Prompt — common skeleton', () => {
     expect(prompt).toContain('timeline')
   })
 
-  it('打野的 cs 低不构成负面证据(与辅助保护规则同理)', () => {
+  it('位置职责按 roleBenchmark 判定:打野 csm / 辅助伤害低不构成负面证据', () => {
     const prompt = buildStage1Prompt(snap, '')
-    expect(prompt).toContain('JUNGLE')
-    expect(prompt).toContain('打野补刀天然低')
+    expect(prompt).toContain('roleBenchmark')
+    expect(prompt).toContain('打野 csm 队内最低都是本分')
+  })
+
+  it('对位差值由 TS 预算,要求模型照抄 vsLaneOpponent', () => {
+    const prompt = buildStage1Prompt(snap, '')
+    expect(prompt).toContain('vsLaneOpponent')
+    expect(prompt).toContain('不要重新计算')
   })
 
   it('appends the mode addon rules at the end', () => {

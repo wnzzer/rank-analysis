@@ -7,15 +7,8 @@
 
 import type { MatchSnapshot } from '../../shared/snapshot'
 import type { AttributionResult, Verdict } from '../types'
-
-/** LCU teamPosition → 中文分路（与选人 prompt 的用词一致） */
-const POSITION_CN: Record<string, string> = {
-  TOP: '上单',
-  JUNGLE: '打野',
-  MIDDLE: '中单',
-  BOTTOM: '下路',
-  UTILITY: '辅助'
-}
+import { POSITION_CN, teamFactLines } from './factCard'
+import { STAGE2_PLAIN_LANGUAGE_RULE } from './plainLanguage'
 
 /**
  * 名册一行：`- 名字｜英雄｜分路｜胜负方｜label`。
@@ -53,6 +46,9 @@ ${JSON.stringify(attribution)}
 【玩家名册】（快照事实：名字｜英雄｜分路｜胜负方｜label，禁止偏离）
 ${attribution.verdicts.map(rosterLine).join('\n')}
 
+【双方队伍】（提到队伍总数据只能照抄这里，并写清是胜方还是败方的）
+${teamFactLines(snapshot)}
+
 【模式上下文】
 ${snapshot.modeContext.description}
 
@@ -80,6 +76,7 @@ ${snapshot.modeContext.description}
 【硬规则（违反任意一条即为废稿）】
 - 章节归属由名册里的 label 固定映射，禁止自行挪动：尽力 →「谁尽力了」；犯罪/缚地灵 →「谁要背锅」；被爆/被连累 →「谁被打爆 / 被连累」；正常 → 不单独上榜（只可出现在关键证据）。败方玩家绝不出现在「谁尽力了」。每名玩家只能出现在自己 label 对应的那一个章节，禁止同一人重复上榜多个章节。
 - 玩家的分路、英雄、胜负方只能照抄【玩家名册】——禁止写名册之外的分路（例如把下路玩家写成"中路"），禁止臆造英雄定位；名册没给分路的玩家，全文不得提及其分路。
+- **每个数字只能写在它的主人名下**：某条 verdict 的 evidenceMetrics 属于该 verdict 的玩家；note 里提到的对位玩家数字属于对位玩家，引用时必须点出对位玩家的英雄名；队伍总数据只能照抄【双方队伍】并写清哪一方。把 A 的数字写到 B 头上即为废稿。
 - 禁止编造材料外的数据性比较或断言——任何"A 比 B 多/少"式说法，A 和 B 都必须是 evidenceMetrics 里给出的数字；夸张修辞必须建立在已给出的数字上。
 - **禁止过程性行为叙事**：材料没有 timeline，"队友死了他还在刷野""不拉扯也不开团""对线被压""游走支援"这类描述本局过程的话全是编造，一个字都不许写。锐评的梗只能落在已给数字上（如"9 次死亡"可以调侃成"提款机"，但不能编他"在干什么"）。
   禁例（这些真实废稿都在给数字编画面，同类表达全部禁止）：
@@ -91,6 +88,8 @@ ${snapshot.modeContext.description}
       ? ''
       : '\n- 本模式无分路：全文禁止出现任何分路词（上单/中单/下路/打野/辅助位/上路/中路/对线）。'
   }
+
+${STAGE2_PLAIN_LANGUAGE_RULE}
 
 【语气原则】
 - 锐评感优先：有梗、戏谑、网感

@@ -17,6 +17,7 @@
  */
 
 import type { Game } from '@renderer/types/domain/match'
+import { resolveModel } from '../modelConfig'
 import { buildMatchSnapshot } from '../shared/snapshot'
 import { runTwoStage } from '../shared/twoStage'
 import type { RecentPlayerProfile } from '../shared/types'
@@ -34,6 +35,7 @@ import {
   type CritiqueCallbacks
 } from './critique'
 import { renderFallbackCritique } from './critiqueTemplate'
+import { buildEntityFacts, type MisattributionMaterial } from './misattribution'
 import { extractNumbers } from './postprocess'
 import type { AttributionResult } from './types'
 
@@ -56,6 +58,11 @@ export interface AnalyzeOptions {
    * (缓存命中/实时均触发)。UI 渲染层用它剔除模型编造数字的句子。
    */
   onStage2Material?: (allowedNumbers: Set<number>) => void
+  /**
+   * 玩家身份与指标(两种模式都触发,先于 Stage 2 输出)。
+   * UI 渲染层用它剔除张冠李戴的句子(见 misattribution.ts)。
+   */
+  onEntityFacts?: (material: MisattributionMaterial) => void
 }
 
 export type AnalyzeOutcome =
@@ -108,12 +115,17 @@ export async function analyzeMatchDetail(
   }
 
   const snapshot = buildMatchSnapshot(game, profileMap ?? undefined)
+  // 模型远程可配；Stage 1 缓存键带模型名，远端换模型后旧归因自动失效
+  const [stage1Model, stage2Model] = await Promise.all([
+    resolveModel('matchAttribution', STAGE1_MODEL),
+    resolveModel('matchCritique', STAGE2_MODEL)
+  ])
 
   // ─── Stage 1 缓存预检 ───
   // requestAIContent 会按同一键缓存原文，这里预检能让门面在 requestAIContent
   // 被 mock（测试）时也短路；必须过 parseAttribution（含名册字段回填），
   // 裸 JSON.parse 会丢 Stage 2 名册依赖的 champion/teamPosition/teamResult。
-  const stage1Key = stage1CacheKey(snapshot)
+  const stage1Key = stage1CacheKey(snapshot, stage1Model)
   let cachedAttribution: AttributionResult | null = null
   const cachedStage1Raw = readSession(stage1Key)
   if (cachedStage1Raw) {
@@ -123,6 +135,10 @@ export async function analyzeMatchDetail(
 
   // ─── Stage 2 缓存预检（需已有归因才能短路，两级缓存同时命中才免 AI 调用）───
   const isPlayerMode = options.mode === 'player' && options.participantId != null
+  options.onEntityFacts?.({
+    players: buildEntityFacts(snapshot),
+    subjectId: isPlayerMode ? options.participantId : undefined
+  })
   const stage2Key = isPlayerMode
     ? `ai_match_detail_stage2_${snapshot.gameId}_${snapshot.modeContext.kind}_p${options.participantId}`
     : `ai_match_detail_stage2_${snapshot.gameId}_${snapshot.modeContext.kind}`
@@ -149,7 +165,7 @@ export async function analyzeMatchDetail(
       parse: raw => parseAttribution(raw, snapshot),
       cacheKey: stage1Key,
       retry: 1,
-      model: STAGE1_MODEL,
+      model: stage1Model,
       jsonMode: true
     },
     stage2: {
@@ -165,7 +181,7 @@ export async function analyzeMatchDetail(
       // Stage 2 是自由 markdown，无解析需求；流式 chunk 直接转发给调用方
       parse: raw => ({ ok: true, value: raw }),
       streamCallback: callbacks.onChunk,
-      model: STAGE2_MODEL
+      model: stage2Model
     }
   })
 

@@ -7,7 +7,8 @@
  */
 
 import { invoke } from '@tauri-apps/api/core'
-import { requestAIContent } from '@renderer/services/ai/stream'
+import { DEFAULT_MODEL, requestAIContent } from '@renderer/services/ai/stream'
+import { resolveModel } from '@renderer/services/ai/modelConfig'
 import { getGameModesByIpc } from '@renderer/services/ipc'
 import type { championOption } from '@renderer/types/domain/champion'
 import { buildMatchSearchPrompt, type PromptContext } from './prompt'
@@ -81,7 +82,8 @@ export async function parseMatchQuery(text: string): Promise<ParsedMatchQuery> {
   const today = new Date().toISOString().slice(0, 10)
   const { system, user } = buildMatchSearchPrompt(text, { today, champions, modes })
 
-  const result = await requestAIContent(user, parseCacheKey(text), system, undefined, {
+  const model = await resolveModel('matchSearch', DEFAULT_MODEL)
+  const result = await requestAIContent(user, parseCacheKey(text), system, model, {
     jsonMode: true
   })
   if (!result.success || !result.content) {
