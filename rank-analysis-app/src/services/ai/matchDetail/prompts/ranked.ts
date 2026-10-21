@@ -7,9 +7,8 @@ export const kind = 'ranked' as const
 
 export const rules = `
 【启用：lane 对位分析】
-- 对每个出 verdict 的玩家，在敌方队伍中找同 teamPosition 的对位玩家
-- 比较 1v1 表现：金币差 / cs 差 / KDA 差 / damageShare 差
-- evidenceMetrics 中至少有 1 条体现"对位"差异（如 metric='goldDiffVsLaneOpp' note='对位玩家 12k 金币，本人 8k'）
+- 对位差值已由 TS 算好，在每个玩家的 vsLaneOpponent 字段里（本人 − 对位），**禁止自己找对位、自己做减法**
+- evidenceMetrics 中至少有 1 条体现"对位"差异（如 metric='vsLaneOpponent.goldDiff' value=-3500 note='比对位杰斯少 3500 金币'）
 - 若该玩家 recentProfile.isOffRole === true：对位比较结果**降权**，必须在 mitigatingFactors 中明确 factor='off-role'
 
 【启用：装备走向评价】

@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
+// 模型远程配置走 IPC，单测里直接用内置默认模型
+vi.mock('../../modelConfig', () => ({
+  resolveModel: vi.fn(async (_scene: string, fallback: string) => fallback)
+}))
 vi.mock('../../stream', () => ({
   requestAIContent: vi.fn(),
   requestAIContentStream: vi.fn(),
@@ -249,7 +253,7 @@ describe('analyzeMatchDetail', () => {
       }))
     })
     // Stage 1 缓存键与 requestAIContent 的键统一（含模型后缀）
-    sessionStorage.setItem('ai_match_detail_stage1_12345_ranked_qwen-flash', cached)
+    sessionStorage.setItem('ai_match_detail_stage1_12345_ranked_deepseek-v4.1-flash-1017', cached)
     mockStream.mockImplementation(async (_p, callbacks) => {
       callbacks.onChunk('cached run')
       callbacks.onDone()
@@ -289,7 +293,10 @@ describe('analyzeMatchDetail', () => {
 
   it('整局缓存命中不影响 player 模式（缓存不互串回归）', async () => {
     sessionStorage.setItem('ai_match_detail_stage2_12345_ranked', '整局缓存内容')
-    sessionStorage.setItem('ai_match_detail_stage1_12345_ranked_qwen-flash', fakeAttributionJson())
+    sessionStorage.setItem(
+      'ai_match_detail_stage1_12345_ranked_deepseek-v4.1-flash-1017',
+      fakeAttributionJson()
+    )
     mockStream.mockImplementation(async (_p, callbacks) => {
       callbacks.onChunk('单人新内容')
       callbacks.onDone()
@@ -331,7 +338,10 @@ describe('onStage2Material(单人复盘材料数字白名单)', () => {
 
   it('player 模式两级缓存命中:白名单从重建的 prompt 补发', async () => {
     sessionStorage.clear()
-    sessionStorage.setItem('ai_match_detail_stage1_12345_ranked_qwen-flash', fakeAttributionJson())
+    sessionStorage.setItem(
+      'ai_match_detail_stage1_12345_ranked_deepseek-v4.1-flash-1017',
+      fakeAttributionJson()
+    )
     sessionStorage.setItem('ai_match_detail_stage2_12345_ranked_p1', '## 一句话定档\n缓存内容')
 
     let got: Set<number> | null = null

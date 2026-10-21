@@ -28,10 +28,8 @@ use tauri::ipc::Channel;
 /// DashScope OpenAI 兼容 chat 端点。
 const DASHSCOPE_URL: &str = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
 
-/// 前端未指定 model 时的兜底。
-/// qwen-flash：真实基准（tests/bench-ai-models.mjs）Stage1 ~12s/2-of-2 有效、Stage2 ~6s，
-/// 速度与有效率均优于 qwen-plus（~40s 且约半数非法 JSON），故定为默认。
-const DEFAULT_MODEL: &str = "qwen-flash";
+/// 前端未指定 model 时的兜底：与远程模型配置的编译期默认一致（选型依据见 `ai_config`）。
+const DEFAULT_MODEL: &str = crate::ai_config::DEFAULT_MODEL;
 
 /// 按优先级解析 DashScope 密钥：用户覆盖 > 运行时环境变量 > 编译期注入。
 /// 空白串视同未配置。纯函数，便于单测。
@@ -96,6 +94,10 @@ const MAX_ATTEMPTS: u32 = 2;
 ///
 /// `response_format` 为 `Some` 时附加 OpenAI 兼容的 `response_format: {"type": ...}`
 /// 字段（如 `json_object` 强制 JSON 输出）；`None` 时不带该字段，保持普通文本输出。
+///
+/// 恒带 `enable_thinking: false`：deepseek-v4.1 / qwen3.8 等混合思考模型默认先吐一段
+/// reasoning_content（实测），而 `extract_delta_content` 只转发 content，用户会干等
+/// 推理结束才见首字。非混合模型（如 qwen-flash）DashScope 忽略该字段。
 fn build_request_body(
     model: &str,
     system_prompt: &str,
@@ -108,7 +110,8 @@ fn build_request_body(
             { "role": "system", "content": system_prompt },
             { "role": "user", "content": user_prompt }
         ],
-        "stream": true
+        "stream": true,
+        "enable_thinking": false
     });
     if let Some(fmt) = response_format {
         body["response_format"] = json!({ "type": fmt });
@@ -337,6 +340,15 @@ pub async fn stream_ai_analysis(
     Ok(())
 }
 
+/// 取远程 AI 模型配置（场景 → 模型名）。
+///
+/// 永不失败：拉取 / 校验失败时返回最后已知配置或编译期默认值（见 `ai_config` 降级链）。
+/// 前端按场景取模型，缺省回落 `default`。
+#[tauri::command]
+pub async fn get_ai_config() -> crate::ai_config::AiConfig {
+    (*crate::ai_config::get_or_fetch().await).clone()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -399,6 +411,13 @@ mod tests {
         assert_eq!(body["stream"], true);
         assert_eq!(body["messages"][0]["content"], "sys");
         assert_eq!(body["messages"][1]["content"], "user");
+    }
+
+    #[test]
+    fn body_always_disables_thinking() {
+        // 混合思考模型不关思考会先输出整段推理，首字延迟成倍增加
+        let body = build_request_body("deepseek-v4.1-flash-1017", "sys", "user", None);
+        assert_eq!(body["enable_thinking"], false);
     }
 
     #[test]

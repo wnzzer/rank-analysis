@@ -12,10 +12,10 @@ export const DEFAULT_SYSTEM_PROMPT =
   '你是一个LOL游戏分析师，擅长分析玩家战绩和给出游戏建议。请用简洁、专业、直接的中文回复。所有结论都必须绑定数据证据，避免空泛。'
 
 /**
- * 默认模型（DashScope 兼容 OpenAI 协议）。各 stage 调用方按 use case 覆盖。
- * qwen-flash：基准实测（tests/bench-ai-models.mjs）速度+有效率最优，故作兜底默认。
+ * 内置默认模型（DashScope 兼容 OpenAI 协议）。实际模型由 ./modelConfig.ts 按场景远程下发，
+ * 这里只是 IPC 失败时的兜底；与 Rust `ai_config::DEFAULT_MODEL` 保持一致。
  */
-export const DEFAULT_MODEL = 'qwen-flash'
+export const DEFAULT_MODEL = 'deepseek-v4.1-flash-1017'
 
 /** Rust stream_ai_analysis 命令经 Channel 回传的事件 */
 export interface AiStreamEvent {

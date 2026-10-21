@@ -13,6 +13,7 @@ import {
   type MatchAIState
 } from '@renderer/services/ai'
 import { renderAnalysisReport } from '@renderer/services/ai/matchDetail/renderReport'
+import type { MisattributionMaterial } from '@renderer/services/ai/matchDetail/misattribution'
 import {
   fetchBatchProfiles,
   injectNoteBriefs
@@ -30,6 +31,7 @@ export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
   const aiAttribution = ref<AttributionResult | null>(null)
   /** 单人复盘的材料数字白名单,供渲染层剔除模型编造数字的句子 */
   const aiMaterialNumbers = ref<Set<number> | null>(null)
+  const aiEntityFacts = ref<MisattributionMaterial | null>(null)
   const aiMode = ref<MatchDetailAnalysisMode>('overview')
   const aiTargetParticipantId = ref<number | null>(null)
 
@@ -53,7 +55,9 @@ export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
       // 仅整局锐评有人物章节;单人复盘是另一套模板,不参与重排
       aiMode.value === 'overview' ? (aiAttribution.value?.verdicts ?? undefined) : undefined,
       // 仅单人复盘做数字接地过滤(整局锐评的数字问题由重排/去重覆盖)
-      aiMode.value === 'player' ? (aiMaterialNumbers.value ?? undefined) : undefined
+      aiMode.value === 'player' ? (aiMaterialNumbers.value ?? undefined) : undefined,
+      // 两种模式都过张冠李戴过滤(数字属于别人却写在点名对象头上)
+      aiEntityFacts.value ?? undefined
     )
   )
   const aiStateLabel = computed(() => {
@@ -113,6 +117,7 @@ export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
     aiResult.value = ''
     aiAttribution.value = null
     aiMaterialNumbers.value = null
+    aiEntityFacts.value = null
     resultKey.value = currentKey()
     aiState.value = 'profiles'
 
@@ -165,6 +170,10 @@ export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
           onStage2Material: allowedNumbers => {
             if (token !== runToken) return
             aiMaterialNumbers.value = allowedNumbers
+          },
+          onEntityFacts: material => {
+            if (token !== runToken) return
+            aiEntityFacts.value = material
           }
         }
       )

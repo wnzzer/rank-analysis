@@ -31,8 +31,8 @@ isTeamMode: ${mc.isTeamMode}
 - hasItemBuild=false 时禁止评价装备走向或出装顺序。
 - snapshot.players[i].recentProfile=null 时禁止判断该玩家"是否补位"、"熟练度"。
 - snapshot.players[i].recentProfile.isOffRole=true 时可采用申辩降级；反之不要瞎编"可能在补位"。
-- teamPosition=UTILITY（辅助）的玩家：damageShare / goldShare 低**不构成负面证据**——辅助伤害低是本分。对其评价与定罪改用 killParticipation / assists / wardScore；下方"被爆/缚地灵"标准里的 damageShare/goldShare 条件对辅助同理替换。
-- teamPosition=JUNGLE（打野）的玩家：cs / csm 低**不构成负面证据**——打野补刀天然低。对其评价看 killParticipation / kda / damageShare。
+- **位置职责以 roleBenchmark 为准**：某项在队内排名再低，只要 roleBenchmark 为 'normal' / 'high'，就是该位置的正常水平，**不构成负面证据**（如辅助 damageShare 队内最低、打野 csm 队内最低都是本分）；用某项"低"定罪前，该项 roleBenchmark 必须是 'low'。
+- teamPosition=UTILITY（辅助）的玩家：评价与定罪改用 killParticipation / assists / wardScore；teamPosition=JUNGLE（打野）的玩家看 killParticipation / kda / damageShare。
 - finalCall 及所有文字中提及某玩家的分路/位置时，必须以该玩家 snapshot 的 teamPosition 为准，禁止凭英雄或直觉推断。
 - **禁止一切过程性行为断言**：快照没有 timeline，"不开团/不拉扯/只顾刷野/游走支援/对线被压/挂机/蹲草"这类描述本局过程的话全部属于编造，一个字都不许写。所有 evidence 与 finalCall 只能引用快照里的数字本身（如"9 次死亡、参团率 50%"），不能给数字编配过程剧情。
 
@@ -42,7 +42,9 @@ isTeamMode: ${mc.isTeamMode}
 - currentChampionMastery.isFirstTimeInRecent: bool — 近 20 场没玩过该英雄
 - currentChampionMastery.isOnetrick: bool — 单一英雄占比 > 0.5
 - mainPosition: TOP|JUNGLE|MIDDLE|BOTTOM|UTILITY|UNCLEAR — 主玩位置（占比≥40%才认）
-直接采用这些字段的值，不要重新计算。
+- vsLaneOpponent: 与同分路敌方对位的差值（本人 − 对位，正数=本人领先）：goldDiff / csDiff / kdaDiff / killsDiff / deathsDiff / damageShareDiff；null = 无分路或无对位
+- roleBenchmark: 本人各项相对**本位置常见区间**的高低（'low' | 'normal' | 'high'）：damageShare / goldShare / killParticipation / damageTakenShare / csm；null = 无分路
+直接采用这些字段的值，不要重新计算。引用对位差时 metric 写字段路径（如 "vsLaneOpponent.goldDiff"），value 照抄。
 
 【使用者主观备注】
 - recentProfile.note: 使用者对该玩家的主观历史印象（[色档] 文本），仅供参考，

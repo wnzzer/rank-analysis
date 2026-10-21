@@ -11,11 +11,13 @@ import { getConfigByIpc } from '@renderer/services/ipc'
 import { CONFIG_KEYS } from '@renderer/services/configKeys'
 import type { AIAnalysisResult, MatchDetailAnalysisOptions, StreamCallbacks } from './types'
 import { loadChampionNames } from './champion-names'
-import { DEFAULT_SYSTEM_PROMPT, requestAIContentStream } from './stream'
+import { DEFAULT_MODEL, DEFAULT_SYSTEM_PROMPT, requestAIContentStream } from './stream'
+import { resolveModel } from './modelConfig'
 import { buildPlayerAnalysisPrompt, buildTeamAnalysisPrompt } from './prompts/team'
 import { buildChampSelectPrompt } from './prompts/champSelect'
 import { analyzeMatchDetail } from './matchDetail'
 import type { AttributionResult } from './matchDetail'
+import type { MisattributionMaterial } from './matchDetail/misattribution'
 import type { RecentPlayerProfile } from './shared/types'
 
 export type {
@@ -43,7 +45,8 @@ export async function analyzeGameWithAIStream(
         : await buildPlayerAnalysisPrompt(gameData, { useNotes })
     // DEFAULT_SYSTEM_PROMPT 带"所有结论都必须绑定数据证据"反幻觉指令，
     // 与 prompt 内纪律区配套（旧的弱版 IN_GAME_SYSTEM_PROMPT 已淘汰）。
-    await requestAIContentStream(prompt, callbacks, DEFAULT_SYSTEM_PROMPT)
+    const model = await resolveModel('inGame', DEFAULT_MODEL)
+    await requestAIContentStream(prompt, callbacks, DEFAULT_SYSTEM_PROMPT, model)
   } catch (error: any) {
     console.error('AI analysis error:', error)
     callbacks.onError(error.message || '网络请求失败')
@@ -84,7 +87,8 @@ export async function analyzeChampSelectWithAIStream(
     const prompt = await buildChampSelectPrompt(sessionData, opggMode)
     // 用 stream.ts 的 DEFAULT_SYSTEM_PROMPT（含"所有结论都必须绑定数据证据"的反幻觉指令），
     // 与选人期 prompt 里的分析纪律硬规则配套；不沿用对局中的 IN_GAME_SYSTEM_PROMPT。
-    await requestAIContentStream(prompt, callbacks, DEFAULT_SYSTEM_PROMPT)
+    const model = await resolveModel('champSelect', DEFAULT_MODEL)
+    await requestAIContentStream(prompt, callbacks, DEFAULT_SYSTEM_PROMPT, model)
   } catch (error: any) {
     console.error('Champ select AI analysis error:', error)
     callbacks.onError(error.message || '网络请求失败')
@@ -111,6 +115,8 @@ export async function analyzeMatchDetailWithAIStream(
     onAttribution?: (attribution: AttributionResult) => void
     /** 单人复盘材料数字白名单回调(UI 用它剔除模型编造数字的句子) */
     onStage2Material?: (allowedNumbers: Set<number>) => void
+    /** 玩家身份与指标(UI 用它剔除张冠李戴的句子) */
+    onEntityFacts?: (material: MisattributionMaterial) => void
   }
 ): Promise<void> {
   try {
@@ -120,7 +126,8 @@ export async function analyzeMatchDetailWithAIStream(
       mode: options.mode,
       participantId: options.participantId,
       onAttribution: extras?.onAttribution,
-      onStage2Material: extras?.onStage2Material
+      onStage2Material: extras?.onStage2Material,
+      onEntityFacts: extras?.onEntityFacts
     })
     if (!out.ok && out.stage === 'critique' && out.fallbackMarkdown) {
       // The Stage 2 stream already called onError; emit the fallback so UI shows something

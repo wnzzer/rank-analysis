@@ -17,6 +17,7 @@ import {
   stripUngroundedSentences,
   type SectionVerdict
 } from './postprocess'
+import { stripMisattributedSentences, type MisattributionMaterial } from './misattribution'
 
 // html:false 阻断 AI/外部数据中夹带 raw HTML（XSS 防线，CSP 之外的纵深防御）
 const md = new MarkdownIt({ html: false, breaks: true, linkify: true })
@@ -61,16 +62,20 @@ const NUMBER_PATTERN = '\\d[\\d,]*(?:\\.\\d+)?(?:%|k|万)?'
  *   人物章节(模型排版不可信,见 postprocess.resectionByLabels),再去重。
  * @param allowedNumbers - 材料数字白名单(单人复盘模式传入);传入时剔除含
  *   材料外数字的句子(模型编数字不可信,见 postprocess.stripUngroundedSentences)。
+ * @param entityFacts - 玩家身份与指标;传入时剔除张冠李戴的句子
+ *   (数字属于别人却写在点名对象头上,见 misattribution.stripMisattributedSentences)。
  */
 export function renderAnalysisReport(
   markdown: string,
   verdicts?: SectionVerdict[],
-  allowedNumbers?: Set<number>
+  allowedNumbers?: Set<number>,
+  entityFacts?: MisattributionMaterial
 ): string {
   if (!markdown) return ''
+  const attributed = entityFacts ? stripMisattributedSentences(markdown, entityFacts) : markdown
   const grounded = allowedNumbers?.size
-    ? stripUngroundedSentences(markdown, allowedNumbers)
-    : markdown
+    ? stripUngroundedSentences(attributed, allowedNumbers)
+    : attributed
   const sectioned = verdicts?.length ? resectionByLabels(grounded, verdicts) : grounded
   // 确定性去重：模型偶发把同一玩家写进两个人物章节，代码层兜底（见 postprocess.ts）
   return enhance(md.render(dedupeSectionMentions(sectioned)))

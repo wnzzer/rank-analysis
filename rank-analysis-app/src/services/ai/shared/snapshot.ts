@@ -15,6 +15,7 @@ import type {
   ParticipantStats
 } from '@renderer/types/domain/match'
 import { getChampionName } from '../champion-names'
+import { computeRoleBenchmark, computeVsLaneOpponent } from './laneFacts'
 import { classifyMode } from './modeContext'
 import { inferTeamPosition } from './positionInfer'
 import { assignTeamPositions } from './positionAssign'
@@ -181,7 +182,7 @@ export function buildMatchSnapshot(
 
   const teamPositionMap = buildTeamPositionMap(participants, modeContext.hasLanes)
 
-  const players = participants.map((participant, index) => {
+  const basePlayers = participants.map((participant, index) => {
     const identity = identities[participant.participantId - 1] ?? identities[index]
     const displayName = buildDisplayName(identity, participant.participantId)
     const totals = teamTotals.get(participant.teamId) ?? {
@@ -246,6 +247,14 @@ export function buildMatchSnapshot(
       recentProfile: profileMap?.get(puuid) ?? null
     }
   })
+
+  // 对位差值 / 位置基准：TS 预算好给模型照抄（见 laneFacts.ts）。无分路模式一律 null——
+  // 大乱斗的 LCU lane 字段仍可能有值，不能据此拼对位
+  const players = basePlayers.map(p => ({
+    ...p,
+    vsLaneOpponent: modeContext.hasLanes ? computeVsLaneOpponent(p, basePlayers) : null,
+    roleBenchmark: modeContext.hasLanes ? computeRoleBenchmark(p) : null
+  }))
 
   const teams = [...new Set(players.map(p => p.teamId))]
     .map(teamId => {

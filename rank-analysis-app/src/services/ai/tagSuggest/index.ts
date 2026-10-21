@@ -15,6 +15,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core'
+import { resolveModel } from '@renderer/services/ai/modelConfig'
 import { runTwoStage } from '@renderer/services/ai/shared/twoStage'
 import type { TagSuggestion, TagSuggestResult } from '@renderer/types/tagSuggest'
 import { gameToFeature, splitWinsLosses, type RawGame, type QueueNameMap } from './featureExtract'
@@ -224,9 +225,9 @@ export async function requestTagSuggestions(forceRefresh = false): Promise<TagSu
   const vocabSample = [...goodSample, ...badSample]
   const recentlyUsed = readRecentNames(puuid)
 
-  // qwen-plus: 实测 JSON 严格度 + 中文锐评感都明显优于 qwen-turbo（默认）。
-  // tagSuggest 两阶段都用 qwen-plus，理由同 matchDetail。
-  const TAG_MODEL = 'qwen-plus'
+  // qwen-plus: 实测 JSON 严格度 + 中文锐评感都明显优于 qwen-turbo。tagSuggest 两阶段同模型；
+  // 远程配置 tagSuggest 场景可覆盖（尚未对 deepseek 做过评测，配置里暂保持 qwen-plus）。
+  const TAG_MODEL = await resolveModel('tagSuggest', 'qwen-plus')
 
   const result = await runTwoStage<
     ProfileSummary,

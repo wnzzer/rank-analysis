@@ -1,3 +1,4 @@
+pub mod ai_config;
 pub mod automation;
 pub mod bp_decision;
 pub mod cn_patch_notes;

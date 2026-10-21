@@ -109,3 +109,29 @@ describe('renderAnalysisReport + 数字接地过滤(单人复盘)', () => {
     expect(renderAnalysisReport(md)).toContain('次死亡')
   })
 })
+
+describe('renderAnalysisReport + 张冠李戴过滤', () => {
+  const entityFacts = {
+    players: [
+      {
+        participantId: 2,
+        aliases: ['赵信'],
+        stats: { gold: 9500, kills: 1, deaths: 11 },
+        numbers: [9500, 1, 11]
+      },
+      {
+        participantId: 7,
+        aliases: ['男枪'],
+        stats: { gold: 15000, kills: 10, deaths: 3 },
+        numbers: [15000, 10, 3]
+      }
+    ]
+  }
+
+  it('传入 entityFacts 时把别人的数字写在点名对象头上的句子不出现在 HTML 里', () => {
+    const md = '## 谁要背锅\n\n- 赵信：被打穿了。对位男枪自己只有 9500 金币。'
+    const html = renderAnalysisReport(md, undefined, undefined, entityFacts)
+    expect(html).toContain('被打穿了')
+    expect(html).not.toContain('自己只有')
+  })
+})

@@ -29,12 +29,11 @@ export const STAGE2_SYSTEM_PROMPT =
   '你是 LOL 锐评写手，按用户给定的 markdown 模板输出，不要返回 JSON / 解释 / 前后缀。'
 
 /**
- * Stage 2 模型：qwen-flash。
- * 真实基准（见 tests/bench-ai-models.mjs）：flash 锐评总耗时 ~6s（plus ~17s），
- * 锐评感追平 qwen-plus（"拆迁现场""演《孤勇者》"），且只引用归因 JSON 里的数字，
- * 不像 qwen-plus 会编造新数字（违反 grounding）。速度 2.8× 且更稳，故切换。
+ * Stage 2 内置默认模型（远程配置 `matchCritique` 场景拉不到时用，见 ../modelConfig.ts）。
+ * deepseek-v4.1-flash-1017：tests/ai-features.eval.ts 实测单人复盘材料外数字 0.21/篇
+ * （qwen-flash 0.67、qwen3.8-flash 0.75），过程编造近乎为 0，出字速度最快。
  */
-export const STAGE2_MODEL = 'qwen-flash'
+export const STAGE2_MODEL = 'deepseek-v4.1-flash-1017'
 
 /** Stage 2 user prompt：'player' + participantId → 单人复盘，其余 → 整局锐评 */
 export function buildCritiqueUserPrompt(
