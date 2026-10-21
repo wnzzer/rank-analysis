@@ -5,13 +5,13 @@ use serde_json::{json, Value};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::time::Duration;
 
+use crate::lcu::util::http::{get_auth_pair, refresh_auth};
 use tauri::AppHandle;
 use tokio::net::TcpStream;
 use tokio_tungstenite::{
     client_async,
     tungstenite::{client::IntoClientRequest, handshake::client::Request, protocol::Message},
 };
-use url::Url;
 
 /// Session 刷新的合并窗口。
 ///
@@ -51,134 +51,132 @@ impl RefreshCoalescer {
     }
 }
 
+/// 断线 / 连接失败后的重连间隔。
+const RECONNECT_DELAY: Duration = Duration::from_secs(2);
+
+/// LCU WebSocket 监听器：订阅 `OnJsonApiEvent` 并把关心的事件分发出去。
+///
+/// 不持有端口 / 令牌：每次（重）连接都从 HTTP 层的共享认证缓存现取
+/// （[`get_auth_pair`]），客户端重启换了端口 / 令牌也能连上新实例，
+/// 而不是对着旧端口永远空转。
 pub struct LcuListener {
     app_handle: AppHandle,
-    port: u16,
-    token: String,
 }
 
 impl LcuListener {
-    pub fn new(app_handle: AppHandle, port: u16, token: String) -> Self {
-        Self {
-            app_handle,
-            port,
-            token,
+    pub fn new(app_handle: AppHandle) -> Self {
+        Self { app_handle }
+    }
+
+    /// 连接并持续分发事件，断线自动重连。
+    ///
+    /// # 行为
+    /// - 永不自行返回（TLS 初始化失败除外）：生命周期由调用方持有的 `JoinHandle`
+    ///   控制，见 [`crate::game_state_monitor`]——客户端断开或重新连接时 abort
+    /// - 连接阶段失败视为认证可能过期，刷新认证后再重连
+    pub async fn start(&self) {
+        // LCU 使用自签名证书，必须忽略验证
+        let cx = match native_tls::TlsConnector::builder()
+            .danger_accept_invalid_certs(true)
+            .build()
+        {
+            Ok(cx) => tokio_native_tls::TlsConnector::from(cx),
+            Err(e) => {
+                log::error!("创建 TlsConnector 失败，WebSocket 监听未启动: {}", e);
+                return;
+            }
+        };
+
+        loop {
+            match self.connect_and_dispatch(&cx).await {
+                Ok(()) => log::warn!("LCU WebSocket 已关闭，2秒后重连..."),
+                Err(e) => {
+                    log::error!("{}，2秒后重试...", e);
+                    if let Err(e) = refresh_auth() {
+                        log::info!("刷新LCU认证失败（客户端可能已退出）: {}", e);
+                    }
+                }
+            }
+            tokio::time::sleep(RECONNECT_DELAY).await;
         }
     }
 
-    pub async fn start(&self) {
+    /// 建立一次 WebSocket 连接并分发事件，直到连接结束。
+    ///
+    /// 服务端正常关闭返回 `Ok`，连接阶段或读取出错返回 `Err`（附原因）。
+    async fn connect_and_dispatch(
+        &self,
+        cx: &tokio_native_tls::TlsConnector,
+    ) -> Result<(), String> {
+        let (token, port) = get_auth_pair().map_err(|e| format!("获取 LCU 认证失败: {}", e))?;
+        log::info!("正在连接 LCU WebSocket: wss://127.0.0.1:{}", port);
+
+        // 1. 建立 TCP 连接
+        let tcp_stream = TcpStream::connect(format!("127.0.0.1:{}", port))
+            .await
+            .map_err(|e| format!("TCP 连接失败: {}", e))?;
+
+        // 2. 建立 TLS 连接
+        let tls_stream = cx
+            .connect("127.0.0.1", tcp_stream)
+            .await
+            .map_err(|e| format!("TLS 握手失败: {}", e))?;
+
+        // 3. 建立 WebSocket 连接
+        // 使用 IntoClientRequest 生成完整的 WebSocket 握手请求（包含 Sec-WebSocket-Key）
+        let mut request: Request = format!("ws://127.0.0.1:{}/", port)
+            .into_client_request()
+            .map_err(|e| format!("创建 WebSocket 请求失败: {}", e))?;
         let auth_header = format!(
             "Basic {}",
-            general_purpose::STANDARD.encode(format!("riot:{}", self.token))
+            general_purpose::STANDARD.encode(format!("riot:{}", token))
         );
-        let url_str = format!("wss://127.0.0.1:{}", self.port);
-        let url = Url::parse(&url_str).expect("Bad URL");
+        let auth_value =
+            HeaderValue::from_str(&auth_header).map_err(|e| format!("认证头非法: {}", e))?;
+        request.headers_mut().insert(AUTHORIZATION, auth_value);
 
-        // 重连循环
-        loop {
-            log::info!("正在连接 LCU WebSocket: {}", url);
+        let (ws_stream, _) = client_async(request, tls_stream)
+            .await
+            .map_err(|e| format!("连接 LCU WebSocket 失败: {}", e))?;
+        log::info!("LCU WebSocket 已连接");
+        let (mut write, mut read) = ws_stream.split();
 
-            // 1. 建立 TCP 连接
-            let tcp_stream = match TcpStream::connect(format!("127.0.0.1:{}", self.port)).await {
-                Ok(s) => s,
-                Err(e) => {
-                    log::error!("TCP 连接失败: {}，2秒后重试...", e);
-                    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-                    continue;
-                }
-            };
+        // 订阅 OnJsonApiEvent (code 5)
+        // 这允许我们需要监听所有 JSON API 的事件
+        // tungstenite 0.28：Message::Text 载荷从 String 改为 Utf8Bytes
+        let subscribe_msg = Message::Text(json!([5, "OnJsonApiEvent"]).to_string().into());
+        write
+            .send(subscribe_msg)
+            .await
+            .map_err(|e| format!("订阅 LCU 事件失败: {}", e))?;
 
-            // 2. 建立 TLS 连接 (忽略证书验证)
-            // LCU 使用自签名证书，必须忽略验证
-            let cx = native_tls::TlsConnector::builder()
-                .danger_accept_invalid_certs(true)
-                .build()
-                .expect("创建 TlsConnector 失败");
-            let cx = tokio_native_tls::TlsConnector::from(cx);
-
-            let tls_stream = match cx.connect("127.0.0.1", tcp_stream).await {
-                Ok(s) => s,
-                Err(e) => {
-                    log::error!("TLS 握手失败: {}，2秒后重试...", e);
-                    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-                    continue;
-                }
-            };
-
-            // 3. 建立 WebSocket 连接
-            // 使用 IntoClientRequest 生成完整的 WebSocket 握手请求（包含 Sec-WebSocket-Key）
-            let ws_uri = format!("ws://127.0.0.1:{}/", self.port);
-            let mut request: Request = match ws_uri.into_client_request() {
-                Ok(r) => r,
-                Err(e) => {
-                    log::error!("创建 WebSocket 请求失败: {}，2秒后重试...", e);
-                    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-                    continue;
-                }
-            };
-            // 添加 Authorization 头
-            request.headers_mut().insert(
-                AUTHORIZATION,
-                HeaderValue::from_str(&auth_header).expect("Invalid auth header"),
-            );
-
-            match client_async(request, tls_stream).await {
-                Ok((ws_stream, _)) => {
-                    log::info!("LCU WebSocket 已连接");
-                    let (mut write, mut read) = ws_stream.split();
-
-                    // 订阅 OnJsonApiEvent (code 5)
-                    // 这允许我们需要监听所有 JSON API 的事件
-                    // tungstenite 0.28：Message::Text 载荷从 String 改为 Utf8Bytes
-                    let subscribe_msg =
-                        Message::Text(json!([5, "OnJsonApiEvent"]).to_string().into());
-                    if let Err(e) = write.send(subscribe_msg).await {
-                        log::error!("订阅 LCU 事件失败: {}，2秒后重试...", e);
-                        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+        while let Some(msg) = read.next().await {
+            match msg {
+                Ok(Message::Text(text)) => {
+                    if text.is_empty() {
                         continue;
                     }
 
-                    while let Some(msg) = read.next().await {
-                        match msg {
-                            Ok(Message::Text(text)) => {
-                                if text.is_empty() {
-                                    continue;
-                                }
-
-                                if let Ok(parsed) = serde_json::from_str::<Value>(&text) {
-                                    if let Some(array) = parsed.as_array() {
-                                        // 确保是事件类型 (opcode 8)
-                                        // 格式通常为: [8, "OnJsonApiEvent", { ...data... }]
-                                        if array.len() >= 3
-                                            && array[0] == json!(8)
-                                            && array[1] == "OnJsonApiEvent"
-                                        {
-                                            let event_data = &array[2];
-                                            self.handle_event(event_data).await;
-                                        }
-                                    }
-                                }
+                    if let Ok(parsed) = serde_json::from_str::<Value>(&text) {
+                        if let Some(array) = parsed.as_array() {
+                            // 确保是事件类型 (opcode 8)
+                            // 格式通常为: [8, "OnJsonApiEvent", { ...data... }]
+                            if array.len() >= 3
+                                && array[0] == json!(8)
+                                && array[1] == "OnJsonApiEvent"
+                            {
+                                let event_data = &array[2];
+                                self.handle_event(event_data).await;
                             }
-                            Ok(Message::Close(_)) => {
-                                log::warn!("LCU WebSocket 已关闭，2秒后重试...");
-                                tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-                                break; // 跳出内层循环，进入下一次重连
-                            }
-                            Err(e) => {
-                                log::error!("WebSocket 错误: {}，2秒后重试...", e);
-                                tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-                                break; // 跳出内层循环，进入下一次重连
-                            }
-                            _ => {}
                         }
                     }
                 }
-                Err(e) => {
-                    log::error!("连接 LCU WebSocket 失败: {}，2秒后重试...", e);
-                    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-                }
+                Ok(Message::Close(_)) => return Ok(()),
+                Err(e) => return Err(format!("WebSocket 错误: {}", e)),
+                _ => {}
             }
         }
+        Ok(())
     }
 
     async fn handle_event(&self, event: &Value) {

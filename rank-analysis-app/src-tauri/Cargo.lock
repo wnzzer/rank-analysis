@@ -4189,7 +4189,6 @@ dependencies = [
  "tokio",
  "tokio-native-tls",
  "tokio-tungstenite",
- "url",
  "urlencoding",
  "uuid",
  "winapi",
