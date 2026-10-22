@@ -19,6 +19,10 @@ export const CONFIG_KEYS = {
   errorReportingConsentShown: 'errorReportingConsentShown',
   /** 用户自定义 DashScope API Key（留空用内置打包 key） */
   dashscopeApiKey: 'dashscopeApiKey',
+  /** AI 服务提供方：'dashscope'（阿里云，默认）| 'claude'（经 Oracle 中转，限 Anthropic 服务地区） */
+  aiProvider: 'aiProvider',
+  /** 用户自带 Anthropic API Key（留空用中转内置的官方 key；不上云） */
+  anthropicApiKey: 'anthropicApiKey',
   /** 玩家备注是否随 AI 分析请求发送到云端模型（默认开） */
   aiUsePlayerNotes: 'aiUsePlayerNotes',
   /** 云同步开关（默认关，开启需经风险告知弹窗） */

@@ -1,11 +1,14 @@
 //! # AI 分析命令模块
 //!
-//! 提供流式 AI 分析功能，直连 DashScope (通义千问) OpenAI 兼容端点。
+//! 提供流式 AI 分析功能，两个 provider：
 //!
 //! ## 主要功能
 //!
 //! - **流式 AI 请求**: 通过 Tauri Channel 实现 SSE 流式输出到前端
-//! - **DashScope (通义千问)**: 调 OpenAI 兼容端点，密钥在 Rust 层解析（见 resolve_api_key）
+//! - **DashScope (阿里云，默认 DeepSeek)**: 直连 OpenAI 兼容端点，密钥在 Rust 层解析（见 resolve_api_key）
+//! - **Claude**: 经 Oracle 中转（`relay/claude-relay`）。客户端不内置 Anthropic key，
+//!   中转按出口 IP 做区域门控（见 [`check_claude_region`]），并把 Anthropic 流转成与
+//!   DashScope 相同的 SSE 行格式，故两者共用同一套流解析
 //!
 //! ## 使用示例
 //!
@@ -27,6 +30,68 @@ use tauri::ipc::Channel;
 
 /// DashScope OpenAI 兼容 chat 端点。
 const DASHSCOPE_URL: &str = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
+
+/// Claude 中转默认地址（IP 调试阶段先走明文 HTTP）。可被编译期 / 运行时
+/// `CLAUDE_RELAY_URL` 覆盖，方便本地起中转调试。
+const DEFAULT_CLAUDE_RELAY_URL: &str = "http://157.151.238.128:8787";
+
+/// 中转地址：运行时环境变量 > 编译期注入 > 默认值（末尾 `/` 去掉）
+fn claude_relay_url() -> String {
+    std::env::var("CLAUDE_RELAY_URL")
+        .ok()
+        .or_else(|| option_env!("CLAUDE_RELAY_URL").map(str::to_string))
+        .unwrap_or_else(|| DEFAULT_CLAUDE_RELAY_URL.to_string())
+        .trim_end_matches('/')
+        .to_string()
+}
+
+/// 发往 Claude 中转的 User-Agent。中转只放行 `rank-analysis/` 前缀，挡掉浏览器 / 脚本随手扫来的请求
+/// （UA 可伪造，只是第一道筛子；真正的鉴权靠 `CLAUDE_RELAY_TOKEN`）
+const RELAY_USER_AGENT: &str = concat!("rank-analysis/", env!("CARGO_PKG_VERSION"));
+
+/// 进程内共享的 HTTP 客户端。
+///
+/// 连接池挂在 `Client` 实例上：每次请求新建 `Client` 等于每次拿一个空池、用完即丢，
+/// 永远在重新握手（到美东中转一次 TCP+TLS 握手就是数百毫秒）。共享后空闲连接留在池里
+/// 复用，配合 [`prewarm_claude_relay`] 在用户点「AI 分析」前就把连接建好。
+/// 超时按请求设（`RequestBuilder::timeout`），不同 provider 不必各建一个客户端。
+fn http_client() -> &'static reqwest::Client {
+    static CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
+    CLIENT.get_or_init(|| {
+        reqwest::Client::builder()
+            .user_agent(RELAY_USER_AGENT)
+            // 略短于中转端连接空闲超时（server.py 的 Handler.timeout = 120s），
+            // 避免复用一条对端刚关掉的连接
+            .pool_idle_timeout(Duration::from_secs(90))
+            .build()
+            .expect("build reqwest client")
+    })
+}
+
+/// AI 服务提供方
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Provider {
+    DashScope,
+    Claude,
+}
+
+impl Provider {
+    /// 前端传 `"claude"` 走 Claude，其余（含缺省）都走 DashScope，老前端不受影响
+    fn parse(s: Option<&str>) -> Self {
+        match s {
+            Some("claude") => Provider::Claude,
+            _ => Provider::DashScope,
+        }
+    }
+
+    /// 总请求超时。Opus 5.5 思考恒开、输出也更长，60s 会截断长复盘
+    fn request_timeout(self) -> Duration {
+        Duration::from_secs(match self {
+            Provider::DashScope => REQUEST_TIMEOUT_SECS,
+            Provider::Claude => 180,
+        })
+    }
+}
 
 /// 前端未指定 model 时的兜底：与远程模型配置的编译期默认一致（选型依据见 `ai_config`）。
 const DEFAULT_MODEL: &str = crate::ai_config::DEFAULT_MODEL;
@@ -80,6 +145,26 @@ fn extract_delta_content(line: &str) -> Option<String> {
     }
 }
 
+/// 从一行 SSE 提取流内错误（Claude 中转在流已开始后出错时发
+/// `data: {"error":{"message":"..."}}`）。其余行返回 `None`。纯函数，便于单测。
+fn extract_stream_error(line: &str) -> Option<String> {
+    let data = line.trim().strip_prefix("data: ")?.trim();
+    let json: serde_json::Value = serde_json::from_str(data).ok()?;
+    json.get("error")?
+        .get("message")?
+        .as_str()
+        .map(str::to_string)
+}
+
+/// 非 2xx 响应体转成给用户看的错误：`{"error":{"message":"..."}}` 形态（中转 / DashScope
+/// 都是）取 message，否则原样带上状态码与正文。纯函数，便于单测。
+fn format_http_error(status: u16, body: &str) -> String {
+    serde_json::from_str::<serde_json::Value>(body)
+        .ok()
+        .and_then(|v| v.get("error")?.get("message")?.as_str().map(str::to_string))
+        .unwrap_or_else(|| format!("API error ({}): {}", status, body))
+}
+
 /// 总请求超时（含流式全程）。qwen-flash 实测总耗时 ~12s，60s 足够覆盖慢响应，
 /// 又不至于像原来的 120s 那样长时间"假死"。
 const REQUEST_TIMEOUT_SECS: u64 = 60;
@@ -119,6 +204,24 @@ fn build_request_body(
     body
 }
 
+/// 构建 Claude 中转请求体（中转接口见 `relay/claude-relay/server.py`）。纯函数，便于单测。
+///
+/// 中转只收原始 prompt，Anthropic 侧参数（effort / max_tokens / fallbacks）由服务端统一定，
+/// 调参不用发客户端版本。`json_mode` 时中转在 system 末尾追加「只输出 JSON」约束。
+fn build_claude_relay_body(
+    model: &str,
+    system_prompt: &str,
+    user_prompt: &str,
+    json_mode: bool,
+) -> serde_json::Value {
+    json!({
+        "model": model,
+        "system": system_prompt,
+        "prompt": user_prompt,
+        "jsonMode": json_mode
+    })
+}
+
 /// HTTP 状态码是否值得重试：仅 429（限流）与 5xx（服务端错误）。纯函数，便于单测。
 fn is_retryable_status(status: u16) -> bool {
     status == 429 || (500..=599).contains(&status)
@@ -146,8 +249,10 @@ pub struct AiStreamRequest {
     /// 用户在设置中填的覆盖密钥；空 / 缺省时用 env / 编译期注入
     pub api_key: Option<String>,
     /// OpenAI 兼容 `response_format.type`（如 `json_object`，强制模型输出合法 JSON）。
-    /// 缺省不传该字段（普通文本/markdown 输出）。
+    /// 缺省不传该字段（普通文本/markdown 输出）。Claude 下转为中转的 `jsonMode`。
     pub response_format: Option<String>,
+    /// `"claude"` 走 Claude 中转；缺省 / 其他值走 DashScope
+    pub provider: Option<String>,
 }
 
 /// AI 流式响应事件
@@ -175,33 +280,13 @@ pub async fn stream_ai_analysis(
     request: AiStreamRequest,
     on_event: Channel<AiStreamEvent>,
 ) -> Result<(), String> {
-    // 解析密钥（用户覆盖 → env → 编译期注入）。失败时发 error 事件并结束（不 reject 命令）。
-    let key = match api_key(request.api_key.as_deref()) {
-        Ok(k) => k,
-        Err(e) => {
-            let _ = on_event.send(AiStreamEvent {
-                event: "error".to_string(),
-                data: Some(e),
-            });
-            return Ok(());
-        }
-    };
+    let provider = Provider::parse(request.provider.as_deref());
     let model = request
         .model
         .as_deref()
         .unwrap_or(DEFAULT_MODEL)
         .to_string();
 
-    // 构建请求头
-    let mut headers = HeaderMap::new();
-    headers.insert(
-        AUTHORIZATION,
-        HeaderValue::from_str(&format!("Bearer {}", key))
-            .map_err(|e| format!("Invalid API key: {}", e))?,
-    );
-    headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-
-    // 构建请求体。
     // 注意：canonical 系统提示词在前端 `stream.ts` 的 `DEFAULT_SYSTEM_PROMPT`，
     // 所有调用路径都会带上非空 systemPrompt，下面仅是 systemPrompt 缺省时的兜底，
     // 不要在此处维护"权威"提示词（避免与前端分叉）。
@@ -209,18 +294,65 @@ pub async fn stream_ai_analysis(
         .system_prompt
         .unwrap_or_else(|| "你是一个LOL游戏分析师，擅长分析玩家战绩和给出游戏建议。请用简洁、专业、直接的中文回复。".to_string());
 
-    let body = build_request_body(
-        &model,
-        &system_prompt,
-        &request.prompt,
-        request.response_format.as_deref(),
-    );
+    let mut headers = HeaderMap::new();
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
 
-    // 创建 HTTP 客户端（总超时收紧到 REQUEST_TIMEOUT_SECS）
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
-        .build()
-        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+    let (url, body) = match provider {
+        Provider::DashScope => {
+            // 解析密钥（用户覆盖 → env → 编译期注入）。失败时发 error 事件并结束（不 reject 命令）。
+            let key = match api_key(request.api_key.as_deref()) {
+                Ok(k) => k,
+                Err(e) => {
+                    let _ = on_event.send(AiStreamEvent {
+                        event: "error".to_string(),
+                        data: Some(e),
+                    });
+                    return Ok(());
+                }
+            };
+            headers.insert(
+                AUTHORIZATION,
+                HeaderValue::from_str(&format!("Bearer {}", key))
+                    .map_err(|e| format!("Invalid API key: {}", e))?,
+            );
+            let body = build_request_body(
+                &model,
+                &system_prompt,
+                &request.prompt,
+                request.response_format.as_deref(),
+            );
+            (DASHSCOPE_URL.to_string(), body)
+        }
+        Provider::Claude => {
+            // 用户自带 key 则随请求带给中转（不占内置额度）；留空用中转持有的官方 key
+            if let Some(k) = request
+                .api_key
+                .as_deref()
+                .map(str::trim)
+                .filter(|k| !k.is_empty())
+            {
+                headers.insert(
+                    "X-User-Key",
+                    HeaderValue::from_str(k).map_err(|e| format!("Invalid API key: {}", e))?,
+                );
+            }
+            if let Some(token) = option_env!("CLAUDE_RELAY_TOKEN") {
+                headers.insert(
+                    "X-Relay-Token",
+                    HeaderValue::from_str(token).map_err(|e| e.to_string())?,
+                );
+            }
+            let body = build_claude_relay_body(
+                &model,
+                &system_prompt,
+                &request.prompt,
+                request.response_format.is_some(),
+            );
+            (format!("{}/v1/chat", claude_relay_url()), body)
+        }
+    };
+
+    let client = http_client();
 
     use futures::StreamExt;
 
@@ -233,7 +365,9 @@ pub async fn stream_ai_analysis(
             attempt += 1;
 
             let response = match client
-                .post(DASHSCOPE_URL)
+                .post(&url)
+                // 总超时按 provider 收紧（含流式全程）
+                .timeout(provider.request_timeout())
                 .headers(headers.clone())
                 .json(&body)
                 .send()
@@ -256,7 +390,10 @@ pub async fn stream_ai_analysis(
 
             if !response.status().is_success() {
                 let status = response.status();
-                if is_retryable_status(status.as_u16()) && attempt < MAX_ATTEMPTS {
+                // 中转的 429 是它自己的限流（上游 429 SDK 已重试过），再试只会多扣一次额度
+                let relay_limited = provider == Provider::Claude && status.as_u16() == 429;
+                if is_retryable_status(status.as_u16()) && !relay_limited && attempt < MAX_ATTEMPTS
+                {
                     tokio::time::sleep(backoff_delay(attempt)).await;
                     continue;
                 }
@@ -266,7 +403,7 @@ pub async fn stream_ai_analysis(
                     .unwrap_or_else(|_| "Unknown error".to_string());
                 let _ = on_event.send(AiStreamEvent {
                     event: "error".to_string(),
-                    data: Some(format!("API error ({}): {}", status, error_text)),
+                    data: Some(format_http_error(status.as_u16(), &error_text)),
                 });
                 return Ok(());
             }
@@ -322,6 +459,13 @@ pub async fn stream_ai_analysis(
             let line = buffer[..line_end].trim().to_string();
             buffer = buffer[line_end + 1..].to_string();
 
+            if let Some(err) = extract_stream_error(&line) {
+                let _ = on_event.send(AiStreamEvent {
+                    event: "error".to_string(),
+                    data: Some(err),
+                });
+                return Ok(());
+            }
             if let Some(content) = extract_delta_content(&line) {
                 let _ = on_event.send(AiStreamEvent {
                     event: "chunk".to_string(),
@@ -338,6 +482,92 @@ pub async fn stream_ai_analysis(
     });
 
     Ok(())
+}
+
+/// Claude 区域检测结果（由中转按本机出口 IP 判定）
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ClaudeRegion {
+    /// ISO 国家码；中转查不到 / 请求失败时为 `None`
+    pub country: Option<String>,
+    /// 是否可用 Claude
+    pub allowed: bool,
+    /// 检测失败原因（中转不可达等）；成功判定时为 `None`
+    pub error: Option<String>,
+}
+
+/// 区域检测成功结果的缓存时长：出口 IP 很少变，切 VPN 后用户可在设置里手动重测
+const REGION_CACHE_TTL: Duration = Duration::from_secs(10 * 60);
+
+static REGION_CACHE: std::sync::Mutex<Option<(std::time::Instant, ClaudeRegion)>> =
+    std::sync::Mutex::new(None);
+
+async fn fetch_claude_region() -> ClaudeRegion {
+    #[derive(Deserialize)]
+    struct Resp {
+        country: Option<String>,
+        allowed: bool,
+    }
+    let fail = |e: String| ClaudeRegion {
+        country: None,
+        allowed: false,
+        error: Some(e),
+    };
+    match http_client()
+        .get(format!("{}/v1/region", claude_relay_url()))
+        .timeout(Duration::from_secs(8))
+        .send()
+        .await
+    {
+        Ok(resp) => match resp.json::<Resp>().await {
+            Ok(r) => ClaudeRegion {
+                country: r.country,
+                allowed: r.allowed,
+                error: None,
+            },
+            Err(e) => fail(format!("区域检测响应异常: {}", e)),
+        },
+        Err(e) => fail(format!("连接 Claude 中转失败: {}", e)),
+    }
+}
+
+/// 检测当前网络能否使用 Claude（Anthropic 未提供服务的地区不可用）。
+///
+/// 判定在 Oracle 中转做（按请求出口 IP 查国家），与真正发请求时中转的门控同一口径。
+/// 成功结果缓存 [`REGION_CACHE_TTL`]；失败不缓存，下次调用重试。
+///
+/// # 参数
+/// - `force`: true 时跳过缓存重新检测（设置页「重新检测」按钮）
+#[tauri::command]
+pub async fn check_claude_region(force: Option<bool>) -> ClaudeRegion {
+    if !force.unwrap_or(false) {
+        if let Some((at, cached)) = REGION_CACHE.lock().unwrap().as_ref() {
+            if at.elapsed() < REGION_CACHE_TTL {
+                return cached.clone();
+            }
+        }
+    }
+    let region = fetch_claude_region().await;
+    let mut cache = REGION_CACHE.lock().unwrap();
+    *cache = region
+        .error
+        .is_none()
+        .then(|| (std::time::Instant::now(), region.clone()));
+    region
+}
+
+/// 预热到 Claude 中转的连接：打一下 `/healthz`，把建好的连接留在共享连接池里，
+/// 用户随后点「AI 分析」时直接复用、省掉握手。
+///
+/// 前端在打开含 AI 分析入口的页面时调用（仅用户选了 Claude 时）。失败静默忽略——
+/// 预热只是优化，真正请求时会照常建连。
+#[tauri::command]
+pub async fn prewarm_claude_relay() {
+    let _ = http_client()
+        .get(format!("{}/healthz", claude_relay_url()))
+        .timeout(Duration::from_secs(8))
+        .send()
+        .await;
 }
 
 /// 取远程 AI 模型配置（场景 → 模型名）。
@@ -424,6 +654,60 @@ mod tests {
     fn body_includes_response_format_when_requested() {
         let body = build_request_body("qwen-flash", "sys", "user", Some("json_object"));
         assert_eq!(body["response_format"]["type"], "json_object");
+    }
+
+    #[test]
+    fn relay_user_agent_has_app_prefix() {
+        // 与 relay/claude-relay/server.py 的 REQUIRED_UA_PREFIX 对应，改一边要同步另一边
+        assert!(RELAY_USER_AGENT.starts_with("rank-analysis/"));
+    }
+
+    #[test]
+    fn provider_parse_defaults_to_dashscope() {
+        assert_eq!(Provider::parse(Some("claude")), Provider::Claude);
+        assert_eq!(Provider::parse(Some("dashscope")), Provider::DashScope);
+        assert_eq!(Provider::parse(None), Provider::DashScope);
+        assert_eq!(Provider::parse(Some("whatever")), Provider::DashScope);
+    }
+
+    #[test]
+    fn claude_body_carries_prompt_and_json_mode() {
+        let body = build_claude_relay_body("claude-opus-5-5", "sys", "user", true);
+        assert_eq!(body["model"], "claude-opus-5-5");
+        assert_eq!(body["system"], "sys");
+        assert_eq!(body["prompt"], "user");
+        assert_eq!(body["jsonMode"], true);
+    }
+
+    #[test]
+    fn stream_error_line_is_extracted() {
+        let line = r#"data: {"error": {"message": "Claude API Key 无效"}}"#;
+        assert_eq!(
+            extract_stream_error(line),
+            Some("Claude API Key 无效".to_string())
+        );
+        // 正常增量 / 结束 / 注释行都不是错误
+        assert_eq!(
+            extract_stream_error(r#"data: {"choices":[{"delta":{"content":"x"}}]}"#),
+            None
+        );
+        assert_eq!(extract_stream_error("data: [DONE]"), None);
+        assert_eq!(extract_stream_error(": started"), None);
+    }
+
+    #[test]
+    fn http_error_prefers_json_message() {
+        assert_eq!(
+            format_http_error(
+                403,
+                r#"{"error": {"message": "当前地区（CN）不在 Claude 服务范围内"}}"#
+            ),
+            "当前地区（CN）不在 Claude 服务范围内"
+        );
+        assert_eq!(
+            format_http_error(502, "bad gateway"),
+            "API error (502): bad gateway"
+        );
     }
 
     #[test]

@@ -3,5 +3,8 @@
   "models": {
     "default": "deepseek-v4.1-flash-1017",
     "tagSuggest": "qwen-plus"
+  },
+  "claudeModels": {
+    "default": "claude-opus-5-5"
   }
 }

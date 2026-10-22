@@ -1,0 +1,15 @@
+[Unit]
+Description=rank-analysis Claude relay
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/opt/claude-relay
+EnvironmentFile=/etc/claude-relay.env
+ExecStart=/opt/claude-relay/venv/bin/python /opt/claude-relay/server.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

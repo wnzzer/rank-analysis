@@ -420,7 +420,7 @@ pub const BACKUP_BLACKLIST: &[&str] = &[
 
 /// 仅云端额外排除的键:云端按 puuid 寻址、任何人可读,API key 放上去等于公开;
 /// 文件备份由用户自己保管,保留。
-pub const CLOUD_ONLY_BLACKLIST: &[&str] = &["dashscopeApiKey"];
+pub const CLOUD_ONLY_BLACKLIST: &[&str] = &["dashscopeApiKey", "anthropicApiKey"];
 
 /// 该键是否允许进入文件备份
 pub fn allowed_in_backup(key: &str) -> bool {

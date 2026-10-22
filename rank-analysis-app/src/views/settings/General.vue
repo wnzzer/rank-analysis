@@ -17,19 +17,8 @@
           </n-text>
         </n-space>
       </n-form-item>
-      <n-form-item label="自定义 AI Key">
-        <n-space vertical :size="4">
-          <n-input
-            v-model:value="dashscopeKey"
-            type="password"
-            show-password-on="click"
-            placeholder="留空使用内置 Key"
-            @blur="handleDashscopeKeyUpdate"
-          />
-          <n-text :depth="3" style="font-size: var(--font-size-sm)">
-            填入你自己的 DashScope (通义千问) API Key 则走你的额度；留空使用内置 Key。
-          </n-text>
-        </n-space>
+      <n-form-item label="AI 模型">
+        <AiProviderPicker />
       </n-form-item>
       <n-form-item label="AI 分析携带玩家备注">
         <n-space vertical :size="4">
@@ -48,10 +37,10 @@ import { ref, onMounted } from 'vue'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import { CONFIG_KEYS } from '@renderer/services/configKeys'
 import { useMessage } from 'naive-ui'
+import AiProviderPicker from './AiProviderPicker.vue'
 
 const matchCount = ref(4)
 const errorReporting = ref(false)
-const dashscopeKey = ref('')
 /** AI 分析是否携带玩家备注（默认开：键不存在时视为 true） */
 const aiUseNotes = ref(true)
 const message = useMessage()
@@ -69,14 +58,6 @@ onMounted(async () => {
     const enabled = await getConfigByIpc<boolean>(CONFIG_KEYS.errorReportingEnabled)
     if (typeof enabled === 'boolean') {
       errorReporting.value = enabled
-    }
-  } catch (e) {
-    console.error(e)
-  }
-  try {
-    const key = await getConfigByIpc<string>(CONFIG_KEYS.dashscopeApiKey)
-    if (typeof key === 'string') {
-      dashscopeKey.value = key
     }
   } catch (e) {
     console.error(e)
@@ -113,15 +94,6 @@ const handleReportingUpdate = async (value: boolean) => {
 const handleAiUseNotesUpdate = async (value: boolean) => {
   try {
     await putConfigByIpc(CONFIG_KEYS.aiUsePlayerNotes, value)
-    message.success('设置已保存')
-  } catch (e) {
-    message.error('保存失败')
-  }
-}
-
-const handleDashscopeKeyUpdate = async () => {
-  try {
-    await putConfigByIpc(CONFIG_KEYS.dashscopeApiKey, dashscopeKey.value.trim())
     message.success('设置已保存')
   } catch (e) {
     message.error('保存失败')
