@@ -224,7 +224,10 @@ function trackPointer(e: PointerEvent) {
 }
 
 .card {
-  --claude: #d97757;
+  /* 特效配色全部取主题 token（主色胜利绿 + 金 / 天蓝点缀），亮暗主题自动跟随 */
+  --fx-main: var(--semantic-win-bright);
+  --fx-gold: var(--accent-gold);
+  --fx-sky: var(--accent-sky);
   position: relative;
   display: flex;
   flex-direction: column;
@@ -260,8 +263,8 @@ function trackPointer(e: PointerEvent) {
 }
 
 .card--ds.is-active {
-  border-color: var(--accent-blue);
-  box-shadow: 0 0 0 1px var(--accent-blue) inset;
+  border-color: var(--semantic-win);
+  box-shadow: 0 0 0 1px var(--semantic-win) inset;
 }
 
 /* ---- Claude 卡片 ---- */
@@ -276,7 +279,7 @@ function trackPointer(e: PointerEvent) {
   border-radius: inherit;
   background: radial-gradient(
     160px circle at var(--mx, 50%) var(--my, 50%),
-    rgba(217, 119, 87, 0.18),
+    color-mix(in srgb, var(--semantic-win) calc(18% * var(--fx-wash)), transparent),
     transparent 70%
   );
   opacity: 0;
@@ -294,14 +297,7 @@ function trackPointer(e: PointerEvent) {
   border-color: transparent;
   background:
     linear-gradient(var(--bg-elevated), var(--bg-elevated)) padding-box,
-    conic-gradient(
-        from var(--spin),
-        var(--claude),
-        var(--accent-gold),
-        #b48cff,
-        var(--accent-sky),
-        var(--claude)
-      )
+    conic-gradient(from var(--spin), var(--fx-main), var(--fx-gold), var(--fx-sky), var(--fx-main))
       border-box;
   border-width: 2px;
   padding: calc(var(--space-12) - 1px);
@@ -318,11 +314,10 @@ function trackPointer(e: PointerEvent) {
   border-radius: inherit;
   background: conic-gradient(
     from var(--spin),
-    var(--claude),
-    var(--accent-gold),
-    #b48cff,
-    var(--accent-sky),
-    var(--claude)
+    var(--fx-main),
+    var(--fx-gold),
+    var(--fx-sky),
+    var(--fx-main)
   );
   filter: blur(14px);
   /* 亮色主题下白底光晕读作污渍，随 --fx-glow 关掉；流光边框与粒子保留 */
@@ -333,13 +328,7 @@ function trackPointer(e: PointerEvent) {
 
 /* 标题流光文字 */
 .card--claude.is-active .card__title--shine {
-  background: linear-gradient(
-    100deg,
-    var(--claude) 20%,
-    #ffe2c6 40%,
-    var(--accent-gold) 55%,
-    var(--claude) 80%
-  );
+  background: linear-gradient(100deg, var(--fx-main) 20%, var(--fx-gold) 45%, var(--fx-main) 80%);
   background-size: 220% 100%;
   -webkit-background-clip: text;
   background-clip: text;
@@ -374,8 +363,8 @@ function trackPointer(e: PointerEvent) {
   height: 8px;
   margin: -4px;
   border-radius: 50%;
-  background: radial-gradient(circle, #fff 0%, var(--accent-gold) 45%, var(--claude) 100%);
-  box-shadow: 0 0 8px var(--accent-gold); /* theme-fixed：粒子一闪即逝，不读作污渍 */
+  background: radial-gradient(circle, var(--text-primary) 0%, var(--fx-gold) 50%);
+  box-shadow: 0 0 8px var(--fx-gold); /* theme-fixed：粒子一闪即逝，不读作污渍 */
   opacity: 0;
   animation: spark-fly 0.9s cubic-bezier(0.15, 0.7, 0.3, 1) var(--delay) forwards;
 }
@@ -383,8 +372,8 @@ function trackPointer(e: PointerEvent) {
 .sparks i:nth-child(even) {
   width: 5px;
   height: 5px;
-  background: #b48cff;
-  box-shadow: 0 0 6px #b48cff; /* theme-fixed：粒子一闪即逝，不读作污渍 */
+  background: var(--fx-main);
+  box-shadow: 0 0 6px var(--fx-main); /* theme-fixed：粒子一闪即逝，不读作污渍 */
 }
 
 /* 地区徽标 */
@@ -441,11 +430,10 @@ function trackPointer(e: PointerEvent) {
 @keyframes glow-breathe {
   0%,
   100% {
-    box-shadow: 0 0 12px color-mix(in srgb, var(--claude) calc(25% * var(--fx-glow)), transparent);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--fx-main) calc(25% * var(--fx-glow)), transparent);
   }
   50% {
-    box-shadow: 0 0 26px
-      color-mix(in srgb, var(--accent-gold) calc(40% * var(--fx-glow)), transparent);
+    box-shadow: 0 0 26px color-mix(in srgb, var(--fx-gold) calc(40% * var(--fx-glow)), transparent);
   }
 }
 
