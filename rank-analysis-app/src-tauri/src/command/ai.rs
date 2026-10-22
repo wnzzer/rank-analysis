@@ -31,9 +31,10 @@ use tauri::ipc::Channel;
 /// DashScope OpenAI 兼容 chat 端点。
 const DASHSCOPE_URL: &str = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
 
-/// Claude 中转默认地址（IP 调试阶段先走明文 HTTP）。可被编译期 / 运行时
-/// `CLAUDE_RELAY_URL` 覆盖，方便本地起中转调试。
-const DEFAULT_CLAUDE_RELAY_URL: &str = "http://157.151.238.128:8787";
+/// Claude 中转默认地址：Oracle 上 Caddy 终结 TLS（443 被 xray 占用故走 8443）。
+/// 用域名而非 IP：换服务器只改 DNS，收不到更新的老版本也不受影响。
+/// 可被编译期 / 运行时 `CLAUDE_RELAY_URL` 覆盖，方便本地起中转调试。
+const DEFAULT_CLAUDE_RELAY_URL: &str = "https://oracle.nuliyangguang.top:8443";
 
 /// 中转地址：运行时环境变量 > 编译期注入 > 默认值（末尾 `/` 去掉）
 fn claude_relay_url() -> String {
@@ -336,6 +337,8 @@ pub async fn stream_ai_analysis(
                     HeaderValue::from_str(k).map_err(|e| format!("Invalid API key: {}", e))?,
                 );
             }
+            // 中转鉴权 token 编译期注入（CI 读仓库 Secret）。本地 `tauri dev` 想用 Claude，
+            // 需在编译前 export CLAUDE_RELAY_TOKEN，否则中转回 401「客户端未授权」
             if let Some(token) = option_env!("CLAUDE_RELAY_TOKEN") {
                 headers.insert(
                     "X-Relay-Token",

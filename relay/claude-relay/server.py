@@ -39,6 +39,8 @@ log = logging.getLogger("claude-relay")
 
 # ---- 配置（全部走环境变量，见 claude-relay.env.example）----
 PORT = int(os.environ.get("PORT", "8787"))
+# 只听本机：公网入口是前面的 Caddy（HTTPS :8443，见 Caddyfile），不直接暴露明文端口
+BIND = os.environ.get("BIND", "127.0.0.1")
 GEO_DB = os.environ.get("GEO_DB", "/opt/claude-relay/dbip-country-lite.csv.gz")
 # Anthropic 未提供服务的地区（ISO 3166-1 alpha-2）。以官方支持国家列表为准随时可改，不用发客户端版本
 BLOCKED_COUNTRIES = set(
@@ -175,7 +177,16 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.flush()
 
     def _client_ip(self):
-        return self.client_address[0]
+        """真实客户端 IP（地区判定与限流都靠它）。
+
+        经 Caddy 转发时 TCP 对端是本机，真实 IP 在 X-Forwarded-For。只在对端是本机时才信这个头，
+        并取最后一跳（Caddy 追加的那个）——客户端自己伪造的 XFF 排在前面，骗不过地区判定。
+        """
+        peer = self.client_address[0]
+        xff = self.headers.get("X-Forwarded-For")
+        if xff and ipaddress.ip_address(peer).is_loopback:
+            return xff.split(",")[-1].strip()
+        return peer
 
     def _ua_ok(self):
         return (self.headers.get("User-Agent") or "").startswith(REQUIRED_UA_PREFIX)
@@ -304,9 +315,9 @@ def main():
         DEFAULT_CLIENT = anthropic.Anthropic()
     else:
         log.warning("ANTHROPIC_API_KEY 未配置，仅支持用户自带 key")
-    httpd = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
+    httpd = ThreadingHTTPServer((BIND, PORT), Handler)
     httpd.daemon_threads = True
-    log.info("listening on :%d blocked=%s models=%s", PORT, sorted(BLOCKED_COUNTRIES), sorted(ALLOWED_MODELS))
+    log.info("listening on %s:%d blocked=%s models=%s", BIND, PORT, sorted(BLOCKED_COUNTRIES), sorted(ALLOWED_MODELS))
     httpd.serve_forever()
 
 
