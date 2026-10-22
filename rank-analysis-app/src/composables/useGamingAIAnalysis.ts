@@ -12,6 +12,7 @@
  * @module composables/useGamingAIAnalysis
  */
 import { computed, ref, toValue, type ComputedRef, type MaybeRefOrGetter, type Ref } from 'vue'
+import { prewarmAi } from '@renderer/services/ai/modelConfig'
 import { useMessage } from 'naive-ui'
 import {
   analyzeChampSelectWithAIStream,
@@ -40,6 +41,9 @@ export function useGamingAIAnalysis(
   rerun: () => Promise<void>
 } {
   const message = useMessage()
+
+  // 打开含 AI 入口的页面即预热 Claude 中转连接（选了 DeepSeek 时不做事）
+  prewarmAi()
 
   const loading = ref(false)
   const result = ref('')

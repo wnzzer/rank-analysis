@@ -111,6 +111,9 @@ jobs:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           # 选人期混淆 puuid 还原 key；未配置时该功能自动关闭（见 lcu/util/uuid.rs）
           PUUID_KEY: ${{ secrets.PUUID_KEY }}
+          # Claude 中转鉴权 token：command/ai.rs 的 option_env!("CLAUDE_RELAY_TOKEN") 烤进二进制，
+          # 须与 Oracle 上 /etc/claude-relay.env 的 RELAY_TOKEN 一致（见 relay/claude-relay）
+          CLAUDE_RELAY_TOKEN: ${{ secrets.CLAUDE_RELAY_TOKEN }}
 
       - name: 📝 Rename macOS assets (dmg for install, app.tar.gz for updater)
         id: prepare_assets
@@ -252,6 +255,8 @@ jobs:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           # 同上注入选人期混淆 puuid 还原 key；未配置时该功能自动关闭（见 lcu/util/uuid.rs）
           PUUID_KEY: ${{ secrets.PUUID_KEY }}
+          # 同上注入 Claude 中转鉴权 token，须与服务端 RELAY_TOKEN 一致（见 relay/claude-relay）
+          CLAUDE_RELAY_TOKEN: ${{ secrets.CLAUDE_RELAY_TOKEN }}
 
       # --- 文件重命名、压缩与路径整理 ---
       - name: 📝 Rename, Compress, and Set Paths

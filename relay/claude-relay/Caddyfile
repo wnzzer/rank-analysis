@@ -1,0 +1,19 @@
+# Claude 中转 HTTPS 入口（/etc/caddy/Caddyfile）
+# 443 被 xray 占用，HTTPS 走 8443；80 只用于 Let's Encrypt HTTP-01 验证与跳转，证书自动申请 / 续期
+{
+	http_port 80
+	https_port 8443
+}
+
+oracle.nuliyangguang.top:8443 {
+	reverse_proxy 127.0.0.1:8787 {
+		# SSE 逐块转发，不攒缓冲
+		flush_interval -1
+	}
+}
+
+# 80 只给证书验证用（ACME 挑战由 Caddy 自动处理，优先于此站点）；
+# 其余请求不做自动跳转——自动跳转会丢掉 :8443 落到 xray 的 443 上
+http://oracle.nuliyangguang.top {
+	respond 404
+}

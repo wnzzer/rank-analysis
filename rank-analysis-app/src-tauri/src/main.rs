@@ -155,6 +155,8 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         .invoke_handler(tauri::generate_handler![
             command::ai::stream_ai_analysis,
             command::ai::get_ai_config,
+            command::ai::check_claude_region,
+            command::ai::prewarm_claude_relay,
             command::asset::get_asset_details,
             command::bp::get_bp_decision,
             command::bp_suggest::get_bp_suggest,

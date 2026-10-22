@@ -45,6 +45,10 @@ pub struct AiConfig {
     pub schema_version: u32,
     /// 场景名 → 模型名；`default` 为未单独配置的场景兜底
     pub models: BTreeMap<String, String>,
+    /// 用户选 Claude 时的场景 → 模型名，结构同 `models`。可选字段：老 manifest 没有它照样合法，
+    /// 老客户端也会忽略它，故不必升 schema 版本；缺省时前端用内置 Claude 默认模型
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub claude_models: BTreeMap<String, String>,
 }
 
 /// 编译期默认 manifest
@@ -54,6 +58,7 @@ pub fn default_config() -> AiConfig {
     AiConfig {
         schema_version: CONFIG_SCHEMA_VERSION,
         models,
+        claude_models: BTreeMap::new(),
     }
 }
 
@@ -80,6 +85,7 @@ pub fn validate(cfg: AiConfig) -> Option<AiConfig> {
         && cfg
             .models
             .iter()
+            .chain(&cfg.claude_models)
             .all(|(scene, model)| !scene.is_empty() && is_valid_model_name(model));
     if !ok {
         log::warn!("ai config rejected: {:?}", cfg);
@@ -232,6 +238,7 @@ mod tests {
                 .iter()
                 .map(|(k, v)| (k.to_string(), v.to_string()))
                 .collect(),
+            claude_models: BTreeMap::new(),
         }
     }
 
@@ -264,6 +271,25 @@ mod tests {
         assert!(validate(config(1, &[("default", "qwen-flash"), ("inGame", "")])).is_none());
         assert!(validate(config(1, &[("default", "qwen flash")])).is_none());
         assert!(validate(config(1, &[("default", &"x".repeat(65))])).is_none());
+    }
+
+    #[test]
+    fn claude_models_should_be_optional_and_validated() {
+        // 老 manifest 没有 claudeModels 照样合法
+        let old = parse(r#"{"schemaVersion":1,"models":{"default":"qwen-flash"}}"#).unwrap();
+        assert!(old.claude_models.is_empty());
+
+        let ok = parse(
+            r#"{"schemaVersion":1,"models":{"default":"qwen-flash"},"claudeModels":{"default":"claude-opus-5-5"}}"#,
+        )
+        .unwrap();
+        assert_eq!(ok.claude_models["default"], "claude-opus-5-5");
+
+        // claudeModels 里写错一个同样整份拒收
+        assert!(parse(
+            r#"{"schemaVersion":1,"models":{"default":"qwen-flash"},"claudeModels":{"default":"bad name"}}"#
+        )
+        .is_none());
     }
 
     #[test]

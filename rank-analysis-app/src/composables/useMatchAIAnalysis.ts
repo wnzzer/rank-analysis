@@ -4,6 +4,7 @@
  */
 
 import { computed, ref, watch, toValue, type MaybeRefOrGetter } from 'vue'
+import { prewarmAi } from '@renderer/services/ai/modelConfig'
 import { useMessage } from 'naive-ui'
 import type { Game } from '@renderer/types/domain/match'
 import {
@@ -22,6 +23,9 @@ import type { RecentPlayerProfile, TeamPosition } from '@renderer/services/ai/sh
 
 export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
   const message = useMessage()
+
+  // 打开含 AI 入口的页面即预热 Claude 中转连接（选了 DeepSeek 时不做事）
+  prewarmAi()
 
   const showAiModal = ref(false)
   const aiLoading = ref(false)

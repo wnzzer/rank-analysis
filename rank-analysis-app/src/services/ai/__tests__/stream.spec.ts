@@ -10,7 +10,7 @@ vi.mock('@tauri-apps/api/core', () => {
   }
   return { Channel, invoke: vi.fn() }
 })
-vi.mock('../ipc', () => ({ getConfigByIpc: vi.fn().mockResolvedValue(undefined) }))
+vi.mock('../../ipc', () => ({ getConfigByIpc: vi.fn().mockResolvedValue(undefined) }))
 
 function makeCallbacks(): StreamCallbacks & {
   chunks: string[]
@@ -71,6 +71,31 @@ describe('requestAIContentStream jsonMode', () => {
 
     await requestAIContentStream('p', makeCallbacks())
     expect(streamRequests()[1].responseFormat).toBeUndefined()
+  })
+})
+
+describe('requestAIContentStream provider 路由', () => {
+  it('claude- 模型走 claude provider 并读 Anthropic key，其余走 dashscope', async () => {
+    const { invoke } = await import('@tauri-apps/api/core')
+    const { getConfigByIpc } = await import('../../ipc')
+    const mockInvoke = invoke as unknown as ReturnType<typeof vi.fn>
+    const mockGetConfig = getConfigByIpc as unknown as ReturnType<typeof vi.fn>
+    mockInvoke.mockReset()
+    mockInvoke.mockResolvedValue(undefined)
+    mockGetConfig.mockImplementation(async (key: string) =>
+      key === 'anthropicApiKey' ? 'sk-ant-user' : 'sk-ds-user'
+    )
+    const streamRequests = () =>
+      mockInvoke.mock.calls.filter(c => c[0] === 'stream_ai_analysis').map(c => c[1].request)
+
+    await requestAIContentStream('p', makeCallbacks(), 'sys', 'claude-opus-5-5')
+    expect(streamRequests()[0]).toMatchObject({ provider: 'claude', apiKey: 'sk-ant-user' })
+
+    await requestAIContentStream('p', makeCallbacks(), 'sys', 'qwen-flash')
+    expect(streamRequests()[1]).toMatchObject({ provider: 'dashscope', apiKey: 'sk-ds-user' })
+
+    mockGetConfig.mockReset()
+    mockGetConfig.mockResolvedValue(undefined)
   })
 })
 

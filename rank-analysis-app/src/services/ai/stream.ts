@@ -1,12 +1,13 @@
 /**
- * 经 Rust 命令 stream_ai_analysis 直连 DashScope 的流式 AI 请求
- * 以及基于 sessionStorage 的结果缓存包装
+ * 经 Rust 命令 stream_ai_analysis 的流式 AI 请求（DashScope 直连 / Claude 走 Oracle 中转，
+ * 按模型名前缀路由），以及基于 sessionStorage 的结果缓存包装
  */
 
 import { invoke, Channel } from '@tauri-apps/api/core'
 import { getConfigByIpc } from '../ipc'
 import { CONFIG_KEYS } from '../configKeys'
 import type { AIAnalysisResult, StreamCallbacks } from './types'
+import { isClaudeModel } from './modelConfig'
 
 export const DEFAULT_SYSTEM_PROMPT =
   '你是一个LOL游戏分析师，擅长分析玩家战绩和给出游戏建议。请用简洁、专业、直接的中文回复。所有结论都必须绑定数据证据，避免空泛。'
@@ -58,8 +59,13 @@ export async function requestAIContentStream(
     fn()
   }
   try {
-    // 用户覆盖 key（设置里可填）；空则后端走 env / 编译期注入
-    const override = (await getConfigByIpc<string>(CONFIG_KEYS.dashscopeApiKey)) || undefined
+    // provider 跟着模型名走（resolveModel 已按用户选择 + 区域检测给出模型），两者不会错配。
+    // 用户覆盖 key（设置里可填）；DashScope 空则后端走 env / 编译期注入，Claude 空则用中转内置 key
+    const claude = isClaudeModel(model)
+    const override =
+      (await getConfigByIpc<string>(
+        claude ? CONFIG_KEYS.anthropicApiKey : CONFIG_KEYS.dashscopeApiKey
+      )) || undefined
 
     // 终态回调（onDone/onError）经 settle 包裹，保证恰好触发一次；分发统一走
     // mapStreamEvent，避免 done/error 逻辑与兜底文案在两处重复。
@@ -77,7 +83,8 @@ export async function requestAIContentStream(
         systemPrompt,
         model,
         apiKey: override,
-        responseFormat: opts.jsonMode ? 'json_object' : undefined
+        responseFormat: opts.jsonMode ? 'json_object' : undefined,
+        provider: claude ? 'claude' : 'dashscope'
       },
       onEvent: channel
     })
