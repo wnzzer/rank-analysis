@@ -370,9 +370,9 @@ function trackPointer(e: PointerEvent) {
 
 .sparks i {
   position: absolute;
-  width: 6px;
-  height: 6px;
-  margin: -3px;
+  width: 8px;
+  height: 8px;
+  margin: -4px;
   border-radius: 50%;
   background: radial-gradient(circle, #fff 0%, var(--accent-gold) 45%, var(--claude) 100%);
   box-shadow: 0 0 8px var(--accent-gold); /* theme-fixed：粒子一闪即逝，不读作污渍 */
@@ -381,8 +381,8 @@ function trackPointer(e: PointerEvent) {
 }
 
 .sparks i:nth-child(even) {
-  width: 4px;
-  height: 4px;
+  width: 5px;
+  height: 5px;
   background: #b48cff;
   box-shadow: 0 0 6px #b48cff; /* theme-fixed：粒子一闪即逝，不读作污渍 */
 }
@@ -471,6 +471,11 @@ function trackPointer(e: PointerEvent) {
   0% {
     opacity: 1;
     transform: rotate(var(--angle)) translateX(0) scale(1);
+  }
+  /* 前 60% 路程保持全亮，飞出去才淡出，否则粒子刚冒头就看不清了 */
+  60% {
+    opacity: 1;
+    transform: rotate(var(--angle)) translateX(calc(var(--dist) * 0.8)) scale(0.8);
   }
   100% {
     opacity: 0;
