@@ -13,6 +13,7 @@ Anthropic 未提供服务的地区（默认 CN/HK/MO/RU 等）一律拒绝，前
 - GET  /healthz
 
 请求头：
+- X-Device-ID（可选）：客户端匿名设备 ID，命中 ALLOWED_DEVICE_IDS 时豁免地区限制
 - X-User-Key（可选）：用户自带 Anthropic key，带了就用用户的、不占内置额度
 - User-Agent：必须以 REQUIRED_UA_PREFIX（默认 rank-analysis/）开头，否则 403（/healthz 除外）
 - X-Relay-Token：服务端设了 RELAY_TOKEN 时必须一致（防被随手白嫖）
@@ -45,6 +46,14 @@ GEO_DB = os.environ.get("GEO_DB", "/opt/claude-relay/dbip-country-lite.csv.gz")
 # Anthropic 未提供服务的地区（ISO 3166-1 alpha-2）。以官方支持国家列表为准随时可改，不用发客户端版本
 BLOCKED_COUNTRIES = set(
     os.environ.get("BLOCKED_COUNTRIES", "CN,HK,MO,RU,BY,IR,KP,SY,CU").upper().split(",")
+)
+# 测试白名单仅豁免地区限制，认证和限流仍生效；不把设备 ID 当作鉴权凭证。
+ALLOWED_IPS = frozenset(
+    str(ipaddress.ip_address(v.strip()))
+    for v in os.environ.get("ALLOWED_IPS", "").split(",") if v.strip()
+)
+ALLOWED_DEVICE_IDS = frozenset(
+    v.strip() for v in os.environ.get("ALLOWED_DEVICE_IDS", "").split(",") if v.strip()
 )
 ALLOWED_MODELS = set(
     os.environ.get("ALLOWED_MODELS", "claude-opus-5-5,claude-sonnet-5-5,claude-haiku-5-5").split(",")
@@ -107,8 +116,19 @@ class GeoDb:
         return None
 
 
-def region_allowed(country):
-    """未知国家（库缺失 / 私网 / 查不到）按不允许处理，宁严勿松"""
+def region_allowed(country, ip=None, device_id=None):
+    """白名单优先；其他客户端仍按地区限制，未知地区默认拒绝。"""
+    if device_id and device_id.strip() in ALLOWED_DEVICE_IDS:
+        return True
+    if ip:
+        try:
+            addr = ipaddress.ip_address(ip)
+            if addr.version == 6 and addr.ipv4_mapped:
+                addr = addr.ipv4_mapped
+            if str(addr) in ALLOWED_IPS:
+                return True
+        except ValueError:
+            pass
     return bool(country) and country not in BLOCKED_COUNTRIES and country != "ZZ"
 
 
@@ -202,7 +222,7 @@ class Handler(BaseHTTPRequestHandler):
             if DEBUG:
                 ip = parse_qs(url.query).get("ip", [ip])[0]
             country = GEO.country(ip)
-            return self._json(200, {"country": country, "allowed": region_allowed(country)})
+            return self._json(200, {"country": country, "allowed": region_allowed(country, ip, self.headers.get("X-Device-ID"))})
         self._error(404, "not found")
 
     def do_POST(self):
@@ -223,7 +243,7 @@ class Handler(BaseHTTPRequestHandler):
 
         ip = self._client_ip()
         country = GEO.country(ip)
-        if not region_allowed(country):
+        if not region_allowed(country, ip, self.headers.get("X-Device-ID")):
             return self._error(403, "当前地区（%s）不在 Claude 服务范围内" % (country or "未知"))
 
         try:

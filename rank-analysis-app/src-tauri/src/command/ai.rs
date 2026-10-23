@@ -325,6 +325,11 @@ pub async fn stream_ai_analysis(
             (DASHSCOPE_URL.to_string(), body)
         }
         Provider::Claude => {
+            headers.insert(
+                "X-Device-ID",
+                HeaderValue::from_str(&crate::observability::current_device_id())
+                    .map_err(|e| format!("Invalid device ID: {}", e))?,
+            );
             // 用户自带 key 则随请求带给中转（不占内置额度）；留空用中转持有的官方 key
             if let Some(k) = request
                 .api_key
@@ -518,6 +523,7 @@ async fn fetch_claude_region() -> ClaudeRegion {
     };
     match http_client()
         .get(format!("{}/v1/region", claude_relay_url()))
+        .header("X-Device-ID", crate::observability::current_device_id())
         .timeout(Duration::from_secs(8))
         .send()
         .await
