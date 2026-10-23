@@ -60,6 +60,8 @@ ALLOWED_MODELS = set(
 )
 # 速度优先：复盘类任务 low 足够（PK 时 Opus 5.5 low 已明显优于 ds）
 EFFORT = os.environ.get("EFFORT", "low")
+# Oracle 服务端开关；仅 Opus 5.5 支持，Fast 按官方更高费率计费。
+FAST_MODE = os.environ.get("FAST_MODE", "0") == "1"
 MAX_TOKENS = int(os.environ.get("MAX_TOKENS", "8000"))
 # 内置 key 的限额（用户自带 key 不受限）：单 IP 每小时次数 + 全局每日次数，防成本失控
 PER_IP_HOURLY = int(os.environ.get("PER_IP_HOURLY", "30"))
@@ -286,6 +288,7 @@ class Handler(BaseHTTPRequestHandler):
                 output_config={"effort": EFFORT},
                 betas=["server-side-fallback-2026-07-01"],
                 fallbacks="default",
+                **({"speed": "fast"} if FAST_MODE and model == "claude-opus-5-5" else {}),
             ) as stream:
                 # 上游已建立连接：先回一个 SSE 注释，喂饱客户端首字看门狗
                 # （Opus 5.5 思考恒开，首个正文 token 前会有一段思考时间）

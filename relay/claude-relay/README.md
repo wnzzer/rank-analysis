@@ -36,3 +36,15 @@ sudo systemctl is-active claude-relay
 ```sh
 python3 -m unittest discover -s relay/claude-relay
 ```
+
+## Oracle Fast 模式
+
+在同一个 `/etc/claude-relay.env` 文件中设置：
+
+```ini
+FAST_MODE=1
+```
+
+`1` 开启、`0` 关闭，缺省关闭。修改后执行 `sudo systemctl restart claude-relay`，客户端无需修改或重新编译。
+
+仅对 `claude-opus-5-5` 发送 `speed: "fast"`，Sonnet/Haiku 保持原行为。Fast 模式提升输出速度，不保证缩短首字等待时间，按官方 Fast 费率计费（也适用于用户自带 Key）。参见 [官方文档](https://platform.claude.com/docs/en/build-with-claude/fast-mode)。
