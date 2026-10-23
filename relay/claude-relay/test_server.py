@@ -66,26 +66,35 @@ class WhitelistTests(unittest.TestCase):
         self.assertEqual(self.request("POST", "test-device", token="wrong")[0], 401)
         self.assertEqual(self.request("GET", "test-device", ua="browser")[0], 403)
 
-    def test_fast_mode_only_applies_to_opus_when_enabled(self):
+    def test_fast_mode_only_applies_to_whitelisted_opus_when_enabled(self):
+        identities = [
+            ("test-device", "198.51.100.1", True),
+            (None, "203.0.113.1", True),
+            (None, "::ffff:203.0.113.1", True),
+            (None, "198.51.100.1", False),
+            ("other-device", "198.51.100.1", False),
+        ]
         for enabled in (False, True):
             for model in ("claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"):
-                with self.subTest(enabled=enabled, model=model):
-                    client = MagicMock()
-                    stream = client.beta.messages.stream.return_value.__enter__.return_value
-                    stream.text_stream = iter(["ok"])
-                    final = stream.get_final_message.return_value
-                    final.stop_reason = "end_turn"
-                    final.model = model
-                    with patch.multiple(relay, FAST_MODE=enabled, DEFAULT_CLIENT=client), patch.object(relay, "LIMITER") as limiter:
-                        limiter.acquire.return_value = None
-                        status, data = self.request("POST", "test-device", body=json.dumps({"model": model, "prompt": "test"}))
-                    self.assertEqual(status, 200)
-                    self.assertIn(b"[DONE]", data)
-                    kwargs = client.beta.messages.stream.call_args.kwargs
-                    if enabled and model == "claude-opus-5-5":
-                        self.assertEqual(kwargs["speed"], "fast")
-                    else:
-                        self.assertNotIn("speed", kwargs)
+                for device, ip, whitelisted in identities:
+                    with self.subTest(enabled=enabled, model=model, device=device, ip=ip):
+                        client = MagicMock()
+                        stream = client.beta.messages.stream.return_value.__enter__.return_value
+                        stream.text_stream = iter(["ok"])
+                        final = stream.get_final_message.return_value
+                        final.stop_reason = "end_turn"
+                        final.model = model
+                        with patch.multiple(relay, FAST_MODE=enabled, DEFAULT_CLIENT=client), patch.object(relay, "LIMITER") as limiter, patch.object(relay.GEO, "country", return_value="US"):
+                            limiter.acquire.return_value = None
+                            # 普通用户即使传 speed=fast 也不能启用 Fast。
+                            status, data = self.request("POST", device, ip=ip, body=json.dumps({"model": model, "prompt": "test", "speed": "fast"}))
+                        self.assertEqual(status, 200)
+                        self.assertIn(b"[DONE]", data)
+                        kwargs = client.beta.messages.stream.call_args.kwargs
+                        if enabled and whitelisted and model == "claude-opus-5-5":
+                            self.assertEqual(kwargs["speed"], "fast")
+                        else:
+                            self.assertNotIn("speed", kwargs)
 
     def test_region_rules_without_whitelist(self):
         self.assertTrue(relay.region_allowed("US"))

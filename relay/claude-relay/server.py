@@ -60,7 +60,7 @@ ALLOWED_MODELS = set(
 )
 # 速度优先：复盘类任务 low 足够（PK 时 Opus 5.5 low 已明显优于 ds）
 EFFORT = os.environ.get("EFFORT", "low")
-# Oracle 服务端开关；仅 Opus 5.5 支持，Fast 按官方更高费率计费。
+# Oracle 服务端开关；仅白名单的 Opus 5.5 请求可用，Fast 按官方更高费率计费。
 FAST_MODE = os.environ.get("FAST_MODE", "0") == "1"
 MAX_TOKENS = int(os.environ.get("MAX_TOKENS", "8000"))
 # 内置 key 的限额（用户自带 key 不受限）：单 IP 每小时次数 + 全局每日次数，防成本失控
@@ -118,8 +118,8 @@ class GeoDb:
         return None
 
 
-def region_allowed(country, ip=None, device_id=None):
-    """白名单优先；其他客户端仍按地区限制，未知地区默认拒绝。"""
+def is_whitelisted(ip=None, device_id=None):
+    """地区豁免和 Fast 模式共用设备/IP 白名单。"""
     if device_id and device_id.strip() in ALLOWED_DEVICE_IDS:
         return True
     if ip:
@@ -131,7 +131,14 @@ def region_allowed(country, ip=None, device_id=None):
                 return True
         except ValueError:
             pass
-    return bool(country) and country not in BLOCKED_COUNTRIES and country != "ZZ"
+    return False
+
+
+def region_allowed(country, ip=None, device_id=None):
+    """白名单优先；其他客户端仍按地区限制，未知地区默认拒绝。"""
+    return is_whitelisted(ip, device_id) or (
+        bool(country) and country not in BLOCKED_COUNTRIES and country != "ZZ"
+    )
 
 
 class Limiter:
@@ -288,7 +295,8 @@ class Handler(BaseHTTPRequestHandler):
                 output_config={"effort": EFFORT},
                 betas=["server-side-fallback-2026-07-01"],
                 fallbacks="default",
-                **({"speed": "fast"} if FAST_MODE and model == "claude-opus-5-5" else {}),
+                **({"speed": "fast"} if FAST_MODE and model == "claude-opus-5-5"
+                   and is_whitelisted(ip, self.headers.get("X-Device-ID")) else {}),
             ) as stream:
                 # 上游已建立连接：先回一个 SSE 注释，喂饱客户端首字看门狗
                 # （Opus 5.5 思考恒开，首个正文 token 前会有一段思考时间）
