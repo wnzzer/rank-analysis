@@ -82,8 +82,10 @@ function selfPositionOf(game: Game): string {
           championId: p.championId,
           spellIds: [p.spell1Id, p.spell2Id],
           minionsKilled: p.stats?.totalMinionsKilled ?? 0,
-          jungleMinionsKilled: p.stats?.neutralMinionsKilled ?? 0
-        }))
+          jungleMinionsKilled: p.stats?.neutralMinionsKilled ?? 0,
+          participantId: p.participantId
+        })),
+        game.queueId
       )
       return assigned[selfIdx]
     }

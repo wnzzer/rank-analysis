@@ -8,6 +8,7 @@ import {
 } from '../attribution'
 import { classifyMode } from '../../shared/modeContext'
 import type { MatchSnapshot } from '../../shared/snapshot'
+import { withFacts } from './snapshotFacts'
 
 function snapshotForTest(): MatchSnapshot {
   return {
@@ -19,10 +20,10 @@ function snapshotForTest(): MatchSnapshot {
     modeContext: classifyMode(420, 'CLASSIC'),
     teams: [],
     players: [
-      { participantId: 1, teamId: 100, name: 'A', recentProfile: null },
-      { participantId: 2, teamId: 100, name: 'B', recentProfile: null },
-      { participantId: 3, teamId: 200, name: 'C', recentProfile: null },
-      { participantId: 4, teamId: 200, name: 'D', recentProfile: null }
+      withFacts({ participantId: 1, teamId: 100, name: 'A', recentProfile: null }),
+      withFacts({ participantId: 2, teamId: 100, name: 'B', recentProfile: null }),
+      withFacts({ participantId: 3, teamId: 200, name: 'C', recentProfile: null }),
+      withFacts({ participantId: 4, teamId: 200, name: 'D', recentProfile: null })
     ]
   } as unknown as MatchSnapshot
 }

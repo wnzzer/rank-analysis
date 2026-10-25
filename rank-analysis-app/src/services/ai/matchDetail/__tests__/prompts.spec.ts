@@ -274,6 +274,29 @@ describe('buildStage2Prompt', () => {
     expect(prompt).toMatch(/自由发挥|无固定词库/)
   })
 
+  it('名册行附对位差值的方向词(模型自己判正负会写反,真机 Muggle丶 落后写成领先)', () => {
+    const snap = {
+      ...makeSnapshot(),
+      players: [
+        {
+          participantId: 7,
+          vsLaneOpponent: {
+            opponentChampion: '盲僧',
+            goldDiff: -1885,
+            csDiff: 0,
+            damageShareDiff: -7.6
+          }
+        }
+      ]
+    } as unknown as MatchSnapshot
+    const attribution = {
+      ...sampleAttribution,
+      verdicts: [{ ...sampleAttribution.verdicts[0], participantId: 7, name: 'Muggle丶' }]
+    }
+    const prompt = buildStage2Prompt(attribution, snap, [])
+    expect(prompt).toContain('｜对位盲僧：经济落后 1885、补刀持平、伤害占比落后 7.6%')
+  })
+
   it('renders 玩家名册 from backfilled verdict fields（英雄/分路/胜负/label）', () => {
     const snap = makeSnapshot()
     const attribution: AttributionResult = {

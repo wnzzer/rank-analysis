@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { validateAttribution } from '../validator'
 import type { MatchSnapshot } from '../../shared/snapshot'
 import type { AttributionResult } from '../types'
+import { withFacts } from './snapshotFacts'
 
 function snapshotWithPlayer(opts: {
   participantId: number
@@ -42,7 +43,7 @@ function snapshotWithPlayer(opts: {
       recentProfile: null
     }))
   ]
-  return { players } as unknown as MatchSnapshot
+  return { players: players.map(withFacts) } as unknown as MatchSnapshot
 }
 
 function validVerdict(participantId: number, label = '正常', mitigatingFactors: any[] = []) {
@@ -342,7 +343,7 @@ describe('validateAttribution', () => {
       })
     }
 
-    it('coerces 字符串数字/百分比 value → number', () => {
+    it('字符串数字/百分比 value 不整份硬毙,且数值以快照为准重写', () => {
       const v = validVerdict(1)
       v.evidenceMetrics = [
         { metric: 'damageShare', value: '36.3%' },
@@ -353,8 +354,8 @@ describe('validateAttribution', () => {
       const out = validateAttribution(JSON.stringify(result), snap4())
       expect(out.ok).toBe(true)
       if (out.ok) {
-        expect(out.value.verdicts[0].evidenceMetrics[0].value).toBe(36.3)
-        expect(out.value.verdicts[0].evidenceMetrics[1].value).toBe(4.44)
+        // 快照(withFacts 默认):damageShare 22 / kda 2.5 / kills 5
+        expect(out.value.verdicts[0].evidenceMetrics.map(m => m.value)).toEqual([22, 2.5, 5])
       }
     })
 
@@ -435,7 +436,7 @@ describe('validateAttribution', () => {
           recentProfile: null
         }
       ]
-      return { players } as unknown as MatchSnapshot
+      return { players: players.map(withFacts) } as unknown as MatchSnapshot
     }
 
     it('backfills 三字段 from snapshot for every verdict（含胜败两侧）', () => {
@@ -468,7 +469,7 @@ describe('validateAttribution', () => {
       }
     })
 
-    it('leaves 字段 undefined when participantId 不在快照（校验仍通过）', () => {
+    it('participantId 不在快照的 verdict 无从接地证据,整条剔除（其余校验仍通过）', () => {
       const result = validResult([
         validVerdict(99, '正常'),
         validVerdict(2),
@@ -478,8 +479,7 @@ describe('validateAttribution', () => {
       const out = validateAttribution(JSON.stringify(result), snapshotWithRoster())
       expect(out.ok).toBe(true)
       if (out.ok) {
-        expect(out.value.verdicts[0].champion).toBeUndefined()
-        expect(out.value.verdicts[0].teamResult).toBeUndefined()
+        expect(out.value.verdicts.map(v => v.participantId)).toEqual([2, 3, 4])
       }
     })
   })
@@ -499,7 +499,7 @@ describe('validateAttribution', () => {
         champion: `C${p.participantId}`,
         recentProfile: null
       }))
-      return { players } as unknown as MatchSnapshot
+      return { players: players.map(withFacts) } as unknown as MatchSnapshot
     }
 
     it('败方玩家被标「尽力」→ 降级为正常(尽力要求该队伍胜)', () => {
@@ -580,7 +580,7 @@ describe('Layer5 降级时 finalCall 一并中和(真机:胜方辅助 label 降�
       champion: `C${p.participantId}`,
       recentProfile: null
     }))
-    return { players } as unknown as MatchSnapshot
+    return { players: players.map(withFacts) } as unknown as MatchSnapshot
   }
 
   it('胜方「犯罪」降级为正常时,指控性 finalCall 被替换为中性文案', () => {
@@ -600,5 +600,276 @@ describe('Layer5 降级时 finalCall 一并中和(真机:胜方辅助 label 降�
     const out = validateAttribution(raw, snap())
     expect(out.ok).toBe(true)
     if (out.ok) expect(out.value.verdicts[0].finalCall).toBe('这锅背定了')
+  })
+})
+
+/**
+ * 真实回归锚点:2026-10-25 单双排 301041798766(蓝方败)。qwen-flash 原始输出把
+ * 止痛片(盲僧)的对位差值抄给了胜方打野 Muggle丶、把 50% 参团的维克托标成犯罪、
+ * 把 16/8/5 伤害 35.5% 的盲僧标成正常。
+ */
+describe('validateAttribution · 证据与标签按快照复核(真机 301041798766)', () => {
+  const ranks = (r: Record<string, number>) => r
+  const players = [
+    withFacts({
+      participantId: 2,
+      teamId: 100,
+      win: false,
+      name: '止痛片#25697',
+      champion: '盲僧',
+      teamPosition: 'JUNGLE',
+      kills: 16,
+      deaths: 8,
+      kda: 2.63,
+      damageShare: 35.5,
+      killParticipation: 65.6,
+      gold: 20099,
+      teamRanks: ranks({ kills: 1, deaths: 3, kda: 2, damageShare: 1, killParticipation: 1 }),
+      vsLaneOpponent: {
+        opponentName: 'Muggle丶#59080',
+        opponentChampion: '破败之王',
+        goldDiff: 1885,
+        csDiff: 84,
+        kdaDiff: -0.5,
+        killsDiff: 0,
+        deathsDiff: 0,
+        damageShareDiff: 0
+      }
+    }),
+    withFacts({
+      participantId: 4,
+      teamId: 100,
+      win: false,
+      name: '幽默的二次元#12510',
+      teamPosition: 'BOTTOM',
+      deaths: 11,
+      kda: 1.45,
+      killParticipation: 50,
+      damageShare: 23.3,
+      teamRanks: ranks({ deaths: 1, kda: 4, killParticipation: 3 })
+    }),
+    withFacts({ participantId: 3, teamId: 100, win: false, deaths: 8, kda: 1, damageShare: 17.7 }),
+    withFacts({
+      participantId: 1,
+      teamId: 100,
+      win: false,
+      deaths: 5,
+      kda: 2.2,
+      damageShare: 16.7
+    }),
+    withFacts({
+      participantId: 5,
+      teamId: 100,
+      win: false,
+      deaths: 7,
+      kda: 2.86,
+      damageShare: 6.8
+    }),
+    withFacts({
+      participantId: 7,
+      teamId: 200,
+      win: true,
+      name: 'Muggle丶#59080',
+      gold: 18214,
+      vsLaneOpponent: {
+        opponentName: '止痛片#25697',
+        opponentChampion: '盲僧',
+        goldDiff: -1885,
+        csDiff: -84,
+        kdaDiff: 0.5,
+        killsDiff: 0,
+        deathsDiff: 0,
+        damageShareDiff: 0
+      }
+    })
+  ]
+  const snap = { players } as unknown as MatchSnapshot
+  const verdict = (participantId: number, label: string, metrics: any[], finalCall = 'x') => ({
+    participantId,
+    name: `P${participantId}`,
+    label,
+    // 形状校验要求 ≥3 条证据:补两条快照必有的指标凑数
+    evidenceMetrics: [...metrics, { metric: 'gold', value: 0 }, { metric: 'cs', value: 0 }],
+    mitigatingFactors: [],
+    finalCall
+  })
+  const run = (verdicts: any[]) => {
+    const out = validateAttribution(
+      JSON.stringify({ winReason: '胜方打野 20 杀带飞', verdicts }),
+      snap
+    )
+    if (!out.ok) throw new Error(out.error)
+    return out.value
+  }
+  const filler = [
+    verdict(3, '正常', [{ metric: 'kda', value: 1 }]),
+    verdict(1, '正常', [{ metric: 'kda', value: 2.2 }])
+  ]
+
+  it('对位差值按 vsLaneOpponent 重写,旧式指标名归一(模型把盲僧的 +8100 抄给了 Muggle丶)', () => {
+    const out = run([
+      verdict(7, '尽力', [
+        {
+          metric: 'goldDiffVsLaneOpp',
+          value: 7900,
+          note: '对位玩家 11999 金币，本人 20099 金币，领先 8100'
+        }
+      ]),
+      verdict(2, '正常', [{ metric: 'kills', value: 16, teamRank: 1 }]),
+      ...filler
+    ])
+    const m = out.verdicts[0].evidenceMetrics[0]
+    expect(m.metric).toBe('vsLaneOpponent.goldDiff')
+    expect(m.value).toBe(-1885)
+    expect(m.note).toBe('对位盲僧经济：本人 18214，对方 20099，落后 1885')
+  })
+
+  it('teamRank 照快照重写,快照外指标(拼错的 assist)被摘除', () => {
+    const out = run([
+      verdict(4, '正常', [
+        { metric: 'kda', value: 1.45, teamRank: 5, note: '队内倒数第一' },
+        { metric: 'assist', value: 8 }
+      ]),
+      verdict(2, '正常', [{ metric: 'kills', value: 16 }]),
+      ...filler
+    ])
+    expect(out.verdicts[0].evidenceMetrics.map(m => m.metric)).not.toContain('assist')
+    expect(out.verdicts[0].evidenceMetrics[0]).toEqual({
+      metric: 'kda',
+      value: 1.45,
+      teamRank: 4,
+      note: 'KDA 1.45，队内第 4'
+    })
+  })
+
+  it('不满足「至少 2 项」的犯罪降级:死亡最多但参团 50%、KDA 非最低', () => {
+    const out = run([
+      verdict(4, '犯罪', [{ metric: 'deaths', value: 11 }]),
+      verdict(2, '正常', [{ metric: 'kills', value: 16 }]),
+      ...filler
+    ])
+    expect(out.verdicts[0].label).toBe('正常')
+  })
+
+  it('满足被连累定义却标正常的败方升级为被连累,finalCall 由快照生成', () => {
+    const out = run([verdict(2, '正常', [{ metric: 'kills', value: 16 }]), ...filler, filler[0]])
+    expect(out.verdicts[0].label).toBe('被连累')
+    expect(out.verdicts[0].finalCall).toContain('35.5%')
+  })
+
+  it('被误标犯罪、实为被连累的败方:复核后落到被连累而非正常(真机二跑复现)', () => {
+    const out = run([
+      verdict(2, '犯罪', [{ metric: 'kills', value: 16 }], '16 杀还输,锅在他'),
+      ...filler,
+      filler[0]
+    ])
+    expect(out.verdicts[0].label).toBe('被连累')
+    expect(out.verdicts[0].finalCall).not.toContain('锅')
+  })
+
+  it('finalCall 里快照外的数字整句剔除,剔光则用证据注释兜底', () => {
+    const out = run([
+      verdict(4, '正常', [{ metric: 'deaths', value: 11 }], '9 次死亡全队最多。'),
+      verdict(2, '正常', [{ metric: 'kills', value: 16 }]),
+      ...filler
+    ])
+    expect(out.verdicts[0].finalCall).toMatch(/^死亡 11，队内最多/)
+  })
+})
+
+describe('validateAttribution · 对位方向接地', () => {
+  it('finalCall 里与对位差值方向相反的分句被剔除(真机:Muggle丶 对位落后写成领先)', () => {
+    const players = [
+      withFacts({
+        participantId: 7,
+        teamId: 200,
+        win: true,
+        damageShare: 27.9,
+        vsLaneOpponent: {
+          opponentName: '止痛片#25697',
+          opponentChampion: '盲僧',
+          goldDiff: -1885,
+          csDiff: -84,
+          kdaDiff: 0.5,
+          killsDiff: 0,
+          deathsDiff: 0,
+          damageShareDiff: 0
+        }
+      }),
+      ...[1, 2, 3].map(i => withFacts({ participantId: i, teamId: 100 }))
+    ]
+    const v = (pid: number, finalCall: string) => ({
+      participantId: pid,
+      name: `P${pid}`,
+      label: '正常',
+      evidenceMetrics: [
+        { metric: 'kda', value: 0 },
+        { metric: 'gold', value: 0 },
+        { metric: 'cs', value: 0 }
+      ],
+      mitigatingFactors: [],
+      finalCall
+    })
+    const out = validateAttribution(
+      JSON.stringify({
+        winReason: 'x',
+        verdicts: [
+          v(7, '伤害占比 27.9% 队内最高，对位盲僧经济领先 1885'),
+          v(1, 'a'),
+          v(2, 'b'),
+          v(3, 'c')
+        ]
+      }),
+      { players } as unknown as MatchSnapshot
+    )
+    expect(out.ok).toBe(true)
+    if (out.ok) expect(out.value.verdicts[0].finalCall).toBe('伤害占比 27.9% 队内最高')
+  })
+})
+
+describe('validateAttribution · 补漏被连累', () => {
+  const players = [
+    withFacts({ participantId: 1, teamId: 100, win: false, damageShare: 37.2, kda: 2.83 }),
+    ...[2, 3, 4, 5].map(i => withFacts({ participantId: i, teamId: 100, win: false, kda: 1 })),
+    ...[6, 7].map(i => withFacts({ participantId: i, teamId: 200, win: true }))
+  ]
+  const snap = { players } as unknown as MatchSnapshot
+  const v = (pid: number) => ({
+    participantId: pid,
+    name: `P${pid}`,
+    label: '正常',
+    evidenceMetrics: [
+      { metric: 'kda', value: 0 },
+      { metric: 'gold', value: 0 },
+      { metric: 'cs', value: 0 }
+    ],
+    mitigatingFactors: [],
+    finalCall: 'x'
+  })
+
+  it('满足被连累却没进名册的败方自动补一条 verdict(真机 301041571554 xxxchen)', () => {
+    const out = validateAttribution(
+      JSON.stringify({ winReason: 'x', verdicts: [v(2), v(3), v(6), v(7)] }),
+      snap
+    )
+    expect(out.ok).toBe(true)
+    if (!out.ok) return
+    const added = out.value.verdicts.find(x => x.participantId === 1)
+    expect(added?.label).toBe('被连累')
+    expect(added?.evidenceMetrics.map(m => m.metric)).toEqual([
+      'damageShare',
+      'kda',
+      'killParticipation'
+    ])
+  })
+
+  it('名册已满 7 条时不再补', () => {
+    const many = [2, 3, 4, 5, 6, 7].map(v)
+    const extra = [...players, withFacts({ participantId: 8, teamId: 200, win: true })]
+    const out = validateAttribution(JSON.stringify({ winReason: 'x', verdicts: [...many, v(8)] }), {
+      players: extra
+    } as unknown as MatchSnapshot)
+    expect(out.ok).toBe(true)
+    if (out.ok) expect(out.value.verdicts).toHaveLength(7)
   })
 })

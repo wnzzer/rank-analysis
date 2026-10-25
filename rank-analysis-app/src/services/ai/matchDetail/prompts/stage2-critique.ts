@@ -10,18 +10,34 @@ import type { AttributionResult, Verdict } from '../types'
 import { POSITION_CN, teamFactLines } from './factCard'
 import { STAGE2_PLAIN_LANGUAGE_RULE } from './plainLanguage'
 
+/** 差值 → 「领先 N / 落后 N / 持平」(unit 附在数字后,如伤害占比的 %) */
+function diffPhrase(label: string, d: number, unit = ''): string {
+  if (d === 0) return `${label}持平`
+  return `${label}${d > 0 ? '领先' : '落后'} ${Number(Math.abs(d).toFixed(2))}${unit}`
+}
+
 /**
- * 名册一行：`- 名字｜英雄｜分路｜胜负方｜label`。
+ * 名册一行：`- 名字｜英雄｜分路｜胜负方｜label｜对位X：经济落后 N、…`。
  * 三个快照回填字段（champion/teamPosition/teamResult）缺席的段直接省略——
  * 无分路模式 teamPosition 为空串，participantId 不在快照时三者都 undefined。
+ * 对位段用方向词写死:只给带符号的差值,模型会把落后写成领先(真机复现)。
  */
-function rosterLine(v: Verdict): string {
+function rosterLine(v: Verdict, snapshot: MatchSnapshot): string {
+  const opp = snapshot.players.find(p => p.participantId === v.participantId)?.vsLaneOpponent
   const segments = [
     v.name,
     v.champion,
     v.teamPosition ? POSITION_CN[v.teamPosition] : undefined,
     v.teamResult,
-    v.label
+    v.label,
+    opp
+      ? `对位${opp.opponentChampion}：` +
+        [
+          diffPhrase('经济', opp.goldDiff),
+          diffPhrase('补刀', opp.csDiff),
+          diffPhrase('伤害占比', opp.damageShareDiff, '%')
+        ].join('、')
+      : undefined
   ]
   return '- ' + segments.filter(Boolean).join('｜')
 }
@@ -43,8 +59,8 @@ ${vocabSamples.join('、')}`
 【输入：归因结果】
 ${JSON.stringify(attribution)}
 
-【玩家名册】（快照事实：名字｜英雄｜分路｜胜负方｜label，禁止偏离）
-${attribution.verdicts.map(rosterLine).join('\n')}
+【玩家名册】（快照事实：名字｜英雄｜分路｜胜负方｜label｜对位差值，禁止偏离；领先/落后照抄，不得写反）
+${attribution.verdicts.map(v => rosterLine(v, snapshot)).join('\n')}
 
 【双方队伍】（提到队伍总数据只能照抄这里，并写清是胜方还是败方的）
 ${teamFactLines(snapshot)}

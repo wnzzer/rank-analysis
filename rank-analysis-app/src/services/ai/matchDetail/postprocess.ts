@@ -42,7 +42,8 @@ export interface SectionVerdict {
  * 仍会把缚地灵写进「谁尽力了」、被爆写进「谁要背锅」——prompt 已到顶,由代码
  * 接管排版:模型只负责每条锐评句,归哪个章节由 label 决定。
  * - label=正常(含 validator 降级产物)的条目直接移除,矛盾文案不见光
- * - 名册外的条目留在原章节(不妄动),空章节补模板空态文案
+ * - 带 名字#数字 但不在名册的条目移除(没有 verdict 的人不该被定性);
+ *   认不出玩家的条目留在原章节(不妄动),空章节补模板空态文案
  * 纯函数,流式中途的不完整 markdown 也安全。
  */
 export function resectionByLabels(markdown: string, verdicts: SectionVerdict[]): string {
@@ -83,6 +84,9 @@ export function resectionByLabels(markdown: string, verdicts: SectionVerdict[]):
     if (FILLER_MARKERS.some(m => line.includes(m))) continue
     const hit = roster.find(v => line.includes(v.name) || line.includes(v.name.split('#')[0]))
     if (!hit) {
+      // 带玩家标识却不在名册 = 模型给没出 verdict 的人定了性(真机 301039452606
+      // 把名册外玩家写进「谁要背锅」),丢弃;认不出是谁的条目留在原章节
+      if (PLAYER_ID_PATTERN.test(line)) continue
       if (line.trim()) buckets[currentPerson].push(line)
       continue
     }

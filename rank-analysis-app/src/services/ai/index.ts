@@ -113,7 +113,7 @@ export async function analyzeMatchDetailWithAIStream(
     vocabSamples?: string[]
     /** Stage 1 归因就绪回调(UI 用名册做章节确定性重排) */
     onAttribution?: (attribution: AttributionResult) => void
-    /** 单人复盘材料数字白名单回调(UI 用它剔除模型编造数字的句子) */
+    /** Stage 2 材料数字白名单回调(UI 用它剔除模型编造数字的句子) */
     onStage2Material?: (allowedNumbers: Set<number>) => void
     /** 玩家身份与指标(UI 用它剔除张冠李戴的句子) */
     onEntityFacts?: (material: MisattributionMaterial) => void

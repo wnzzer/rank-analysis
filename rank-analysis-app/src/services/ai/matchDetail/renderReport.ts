@@ -60,7 +60,7 @@ const NUMBER_PATTERN = '\\d[\\d,]*(?:\\.\\d+)?(?:%|k|万)?'
  * 空输入返回空串；对部分 / 非法 markdown 不抛异常（流式每 chunk 都会调用）。
  * @param verdicts - 整局复盘的名册(name+label);传入时先按 label 确定性重排
  *   人物章节(模型排版不可信,见 postprocess.resectionByLabels),再去重。
- * @param allowedNumbers - 材料数字白名单(单人复盘模式传入);传入时剔除含
+ * @param allowedNumbers - Stage 2 材料数字白名单(整局/单人两模式均传入);传入时剔除含
  *   材料外数字的句子(模型编数字不可信,见 postprocess.stripUngroundedSentences)。
  * @param entityFacts - 玩家身份与指标;传入时剔除张冠李戴的句子
  *   (数字属于别人却写在点名对象头上,见 misattribution.stripMisattributedSentences)。
