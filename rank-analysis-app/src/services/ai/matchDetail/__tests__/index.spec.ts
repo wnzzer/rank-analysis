@@ -315,7 +315,7 @@ describe('analyzeMatchDetail', () => {
   })
 })
 
-describe('onStage2Material(单人复盘材料数字白名单)', () => {
+describe('onStage2Material(Stage 2 材料数字白名单)', () => {
   it('player 模式实时路径:回调收到 prompt 中的数字集合', async () => {
     sessionStorage.clear()
     mockRequest.mockResolvedValue({ success: true, content: fakeAttributionJson() })
@@ -357,7 +357,7 @@ describe('onStage2Material(单人复盘材料数字白名单)', () => {
     expect(got!.size).toBeGreaterThan(0)
   })
 
-  it('overview 模式不触发该回调', async () => {
+  it('overview 模式同样回调白名单(整局锐评也会张冠李戴编数字,真机 301041798766)', async () => {
     sessionStorage.clear()
     mockRequest.mockResolvedValue({ success: true, content: fakeAttributionJson() })
     mockStream.mockImplementation(async (_p, callbacks) => {
@@ -372,6 +372,6 @@ describe('onStage2Material(单人复盘材料数字白名单)', () => {
       { onChunk: () => {}, onDone: () => {}, onError: () => {} },
       { onStage2Material: () => (called = true) }
     )
-    expect(called).toBe(false)
+    expect(called).toBe(true)
   })
 })

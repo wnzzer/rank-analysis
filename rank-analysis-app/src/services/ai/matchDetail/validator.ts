@@ -1,16 +1,26 @@
 /**
  * Stage 1 attribution 输出校验器。
  *
- * 三层校验：
+ * 分层校验（结构硬毙，数据层一律按快照清洗/重写而非硬毙）：
  * 1. JSON parseable（兼容 ```json fenced 包装）
- * 2. Shape: verdicts 4-7 / evidenceMetrics ≥ 3 / label in enum
- * 3. Data-grounding: 每条 mitigatingFactor 必须与 snapshot 实际数据吻合
+ * 2. Shape: verdicts 4-7 / evidenceMetrics ≥ 3 / label in enum；证据按快照重写
+ * 3. 英雄/分路/胜负方回填
+ * 4. 标签按量化定义复核（降级/升级）
+ * 5. finalCall / winReason 数字接地
+ * 6. 每条 mitigatingFactor 必须与 snapshot 实际数据吻合
  *
  * 返回类型与 shared/twoStage.ts 的 ParseOutcome 兼容。
  */
 
-import type { MatchSnapshot } from '../shared/snapshot'
-import type { AttributionResult, Verdict, VerdictLabel, MitigatingFactorKind } from './types'
+import { RANKED_METRICS, type MatchSnapshot, type RankedMetric } from '../shared/snapshot'
+import { extractNumbers, stripUngroundedSentences } from './postprocess'
+import type {
+  AttributionResult,
+  EvidenceMetric,
+  Verdict,
+  VerdictLabel,
+  MitigatingFactorKind
+} from './types'
 
 export type ValidateOutcome = { ok: true; value: AttributionResult } | { ok: false; error: string }
 
@@ -105,6 +115,15 @@ export function validateAttribution(rawJson: string, snapshot: MatchSnapshot): V
         return null
       })
       .filter((m): m is NonNullable<typeof m> => m !== null)
+    // 证据接地:数值/排名/注释一律以快照为准重写,快照里对不上的指标摘除
+    const playerSnap = snapshot.players.find(p => p.participantId === v.participantId)
+    v.evidenceMetrics = playerSnap
+      ? v.evidenceMetrics
+          .map(m =>
+            groundEvidenceMetric(m.metric, playerSnap, teamSizeOf(snapshot, playerSnap.teamId))
+          )
+          .filter((m): m is EvidenceMetric => m !== null)
+      : []
     if (!Array.isArray(v.mitigatingFactors)) {
       return {
         ok: false,
@@ -118,11 +137,89 @@ export function validateAttribution(rawJson: string, snapshot: MatchSnapshot): V
     return { ok: false, error: 'all verdicts dropped after evidence sanitization' }
   }
 
-  // ─── Layer 3: data-grounding（清洗，不再硬毙） ───
+  const result = candidate as AttributionResult
+
+  // ─── Layer 3: 确定性回填（快照事实覆盖模型输出） ───
+  // 英雄/分路/胜负方是快照里的既有事实，由 TS 写入而非信任模型——Stage 2 锐评
+  // 曾因缺这些字段把下路写成"中路核弹手"、把败方塞进"谁尽力了"（真机截图复现）。
+  for (const v of result.verdicts) {
+    const playerSnap = snapshot.players.find((p: any) => p.participantId === v.participantId) as any
+    if (!playerSnap) {
+      v.champion = undefined
+      v.teamPosition = undefined
+      v.teamResult = undefined
+      continue
+    }
+    v.champion = playerSnap.champion
+    v.teamPosition = playerSnap.teamPosition
+    v.teamResult = playerSnap.win ? '胜方' : '败方'
+  }
+
+  // ─── Layer 4: 标签量化复核 ───
+  // prompt 里的标签量化标准 qwen-flash 并不总遵守(真机复现:74% 参团被标"缚地灵"、
+  // 胜方被标"被连累";2026-10-25 9 局 60 条 verdict 有 15 条犯罪/被连累不满足定义,
+  // 另有 16/8/5、35.5% 伤害的败方打野被标"正常")。可量化的标签由 TS 复核:
+  // 不符降级"正常"(不进任何人物章节,连带矛盾文案一起消失);满足被连累却标正常的升级。
+  // finalCall 随标签变化一并重写:残留的指控文案会把 Stage 2 带偏(真机复现)。
+  for (const v of result.verdicts) {
+    const playerSnap = snapshot.players.find(p => p.participantId === v.participantId)
+    if (!playerSnap) continue
+    const team = snapshot.players.filter(p => p.teamId === playerSnap.teamId)
+    const next = reviewLabel(v.label, playerSnap, team)
+    if (next === v.label) continue
+    v.label = next
+    v.finalCall = next === '正常' ? '整体表现正常，无功无过' : draggedFinalCall(playerSnap)
+  }
+  // 补漏:满足被连累却根本没进名册的败方(真机 15 局漏 2 人),名册未满 7 条时补上
+  for (const p of snapshot.players) {
+    if (result.verdicts.length >= 7) break
+    if (result.verdicts.some(v => v.participantId === p.participantId)) continue
+    const team = snapshot.players.filter(x => x.teamId === p.teamId)
+    if (reviewLabel('正常', p, team) !== '被连累') continue
+    const teamSize = team.length
+    result.verdicts.push({
+      participantId: p.participantId,
+      name: p.name,
+      label: '被连累',
+      evidenceMetrics: ['damageShare', 'kda', 'killParticipation']
+        .map(m => groundEvidenceMetric(m, p, teamSize))
+        .filter((m): m is EvidenceMetric => m !== null),
+      mitigatingFactors: [],
+      finalCall: draggedFinalCall(p),
+      champion: p.champion,
+      teamPosition: p.teamPosition,
+      teamResult: '败方'
+    })
+  }
+
+  // ─── Layer 5: 文本数字接地 ───
+  // finalCall / winReason 里的数字同样会张冠李戴(真机:把队友的 20 杀写给盲僧)。
+  // 数字对得上方向却写反(落后写成领先)同样剔除,见 stripLaneContradictions。
+  // 含快照外数字的句子剔除;finalCall 剔光则用接地后的证据注释兜底。
+  for (const v of result.verdicts) {
+    const playerSnap = snapshot.players.find(p => p.participantId === v.participantId)
+    if (!playerSnap) continue
+    const allowed = extractNumbers(
+      JSON.stringify(playerSnap) + v.evidenceMetrics.map(m => m.note ?? '').join(' ')
+    )
+    v.finalCall =
+      stripLaneContradictions(stripUngroundedSentences(v.finalCall, allowed), playerSnap) ||
+      v.evidenceMetrics
+        .slice(0, 2)
+        .map(m => m.note)
+        .join('；')
+  }
+  result.winReason =
+    stripUngroundedSentences(
+      result.winReason,
+      extractNumbers(JSON.stringify(snapshot.players) + JSON.stringify(snapshot.teams))
+    ).trim() || '胜负归因见下方各玩家证据'
+
+  // ─── Layer 6: 缓解因子接地（清洗，不再硬毙） ───
   // 缓解因子只是负面 verdict 上的解释性标注。模型若给出与 snapshot 对不上的因子，
   // 摘掉该因子即可：既不把未证实的说法放给用户，也不因一个小标注就废掉整份多 verdict
   // 分析（历史上 stage1 最常见的失败正是这层硬毙）。JSON / 结构仍严格校验。
-  const result = candidate as AttributionResult
+  // 必须在标签复核之后:team-collapse 依赖同队最终 label。
   for (const v of result.verdicts) {
     if (v.mitigatingFactors.length === 0) continue
 
@@ -144,50 +241,85 @@ export function validateAttribution(rawJson: string, snapshot: MatchSnapshot): V
     )
   }
 
-  // ─── Layer 4: 确定性回填（快照事实覆盖模型输出） ───
-  // 英雄/分路/胜负方是快照里的既有事实，由 TS 写入而非信任模型——Stage 2 锐评
-  // 曾因缺这些字段把下路写成"中路核弹手"、把败方塞进"谁尽力了"（真机截图复现）。
-  for (const v of result.verdicts) {
-    const playerSnap = snapshot.players.find((p: any) => p.participantId === v.participantId) as any
-    if (!playerSnap) {
-      v.champion = undefined
-      v.teamPosition = undefined
-      v.teamResult = undefined
-      continue
-    }
-    v.champion = playerSnap.champion
-    v.teamPosition = playerSnap.teamPosition
-    v.teamResult = playerSnap.win ? '胜方' : '败方'
-  }
-
-  // ─── Layer 5: 标签量化一致性降级 ───
-  // prompt 里的标签量化标准 qwen-flash 并不总遵守(真机复现:74% 参团被标"缚地灵"、
-  // 胜方被标"被连累"且 finalCall 写"队伍仍输")。可量化的部分由 TS 复核,
-  // 不符一律降级"正常"——正常不进任何人物章节,连带矛盾文案一起消失。
-  // finalCall 必须随降级一并中和:降级后的 verdict 仍会作为材料喂给单人复盘,
-  // 残留的指控文案(如胜方辅助的"严重拖累团队")会把 Stage 2 带偏(真机复现)。
-  const downgrade = (v: Verdict): void => {
-    v.label = '正常'
-    v.finalCall = '整体表现正常，无功无过'
-  }
-  for (const v of result.verdicts) {
-    if (v.label === '尽力' && v.teamResult === '败方') downgrade(v)
-    if ((v.label === '犯罪' || v.label === '被连累') && v.teamResult === '胜方') downgrade(v)
-    if (v.label === '缚地灵') {
-      const playerSnap = snapshot.players.find(
-        (p: any) => p.participantId === v.participantId
-      ) as any
-      if (playerSnap) {
-        const teammates = (snapshot.players as any[]).filter(p => p.teamId === playerSnap.teamId)
-        const avgKp =
-          teammates.reduce((s, p) => s + (p.killParticipation ?? 0), 0) /
-          Math.max(teammates.length, 1)
-        if ((playerSnap.killParticipation ?? 0) >= avgKp - 15) downgrade(v)
-      }
-    }
-  }
-
   return { ok: true, value: result }
+}
+
+/**
+ * 按 prompt 的量化定义复核标签,返回复核后的标签。
+ * - 尽力:胜方 + 伤害占比/经济占比/参团率中至少 2 项进入队内前 2
+ * - 犯罪:败方 + 「死亡队内最多 / 参团率 < 30% / KDA 队内最低」至少满足 2 项
+ * - 被连累:败方 + 伤害占比 ≥ 25% + KDA ≥ 队内均值
+ * - 缚地灵:参团率低于队内均值 15 个百分点以上
+ * - 被爆:定义含"高/低"等无阈值描述,不复核
+ * 标签不成立(或本就是正常)时,满足被连累者落到被连累,否则正常——
+ * 真机复现:16/8/5、35.5% 伤害的败方盲僧被误标犯罪,只降成正常就把真正的被连累者埋了。
+ */
+function reviewLabel(label: VerdictLabel, p: SnapshotPlayer, team: SnapshotPlayer[]): VerdictLabel {
+  const avg = (pick: (x: SnapshotPlayer) => number): number =>
+    team.reduce((s, x) => s + pick(x), 0) / Math.max(team.length, 1)
+  const dragged = !p.win && p.damageShare >= 25 && p.kda >= avg(x => x.kda)
+
+  const holds = ((): boolean => {
+    switch (label) {
+      case '尽力': {
+        const ranks = [
+          p.teamRanks.damageShare,
+          p.teamRanks.goldShare,
+          p.teamRanks.killParticipation
+        ]
+        return p.win && ranks.filter(r => r <= 2).length >= 2
+      }
+      case '犯罪': {
+        const hits = [
+          p.deaths === Math.max(...team.map(x => x.deaths)),
+          p.killParticipation < 30,
+          p.kda === Math.min(...team.map(x => x.kda))
+        ].filter(Boolean).length
+        return !p.win && hits >= 2
+      }
+      case '被连累':
+        return dragged
+      case '缚地灵':
+        return p.killParticipation < avg(x => x.killParticipation) - 15
+      case '被爆':
+        return true
+      default:
+        return false
+    }
+  })()
+  if (holds) return label
+  return dragged ? '被连累' : '正常'
+}
+
+/** 被连累(TS 复核升级 / 补漏)的确定性 finalCall */
+function draggedFinalCall(p: SnapshotPlayer): string {
+  return `伤害占比 ${p.damageShare}%、KDA ${p.kda} 均不低于队内水准，但队伍落败`
+}
+
+/**
+ * 剔除与对位差值方向相反的分句(按逗号/句末标点切分),并去掉残留的句尾逗号。
+ * 真机:Muggle丶 对位输出落后 11567,finalCall 写成「对位盲僧伤害领先 11567」——
+ * 绝对值是真的,数字白名单拦不住,只能按方向词核对。
+ */
+function stripLaneContradictions(text: string, p: SnapshotPlayer): string {
+  const opp = p.vsLaneOpponent
+  const diffs = opp ? [opp.goldDiff, opp.csDiff].filter(d => d !== 0) : []
+  const kept = text
+    .split(/(?<=[，,。！？；!?;])/)
+    .filter(
+      clause =>
+        !diffs.some(d =>
+          new RegExp(`${d > 0 ? '落后' : '领先'}\\s*${Math.abs(d)}(?![\\d.])`).test(clause)
+        )
+    )
+  return kept
+    .join('')
+    .trim()
+    .replace(/[，,]$/, '')
+}
+
+function teamSizeOf(snapshot: MatchSnapshot, teamId: number): number {
+  return snapshot.players.filter(p => p.teamId === teamId).length
 }
 
 /**
@@ -223,6 +355,126 @@ function isFactorGrounded(
     default:
       return false
   }
+}
+
+type SnapshotPlayer = MatchSnapshot['players'][number]
+
+/** 指标中文名(证据注释用) */
+const METRIC_CN: Record<RankedMetric, string> = {
+  kda: 'KDA',
+  kills: '击杀',
+  deaths: '死亡',
+  assists: '助攻',
+  gold: '经济',
+  cs: '补刀',
+  damage: '输出',
+  taken: '承伤',
+  heal: '治疗',
+  turretDamage: '推塔伤害',
+  damageShare: '伤害占比',
+  damageTakenShare: '承伤占比',
+  goldShare: '经济占比',
+  killParticipation: '参团率',
+  dpm: '分均输出',
+  gpm: '分均经济',
+  csm: '分均补刀'
+}
+
+/** 计数类指标的排名用「最多/最少」,其余用「最高/最低」 */
+const COUNT_METRICS = new Set<RankedMetric>(['kills', 'deaths', 'assists', 'cs'])
+
+/**
+ * 对位差值字段(snapshot.vsLaneOpponent.*) → 快照原值字段 / 中文名 / 方向词。
+ * 死亡差用「多/少」:多死不是「领先」。
+ */
+const LANE_DIFF_METRICS = {
+  goldDiff: { field: 'gold', cn: '经济', words: ['领先', '落后'] },
+  csDiff: { field: 'cs', cn: '补刀', words: ['领先', '落后'] },
+  kdaDiff: { field: 'kda', cn: 'KDA', words: ['领先', '落后'] },
+  killsDiff: { field: 'kills', cn: '击杀', words: ['多', '少'] },
+  deathsDiff: { field: 'deaths', cn: '死亡', words: ['多', '少'] },
+  damageShareDiff: { field: 'damageShare', cn: '伤害占比', words: ['领先', '落后'] }
+} as const
+type LaneDiffField = keyof typeof LANE_DIFF_METRICS
+
+/** 模型常写的旧式对位指标名 → vsLaneOpponent 字段 */
+const LANE_METRIC_ALIASES: Record<string, LaneDiffField> = {
+  goldDiffVsLaneOpp: 'goldDiff',
+  csDiffVsLaneOpp: 'csDiff',
+  kdaDiffVsLaneOpp: 'kdaDiff'
+}
+
+/** `vsLaneOpponent.goldDiff` / 旧式别名 → 对位差值字段;非对位指标返回 null */
+function laneDiffFieldOf(metric: string): LaneDiffField | null {
+  const field = metric.startsWith('vsLaneOpponent.')
+    ? metric.slice('vsLaneOpponent.'.length)
+    : LANE_METRIC_ALIASES[metric]
+  return field && field in LANE_DIFF_METRICS ? (field as LaneDiffField) : null
+}
+
+const MULTI_KILL_CN = { double: '双杀', triple: '三杀', quadra: '四杀', penta: '五杀' } as const
+
+function rankPhrase(metric: RankedMetric, rank: number, teamSize: number): string {
+  const [hi, lo] = COUNT_METRICS.has(metric) ? ['最多', '最少'] : ['最高', '最低']
+  if (rank === 1) return `队内${hi}`
+  if (rank >= teamSize) return `队内${lo}`
+  return `队内第 ${rank}`
+}
+
+/**
+ * 把模型声称的一条证据重写为快照事实:value / teamRank / note 全由 TS 生成。
+ * qwen-flash 真机 9 局:排名错 45%、对位差值 12 条错 9 条(把队友的差值抄给别人),
+ * 注释里的数字还会与 value 自相矛盾——模型只负责「挑哪几项」,数字一律不信。
+ * @returns 快照无此指标 / 值缺失 / 无对位时返回 null(调用方摘除)
+ */
+export function groundEvidenceMetric(
+  metric: string,
+  p: SnapshotPlayer,
+  teamSize: number
+): EvidenceMetric | null {
+  if ((RANKED_METRICS as readonly string[]).includes(metric)) {
+    const m = metric as RankedMetric
+    const value = p[m]
+    if (typeof value !== 'number' || !Number.isFinite(value)) return null
+    const rank = p.teamRanks[m]
+    return {
+      metric,
+      value,
+      teamRank: rank,
+      note: `${METRIC_CN[m]} ${value}，${rankPhrase(m, rank, teamSize)}`
+    }
+  }
+  const laneField = laneDiffFieldOf(metric)
+  if (laneField) {
+    const opp = p.vsLaneOpponent
+    if (!opp) return null
+    const spec = LANE_DIFF_METRICS[laneField]
+    const diff = opp[laneField]
+    const mine = p[spec.field]
+    const theirs = roundStat(mine - diff)
+    const verb = diff >= 0 ? spec.words[0] : spec.words[1]
+    return {
+      metric: `vsLaneOpponent.${laneField}`,
+      value: diff,
+      note: `对位${opp.opponentChampion}${spec.cn}：本人 ${mine}，对方 ${theirs}，${verb} ${roundStat(Math.abs(diff))}`
+    }
+  }
+  const multi = metric.match(/^multiKills\.(double|triple|quadra|penta)$/)
+  if (multi) {
+    const kind = multi[1] as keyof typeof MULTI_KILL_CN
+    const value = p.multiKills[kind]
+    if (!value) return null
+    return { metric, value, note: `${MULTI_KILL_CN[kind]} ${value} 次` }
+  }
+  if (metric === 'wardScore' && typeof p.wardScore === 'number') {
+    return { metric, value: p.wardScore, note: `视野得分 ${p.wardScore}` }
+  }
+  return null
+}
+
+/** 差值反推对方原值时消除浮点尾差(KDA 差为两位小数) */
+function roundStat(value: number): number {
+  return Number(value.toFixed(2))
 }
 
 function stripFencedCodeBlock(raw: string): string {

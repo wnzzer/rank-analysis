@@ -158,7 +158,8 @@ describe('buildMatchSnapshot', () => {
       mk(4, 112, 4, 12, 175, 0), // 维克托 传送
       mk(5, 147, 4, 14, 50, 0) // 星籁歌姬 引燃
     ]
-    const snap = buildMatchSnapshot(makeGame({ participants: team }))
+    // 盲选(430)不按槽位排 participantId,走排除法
+    const snap = buildMatchSnapshot(makeGame({ queueId: 430, participants: team }))
     expect(snap.players.map(p => p.teamPosition)).toEqual([
       'TOP',
       'JUNGLE',
@@ -166,6 +167,50 @@ describe('buildMatchSnapshot', () => {
       'MIDDLE',
       'UTILITY'
     ])
+    // 同一阵容放进单双排:participantId 槽位优先(维克托槽位 4 = 下路)
+    const ranked = buildMatchSnapshot(makeGame({ queueId: 420, participants: team }))
+    expect(ranked.players.map(p => p.teamPosition)).toEqual([
+      'TOP',
+      'JUNGLE',
+      'MIDDLE',
+      'BOTTOM',
+      'UTILITY'
+    ])
+  })
+
+  it('预计算队内排名与对位差值(模型自己数排名/找对位不可信)', () => {
+    const mk = (id: number, team: number, s1: number, cs: number, jg: number, gold: number) =>
+      makeParticipant({
+        participantId: id,
+        teamId: team,
+        teamPosition: undefined,
+        spell1Id: s1,
+        spell2Id: 4,
+        stats: {
+          ...makeParticipant().stats,
+          totalMinionsKilled: cs,
+          neutralMinionsKilled: jg,
+          goldEarned: gold
+        }
+      })
+    const blue = [1, 2, 3, 4, 5].map(i =>
+      mk(i, 100, i === 2 ? 11 : 14, i === 2 ? 40 : 200 - i * 10, i === 2 ? 200 : 0, 10000 + i)
+    )
+    const red = [6, 7, 8, 9, 10].map(i =>
+      mk(i, 200, i === 7 ? 11 : 14, i === 7 ? 40 : 200 - i * 10, i === 7 ? 200 : 0, 9000 + i)
+    )
+    const snap = buildMatchSnapshot(makeGame({ queueId: 420, participants: [...blue, ...red] }))
+    const p2 = snap.players.find(p => p.participantId === 2)!
+    // 蓝方经济 10001..10005,p2 = 10002 → 第 4
+    expect(p2.teamRanks.gold).toBe(4)
+    expect(p2.teamPosition).toBe('JUNGLE')
+    // 对位 = 红方打野 p7(经济 9007)
+    expect(p2.vsLaneOpponent).toMatchObject({ goldDiff: 10002 - 9007, csDiff: 0 })
+  })
+
+  it('无分路模式不给对位', () => {
+    const snap = buildMatchSnapshot(makeGame({ queueId: 450 }))
+    expect(snap.players[0].vsLaneOpponent).toBeNull()
   })
 
   it('LCU 下发了真实 teamPosition 时透传优先,不被排除法覆盖', () => {

@@ -33,7 +33,7 @@ export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
   const aiState = ref<MatchAIState>('idle')
   /** 本次分析的 Stage 1 归因(名册),供渲染层按 label 确定性重排人物章节 */
   const aiAttribution = ref<AttributionResult | null>(null)
-  /** 单人复盘的材料数字白名单,供渲染层剔除模型编造数字的句子 */
+  /** Stage 2 材料数字白名单,供渲染层剔除模型编造数字的句子 */
   const aiMaterialNumbers = ref<Set<number> | null>(null)
   const aiEntityFacts = ref<MisattributionMaterial | null>(null)
   const aiMode = ref<MatchDetailAnalysisMode>('overview')
@@ -58,8 +58,8 @@ export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
       aiResult.value,
       // 仅整局锐评有人物章节;单人复盘是另一套模板,不参与重排
       aiMode.value === 'overview' ? (aiAttribution.value?.verdicts ?? undefined) : undefined,
-      // 仅单人复盘做数字接地过滤(整局锐评的数字问题由重排/去重覆盖)
-      aiMode.value === 'player' ? (aiMaterialNumbers.value ?? undefined) : undefined,
+      // 两模式都做数字接地过滤:整局锐评同样会张冠李戴编数字(真机 301041798766)
+      aiMaterialNumbers.value ?? undefined,
       // 两种模式都过张冠李戴过滤(数字属于别人却写在点名对象头上)
       aiEntityFacts.value ?? undefined
     )

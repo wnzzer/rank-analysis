@@ -53,9 +53,20 @@ describe('resectionByLabels(按 label 确定性重排人物章节)', () => {
     expect(effort).not.toContain('乙乙#222')
   })
 
-  it('名册外的条目与非人物章节原样保留;无 verdicts 原样返回', () => {
-    const md = ['## 谁尽力了', '- 路人#999：不在名册', '## 关键证据', '- 数字1'].join('\n')
-    expect(resectionByLabels(md, verdicts)).toContain('路人#999')
+  it('名册外的玩家(带 名字#数字)不上人物章节:没有 verdict 就没有定性', () => {
+    // 真机 301039452606:北辰之威丶不在名册,却被模型写进「谁要背锅」
+    const md = ['## 谁要背锅', '- 路人#999：送人头打卡', '## 关键证据', '- 路人#999 死亡 14'].join(
+      '\n'
+    )
+    const out = resectionByLabels(md, verdicts)
+    expect(out).toContain('## 谁要背锅\n- 本局没人能甩锅')
+    // 关键证据章节不是人物章节,名册外玩家可以出现
+    expect(out).toContain('- 路人#999 死亡 14')
+  })
+
+  it('人物章节里不带玩家标识的名册外条目原样保留;无 verdicts 原样返回', () => {
+    const md = ['## 谁尽力了', '- 某位路人：不在名册', '## 关键证据', '- 数字1'].join('\n')
+    expect(resectionByLabels(md, verdicts)).toContain('某位路人')
     expect(resectionByLabels(md, [])).toBe(md)
   })
 

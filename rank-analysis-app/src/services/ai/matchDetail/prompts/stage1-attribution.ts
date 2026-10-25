@@ -44,7 +44,8 @@ isTeamMode: ${mc.isTeamMode}
 - mainPosition: TOP|JUNGLE|MIDDLE|BOTTOM|UTILITY|UNCLEAR — 主玩位置（占比≥40%才认）
 - vsLaneOpponent: 与同分路敌方对位的差值（本人 − 对位，正数=本人领先）：goldDiff / csDiff / kdaDiff / killsDiff / deathsDiff / damageShareDiff；null = 无分路或无对位
 - roleBenchmark: 本人各项相对**本位置常见区间**的高低（'low' | 'normal' | 'high'）：damageShare / goldShare / killParticipation / damageTakenShare / csm；null = 无分路
-直接采用这些字段的值，不要重新计算。引用对位差时 metric 写字段路径（如 "vsLaneOpponent.goldDiff"），value 照抄。
+- teamRanks: 各指标队内排名（1=本队最高；deaths 的 1=死得最多）
+直接采用这些字段的值，不要重新计算。引用对位差时 metric 写字段路径（如 "vsLaneOpponent.goldDiff"），value 照抄；evidenceMetrics 的 teamRank 照抄 teamRanks。
 
 【使用者主观备注】
 - recentProfile.note: 使用者对该玩家的主观历史印象（[色档] 文本），仅供参考，
@@ -52,7 +53,7 @@ isTeamMode: ${mc.isTeamMode}
 
 【标签定义（量化标准）】
 - 尽力：数据明显高于队内均值（伤害占比/经济占比/参团率中任意 2 项进入队内前 2）+ 该队伍胜
-- 犯罪：数据明显低于队内均值（死亡数最多 + 参团 < 30% + KDA 队内倒数）+ 该队伍输
+- 犯罪：该队伍输 +「死亡队内最多 / 参团 < 30% / KDA 队内最低」至少满足 2 项
 - 被爆：deaths 高 + damageShare 低 + goldShare 低，且无 isOffRole / first-time-champion 等申辩
 - 被连累：个人数据合格但队伍输（damageShare ≥ 25% + KDA ≥ 团队均值，但 win=false）
 - 缚地灵：killParticipation < 团队平均 - 15% + assists 低 + cs/damage 不低
@@ -79,7 +80,7 @@ isTeamMode: ${mc.isTeamMode}
 
 evidenceMetrics 至少 3 条。可选指标：kda / kills / deaths / assists / damageShare /
 damageTakenShare / goldShare / killParticipation / dpm / gpm / csm / multiKills.* /
-wardScore / turretDamage。
+wardScore / turretDamage（有分路模式另可用 vsLaneOpponent.* 对位指标）。其余指标名会被丢弃。
 
 mitigatingFactors 仅在 label 为负面（犯罪/被爆/缚地灵）时填，且必须基于 snapshot 数据：
 - factor='off-role'              要求该玩家 recentProfile.isOffRole === true

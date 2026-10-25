@@ -103,15 +103,16 @@ function readTeamPosition(participant: Participant): TeamPosition {
 }
 
 /**
- * 分路解析:有分路模式且整队恰 5 人时按队伍排除法(吃野/补刀等强信号,
- * 见 positionAssign)整体求解——逐人启发式对上单/非典型辅助推不出,
+ * 分路解析:有分路模式且整队恰 5 人时整队求解(选秀队列按 participantId 槽位,
+ * 否则吃野/补刀等强信号排除法,见 positionAssign)——逐人启发式对上单/非典型辅助推不出,
  * 会让 stage1 的辅助保护规则与对位比较失效(真机实测一局错 4 人)。
  * LCU 下发了真实 teamPosition 的成员始终透传优先。
  * @returns participantId → 推断分路;不满足排除法条件的成员不在 map 中
  */
 function buildTeamPositionMap(
   participants: Participant[],
-  hasLanes: boolean
+  hasLanes: boolean,
+  queueId: number
 ): Map<number, TeamPosition> {
   const map = new Map<number, TeamPosition>()
   if (!hasLanes) return map
@@ -130,8 +131,10 @@ function buildTeamPositionMap(
         championId: p.championId,
         spellIds: [p.spell1Id, p.spell2Id],
         minionsKilled: p.stats.totalMinionsKilled ?? 0,
-        jungleMinionsKilled: p.stats.neutralMinionsKilled ?? 0
-      }))
+        jungleMinionsKilled: p.stats.neutralMinionsKilled ?? 0,
+        participantId: p.participantId
+      })),
+      queueId
     )
     team.forEach((p, i) => {
       // 真实 teamPosition 优先于排除法结果
@@ -150,6 +153,44 @@ function buildTeamPositionMap(
     })
   }
   return map
+}
+
+/**
+ * 参与队内排名的数值指标(snapshot 玩家字段名)。
+ * 模型自己数排名错得离谱(2026-10-25 真机 9 局 262 条证据错 119 条),一律由 TS 预计算。
+ */
+export const RANKED_METRICS = [
+  'kda',
+  'kills',
+  'deaths',
+  'assists',
+  'gold',
+  'cs',
+  'damage',
+  'taken',
+  'heal',
+  'turretDamage',
+  'damageShare',
+  'damageTakenShare',
+  'goldShare',
+  'killParticipation',
+  'dpm',
+  'gpm',
+  'csm'
+] as const
+
+export type RankedMetric = (typeof RANKED_METRICS)[number]
+
+type RankFacts = Record<RankedMetric, number> & { teamId: number }
+
+/** 队内排名:1 = 本队该项最高;并列取同名次(1 + 严格更高者人数) */
+function computeTeamRanks(player: RankFacts, all: RankFacts[]): Record<RankedMetric, number> {
+  const team = all.filter(p => p.teamId === player.teamId)
+  const ranks = {} as Record<RankedMetric, number>
+  for (const m of RANKED_METRICS) {
+    ranks[m] = 1 + team.filter(p => p[m] > player[m]).length
+  }
+  return ranks
 }
 
 export function buildMatchSnapshot(
@@ -180,7 +221,7 @@ export function buildMatchSnapshot(
     teamTotals.set(participant.teamId, current)
   }
 
-  const teamPositionMap = buildTeamPositionMap(participants, modeContext.hasLanes)
+  const teamPositionMap = buildTeamPositionMap(participants, modeContext.hasLanes, game.queueId)
 
   const basePlayers = participants.map((participant, index) => {
     const identity = identities[participant.participantId - 1] ?? identities[index]
@@ -253,7 +294,8 @@ export function buildMatchSnapshot(
   const players = basePlayers.map(p => ({
     ...p,
     vsLaneOpponent: modeContext.hasLanes ? computeVsLaneOpponent(p, basePlayers) : null,
-    roleBenchmark: modeContext.hasLanes ? computeRoleBenchmark(p) : null
+    roleBenchmark: modeContext.hasLanes ? computeRoleBenchmark(p) : null,
+    teamRanks: computeTeamRanks(p, basePlayers)
   }))
 
   const teams = [...new Set(players.map(p => p.teamId))]
