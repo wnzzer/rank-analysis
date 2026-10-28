@@ -20,6 +20,7 @@
       <span v-if="sessionSummoner.summoner.gameName" class="loading-name">
         {{ sessionSummoner.summoner.gameName }}
       </span>
+      <slot name="matchup"></slot>
     </div>
     <!-- 仅返回英雄 id、无 summoner 有效信息时视为隐藏战绩 -->
     <div v-else-if="isHiddenRecord" key="hidden-record" class="hidden-record-block">
@@ -33,6 +34,7 @@
           style="opacity: 0.45"
         />
         <span class="hidden-record-text">战绩已隐藏</span>
+        <slot name="matchup"></slot>
       </n-flex>
     </div>
     <div
@@ -41,6 +43,7 @@
       class="loading-container"
     >
       <div class="custom-spin"></div>
+      <slot name="matchup"></slot>
     </div>
     <n-flex v-else key="content" style="height: 100%" :wrap="false">
       <!-- Left Side: Profile & History -->
@@ -187,6 +190,7 @@
       <!-- Right Side: Stats -->
       <div class="right-section">
         <PlayerStatsCard :recent="sessionSummoner.userTag.recentData" :is-dark="isDark" />
+        <div v-if="$slots.matchup" class="player-matchup-action"><slot name="matchup"></slot></div>
       </div>
     </n-flex>
   </n-card>
@@ -376,6 +380,9 @@ watch(
 </script>
 
 <style lang="css" scoped>
+.player-matchup-action {
+  margin-top: var(--space-8);
+}
 .player-card {
   height: 100%;
   display: flex;
