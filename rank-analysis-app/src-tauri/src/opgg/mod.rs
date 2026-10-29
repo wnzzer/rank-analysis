@@ -11,4 +11,5 @@ pub mod api;
 pub mod cache;
 pub mod data;
 pub mod detail;
+pub mod matchup;
 pub mod source;

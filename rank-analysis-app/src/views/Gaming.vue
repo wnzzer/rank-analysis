@@ -210,6 +210,11 @@
           :opgg-mode="opggMode"
           :my-champion-ids="myChampionIds"
           :my-puuid="mySummonerPuuid"
+          :matchup-enabled="sessionData.gameMode === 'CLASSIC' && !sessionData.isMultiTeam"
+          :opgg-tier="opggTier"
+          :opgg-tier-loading="opggTierLoading"
+          :unavailable-ids="matchupUnavailableIds"
+          @change-tier="onTierChange"
         />
       </div>
     </div>
@@ -406,6 +411,16 @@ const matchCount = ref(4)
 const message = useMessage()
 
 const { tier: opggTier, loading: opggTierLoading, loadTier, switchTier } = useOpggTier()
+/** 对位列表只标记公开的已选/禁用英雄，不假设未知的拥有状态。 */
+const matchupUnavailableIds = computed(() => [
+  ...new Set(
+    [
+      ...sessionData.subteams.flatMap(team => team.players.map(player => player.championId)),
+      ...(sessionData.champSelect?.myBans ?? []),
+      ...(sessionData.champSelect?.theirBans ?? [])
+    ].filter(id => id > 0)
+  )
+])
 onMounted(loadTier)
 
 /**

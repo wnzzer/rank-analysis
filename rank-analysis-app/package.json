@@ -6,6 +6,7 @@
   "author": "wnzzer",
   "scripts": {
     "dev": "vite",
+    "demo:matchup": "vite --config vite.matchup-demo.config.ts",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
