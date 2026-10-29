@@ -1,12 +1,12 @@
 # 选人阶段 OP.GG 对位分析内页设计
 
-状态：2026-10-28 用户以“就这么做”确认完整设计；已在本地功能分支实现。离线真实组件演示、单元测试、构建和独立代码审查已完成；真实国服客户端联调仍待具备环境后验收，未发布或合并。
+状态：2026-10-28 用户以“就这么做”确认完整设计；已在功能分支实现。离线真实组件演示、单元测试、构建和独立代码审查已完成。2026-10-29 需求方确认已实机使用且效果很好，并授权提交 PR 邀请维护者试用；尚未合入上游，逐项异常场景与其他平台验收仍需补充。
 
 ## 目标与背景
 
 在腾讯国服客户端的选人阶段，根据公开可见的敌方英雄提供候选英雄的对位参考。数据使用 OP.GG，不采用或降级到国服排行榜。当前电脑没有英雄联盟客户端，需要独立演示和可重复测试，真实客户端联调另行验收。
 
-仓库为 `wnzzer/rank-analysis`，MIT 协议；原目录 `C:/Users/Administrator/Documents/Codex/ra-final`，分支 `feat/opgg-matchup-panel`，基线 `3878348`。不继承旧英雄大全分支，不新增工作树。相关需求为 GitHub Issue #189。
+仓库为 `wnzzer/rank-analysis`，MIT 协议；分支 `feat/opgg-matchup-panel`，基线 `3878348`。不继承旧英雄大全分支。相关需求为 GitHub Issue #189。
 
 项目已有 Vue 3 / TypeScript / Naive UI / Rust / Tauri 2、OP.GG 基础快照、头像资源协议和 `docs/superpowers/specs` 设计流程。本期沿用现有流程，不另行初始化 OpenSpec，不升级框架或引入动画库。
 
@@ -130,6 +130,8 @@
 - 实现不增加依赖；使用现有Vue/Naive UI主题、Rust缓存和HTTP模块。中文使用说明见 `rank-analysis-app/对位分析使用说明.md`。
 
 ### 参考
+
+2026-10-29 补充：需求方完成 Windows 国服实机体验并反馈效果很好。该反馈确认实际使用体验，不追认上述每个客户端边界场景都已经逐项测试；原本地验收记录作为历史证据保留。
 
 - https://github.com/wnzzer/rank-analysis/issues/189
 - https://op.gg/lol/champions/ahri/counters/mid
