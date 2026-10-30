@@ -256,6 +256,12 @@ This project is open-sourced under the [MIT License](./LICENSE).
 
 > Maintained with AI assistance experiments (Claude / LLM tooling)
 
+## Sponsors
+
+- **Sponsored:** [VGTopup - game top-up](https://vgtopup.com/)
+
+Paid sponsorship; listing does not constitute an endorsement or guarantee of the sponsor's services.
+
 ## Star History
 
 [![Star History Chart](https://star-history.dera.page/svg?repos=wnzzer/rank-analysis&type=Date)](https://star-history.dera.page/#wnzzer/rank-analysis&Date)
