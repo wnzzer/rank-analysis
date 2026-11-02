@@ -217,8 +217,9 @@ export function useMatchup(context: () => MatchupContext, api: MatchupApi) {
     void reload()
   }
 
+  // 逐项比较实际查询条件；队伍重新映射或其他敌方锁定时不重置当前分页和详情。
   watch(
-    () => [context().slot, context().enemyId, context().tier, context().active],
+    [() => context().slot, () => context().enemyId, () => context().tier, () => context().active],
     () => void reload(),
     { immediate: true }
   )

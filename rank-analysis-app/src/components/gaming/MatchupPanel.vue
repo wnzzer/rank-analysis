@@ -7,6 +7,7 @@ import { TIER_OPTIONS, type OpggTier } from '@renderer/services/opgg'
 import { useMatchup, MATCHUP_SMALL_SAMPLE } from '@renderer/composables/useMatchup'
 import type { MatchupEnemy, MatchupPosition, MatchupSource } from '@renderer/types/matchup'
 import MatchupAvatar from './MatchupAvatar.vue'
+import ProgressMiniRow from './ProgressMiniRow.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -82,25 +83,23 @@ function name(id: number): string {
   void namesRevision.value
   return api.name(id)
 }
-/** 格式化有效比例，保留真实零胜率。
+/** 验证可展示的比例，保留真实零胜率。
  * @param value 0..1 比例或缺失值。
- * @returns 百分比文本或暂无数据。
+ * @returns 有限且处于 0..1 的有效数值为 true，否则为 false。
  */
-function percent(value?: number | null): string {
+function hasRate(value?: number | null): value is number {
   return value != null && Number.isFinite(value) && value >= 0 && value <= 1
-    ? `${(value * 100).toFixed(1)}%`
-    : '暂无数据'
 }
 /** 展示来源时间与版本，不伪造服务器未提供的统计更新时间。
  * @param source 列表或详情自身的来源信息。
  * @returns 可读来源说明。
  */
 function sourceTime(source: MatchupSource): string {
-  const sourceDate = source.cachedAt ? new Date(source.cachedAt) : null
-  const date =
-    sourceDate && Number.isFinite(sourceDate.getTime())
-      ? sourceDate.toLocaleString('zh-CN')
-      : source.cachedAt || '源未提供更新时间'
+  // 来源未标时区时不能由浏览器按本地时间解析，也不能猜测 OP.GG 所在时区。
+  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(source.cachedAt?.trim() ?? '')
+  const date = source.cachedAt
+    ? `来源时间：${source.cachedAt}${hasTimezone ? '' : '（时区未明确）'}`
+    : '源未提供更新时间'
   return `${source.version} · ${date}${source.stale ? ' · 过期缓存' : ''}`
 }
 /** 修正分路，不把空选项当成默认中路。
@@ -246,12 +245,31 @@ onMounted(async () => {
           <template v-else
             ><n-tooltip
               ><template #trigger
-                ><span class="candidate-rate" tabindex="0">{{
-                  percent(row.data?.candidateWinRate)
-                }}</span></template
+                ><div class="candidate-rate" tabindex="0">
+                  <ProgressMiniRow
+                    v-if="hasRate(row.data?.candidateWinRate)"
+                    label="对位胜率"
+                    :percent="row.data.candidateWinRate * 100"
+                    :precision="1"
+                    :color="tab === 'good' ? 'var(--semantic-win)' : 'var(--semantic-loss)'"
+                    compact
+                    :processing="false"
+                  />
+                  <span v-else>暂无数据</span>
+                </div></template
               >{{ row.data ? sourceTime(row.data) : '暂无数据' }}</n-tooltip
             >
-            <span>{{ position === 'jungle' ? '不适用' : percent(row.data?.laneKillRate) }}</span>
+            <span v-if="position === 'jungle'">不适用</span>
+            <ProgressMiniRow
+              v-else-if="hasRate(row.data?.laneKillRate)"
+              label="线杀率"
+              :percent="row.data.laneKillRate * 100"
+              :precision="1"
+              color="var(--text-secondary)"
+              compact
+              :processing="false"
+            />
+            <span v-else>暂无数据</span>
             <span class="sample-count"
               >{{ row.data?.play?.toLocaleString() ?? '—'
               }}<small v-if="row.data?.play != null && row.data.play < MATCHUP_SMALL_SAMPLE"

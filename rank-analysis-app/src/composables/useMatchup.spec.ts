@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { effectScope, reactive } from 'vue'
+import { computed, effectScope, reactive } from 'vue'
 import { flushPromises } from '@vue/test-utils'
 import { useMatchup, sortCandidates } from './useMatchup'
 import type { MatchupApi, MatchupList, MatchupQuery } from '@renderer/types/matchup'
@@ -39,6 +39,72 @@ function api(): MatchupApi {
 }
 
 describe('对位查询', () => {
+  it.each(['其他敌方锁定', '其他敌方换英雄', '当前敌方锁定', '同内容替换玩家数组'])(
+    '%s 不重载当前第2页，当前英雄变化仍应刷新',
+    async action => {
+      const service = api()
+      service.getList = vi.fn(async query => ({
+        ...list(query),
+        candidates: Array.from({ length: 10 }, (_, i) => ({
+          championId: i + 1,
+          enemyWinRate: 0.4,
+          play: 500
+        }))
+      }))
+      const session = reactive({
+        players: [
+          { championId: 103, pickState: 'picking' },
+          { championId: 64, pickState: 'picking' }
+        ]
+      })
+      // 与 SubteamCard → MatchupPanel 相同：公开队伍变化会重建对象，但查询条件未必变化。
+      const enemies = computed(() => session.players.map((player, slot) => ({ slot, ...player })))
+      const enemy = computed(() => enemies.value.find(item => item.slot === 0))
+      const scope = effectScope()
+      try {
+        const model = scope.run(() =>
+          useMatchup(
+            () => ({
+              slot: 0,
+              enemyId: enemy.value!.championId,
+              tier: 'emerald_plus',
+              active: true
+            }),
+            service
+          )
+        )!
+        await flushPromises()
+        model.page.value = 2
+        await flushPromises()
+        const previousList = model.list.value
+        const previousRows = model.rows.value
+        expect(service.getList).toHaveBeenCalledTimes(1)
+        expect(service.getDetail).toHaveBeenCalledTimes(10)
+
+        if (action === '其他敌方锁定') session.players[1].pickState = 'locked'
+        else if (action === '其他敌方换英雄') session.players[1].championId = 86
+        else if (action === '当前敌方锁定') session.players[0].pickState = 'locked'
+        else session.players = session.players.map(player => ({ ...player }))
+        await flushPromises()
+
+        expect(model.page.value).toBe(2)
+        expect(model.list.value).toBe(previousList)
+        expect(model.rows.value).toBe(previousRows)
+        expect(model.loading.value).toBe(false)
+        expect(service.getList).toHaveBeenCalledTimes(1)
+        expect(service.getDetail).toHaveBeenCalledTimes(10)
+
+        session.players[0].championId = 517
+        await flushPromises()
+        expect(model.page.value).toBe(1)
+        expect(model.list.value?.enemyId).toBe(517)
+        expect(service.getList).toHaveBeenCalledTimes(2)
+      } finally {
+        scope.stop()
+      }
+    }
+  )
+
   it('快切目标时旧请求未结束也维持最多三个在飞详情', async () => {
     const service = api()
     service.getList = async query => ({
