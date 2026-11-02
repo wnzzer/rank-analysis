@@ -119,7 +119,12 @@ fn build_url(token: &str, uri: &str, port: &str) -> String {
 }
 
 /// 内部：发起真实 HTTP GET 请求，返回原始 JSON 字符串。
+///
+/// 失败时错误信息末尾附带最后一次的 HTTP 状态码或连接错误：腾讯战绩服务
+/// 异常时 LCU 会返回 500/503（#183、#191），而 401/403 才是真正的认证失效，
+/// 不带状态码的话两者在日志里无法区分。
 async fn lcu_get_raw(uri: &str) -> Result<String, String> {
+    let mut last_failure = String::new();
     for _ in 0..2 {
         let (token, port) = get_auth_pair().map_err(|e| format!("LCU认证失败: {}", e))?;
         let url = build_url(&token, uri, &port);
@@ -130,14 +135,15 @@ async fn lcu_get_raw(uri: &str) -> Result<String, String> {
                 let text = r.text().await.map_err(|e| format!("读取响应失败: {}", e))?;
                 return Ok(text);
             }
-            _ => {
-                if let Err(e) = refresh_auth() {
-                    log::info!("刷新LCU认证失败（可先打开游戏再重试）: {}", e);
-                }
-            }
+            Ok(r) => last_failure = format!("HTTP {}", r.status().as_u16()),
+            // without_url：URL 里带 riot:token，不能进日志
+            Err(e) => last_failure = format!("连接失败: {}", e.without_url()),
+        }
+        if let Err(e) = refresh_auth() {
+            log::info!("刷新LCU认证失败（可先打开游戏再重试）: {}", e);
         }
     }
-    Err("请求失败或认证失效".to_string())
+    Err(format!("请求失败或认证失效（{}）", last_failure))
 }
 
 /// 发起 LCU GET 请求，**保留 HTTP 状态码**，不做重试也不刷新认证。
