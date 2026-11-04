@@ -57,6 +57,24 @@ test('称号回退：AI 照抄公告里的称号时归一成中文名', () => {
   assert.equal(r.champions[0].name, '娜美')
 })
 
+test('「称号 中文名」组合（26.22 公告格式）归一成中文名', () => {
+  for (const name of ['唤潮鲛姬 娜美', '娜美（唤潮鲛姬）', '唤潮鲛姬　娜美']) {
+    const r = validateExtraction(extracted(champ({ name })), wl(), ARTICLE, buildTitleIndex(SUMMARY))
+    assert.equal(r.ok, true, name)
+    assert.equal(r.champions[0].name, '娜美')
+  }
+})
+
+test('拒绝：组合名的各段指向不同英雄', () => {
+  const r = validateExtraction(
+    extracted(champ({ name: '黑暗之女 娜美' })),
+    wl(),
+    ARTICLE,
+    buildTitleIndex(SUMMARY)
+  )
+  assert.equal(r.ok, false)
+})
+
 test('称号与中文名混用时合并为同一英雄', () => {
   const r = validateExtraction(
     extracted(champ(), champ({ name: '唤潮鲛姬', lines: ['基础护甲：28 → 30'] })),
