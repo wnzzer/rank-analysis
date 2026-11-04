@@ -82,6 +82,27 @@ function matchArticleLines(line, articleLines, normedLines) {
   return null
 }
 
+/**
+ * 把 AI 给出的英雄名归一成白名单里的中文名。
+ * 依次尝试：中文名本身 → 称号 → 「称号 中文名」组合（如 26.22 公告写作「疾风剑豪 亚索」，
+ * AI 照抄整段）。组合形式按空白/括号切分后逐段匹配；「·」是中文名的一部分（奥瑞利安·索尔），不切。
+ * @returns 白名单中的中文名；无法归一时返回 null
+ */
+export function resolveChampionName(rawName, whitelist, titles) {
+  if (whitelist.has(rawName)) return rawName
+  const byTitle = titles.get(rawName)
+  if (byTitle && whitelist.has(byTitle)) return byTitle
+  const parts = rawName.split(/[\s()（）【】\[\]]+/).filter(Boolean)
+  if (parts.length < 2) return null
+  const found = new Set()
+  for (const p of parts) {
+    const n = whitelist.has(p) ? p : titles.get(p)
+    if (n && whitelist.has(n)) found.add(n)
+  }
+  // 多段指向不同英雄说明名字有歧义，宁可拒绝也不猜
+  return found.size === 1 ? [...found][0] : null
+}
+
 export function validateExtraction(extracted, whitelist, articleText, titles = new Map()) {
   const errors = []
   if (extracted?.isPatchNotes !== true) errors.push('isPatchNotes 不为 true')
@@ -97,8 +118,8 @@ export function validateExtraction(extracted, whitelist, articleText, titles = n
   const seen = new Map()
   for (const c of champs) {
     const rawName = (c?.name ?? '').trim()
-    const name = whitelist.has(rawName) ? rawName : (titles.get(rawName) ?? rawName)
-    const hit = whitelist.get(name)
+    const name = resolveChampionName(rawName, whitelist, titles)
+    const hit = name && whitelist.get(name)
     if (!hit) {
       errors.push(`英雄名不在白名单: ${rawName || '(空)'}`)
       continue
