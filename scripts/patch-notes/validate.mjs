@@ -103,6 +103,17 @@ export function resolveChampionName(rawName, whitelist, titles) {
   return found.size === 1 ? [...found][0] : null
 }
 
+/**
+ * 允许跳过的不合格英雄比例上限。
+ * 个别条目格式异常（新称号写法、AI 偶发改写）只丢该英雄，不拖垮整期；
+ * 比例过高说明公告格式大变或模型整体失常，此时整期拒收、保留旧数据。
+ */
+const MAX_SKIP_RATIO = 0.3
+
+/**
+ * 校验 AI 抽取结果并富化 championId/alias。
+ * @returns ok=false 时 errors 含全部原因且 champions 为空；ok=true 时 skipped 列出被跳过的英雄
+ */
 export function validateExtraction(extracted, whitelist, articleText, titles = new Map()) {
   const errors = []
   if (extracted?.isPatchNotes !== true) errors.push('isPatchNotes 不为 true')
@@ -114,6 +125,8 @@ export function validateExtraction(extracted, whitelist, articleText, titles = n
   const articleLines = articleText.split('\n').map(l => l.trim())
   const normedLines = articleLines.map(norm)
   const out = []
+  /** 单条不合格只跳过该英雄，按比例决定整期是否放行 */
+  const skipped = []
   /** 同一英雄被 AI 拆成多个条目时合并到首次出现的位置，避免客户端出现重复卡片 */
   const seen = new Map()
   for (const c of champs) {
@@ -121,11 +134,11 @@ export function validateExtraction(extracted, whitelist, articleText, titles = n
     const name = resolveChampionName(rawName, whitelist, titles)
     const hit = name && whitelist.get(name)
     if (!hit) {
-      errors.push(`英雄名不在白名单: ${rawName || '(空)'}`)
+      skipped.push(`英雄名不在白名单: ${rawName || '(空)'}`)
       continue
     }
     if (!DIRECTIONS.has(c.direction)) {
-      errors.push(`direction 非法: ${name} → ${c.direction}`)
+      skipped.push(`direction 非法: ${name} → ${c.direction}`)
       continue
     }
     if (
@@ -133,7 +146,7 @@ export function validateExtraction(extracted, whitelist, articleText, titles = n
       c.lines.length < 1 ||
       c.lines.some(l => typeof l !== 'string' || !l.trim())
     ) {
-      errors.push(`lines 非法: ${name}`)
+      skipped.push(`lines 非法: ${name}`)
       continue
     }
     const lines = []
@@ -154,11 +167,11 @@ export function validateExtraction(extracted, whitelist, articleText, titles = n
       lines.push(raw)
     }
     if (lines.length > MAX_LINES) {
-      errors.push(`lines 数量越界: ${name} → ${lines.length}`)
+      skipped.push(`lines 数量越界: ${name} → ${lines.length}`)
       continue
     }
     if (!anyHit) {
-      errors.push(`条目疑似改写（无一条命中原文）: ${name}`)
+      skipped.push(`条目疑似改写（无一条命中原文）: ${name}`)
       continue
     }
     const prev = seen.get(hit.championId)
@@ -176,5 +189,15 @@ export function validateExtraction(extracted, whitelist, articleText, titles = n
     seen.set(hit.championId, entry)
     out.push(entry)
   }
-  return { ok: errors.length === 0, errors, champions: errors.length === 0 ? out : [] }
+  if (out.length === 0) errors.push('没有任何英雄通过校验')
+  else if (skipped.length / champs.length > MAX_SKIP_RATIO) {
+    errors.push(`跳过比例过高: ${skipped.length}/${champs.length}`)
+  }
+  const ok = errors.length === 0
+  return {
+    ok,
+    errors: ok ? [] : [...errors, ...skipped],
+    skipped: ok ? skipped : [],
+    champions: ok ? out : []
+  }
 }

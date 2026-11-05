@@ -188,3 +188,21 @@ test('失败时 champions 为空数组', () => {
   assert.equal(r.ok, false)
   assert.equal(r.champions.length, 0)
 })
+
+test('个别英雄不合格时只跳过它，其余正常放行', () => {
+  const ok = n => champ({ name: n })
+  const summary = [
+    ...SUMMARY,
+    { id: 2, name: '狂战士', description: '奥拉夫', alias: 'Olaf' },
+    { id: 3, name: '正义巨像', description: '加里奥', alias: 'Galio' }
+  ]
+  const r = validateExtraction(
+    extracted(ok('娜美'), ok('安妮'), ok('奥拉夫'), ok('加里奥'), champ({ name: '娜美子' })),
+    buildWhitelist(summary),
+    ARTICLE
+  )
+  assert.equal(r.ok, true)
+  assert.equal(r.champions.length, 4)
+  assert.equal(r.skipped.length, 1)
+  assert.match(r.skipped[0], /娜美子/)
+})

@@ -1,6 +1,6 @@
 /**
  * 数据管线编排：列表 → 候选 → docid 对比 → 文章 → AI 抽取 → 校验 → 写文件。
- * 任何校验失败以非 0 退出（workflow 红灯），绝不写入半成品数据。
+ * 个别英雄不合格时跳过并打 warning；跳过比例过高或无英雄通过时以非 0 退出（workflow 红灯），保留旧数据。
  * AI 判定 isPatchNotes=false 时静默跳过（宽筛选的正常路径），会在下轮重试。
  */
 import fs from 'node:fs'
@@ -88,5 +88,9 @@ if (!result.ok) {
   process.exit(1)
 }
 
+if (result.skipped.length) {
+  // 写 GitHub Actions 注解，跳过的英雄会显示在 run 摘要里，不会悄无声息地丢
+  for (const msg of result.skipped) console.log(`::warning::已跳过 ${msg}`)
+}
 const out = writeOut(result.champions)
 console.log(`已写入 ${out.champions.length} 个英雄的改动（${out.patchLabel}）`)
