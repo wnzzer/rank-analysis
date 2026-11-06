@@ -176,6 +176,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             command::rank::get_rank_by_puuid,
             command::rank::get_win_rate_by_name_mode,
             command::rank::get_win_rate_by_puuid_mode,
+            command::hidden_mmr::get_hidden_mmr,
             command::match_history::get_match_history_by_puuid,
             command::match_history::get_match_history_by_name,
             command::match_history::get_filter_match_history_by_name,
