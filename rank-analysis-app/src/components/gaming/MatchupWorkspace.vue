@@ -1,6 +1,7 @@
 <script setup lang="ts">
 /** 敌方区域一级战绩/二级对位页面容器，始终保留原战绩节点和滚动。 */
 import { nextTick, ref, watch } from 'vue'
+import { NRadioButton, NRadioGroup } from 'naive-ui'
 import type { MatchupEnemy } from '@renderer/types/matchup'
 import type { OpggTier } from '@renderer/services/opgg'
 import MatchupPanel from './MatchupPanel.vue'
@@ -90,16 +91,19 @@ watch(
       data-page-nav
       aria-label="敌方区域页面"
     >
-      <button type="button" :aria-pressed="!opened" @click="back">玩家战绩</button>
-      <button
-        type="button"
-        :aria-pressed="opened"
-        :disabled="selectedSlot < 0"
-        title="从敌方卡片选择要分析的英雄"
-        @click="open(selectedSlot)"
+      <n-radio-group
+        size="small"
+        :value="opened ? 'matchup' : 'records'"
+        @update:value="value => (value === 'matchup' ? open(selectedSlot) : back())"
       >
-        英雄对位
-      </button>
+        <n-radio-button value="records">玩家战绩</n-radio-button>
+        <n-radio-button
+          value="matchup"
+          :disabled="selectedSlot < 0"
+          title="从敌方卡片选择要分析的英雄"
+          >英雄对位</n-radio-button
+        >
+      </n-radio-group>
     </div>
     <div class="workspace-pages" :class="{ 'detail-open': opened }">
       <div
@@ -147,34 +151,6 @@ watch(
   justify-content: flex-end;
   gap: var(--space-4);
 }
-.workspace-nav button {
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-secondary);
-  padding: var(--space-4) var(--space-8);
-  font: inherit;
-  font-size: var(--font-size-xs);
-  cursor: pointer;
-  transition:
-    background-color var(--dur-fast),
-    color var(--dur-fast);
-}
-.workspace-nav button[aria-pressed='true'] {
-  color: var(--semantic-win);
-  background: color-mix(in srgb, var(--semantic-win) 12%, transparent);
-}
-.workspace-nav button:hover:not(:disabled) {
-  background: var(--bg-elevated);
-}
-.workspace-nav button:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-.workspace-nav button:focus-visible {
-  outline: 2px solid var(--semantic-win);
-  outline-offset: 1px;
-}
 .workspace-pages {
   flex: 1;
   min-height: 0;
@@ -194,7 +170,6 @@ watch(
   gap: var(--space-4);
   overflow-y: auto;
   overflow-x: hidden;
-  scrollbar-width: thin;
 }
 .workspace-detail {
   opacity: 0;
@@ -212,8 +187,7 @@ watch(
   pointer-events: auto;
 }
 @media (prefers-reduced-motion: reduce) {
-  .workspace-page,
-  .workspace-nav button {
+  .workspace-page {
     transition: none;
   }
 }

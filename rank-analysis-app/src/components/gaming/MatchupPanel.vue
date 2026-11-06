@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /** 英雄对位内页；不读取召唤师隐私，不触发选人或锁定动作。 */
 import { computed, inject, onMounted, ref } from 'vue'
-import { NButton, NSelect, NSkeleton, NTooltip } from 'naive-ui'
+import { NButton, NRadioButton, NRadioGroup, NSelect, NSkeleton, NTooltip } from 'naive-ui'
 import { MATCHUP_API, MATCHUP_POSITIONS, matchupApi } from '@renderer/services/matchup'
 import { TIER_OPTIONS, type OpggTier } from '@renderer/services/opgg'
 import { useMatchup, MATCHUP_SMALL_SAMPLE } from '@renderer/composables/useMatchup'
@@ -187,11 +187,10 @@ onMounted(async () => {
       >
     </div>
     <div class="matchup-tabs" role="group" aria-label="推荐类型">
-      <div class="tab-track" :class="{ 'show-bad': tab === 'bad' }">
-        <span class="tab-indicator" aria-hidden="true"></span>
-        <button type="button" :aria-pressed="tab === 'good'" @click="tab = 'good'">推荐应对</button>
-        <button type="button" :aria-pressed="tab === 'bad'" @click="tab = 'bad'">谨慎选择</button>
-      </div>
+      <n-radio-group v-model:value="tab" size="small">
+        <n-radio-button value="good">推荐应对</n-radio-button>
+        <n-radio-button value="bad">谨慎选择</n-radio-button>
+      </n-radio-group>
       <n-tooltip
         ><template #trigger><small class="sort-note">候选英雄视角 ⓘ</small></template
         >按敌方列表胜率排序；下方比率使用候选自身详情，源缓存时间可能不同。少于200局置后提示。</n-tooltip
@@ -383,6 +382,7 @@ button:focus-visible {
 .target-copy strong {
   display: block;
   font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -390,7 +390,7 @@ button:focus-visible {
 .target-copy small {
   display: block;
   color: var(--text-tertiary);
-  font-size: var(--font-size-2xs);
+  font-size: var(--font-size-xs);
   margin-top: var(--space-2);
 }
 .position-select {
@@ -406,7 +406,7 @@ button:focus-visible {
   gap: var(--space-8);
   padding: var(--space-6) var(--space-12);
   border-block: 1px solid var(--border-subtle);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
 }
 .matchup-filters label {
   color: var(--text-secondary);
@@ -424,43 +424,6 @@ button:focus-visible {
   padding: var(--space-8) var(--space-12) var(--space-4);
   gap: var(--space-4);
 }
-.tab-track {
-  position: relative;
-  display: flex;
-  padding: 3px;
-  background: var(--bg-base);
-  border-radius: var(--radius-sm);
-  flex-shrink: 0;
-}
-.tab-track button {
-  position: relative;
-  z-index: 1;
-  border: 0;
-  background: none;
-  color: var(--text-secondary);
-  width: 86px;
-  padding: 5px 4px;
-  font: inherit;
-  font-size: var(--font-size-xs);
-  cursor: pointer;
-  transition: color var(--dur-fast);
-}
-.tab-track button[aria-pressed='true'] {
-  color: var(--semantic-win);
-}
-.tab-indicator {
-  position: absolute;
-  top: 3px;
-  bottom: 3px;
-  left: 3px;
-  width: 86px;
-  border-radius: var(--radius-xs);
-  background: color-mix(in srgb, var(--semantic-win) 12%, transparent);
-  transition: transform var(--dur-normal) var(--ease-out-expo);
-}
-.show-bad .tab-indicator {
-  transform: translateX(86px);
-}
 .sort-note {
   color: var(--text-tertiary);
   font-size: var(--font-size-2xs);
@@ -475,7 +438,7 @@ button:focus-visible {
 }
 .matchup-table-head {
   padding: var(--space-6) var(--space-12);
-  font-size: var(--font-size-2xs);
+  font-size: var(--font-size-xs);
   color: var(--text-tertiary);
 }
 .matchup-table-head > span:first-child {
@@ -488,12 +451,11 @@ button:focus-visible {
   overflow-x: hidden;
   overflow-anchor: none;
   padding: 0 var(--space-12);
-  scrollbar-width: thin;
 }
 .matchup-row {
   min-height: 54px;
   border-top: 1px solid var(--border-subtle);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
   font-variant-numeric: tabular-nums;
   animation: matchup-row-in var(--dur-fast) ease-out;
 }
@@ -509,8 +471,8 @@ button:focus-visible {
 }
 .candidate-name strong {
   display: block;
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -518,7 +480,7 @@ button:focus-visible {
 .candidate-name small {
   display: block;
   color: var(--text-tertiary);
-  font-size: var(--font-size-2xs);
+  font-size: var(--font-size-xs);
 }
 .candidate-rate {
   color: var(--semantic-win);
