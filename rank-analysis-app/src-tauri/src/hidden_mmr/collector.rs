@@ -177,7 +177,8 @@ fn take_pending() -> Option<Pending> {
 ///
 /// # 行为
 /// - `InProgress`：后台记录对局前快照
-/// - `EndOfGame`：后台采集本局 LP 变化
+/// - `PreEndOfGame` / `EndOfGame`：后台采集本局 LP 变化（两个阶段都触发，
+///   防止两次轮询间直接跳过其一而漏采；重复触发由 [`COLLECTING_GAME`] 与 store 去重）
 /// - 其他阶段忽略；所有错误只打日志，不影响主流程
 pub fn on_phase_change(app: AppHandle, phase: &str) {
     match phase {
@@ -188,7 +189,7 @@ pub fn on_phase_change(app: AppHandle, phase: &str) {
                 }
             });
         }
-        game::ENDOFGAME => {
+        game::PREENDOFGAME | game::ENDOFGAME => {
             tokio::spawn(async move {
                 if let Err(e) = collect(app).await {
                     log::warn!("隐藏分：本局采集失败: {}", e);
@@ -213,10 +214,12 @@ async fn capture_before() -> Result<(), String> {
     }
     let eog = eog.ok_or("结算预统计一直不可用")?;
     if !is_ranked_queue(&eog.queue_type) {
+        log::info!("隐藏分：队列 {} 非排位，不记录对局前快照", eog.queue_type);
         return Ok(());
     }
     let me = Summoner::get_my_summoner().await?;
-    let rank = Rank::get_rank_by_puuid(&me.puuid).await?;
+    // 快照必须读实时段位，不能走缓存
+    let rank = Rank::fetch_uncached(&me.puuid).await?;
     let before = queue_info(&rank, &eog.queue_type)
         .cloned()
         .ok_or("未找到该队列段位")?;
@@ -229,48 +232,83 @@ async fn capture_before() -> Result<(), String> {
     Ok(())
 }
 
-/// 由结算预统计解析本局身份 `(puuid, gameId, queueType)`；非排位队列返回 `None`。
-async fn identify_game(eog: EogStatsBlock) -> Result<Option<(String, i64, String)>, String> {
-    if !is_ranked_queue(&eog.queue_type) {
-        return Ok(None);
+/// 本局采用哪份数据的决策结果。
+enum Resolution {
+    /// 用对局前快照：主路径与快照兜底都可用
+    UsePending(Box<Pending>),
+    /// 没有可用快照（应用在结算界面才打开、或对局前采集失败），只走主路径
+    UseCurrent { game_id: i64, queue_type: String },
+    /// 不采集；非排位队列时附其 queueType（用于日志），读取失败时为 `None`
+    Skip(Option<String>),
+}
+
+/// 决定本局采集用哪份数据（纯函数，便于测试）。
+///
+/// # 参数
+/// - `pending`: 取走的对局前快照
+/// - `current`: 刚读到的结算预统计 `(gameId, queueType)`；读取失败为 `None`
+///
+/// # 行为
+/// - 快照与当前一致：用快照
+/// - 快照属于别的对局：丢弃快照，按当前对局走主路径（当前非排位则跳过）
+/// - 快照在、当前读取失败（端点可能已消失）：保留快照
+/// - 无快照：当前是排位则只走主路径，否则跳过
+fn resolve_game(pending: Option<Pending>, current: Option<(i64, String)>) -> Resolution {
+    let from_current = |(game_id, queue_type): (i64, String)| {
+        if is_ranked_queue(&queue_type) {
+            Resolution::UseCurrent {
+                game_id,
+                queue_type,
+            }
+        } else {
+            Resolution::Skip(Some(queue_type))
+        }
+    };
+    match (pending, current) {
+        (Some(p), Some(c)) if p.game_id == c.0 => Resolution::UsePending(Box::new(p)),
+        (Some(p), Some(c)) => {
+            log::info!(
+                "隐藏分：对局前快照属于第 {} 局而非当前第 {} 局，已丢弃",
+                p.game_id,
+                c.0
+            );
+            from_current(c)
+        }
+        (Some(p), None) => Resolution::UsePending(Box::new(p)),
+        (None, Some(c)) => from_current(c),
+        (None, None) => Resolution::Skip(None),
     }
-    let me = Summoner::get_my_summoner().await?;
-    Ok(Some((me.puuid, eog.game_id, eog.queue_type)))
 }
 
 /// 结算后采集本局记录：先等通知，超时再用快照差值。
 ///
 /// # 行为
-/// - 快照的 gameId 与当前结算预统计不一致时，说明快照属于别的对局，丢弃后按无快照处理
-/// - 结算预统计读取失败（端点可能已消失）时，保留快照继续
+/// - 本局用哪份数据见 [`resolve_game`]
+/// - PreEndOfGame 与 EndOfGame 都会进来：先**同步**取走快照（先到的触发者拿到快照，
+///   后到的拿不到、也就偷不走），再用 [`COLLECTING_GAME`] 对同一局去重，
+///   后到的触发者在去重处直接返回
 async fn collect(app: AppHandle) -> Result<(), String> {
-    let mut pending = take_pending();
-    let mut current = None;
-    if let Some(p) = &pending {
-        if let Ok(block) = EogStatsBlock::get().await {
-            if block.game_id != p.game_id {
-                log::info!(
-                    "隐藏分：对局前快照属于第 {} 局而非当前第 {} 局，已丢弃",
-                    p.game_id,
-                    block.game_id
-                );
-                pending = None;
-                current = Some(block);
-            }
+    let pending = take_pending();
+    let fetched = EogStatsBlock::get().await;
+    let current = fetched
+        .as_ref()
+        .ok()
+        .map(|b| (b.game_id, b.queue_type.clone()));
+    let (puuid, game_id, queue_type, pending) = match resolve_game(pending, current) {
+        Resolution::UsePending(p) => (p.puuid.clone(), p.game_id, p.queue_type.clone(), Some(*p)),
+        Resolution::UseCurrent {
+            game_id,
+            queue_type,
+        } => {
+            let me = Summoner::get_my_summoner().await?;
+            (me.puuid, game_id, queue_type, None)
         }
-    }
-    let (puuid, game_id, queue_type) = match &pending {
-        Some(p) => (p.puuid.clone(), p.game_id, p.queue_type.clone()),
-        // 没有可用快照：应用在结算界面或之后才打开，或对局前的采集失败了，只能走主路径
-        None => {
-            let eog = match current {
-                Some(block) => block,
-                None => EogStatsBlock::get().await?,
-            };
-            match identify_game(eog).await? {
-                Some(game) => game,
-                None => return Ok(()),
-            }
+        Resolution::Skip(Some(queue_type)) => {
+            log::info!("隐藏分：队列 {} 非排位，本局不采集", queue_type);
+            return Ok(());
+        }
+        Resolution::Skip(None) => {
+            return Err(fetched.err().unwrap_or_else(|| "无法确定本局".to_string()));
         }
     };
     if COLLECTING_GAME.swap(game_id, Ordering::SeqCst) == game_id {
@@ -280,7 +318,9 @@ async fn collect(app: AppHandle) -> Result<(), String> {
     for _ in 0..POLL_ATTEMPTS {
         if let Ok(n) = LpChangeNotification::get().await {
             match judge_notification(&n, game_id, now_ms()) {
-                NotificationOutcome::Accepted(record) => return persist(&app, &puuid, record),
+                NotificationOutcome::Accepted(record) => {
+                    return persist(&app, &puuid, record).await
+                }
                 NotificationOutcome::Rejected(why) => {
                     log::info!("隐藏分：第 {} 局不计入（{}）", game_id, why);
                     return Ok(());
@@ -294,10 +334,11 @@ async fn collect(app: AppHandle) -> Result<(), String> {
     let Some(p) = pending else {
         return Err(format!("第 {} 局等不到 LP 通知，且没有对局前快照", game_id));
     };
-    let rank = Rank::get_rank_by_puuid(&puuid).await?;
+    // 结算后快照同样要读实时段位，缓存里可能还是赛前的旧值
+    let rank = Rank::fetch_uncached(&puuid).await?;
     let after = queue_info(&rank, &queue_type).ok_or("未找到该队列段位")?;
     match snapshot_record(game_id, &queue_type, &p.before, after, now_ms()) {
-        Some(record) => persist(&app, &puuid, record),
+        Some(record) => persist(&app, &puuid, record).await,
         None => {
             log::info!("隐藏分：第 {} 局快照差值无效，不计入", game_id);
             Ok(())
@@ -305,8 +346,8 @@ async fn collect(app: AppHandle) -> Result<(), String> {
     }
 }
 
-/// 写盘；真的新增了记录才通知前端。
-fn persist(app: &AppHandle, puuid: &str, record: LpRecord) -> Result<(), String> {
+/// 写盘；真的新增了记录才失效段位缓存并通知前端。
+async fn persist(app: &AppHandle, puuid: &str, record: LpRecord) -> Result<(), String> {
     let queue_type = record.queue_type.clone();
     let delta = record.delta;
     let source = record.source;
@@ -318,6 +359,8 @@ fn persist(app: &AppHandle, puuid: &str, record: LpRecord) -> Result<(), String>
             delta,
             source
         );
+        // 让前端随后的 get_hidden_mmr 以赛后段位为锚点，而不是缓存里的赛前段位
+        crate::lcu::api::rank::invalidate_cache_for(puuid).await;
         if let Err(e) = app.emit(UPDATED_EVENT, &queue_type) {
             log::warn!("隐藏分：发送更新事件失败: {}", e);
         }
@@ -485,6 +528,61 @@ mod tests {
             0
         )
         .is_none());
+    }
+
+    fn pending(game_id: i64) -> Pending {
+        Pending {
+            puuid: "p".into(),
+            game_id,
+            queue_type: "RANKED_SOLO_5x5".into(),
+            before: queue("GOLD", "II", 50, 10, 10),
+        }
+    }
+
+    fn cur(game_id: i64, queue_type: &str) -> Option<(i64, String)> {
+        Some((game_id, queue_type.to_string()))
+    }
+
+    #[test]
+    fn should_use_pending_when_current_matches() {
+        let r = resolve_game(Some(pending(1)), cur(1, "RANKED_SOLO_5x5"));
+        assert!(matches!(r, Resolution::UsePending(p) if p.game_id == 1));
+    }
+
+    #[test]
+    fn should_discard_pending_and_use_current_when_game_differs() {
+        let r = resolve_game(Some(pending(1)), cur(2, "RANKED_FLEX_SR"));
+        assert!(matches!(
+            r,
+            Resolution::UseCurrent { game_id: 2, ref queue_type } if queue_type == "RANKED_FLEX_SR"
+        ));
+    }
+
+    #[test]
+    fn should_skip_when_pending_differs_and_current_is_not_ranked() {
+        let r = resolve_game(Some(pending(1)), cur(2, "ARAM"));
+        assert!(matches!(r, Resolution::Skip(Some(ref q)) if q == "ARAM"));
+    }
+
+    #[test]
+    fn should_keep_pending_when_current_fetch_failed() {
+        let r = resolve_game(Some(pending(1)), None);
+        assert!(matches!(r, Resolution::UsePending(p) if p.game_id == 1));
+    }
+
+    #[test]
+    fn should_use_main_path_only_when_no_pending_and_ranked() {
+        let r = resolve_game(None, cur(3, "RANKED_SOLO_5x5"));
+        assert!(matches!(r, Resolution::UseCurrent { game_id: 3, .. }));
+    }
+
+    #[test]
+    fn should_skip_when_no_pending_and_not_ranked_or_unknown() {
+        assert!(matches!(
+            resolve_game(None, cur(3, "CHERRY")),
+            Resolution::Skip(Some(ref q)) if q == "CHERRY"
+        ));
+        assert!(matches!(resolve_game(None, None), Resolution::Skip(None)));
     }
 
     #[test]
