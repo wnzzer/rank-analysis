@@ -105,15 +105,21 @@ const directionText = computed(() =>
   ready.value ? { up: '↑', flat: '持平', down: '↓' }[ready.value.direction] : ''
 )
 
+/**
+ * 带符号数字：正数加 `+`，负数用 U+2212 减号（与「平均输 −」一致），零原样输出
+ */
+function formatSigned(n: number): string {
+  if (n > 0) return `+${n}`
+  if (n < 0) return `−${-n}`
+  return '0'
+}
+
 /** tooltip 里的逐局加减分，新 → 旧 */
 const recentText = computed(
-  () => ready.value?.recent.map(r => (r.delta > 0 ? `+${r.delta}` : `${r.delta}`)).join(' / ') ?? ''
+  () => ready.value?.recent.map(r => formatSigned(r.delta)).join(' / ') ?? ''
 )
 
-const signedOffset = computed(() => {
-  const offset = ready.value?.offset ?? 0
-  return offset > 0 ? `+${offset}` : `${offset}`
-})
+const signedOffset = computed(() => formatSigned(ready.value?.offset ?? 0))
 
 // n-card 的 content-style 需要字符串/对象,这里用 token 占位以避免 inline 字面量
 const cardContentStyle = 'padding: var(--space-10)'

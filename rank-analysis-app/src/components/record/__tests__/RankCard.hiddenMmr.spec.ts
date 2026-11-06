@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import type { Component } from 'vue'
 import { mount } from '@vue/test-utils'
 import naive from 'naive-ui'
 import RankCard from '../RankCard.vue'
@@ -19,12 +20,15 @@ const queueInfo = {
   wins: 12
 } as QueueInfo
 
-function mountCard(hiddenMmr?: HiddenMmr | null) {
+function mountCard(hiddenMmr?: HiddenMmr | null, stubs: Record<string, Component> = {}) {
   return mount(RankCard, {
     props: { label: '单双排', queueInfo, recent: { wins: 6, losses: 4, winRate: 60 }, hiddenMmr },
-    global: { plugins: [naive] }
+    global: { plugins: [naive], stubs }
   })
 }
+
+/** 让 tooltip 内容常驻渲染，绕开 naive 的 hover 延迟与 teleport */
+const openTooltip = { Tooltip: { template: '<div><slot name="trigger" /><slot /></div>' } }
 
 const ready: HiddenMmr = {
   status: 'ready',
@@ -49,6 +53,14 @@ describe('RankCard hidden MMR row', () => {
     expect(row.text()).toContain('2580')
     expect(row.text()).toContain('↑')
     expect(row.classes()).toContain('good')
+  })
+
+  it('should show recent deltas, averages and the disclaimer in the tooltip', () => {
+    const text = mountCard(ready, openTooltip).text()
+
+    expect(text).toContain('最近 3 局：+28 / −14 / +28')
+    expect(text).toContain('平均赢 +28 / 平均输 −14，偏移 +140')
+    expect(text).toContain('估算值，非官方 MMR')
   })
 
   it('should mark flat and down directions', () => {
