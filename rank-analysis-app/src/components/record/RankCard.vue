@@ -32,6 +32,23 @@
           <span class="rank-card-stat-text">胜场: {{ recent.wins }}</span>
           <span class="rank-card-stat-text">负场: {{ recent.losses }}</span>
         </n-flex>
+        <n-tooltip v-if="ready" trigger="hover" placement="bottom-start">
+          <template #trigger>
+            <div class="rank-card-mmr" :class="mmrClass" data-test="hidden-mmr">
+              隐藏分 ≈ {{ ready.equivalent }} · {{ ready.score }} {{ directionText }}
+            </div>
+          </template>
+          <div class="rank-card-mmr-tip">
+            <div>最近 {{ ready.recent.length }} 局：{{ recentText }}</div>
+            <div>
+              平均赢 +{{ ready.avgWin }} / 平均输 −{{ ready.avgLoss }}，偏移 {{ signedOffset }}
+            </div>
+            <div class="rank-card-mmr-disclaimer">估算值，非官方 MMR</div>
+          </div>
+        </n-tooltip>
+        <div v-else-if="collectingText" class="rank-card-mmr muted" data-test="hidden-mmr">
+          {{ collectingText }}
+        </div>
       </div>
     </div>
   </n-card>
@@ -39,7 +56,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { NCard, NFlex } from 'naive-ui'
+import { NCard, NFlex, NTooltip } from 'naive-ui'
+import type { HiddenMmr } from '@renderer/services/hiddenMmr'
 import type { QueueInfo } from '@renderer/types/domain/player'
 import type { RecentWinRate } from '@renderer/types/domain/player'
 import { formatTierText } from '@renderer/utils/rank'
@@ -51,6 +69,8 @@ const props = defineProps<{
   recent: RecentWinRate
   /** 数据未到：渲染骨架而非「无段位 / 暂无对局 / 0 胜 0 负」假值 */
   loading?: boolean
+  /** 隐藏分估算；仅查看自己时由 UserRecord 传入，null / 缺省 / hidden 时不显示这一行 */
+  hiddenMmr?: HiddenMmr | null
 }>()
 
 /** 0 胜 0 负说明该队列没打过，红色「胜率 0%」会被误读成连败 */
@@ -61,6 +81,38 @@ const badgeClass = computed(() => {
   if (props.recent.winRate >= 58) return 'good'
   if (props.recent.winRate <= 49) return 'bad'
   return 'normal'
+})
+
+/** status 为 ready 时的估算（模板里用它做类型收窄） */
+const ready = computed(() => (props.hiddenMmr?.status === 'ready' ? props.hiddenMmr : null))
+
+/** 数据收集中的文案；非 collecting 时为空串 */
+const collectingText = computed(() => {
+  const mmr = props.hiddenMmr
+  if (mmr?.status !== 'collecting') return ''
+  return mmr.reason === 'one_sided'
+    ? '隐藏分 数据收集中（需至少 1 胜 1 负）'
+    : `隐藏分 数据收集中 ${mmr.have}/${mmr.need}`
+})
+
+/** 颜色沿用胜率徽章的 good / normal / bad 语义 */
+const mmrClass = computed(() => {
+  if (!ready.value) return ''
+  return { up: 'good', flat: 'normal', down: 'bad' }[ready.value.direction]
+})
+
+const directionText = computed(() =>
+  ready.value ? { up: '↑', flat: '持平', down: '↓' }[ready.value.direction] : ''
+)
+
+/** tooltip 里的逐局加减分，新 → 旧 */
+const recentText = computed(
+  () => ready.value?.recent.map(r => (r.delta > 0 ? `+${r.delta}` : `${r.delta}`)).join(' / ') ?? ''
+)
+
+const signedOffset = computed(() => {
+  const offset = ready.value?.offset ?? 0
+  return offset > 0 ? `+${offset}` : `${offset}`
 })
 
 // n-card 的 content-style 需要字符串/对象,这里用 token 占位以避免 inline 字面量
@@ -145,6 +197,39 @@ const cardContentStyle = 'padding: var(--space-10)'
 
 .rank-card-win-badge.normal {
   color: var(--text-secondary);
+}
+
+.rank-card-mmr {
+  margin-top: var(--space-4);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  cursor: default;
+}
+
+.rank-card-mmr.good {
+  color: var(--semantic-win);
+}
+
+.rank-card-mmr.bad {
+  color: var(--semantic-loss);
+}
+
+.rank-card-mmr.muted {
+  font-weight: normal;
+  color: var(--text-tertiary);
+}
+
+.rank-card-mmr-tip {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  font-size: var(--font-size-xs);
+}
+
+.rank-card-mmr-disclaimer {
+  color: var(--text-tertiary);
 }
 
 /* 骨架尺寸对齐真实内容：徽标 56px + 段位文字行 ≈ 66px 高，不因揭晓而跳 */
