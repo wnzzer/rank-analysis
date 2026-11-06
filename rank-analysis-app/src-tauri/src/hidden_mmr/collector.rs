@@ -154,6 +154,12 @@ static PENDING: LazyLock<Mutex<Option<Pending>>> = LazyLock::new(|| Mutex::new(N
 /// 正在采集的 gameId，防止同一局被重复触发采集。
 static COLLECTING_GAME: AtomicI64 = AtomicI64::new(0);
 
+/// 最近一次开始采集的时间（毫秒时间戳），用于识别「同一局的重复触发」。
+static LAST_COLLECT_START_MS: AtomicI64 = AtomicI64::new(0);
+
+/// 判定为「刚有采集在进行」的窗口：一局排位远长于此，窗口内的 Skip(None) 必是重复触发。
+const DUPLICATE_TRIGGER_WINDOW_MS: i64 = 5 * 60 * 1000;
+
 fn now_ms() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -284,9 +290,10 @@ fn resolve_game(pending: Option<Pending>, current: Option<(i64, String)>) -> Res
 ///
 /// # 行为
 /// - 本局用哪份数据见 [`resolve_game`]
-/// - PreEndOfGame 与 EndOfGame 都会进来：先**同步**取走快照（先到的触发者拿到快照，
-///   后到的拿不到、也就偷不走），再用 [`COLLECTING_GAME`] 对同一局去重，
+/// - PreEndOfGame 与 EndOfGame 都会进来：先取走快照，再用 [`COLLECTING_GAME`] 对同一局去重，
 ///   后到的触发者在去重处直接返回
+/// - 取快照与去重之间隔着 await，并非原子：无快照的后到触发者有可能先抢到去重位，
+///   此时该局丢失快照兜底（通知主路径照常运行，不会写出错误记录）
 async fn collect(app: AppHandle) -> Result<(), String> {
     let pending = take_pending();
     let fetched = EogStatsBlock::get().await;
@@ -308,12 +315,22 @@ async fn collect(app: AppHandle) -> Result<(), String> {
             return Ok(());
         }
         Resolution::Skip(None) => {
+            // 触发 #1 已在采集时，EndOfGame 的触发 #2 常因结算端点已消失走到这里，属正常重复触发，
+            // 不能报错（warn 会上报 Sentry）；只有近期没有任何采集启动时才是真正的首次失败。
+            if COLLECTING_GAME.load(Ordering::SeqCst) != 0
+                && now_ms() - LAST_COLLECT_START_MS.load(Ordering::SeqCst)
+                    < DUPLICATE_TRIGGER_WINDOW_MS
+            {
+                log::debug!("隐藏分：本局已有采集在进行，忽略重复触发");
+                return Ok(());
+            }
             return Err(fetched.err().unwrap_or_else(|| "无法确定本局".to_string()));
         }
     };
     if COLLECTING_GAME.swap(game_id, Ordering::SeqCst) == game_id {
         return Ok(());
     }
+    LAST_COLLECT_START_MS.store(now_ms(), Ordering::SeqCst);
 
     for _ in 0..POLL_ATTEMPTS {
         if let Ok(n) = LpChangeNotification::get().await {
