@@ -16,7 +16,7 @@ use tauri::{AppHandle, Emitter};
 use super::axis;
 use super::store::{self, LpRecord, Source};
 use crate::constant::game;
-use crate::lcu::api::eog_stats::EogStatsBlock;
+use crate::lcu::api::eog_stats::{EogStatsBlock, EogSummary};
 use crate::lcu::api::rank::{LpChangeNotification, QueueInfo, Rank};
 use crate::lcu::api::summoner::Summoner;
 
@@ -286,6 +286,16 @@ fn resolve_game(pending: Option<Pending>, current: Option<(i64, String)>) -> Res
     }
 }
 
+/// 读取当前对局的 `(gameId, queueType)`。
+///
+/// 先试实时统计 block；结算页后期它会 404，此时改用 `eog-stats-block`。两者都失败才返回错误。
+async fn fetch_current_game() -> Result<(i64, String), String> {
+    match EogStatsBlock::get().await {
+        Ok(b) => Ok((b.game_id, b.queue_type)),
+        Err(_) => EogSummary::get().await.map(|s| (s.game_id, s.queue_type)),
+    }
+}
+
 /// 结算后采集本局记录：先等通知，超时再用快照差值。
 ///
 /// # 行为
@@ -296,11 +306,8 @@ fn resolve_game(pending: Option<Pending>, current: Option<(i64, String)>) -> Res
 ///   此时该局丢失快照兜底（通知主路径照常运行，不会写出错误记录）
 async fn collect(app: AppHandle) -> Result<(), String> {
     let pending = take_pending();
-    let fetched = EogStatsBlock::get().await;
-    let current = fetched
-        .as_ref()
-        .ok()
-        .map(|b| (b.game_id, b.queue_type.clone()));
+    let fetched = fetch_current_game().await;
+    let current = fetched.as_ref().ok().cloned();
     let (puuid, game_id, queue_type, pending) = match resolve_game(pending, current) {
         Resolution::UsePending(p) => (p.puuid.clone(), p.game_id, p.queue_type.clone(), Some(*p)),
         Resolution::UseCurrent {
