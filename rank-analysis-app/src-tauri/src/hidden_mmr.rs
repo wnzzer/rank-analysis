@@ -10,5 +10,6 @@
 //! 设计见 `docs/superpowers/specs/2026-11-06-hidden-mmr-design.md`。
 
 pub mod axis;
+pub mod collector;
 pub mod estimate;
 pub mod store;

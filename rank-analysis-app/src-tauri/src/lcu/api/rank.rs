@@ -108,3 +108,34 @@ impl Rank {
                 .to_string();
     }
 }
+
+/// 最近一次 LP 变化通知（`lol-ranked/v1/current-lp-change-notification`）。
+///
+/// 2026-11-06 国服实测可用：结算后返回本局 `leaguePointsDelta`，`gameId` 与结算页一致。
+/// 注意通知里的 `wins/losses` 与段位接口对不上，这里刻意不收录。
+#[derive(Deserialize, Debug, Default, Clone)]
+#[serde(rename_all = "camelCase", default)]
+pub struct LpChangeNotification {
+    pub game_id: i64,
+    pub queue_type: String,
+    /// 本局 LP 加减分
+    pub league_points_delta: i32,
+    /// 变化后的段位
+    pub tier: String,
+    pub division: String,
+    pub league_points: i32,
+    /// 变化原因，对局结算为 `"GAME_END"`
+    pub change_reason: String,
+    pub afk_lp_penalty_amount: i32,
+    pub was_afk_or_leaver: bool,
+    /// 输局时消耗的安慰分（少扣分），大于 0 说明本局扣分被人为减免
+    pub consolation_lp_used: i32,
+    pub provisional_games_remaining: i32,
+}
+
+impl LpChangeNotification {
+    /// 拉取最近一次 LP 变化通知；还没有通知时 LCU 返回错误。
+    pub async fn get() -> Result<Self, String> {
+        crate::lcu::util::http::lcu_get("lol-ranked/v1/current-lp-change-notification").await
+    }
+}
