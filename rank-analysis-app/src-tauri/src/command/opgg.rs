@@ -753,3 +753,21 @@ mod tests {
         assert!(!stale);
     }
 }
+
+/// 查询全球排位完整对位列表；query 包含敌方、分路、段位与可选版本。
+/// 返回源版本与源时间，网络失败可返回明确标记 stale 的同键旧数据。
+#[tauri::command]
+pub async fn get_matchup_list(
+    query: crate::opgg::matchup::MatchupQuery,
+) -> Result<crate::opgg::matchup::MatchupList, String> {
+    crate::opgg::matchup::get_list(query).await
+}
+/// 查询指定 candidate_id 的双方对位详情，query 必须锁定列表版本。
+/// 返回候选自身胜率与归一化线杀率；无效统计为空值，非法参数返回错误。
+#[tauri::command]
+pub async fn get_matchup_detail(
+    query: crate::opgg::matchup::MatchupQuery,
+    candidate_id: i32,
+) -> Result<crate::opgg::matchup::MatchupDetail, String> {
+    crate::opgg::matchup::get_detail(query, candidate_id).await
+}

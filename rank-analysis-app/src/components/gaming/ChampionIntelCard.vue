@@ -46,6 +46,7 @@
           </span>
         </div>
       </div>
+      <slot name="matchup"></slot>
     </template>
   </div>
 </template>

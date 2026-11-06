@@ -99,6 +99,8 @@ pub struct ChampionOption {
     pub real_name: String,
     /// 英雄昵称（如 "卡特"）
     pub nickname: String,
+    /// 客户端英文资源别名，用于英雄资料来源链接。
+    pub alias: String,
 }
 
 /// 获取所有英雄选项列表（用于筛选等）。
@@ -138,6 +140,7 @@ pub fn get_champion_options() -> Result<Vec<ChampionOption>, String> {
             value: champion.id,
             real_name: champion.description,
             nickname: format!("{} ({})", known_alias, champion.alias),
+            alias: champion.alias,
         });
     }
 
