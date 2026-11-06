@@ -7,9 +7,18 @@
 //!
 //! 剔除挂机 / 安慰分 / 定级赛 / 掉段保护等不反映隐藏分的局，规则集中在本文件的纯函数里。
 
+use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::{LazyLock, Mutex};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+use tauri::{AppHandle, Emitter};
+
 use super::axis;
-use super::store::{LpRecord, Source};
+use super::store::{self, LpRecord, Source};
+use crate::constant::game;
+use crate::lcu::api::eog_stats::EogStatsBlock;
 use crate::lcu::api::rank::{LpChangeNotification, QueueInfo, Rank};
+use crate::lcu::api::summoner::Summoner;
 
 /// 参与隐藏分估算的排位队列。
 pub const RANKED_QUEUES: [&str; 2] = ["RANKED_SOLO_5x5", "RANKED_FLEX_SR"];
@@ -117,6 +126,172 @@ pub fn snapshot_record(
         timestamp: now_ms,
         source: Source::Snapshot,
     })
+}
+
+/// 写入新记录后发给前端的事件名，payload 为队列类型。
+pub const UPDATED_EVENT: &str = "hidden-mmr-updated";
+
+/// 结算后轮询间隔。
+const POLL_INTERVAL: Duration = Duration::from_secs(3);
+
+/// 结算后最多轮询次数：40 × 3 秒 = 2 分钟。
+const POLL_ATTEMPTS: u32 = 40;
+
+/// InProgress 刚开始时结算预统计可能还没就绪，最多重试这么多次（每次间隔 [`POLL_INTERVAL`]）。
+const CAPTURE_ATTEMPTS: u32 = 10;
+
+/// 对局前快照，InProgress 时写入、EndOfGame 时取走。
+struct Pending {
+    puuid: String,
+    game_id: i64,
+    queue_type: String,
+    before: QueueInfo,
+}
+
+static PENDING: LazyLock<Mutex<Option<Pending>>> = LazyLock::new(|| Mutex::new(None));
+
+/// 正在采集的 gameId，防止同一局被重复触发采集。
+static COLLECTING_GAME: AtomicI64 = AtomicI64::new(0);
+
+fn now_ms() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
+}
+
+fn set_pending(value: Option<Pending>) {
+    *PENDING.lock().unwrap_or_else(|e| e.into_inner()) = value;
+}
+
+fn take_pending() -> Option<Pending> {
+    PENDING.lock().unwrap_or_else(|e| e.into_inner()).take()
+}
+
+/// 客户端阶段变化时由 `game_state_monitor` 调用。
+///
+/// # 参数
+/// - `app`: 用于发 [`UPDATED_EVENT`]
+/// - `phase`: 新阶段
+///
+/// # 行为
+/// - `InProgress`：后台记录对局前快照
+/// - `EndOfGame`：后台采集本局 LP 变化
+/// - 其他阶段忽略；所有错误只打日志，不影响主流程
+pub fn on_phase_change(app: AppHandle, phase: &str) {
+    match phase {
+        game::INPROGRESS => {
+            tokio::spawn(async {
+                if let Err(e) = capture_before().await {
+                    log::info!("隐藏分：未记录对局前快照: {}", e);
+                }
+            });
+        }
+        game::ENDOFGAME => {
+            tokio::spawn(async move {
+                if let Err(e) = collect(app).await {
+                    log::warn!("隐藏分：本局采集失败: {}", e);
+                }
+            });
+        }
+        _ => {}
+    }
+}
+
+/// 记录对局前快照；非排位对局清空快照。
+async fn capture_before() -> Result<(), String> {
+    let mut eog = None;
+    for _ in 0..CAPTURE_ATTEMPTS {
+        if let Ok(block) = EogStatsBlock::get().await {
+            eog = Some(block);
+            break;
+        }
+        tokio::time::sleep(POLL_INTERVAL).await;
+    }
+    let eog = eog.ok_or("结算预统计一直不可用")?;
+    if !is_ranked_queue(&eog.queue_type) {
+        set_pending(None);
+        return Ok(());
+    }
+    let me = Summoner::get_my_summoner().await?;
+    let rank = Rank::get_rank_by_puuid(&me.puuid).await?;
+    let before = queue_info(&rank, &eog.queue_type)
+        .cloned()
+        .ok_or("未找到该队列段位")?;
+    set_pending(Some(Pending {
+        puuid: me.puuid,
+        game_id: eog.game_id,
+        queue_type: eog.queue_type,
+        before,
+    }));
+    Ok(())
+}
+
+/// 结算后采集本局记录：先等通知，超时再用快照差值。
+async fn collect(app: AppHandle) -> Result<(), String> {
+    let pending = take_pending();
+    let (puuid, game_id, queue_type) = match &pending {
+        Some(p) => (p.puuid.clone(), p.game_id, p.queue_type.clone()),
+        // 应用是在对局中途打开的：没有快照，只能走主路径
+        None => {
+            let eog = EogStatsBlock::get().await?;
+            if !is_ranked_queue(&eog.queue_type) {
+                return Ok(());
+            }
+            let me = Summoner::get_my_summoner().await?;
+            (me.puuid, eog.game_id, eog.queue_type)
+        }
+    };
+    if COLLECTING_GAME.swap(game_id, Ordering::SeqCst) == game_id {
+        return Ok(());
+    }
+
+    for _ in 0..POLL_ATTEMPTS {
+        if let Ok(n) = LpChangeNotification::get().await {
+            match judge_notification(&n, game_id, now_ms()) {
+                NotificationOutcome::Accepted(record) => return persist(&app, &puuid, record),
+                NotificationOutcome::Rejected(why) => {
+                    log::info!("隐藏分：第 {} 局不计入（{}）", game_id, why);
+                    return Ok(());
+                }
+                NotificationOutcome::NotYet => {}
+            }
+        }
+        tokio::time::sleep(POLL_INTERVAL).await;
+    }
+
+    let Some(p) = pending else {
+        return Err(format!("第 {} 局等不到 LP 通知，且没有对局前快照", game_id));
+    };
+    let rank = Rank::get_rank_by_puuid(&puuid).await?;
+    let after = queue_info(&rank, &queue_type).ok_or("未找到该队列段位")?;
+    match snapshot_record(game_id, &queue_type, &p.before, after, now_ms()) {
+        Some(record) => persist(&app, &puuid, record),
+        None => {
+            log::info!("隐藏分：第 {} 局快照差值无效，不计入", game_id);
+            Ok(())
+        }
+    }
+}
+
+/// 写盘；真的新增了记录才通知前端。
+fn persist(app: &AppHandle, puuid: &str, record: LpRecord) -> Result<(), String> {
+    let queue_type = record.queue_type.clone();
+    let delta = record.delta;
+    let source = record.source;
+    let added = store::append(&store::default_dir(), puuid, record).map_err(|e| e.to_string())?;
+    if added {
+        log::info!(
+            "隐藏分：记录 {} {:+} LP（来源 {:?}）",
+            queue_type,
+            delta,
+            source
+        );
+        if let Err(e) = app.emit(UPDATED_EVENT, &queue_type) {
+            log::warn!("隐藏分：发送更新事件失败: {}", e);
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
