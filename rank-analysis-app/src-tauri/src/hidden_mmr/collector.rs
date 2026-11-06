@@ -137,8 +137,9 @@ const POLL_INTERVAL: Duration = Duration::from_secs(3);
 /// 结算后最多轮询次数：40 × 3 秒 = 2 分钟。
 const POLL_ATTEMPTS: u32 = 40;
 
-/// InProgress 刚开始时结算预统计可能还没就绪，最多重试这么多次（每次间隔 [`POLL_INTERVAL`]）。
-const CAPTURE_ATTEMPTS: u32 = 10;
+/// InProgress 刚开始（加载界面）时结算预统计可能还没就绪，最多重试这么多次
+/// （每次间隔 [`POLL_INTERVAL`]）：40 × 3 秒 = 2 分钟，覆盖较长的加载时间。
+const CAPTURE_ATTEMPTS: u32 = 40;
 
 /// 对局前快照，InProgress 时写入、EndOfGame 时取走。
 struct Pending {
@@ -198,8 +199,10 @@ pub fn on_phase_change(app: AppHandle, phase: &str) {
     }
 }
 
-/// 记录对局前快照；非排位对局清空快照。
+/// 记录对局前快照；任何失败或非排位对局都不会留下上一局的旧快照。
 async fn capture_before() -> Result<(), String> {
+    // 先清掉上一局可能残留的快照，避免本局采集失败后被 collect 跨局沿用
+    set_pending(None);
     let mut eog = None;
     for _ in 0..CAPTURE_ATTEMPTS {
         if let Ok(block) = EogStatsBlock::get().await {
@@ -210,7 +213,6 @@ async fn capture_before() -> Result<(), String> {
     }
     let eog = eog.ok_or("结算预统计一直不可用")?;
     if !is_ranked_queue(&eog.queue_type) {
-        set_pending(None);
         return Ok(());
     }
     let me = Summoner::get_my_summoner().await?;
@@ -227,19 +229,48 @@ async fn capture_before() -> Result<(), String> {
     Ok(())
 }
 
+/// 由结算预统计解析本局身份 `(puuid, gameId, queueType)`；非排位队列返回 `None`。
+async fn identify_game(eog: EogStatsBlock) -> Result<Option<(String, i64, String)>, String> {
+    if !is_ranked_queue(&eog.queue_type) {
+        return Ok(None);
+    }
+    let me = Summoner::get_my_summoner().await?;
+    Ok(Some((me.puuid, eog.game_id, eog.queue_type)))
+}
+
 /// 结算后采集本局记录：先等通知，超时再用快照差值。
+///
+/// # 行为
+/// - 快照的 gameId 与当前结算预统计不一致时，说明快照属于别的对局，丢弃后按无快照处理
+/// - 结算预统计读取失败（端点可能已消失）时，保留快照继续
 async fn collect(app: AppHandle) -> Result<(), String> {
-    let pending = take_pending();
+    let mut pending = take_pending();
+    let mut current = None;
+    if let Some(p) = &pending {
+        if let Ok(block) = EogStatsBlock::get().await {
+            if block.game_id != p.game_id {
+                log::info!(
+                    "隐藏分：对局前快照属于第 {} 局而非当前第 {} 局，已丢弃",
+                    p.game_id,
+                    block.game_id
+                );
+                pending = None;
+                current = Some(block);
+            }
+        }
+    }
     let (puuid, game_id, queue_type) = match &pending {
         Some(p) => (p.puuid.clone(), p.game_id, p.queue_type.clone()),
-        // 应用是在对局中途打开的：没有快照，只能走主路径
+        // 没有可用快照：应用在结算界面或之后才打开，或对局前的采集失败了，只能走主路径
         None => {
-            let eog = EogStatsBlock::get().await?;
-            if !is_ranked_queue(&eog.queue_type) {
-                return Ok(());
+            let eog = match current {
+                Some(block) => block,
+                None => EogStatsBlock::get().await?,
+            };
+            match identify_game(eog).await? {
+                Some(game) => game,
+                None => return Ok(()),
             }
-            let me = Summoner::get_my_summoner().await?;
-            (me.puuid, eog.game_id, eog.queue_type)
         }
     };
     if COLLECTING_GAME.swap(game_id, Ordering::SeqCst) == game_id {
