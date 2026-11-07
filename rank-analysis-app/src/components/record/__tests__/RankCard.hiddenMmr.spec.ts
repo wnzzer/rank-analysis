@@ -10,15 +10,14 @@ const queueInfo = {
   queueType: 'RANKED_SOLO_5x5',
   queueTypeCn: '单双排',
   division: 'IV',
-  tier: 'EMERALD',
-  tierCn: '流光翡翠',
+  tier: 'DIAMOND',
+  tierCn: '璀璨钻石',
   highestDivision: 'IV',
-  highestTier: 'EMERALD',
+  highestTier: 'DIAMOND',
   isProvisional: false,
   leaguePoints: 40,
   losses: 10,
-  wins: 12,
-  ladderScore: 2105
+  wins: 12
 } as QueueInfo
 
 function mountCard(
@@ -42,9 +41,9 @@ const openTooltip = { Tooltip: { template: '<div><slot name="trigger" /><slot />
 
 const ready: HiddenMmr = {
   status: 'ready',
-  score: 2180,
-  equivalent: '流光翡翠 III 80LP',
-  offset: 75,
+  score: 2580,
+  equivalent: '璀璨钻石 III 80LP',
+  offset: 140,
   direction: 'up',
   avgWin: 28,
   avgLoss: 14,
@@ -55,37 +54,41 @@ const ready: HiddenMmr = {
   ]
 }
 
-describe('RankCard ladder score', () => {
-  it('should show ladder score with unit when present', () => {
-    const el = mountCard().get('[data-test="ladder-score"]')
-
-    expect(el.text()).toContain('2105')
-    expect(el.text()).toContain('分')
+describe('RankCard real tier LP', () => {
+  it('should show current LP under the tier text', () => {
+    expect(mountCard().get('[data-test="tier-lp"]').text()).toBe('40 LP')
   })
 
-  it('should not render ladder score when null or absent', () => {
+  it('should not render LP for master and above', () => {
+    const wrapper = mountCard(null, {}, { ...queueInfo, tier: 'MASTER', division: 'NA' })
+
+    expect(wrapper.find('[data-test="tier-lp"]').exists()).toBe(false)
+  })
+
+  it('should not render LP when unranked', () => {
     expect(
-      mountCard(null, {}, { ...queueInfo, ladderScore: null })
-        .find('[data-test="ladder-score"]')
+      mountCard(null, {}, { ...queueInfo, tier: '' })
+        .find('[data-test="tier-lp"]')
         .exists()
     ).toBe(false)
     expect(
-      mountCard(null, {}, { ...queueInfo, ladderScore: undefined })
-        .find('[data-test="ladder-score"]')
+      mountCard(null, {}, { ...queueInfo, tier: 'UNRANKED' })
+        .find('[data-test="tier-lp"]')
         .exists()
     ).toBe(false)
   })
 
-  it('should render a ladder score even when hidden MMR is absent', () => {
-    expect(mountCard(null).find('[data-test="ladder-score"]').exists()).toBe(true)
+  it('should not render a ladder score', () => {
+    expect(mountCard(ready).find('[data-test="ladder-score"]').exists()).toBe(false)
   })
 })
 
 describe('RankCard hidden MMR row', () => {
-  it('should show a quiet one-line score with a win-colored arrow when up', () => {
+  it('should show the equivalent rank with a win-colored arrow when up, without the score', () => {
     const row = mountCard(ready).get('[data-test="hidden-mmr"]')
 
-    expect(row.text()).toBe('隐藏分 2180 ↑')
+    expect(row.text()).toBe('隐藏分 ≈ 璀璨钻石 III 80LP ↑')
+    expect(row.text()).not.toContain('2580')
     expect(row.get('.rank-card-mmr-arrow').classes()).toContain('up')
   })
 
@@ -97,9 +100,9 @@ describe('RankCard hidden MMR row', () => {
       '[data-test="hidden-mmr"]'
     )
 
-    expect(flat.text()).toBe('隐藏分 2180')
+    expect(flat.text()).toBe('隐藏分 ≈ 璀璨钻石 III 80LP')
     expect(flat.find('.rank-card-mmr-arrow').exists()).toBe(false)
-    expect(down.text()).toBe('隐藏分 2180 ↓')
+    expect(down.text()).toBe('隐藏分 ≈ 璀璨钻石 III 80LP ↓')
     expect(down.get('.rank-card-mmr-arrow').classes()).toContain('down')
   })
 
@@ -127,31 +130,24 @@ describe('RankCard hidden MMR row', () => {
 })
 
 describe('RankCard hidden MMR tooltip', () => {
-  it('should show equivalent, comparison, recent deltas, rules and disclaimer when ready', () => {
+  it('should show comparison in LP, recent deltas, rules and disclaimer when ready', () => {
     const text = mountCard(ready, openTooltip).text()
 
-    expect(text).toContain('≈ 流光翡翠 III 80LP（2180）')
-    expect(text).toContain('比天梯分高 75')
+    expect(text).toContain('≈ 璀璨钻石 III 80LP，比当前段位高 140 LP')
     expect(text).toContain('最近 3 局：+28 / −14 / +28')
     expect(text).toContain('平均赢 +28 / 平均输 −14')
     expect(text).toContain('计算规则')
     expect(text).toContain('估算值，非官方 MMR')
+    expect(text).not.toContain('2580')
+    expect(text).not.toContain('天梯分')
   })
 
-  it('should say lower and equal relative to the ladder score', () => {
-    const lower = mountCard({ ...ready, score: 2100 }, openTooltip).text()
-    const equal = mountCard({ ...ready, score: 2105 }, openTooltip).text()
+  it('should say lower and equal relative to the current tier', () => {
+    const lower = mountCard({ ...ready, direction: 'down', offset: -35 }, openTooltip).text()
+    const equal = mountCard({ ...ready, direction: 'flat', offset: 0 }, openTooltip).text()
 
-    expect(lower).toContain('比天梯分低 5')
-    expect(equal).toContain('与天梯分持平')
-  })
-
-  it('should skip the comparison when there is no ladder score', () => {
-    const text = mountCard(ready, openTooltip, { ...queueInfo, ladderScore: null }).text()
-
-    expect(text).not.toContain('天梯分高')
-    expect(text).not.toContain('天梯分低')
-    expect(text).not.toContain('与天梯分持平')
+    expect(lower).toContain('比当前段位低 35 LP')
+    expect(equal).toContain('与当前段位持平')
   })
 
   it('should show progress hint and rules when collecting', () => {

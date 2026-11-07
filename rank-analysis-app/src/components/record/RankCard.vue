@@ -10,7 +10,7 @@
         <span class="rank-card-type-label">{{ label }}</span>
         <span class="sk sk-circle rank-card-sk-emblem" />
         <span class="sk rank-card-sk-tier" />
-        <span class="sk rank-card-sk-ladder" />
+        <span class="sk rank-card-sk-lp" />
       </div>
       <div class="rank-card-stats">
         <span class="sk rank-card-sk-badge" />
@@ -24,13 +24,8 @@
         <div class="rank-card-tier-text">
           {{ formatTierText(queueInfo) }}
         </div>
-        <div
-          v-if="typeof queueInfo.ladderScore === 'number'"
-          class="rank-card-ladder"
-          data-test="ladder-score"
-        >
-          <span class="rank-card-ladder-value">{{ queueInfo.ladderScore }}</span
-          ><span class="rank-card-ladder-unit">分</span>
+        <div v-if="showTierLp" class="rank-card-tier-lp" data-test="tier-lp">
+          {{ queueInfo.leaguePoints }} LP
         </div>
       </div>
       <div class="rank-card-stats">
@@ -52,8 +47,7 @@
           </template>
           <div class="rank-card-mmr-tip">
             <template v-if="ready">
-              <div>≈ {{ ready.equivalent }}（{{ ready.score }}）</div>
-              <div v-if="ladderCompare">{{ ladderCompare }}</div>
+              <div>≈ {{ ready.equivalent }}，{{ tierCompare }}</div>
               <div>最近 {{ ready.recent.length }} 局：{{ recentText }}</div>
               <div>平均赢 +{{ ready.avgWin }} / 平均输 −{{ ready.avgLoss }}</div>
             </template>
@@ -63,7 +57,7 @@
             <div class="rank-card-mmr-rules">
               <div class="rank-card-mmr-rules-title">计算规则</div>
               <div>1. 每局排位结束后记录 LP 加减分（挂机、定级赛、掉段保护不计入）</div>
-              <div>2. 取最近 10 局：隐藏分 ≈ 天梯分 +（平均赢分 − 平均输分）× 10</div>
+              <div>2. 取最近 10 局：隐藏分 ≈ 当前段位 +（平均赢分 − 平均输分）× 10 LP</div>
               <div>3. 赢得多输得少 → 隐藏分高于段位</div>
             </div>
             <div class="rank-card-mmr-disclaimer">估算值，非官方 MMR</div>
@@ -80,7 +74,7 @@ import { NCard, NFlex, NTooltip } from 'naive-ui'
 import type { HiddenMmr } from '@renderer/services/hiddenMmr'
 import type { QueueInfo } from '@renderer/types/domain/player'
 import type { RecentWinRate } from '@renderer/types/domain/player'
-import { formatTierText } from '@renderer/utils/rank'
+import { formatTierText, hasRealTier, isHighTier } from '@renderer/utils/rank'
 import { tierImage } from '@renderer/utils/tier-image'
 
 const props = defineProps<{
@@ -92,6 +86,9 @@ const props = defineProps<{
   /** 隐藏分估算；仅查看自己时由 UserRecord 传入，null / 缺省 / hidden 时不显示这一行 */
   hiddenMmr?: HiddenMmr | null
 }>()
+
+/** 大师及以上的 formatTierText 已带胜点，这里只给钻石及以下补一行；未定级不显示 */
+const showTierLp = computed(() => hasRealTier(props.queueInfo) && !isHighTier(props.queueInfo.tier))
 
 /** 0 胜 0 负说明该队列没打过，红色「胜率 0%」会被误读成连败 */
 const hasGames = computed(() => props.recent.wins + props.recent.losses > 0)
@@ -113,7 +110,7 @@ const collecting = computed(() =>
 
 /** 隐藏分那一行的文案（不含箭头）；hidden / 缺省时为空串，整行不渲染 */
 const mmrLine = computed(() => {
-  if (ready.value) return `隐藏分 ${ready.value.score}`
+  if (ready.value) return `隐藏分 ≈ ${ready.value.equivalent}`
   const mmr = collecting.value
   if (!mmr) return ''
   return mmr.reason === 'one_sided'
@@ -126,13 +123,11 @@ const arrow = computed(() =>
   ready.value ? { up: '↑', flat: '', down: '↓' }[ready.value.direction] : ''
 )
 
-/** tooltip 里隐藏分与天梯分的对比；没有天梯分时为空串 */
-const ladderCompare = computed(() => {
-  const ladder = props.queueInfo.ladderScore
-  if (!ready.value || typeof ladder !== 'number') return ''
-  const diff = ready.value.score - ladder
-  if (diff === 0) return '与天梯分持平'
-  return `比天梯分${diff > 0 ? '高' : '低'} ${Math.abs(diff)}`
+/** tooltip 里隐藏分相对当前段位的 LP 差距 */
+const tierCompare = computed(() => {
+  const offset = ready.value?.offset ?? 0
+  if (offset === 0) return '与当前段位持平'
+  return `比当前段位${offset > 0 ? '高' : '低'} ${Math.abs(offset)} LP`
 })
 
 /**
@@ -233,23 +228,13 @@ const cardContentStyle = 'padding: var(--space-10)'
   color: var(--text-secondary);
 }
 
-.rank-card-ladder {
+.rank-card-tier-lp {
   text-align: center;
-  line-height: var(--line-height-tight);
-  margin-top: var(--space-2);
-}
-
-.rank-card-ladder-value {
-  font-size: var(--font-size-md);
-  font-weight: 700;
-  color: var(--text-primary);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
-}
-
-.rank-card-ladder-unit {
-  margin-left: var(--space-2);
-  font-size: var(--font-size-2xs);
-  color: var(--text-tertiary);
+  line-height: var(--line-height-tight);
 }
 
 /* 隐藏分：低调的一行灰色小字，只有箭头带颜色 */
@@ -305,10 +290,10 @@ const cardContentStyle = 'padding: var(--space-10)'
   height: 10px;
 }
 
-.rank-card-sk-ladder {
-  width: 40px;
-  height: 14px;
-  margin-top: var(--space-4);
+.rank-card-sk-lp {
+  width: 32px;
+  height: 12px;
+  margin-top: var(--space-2);
 }
 
 .rank-card-sk-badge {
