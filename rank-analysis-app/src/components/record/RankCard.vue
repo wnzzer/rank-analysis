@@ -10,6 +10,7 @@
         <span class="rank-card-type-label">{{ label }}</span>
         <span class="sk sk-circle rank-card-sk-emblem" />
         <span class="sk rank-card-sk-tier" />
+        <span class="sk rank-card-sk-ladder" />
       </div>
       <div class="rank-card-stats">
         <span class="sk rank-card-sk-badge" />
@@ -23,6 +24,14 @@
         <div class="rank-card-tier-text">
           {{ formatTierText(queueInfo) }}
         </div>
+        <div
+          v-if="typeof queueInfo.ladderScore === 'number'"
+          class="rank-card-ladder"
+          data-test="ladder-score"
+        >
+          <span class="rank-card-ladder-value">{{ queueInfo.ladderScore }}</span
+          ><span class="rank-card-ladder-unit">分</span>
+        </div>
       </div>
       <div class="rank-card-stats">
         <div class="rank-card-win-badge" :class="badgeClass">
@@ -32,23 +41,34 @@
           <span class="rank-card-stat-text">胜场: {{ recent.wins }}</span>
           <span class="rank-card-stat-text">负场: {{ recent.losses }}</span>
         </n-flex>
-        <n-tooltip v-if="ready" trigger="hover" placement="bottom-start">
+        <n-tooltip v-if="mmrLine" trigger="hover" placement="bottom-start">
           <template #trigger>
-            <div class="rank-card-mmr" :class="mmrClass" data-test="hidden-mmr">
-              隐藏分 ≈ {{ ready.equivalent }} · {{ ready.score }} {{ directionText }}
+            <div class="rank-card-mmr" data-test="hidden-mmr">
+              {{ mmrLine }}
+              <span v-if="ready && arrow" class="rank-card-mmr-arrow" :class="ready.direction">{{
+                arrow
+              }}</span>
             </div>
           </template>
           <div class="rank-card-mmr-tip">
-            <div>最近 {{ ready.recent.length }} 局：{{ recentText }}</div>
-            <div>
-              平均赢 +{{ ready.avgWin }} / 平均输 −{{ ready.avgLoss }}，偏移 {{ signedOffset }}
+            <template v-if="ready">
+              <div>≈ {{ ready.equivalent }}（{{ ready.score }}）</div>
+              <div v-if="ladderCompare">{{ ladderCompare }}</div>
+              <div>最近 {{ ready.recent.length }} 局：{{ recentText }}</div>
+              <div>平均赢 +{{ ready.avgWin }} / 平均输 −{{ ready.avgLoss }}</div>
+            </template>
+            <div v-else-if="collecting">
+              已记录 {{ collecting.have }} 局有效排位，至少需要 {{ collecting.need }} 局且有胜有负
+            </div>
+            <div class="rank-card-mmr-rules">
+              <div class="rank-card-mmr-rules-title">计算规则</div>
+              <div>1. 每局排位结束后记录 LP 加减分（挂机、定级赛、掉段保护不计入）</div>
+              <div>2. 取最近 10 局：隐藏分 ≈ 天梯分 +（平均赢分 − 平均输分）× 10</div>
+              <div>3. 赢得多输得少 → 隐藏分高于段位</div>
             </div>
             <div class="rank-card-mmr-disclaimer">估算值，非官方 MMR</div>
           </div>
         </n-tooltip>
-        <div v-else-if="collectingText" class="rank-card-mmr muted" data-test="hidden-mmr">
-          {{ collectingText }}
-        </div>
       </div>
     </div>
   </n-card>
@@ -86,24 +106,34 @@ const badgeClass = computed(() => {
 /** status 为 ready 时的估算（模板里用它做类型收窄） */
 const ready = computed(() => (props.hiddenMmr?.status === 'ready' ? props.hiddenMmr : null))
 
-/** 数据收集中的文案；非 collecting 时为空串 */
-const collectingText = computed(() => {
-  const mmr = props.hiddenMmr
-  if (mmr?.status !== 'collecting') return ''
-  return mmr.reason === 'one_sided'
-    ? '隐藏分 数据收集中（需至少 1 胜 1 负）'
-    : `隐藏分 数据收集中 ${mmr.have}/${mmr.need}`
-})
-
-/** 颜色沿用胜率徽章的 good / normal / bad 语义 */
-const mmrClass = computed(() => {
-  if (!ready.value) return ''
-  return { up: 'good', flat: 'normal', down: 'bad' }[ready.value.direction]
-})
-
-const directionText = computed(() =>
-  ready.value ? { up: '↑', flat: '持平', down: '↓' }[ready.value.direction] : ''
+/** status 为 collecting 时的进度（模板里用它做类型收窄） */
+const collecting = computed(() =>
+  props.hiddenMmr?.status === 'collecting' ? props.hiddenMmr : null
 )
+
+/** 隐藏分那一行的文案（不含箭头）；hidden / 缺省时为空串，整行不渲染 */
+const mmrLine = computed(() => {
+  if (ready.value) return `隐藏分 ${ready.value.score}`
+  const mmr = collecting.value
+  if (!mmr) return ''
+  return mmr.reason === 'one_sided'
+    ? '隐藏分 收集中（需有胜有负）'
+    : `隐藏分 收集中 ${mmr.have}/${mmr.need}`
+})
+
+/** 方向箭头；持平不显示 */
+const arrow = computed(() =>
+  ready.value ? { up: '↑', flat: '', down: '↓' }[ready.value.direction] : ''
+)
+
+/** tooltip 里隐藏分与天梯分的对比；没有天梯分时为空串 */
+const ladderCompare = computed(() => {
+  const ladder = props.queueInfo.ladderScore
+  if (!ready.value || typeof ladder !== 'number') return ''
+  const diff = ready.value.score - ladder
+  if (diff === 0) return '与天梯分持平'
+  return `比天梯分${diff > 0 ? '高' : '低'} ${Math.abs(diff)}`
+})
 
 /**
  * 带符号数字：正数加 `+`，负数用 U+2212 减号（与「平均输 −」一致），零原样输出
@@ -118,8 +148,6 @@ function formatSigned(n: number): string {
 const recentText = computed(
   () => ready.value?.recent.map(r => formatSigned(r.delta)).join(' / ') ?? ''
 )
-
-const signedOffset = computed(() => formatSigned(ready.value?.offset ?? 0))
 
 // n-card 的 content-style 需要字符串/对象,这里用 token 占位以避免 inline 字面量
 const cardContentStyle = 'padding: var(--space-10)'
@@ -205,26 +233,42 @@ const cardContentStyle = 'padding: var(--space-10)'
   color: var(--text-secondary);
 }
 
+.rank-card-ladder {
+  text-align: center;
+  line-height: var(--line-height-tight);
+  margin-top: var(--space-2);
+}
+
+.rank-card-ladder-value {
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.rank-card-ladder-unit {
+  margin-left: var(--space-2);
+  font-size: var(--font-size-2xs);
+  color: var(--text-tertiary);
+}
+
+/* 隐藏分：低调的一行灰色小字，只有箭头带颜色 */
 .rank-card-mmr {
   margin-top: var(--space-4);
-  font-size: var(--font-size-xs);
-  font-weight: 600;
-  color: var(--text-secondary);
+  font-size: var(--font-size-2xs);
+  font-weight: normal;
+  color: var(--text-tertiary);
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
   cursor: default;
 }
 
-.rank-card-mmr.good {
+.rank-card-mmr-arrow.up {
   color: var(--semantic-win);
 }
 
-.rank-card-mmr.bad {
+.rank-card-mmr-arrow.down {
   color: var(--semantic-loss);
-}
-
-.rank-card-mmr.muted {
-  font-weight: normal;
-  color: var(--text-tertiary);
 }
 
 .rank-card-mmr-tip {
@@ -232,6 +276,18 @@ const cardContentStyle = 'padding: var(--space-10)'
   flex-direction: column;
   gap: var(--space-2);
   font-size: var(--font-size-xs);
+}
+
+.rank-card-mmr-rules {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  font-size: var(--font-size-2xs);
+}
+
+.rank-card-mmr-rules-title {
+  font-weight: 600;
 }
 
 .rank-card-mmr-disclaimer {
@@ -247,6 +303,12 @@ const cardContentStyle = 'padding: var(--space-10)'
 .rank-card-sk-tier {
   width: 52px;
   height: 10px;
+}
+
+.rank-card-sk-ladder {
+  width: 40px;
+  height: 14px;
+  margin-top: var(--space-4);
 }
 
 .rank-card-sk-badge {
