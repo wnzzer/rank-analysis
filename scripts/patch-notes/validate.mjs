@@ -84,22 +84,33 @@ function matchArticleLines(line, articleLines, normedLines) {
 
 /**
  * 把 AI 给出的英雄名归一成白名单里的中文名。
- * 依次尝试：中文名本身 → 称号 → 「称号 中文名」组合（如 26.22 公告写作「疾风剑豪 亚索」，
- * AI 照抄整段）。组合形式按空白/括号切分后逐段匹配；「·」是中文名的一部分（奥瑞利安·索尔），不切。
- * @returns 白名单中的中文名；无法归一时返回 null
+ * 先精确匹配中文名 / 称号；不中时在原串里查找所有中文名与称号（覆盖「疾风剑豪 亚索」
+ * 「疾风剑豪亚索」「亚索（加强）」「英雄亚索」等写法），全部命中指向同一英雄才接受。
+ * 被更长命中完全包住的短命中不计：真实数据里「烬」⊂「灰烬驱魔人」（洛的称号）、
+ * 「洛」⊂「瓦洛兰之盾」（塔里克的称号），不剔除会把单个英雄误判成歧义或认错人。
+ * 不做错别字级的模糊匹配：中文名很短，认错人比跳过更糟。
+ * @returns 白名单中的中文名；无法唯一归一时返回 null
  */
 export function resolveChampionName(rawName, whitelist, titles) {
   if (whitelist.has(rawName)) return rawName
   const byTitle = titles.get(rawName)
   if (byTitle && whitelist.has(byTitle)) return byTitle
-  const parts = rawName.split(/[\s()（）【】\[\]]+/).filter(Boolean)
-  if (parts.length < 2) return null
-  const found = new Set()
-  for (const p of parts) {
-    const n = whitelist.has(p) ? p : titles.get(p)
-    if (n && whitelist.has(n)) found.add(n)
+  const hits = []
+  const scan = (key, champ) => {
+    for (let i = rawName.indexOf(key); i !== -1; i = rawName.indexOf(key, i + 1)) {
+      hits.push({ start: i, end: i + key.length, champ })
+    }
   }
-  // 多段指向不同英雄说明名字有歧义，宁可拒绝也不猜
+  for (const name of whitelist.keys()) scan(name, name)
+  for (const [title, name] of titles) if (whitelist.has(name)) scan(title, name)
+  const outer = hits.filter(
+    h =>
+      !hits.some(
+        o => o !== h && o.start <= h.start && o.end >= h.end && o.end - o.start > h.end - h.start
+      )
+  )
+  const found = new Set(outer.map(h => h.champ))
+  // 指向多个英雄说明名字有歧义，宁可跳过也不猜
   return found.size === 1 ? [...found][0] : null
 }
 
