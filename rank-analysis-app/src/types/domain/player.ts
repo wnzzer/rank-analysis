@@ -36,8 +36,6 @@ export interface QueueInfo {
   leaguePoints: number
   losses: number
   wins: number
-  /** 天梯分：段位换算的分数，未定级为 null */
-  ladderScore?: number | null
 }
 
 export function defaultQueueInfo(): QueueInfo {
@@ -52,8 +50,7 @@ export function defaultQueueInfo(): QueueInfo {
     isProvisional: false,
     leaguePoints: 0,
     losses: 0,
-    wins: 0,
-    ladderScore: null
+    wins: 0
   }
 }
 
