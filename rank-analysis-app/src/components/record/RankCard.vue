@@ -295,12 +295,13 @@ const cardContentStyle = 'padding: var(--space-10)'
   gap: 3px;
 }
 
-/* 6px 圆点：已收集的用胜利色，其余用凹陷边框色 */
+/* 6px 圆点：已收集的用胜利色，其余用弱化的三级文字色
+   （不用 --sunken-border：亮色主题下它是透明的，空点会消失） */
 .rank-card-mmr-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--sunken-border);
+  background: color-mix(in srgb, var(--text-tertiary) 35%, transparent);
 }
 
 .rank-card-mmr-dot.filled {
