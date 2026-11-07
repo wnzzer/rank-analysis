@@ -30,6 +30,10 @@ export type HiddenMmr =
       status: 'ready'
       score: number
       equivalent: string
+      /** 等效段位短名（如「翡翠 III 99LP」），用于卡片胶囊 */
+      equivalentShort: string
+      /** 等效大段英文键（大师以上为 MASTER），用于 `tierImage()` */
+      equivalentTier: string
       offset: number
       direction: 'up' | 'flat' | 'down'
       avgWin: number

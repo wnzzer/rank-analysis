@@ -36,13 +36,35 @@
           <span class="rank-card-stat-text">胜场: {{ recent.wins }}</span>
           <span class="rank-card-stat-text">负场: {{ recent.losses }}</span>
         </n-flex>
-        <n-tooltip v-if="mmrLine" trigger="hover" placement="bottom-start">
+        <n-tooltip v-if="ready || collecting" trigger="hover" placement="bottom-start">
           <template #trigger>
-            <div class="rank-card-mmr" data-test="hidden-mmr">
-              {{ mmrLine }}
-              <span v-if="ready && arrow" class="rank-card-mmr-arrow" :class="ready.direction">{{
-                arrow
-              }}</span>
+            <div class="rank-card-mmr-chip" data-test="hidden-mmr">
+              <template v-if="ready">
+                <span class="rank-card-mmr-label">隐藏分</span>
+                <img
+                  :src="tierImage(ready.equivalentTier)"
+                  class="rank-card-mmr-tier"
+                  data-test="hidden-mmr-tier"
+                />
+                <span class="rank-card-mmr-rank">{{ ready.equivalentShort }}</span>
+                <n-icon :size="14" class="rank-card-mmr-trend" :class="ready.direction">
+                  <TrendingUp v-if="ready.direction === 'up'" />
+                  <TrendingDown v-else-if="ready.direction === 'down'" />
+                  <Remove v-else />
+                </n-icon>
+              </template>
+              <template v-else-if="collecting">
+                <n-icon :size="13" class="rank-card-mmr-hourglass"><HourglassOutline /></n-icon>
+                <span class="rank-card-mmr-label">隐藏分</span>
+                <span class="rank-card-mmr-dots">
+                  <span
+                    v-for="i in collecting.need"
+                    :key="i"
+                    class="rank-card-mmr-dot"
+                    :class="{ filled: i <= collecting.have }"
+                  />
+                </span>
+              </template>
             </div>
           </template>
           <div class="rank-card-mmr-tip">
@@ -70,7 +92,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { NCard, NFlex, NTooltip } from 'naive-ui'
+import { NCard, NFlex, NIcon, NTooltip } from 'naive-ui'
+import { HourglassOutline, Remove, TrendingDown, TrendingUp } from '@vicons/ionicons5'
 import type { HiddenMmr } from '@renderer/services/hiddenMmr'
 import type { QueueInfo } from '@renderer/types/domain/player'
 import type { RecentWinRate } from '@renderer/types/domain/player'
@@ -106,21 +129,6 @@ const ready = computed(() => (props.hiddenMmr?.status === 'ready' ? props.hidden
 /** status 为 collecting 时的进度（模板里用它做类型收窄） */
 const collecting = computed(() =>
   props.hiddenMmr?.status === 'collecting' ? props.hiddenMmr : null
-)
-
-/** 隐藏分那一行的文案（不含箭头）；hidden / 缺省时为空串，整行不渲染 */
-const mmrLine = computed(() => {
-  if (ready.value) return `隐藏分 ≈ ${ready.value.equivalent}`
-  const mmr = collecting.value
-  if (!mmr) return ''
-  return mmr.reason === 'one_sided'
-    ? '隐藏分 收集中（需有胜有负）'
-    : `隐藏分 收集中 ${mmr.have}/${mmr.need}`
-})
-
-/** 方向箭头；持平不显示 */
-const arrow = computed(() =>
-  ready.value ? { up: '↑', flat: '', down: '↓' }[ready.value.direction] : ''
 )
 
 /** tooltip 里隐藏分相对当前段位的 LP 差距 */
@@ -237,23 +245,66 @@ const cardContentStyle = 'padding: var(--space-10)'
   line-height: var(--line-height-tight);
 }
 
-/* 隐藏分：低调的一行灰色小字，只有箭头带颜色 */
-.rank-card-mmr {
-  margin-top: var(--space-4);
-  font-size: var(--font-size-2xs);
-  font-weight: normal;
-  color: var(--text-tertiary);
+/* 隐藏分胶囊：低调的小标签，段位图标 + 趋势图标带信息 */
+.rank-card-mmr-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-top: var(--space-6);
+  padding: var(--space-2) var(--space-8) var(--space-2) var(--space-6);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  border: 1px solid var(--sunken-border);
+  font-size: var(--font-size-xs);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
   cursor: default;
 }
 
-.rank-card-mmr-arrow.up {
+.rank-card-mmr-label {
+  font-size: var(--font-size-2xs);
+  color: var(--text-tertiary);
+}
+
+.rank-card-mmr-tier {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+
+.rank-card-mmr-rank {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.rank-card-mmr-trend.up {
   color: var(--semantic-win);
 }
 
-.rank-card-mmr-arrow.down {
+.rank-card-mmr-trend.down {
   color: var(--semantic-loss);
+}
+
+.rank-card-mmr-trend.flat,
+.rank-card-mmr-hourglass {
+  color: var(--text-tertiary);
+}
+
+.rank-card-mmr-dots {
+  display: inline-flex;
+  gap: 3px;
+}
+
+/* 6px 圆点：已收集的用胜利色，其余用凹陷边框色 */
+.rank-card-mmr-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--sunken-border);
+}
+
+.rank-card-mmr-dot.filled {
+  background: var(--semantic-win);
 }
 
 .rank-card-mmr-tip {

@@ -5,6 +5,7 @@ import naive from 'naive-ui'
 import RankCard from '../RankCard.vue'
 import type { HiddenMmr } from '@renderer/services/hiddenMmr'
 import type { QueueInfo } from '@renderer/types/domain/player'
+import { tierImage } from '@renderer/utils/tier-image'
 
 const queueInfo = {
   queueType: 'RANKED_SOLO_5x5',
@@ -42,7 +43,9 @@ const openTooltip = { Tooltip: { template: '<div><slot name="trigger" /><slot />
 const ready: HiddenMmr = {
   status: 'ready',
   score: 2580,
-  equivalent: '璀璨钻石 III 80LP',
+  equivalent: '流光翡翠 III 99LP',
+  equivalentShort: '翡翠 III 99LP',
+  equivalentTier: 'EMERALD',
   offset: 140,
   direction: 'up',
   avgWin: 28,
@@ -83,43 +86,48 @@ describe('RankCard real tier LP', () => {
   })
 })
 
-describe('RankCard hidden MMR row', () => {
-  it('should show the equivalent rank with a win-colored arrow when up, without the score', () => {
+describe('RankCard hidden MMR chip', () => {
+  it('should show label, short rank, tier emblem and up trend icon without the score', () => {
     const row = mountCard(ready).get('[data-test="hidden-mmr"]')
 
-    expect(row.text()).toBe('隐藏分 ≈ 璀璨钻石 III 80LP ↑')
+    expect(row.text()).toContain('隐藏分')
+    expect(row.text()).toContain('翡翠 III 99LP')
     expect(row.text()).not.toContain('2580')
-    expect(row.get('.rank-card-mmr-arrow').classes()).toContain('up')
+    expect(row.get('[data-test="hidden-mmr-tier"]').attributes('src')).toBe(tierImage('EMERALD'))
+    expect(row.find('.rank-card-mmr-trend.up').exists()).toBe(true)
   })
 
-  it('should color the arrow as down and omit it when flat', () => {
-    const flat = mountCard({ ...ready, direction: 'flat', offset: 20 }).get(
-      '[data-test="hidden-mmr"]'
-    )
+  it('should use down and flat trend icons', () => {
     const down = mountCard({ ...ready, direction: 'down', offset: -90 }).get(
       '[data-test="hidden-mmr"]'
     )
-
-    expect(flat.text()).toBe('隐藏分 ≈ 璀璨钻石 III 80LP')
-    expect(flat.find('.rank-card-mmr-arrow').exists()).toBe(false)
-    expect(down.text()).toBe('隐藏分 ≈ 璀璨钻石 III 80LP ↓')
-    expect(down.get('.rank-card-mmr-arrow').classes()).toContain('down')
-  })
-
-  it('should show collecting progress', () => {
-    const row = mountCard({ status: 'collecting', reason: 'too_few', have: 1, need: 3 }).get(
+    const flat = mountCard({ ...ready, direction: 'flat', offset: 20 }).get(
       '[data-test="hidden-mmr"]'
     )
 
-    expect(row.text()).toBe('隐藏分 收集中 1/3')
+    expect(down.find('.rank-card-mmr-trend.down').exists()).toBe(true)
+    expect(flat.find('.rank-card-mmr-trend.flat').exists()).toBe(true)
+    expect(down.text()).not.toMatch(/[↑↓]/)
   })
 
-  it('should explain one-sided collecting', () => {
+  it('should show collecting progress dots', () => {
+    const row = mountCard({ status: 'collecting', reason: 'too_few', have: 2, need: 3 }).get(
+      '[data-test="hidden-mmr"]'
+    )
+
+    expect(row.text()).toContain('隐藏分')
+    expect(row.findAll('.rank-card-mmr-dot')).toHaveLength(3)
+    expect(row.findAll('.rank-card-mmr-dot.filled')).toHaveLength(2)
+    expect(row.find('[data-test="hidden-mmr-tier"]').exists()).toBe(false)
+  })
+
+  it('should fill every dot when one-sided', () => {
     const row = mountCard({ status: 'collecting', reason: 'one_sided', have: 4, need: 3 }).get(
       '[data-test="hidden-mmr"]'
     )
 
-    expect(row.text()).toBe('隐藏分 收集中（需有胜有负）')
+    expect(row.findAll('.rank-card-mmr-dot')).toHaveLength(3)
+    expect(row.findAll('.rank-card-mmr-dot.filled')).toHaveLength(3)
   })
 
   it('should render nothing when hidden or absent', () => {
@@ -133,7 +141,7 @@ describe('RankCard hidden MMR tooltip', () => {
   it('should show comparison in LP, recent deltas, rules and disclaimer when ready', () => {
     const text = mountCard(ready, openTooltip).text()
 
-    expect(text).toContain('≈ 璀璨钻石 III 80LP，比当前段位高 140 LP')
+    expect(text).toContain('≈ 流光翡翠 III 99LP，比当前段位高 140 LP')
     expect(text).toContain('最近 3 局：+28 / −14 / +28')
     expect(text).toContain('平均赢 +28 / 平均输 −14')
     expect(text).toContain('计算规则')
