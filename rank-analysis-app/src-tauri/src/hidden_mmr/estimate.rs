@@ -70,6 +70,10 @@ pub enum HiddenMmr {
         score: i32,
         /// 等效段位文案，如「璀璨钻石 II 40LP」
         equivalent: String,
+        /// 等效段位短文案，如「钻石 II 40LP」，用于卡片胶囊
+        equivalent_short: String,
+        /// 等效大段英文键（大师以上统一 `MASTER`），用于查段位图标
+        equivalent_tier: String,
         /// 相对当前段位的偏移（LP）
         offset: i32,
         direction: Direction,
@@ -142,6 +146,8 @@ pub fn estimate(records: &[LpRecord], current_score: Option<i32>, provisional: b
     HiddenMmr::Ready {
         score,
         equivalent: axis::format_score(score),
+        equivalent_short: axis::format_score_short(score),
+        equivalent_tier: axis::tier_of_score(score).to_string(),
         offset,
         direction,
         avg_win: round1(avg_win),
@@ -244,6 +250,8 @@ mod tests {
         let HiddenMmr::Ready {
             score,
             equivalent,
+            equivalent_short,
+            equivalent_tier,
             offset,
             direction,
             avg_win,
@@ -258,6 +266,8 @@ mod tests {
         assert_eq!(offset, 140);
         assert_eq!(score, 2580);
         assert_eq!(equivalent, "璀璨钻石 III 80LP");
+        assert_eq!(equivalent_tier, "DIAMOND");
+        assert_eq!(equivalent_short, "钻石 III 80LP");
         assert_eq!(direction, Direction::Up);
     }
 
@@ -324,6 +334,8 @@ mod tests {
         assert_eq!(ready["status"], "ready");
         assert_eq!(ready["avgWin"], 28.0);
         assert_eq!(ready["direction"], "up");
+        assert_eq!(ready["equivalentTier"], "DIAMOND");
+        assert_eq!(ready["equivalentShort"], "钻石 III 80LP");
         assert_eq!(ready["recent"][0]["source"], "notification");
     }
 }

@@ -53,15 +53,48 @@ pub fn to_score(tier: &str, division: &str, lp: i32) -> Option<i32> {
 /// 如 `"璀璨钻石 II 40LP"`；≥ [`APEX_BASE`] 统一为 `"大师以上 {lp}LP"`，
 /// 不去猜宗师 / 王者门槛（它们随大区人数浮动）。
 pub fn format_score(score: i32) -> String {
+    format_score_with(score, false)
+}
+
+/// 同 [`format_score`]，但大段名取中文名后两个字（`"流光翡翠"` → `"翡翠"`），
+/// 与前端 `formatCompactTierText` 的短名规则一致，用于卡片胶囊。
+///
+/// # 返回值
+/// 如 `"翡翠 III 99LP"`；≥ [`APEX_BASE`] 仍为 `"大师以上 {lp}LP"`。
+pub fn format_score_short(score: i32) -> String {
+    format_score_with(score, true)
+}
+
+/// 返回分数对应的等效大段英文键，可直接喂给段位图标查找。
+///
+/// # 返回值
+/// 大师以下为 `"IRON"`..`"DIAMOND"`；≥ [`APEX_BASE`] 统一 `"MASTER"`
+/// （不猜宗师 / 王者）；负数按 0 处理。
+pub fn tier_of_score(score: i32) -> &'static str {
+    let score = score.max(0);
+    if score >= APEX_BASE {
+        return APEX_TIERS[0];
+    }
+    TIERS[(score / TIER_SPAN) as usize]
+}
+
+/// [`format_score`] / [`format_score_short`] 的共用实现。
+fn format_score_with(score: i32, short: bool) -> String {
     let score = score.max(0);
     if score >= APEX_BASE {
         return format!("大师以上 {}LP", score - APEX_BASE);
     }
-    let tier = TIERS[(score / TIER_SPAN) as usize];
+    let tier = tier_of_score(score);
     let division = DIVISIONS[((score % TIER_SPAN) / DIVISION_SPAN) as usize];
     let lp = score % DIVISION_SPAN;
     let tier_cn = get_tier_en_to_cn(tier).unwrap_or(tier);
-    format!("{} {} {}LP", tier_cn, division, lp)
+    let tier_name = if short {
+        let skip = tier_cn.chars().count().saturating_sub(2);
+        tier_cn.chars().skip(skip).collect::<String>()
+    } else {
+        tier_cn.to_string()
+    };
+    format!("{} {} {}LP", tier_name, division, lp)
 }
 
 #[cfg(test)]
@@ -112,6 +145,21 @@ mod tests {
     fn should_format_apex_without_guessing_tier() {
         assert_eq!(format_score(2800), "大师以上 0LP");
         assert_eq!(format_score(3033), "大师以上 233LP");
+    }
+
+    #[test]
+    fn should_name_tier_key_of_score() {
+        assert_eq!(tier_of_score(0), "IRON");
+        assert_eq!(tier_of_score(2105), "EMERALD");
+        assert_eq!(tier_of_score(2799), "DIAMOND");
+        assert_eq!(tier_of_score(2800), "MASTER");
+        assert_eq!(tier_of_score(-5), "IRON");
+    }
+
+    #[test]
+    fn should_format_short_rank_name() {
+        assert_eq!(format_score_short(2199), "翡翠 III 99LP");
+        assert_eq!(format_score_short(3033), "大师以上 233LP");
     }
 
     #[test]
