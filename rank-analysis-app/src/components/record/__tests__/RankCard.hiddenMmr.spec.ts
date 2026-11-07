@@ -21,16 +21,26 @@ const queueInfo = {
   wins: 12
 } as QueueInfo
 
+const emeraldInfo = {
+  ...queueInfo,
+  tier: 'EMERALD',
+  tierCn: '流光翡翠',
+  division: 'III',
+  leaguePoints: 24
+} as QueueInfo
+
 function mountCard(
   hiddenMmr?: HiddenMmr | null,
   stubs: Record<string, Component> = {},
-  info: QueueInfo = queueInfo
+  info: QueueInfo = emeraldInfo,
+  extra: { recent?: { wins: number; losses: number; winRate: number }; loading?: boolean } = {}
 ) {
   return mount(RankCard, {
     props: {
       label: '单双排',
       queueInfo: info,
-      recent: { wins: 6, losses: 4, winRate: 60 },
+      recent: extra.recent ?? { wins: 28, losses: 22, winRate: 56 },
+      loading: extra.loading,
       hiddenMmr
     },
     global: { plugins: [naive], stubs }
@@ -57,42 +67,97 @@ const ready: HiddenMmr = {
   ]
 }
 
-describe('RankCard real tier LP', () => {
-  it('should show current LP under the tier text', () => {
-    expect(mountCard().get('[data-test="tier-lp"]').text()).toBe('40 LP')
+describe('RankCard tier ring and text', () => {
+  it('should show ring, LP under the ring, tier text and record line', () => {
+    const wrapper = mountCard()
+
+    expect(wrapper.find('[data-test="tier-ring"]').exists()).toBe(true)
+    expect(wrapper.get('[data-test="tier-lp"]').text()).toBe('24 LP')
+    expect(wrapper.get('.rank-card-tier-text').text()).toBe('流光翡翠 III')
+    const record = wrapper.get('[data-test="recent-record"]').text()
+    expect(record).toContain('56%')
+    expect(record).toContain('28胜22负')
+    expect(wrapper.get('[data-test="tier-progress"]').attributes('data-progress')).toBe('0.24')
   })
 
-  it('should not render LP for master and above', () => {
-    const wrapper = mountCard(null, {}, { ...queueInfo, tier: 'MASTER', division: 'NA' })
+  it('should show a full arc and tier name only for master and above', () => {
+    const wrapper = mountCard(
+      null,
+      {},
+      {
+        ...emeraldInfo,
+        tier: 'MASTER',
+        tierCn: '超凡大师',
+        division: 'NA',
+        leaguePoints: 233
+      }
+    )
 
-    expect(wrapper.find('[data-test="tier-lp"]').exists()).toBe(false)
+    expect(wrapper.get('.rank-card-tier-text').text()).toBe('超凡大师')
+    expect(wrapper.get('[data-test="tier-lp"]').text()).toBe('233 LP')
+    expect(wrapper.get('[data-test="tier-progress"]').attributes('data-progress')).toBe('1')
   })
 
-  it('should not render LP when unranked', () => {
-    expect(
-      mountCard(null, {}, { ...queueInfo, tier: '' })
-        .find('[data-test="tier-lp"]')
-        .exists()
-    ).toBe(false)
-    expect(
-      mountCard(null, {}, { ...queueInfo, tier: 'UNRANKED' })
-        .find('[data-test="tier-lp"]')
-        .exists()
-    ).toBe(false)
+  it('should show no LP and no progress arc when unranked', () => {
+    for (const tier of ['', 'UNRANKED']) {
+      const wrapper = mountCard(null, {}, { ...emeraldInfo, tier })
+
+      expect(wrapper.get('.rank-card-tier-text').text()).toBe('无段位')
+      expect(wrapper.find('[data-test="tier-lp"]').exists()).toBe(false)
+      expect(wrapper.find('[data-test="tier-progress"]').exists()).toBe(false)
+      expect(wrapper.find('[data-test="tier-ring"]').exists()).toBe(true)
+    }
   })
 
-  it('should not render a ladder score', () => {
-    expect(mountCard(ready).find('[data-test="ladder-score"]').exists()).toBe(false)
+  it('should show a minimum progress arc at 0 LP', () => {
+    const wrapper = mountCard(null, {}, { ...emeraldInfo, leaguePoints: 0 })
+
+    expect(wrapper.get('[data-test="tier-progress"]').attributes('data-progress')).toBe('0.02')
+  })
+
+  it('should show a placeholder when there are no recent games', () => {
+    const text = mountCard(null, {}, emeraldInfo, {
+      recent: { wins: 0, losses: 0, winRate: 0 }
+    })
+      .get('[data-test="recent-record"]')
+      .text()
+
+    expect(text).toBe('暂无对局')
+  })
+
+  it('should color the win rate by threshold', () => {
+    const rate = (winRate: number) =>
+      mountCard(null, {}, emeraldInfo, { recent: { wins: 6, losses: 4, winRate } }).get(
+        '[data-test="recent-record"] .wr'
+      )
+
+    expect(rate(60).classes()).toContain('good')
+    expect(rate(45).classes()).toContain('bad')
+    expect(rate(52).classes()).toContain('normal')
+  })
+
+  it('should explain the recent record in a tooltip', () => {
+    const text = mountCard(null, openTooltip).text()
+
+    expect(text).toContain('近期 50 场：28 胜 22 负，胜率 56%')
+  })
+
+  it('should render a skeleton without the ring while loading', () => {
+    const wrapper = mountCard(null, {}, emeraldInfo, { loading: true })
+
+    expect(wrapper.find('.sk').exists()).toBe(true)
+    expect(wrapper.find('[data-test="tier-ring"]').exists()).toBe(false)
   })
 })
 
-describe('RankCard hidden MMR chip', () => {
-  it('should show label, short rank, tier emblem and up trend icon without the score', () => {
+describe('RankCard hidden MMR row', () => {
+  it('should show label, short rank, tier emblem and up trend icon without score or offset', () => {
     const row = mountCard(ready).get('[data-test="hidden-mmr"]')
 
     expect(row.text()).toContain('隐藏分')
     expect(row.text()).toContain('翡翠 III 99LP')
     expect(row.text()).not.toContain('2580')
+    expect(row.text()).not.toContain('140')
     expect(row.get('[data-test="hidden-mmr-tier"]').attributes('src')).toBe(tierImage('EMERALD'))
     expect(row.find('.rank-card-mmr-trend.up').exists()).toBe(true)
   })
@@ -110,12 +175,13 @@ describe('RankCard hidden MMR chip', () => {
     expect(down.text()).not.toMatch(/[↑↓]/)
   })
 
-  it('should show collecting progress dots', () => {
+  it('should show collecting progress dots and text', () => {
     const row = mountCard({ status: 'collecting', reason: 'too_few', have: 2, need: 3 }).get(
       '[data-test="hidden-mmr"]'
     )
 
     expect(row.text()).toContain('隐藏分')
+    expect(row.text()).toContain('记录中')
     expect(row.findAll('.rank-card-mmr-dot')).toHaveLength(3)
     expect(row.findAll('.rank-card-mmr-dot.filled')).toHaveLength(2)
     expect(row.find('[data-test="hidden-mmr-tier"]').exists()).toBe(false)

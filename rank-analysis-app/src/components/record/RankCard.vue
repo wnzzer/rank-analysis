@@ -6,65 +6,89 @@
     :content-style="cardContentStyle"
   >
     <div v-if="loading" class="rank-card-content" aria-hidden="true">
-      <div class="rank-card-icon-wrapper">
-        <span class="rank-card-type-label">{{ label }}</span>
-        <span class="sk sk-circle rank-card-sk-emblem" />
+      <span class="sk sk-circle rank-card-sk-ring" />
+      <div class="rank-card-text">
+        <span class="sk rank-card-sk-label" />
         <span class="sk rank-card-sk-tier" />
-        <span class="sk rank-card-sk-lp" />
-      </div>
-      <div class="rank-card-stats">
-        <span class="sk rank-card-sk-badge" />
-        <span class="sk rank-card-sk-line" />
+        <span class="sk rank-card-sk-record" />
       </div>
     </div>
     <div v-else class="rank-card-content sk-reveal">
-      <div class="rank-card-icon-wrapper">
-        <span class="rank-card-type-label">{{ label }}</span>
+      <div class="rank-card-ring" data-test="tier-ring" :style="{ '--tier-color': tierColor }">
+        <svg class="rank-card-ring-svg" viewBox="0 0 60 60" aria-hidden="true">
+          <circle
+            class="rank-card-ring-track"
+            cx="30"
+            cy="30"
+            :r="RING_RADIUS"
+            :stroke-dasharray="`${ARC_LENGTH} ${RING_CIRCUMFERENCE}`"
+            transform="rotate(135 30 30)"
+          />
+          <circle
+            v-if="progress !== null"
+            class="rank-card-ring-progress"
+            data-test="tier-progress"
+            :data-progress="progress"
+            cx="30"
+            cy="30"
+            :r="RING_RADIUS"
+            :stroke-dasharray="`${ARC_LENGTH * progress} ${RING_CIRCUMFERENCE}`"
+            transform="rotate(135 30 30)"
+          />
+        </svg>
         <img :src="tierImage(queueInfo.tier)" class="rank-card-img" />
-        <div class="rank-card-tier-text">
-          {{ formatTierText(queueInfo) }}
-        </div>
-        <div v-if="showTierLp" class="rank-card-tier-lp" data-test="tier-lp">
+        <div v-if="hasTier" class="rank-card-tier-lp" data-test="tier-lp">
           {{ queueInfo.leaguePoints }} LP
         </div>
       </div>
-      <div class="rank-card-stats">
-        <div class="rank-card-win-badge" :class="badgeClass">
-          {{ hasGames ? `胜率 ${recent.winRate}%` : '暂无对局' }}
-        </div>
-        <n-flex justify="space-between" size="small" class="rank-card-stats-row">
-          <span class="rank-card-stat-text">胜场: {{ recent.wins }}</span>
-          <span class="rank-card-stat-text">负场: {{ recent.losses }}</span>
-        </n-flex>
-        <n-tooltip v-if="ready || collecting" trigger="hover" placement="bottom-start">
+      <div class="rank-card-text">
+        <div class="rank-card-type-label">{{ label }}</div>
+        <div class="rank-card-tier-text">{{ tierText }}</div>
+        <n-tooltip trigger="hover" placement="bottom-start">
           <template #trigger>
-            <div class="rank-card-mmr-chip" data-test="hidden-mmr">
-              <template v-if="ready">
-                <span class="rank-card-mmr-label">隐藏分</span>
-                <img
-                  :src="tierImage(ready.equivalentTier)"
-                  class="rank-card-mmr-tier"
-                  data-test="hidden-mmr-tier"
-                />
-                <span class="rank-card-mmr-rank">{{ ready.equivalentShort }}</span>
-                <n-icon :size="14" class="rank-card-mmr-trend" :class="ready.direction">
-                  <TrendingUp v-if="ready.direction === 'up'" />
-                  <TrendingDown v-else-if="ready.direction === 'down'" />
-                  <Remove v-else />
-                </n-icon>
-              </template>
-              <template v-else-if="collecting">
-                <n-icon :size="13" class="rank-card-mmr-hourglass"><HourglassOutline /></n-icon>
-                <span class="rank-card-mmr-label">隐藏分</span>
-                <span class="rank-card-mmr-dots">
-                  <span
-                    v-for="i in collecting.need"
-                    :key="i"
-                    class="rank-card-mmr-dot"
-                    :class="{ filled: i <= collecting.have }"
-                  />
+            <div class="rank-card-record" data-test="recent-record">
+              <template v-if="hasGames">
+                <b class="wr" :class="winRateClass">{{ recent.winRate }}%</b>
+                <span class="rank-card-record-detail">
+                  · {{ recent.wins }}胜{{ recent.losses }}负
                 </span>
               </template>
+              <span v-else class="rank-card-record-detail">暂无对局</span>
+            </div>
+          </template>
+          近期 {{ recent.wins + recent.losses }} 场：{{ recent.wins }} 胜
+          {{ recent.losses }} 负，胜率 {{ recent.winRate }}%
+        </n-tooltip>
+        <n-tooltip v-if="ready || collecting" trigger="hover" placement="bottom-start">
+          <template #trigger>
+            <div class="rank-card-mmr" data-test="hidden-mmr">
+              <span class="rank-card-mmr-label">隐藏分</span>
+              <span class="rank-card-mmr-value">
+                <template v-if="ready">
+                  <img
+                    :src="tierImage(ready.equivalentTier)"
+                    class="rank-card-mmr-tier"
+                    data-test="hidden-mmr-tier"
+                  />
+                  <span class="rank-card-mmr-rank">{{ ready.equivalentShort }}</span>
+                  <n-icon :size="12" class="rank-card-mmr-trend" :class="ready.direction">
+                    <TrendingUp v-if="ready.direction === 'up'" />
+                    <TrendingDown v-else-if="ready.direction === 'down'" />
+                    <Remove v-else />
+                  </n-icon>
+                </template>
+                <template v-else-if="collecting">
+                  <span class="rank-card-mmr-dots">
+                    <span
+                      v-for="i in collecting.need"
+                      :key="i"
+                      class="rank-card-mmr-dot"
+                      :class="{ filled: i <= collecting.have }"
+                    />
+                  </span>
+                  <span class="rank-card-mmr-collecting">记录中</span>
+                </template>
+              </span>
             </div>
           </template>
           <div class="rank-card-mmr-tip">
@@ -92,8 +116,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { NCard, NFlex, NIcon, NTooltip } from 'naive-ui'
-import { HourglassOutline, Remove, TrendingDown, TrendingUp } from '@vicons/ionicons5'
+import { NCard, NIcon, NTooltip } from 'naive-ui'
+import { Remove, TrendingDown, TrendingUp } from '@vicons/ionicons5'
 import type { HiddenMmr } from '@renderer/services/hiddenMmr'
 import type { QueueInfo } from '@renderer/types/domain/player'
 import type { RecentWinRate } from '@renderer/types/domain/player'
@@ -110,14 +134,61 @@ const props = defineProps<{
   hiddenMmr?: HiddenMmr | null
 }>()
 
-/** 大师及以上的 formatTierText 已带胜点，这里只给钻石及以下补一行；未定级不显示 */
-const showTierLp = computed(() => hasRealTier(props.queueInfo) && !isHighTier(props.queueInfo.tier))
+/**
+ * 各段位的代表色（键为小写 tier）。
+ * 这些是段位徽章本身的主色调，属于段位的身份色而非主题色，所以直接用字面量 hex，
+ * 不随亮/暗主题变化。
+ */
+const TIER_COLORS: Record<string, string> = {
+  iron: '#8a7f7a',
+  bronze: '#b0794f',
+  silver: '#9aa8b5',
+  gold: '#d9b45a',
+  platinum: '#4cb8b0',
+  emerald: '#34c58a',
+  diamond: '#6f8cff',
+  master: '#b05bdf',
+  grandmaster: '#e0504f',
+  challenger: '#f0c75e'
+}
 
-/** 0 胜 0 负说明该队列没打过，红色「胜率 0%」会被误读成连败 */
+/** 环半径（viewBox 60×60，圆心 30,30） */
+const RING_RADIUS = 26
+/** 整圆周长 */
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS
+/** 环只画 270°，缺口留在底部放 LP 文字 */
+const ARC_LENGTH = RING_CIRCUMFERENCE * 0.75
+
+/** 是否有有效段位（未定级时不画进度弧、不显示 LP） */
+const hasTier = computed(() => hasRealTier(props.queueInfo))
+
+/** 环的段位色；未定级退回三级文字色 */
+const tierColor = computed(
+  () => TIER_COLORS[props.queueInfo.tier.toLowerCase()] ?? 'var(--text-tertiary)'
+)
+
+/**
+ * 进度弧占 270° 的比例：钻石及以下按胜点 /100（至少 0.02 保证可见），
+ * 大师及以上无 100 点上限，画满；未定级返回 null（只留底环）
+ */
+const progress = computed(() => {
+  if (!hasTier.value) return null
+  if (isHighTier(props.queueInfo.tier)) return 1
+  return Math.min(1, Math.max(0.02, props.queueInfo.leaguePoints / 100))
+})
+
+/** 段位文案：大师及以上胜点已在环下方显示，这里只留段位名避免重复 */
+const tierText = computed(() =>
+  hasTier.value && isHighTier(props.queueInfo.tier)
+    ? props.queueInfo.tierCn
+    : formatTierText(props.queueInfo)
+)
+
+/** 0 胜 0 负说明该队列没打过，红色「0%」会被误读成连败 */
 const hasGames = computed(() => props.recent.wins + props.recent.losses > 0)
 
-const badgeClass = computed(() => {
-  if (!hasGames.value) return 'normal'
+/** 近期胜率着色：≥58 好，≤49 差，其余中性 */
+const winRateClass = computed(() => {
   if (props.recent.winRate >= 58) return 'good'
   if (props.recent.winRate <= 49) return 'bad'
   return 'normal'
@@ -163,112 +234,135 @@ const cardContentStyle = 'padding: var(--space-10)'
   gap: var(--space-12);
 }
 
-.rank-card-icon-wrapper {
+/* 段位色环：60×60，徽章居中偏上，环缺口（底部）放 LP */
+.rank-card-ring {
   position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 70px;
+  flex: none;
+  width: 60px;
+  height: 60px;
 }
 
-.rank-card-type-label {
-  font-size: var(--font-size-2xs);
-  color: var(--text-tertiary);
+.rank-card-ring-svg {
   position: absolute;
-  top: calc(var(--space-8) * -1);
-  left: 0;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.rank-card-ring-track,
+.rank-card-ring-progress {
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.rank-card-ring-track {
+  stroke: color-mix(in srgb, var(--tier-color) 14%, transparent);
+}
+
+.rank-card-ring-progress {
+  stroke: color-mix(in srgb, var(--tier-color) 75%, var(--text-tertiary));
 }
 
 .rank-card-img {
-  width: 56px;
-  height: 56px;
+  position: absolute;
+  top: 9px;
+  left: 12px;
+  width: 36px;
+  height: 36px;
   object-fit: contain;
 }
 
-.rank-card-tier-text {
-  font-size: var(--font-size-sm);
-  white-space: nowrap;
-  font-weight: bold;
-  text-align: center;
-  line-height: var(--line-height-tight);
-  margin-top: calc(var(--space-4) * -1);
-}
-
-.rank-card-stats {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-}
-
-.rank-card-stats-row {
-  width: 100%;
-  margin-top: var(--space-4);
-}
-
-.rank-card-stat-text {
-  font-size: var(--font-size-xs);
-  color: var(--text-tertiary);
-}
-
-.rank-card-win-badge {
-  padding: var(--space-2) var(--space-8);
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-sm);
-  font-weight: bold;
-  background: var(--surface-sunken);
-  border: 1px solid var(--sunken-border);
-}
-
-.rank-card-win-badge.good {
-  color: var(--semantic-win);
-  background: color-mix(in srgb, var(--semantic-win) 14%, transparent);
-  border-color: color-mix(in srgb, var(--semantic-win) 22%, transparent);
-}
-
-.rank-card-win-badge.bad {
-  color: var(--semantic-loss);
-  background: color-mix(in srgb, var(--semantic-loss) 10%, transparent);
-  border-color: color-mix(in srgb, var(--semantic-loss) 18%, transparent);
-}
-
-.rank-card-win-badge.normal {
-  color: var(--text-secondary);
-}
-
 .rank-card-tier-lp {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
   text-align: center;
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-2xs);
   font-weight: 600;
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
   line-height: var(--line-height-tight);
 }
 
-/* 隐藏分胶囊：低调的小标签，段位图标 + 趋势图标带信息 */
-.rank-card-mmr-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-4);
-  margin-top: var(--space-6);
-  padding: var(--space-2) var(--space-8) var(--space-2) var(--space-6);
-  border-radius: var(--radius-sm);
-  background: var(--surface-sunken);
-  border: 1px solid var(--sunken-border);
+.rank-card-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.rank-card-type-label {
+  font-size: var(--font-size-2xs);
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+}
+
+.rank-card-tier-text {
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  line-height: var(--line-height-tight);
+  margin-top: var(--space-2);
+}
+
+.rank-card-record {
   font-size: var(--font-size-xs);
+  margin-top: var(--space-4);
+  white-space: nowrap;
+}
+
+.rank-card-record .wr {
+  font-weight: 700;
+}
+
+.rank-card-record .wr.good {
+  color: var(--semantic-win);
+}
+
+.rank-card-record .wr.bad {
+  color: var(--semantic-loss);
+}
+
+.rank-card-record .wr.normal {
+  color: var(--text-primary);
+}
+
+.rank-card-record-detail {
+  color: var(--text-tertiary);
+}
+
+/* 隐藏分行：发丝线分隔，不加边框盒子 */
+.rank-card-mmr {
+  display: flex;
+  align-items: center;
+  margin-top: var(--space-8);
+  padding-top: 7px;
+  border-top: 1px solid color-mix(in srgb, var(--text-tertiary) 14%, transparent);
+  font-size: var(--font-size-2xs);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
   cursor: default;
 }
 
 .rank-card-mmr-label {
-  font-size: var(--font-size-2xs);
   color: var(--text-tertiary);
 }
 
+.rank-card-mmr-value {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-left: auto;
+  padding-left: var(--space-10);
+}
+
 .rank-card-mmr-tier {
-  width: 18px;
-  height: 18px;
+  width: 15px;
+  height: 15px;
   object-fit: contain;
 }
 
@@ -286,7 +380,7 @@ const cardContentStyle = 'padding: var(--space-10)'
 }
 
 .rank-card-mmr-trend.flat,
-.rank-card-mmr-hourglass {
+.rank-card-mmr-collecting {
   color: var(--text-tertiary);
 }
 
@@ -295,11 +389,11 @@ const cardContentStyle = 'padding: var(--space-10)'
   gap: 3px;
 }
 
-/* 6px 圆点：已收集的用胜利色，其余用弱化的三级文字色
+/* 5px 圆点：已收集的用胜利色，其余用弱化的三级文字色
    （不用 --sunken-border：亮色主题下它是透明的，空点会消失） */
 .rank-card-mmr-dot {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: color-mix(in srgb, var(--text-tertiary) 35%, transparent);
 }
@@ -331,31 +425,27 @@ const cardContentStyle = 'padding: var(--space-10)'
   color: var(--text-tertiary);
 }
 
-/* 骨架尺寸对齐真实内容：徽标 56px + 段位文字行 ≈ 66px 高，不因揭晓而跳 */
-.rank-card-sk-emblem {
-  width: 56px;
-  height: 56px;
+/* 骨架尺寸对齐真实内容（环 60px、文字三行），揭晓时不跳 */
+.rank-card-sk-ring {
+  flex: none;
+  width: 60px;
+  height: 60px;
 }
 
-.rank-card-sk-tier {
-  width: 52px;
+.rank-card-sk-label {
+  width: 40px;
   height: 10px;
 }
 
-.rank-card-sk-lp {
-  width: 32px;
-  height: 12px;
-  margin-top: var(--space-2);
+.rank-card-sk-tier {
+  width: 90px;
+  height: 16px;
+  margin-top: var(--space-4);
 }
 
-.rank-card-sk-badge {
-  width: 72px;
-  height: 22px;
-}
-
-.rank-card-sk-line {
-  width: 100%;
+.rank-card-sk-record {
+  width: 110px;
   height: 12px;
-  margin-top: var(--space-8);
+  margin-top: var(--space-6);
 }
 </style>
