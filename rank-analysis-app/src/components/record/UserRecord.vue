@@ -124,12 +124,14 @@
         label="单双排"
         :queue-info="rank.queueMap.RANKED_SOLO_5x5"
         :recent="solo5v5RecentWinRate"
+        :hidden-mmr="soloHiddenMmr"
         :loading="profileLoading"
       />
       <RankCard
         label="灵活组排"
         :queue-info="rank.queueMap.RANKED_FLEX_SR"
         :recent="flexRecentWinRate"
+        :hidden-mmr="flexHiddenMmr"
         :loading="profileLoading"
       />
     </n-flex>
@@ -188,6 +190,7 @@ import PlayerNoteBadge from '@renderer/components/common/PlayerNoteBadge.vue'
 import UnifiedTagRow from '@renderer/components/common/UnifiedTagRow.vue'
 import { usePlayerNotesStore } from '@renderer/pinia/playerNotes'
 import { useGameState } from '@renderer/composables/useGameState'
+import { useHiddenMmr } from '@renderer/composables/useHiddenMmr'
 import { autoTrackEncounters } from '@renderer/utils/autoTrackEncounters'
 
 const settingsStore = useSettingsStore()
@@ -332,6 +335,13 @@ const updateModel = (value: string | number, option: any) => {
 const notesStore = usePlayerNotesStore()
 /** 当前登录的召唤师（判断"查询对象是不是我自己"，被动追踪只在查自己时触发） */
 const { summoner: myGameStateSummoner } = useGameState()
+
+/** 是否在看自己：隐藏分只对自己有记录（别人的逐局 LP 变化拿不到） */
+const isSelf = computed(
+  () => !!summoner.value.puuid && summoner.value.puuid === myGameStateSummoner.value?.puuid
+)
+const summonerPuuid = computed(() => summoner.value.puuid)
+const { solo: soloHiddenMmr, flex: flexHiddenMmr } = useHiddenMmr(summonerPuuid, isSelf)
 /** 当前玩家是否已有手动备注（决定标签行在无系统标签时是否仍展示备注 chip） */
 const hasNote = computed(() => !!summoner.value.puuid && !!notesStore.getNote(summoner.value.puuid))
 

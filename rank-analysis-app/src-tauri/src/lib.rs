@@ -8,6 +8,7 @@ pub mod constant;
 pub mod fandom;
 pub mod game_cache;
 pub mod game_state_monitor;
+pub mod hidden_mmr;
 pub mod lcu;
 pub mod migrate;
 pub mod observability;

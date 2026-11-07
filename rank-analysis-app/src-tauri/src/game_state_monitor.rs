@@ -263,6 +263,13 @@ impl GameStateMonitor {
         let state_changed = new_state.connected != self.last_state.connected
             || new_state.phase != self.last_state.phase
             || new_state.reason_code != self.last_state.reason_code;
+
+        // 隐藏分采集：InProgress 拍对局前快照，EndOfGame 取本局 LP 变化（见 hidden_mmr::collector）
+        if new_state.phase != self.last_state.phase {
+            if let Some(phase) = new_state.phase.as_deref() {
+                crate::hidden_mmr::collector::on_phase_change(self.app_handle.clone(), phase);
+            }
+        }
         let now = SystemTime::now();
         let diff_time = now
             .duration_since(self.last_push_time)
