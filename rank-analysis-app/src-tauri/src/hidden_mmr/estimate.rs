@@ -70,7 +70,7 @@ pub enum HiddenMmr {
         score: i32,
         /// 等效段位文案，如「璀璨钻石 II 40LP」
         equivalent: String,
-        /// 等效段位短文案，如「钻石 II 40LP」，用于卡片胶囊
+        /// 等效段位短文案，如「钻石 II 40LP」，用于卡片隐藏分行
         equivalent_short: String,
         /// 等效大段英文键（大师以上统一 `MASTER`），用于查段位图标
         equivalent_tier: String,

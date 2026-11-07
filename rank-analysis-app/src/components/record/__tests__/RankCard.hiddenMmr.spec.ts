@@ -142,6 +142,22 @@ describe('RankCard tier ring and text', () => {
     expect(text).toContain('近期 50 场：28 胜 22 负，胜率 56%')
   })
 
+  it('should not render the record tooltip when there are no games', () => {
+    const wrapper = mountCard(null, openTooltip, emeraldInfo, {
+      recent: { wins: 0, losses: 0, winRate: 0 }
+    })
+
+    expect(wrapper.text()).not.toContain('近期 0 场')
+  })
+
+  it('should mark decorative images with empty alt and make the hidden MMR row focusable', () => {
+    const wrapper = mountCard(ready)
+
+    expect(wrapper.get('.rank-card-img').attributes('alt')).toBe('')
+    expect(wrapper.get('[data-test="hidden-mmr-tier"]').attributes('alt')).toBe('')
+    expect(wrapper.get('[data-test="hidden-mmr"]').attributes('tabindex')).toBe('0')
+  })
+
   it('should render a skeleton without the ring while loading', () => {
     const wrapper = mountCard(null, {}, emeraldInfo, { loading: true })
 
@@ -211,6 +227,9 @@ describe('RankCard hidden MMR tooltip', () => {
     expect(text).toContain('最近 3 局：+28 / −14 / +28')
     expect(text).toContain('平均赢 +28 / 平均输 −14')
     expect(text).toContain('计算规则')
+    expect(text).toContain(
+      '1. 每局排位结束后记录 LP 加减分（挂机、定级赛、掉段保护、安慰分等不计入）'
+    )
     expect(text).toContain('估算值，非官方 MMR')
     expect(text).not.toContain('2580')
     expect(text).not.toContain('天梯分')

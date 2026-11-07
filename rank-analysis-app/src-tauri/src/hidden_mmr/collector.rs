@@ -252,7 +252,8 @@ enum Resolution {
 ///
 /// # 参数
 /// - `pending`: 取走的对局前快照
-/// - `current`: 刚读到的结算预统计 `(gameId, queueType)`；读取失败为 `None`
+/// - `current`: 刚读到的 `(gameId, queueType)`，来自实时统计或兜底的结算摘要端点
+///   （兜底值已由 [`effective_current`] 处理）；读取失败为 `None`
 ///
 /// # 行为
 /// - 快照与当前一致：用快照
@@ -286,13 +287,38 @@ fn resolve_game(pending: Option<Pending>, current: Option<(i64, String)>) -> Res
     }
 }
 
-/// 读取当前对局的 `(gameId, queueType)`。
+/// 兜底端点（`eog-stats-block`）读到的 gameId 可能是上一局，不能据此丢弃有效快照。
 ///
-/// 先试实时统计 block；结算页后期它会 404，此时改用 `eog-stats-block`。两者都失败才返回错误。
-async fn fetch_current_game() -> Result<(i64, String), String> {
+/// # 参数
+/// - `pending_game_id`: 对局前快照的 gameId（无快照为 `None`）
+/// - `current`: 读到的 `(gameId, queueType)`
+/// - `from_fallback`: `current` 是否来自兜底端点
+///
+/// # 行为
+/// 仅当来自兜底端点、存在快照且 gameId 不一致时，把当前局视为未知（`None`），
+/// 让 [`resolve_game`] 保留快照；其余情况原样返回。
+fn effective_current(
+    pending_game_id: Option<i64>,
+    current: Option<(i64, String)>,
+    from_fallback: bool,
+) -> Option<(i64, String)> {
+    match (pending_game_id, &current) {
+        (Some(pid), Some((gid, _))) if from_fallback && pid != *gid => None,
+        _ => current,
+    }
+}
+
+/// 读取当前对局的 `(gameId, queueType, 是否来自兜底端点)`。
+///
+/// 先试实时统计 block；结算页后期它会 404，此时改用 `eog-stats-block`（可能是上一局）。
+/// 两者都失败才返回合并了两条信息的错误。
+async fn fetch_current_game() -> Result<(i64, String, bool), String> {
     match EogStatsBlock::get().await {
-        Ok(b) => Ok((b.game_id, b.queue_type)),
-        Err(_) => EogSummary::get().await.map(|s| (s.game_id, s.queue_type)),
+        Ok(b) => Ok((b.game_id, b.queue_type, false)),
+        Err(e1) => EogSummary::get()
+            .await
+            .map(|s| (s.game_id, s.queue_type, true))
+            .map_err(|e2| format!("{e1}; fallback: {e2}")),
     }
 }
 
@@ -307,7 +333,11 @@ async fn fetch_current_game() -> Result<(i64, String), String> {
 async fn collect(app: AppHandle) -> Result<(), String> {
     let pending = take_pending();
     let fetched = fetch_current_game().await;
-    let current = fetched.as_ref().ok().cloned();
+    let (current, from_fallback) = match fetched.as_ref() {
+        Ok((id, q, fb)) => (Some((*id, q.clone())), *fb),
+        Err(_) => (None, false),
+    };
+    let current = effective_current(pending.as_ref().map(|p| p.game_id), current, from_fallback);
     let (puuid, game_id, queue_type, pending) = match resolve_game(pending, current) {
         Resolution::UsePending(p) => (p.puuid.clone(), p.game_id, p.queue_type.clone(), Some(*p)),
         Resolution::UseCurrent {
@@ -586,6 +616,37 @@ mod tests {
     fn should_skip_when_pending_differs_and_current_is_not_ranked() {
         let r = resolve_game(Some(pending(1)), cur(2, "ARAM"));
         assert!(matches!(r, Resolution::Skip(Some(ref q)) if q == "ARAM"));
+    }
+
+    #[test]
+    fn should_keep_pending_when_fallback_game_differs() {
+        let current = effective_current(Some(2), cur(1, "RANKED_SOLO_5x5"), true);
+        assert!(current.is_none());
+        let r = resolve_game(Some(pending(2)), current);
+        assert!(matches!(r, Resolution::UsePending(p) if p.game_id == 2));
+    }
+
+    #[test]
+    fn should_use_pending_when_fallback_game_matches() {
+        let current = effective_current(Some(2), cur(2, "RANKED_SOLO_5x5"), true);
+        let r = resolve_game(Some(pending(2)), current);
+        assert!(matches!(r, Resolution::UsePending(p) if p.game_id == 2));
+    }
+
+    #[test]
+    fn should_still_discard_pending_when_primary_game_differs() {
+        let current = effective_current(Some(1), cur(2, "RANKED_SOLO_5x5"), false);
+        let r = resolve_game(Some(pending(1)), current);
+        assert!(matches!(r, Resolution::UseCurrent { game_id: 2, .. }));
+    }
+
+    #[test]
+    fn should_keep_fallback_current_when_no_pending() {
+        let current = effective_current(None, cur(1, "RANKED_SOLO_5x5"), true);
+        assert!(matches!(
+            resolve_game(None, current),
+            Resolution::UseCurrent { game_id: 1, .. }
+        ));
     }
 
     #[test]

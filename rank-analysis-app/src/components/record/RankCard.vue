@@ -36,7 +36,7 @@
             transform="rotate(135 30 30)"
           />
         </svg>
-        <img :src="tierImage(queueInfo.tier)" class="rank-card-img" />
+        <img :src="tierImage(queueInfo.tier)" class="rank-card-img" alt="" />
         <div v-if="hasTier" class="rank-card-tier-lp" data-test="tier-lp">
           {{ queueInfo.leaguePoints }} LP
         </div>
@@ -44,9 +44,21 @@
       <div class="rank-card-text">
         <div class="rank-card-type-label">{{ label }}</div>
         <div class="rank-card-tier-text">{{ tierText }}</div>
-        <n-tooltip trigger="hover" placement="bottom-start">
+        <n-tooltip
+          trigger="manual"
+          placement="bottom-start"
+          :show="hasGames && (tipActive.record.hover || tipActive.record.focus)"
+        >
           <template #trigger>
-            <div class="rank-card-record" data-test="recent-record">
+            <div
+              class="rank-card-record"
+              data-test="recent-record"
+              :tabindex="hasGames ? 0 : undefined"
+              @mouseenter="tipActive.record.hover = true"
+              @mouseleave="tipActive.record.hover = false"
+              @focus="tipActive.record.focus = true"
+              @blur="tipActive.record.focus = false"
+            >
               <template v-if="hasGames">
                 <b class="wr" :class="winRateClass">{{ recent.winRate }}%</b>
                 <span class="rank-card-record-detail">
@@ -56,12 +68,27 @@
               <span v-else class="rank-card-record-detail">暂无对局</span>
             </div>
           </template>
-          近期 {{ recent.wins + recent.losses }} 场：{{ recent.wins }} 胜
-          {{ recent.losses }} 负，胜率 {{ recent.winRate }}%
+          <template v-if="hasGames">
+            近期 {{ recent.wins + recent.losses }} 场：{{ recent.wins }} 胜
+            {{ recent.losses }} 负，胜率 {{ recent.winRate }}%
+          </template>
         </n-tooltip>
-        <n-tooltip v-if="ready || collecting" trigger="hover" placement="bottom-start">
+        <n-tooltip
+          v-if="ready || collecting"
+          trigger="manual"
+          placement="bottom-start"
+          :show="tipActive.mmr.hover || tipActive.mmr.focus"
+        >
           <template #trigger>
-            <div class="rank-card-mmr" data-test="hidden-mmr">
+            <div
+              class="rank-card-mmr"
+              data-test="hidden-mmr"
+              tabindex="0"
+              @mouseenter="tipActive.mmr.hover = true"
+              @mouseleave="tipActive.mmr.hover = false"
+              @focus="tipActive.mmr.focus = true"
+              @blur="tipActive.mmr.focus = false"
+            >
               <span class="rank-card-mmr-label">隐藏分</span>
               <span class="rank-card-mmr-value">
                 <template v-if="ready">
@@ -69,6 +96,7 @@
                     :src="tierImage(ready.equivalentTier)"
                     class="rank-card-mmr-tier"
                     data-test="hidden-mmr-tier"
+                    alt=""
                   />
                   <span class="rank-card-mmr-rank">{{ ready.equivalentShort }}</span>
                   <n-icon :size="12" class="rank-card-mmr-trend" :class="ready.direction">
@@ -102,7 +130,8 @@
             </div>
             <div class="rank-card-mmr-rules">
               <div class="rank-card-mmr-rules-title">计算规则</div>
-              <div>1. 每局排位结束后记录 LP 加减分（挂机、定级赛、掉段保护不计入）</div>
+              <div>1. 每局排位结束后记录 LP 加减分（挂机、定级赛、掉段保护、安慰分等不计入）</div>
+              <!-- 10 / 3 与后端 hidden_mmr/estimate.rs 的 WINDOW / MIN_RECORDS 对应，需同步修改 -->
               <div>2. 取最近 10 局：隐藏分 ≈ 当前段位 +（平均赢分 − 平均输分）× 10 LP</div>
               <div>3. 赢得多输得少 → 隐藏分高于段位</div>
             </div>
@@ -115,7 +144,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, reactive } from 'vue'
 import { NCard, NIcon, NTooltip } from 'naive-ui'
 import { Remove, TrendingDown, TrendingUp } from '@vicons/ionicons5'
 import type { HiddenMmr } from '@renderer/services/hiddenMmr'
@@ -164,8 +193,17 @@ const hasTier = computed(() => hasRealTier(props.queueInfo))
 
 /** 环的段位色；未定级退回三级文字色 */
 const tierColor = computed(
-  () => TIER_COLORS[props.queueInfo.tier.toLowerCase()] ?? 'var(--text-tertiary)'
+  () => TIER_COLORS[(props.queueInfo.tier ?? '').toLowerCase()] ?? 'var(--text-tertiary)'
 )
+
+/**
+ * 两个 tooltip 的悬浮 / 聚焦状态：naive-ui 的 trigger 不能同时 hover + focus，
+ * 所以用 manual 模式，由触发元素的鼠标与焦点事件共同驱动 show
+ */
+const tipActive = reactive({
+  record: { hover: false, focus: false },
+  mmr: { hover: false, focus: false }
+})
 
 /**
  * 进度弧占 270° 的比例：钻石及以下按胜点 /100（至少 0.02 保证可见），
@@ -313,6 +351,12 @@ const cardContentStyle = 'padding: var(--space-10)'
   font-size: var(--font-size-xs);
   margin-top: var(--space-4);
   white-space: nowrap;
+}
+
+.rank-card-record:focus-visible,
+.rank-card-mmr:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .rank-card-record .wr {

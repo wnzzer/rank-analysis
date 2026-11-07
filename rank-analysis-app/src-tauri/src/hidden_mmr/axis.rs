@@ -57,7 +57,7 @@ pub fn format_score(score: i32) -> String {
 }
 
 /// 同 [`format_score`]，但大段名取中文名后两个字（`"流光翡翠"` → `"翡翠"`），
-/// 与前端 `formatCompactTierText` 的短名规则一致，用于卡片胶囊。
+/// 与前端 `formatCompactTierText` 的短名规则一致，用于卡片隐藏分行。
 ///
 /// # 返回值
 /// 如 `"翡翠 III 99LP"`；≥ [`APEX_BASE`] 仍为 `"大师以上 {lp}LP"`。
