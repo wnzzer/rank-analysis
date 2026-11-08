@@ -153,3 +153,18 @@ describe('stripMisattributedSentences', () => {
     expect(stripMisattributedSentences('- 男枪：9500。', { players: [] })).toBe('- 男枪：9500。')
   })
 })
+
+describe('buildEntityFacts（本分支快照：时间线材料）', () => {
+  it('时间线【团队处境】里属于他的数字算作本人数字，不误判为别人的', () => {
+    // 3 恰好是男枪的死亡数，但也是赵信「队友先崩后阵亡」的次数（单人复盘材料里写过）
+    const md = '- 赵信：3 次阵亡都在团灭后。'
+    expect(stripMisattributedSentences(md, facts())).toBe('')
+    const withTimeline = {
+      ...snap(),
+      timeline: {
+        teamContext: { 2: { laneGoldDiff14: -1200, deaths: 11, deathsAfterTeammatesDown: 3 } }
+      }
+    } as unknown as MatchSnapshot
+    expect(stripMisattributedSentences(md, { players: buildEntityFacts(withTimeline) })).toBe(md)
+  })
+})

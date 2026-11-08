@@ -6,9 +6,13 @@
  * settings.ui.detailZoomFactor，与主窗口 webview 缩放互不影响。
  *
  * 用 CSS zoom 而非 webview.setZoom：与布局同步（拖动窗口边缘不慢一拍）、28px 标题栏
- * 不跟着缩、不污染主窗口的缩放比例。teleport 到 body 的浮层（tooltip / AI 复盘弹窗）
+ * 不跟着缩、不污染主窗口的缩放比例。teleport 到 body 的浮层（tooltip / 下拉菜单）
  * 不随 zoom 缩放，保持 1 倍可读；其定位依赖 Chromium ≥128 标准化 zoom 下
  * getBoundingClientRect 返回视觉坐标。
+ *
+ * 比例只由「基准布局」决定、与当前标签无关：测量期间容器挂 {@link DETAIL_MEASURING_ATTR}，
+ * 内容据此切到基准布局（详情页 CSS：强制显示记分板、隐藏复盘），否则更高的复盘内容会把比例
+ * 压到 1，切回记分板仍是缩小态。
  */
 import { onMounted, onUnmounted, ref, type Ref } from 'vue'
 import { getConfigByIpc } from '@renderer/services/ipc'
@@ -21,6 +25,8 @@ export const DETAIL_DESIGN_WIDTH = 1280
 export const DETAIL_FIT_MIN = 0.8
 /** 铺满比例上限 */
 export const DETAIL_FIT_MAX = 2
+/** 测量期间挂在缩放容器上的属性：内容 CSS 据此显示决定比例的基准布局 */
+export const DETAIL_MEASURING_ATTR = 'data-zoom-measuring'
 /** 倍率提示显示时长 */
 const BADGE_MS = 1200
 /** 按目标比例复量自然高度时的余量：吸收再次换比例后的 ±1px 行高取整 */
@@ -88,7 +94,7 @@ export function useDetailZoom({ area, container }: DetailZoomOptions) {
   }
 
   /**
-   * 重新测量并应用缩放。全程同步：测量用的中间态（不限高）在同一任务内被覆盖，
+   * 重新测量并应用缩放。全程同步：测量用的中间态（不限高、基准布局）在同一任务内被覆盖，
    * 不会被绘制。直接写 style 而不走 Vue 绑定——绑定值不变时 Vue 不会重新下发，
    * 测量写入的中间态会残留。
    */
@@ -98,16 +104,27 @@ export function useDetailZoom({ area, container }: DetailZoomOptions) {
     if (!areaEl || !el) return
     const availW = areaEl.clientWidth
     const availH = areaEl.clientHeight
-    const first = computeDetailScale(availW, availH, measureNaturalHeight(el, 1), userFactor.value)
-    // 文字行高按设备像素取整，自然高度随比例轻微变化（实测 1 倍 832 → 1.639 倍 837，
-    // 最大化时队伍区因此多出滚动条）：按目标比例再量一次，只往小修正
-    const refined = computeDetailScale(
-      availW,
-      availH,
-      measureNaturalHeight(el, first) + FIT_SLACK_PX,
-      userFactor.value
-    )
-    const next = Math.min(first, refined)
+    el.setAttribute(DETAIL_MEASURING_ATTR, '')
+    let next: number
+    try {
+      const first = computeDetailScale(
+        availW,
+        availH,
+        measureNaturalHeight(el, 1),
+        userFactor.value
+      )
+      // 文字行高按设备像素取整，自然高度随比例轻微变化（实测 1 倍 832 → 1.639 倍 837，
+      // 最大化时队伍区因此多出滚动条）：按目标比例再量一次，只往小修正
+      const refined = computeDetailScale(
+        availW,
+        availH,
+        measureNaturalHeight(el, first) + FIT_SLACK_PX,
+        userFactor.value
+      )
+      next = Math.min(first, refined)
+    } finally {
+      el.removeAttribute(DETAIL_MEASURING_ATTR)
+    }
     el.style.setProperty('zoom', String(next))
     // 视觉高正好等于可用高：头部固定、队伍区在 MatchDetailModal 内部滚动
     el.style.height = `${availH / next}px`

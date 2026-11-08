@@ -1,6 +1,38 @@
 import { describe, it, expect } from 'vitest'
 import { renderAnalysisReport } from '../renderReport'
 
+describe('renderAnalysisReport citation normalization', () => {
+  const cards = [
+    { id: 'I4', kind: 'item', subjects: [1], minute: 1, text: '出装卡', numbers: [], weight: 1 }
+  ] as unknown as Parameters<typeof renderAnalysisReport>[3]
+
+  it('normalizes spaced citations and drops bogus tags when cards are present', () => {
+    const html = renderAnalysisReport(
+      '## 一句话定论\n出装慢 [ i4 ]，系统 [TS] 说的。',
+      undefined,
+      undefined,
+      cards
+    )
+    expect(html).toContain('>I4</sup>')
+    expect(html).not.toContain('[TS]')
+  })
+
+  it('repairs a wrong citation id by time before rendering the badge', () => {
+    const cs = [
+      { id: 'D1', text: '1:34 死亡' },
+      { id: 'D2', text: '1:59 死亡' }
+    ] as unknown as Parameters<typeof renderAnalysisReport>[3]
+    const html = renderAnalysisReport('## 关键证据\n1:59 死了 [D1]。', undefined, undefined, cs)
+    expect(html).toContain('>D2</sup>')
+    expect(html).not.toContain('>D1</sup>')
+  })
+
+  it('leaves bracket tags untouched without cards', () => {
+    const html = renderAnalysisReport('## 一句话定论\n保留 [TS] 原样。')
+    expect(html).toContain('[TS]')
+  })
+})
+
 describe('renderAnalysisReport', () => {
   it('空输入返回空串', () => {
     expect(renderAnalysisReport('')).toBe('')
@@ -110,6 +142,14 @@ describe('renderAnalysisReport + 数字接地过滤(单人复盘)', () => {
   })
 })
 
+describe('renderAnalysisReport + 评分黑话兜底', () => {
+  it('始终剔除含分数黑话的句子', () => {
+    const html = renderAnalysisReport('- 张三：总分 -0.2（P30~P40）。补刀差 39。')
+    expect(html).not.toContain('P30')
+    expect(html).toContain('补刀差')
+  })
+})
+
 describe('renderAnalysisReport + 张冠李戴过滤', () => {
   const entityFacts = {
     players: [
@@ -130,8 +170,34 @@ describe('renderAnalysisReport + 张冠李戴过滤', () => {
 
   it('传入 entityFacts 时把别人的数字写在点名对象头上的句子不出现在 HTML 里', () => {
     const md = '## 谁要背锅\n\n- 赵信：被打穿了。对位男枪自己只有 9500 金币。'
-    const html = renderAnalysisReport(md, undefined, undefined, entityFacts)
+    const html = renderAnalysisReport(md, undefined, undefined, undefined, entityFacts)
     expect(html).toContain('被打穿了')
     expect(html).not.toContain('自己只有')
+  })
+})
+
+describe('renderAnalysisReport + 引用与张冠李戴同时生效', () => {
+  it('有卡片时：带引用的句子渲染角标，张冠李戴句仍被剔除', () => {
+    const cards = [
+      {
+        id: 'D1',
+        kind: 'death',
+        subjects: [2],
+        minute: 5,
+        text: '5:10 赵信阵亡',
+        numbers: [],
+        weight: 1
+      }
+    ] as unknown as Parameters<typeof renderAnalysisReport>[3]
+    const entityFacts = {
+      players: [
+        { participantId: 2, aliases: ['赵信'], stats: { gold: 9500 }, numbers: [9500] },
+        { participantId: 7, aliases: ['男枪'], stats: { gold: 15000 }, numbers: [15000] }
+      ]
+    }
+    const md = '## 关键证据\n\n- 赵信：5:10 被抓 [D1]。男枪只有 9500 金币。'
+    const html = renderAnalysisReport(md, undefined, undefined, cards, entityFacts)
+    expect(html).toContain('>D1</sup>')
+    expect(html).not.toContain('只有')
   })
 })

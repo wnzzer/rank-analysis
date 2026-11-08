@@ -199,3 +199,200 @@ export function stripUngroundedSentences(markdown: string, allowed: Set<number>)
   }
   return out.join('\n')
 }
+
+/**
+ * 评分黑话：分位 token（P30、P30~P40）、「分位」（排除「分位置」「分位移」）、标准差、z 值、
+ * 「总分」接数字、分项名紧跟带符号小数（对线 -1.9、团战+1.1；含全角负号 −）。
+ * 「对线落后 1209 经济」「14 分钟补刀差 39」这类不带符号的具体数据不命中。
+ */
+const SCORE_JARGON: RegExp[] = [
+  /(?<![A-Za-z])P\d0(?!\d)/,
+  /分位(?![置移])/,
+  /标准差/,
+  /z\s*值/i,
+  /总分\s*[-+−]?\d/,
+  /(对线|团战|死亡质量|发育|资源|视野)\s*[-+−]\d+(\.\d+)?/
+]
+
+/** 句子是否含评分黑话（渲染兜底与评测指标共用） */
+export function isScoreJargon(sentence: string): boolean {
+  return SCORE_JARGON.some(re => re.test(sentence))
+}
+
+/** 列表项开头的「名字：」（剔句时保留，免得人物条目丢了名字后无法按名册归位） */
+const ITEM_HEAD = /^[^：:。！？；!?;]{1,40}[：:]/
+
+/**
+ * 剔除含评分黑话的句子（prompt 已禁止，模型仍偶发照抄分数时的兜底）。
+ * 整条清空则删行；标题行不动。材料里没有分数时无副作用。纯函数，流式中间态安全。
+ * @param markdown - 模型输出
+ */
+export function stripScoreJargon(markdown: string): string {
+  if (!markdown) return markdown
+  const out: string[] = []
+  for (const line of markdown.split('\n')) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#') || !isScoreJargon(line)) {
+      out.push(line)
+      continue
+    }
+    const bullet = line.match(/^(\s*[-*]\s+)([\s\S]*)$/)
+    const prefix = bullet ? bullet[1] : ''
+    const content = bullet ? bullet[2] : line
+    const head = content.match(ITEM_HEAD)?.[0] ?? ''
+    const body = content.slice(head.length)
+    const kept = body
+      .split(/(?<=[。!?;！？；])/)
+      .filter(s => !isScoreJargon(s))
+      .join('')
+      .trim()
+    if (!kept && body.trim()) continue
+    out.push(prefix + head + kept)
+  }
+  return out.join('\n')
+}
+
+/** 卡片引用标记（与 shared/timeline 的 CITATION_RE 同形，这里独立声明避免循环依赖） */
+const CITATION_TOKEN = /\[([LDISVFT]\d+)\]/g
+
+/** 带空格/小写的卡片引用，如 [ I4 ]、[d12] */
+const LOOSE_CITATION = /\[\s*([A-Za-z])(\d+)\s*\]/g
+/** 纯字母方括号标记（模型发明的 [TS] 之类）；后跟 ( 的是 markdown 链接，不算。评测指标共用 */
+export const BOGUS_TAG = /\[\s*[A-Za-z]{1,4}\s*\](?!\()/g
+const BOGUS_TAG_LINE_START = /^([ \t]*)\[\s*[A-Za-z]{1,4}\s*\](?!\()[ \t]*/gm
+const BOGUS_TAG_INLINE = /[ \t]*\[\s*[A-Za-z]{1,4}\s*\](?!\()/g
+
+/**
+ * 规整模型输出里的卡片引用：[ I4 ] / [i4] → [I4]；删除发明的纯字母标记（[TS]）并收拢留下的空格。
+ * 只应在本次带时间线卡片时调用。纯函数，流式中间态安全。
+ * @param markdown - 模型输出的 markdown
+ */
+export function normalizeCitations(markdown: string): string {
+  if (!markdown) return markdown
+  return markdown
+    .replace(LOOSE_CITATION, (m, letter: string, digits: string) =>
+      'LDISVFT'.includes(letter.toUpperCase()) ? `[${letter.toUpperCase()}${digits}]` : m
+    )
+    .replace(BOGUS_TAG_LINE_START, '$1')
+    .replace(BOGUS_TAG_INLINE, '')
+}
+
+/** 句内 mm:ss 时间 token（评测指标共用） */
+export const TIME_TOKEN = /\b\d{1,2}:\d{2}\b/g
+
+/** 句末标点切句（保留分隔符） */
+const SENTENCE_SPLIT = /(?<=[。!?;！？；])/
+
+/** 一条引用及其所辖文本段 */
+export interface CitationSegment {
+  id: string
+  /** `[ID]` 在句中的起始下标 */
+  index: number
+  /** 该引用所辖文本：[ID] 起到下一个引用前；首个引用之前的文字并入第一段 */
+  segment: string
+}
+
+/**
+ * 把一句话按引用切段（修复与评测共用的口径）。
+ * @param sentence - 单个句子（需已 normalizeCitations）
+ */
+export function citationSegments(sentence: string): CitationSegment[] {
+  const hits = [...sentence.matchAll(CITATION_TOKEN)].map(m => ({ id: m[1], index: m.index ?? 0 }))
+  return hits.map((h, i) => {
+    const start = i === 0 ? 0 : h.index
+    const end = i + 1 < hits.length ? hits[i + 1].index : sentence.length
+    return { ...h, segment: sentence.slice(start, end) }
+  })
+}
+
+/**
+ * 确定性引用修复：句子文字对、引用 id 错时，按时间改指向或摘掉角标。
+ *
+ * 对每个引用，若其所辖段含 mm:ss 且有时间不在被引卡片文本里：
+ * 找文本包含该段全部时间的卡片（优先同前缀字母），唯一则换 id，否则删掉该角标（保留句子）。
+ * 段内无时间 / id 不存在的引用原样保留（后者交给 stripInvalidCitations）。
+ * 纯函数，流式中间态安全。
+ * @param markdown - 已 normalizeCitations 的模型输出
+ * @param cards - 本次可引用的卡片
+ */
+export function repairCitations(
+  markdown: string,
+  cards: Array<{ id: string; text: string }>
+): string {
+  if (!markdown || cards.length === 0) return markdown
+  const byId = new Map(cards.map(c => [c.id, c.text]))
+  const out: string[] = []
+  for (const line of markdown.split('\n')) {
+    if (!line.trim() || line.trim().startsWith('#')) {
+      out.push(line)
+      continue
+    }
+    out.push(
+      line
+        .split(SENTENCE_SPLIT)
+        .map(s => repairSentence(s, cards, byId))
+        .join('')
+    )
+  }
+  return out.join('\n')
+}
+
+function repairSentence(
+  sentence: string,
+  cards: Array<{ id: string; text: string }>,
+  byId: Map<string, string>
+): string {
+  const edits: Array<{ index: number; length: number; replacement: string | null }> = []
+  for (const seg of citationSegments(sentence)) {
+    const text = byId.get(seg.id)
+    const times = seg.segment.match(TIME_TOKEN)
+    if (text === undefined || !times || times.every(t => text.includes(t))) continue
+    const all = cards.filter(c => times.every(t => c.text.includes(t)))
+    const same = all.filter(c => c.id[0] === seg.id[0])
+    const pool = same.length > 0 ? same : all
+    edits.push({
+      index: seg.index,
+      length: seg.id.length + 2,
+      replacement: pool.length === 1 ? `[${pool[0].id}]` : null
+    })
+  }
+  let result = sentence
+  // 从后往前改，前面的下标不受影响
+  for (const e of edits.reverse()) {
+    let start = e.index
+    let end = e.index + e.length
+    if (e.replacement === null && result[start - 1] === ' ') {
+      // 摘掉角标后收拢空格：前后都是空格删后一个；后面是标点或句尾则删前一个
+      if (result[end] === ' ') end++
+      else if (end >= result.length || /[，。,.!?;！？；、：:)）]/.test(result[end])) start--
+    }
+    result = result.slice(0, start) + (e.replacement ?? '') + result.slice(end)
+  }
+  return result
+}
+
+/**
+ * 剔除引用了不存在卡片的句子（模型编造卡片编号）。纯函数，流式中间态安全。
+ * @param markdown - 模型输出的 markdown
+ * @param validIds - 本次材料里的全部卡片编号；空集 = 无时间线，不过滤
+ * @returns 过滤后的 markdown
+ */
+export function stripInvalidCitations(markdown: string, validIds: Set<string>): string {
+  if (!markdown || validIds.size === 0) return markdown
+  const out: string[] = []
+  for (const line of markdown.split('\n')) {
+    if (!line.trim() || line.trim().startsWith('#')) {
+      out.push(line)
+      continue
+    }
+    const bullet = line.match(/^(\s*[-*]\s+)([\s\S]*)$/)
+    const prefix = bullet ? bullet[1] : ''
+    const content = bullet ? bullet[2] : line
+    const kept = content
+      .split(/(?<=[。!?;！？；])/)
+      .filter(s => [...s.matchAll(CITATION_TOKEN)].every(m => validIds.has(m[1])))
+    const joined = kept.join('').trim()
+    if (joined) out.push(prefix + joined)
+  }
+  return out.join('\n')
+}

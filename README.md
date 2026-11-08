@@ -113,7 +113,7 @@ Built with **Tauri 2.0**, it pairs Rust's performance with a web frontend in a *
   <img src="./public/2.png" alt="Live Match Analysis" width="80%" />
 </div>
 
-**Match Details** — a dedicated window with per-player KDA / gold / damage, plus one-click AI review
+**Match Details** — a dedicated window with per-player KDA / gold / damage, plus a Review tab that charts lane matchups, gold lead, death responsibility and item timings, with short AI commentary on top
 
 <div align="center">
   <img src="./public/5.png" alt="Match Details with AI review entry" width="80%" />

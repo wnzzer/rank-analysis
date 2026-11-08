@@ -140,6 +140,9 @@
   --accent-sky: #38bdf8;
   --semantic-win-bright: #5ecfa4;
   --semantic-loss-bright: #e57878;
+  /* 红蓝方阵营色（记分板与复盘共用；亮色主题随 accent/semantic 变量自动适配） */
+  --side-blue: var(--accent-blue);
+  --side-red: var(--semantic-loss-bright);
 
   /* === 字阶补全（展示用大字与极小字） === */
   --font-size-3xs: 9px;

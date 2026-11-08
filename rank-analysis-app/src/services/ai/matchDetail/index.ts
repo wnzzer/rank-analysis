@@ -1,33 +1,26 @@
 /**
- * matchDetail 模块对外门面。
+ * matchDetail 模块对外门面（单次模型调用）。
  *
  * 流程：
  *   game + profileMap
- *     → buildMatchSnapshot
- *     → runTwoStage（shared/twoStage.ts 统一编排）
- *       - Stage 1 (attribution.ts 提供 prompt/缓存键/解析) — JSON mode, 失败重试 1 次
- *       - Stage 2 (critique.ts 提供 prompt 选择) — 流式 markdown
+ *     → buildMatchSnapshot（含时间线卡片、死亡归责与时间线指标）
+ *     → buildScoredAttribution（TS：国服基准评分 → 标签 → 必出名单 → 归因骨架，零模型调用）
+ *     → Stage 2 流式 markdown（critique.ts 按模式选 prompt；锐评措辞与胜负因果润色由模型写）
  *     → 失败时 critiqueTemplate 兜底
  *
- * 缓存策略（sessionStorage）：
- * - Stage 1 原始 JSON 由 requestAIContent 按 stage1CacheKey 缓存；门面另做一次
- *   预检（parseAttribution 校验 + 名册回填），命中即传 precomputedStage1 跳过调用。
- * - Stage 2 markdown 按 gameId + 模式 + （单人时）participantId 缓存——
- *   曾因忽略 mode 导致"单人复盘" tab 输出整局内容且缓存互串。
+ * 缓存：只缓存 Stage 2 markdown（stage2Cache：localStorage 有界 LRU，跨详情窗与重启有效，
+ * 避免重开同一局又计费；key = gameId + 模式 kind + 单人 participantId + 时间线 + 模型名，
+ * 远端/设置里换模型后不会把旧模型的文本当新结果）。
+ * 模型：按 matchCritique 场景远程可配（modelConfig.resolveModel），STAGE2_MODEL 只是兜底。
+ * 归因骨架是纯函数，每次重算，同输入同输出。
  */
 
 import type { Game } from '@renderer/types/domain/match'
 import { resolveModel } from '../modelConfig'
 import { buildMatchSnapshot } from '../shared/snapshot'
-import { runTwoStage } from '../shared/twoStage'
 import type { RecentPlayerProfile } from '../shared/types'
-import {
-  buildAttributionUserPrompt,
-  parseAttribution,
-  stage1CacheKey,
-  STAGE1_MODEL,
-  STAGE1_SYSTEM_PROMPT
-} from './attribution'
+import { visibleCards, type SlimTimeline, type TimelineCard } from '../shared/timeline'
+import { requestAIContentStream } from '../stream'
 import {
   buildCritiqueUserPrompt,
   STAGE2_MODEL,
@@ -37,6 +30,8 @@ import {
 import { renderFallbackCritique } from './critiqueTemplate'
 import { buildEntityFacts, type MisattributionMaterial } from './misattribution'
 import { extractNumbers } from './postprocess'
+import { buildScoredAttribution } from './scoredAttribution'
+import { readStage2Cache, writeStage2Cache } from './stage2Cache'
 import type { AttributionResult } from './types'
 
 export type { AttributionResult, MatchAIState } from './types'
@@ -45,24 +40,31 @@ export { renderFallbackCritique } from './critiqueTemplate'
 export interface AnalyzeOptions {
   /** 词库样本（Stage 2 prompt 注入）。若 tagSuggest vocab 模块尚未实现可传 []。 */
   vocabSamples?: string[]
-  /** 'player' 时 Stage 2 输出单人复盘（需 participantId）；Stage 1 归因两模式共享 */
+  /** 'player' 时 Stage 2 输出单人复盘（需 participantId）；归因骨架两模式共享 */
   mode?: 'overview' | 'player'
   participantId?: number
   /**
-   * Stage 1 归因就绪时回调(缓存命中/实时均触发,先于 Stage 2 流式输出)。
-   * UI 渲染层用其中的名册(name+label)做人物章节的确定性重排。
+   * 归因骨架就绪时回调（缓存命中/实时均触发，先于 Stage 2 流式输出）。
+   * UI 渲染层用其中的名册（name+label）做人物章节的确定性重排。
    */
   onAttribution?: (attribution: AttributionResult) => void
   /**
-   * Stage 2 prompt 定稿时回调材料数字白名单(整局/单人两模式)
-   * (缓存命中/实时均触发)。UI 渲染层用它剔除模型编造数字的句子。
+   * Stage 2 prompt 定稿时回调材料数字白名单（整局/单人两模式，缓存命中/实时均触发）。
+   * UI 渲染层用它剔除模型编造数字的句子。
    */
   onStage2Material?: (allowedNumbers: Set<number>) => void
   /**
-   * 玩家身份与指标(两种模式都触发,先于 Stage 2 输出)。
-   * UI 渲染层用它剔除张冠李戴的句子(见 misattribution.ts)。
+   * 玩家身份与指标（两种模式都触发，先于 Stage 2 输出）。
+   * UI 渲染层用它剔除张冠李戴的句子（见 misattribution.ts）。
    */
   onEntityFacts?: (material: MisattributionMaterial) => void
+  /** 已拉取并对齐的时间线（null/undefined = 无时间线） */
+  timeline?: SlimTimeline | null
+  /**
+   * 快照生成后回调模型可见的卡片（见 visibleCards；无时间线时为 null）。
+   * UI 用于引用校验与角标——不在其中的编号视为编造。
+   */
+  onTimelineCards?: (cards: TimelineCard[] | null) => void
 }
 
 export type AnalyzeOutcome =
@@ -75,24 +77,32 @@ export type AnalyzeOutcome =
       fallbackMarkdown?: string
     }
 
-function readSession(key: string): string | null {
-  try {
-    return sessionStorage.getItem(key)
-  } catch {
-    return null
-  }
-}
-
-function writeSession(key: string, value: string): void {
-  try {
-    sessionStorage.setItem(key, value)
-  } catch {
-    // ignore (SSR / no storage)
-  }
+/** Stage 2 流式调用：chunk 即时转发，结束后给出全文或错误 */
+function streamMarkdown(
+  prompt: string,
+  model: string,
+  onChunk: (chunk: string) => void
+): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
+  return new Promise(resolve => {
+    let text = ''
+    requestAIContentStream(
+      prompt,
+      {
+        onChunk: chunk => {
+          text += chunk
+          onChunk(chunk)
+        },
+        onDone: () => resolve({ ok: true, text }),
+        onError: error => resolve({ ok: false, error })
+      },
+      STAGE2_SYSTEM_PROMPT,
+      model
+    )
+  })
 }
 
 /** 低于该时长(秒)视为重开局,不做 AI 复盘(数据无分析价值,模型只会硬编) */
-const REMAKE_MAX_SECONDS = 300
+export const REMAKE_MAX_SECONDS = 300
 
 export async function analyzeMatchDetail(
   game: Game,
@@ -114,97 +124,65 @@ export async function analyzeMatchDetail(
     }
   }
 
-  const snapshot = buildMatchSnapshot(game, profileMap ?? undefined)
-  // 模型远程可配；Stage 1 缓存键带模型名，远端换模型后旧归因自动失效
-  const [stage1Model, stage2Model] = await Promise.all([
-    resolveModel('matchAttribution', STAGE1_MODEL),
-    resolveModel('matchCritique', STAGE2_MODEL)
-  ])
-
-  // ─── Stage 1 缓存预检 ───
-  // requestAIContent 会按同一键缓存原文，这里预检能让门面在 requestAIContent
-  // 被 mock（测试）时也短路；必须过 parseAttribution（含名册字段回填），
-  // 裸 JSON.parse 会丢 Stage 2 名册依赖的 champion/teamPosition/teamResult。
-  const stage1Key = stage1CacheKey(snapshot, stage1Model)
-  let cachedAttribution: AttributionResult | null = null
-  const cachedStage1Raw = readSession(stage1Key)
-  if (cachedStage1Raw) {
-    const parsed = parseAttribution(cachedStage1Raw, snapshot)
-    if (parsed.ok) cachedAttribution = parsed.value
+  const snapshot = buildMatchSnapshot(game, profileMap ?? undefined, options.timeline)
+  const tlCards = snapshot.timeline?.cards
+  if (snapshot.players.length === 0) {
+    options.onTimelineCards?.(null)
+    const error = 'no players in snapshot'
+    callbacks.onError(error)
+    return { ok: false, stage: 'attribution', error }
   }
 
-  // ─── Stage 2 缓存预检（需已有归因才能短路，两级缓存同时命中才免 AI 调用）───
+  // 标签/名单/证据由 TS 评分确定（同局两跑一致率 = 1），模型只写措辞
+  const attribution = buildScoredAttribution(snapshot)
+  // 可见卡片依赖 winReason 里引用的编号，故在归因之后回调
+  options.onTimelineCards?.(
+    tlCards
+      ? visibleCards(
+          tlCards,
+          options.mode ?? 'overview',
+          options.participantId,
+          attribution.winReason
+        )
+      : null
+  )
+  options.onAttribution?.(attribution)
+
   const isPlayerMode = options.mode === 'player' && options.participantId != null
   options.onEntityFacts?.({
     players: buildEntityFacts(snapshot),
     subjectId: isPlayerMode ? options.participantId : undefined
   })
+  const prompt = buildCritiqueUserPrompt(attribution, snapshot, options)
+  // prompt 里的数字就是模型可引用的全部数字,交给 UI 做接地过滤(整局/单人两模式:
+  // 整局锐评同样会编数字,真机 301041798766)
+  options.onStage2Material?.(extractNumbers(prompt))
+
+  // 模型远程可配;缓存键带模型名,换模型后旧文本自动失效
+  const model = await resolveModel('matchCritique', STAGE2_MODEL)
   const stage2Key = isPlayerMode
-    ? `ai_match_detail_stage2_${snapshot.gameId}_${snapshot.modeContext.kind}_p${options.participantId}`
-    : `ai_match_detail_stage2_${snapshot.gameId}_${snapshot.modeContext.kind}`
-  const cachedMarkdown = readSession(stage2Key)
-  if (cachedAttribution && cachedMarkdown) {
-    options.onAttribution?.(cachedAttribution)
-    // 缓存命中不再经过 buildUserPrompt,材料数字白名单要在这里重建
-    // (prompt 构造是纯函数,重建成本可忽略)
-    if (options.onStage2Material) {
-      options.onStage2Material(
-        extractNumbers(buildCritiqueUserPrompt(cachedAttribution, snapshot, options))
-      )
-    }
+    ? `ai_match_detail_stage2_${snapshot.gameId}_${snapshot.modeContext.kind}_p${options.participantId}${snapshot.timeline ? '_tl' : ''}_${model}`
+    : `ai_match_detail_stage2_${snapshot.gameId}_${snapshot.modeContext.kind}${snapshot.timeline ? '_tl' : ''}_${model}`
+  const cachedMarkdown = readStage2Cache(stage2Key)
+  if (cachedMarkdown) {
     callbacks.onChunk(cachedMarkdown)
     callbacks.onDone()
-    return { ok: true, attribution: cachedAttribution, markdown: cachedMarkdown }
+    return { ok: true, attribution, markdown: cachedMarkdown }
   }
 
-  const result = await runTwoStage<AttributionResult, string>({
-    precomputedStage1: cachedAttribution ?? undefined,
-    stage1: {
-      systemPrompt: STAGE1_SYSTEM_PROMPT,
-      userPrompt: buildAttributionUserPrompt(snapshot),
-      parse: raw => parseAttribution(raw, snapshot),
-      cacheKey: stage1Key,
-      retry: 1,
-      model: stage1Model,
-      jsonMode: true
-    },
-    stage2: {
-      buildSystemPrompt: () => STAGE2_SYSTEM_PROMPT,
-      buildUserPrompt: attribution => {
-        // Stage 1 定稿、Stage 2 尚未开流的时点:把归因交给 UI(名册重排用)
-        options.onAttribution?.(attribution)
-        const prompt = buildCritiqueUserPrompt(attribution, snapshot, options)
-        // prompt 里的数字就是模型可引用的全部数字,交给 UI 做接地过滤(整局/单人两模式)
-        options.onStage2Material?.(extractNumbers(prompt))
-        return prompt
-      },
-      // Stage 2 是自由 markdown，无解析需求；流式 chunk 直接转发给调用方
-      parse: raw => ({ ok: true, value: raw }),
-      streamCallback: callbacks.onChunk,
-      model: stage2Model
-    }
-  })
-
-  switch (result.kind) {
-    case 'stage1Error':
-    case 'stage1ParseError':
-      callbacks.onError(result.error)
-      return { ok: false, stage: 'attribution', error: result.error }
-    case 'stage2Error':
-    case 'stage2ParseError':
-      // 先 onError 再返回 fallbackMarkdown；调用方（services/ai/index.ts）会兜底渲染
-      callbacks.onError(result.error)
-      return {
-        ok: false,
-        stage: 'critique',
-        error: result.error,
-        attribution: result.stage1,
-        fallbackMarkdown: renderFallbackCritique(result.stage1)
-      }
-    case 'ok': {
-      callbacks.onDone()
-      writeSession(stage2Key, result.stage2)
-      return { ok: true, attribution: result.stage1, markdown: result.stage2 }
+  const res = await streamMarkdown(prompt, model, callbacks.onChunk)
+  if (!res.ok) {
+    // 先 onError 再返回 fallbackMarkdown；调用方（services/ai/index.ts）会兜底渲染
+    callbacks.onError(res.error)
+    return {
+      ok: false,
+      stage: 'critique',
+      error: res.error,
+      attribution,
+      fallbackMarkdown: renderFallbackCritique(attribution)
     }
   }
+  callbacks.onDone()
+  writeStage2Cache(stage2Key, res.text)
+  return { ok: true, attribution, markdown: res.text }
 }

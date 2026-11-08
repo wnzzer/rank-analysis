@@ -6,10 +6,12 @@
  * 只有 9500 金币」「队伍总击杀 28 个，蔚只沾到 6 个」）。事实卡让每个数字紧挨着它的
  * 主人出现，并预先写明双方队伍的总数据，从源头减少张冠李戴；结构化字段同时翻成中文，
  * 模型也就没有字段名可抄。
+ *
+ * 只写终局数字：位置高低的判断由评分模型（scoredAttribution 的【表现评估】等级词）给出，
+ * 这里不再标注「低于该位置常见水平」之类的粗基准，免得两套口径互相打架。
  */
 
 import type { MatchSnapshot } from '../../shared/snapshot'
-import type { BenchmarkLevel, RoleBenchmark, VsLaneOpponent } from '../../shared/laneFacts'
 import type { RecentPlayerProfile } from '../../shared/types'
 
 type SnapshotPlayer = MatchSnapshot['players'][number]
@@ -20,17 +22,6 @@ export const POSITION_CN: Record<string, string> = {
   MIDDLE: '中单',
   BOTTOM: '下路',
   UTILITY: '辅助'
-}
-
-const LEVEL_CN: Record<BenchmarkLevel, string> = {
-  low: '低于该位置常见水平',
-  normal: '属于该位置正常水平',
-  high: '高于该位置常见水平'
-}
-
-/** 「（低于该位置常见水平）」；无分路模式没有位置基准，返回空串 */
-function bench(rb: RoleBenchmark | null, key: keyof RoleBenchmark): string {
-  return rb ? `（${LEVEL_CN[rb[key]]}）` : ''
 }
 
 /** 卡片标题里的身份：`蔚（玩家7｜败方｜打野）` */
@@ -81,41 +72,17 @@ function profileText(rp: RecentPlayerProfile | null): string {
  */
 export function playerFactCard(p: SnapshotPlayer): string {
   const c = p.champion
-  // 旧缓存 / 手工构造的快照可能缺这些派生字段：缺失按「无」处理，不能让 prompt 构建崩掉
-  const rb = p.roleBenchmark ?? null
   return [
     `- ${c} 战绩：${p.kills} 杀 / ${p.deaths} 死 / ${p.assists} 助攻，KDA ${p.kda}`,
-    `- ${c} 输出：伤害 ${p.damage}，伤害占比 ${p.damageShare}%${bench(rb, 'damageShare')}，每分钟伤害 ${p.dpm}`,
-    `- ${c} 承伤：承伤 ${p.taken}，承伤占比 ${p.damageTakenShare}%${bench(rb, 'damageTakenShare')}`,
-    `- ${c} 经济：${p.gold} 金币，经济占比 ${p.goldShare}%${bench(rb, 'goldShare')}，每分钟经济 ${p.gpm}`,
-    `- ${c} 补刀：${p.cs}，每分钟补刀 ${p.csm}${bench(rb, 'csm')}`,
-    `- ${c} 参团率：${p.killParticipation}%${bench(rb, 'killParticipation')}`,
+    `- ${c} 输出：伤害 ${p.damage}，伤害占比 ${p.damageShare}%，每分钟伤害 ${p.dpm}`,
+    `- ${c} 承伤：承伤 ${p.taken}，承伤占比 ${p.damageTakenShare}%`,
+    `- ${c} 经济：${p.gold} 金币，经济占比 ${p.goldShare}%，每分钟经济 ${p.gpm}`,
+    `- ${c} 补刀：${p.cs}，每分钟补刀 ${p.csm}`,
+    `- ${c} 参团率：${p.killParticipation}%`,
     `- ${c} 视野得分：${p.wardScore ?? '无数据（国服战绩不下发，禁止评价视野）'}`,
     `- ${c} 多杀：${multiKillText(p.multiKills)}`,
     `- ${c} 近期画像：${profileText(p.recentProfile ?? null)}`
   ].join('\n')
-}
-
-/**
- * 对位差的中文事实（本人 − 对位）
- * @param p - 目标玩家
- * @returns 无对位时为 null
- */
-export function laneDiffText(p: SnapshotPlayer): string | null {
-  const d: VsLaneOpponent | null = p.vsLaneOpponent ?? null
-  if (!d) return null
-  const more = (n: number, unit: string, label: string) =>
-    n === 0 ? `${label}持平` : `${label}${n > 0 ? '多' : '少'} ${Math.abs(n)}${unit}`
-  const higher = (n: number, unit: string, label: string) =>
-    n === 0 ? `${label}持平` : `${label}${n > 0 ? '高' : '低'} ${Math.abs(n)}${unit}`
-  return `${p.champion} 对比对位 ${d.opponentChampion}：${[
-    more(d.goldDiff, ' 金币', '经济'),
-    more(d.csDiff, '', '补刀'),
-    higher(d.kdaDiff, '', 'KDA '),
-    more(d.killsDiff, ' 个', '击杀'),
-    more(d.deathsDiff, ' 次', '死亡'),
-    higher(d.damageShareDiff, ' 个百分点', '伤害占比')
-  ].join('，')}`
 }
 
 /**
@@ -124,7 +91,8 @@ export function laneDiffText(p: SnapshotPlayer): string | null {
  * @param focusTeamId - 需要标注「本队」的队伍（单人复盘传目标所在队伍）
  */
 export function teamFactLines(snapshot: MatchSnapshot, focusTeamId?: number): string {
-  return snapshot.teams
+  // 手工构造的快照（测试/旧缓存）可能没有 teams：按无队伍数据处理，不让 prompt 构建崩掉
+  return (snapshot.teams ?? [])
     .map(t => {
       const tag =
         focusTeamId === undefined

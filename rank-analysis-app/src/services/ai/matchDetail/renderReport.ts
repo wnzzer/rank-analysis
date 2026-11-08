@@ -14,9 +14,14 @@ import MarkdownIt from 'markdown-it'
 import {
   dedupeSectionMentions,
   resectionByLabels,
+  normalizeCitations,
+  repairCitations,
+  stripInvalidCitations,
+  stripScoreJargon,
   stripUngroundedSentences,
   type SectionVerdict
 } from './postprocess'
+import type { TimelineCard } from '../shared/timeline'
 import { stripMisattributedSentences, type MisattributionMaterial } from './misattribution'
 
 // html:false 阻断 AI/外部数据中夹带 raw HTML（XSS 防线，CSP 之外的纵深防御）
@@ -58,10 +63,12 @@ const NUMBER_PATTERN = '\\d[\\d,]*(?:\\.\\d+)?(?:%|k|万)?'
 /**
  * 渲染 AI 复盘 markdown 为高亮 HTML。
  * 空输入返回空串；对部分 / 非法 markdown 不抛异常（流式每 chunk 都会调用）。
+ * 处理顺序：评分黑话 → 引用规范化/修复/剔除无效引用 → 张冠李戴 → 材料外数字 → 章节重排 → 去重。
  * @param verdicts - 整局复盘的名册(name+label);传入时先按 label 确定性重排
  *   人物章节(模型排版不可信,见 postprocess.resectionByLabels),再去重。
  * @param allowedNumbers - Stage 2 材料数字白名单(整局/单人两模式均传入);传入时剔除含
  *   材料外数字的句子(模型编数字不可信,见 postprocess.stripUngroundedSentences)。
+ * @param cards - 时间线卡片;传入时先剔除引用不存在卡片的句子,并把 [D3] 渲染为带原文悬浮的角标。
  * @param entityFacts - 玩家身份与指标;传入时剔除张冠李戴的句子
  *   (数字属于别人却写在点名对象头上,见 misattribution.stripMisattributedSentences)。
  */
@@ -69,25 +76,64 @@ export function renderAnalysisReport(
   markdown: string,
   verdicts?: SectionVerdict[],
   allowedNumbers?: Set<number>,
+  cards?: TimelineCard[],
   entityFacts?: MisattributionMaterial
 ): string {
   if (!markdown) return ''
-  const attributed = entityFacts ? stripMisattributedSentences(markdown, entityFacts) : markdown
+  // 评分黑话兜底始终生效：材料里没有分数时它什么也不删
+  const plain = stripScoreJargon(markdown)
+  const cited = cards?.length
+    ? stripInvalidCitations(
+        repairCitations(normalizeCitations(plain), cards),
+        new Set(cards.map(c => c.id))
+      )
+    : plain
+  // 张冠李戴：数字在材料里存在但属于别人，白名单拦不住，按「数字属于谁」逐句核对
+  const attributed = entityFacts ? stripMisattributedSentences(cited, entityFacts) : cited
   const grounded = allowedNumbers?.size
     ? stripUngroundedSentences(attributed, allowedNumbers)
     : attributed
   const sectioned = verdicts?.length ? resectionByLabels(grounded, verdicts) : grounded
   // 确定性去重：模型偶发把同一玩家写进两个人物章节，代码层兜底（见 postprocess.ts）
-  return enhance(md.render(dedupeSectionMentions(sectioned)))
+  return enhance(md.render(dedupeSectionMentions(sectioned)), cards)
 }
 
 /** DOM 走查：名字加粗 + 数字高亮，仅改文本节点。 */
-function enhance(html: string): string {
+function enhance(html: string, cards?: TimelineCard[]): string {
   const doc = new DOMParser().parseFromString(html, 'text/html')
   const root = doc.body
   boldListItemNames(root, doc)
+  if (cards?.length) linkCitations(root, doc, new Map(cards.map(c => [c.id, c.text])))
   highlightNumbers(root, doc)
   return root.innerHTML
+}
+
+/** 把文本节点里的 [D3] 换成 <sup class="ai-cite" title="卡片原文">D3</sup>（只用 textContent/title，无注入面） */
+function linkCitations(root: HTMLElement, doc: Document, cardText: Map<string, string>): void {
+  for (const node of collectTextNodes(root, doc)) {
+    const text = node.textContent
+    if (!text || !text.includes('[')) continue
+    const re = /\[([LDISVFT]\d+)\]/g
+    const frag = doc.createDocumentFragment()
+    let last = 0
+    let matched = false
+    let m: RegExpExecArray | null
+    while ((m = re.exec(text)) !== null) {
+      const title = cardText.get(m[1])
+      if (title === undefined) continue
+      matched = true
+      if (m.index > last) frag.appendChild(doc.createTextNode(text.slice(last, m.index)))
+      const sup = doc.createElement('sup')
+      sup.className = 'ai-cite'
+      sup.title = title
+      sup.textContent = m[1]
+      frag.appendChild(sup)
+      last = m.index + m[0].length
+    }
+    if (!matched) continue
+    if (last < text.length) frag.appendChild(doc.createTextNode(text.slice(last)))
+    node.parentNode?.replaceChild(frag, node)
+  }
 }
 
 /** 给每个 `<li>` 首个「：」前的名字段包 `<strong class="ai-name">`，无「：」则跳过。 */
@@ -116,7 +162,7 @@ function highlightNumbers(root: HTMLElement, doc: Document): void {
   for (const node of texts) {
     const text = node.textContent
     if (!text || !/\d/.test(text)) continue
-    if (hasAncestorTag(node, ['CODE', 'PRE'])) continue
+    if (hasAncestorTag(node, ['CODE', 'PRE', 'SUP'])) continue
 
     const re = new RegExp(NUMBER_PATTERN, 'g')
     const frag = doc.createDocumentFragment()

@@ -76,6 +76,26 @@ pub async fn get_sgp_match_history_by_name(
         .inspect_err(|e| log::warn!("SGP match history failed (region={}): {}", region, e))
 }
 
+/// 拉取某局完整时间线（SGP DETAILS 裁剪版），供赛后 AI 复盘生成事实卡片。
+///
+/// # 参数
+/// - `platform_id`: 对局所在大区（`Game.platformId`）
+/// - `game_id`: 对局 ID
+///
+/// # 错误
+/// 任何失败都返回字符串错误；前端据此降级为无时间线复盘。
+#[tauri::command]
+pub async fn get_match_timeline(
+    platform_id: String,
+    game_id: i64,
+) -> Result<crate::lcu::api::timeline::SlimTimeline, String> {
+    crate::observability::track_feature("match_timeline_fetch");
+    // 失败要落日志，否则时间线不可用率无从统计（错误串只含大区/状态码/超时，不含 token）
+    crate::lcu::api::timeline::fetch_game_timeline(&platform_id, game_id)
+        .await
+        .inspect_err(|e| log::warn!("match timeline fetch failed ({platform_id}_{game_id}): {e}"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

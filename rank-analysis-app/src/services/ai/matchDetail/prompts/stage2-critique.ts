@@ -7,6 +7,24 @@
 
 import type { MatchSnapshot } from '../../shared/snapshot'
 import type { AttributionResult, Verdict } from '../types'
+import { renderCardLines, visibleCards } from '../../shared/timeline'
+import { PLAIN_SCORE_RULES, renderScoreBlock } from '../scoredAttribution'
+
+/** 有【表现评估】时追加：标签照抄，锐评按立场写并点出一项（等级词 + 数据）；后接共用的人话规则 */
+const SCORE_RULE =
+  '- 【表现评估】是系统算好的结论：label 只能照抄，禁止改判；每位上榜玩家的「锐评一句」由你按其 label 立场写出，并点出该玩家最突出的一项（照抄等级词与括号里的数据，如「对线大幅落后」配上对位经济差）或一类阵亡；被连累玩家在惋惜之外必须点出【表现评估】里列出的「短板」（如对线落后），不许只夸。\n' +
+  PLAIN_SCORE_RULES
+
+/** 无时间线时的过程性叙事禁令（原文，降级路径逐字不变） */
+const NO_TIMELINE_NARRATIVE_RULE = `- **禁止过程性行为叙事**：材料没有 timeline，"队友死了他还在刷野""不拉扯也不开团""对线被压""游走支援"这类描述本局过程的话全是编造，一个字都不许写。锐评的梗只能落在已给数字上（如"9 次死亡"可以调侃成"提款机"，但不能编他"在干什么"）。
+  禁例（这些真实废稿都在给数字编画面，同类表达全部禁止）：
+  ×「开团如砍瓜切菜」×「几乎每次开团都有他」×「被越塔成渣」×「野区成送葬场」×「靠开团撑起节奏」
+  合规改写：「48.5% 参团率，队里每个人头都有他一份」「14 次死亡，对面的经济来源写着他的名字」——只放大数字本身，不描述画面。`
+
+/** 有时间线时替换原「禁止过程性行为叙事」整条（含禁例两行） */
+const TIMELINE_NARRATIVE_RULE = `- **过程性描述必须带卡片编号**：【时间线事实卡片】是唯一可信的过程材料。写到某个时刻、团战、死亡地点、出装时间时，必须在句中标注卡片编号（如「[F2] 大龙团 0 换 4」），时间与数字照抄卡片；没有卡片支撑的过程画面一律不许写。
+- 关键证据至少 2 条引用卡片编号。
+- 引用卡片只能写成方括号+卡片编号（如 [D4]、[F2]）；其他材料里的数字直接写，禁止发明任何别的方括号标记（如 [TS]）。`
 import { POSITION_CN, teamFactLines } from './factCard'
 import { STAGE2_PLAIN_LANGUAGE_RULE } from './plainLanguage'
 
@@ -17,10 +35,11 @@ function diffPhrase(label: string, d: number, unit = ''): string {
 }
 
 /**
- * 名册一行：`- 名字｜英雄｜分路｜胜负方｜label｜对位X：经济落后 N、…`。
+ * 名册一行：`- 名字｜英雄｜分路｜胜负方｜label｜终局对位X：经济落后 N、…`。
  * 三个快照回填字段（champion/teamPosition/teamResult）缺席的段直接省略——
  * 无分路模式 teamPosition 为空串，participantId 不在快照时三者都 undefined。
  * 对位段用方向词写死:只给带符号的差值,模型会把落后写成领先(真机复现)。
+ * 冠「终局」以区别【表现评估】里的「14 分钟对位经济」（两者口径不同）。
  */
 function rosterLine(v: Verdict, snapshot: MatchSnapshot): string {
   const opp = snapshot.players.find(p => p.participantId === v.participantId)?.vsLaneOpponent
@@ -31,7 +50,7 @@ function rosterLine(v: Verdict, snapshot: MatchSnapshot): string {
     v.teamResult,
     v.label,
     opp
-      ? `对位${opp.opponentChampion}：` +
+      ? `终局对位${opp.opponentChampion}：` +
         [
           diffPhrase('经济', opp.goldDiff),
           diffPhrase('补刀', opp.csDiff),
@@ -54,19 +73,37 @@ ${vocabSamples.join('、')}`
       : `【词库提示】
 本次无固定词库，自由发挥，但保持网感与梗感。`
 
+  const cards = snapshot.timeline?.cards
+  const overviewIds = cards?.length ? new Set(visibleCards(cards, 'overview').map(c => c.id)) : null
+  const scoreBlock = attribution.scores
+    ? renderScoreBlock(
+        attribution.verdicts.flatMap(v => {
+          const brief = attribution.scores?.[v.participantId]
+          return brief ? [{ name: v.name, brief }] : []
+        }),
+        overviewIds
+      )
+    : ''
+  const timelineBlock = cards?.length
+    ? `
+【时间线事实卡片】（系统从官方时间线预先算好的事实，引用时写编号）
+${renderCardLines(visibleCards(cards, 'overview'))}
+`
+    : ''
+
   return `你是 LOL 锐评写手。基于已经给出的归因 JSON，转写为锐评 markdown 给玩家看。
 
 【输入：归因结果】
-${JSON.stringify(attribution)}
+${JSON.stringify({ winReason: attribution.winReason, verdicts: attribution.verdicts })}
 
-【玩家名册】（快照事实：名字｜英雄｜分路｜胜负方｜label｜对位差值，禁止偏离；领先/落后照抄，不得写反）
-${attribution.verdicts.map(v => rosterLine(v, snapshot)).join('\n')}
+【玩家名册】（快照事实：名字｜英雄｜分路｜胜负方｜label｜终局对位差值，禁止偏离；领先/落后照抄，不得写反）
+${attribution.verdicts.map(v => rosterLine(v, snapshot)).join('\n')}${scoreBlock ? `\n\n${scoreBlock}` : ''}
 
 【双方队伍】（提到队伍总数据只能照抄这里，并写清是胜方还是败方的）
 ${teamFactLines(snapshot)}
 
 【模式上下文】
-${snapshot.modeContext.description}
+${snapshot.modeContext.description}${timelineBlock}
 
 【输出严格按下面 markdown 模板，章节顺序与标题不可改】
 
@@ -94,12 +131,9 @@ ${snapshot.modeContext.description}
 - 玩家的分路、英雄、胜负方只能照抄【玩家名册】——禁止写名册之外的分路（例如把下路玩家写成"中路"），禁止臆造英雄定位；名册没给分路的玩家，全文不得提及其分路。
 - **每个数字只能写在它的主人名下**：某条 verdict 的 evidenceMetrics 属于该 verdict 的玩家；note 里提到的对位玩家数字属于对位玩家，引用时必须点出对位玩家的英雄名；队伍总数据只能照抄【双方队伍】并写清哪一方。把 A 的数字写到 B 头上即为废稿。
 - 禁止编造材料外的数据性比较或断言——任何"A 比 B 多/少"式说法，A 和 B 都必须是 evidenceMetrics 里给出的数字；夸张修辞必须建立在已给出的数字上。
-- **禁止过程性行为叙事**：材料没有 timeline，"队友死了他还在刷野""不拉扯也不开团""对线被压""游走支援"这类描述本局过程的话全是编造，一个字都不许写。锐评的梗只能落在已给数字上（如"9 次死亡"可以调侃成"提款机"，但不能编他"在干什么"）。
-  禁例（这些真实废稿都在给数字编画面，同类表达全部禁止）：
-  ×「开团如砍瓜切菜」×「几乎每次开团都有他」×「被越塔成渣」×「野区成送葬场」×「靠开团撑起节奏」
-  合规改写：「48.5% 参团率，队里每个人头都有他一份」「14 次死亡，对面的经济来源写着他的名字」——只放大数字本身，不描述画面。
-- **措辞立场必须与 label 一致**：被爆/被连累是受害者，用同情、惋惜、鸣不平的角度写，禁止出现"坑队友""拖后腿"式责备；犯罪/缚地灵才允许责备口吻。立场写反即为废稿。
-- 禁止推荐或点评具体装备/符文/强化——材料未提供出装数据，装备名一律不许出现。${
+${cards?.length ? TIMELINE_NARRATIVE_RULE : NO_TIMELINE_NARRATIVE_RULE}
+- **措辞立场必须与 label 一致**：被爆/被连累是受害者，用同情、惋惜、鸣不平的角度写，禁止出现"坑队友""拖后腿"式责备；犯罪/缚地灵才允许责备口吻。立场写反即为废稿。${scoreBlock ? `\n${SCORE_RULE}` : ''}
+- ${cards?.length ? '禁止推荐具体装备/符文/强化；出装只能引用 I 卡片里的成型时间与时间差。' : '禁止推荐或点评具体装备/符文/强化——材料未提供出装数据，装备名一律不许出现。'}${
     snapshot.modeContext.hasLanes
       ? ''
       : '\n- 本模式无分路：全文禁止出现任何分路词（上单/中单/下路/打野/辅助位/上路/中路/对线）。'
@@ -112,7 +146,7 @@ ${STAGE2_PLAIN_LANGUAGE_RULE}
 - 不辱骂、不地域黑、不人身攻击（生理特征、家庭关系、外貌等）
 - mitigatingFactors 必须体现在评价中（如 'off-role' → 应有"在补位"或"非主玩位置"的宽容措辞）
 - 数字证据必须来自归因 JSON 的 evidenceMetrics 字段，不能编造新数字
-- finalCall 是 Stage 1 给的判定，markdown 中可以化用但不要原样照搬
+- finalCall 是系统按标签生成的结论骨架，markdown 中要按 label 立场用自己的话写出锐评，不要原样照搬
 
 ${vocabHint}
 `

@@ -50,6 +50,10 @@ export interface ParticipantStats {
   totalMinionsKilled: number
   neutralMinionsKilled: number
   damageDealtToTurrets: number
+  /** 对野怪+建筑总伤害（LCU gameDetail 有；旧缓存可能缺） */
+  damageDealtToObjectives?: number
+  /** 控制他人总时长（秒） */
+  timeCCingOthers?: number
   groupRate: number
   goldEarnedRate: number
   damageDealtToChampionsRate: number

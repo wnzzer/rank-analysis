@@ -111,6 +111,12 @@ pub struct Stats {
     pub neutral_minions_killed: i32,
     #[serde(rename = "damageDealtToTurrets", default)]
     pub damage_dealt_to_turrets: i32,
+    /// 对野怪+建筑总伤害；评分输入，缺失为 None（序列化为 null，不能伪装成 0）
+    #[serde(rename = "damageDealtToObjectives", default)]
+    pub damage_dealt_to_objectives: Option<i64>,
+    /// 控制他人总时长（秒）；注意 LCU/SGP 的键名是 `timeCCingOthers`
+    #[serde(rename = "timeCCingOthers", default)]
+    pub time_c_cing_others: Option<i64>,
 
     // Calculated data - if these are derived and not directly in JSON,
     // you might not include them in the struct for deserialization,
@@ -178,6 +184,29 @@ mod tests {
         let stats: Stats = serde_json::from_str(json).unwrap();
         assert_eq!(stats.player_subteam_id, 0);
         assert_eq!(stats.subteam_placement, 0);
+    }
+
+    /// 评分输入：objectives 伤害与控制时长必须透传，缺失时是 None 而非 0
+    #[test]
+    fn should_pass_through_objective_damage_and_cc_time() {
+        let base = r#""win": true,
+            "item0": 0, "item1": 0, "item2": 0, "item3": 0, "item4": 0, "item5": 0, "item6": 0,
+            "kills": 0, "deaths": 0, "assists": 0,
+            "goldEarned": 0, "goldSpent": 0,
+            "totalDamageDealtToChampions": 0, "totalDamageDealt": 0,
+            "totalDamageTaken": 0, "totalHeal": 0, "totalMinionsKilled": 0"#;
+        let with: Stats = serde_json::from_str(&format!(
+            r#"{{{base}, "damageDealtToObjectives": 4321, "timeCCingOthers": 19}}"#
+        ))
+        .unwrap();
+        assert_eq!(with.damage_dealt_to_objectives, Some(4321));
+        assert_eq!(with.time_c_cing_others, Some(19));
+        let v = serde_json::to_value(&with).unwrap();
+        assert_eq!(v["damageDealtToObjectives"], 4321);
+        assert_eq!(v["timeCCingOthers"], 19);
+        let without: Stats = serde_json::from_str(&format!("{{{base}}}")).unwrap();
+        assert_eq!(without.damage_dealt_to_objectives, None);
+        assert_eq!(without.time_c_cing_others, None);
     }
 
     /// 多杀字段必须透传——曾因 Stats 未声明这些字段被 serde 丢弃，

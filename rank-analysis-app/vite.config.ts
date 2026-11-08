@@ -14,9 +14,6 @@ export default defineConfig(() => ({
     }
   },
 
-  // 添加 JSON 导入支持
-  assetsInclude: ['**/*.json'],
-
   // 构建优化配置
   build: {
     target: 'esnext',
