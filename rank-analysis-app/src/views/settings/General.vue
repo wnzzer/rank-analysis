@@ -28,6 +28,14 @@
           </n-text>
         </n-space>
       </n-form-item>
+      <n-form-item label="复盘使用对局时间线">
+        <n-space vertical :size="4">
+          <n-switch v-model:value="aiUseTimeline" @update:value="handleAiUseTimelineUpdate" />
+          <n-text :depth="3" style="font-size: var(--font-size-sm)">
+            开启后赛后复盘会拉取官方对局时间线（出装、加点、团战、死亡位置），拉取失败自动按终局数据复盘。
+          </n-text>
+        </n-space>
+      </n-form-item>
     </n-form>
   </n-card>
 </template>
@@ -43,6 +51,7 @@ const matchCount = ref(4)
 const errorReporting = ref(false)
 /** AI 分析是否携带玩家备注（默认开：键不存在时视为 true） */
 const aiUseNotes = ref(true)
+const aiUseTimeline = ref(true)
 const message = useMessage()
 
 onMounted(async () => {
@@ -66,6 +75,14 @@ onMounted(async () => {
     const useNotes = await getConfigByIpc<boolean>(CONFIG_KEYS.aiUsePlayerNotes)
     if (typeof useNotes === 'boolean') {
       aiUseNotes.value = useNotes
+    }
+  } catch (e) {
+    console.error(e)
+  }
+  try {
+    const useTimeline = await getConfigByIpc<boolean>(CONFIG_KEYS.aiUseTimeline)
+    if (typeof useTimeline === 'boolean') {
+      aiUseTimeline.value = useTimeline
     }
   } catch (e) {
     console.error(e)
@@ -94,6 +111,15 @@ const handleReportingUpdate = async (value: boolean) => {
 const handleAiUseNotesUpdate = async (value: boolean) => {
   try {
     await putConfigByIpc(CONFIG_KEYS.aiUsePlayerNotes, value)
+    message.success('设置已保存')
+  } catch (e) {
+    message.error('保存失败')
+  }
+}
+
+const handleAiUseTimelineUpdate = async (value: boolean) => {
+  try {
+    await putConfigByIpc(CONFIG_KEYS.aiUseTimeline, value)
     message.success('设置已保存')
   } catch (e) {
     message.error('保存失败')

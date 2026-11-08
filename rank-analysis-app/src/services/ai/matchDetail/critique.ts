@@ -1,7 +1,7 @@
 /**
  * Stage 2（锐评/单人复盘）的 prompt 选择与配置。
  *
- * 编排（流式调用、缓存、降级兜底）统一由 index.ts + shared/twoStage.ts 承担，
+ * 编排（流式调用、缓存、降级兜底）统一由 index.ts 承担，
  * 本文件只提供构建块：
  * - buildCritiqueUserPrompt: 按 mode 选整局锐评 / 单人复盘 prompt
  * - STAGE2_SYSTEM_PROMPT / STAGE2_MODEL
@@ -23,6 +23,8 @@ export interface CritiqueOptions {
   /** 'player' 时聚焦单个玩家（需 participantId），默认整局锐评 */
   mode?: 'overview' | 'player'
   participantId?: number
+  /** A/B 评测 V2 组的附加原始事件材料（生产路径不传） */
+  extraMaterial?: string
 }
 
 export const STAGE2_SYSTEM_PROMPT =
@@ -46,7 +48,8 @@ export function buildCritiqueUserPrompt(
         attribution,
         snapshot,
         options.participantId,
-        options.vocabSamples ?? []
+        options.vocabSamples ?? [],
+        options.extraMaterial
       )
     : buildStage2Prompt(attribution, snapshot, options.vocabSamples ?? [])
 }

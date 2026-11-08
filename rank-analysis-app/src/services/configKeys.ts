@@ -25,6 +25,8 @@ export const CONFIG_KEYS = {
   anthropicApiKey: 'anthropicApiKey',
   /** 玩家备注是否随 AI 分析请求发送到云端模型（默认开） */
   aiUsePlayerNotes: 'aiUsePlayerNotes',
+  /** 赛后复盘是否拉取 SGP 对局时间线（默认开；拉取失败自动降级） */
+  aiUseTimeline: 'aiUseTimeline',
   /** 云同步开关（默认关，开启需经风险告知弹窗） */
   cloudSyncEnabled: 'cloudSyncEnabled',
   /** 本设备是否已完成过首次配置同步(首次确认弹窗只出现一次;设备级,不入备份) */

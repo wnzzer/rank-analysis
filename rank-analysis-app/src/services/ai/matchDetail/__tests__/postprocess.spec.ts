@@ -1,5 +1,26 @@
 import { describe, it, expect } from 'vitest'
-import { resectionByLabels } from '../postprocess'
+import { normalizeCitations, repairCitations, resectionByLabels } from '../postprocess'
+
+describe('normalizeCitations', () => {
+  it('trims inner spaces and uppercases the card prefix', () => {
+    expect(normalizeCitations('他送了 [ I4 ]，又死 [d12]。')).toBe('他送了 [I4]，又死 [D12]。')
+  })
+
+  it('removes letter-only bracket tags and collapses the leftover space', () => {
+    expect(normalizeCitations('你 [TS] 补刀 [ ts ] 落后。')).toBe('你 补刀 落后。')
+    expect(normalizeCitations('- [TS] 开头条目')).toBe('- 开头条目')
+    expect(normalizeCitations('[TS] 行首')).toBe('行首')
+  })
+
+  it('leaves valid ids, non-card letters+digits, markdown links and long words alone', () => {
+    const s = '[D4] 见 [X9] 与 [链接](http://a.b) 和 [abcde] 以及 [ab](http://c.d)'
+    expect(normalizeCitations(s)).toBe(s)
+  })
+
+  it('is a no-op on text without brackets', () => {
+    expect(normalizeCitations('普通文本 14:32')).toBe('普通文本 14:32')
+  })
+})
 
 describe('resectionByLabels(按 label 确定性重排人物章节)', () => {
   const verdicts = [
@@ -175,5 +196,103 @@ describe('extractNumbers', () => {
     expect(s.has(930.5)).toBe(true)
     expect(s.has(3045)).toBe(true)
     expect(s.has(75)).toBe(true)
+  })
+})
+
+describe('repairCitations', () => {
+  const cards = [
+    { id: 'D1', text: '1:34 卡莎(玩家4) 死于下半河道' },
+    { id: 'D2', text: '1:59 卡莎(玩家4) 死于上半河道' },
+    { id: 'F1', text: '20:10 大龙坑团战' },
+    { id: 'F2', text: '20:10 另一场大龙坑团战' },
+    { id: 'T1', text: '18:00-20:00 经济转折' }
+  ]
+
+  it('swaps the id when exactly one visible card contains the time', () => {
+    expect(repairCitations('1:59 卡莎死于河道 [D1]。', cards)).toBe('1:59 卡莎死于河道 [D2]。')
+  })
+
+  it('removes the citation (and the leftover space) when ambiguous', () => {
+    expect(repairCitations('20:10 大龙团战 [D1] 输了。', cards)).toBe('20:10 大龙团战 输了。')
+  })
+
+  it('removes the citation when no card contains the time', () => {
+    expect(repairCitations('9:99 的事 [D1]。', cards)).toBe('9:99 的事。')
+  })
+
+  it('leaves citations without times, with correct times and with unknown ids untouched', () => {
+    const s = '他送得很凶 [D1]。1:34 死了 [D1]。1:59 死了 [D9]。'
+    expect(repairCitations(s, cards)).toBe(s)
+  })
+
+  it('repairs each citation of a multi-citation sentence on its own segment', () => {
+    expect(repairCitations('1:34 死 [D2]，随后 [F1] 20:10 团战。', cards)).toBe(
+      '1:34 死 [D1]，随后 [F1] 20:10 团战。'
+    )
+  })
+
+  it('prefers candidates with the same prefix letter', () => {
+    const cs = [
+      { id: 'D1', text: '1:34 死亡' },
+      { id: 'D2', text: '5:00 死亡' },
+      { id: 'I3', text: '5:00 出装' }
+    ]
+    expect(repairCitations('5:00 死了 [D1]。', cs)).toBe('5:00 死了 [D2]。')
+  })
+
+  it('is safe on partial streaming markdown and empty inputs', () => {
+    expect(repairCitations('1:59 死了 [D', cards)).toBe('1:59 死了 [D')
+    expect(repairCitations('', cards)).toBe('')
+    expect(repairCitations('1:59 [D1]', [])).toBe('1:59 [D1]')
+  })
+})
+
+import { isScoreJargon, stripScoreJargon } from '../postprocess'
+
+describe('stripScoreJargon(评分黑话兜底)', () => {
+  it('识别分位/标准差/z 值/总分/分项带符号小数', () => {
+    for (const s of [
+      '总分-0.2（P30~P40），对线-1.9。',
+      '处于 P30 水平。',
+      '他排在大盘第 30 分位。',
+      '高出 1.2 个标准差。',
+      'z 值只有 0.3。',
+      'z值偏低。',
+      '总分 +0.4 撑场。',
+      '对线 -1.9 被压穿。',
+      '团战+1.1 打得好。',
+      '死亡质量 -1.5 送得多。',
+      '视野 −0.8 一片黑。'
+    ])
+      expect(isScoreJargon(s), s).toBe(true)
+  })
+
+  it('不误伤正常数据句', () => {
+    for (const s of [
+      '14 分钟补刀差 39。',
+      '对线落后 1209 经济。',
+      '参团率 48.5%，团战 0 换 4。',
+      '[D3] 14:32 被单杀，不分位置都该少送。',
+      '对线大幅落后同位置同英雄的平均水平。',
+      'P3 和 P5 的位置都缺席。',
+      '大约处于同位置玩家的后 35%。'
+    ])
+      expect(isScoreJargon(s), s).toBe(false)
+  })
+
+  it('整句剔除，保留同一行的其他句子；整条清空则删行；标题不动', () => {
+    const md = [
+      '## 一句话定论',
+      '- 张三：总分-0.2（P30~P40）。对线落后 1209 经济，被压穿。',
+      '- 李四：对线 -1.9。',
+      '- 王五：参团率 48.5%。'
+    ].join('\n')
+    expect(stripScoreJargon(md)).toBe(
+      ['## 一句话定论', '- 张三：对线落后 1209 经济，被压穿。', '- 王五：参团率 48.5%。'].join('\n')
+    )
+  })
+
+  it('空串原样返回', () => {
+    expect(stripScoreJargon('')).toBe('')
   })
 })

@@ -1,6 +1,6 @@
 /**
  * AI 报告统一渲染样式（renderReport 输出）。
- * 供战绩详情「AI 复盘」(MatchAIPanel) 与对局页「AI 分析」(Gaming) 共用：
+ * 供战绩详情「复盘」标签的 AI 点评 (review/AiCommentary) 与对局页「AI 分析」(Gaming) 共用：
  * 容器加 class `ai-report` 即生效。全局非 scoped——v-html 内容是 .ai-report 的真实子节点，
  * 普通后代选择器即可命中，无需 :deep。
  */
@@ -114,6 +114,16 @@
   background: var(--glass-bg-high);
   font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
+}
+
+.ai-report .ai-cite {
+  margin-left: 2px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-xs);
+  background: var(--glass-bg-high);
+  font-size: 0.75em;
+  cursor: help;
+  opacity: 0.8;
 }
 
 .ai-report .ai-name {

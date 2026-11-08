@@ -12,7 +12,13 @@ vi.mock('@renderer/services/ipc', () => ({
 }))
 vi.mock('@tauri-apps/api/webview', () => ({ getCurrentWebview: () => ({ setZoom: vi.fn() }) }))
 
-import { computeDetailScale, useDetailZoom, DETAIL_FIT_MIN, DETAIL_FIT_MAX } from './useDetailZoom'
+import {
+  computeDetailScale,
+  useDetailZoom,
+  DETAIL_FIT_MIN,
+  DETAIL_FIT_MAX,
+  DETAIL_MEASURING_ATTR
+} from './useDetailZoom'
 
 describe('computeDetailScale', () => {
   it('should stay about 1x in the default 1300x900 window', () => {
@@ -115,6 +121,27 @@ describe('useDetailZoom', () => {
     api.recompute()
     expect(api.scale.value).toBe(1.625)
     expect(parseFloat(containerEl.style.height) * api.scale.value).toBeCloseTo(1364, 1)
+    wrapper.unmount()
+  })
+
+  it('should measure under the measuring attribute so the active tab does not change the zoom', () => {
+    // 回归：复盘标签内容更高，按当前显示内容测量会把比例压到 1.0，记分板随之缩小。
+    // 测量期间容器挂 data-zoom-measuring，详情页 CSS 据此强制显示记分板——这里模拟该 CSS
+    const { api, containerEl, wrapper } = mountHarness({ availW: 1300, availH: 872, contentH: 0 })
+    const seen: boolean[] = []
+    Object.defineProperty(containerEl, 'scrollHeight', {
+      configurable: true,
+      get: () => {
+        const measuring = containerEl.hasAttribute(DETAIL_MEASURING_ATTR)
+        seen.push(measuring)
+        return measuring ? 810 : 1800
+      }
+    })
+    api.recompute()
+    expect(seen.length).toBeGreaterThan(0)
+    expect(seen.every(Boolean)).toBe(true)
+    expect(api.scale.value).toBe(1.015)
+    expect(containerEl.hasAttribute(DETAIL_MEASURING_ATTR)).toBe(false)
     wrapper.unmount()
   })
 

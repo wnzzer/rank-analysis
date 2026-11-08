@@ -1,6 +1,6 @@
 // 一次性评测：对比模型在 整局总览 / 单人复盘 / 进对局整队分析 / 进对局单人分析 上的事实性与「理解」。
-// 与 bench-ai-quality.ts（只测 Stage1 归因）互补。prompt 构建、validator、数字接地过滤全部 import 源码。
-// Stage2 用同一模型自己的 Stage1 结果（贴近线上：两阶段同模型）。
+// prompt 构建、评分归因、数字接地过滤全部 import 源码。
+// 归因骨架由 TS 评分模型（buildScoredAttribution）确定性生成，模型只写 Stage 2（线上同款单次调用）。
 //
 // 运行（在 rank-analysis-app 目录下）：
 //   DASHSCOPE_API_KEY=sk-xxx npx vitest run --config ../tests/vitest.eval.config.ts
@@ -45,9 +45,7 @@ vi.mock('@renderer/services/opgg', () => ({
   findCounterHints: () => []
 }))
 
-const { buildAttributionUserPrompt, STAGE1_SYSTEM_PROMPT, parseAttribution } = await import(
-  '@renderer/services/ai/matchDetail/attribution'
-)
+const { buildScoredAttribution } = await import('@renderer/services/ai/matchDetail/scoredAttribution')
 const { buildCritiqueUserPrompt, STAGE2_SYSTEM_PROMPT } = await import('@renderer/services/ai/matchDetail/critique')
 const { extractNumbers, stripUngroundedSentences } = await import('@renderer/services/ai/matchDetail/postprocess')
 const { buildEntityFacts, findMisattributions } = await import('@renderer/services/ai/matchDetail/misattribution')
@@ -387,18 +385,8 @@ const PLAYER_TARGETS: Record<string, number[]> = { stomp: [4, 9], 'carry-lost': 
 
 async function runMatchCase(model: string, c: Case, run: number, dir: URL): Promise<Rec[]> {
   const recs: Rec[] = []
-  const s1prompt = buildAttributionUserPrompt(c.snap as any)
-  let attr: any = null
-  let s1: Awaited<ReturnType<typeof callModel>> | null = null
-  for (let attempt = 0; attempt < 2 && !attr; attempt++) {
-    s1 = await callModel(model, STAGE1_SYSTEM_PROMPT, s1prompt, true)
-    if (!s1.ok) continue
-    const parsed = parseAttribution(s1.content, structuredClone(c.snap) as any)
-    if (parsed.ok) attr = parsed.value
-  }
-  writeFileSync(new URL(`${c.key}-r${run}-stage1.json`, dir), s1?.content || `ERROR ${s1?.err}`)
-  recs.push({ ...base(model, 'stage1', c.key, run, s1!, s1prompt, []), ok: !!attr, err: attr ? '' : s1?.err || 'validate failed' })
-  if (!attr) return recs
+  // 归因骨架由 TS 评分模型确定性生成（线上同款：单次模型调用，模型只写 Stage 2）
+  const attr: any = buildScoredAttribution(structuredClone(c.snap) as any)
 
   // 整局总览
   const ovPrompt = buildCritiqueUserPrompt(attr, c.snap as any, {})
@@ -497,7 +485,7 @@ test('ai features eval', async () => {
   )
 
   const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : NaN)
-  const features = ['stage1', 'overview', 'player', 'ingame-team', 'ingame-player']
+  const features = ['overview', 'player', 'ingame-team', 'ingame-player']
   const summary: any[] = []
   console.log('\nfeature        model                     失败  均耗时  首字   字数  缺章节  材料外数字  被剔句占比  胜负/敌我错  过程编造  提装备  违禁词  理解命中  字段泄漏  张冠李戴')
   for (const f of features) {

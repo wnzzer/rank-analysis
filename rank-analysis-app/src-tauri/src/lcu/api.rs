@@ -18,3 +18,4 @@ pub mod replay;
 pub mod session;
 pub mod sgp;
 pub mod summoner;
+pub mod timeline;

@@ -15,8 +15,17 @@ import type {
   ParticipantStats
 } from '@renderer/types/domain/match'
 import { getChampionName } from '../champion-names'
-import { computeRoleBenchmark, computeVsLaneOpponent } from './laneFacts'
+import { attributeDeaths, type AttributedDeath } from './scoring/deathAttribution'
+import { timelineMetrics, type TimelineMetricValues } from './scoring/metrics'
+import { computeVsLaneOpponent } from './laneFacts'
 import { classifyMode } from './modeContext'
+import {
+  buildTeamContext,
+  buildTimelineCards,
+  type PlayerTeamContext,
+  type SlimTimeline,
+  type TimelineCard
+} from './timeline'
 import { inferTeamPosition } from './positionInfer'
 import { assignTeamPositions } from './positionAssign'
 import { spellIdsToNames } from './summonerSpells'
@@ -106,7 +115,7 @@ function readTeamPosition(participant: Participant): TeamPosition {
  * 分路解析:有分路模式且整队恰 5 人时整队求解(选秀队列按 participantId 槽位,
  * 否则吃野/补刀等强信号排除法,见 positionAssign)——逐人启发式对上单/非典型辅助推不出,
  * 会让 stage1 的辅助保护规则与对位比较失效(真机实测一局错 4 人)。
- * LCU 下发了真实 teamPosition 的成员始终透传优先。
+ * LCU 下发了真实 teamPosition 的成员始终透传优先；SGP 真值（truthPositionMap）又优先于本函数结果。
  * @returns participantId → 推断分路;不满足排除法条件的成员不在 map 中
  */
 function buildTeamPositionMap(
@@ -155,47 +164,42 @@ function buildTeamPositionMap(
   return map
 }
 
+const TRUTH_POSITIONS: ReadonlySet<string> = new Set([
+  'TOP',
+  'JUNGLE',
+  'MIDDLE',
+  'BOTTOM',
+  'UTILITY'
+])
+
 /**
- * 参与队内排名的数值指标(snapshot 玩家字段名)。
- * 模型自己数排名错得离谱(2026-10-25 真机 9 局 262 条证据错 119 条),一律由 TS 预计算。
+ * SGP 单局 SUMMARY 的真实分路（时间线 participants 已由 remapTimeline 按 puuid 改写为 LCU 编号）。
+ * 本地 LCU 战绩没有可信分路，推断会把中单/下路互换（真机局复现）；有真值时一律以真值为准。
+ * @returns participantId → 分路；无分路模式、无时间线、值为空/非法时不收
  */
-export const RANKED_METRICS = [
-  'kda',
-  'kills',
-  'deaths',
-  'assists',
-  'gold',
-  'cs',
-  'damage',
-  'taken',
-  'heal',
-  'turretDamage',
-  'damageShare',
-  'damageTakenShare',
-  'goldShare',
-  'killParticipation',
-  'dpm',
-  'gpm',
-  'csm'
-] as const
-
-export type RankedMetric = (typeof RANKED_METRICS)[number]
-
-type RankFacts = Record<RankedMetric, number> & { teamId: number }
-
-/** 队内排名:1 = 本队该项最高;并列取同名次(1 + 严格更高者人数) */
-function computeTeamRanks(player: RankFacts, all: RankFacts[]): Record<RankedMetric, number> {
-  const team = all.filter(p => p.teamId === player.teamId)
-  const ranks = {} as Record<RankedMetric, number>
-  for (const m of RANKED_METRICS) {
-    ranks[m] = 1 + team.filter(p => p[m] > player[m]).length
+function truthPositionMap(
+  timeline: SlimTimeline | null | undefined,
+  hasLanes: boolean
+): Map<number, TeamPosition> {
+  const out = new Map<number, TeamPosition>()
+  if (!timeline || !hasLanes) return out
+  for (const p of timeline.participants) {
+    const pos = p.teamPosition ?? ''
+    if (p.participantId > 0 && TRUTH_POSITIONS.has(pos))
+      out.set(p.participantId, pos as TeamPosition)
   }
-  return ranks
+  return out
+}
+
+/** 时间线（已 remap 到 LCU participantId）里的 SGP 终局指标，按 pid 索引 */
+function sgpScoringInputs(timeline: SlimTimeline | null | undefined) {
+  return new Map((timeline?.participants ?? []).map(p => [p.participantId, p]))
 }
 
 export function buildMatchSnapshot(
   game: Game,
-  profileMap?: Map<string, RecentPlayerProfile | null>
+  profileMap?: Map<string, RecentPlayerProfile | null>,
+  timeline?: SlimTimeline | null
 ) {
   const participants = getParticipants(game)
   const identities = getParticipantIdentities(game)
@@ -222,6 +226,8 @@ export function buildMatchSnapshot(
   }
 
   const teamPositionMap = buildTeamPositionMap(participants, modeContext.hasLanes, game.queueId)
+  const truthPositions = truthPositionMap(timeline, modeContext.hasLanes)
+  const sgpInputs = sgpScoringInputs(timeline)
 
   const basePlayers = participants.map((participant, index) => {
     const identity = identities[participant.participantId - 1] ?? identities[index]
@@ -241,6 +247,7 @@ export function buildMatchSnapshot(
       teamId: participant.teamId,
       name: displayName,
       champion: getChampionName(participant.championId),
+      championId: participant.championId,
       isMe: displayName === currentPlayerKey,
       win: stats.win,
       kda: roundStat(kda(stats), 2),
@@ -264,7 +271,10 @@ export function buildMatchSnapshot(
       augments: getAugmentIds(stats),
 
       // NEW fields
-      teamPosition: teamPositionMap.get(participant.participantId) ?? readTeamPosition(participant),
+      teamPosition:
+        truthPositions.get(participant.participantId) ??
+        teamPositionMap.get(participant.participantId) ??
+        readTeamPosition(participant),
       lane: tl.lane ?? '',
       role: tl.role ?? '',
       summonerSpells: spellIdsToNames([participant.spell1Id, participant.spell2Id]),
@@ -273,9 +283,18 @@ export function buildMatchSnapshot(
       csm: safePerMinute(totalCs(stats), durationSeconds),
       items: modeContext.hasItemBuild ? getItemIds(stats) : [],
       trinketId: (stats as any).item6 ?? 0,
+      // 评分用终局指标：缺失为 null（旧缓存/非 gameDetail 来源）
+      // 基准取自 SGP SUMMARY，故优先用时间线携带的 SGP 值；其次 LCU；都没有为 null
+      objectiveDamage:
+        sgpInputs.get(participant.participantId)?.damageDealtToObjectives ??
+        stats.damageDealtToObjectives ??
+        null,
+      ccSeconds:
+        sgpInputs.get(participant.participantId)?.timeCCingOthers ?? stats.timeCCingOthers ?? null,
       // 视野三项：国服 LCU 战绩实测不下发这些字段——缺失必须是 null 而非 0，
       // 否则模型会拿假 0 冤枉玩家"整局没插眼"（真机复现）。
-      wardScore: (stats as any).visionScore ?? null,
+      wardScore:
+        sgpInputs.get(participant.participantId)?.visionScore ?? (stats as any).visionScore ?? null,
       controlWardsPlaced: (stats as any).sightWardsBoughtInGame ?? null,
       visionWardsBought: (stats as any).visionWardsBoughtInGame ?? null,
       // 多杀字段已在类型上声明（后端曾丢弃该字段导致这里恒为 0，现已透传）
@@ -289,14 +308,25 @@ export function buildMatchSnapshot(
     }
   })
 
-  // 对位差值 / 位置基准：TS 预算好给模型照抄（见 laneFacts.ts）。无分路模式一律 null——
+  // 终局对位差值：TS 预算好（见 laneFacts.ts），供名册对位段与张冠李戴过滤的「本人数字」使用。
+  // 分路已含 SGP 真值（truthPositions 优先），推断只是兜底。无分路模式一律 null——
   // 大乱斗的 LCU lane 字段仍可能有值，不能据此拼对位
   const players = basePlayers.map(p => ({
     ...p,
-    vsLaneOpponent: modeContext.hasLanes ? computeVsLaneOpponent(p, basePlayers) : null,
-    roleBenchmark: modeContext.hasLanes ? computeRoleBenchmark(p) : null,
-    teamRanks: computeTeamRanks(p, basePlayers)
+    vsLaneOpponent: modeContext.hasLanes ? computeVsLaneOpponent(p, basePlayers) : null
   }))
+
+  // 时间线事实卡片（spec §2）：players 是 RosterPlayer 的结构超集，直接作名册。
+  const cardInput = timeline
+    ? {
+        tl: timeline,
+        roster: players,
+        hasLanes: modeContext.hasLanes,
+        hasItemBuild: modeContext.hasItemBuild,
+        mapId: game.mapId
+      }
+    : null
+  const timelineCards: TimelineCard[] | null = cardInput ? buildTimelineCards(cardInput) : null
 
   const teams = [...new Set(players.map(p => p.teamId))]
     .map(teamId => {
@@ -320,10 +350,32 @@ export function buildMatchSnapshot(
     queueName: game.queueName,
     queueId: game.queueId,
     gameMode: game.gameMode,
+    /** 地图（11 召唤师峡谷 / 12 嚎哭深渊 / 30 斗魂竞技场）：区域名与小地图换算用 */
+    mapId: game.mapId,
     durationSeconds,
     modeContext,
     teams,
-    players
+    players,
+    timeline: (cardInput && timelineCards?.length
+      ? (() => {
+          const deaths = attributeDeaths(cardInput)
+          return {
+            cards: timelineCards,
+            teamContext: buildTeamContext(cardInput),
+            deaths,
+            metrics: timelineMetrics(cardInput, deaths, durationSeconds)
+          }
+        })()
+      : undefined) as
+      | {
+          cards: TimelineCard[]
+          teamContext: Record<number, PlayerTeamContext>
+          /** 评分用死亡归责（按时间顺序） */
+          deaths: AttributedDeath[]
+          /** 评分用时间线指标 */
+          metrics: Record<number, TimelineMetricValues>
+        }
+      | undefined
   }
 }
 

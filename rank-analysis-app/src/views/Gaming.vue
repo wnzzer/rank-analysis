@@ -775,7 +775,7 @@ onMounted(async () => {
   overflow-y: auto;
 }
 
-/* 首块文本到达前的占位：与 MatchAIPanel 的骨架屏同一形态 */
+/* 首块文本到达前的占位：与复盘标签 AiCommentary 的骨架屏同一形态 */
 .ai-result-skeleton {
   display: flex;
   flex-direction: column;

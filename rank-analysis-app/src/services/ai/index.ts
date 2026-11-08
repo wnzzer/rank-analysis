@@ -15,7 +15,9 @@ import { DEFAULT_MODEL, DEFAULT_SYSTEM_PROMPT, requestAIContentStream } from './
 import { resolveModel } from './modelConfig'
 import { buildPlayerAnalysisPrompt, buildTeamAnalysisPrompt } from './prompts/team'
 import { buildChampSelectPrompt } from './prompts/champSelect'
-import { analyzeMatchDetail } from './matchDetail'
+import { analyzeMatchDetail, REMAKE_MAX_SECONDS } from './matchDetail'
+import { fetchMatchTimeline, supportsTimeline } from './shared/timeline/fetch'
+import type { TimelineCard, TimelineStatus } from './shared/timeline'
 import type { AttributionResult } from './matchDetail'
 import type { MisattributionMaterial } from './matchDetail/misattribution'
 import type { RecentPlayerProfile } from './shared/types'
@@ -96,12 +98,12 @@ export async function analyzeChampSelectWithAIStream(
 }
 
 /**
- * 单场战绩复盘（新双阶段流水线）。
+ * 单场战绩复盘（TS 评分归因 + 单次 Stage 2 流式调用）。
  *
  * @param game        LCU Game 对象
  * @param callbacks   流式回调
  * @param options     mode: 'overview' 整局锐评 / 'player' 单人复盘（需 participantId）。
- *                    Stage 1 归因两模式共享缓存，Stage 2 按模式与目标玩家分别缓存。
+ *                    归因骨架由 TS 确定性生成（两模式共享），Stage 2 按模式与目标玩家分别缓存。
  * @param extras      profileMap 与词库样本（可选）
  */
 export async function analyzeMatchDetailWithAIStream(
@@ -111,22 +113,37 @@ export async function analyzeMatchDetailWithAIStream(
   extras?: {
     profileMap?: Map<string, RecentPlayerProfile | null> | null
     vocabSamples?: string[]
-    /** Stage 1 归因就绪回调(UI 用名册做章节确定性重排) */
+    /** 归因骨架就绪回调(UI 用名册做章节确定性重排) */
     onAttribution?: (attribution: AttributionResult) => void
     /** Stage 2 材料数字白名单回调(UI 用它剔除模型编造数字的句子) */
     onStage2Material?: (allowedNumbers: Set<number>) => void
+    /** 时间线卡片回调（引用角标用） */
+    onTimelineCards?: (cards: TimelineCard[] | null) => void
+    /** 时间线拉取状态回调（unavailable 时 UI 显示降级提示） */
+    onTimelineStatus?: (status: TimelineStatus) => void
     /** 玩家身份与指标(UI 用它剔除张冠李戴的句子) */
     onEntityFacts?: (material: MisattributionMaterial) => void
   }
 ): Promise<void> {
   try {
-    await loadChampionNames()
+    // 重开局不拉时间线（门面会直接短路）；只有峡谷/大乱斗地图的卡片有意义。
+    // 时间线与英雄名并行加载：SGP 慢时不叠加等待（结果按 gameId 记忆，切 tab 不重拉）
+    const wantTimeline = game.gameDuration >= REMAKE_MAX_SECONDS && supportsTimeline(game)
+    const [, { timeline, status }] = await Promise.all([
+      loadChampionNames(),
+      wantTimeline
+        ? fetchMatchTimeline(game)
+        : Promise.resolve({ timeline: null, status: 'disabled' as const })
+    ])
+    extras?.onTimelineStatus?.(status)
     const out = await analyzeMatchDetail(game, extras?.profileMap ?? null, callbacks, {
       vocabSamples: extras?.vocabSamples,
       mode: options.mode,
       participantId: options.participantId,
       onAttribution: extras?.onAttribution,
       onStage2Material: extras?.onStage2Material,
+      timeline,
+      onTimelineCards: extras?.onTimelineCards,
       onEntityFacts: extras?.onEntityFacts
     })
     if (!out.ok && out.stage === 'critique' && out.fallbackMarkdown) {

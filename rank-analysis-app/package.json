@@ -17,7 +17,15 @@
     "check:rust": "cd src-tauri && cargo fmt --all -- --check && cargo clippy --all-targets --all-features -- -Dwarnings",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "eval:run": "vitest run --config scripts/ai-eval/vitest.eval.config.ts scripts/ai-eval/run.eval.ts",
+    "eval:summary": "vitest run --config scripts/ai-eval/vitest.eval.config.ts scripts/ai-eval/summary.eval.ts",
+    "eval:blind": "vitest run --config scripts/ai-eval/vitest.eval.config.ts scripts/ai-eval/blind.eval.ts",
+    "eval:unblind": "vitest run --config scripts/ai-eval/vitest.eval.config.ts scripts/ai-eval/unblind.eval.ts",
+    "baseline:build": "vitest run --config scripts/baseline/vitest.baseline.config.ts scripts/baseline/build.eval.ts",
+    "baseline:check": "vitest run --config scripts/baseline/vitest.baseline.config.ts scripts/baseline/sanity.eval.ts",
+    "baseline:dist": "vitest run --config scripts/baseline/vitest.baseline.config.ts scripts/baseline/distribution.eval.ts",
+    "baseline:diagnose": "vitest run --config scripts/baseline/vitest.baseline.config.ts scripts/baseline/diagnose.eval.ts"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.10.0",

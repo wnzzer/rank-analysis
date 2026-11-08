@@ -1,0 +1,4 @@
+# 原始语料含其他玩家 ID，结果含完整 prompt，均不入库
+fixtures/
+results/
+results-*/

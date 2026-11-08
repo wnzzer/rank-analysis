@@ -178,7 +178,7 @@ describe('buildMatchSnapshot', () => {
     ])
   })
 
-  it('预计算队内排名与对位差值(模型自己数排名/找对位不可信)', () => {
+  it('预计算对位差值(模型自己找对位不可信)', () => {
     const mk = (id: number, team: number, s1: number, cs: number, jg: number, gold: number) =>
       makeParticipant({
         participantId: id,
@@ -201,8 +201,6 @@ describe('buildMatchSnapshot', () => {
     )
     const snap = buildMatchSnapshot(makeGame({ queueId: 420, participants: [...blue, ...red] }))
     const p2 = snap.players.find(p => p.participantId === 2)!
-    // 蓝方经济 10001..10005,p2 = 10002 → 第 4
-    expect(p2.teamRanks.gold).toBe(4)
     expect(p2.teamPosition).toBe('JUNGLE')
     // 对位 = 红方打野 p7(经济 9007)
     expect(p2.vsLaneOpponent).toMatchObject({ goldDiff: 10002 - 9007, csDiff: 0 })
@@ -271,5 +269,37 @@ describe('buildMatchSnapshot', () => {
   it('isAugmentMode helper still works', () => {
     expect(isAugmentMode(makeGame({ queueId: 1700, gameMode: 'CHERRY' }))).toBe(true)
     expect(isAugmentMode(makeGame({ queueId: 420 }))).toBe(false)
+  })
+
+  it('adds teamContext next to cards when a timeline is given, and omits both without', () => {
+    expect(buildMatchSnapshot(makeGame()).timeline).toBeUndefined()
+    const tl = {
+      gameId: 1,
+      frameIntervalMs: 60000,
+      participants: [],
+      frames: [],
+      items: {},
+      events: [
+        {
+          type: 'CHAMPION_KILL',
+          timestamp: 120000,
+          killerId: 0,
+          victimId: 1,
+          assisting: [],
+          x: 0,
+          y: 0,
+          bounty: 0,
+          shutdownBounty: 0,
+          damageReceived: []
+        }
+      ]
+    } as any
+    const snap = buildMatchSnapshot(makeGame(), undefined, tl)
+    expect(snap.timeline?.cards.length).toBeGreaterThan(0)
+    expect(snap.timeline?.teamContext[1]).toEqual({
+      laneGoldDiff14: null,
+      deaths: 1,
+      deathsAfterTeammatesDown: 0
+    })
   })
 })

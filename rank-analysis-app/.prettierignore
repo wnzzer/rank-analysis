@@ -26,3 +26,9 @@ src-tauri/Cargo.lock
 package-lock.json
 pnpm-lock.yaml
 yarn.lock
+
+# 生成的评分基准与大型测试 fixture（整体重写会产生巨大 diff，不做格式化）
+src/data/baseline/*.json
+src/services/ai/shared/scoring/__tests__/fixtures/*.json
+scripts/baseline/__tests__/fixtures/*.json
+scripts/baseline/raw

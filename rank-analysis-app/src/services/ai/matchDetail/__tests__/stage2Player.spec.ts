@@ -100,7 +100,7 @@ describe('buildStage2PlayerPrompt', () => {
     expect(prompt).toContain('- 赏金猎人 战绩：5 杀 / 3 死 / 7 助攻')
   })
 
-  it('标明对位玩家数字的归属，并给出双方队伍与对位差', () => {
+  it('标明对位玩家数字的归属，并给出双方队伍与对位对比', () => {
     const snap = makeSnapshot([
       {
         ...target,
@@ -120,7 +120,9 @@ describe('buildStage2PlayerPrompt', () => {
     const prompt = buildStage2PlayerPrompt(attribution, snap, 4, [])
     expect(prompt).toContain('这里的数字属于对位玩家')
     expect(prompt).toContain('- 虚空之女 经济：12000 金币')
-    expect(prompt).toContain('赏金猎人 对比对位 虚空之女：经济多 3500 金币，补刀少 10')
+    // 对位差由本分支的【对位对比】给出（不再另附 laneDiffText 的重复对位差块）
+    expect(prompt).toContain('【对位对比')
+    expect(prompt).not.toContain('【对位差】')
     expect(prompt).toContain('【双方队伍】')
     expect(prompt).toContain('每个数字只能写在它的主人名下')
   })
@@ -169,9 +171,38 @@ describe('buildStage2PlayerPrompt', () => {
     const prompt = buildStage2PlayerPrompt(attribution, makeSnapshot([target, laneOpponent]), 4, [])
     expect(prompt).toContain('过程行为')
     expect(prompt).toContain('timeline')
-    expect(prompt).toContain('roleBenchmark')
-    expect(prompt).toContain('打野补刀低')
+    // 位置本分规则：不引入 main 的粗 roleBenchmark（位置高低由评分模型等级词给出）
+    expect(prompt).not.toContain('roleBenchmark')
+    expect(prompt).toContain('是打野时补刀低')
     // 结构化字段名不许漏进给玩家看的正文
     expect(prompt).toContain('禁止出现任何英文字段名')
+  })
+
+  describe('【对位对比】系统预先算好的方向与差值（真机：模型把 27.7% vs 20.1% 写成"仅"）', () => {
+    const me = { ...target, damageShare: 30.2, goldShare: 27.7, kda: 2.67, csm: 7.1 }
+    const opp = { ...laneOpponent, damageShare: 13.8, goldShare: 20.1, kda: 1.78, csm: 6.4 }
+
+    it('逐项给出 A vs B：高/低 N（百分比项写"个百分点"）', () => {
+      const prompt = buildStage2PlayerPrompt(attribution, makeSnapshot([me, opp]), 4, [])
+      expect(prompt).toContain('【对位对比（系统已算好，照抄结论，禁止自行比较大小）】')
+      expect(prompt).toContain('伤害占比 30.2% vs 13.8%：高 16.4 个百分点')
+      expect(prompt).toContain('经济占比 27.7% vs 20.1%：高 7.6 个百分点')
+      expect(prompt).toContain('KDA 2.67 vs 1.78：高 0.89')
+      expect(prompt).toContain('每分钟补刀 7.1 vs 6.4：高 0.7')
+      expect(prompt).toContain('「对位对比」一节只能照抄')
+    })
+
+    it('从对手视角看方向相反（低），差值 < 0.05 写持平', () => {
+      const oppSame = { ...opp, kda: 2.66 }
+      const prompt = buildStage2PlayerPrompt(attribution, makeSnapshot([me, oppSame]), 9, [])
+      expect(prompt).toContain('伤害占比 13.8% vs 30.2%：低 16.4 个百分点')
+      expect(prompt).toContain('KDA 2.66 vs 2.67：持平')
+    })
+
+    it('无对位玩家时不出对比块', () => {
+      const prompt = buildStage2PlayerPrompt(attribution, makeSnapshot([me]), 4, [])
+      expect(prompt).not.toContain('【对位对比（系统已算好')
+      expect(prompt).toContain('无同位对位数据')
+    })
   })
 })

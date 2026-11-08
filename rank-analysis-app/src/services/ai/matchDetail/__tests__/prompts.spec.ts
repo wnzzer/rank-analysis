@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest'
-import { buildStage1Prompt } from '../prompts/stage1-attribution'
 import { classifyMode } from '../../shared/modeContext'
 import type { MatchSnapshot } from '../../shared/snapshot'
 
@@ -16,81 +15,6 @@ function makeSnapshot(opts: { queueId?: number; gameMode?: string } = {}): Match
     players: []
   } as unknown as MatchSnapshot
 }
-
-describe('buildStage1Prompt — common skeleton', () => {
-  const snap = makeSnapshot()
-
-  it('injects modeContext.description', () => {
-    const prompt = buildStage1Prompt(snap, '')
-    expect(prompt).toContain(snap.modeContext.description)
-  })
-
-  it('mentions hasLanes / hasItemBuild / championAssignment flags', () => {
-    const prompt = buildStage1Prompt(snap, '')
-    expect(prompt).toContain('hasLanes')
-    expect(prompt).toContain('hasItemBuild')
-    expect(prompt).toContain('championAssignment')
-  })
-
-  it('lists the six labels and quantified criteria', () => {
-    const prompt = buildStage1Prompt(snap, '')
-    expect(prompt).toContain('尽力')
-    expect(prompt).toContain('犯罪')
-    expect(prompt).toContain('被爆')
-    expect(prompt).toContain('被连累')
-    expect(prompt).toContain('缚地灵')
-    expect(prompt).toContain('正常')
-  })
-
-  it('documents the TS-precomputed flags', () => {
-    const prompt = buildStage1Prompt(snap, '')
-    expect(prompt).toContain('isOffRole')
-    expect(prompt).toContain('offRoleSeverity')
-    expect(prompt).toContain('isFirstTimeInRecent')
-    expect(prompt).toContain('isOnetrick')
-  })
-
-  it('declares whom to issue verdicts about (4-7 verdicts)', () => {
-    const prompt = buildStage1Prompt(snap, '')
-    expect(prompt).toContain('4-7')
-    expect(prompt).toContain('击杀')
-    expect(prompt).toContain('死亡')
-    expect(prompt).toContain('isMe')
-  })
-
-  it('禁止过程性行为断言(快照无 timeline,防"还在刷野"式编造)', () => {
-    const prompt = buildStage1Prompt(snap, '')
-    expect(prompt).toContain('过程性行为')
-    expect(prompt).toContain('timeline')
-  })
-
-  it('位置职责按 roleBenchmark 判定:打野 csm / 辅助伤害低不构成负面证据', () => {
-    const prompt = buildStage1Prompt(snap, '')
-    expect(prompt).toContain('roleBenchmark')
-    expect(prompt).toContain('打野 csm 队内最低都是本分')
-  })
-
-  it('对位差值由 TS 预算,要求模型照抄 vsLaneOpponent', () => {
-    const prompt = buildStage1Prompt(snap, '')
-    expect(prompt).toContain('vsLaneOpponent')
-    expect(prompt).toContain('不要重新计算')
-  })
-
-  it('appends the mode addon rules at the end', () => {
-    const prompt = buildStage1Prompt(snap, '【MODE_RULES_MARKER】')
-    expect(prompt).toContain('【MODE_RULES_MARKER】')
-    // addon should appear after the JSON schema section
-    expect(prompt.indexOf('【MODE_RULES_MARKER】')).toBeGreaterThan(prompt.indexOf('"verdicts"'))
-  })
-
-  it('serializes the snapshot as JSON for the model', () => {
-    const prompt = buildStage1Prompt(snap, '')
-    expect(prompt).toContain('"queueId"')
-    expect(prompt).toContain('"modeContext"')
-  })
-})
-
-import * as rankedPrompt from '../prompts/ranked'
 
 describe('buildStage2Prompt — 锐评硬规则', () => {
   const attribution: AttributionResult = {
@@ -125,85 +49,6 @@ describe('buildStage2Prompt — 锐评硬规则', () => {
   it('名册没给分路的玩家不得提及分路', () => {
     const prompt = buildStage2Prompt(attribution, makeSnapshot(), [])
     expect(prompt).toContain('名册没给分路的玩家')
-  })
-})
-
-describe('ranked addon', () => {
-  it('mentions lane / 对位 / 路位', () => {
-    expect(rankedPrompt.rules).toContain('lane')
-    expect(rankedPrompt.rules).toContain('对位')
-  })
-
-  it('enables item build evaluation', () => {
-    expect(rankedPrompt.rules).toContain('装备')
-  })
-
-  it('mentions champion counter (with constraint)', () => {
-    expect(rankedPrompt.rules).toContain('克制')
-  })
-
-  it('mentions isOffRole handling for lane matchup', () => {
-    expect(rankedPrompt.rules).toContain('isOffRole')
-  })
-})
-
-import * as aramPrompt from '../prompts/aram'
-
-describe('aram addon', () => {
-  it('does NOT mention 上中下打野辅助', () => {
-    expect(aramPrompt.rules).not.toContain('上中下打野辅助')
-  })
-
-  it('does NOT mention BP', () => {
-    expect(aramPrompt.rules).not.toContain('BP')
-  })
-
-  it('does NOT mention 补位', () => {
-    expect(aramPrompt.rules).not.toContain('补位')
-  })
-
-  it('focuses on teamfight participation', () => {
-    expect(aramPrompt.rules).toContain('参团')
-  })
-
-  it('mentions damageShare / damageTakenShare', () => {
-    expect(aramPrompt.rules).toContain('damageShare')
-    expect(aramPrompt.rules).toContain('damageTakenShare')
-  })
-
-  it('mentions multiKills as evidence', () => {
-    expect(aramPrompt.rules).toContain('multiKills')
-  })
-})
-
-import * as augmentPrompt from '../prompts/augment'
-
-describe('augment addon', () => {
-  it('does NOT mention 装备走向 / 出装顺序', () => {
-    expect(augmentPrompt.rules).not.toContain('装备走向')
-    expect(augmentPrompt.rules).not.toContain('出装顺序')
-  })
-
-  it('does NOT mention 上中下打野辅助', () => {
-    expect(augmentPrompt.rules).not.toContain('上中下打野辅助')
-  })
-
-  it('does NOT mention BP / 英雄选择', () => {
-    expect(augmentPrompt.rules).not.toContain('BP')
-  })
-
-  it('focuses on augments coherence', () => {
-    expect(augmentPrompt.rules).toContain('augments')
-    expect(augmentPrompt.rules).toContain('强化')
-  })
-
-  it('mentions augments[] length 6', () => {
-    expect(augmentPrompt.rules).toContain('6')
-  })
-
-  it('mentions 2v2 / isTeamMode evaluation when team mode', () => {
-    expect(augmentPrompt.rules).toContain('isTeamMode')
-    expect(augmentPrompt.rules).toContain('2v2')
   })
 })
 
@@ -294,7 +139,7 @@ describe('buildStage2Prompt', () => {
       verdicts: [{ ...sampleAttribution.verdicts[0], participantId: 7, name: 'Muggle丶' }]
     }
     const prompt = buildStage2Prompt(attribution, snap, [])
-    expect(prompt).toContain('｜对位盲僧：经济落后 1885、补刀持平、伤害占比落后 7.6%')
+    expect(prompt).toContain('｜终局对位盲僧：经济落后 1885、补刀持平、伤害占比落后 7.6%')
   })
 
   it('renders 玩家名册 from backfilled verdict fields（英雄/分路/胜负/label）', () => {
@@ -379,20 +224,5 @@ describe('buildStage2Prompt', () => {
     expect(aramPrompt).toContain('本模式无分路')
     const rankedPrompt2 = buildStage2Prompt(sampleAttribution, makeSnapshot(), [])
     expect(rankedPrompt2).not.toContain('本模式无分路')
-  })
-})
-
-describe('buildStage1Prompt — 位置感知纪律', () => {
-  const snap = makeSnapshot()
-
-  it('exempts UTILITY from damageShare/goldShare 负面证据', () => {
-    const prompt = buildStage1Prompt(snap, '')
-    expect(prompt).toContain('UTILITY')
-    expect(prompt).toContain('不构成负面证据')
-  })
-
-  it('requires finalCall 分路表述以 snapshot.teamPosition 为准', () => {
-    const prompt = buildStage1Prompt(snap, '')
-    expect(prompt).toContain('必须以该玩家 snapshot 的 teamPosition 为准')
   })
 })

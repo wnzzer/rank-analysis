@@ -122,6 +122,14 @@ export function buildEntityFacts(snapshot: MatchSnapshot): EntityFacts[] {
     const teamNums = team
       ? [team.totalKills, team.totalDeaths, team.totalAssists, team.totalGold, team.totalDamage]
       : []
+    // 时间线材料里属于他的数字：14 分钟对位经济差、时间线口径阵亡数、队友先崩后的阵亡数
+    // （单人复盘的【队友状况】【团队处境】会写「落后 2283」「阵亡 6 次」，不能当成别人的数字）
+    const ctx = snapshot.timeline?.teamContext?.[p.participantId]
+    const timelineNums = ctx
+      ? [ctx.laneGoldDiff14, ctx.deaths, ctx.deathsAfterTeammatesDown]
+          .filter((v): v is number => typeof v === 'number')
+          .map(Math.abs)
+      : []
     const own = Object.values(stats).filter((v): v is number => typeof v === 'number')
     return {
       participantId: p.participantId,
@@ -130,7 +138,7 @@ export function buildEntityFacts(snapshot: MatchSnapshot): EntityFacts[] {
       ),
       stats,
       // 派生数：击杀参与数（击杀 + 助攻），模型常写「25 次击杀参与」
-      numbers: [...own, p.kills + p.assists, ...diffs, ...teamNums]
+      numbers: [...own, p.kills + p.assists, ...diffs, ...teamNums, ...timelineNums]
     }
   })
 }

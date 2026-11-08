@@ -112,41 +112,55 @@
 
             <n-tooltip trigger="hover" placement="bottom-end">
               <template #trigger>
-                <!--
-                  刻意不用 :loading —— naive-ui Button 在 loading 时根本不 emit click
-                  （node_modules/naive-ui/es/button/src/Button.mjs:146），关掉面板后
-                  就再也点不回来。进行中改用 spin 图标表达，按钮始终可点。
-                -->
                 <n-button
                   size="small"
                   secondary
                   type="info"
                   class="match-detail-ai-button"
-                  @click="onOverview"
+                  @click="openReview()"
                 >
                   <template #icon>
-                    <n-spin v-if="ai.aiLoading.value" :size="14" />
-                    <n-icon v-else><SparklesOutline /></n-icon>
+                    <n-icon><SparklesOutline /></n-icon>
                   </template>
-                  AI 整局复盘
+                  复盘
                 </n-button>
               </template>
-              整局归因 + 单人责任分析
+              对位、经济曲线、阵亡责任、出装对比 + AI 点评
             </n-tooltip>
           </div>
         </div>
 
+        <n-tabs
+          :value="activeTab"
+          type="line"
+          size="small"
+          class="match-detail-tabs"
+          @update:value="activeTab = $event"
+        >
+          <n-tab name="board">记分板</n-tab>
+          <n-tab name="review">复盘</n-tab>
+        </n-tabs>
+
         <!-- Team Sections -->
-        <div class="match-detail-body">
+        <div v-show="activeTab === 'board'" class="match-detail-body match-detail-body--board">
           <section
             v-for="team in teamSections"
             :key="team.teamId"
             class="match-detail-team-section"
+            :class="sideOf(team.teamId) && `match-detail-team-section--${sideOf(team.teamId)!.key}`"
+            :data-side="sideOf(team.teamId)?.key"
           >
             <div class="match-detail-team-header" :class="team.headerClass">
               <div class="match-detail-team-title-wrap">
                 <span class="match-detail-team-accent" />
                 <span class="match-detail-team-title">{{ team.title }}</span>
+                <span
+                  v-if="sideOf(team.teamId)"
+                  class="match-detail-side-pill"
+                  :class="`match-detail-side-pill--${sideOf(team.teamId)!.key}`"
+                  data-test="side-pill"
+                  >{{ sideOf(team.teamId)!.label }}</span
+                >
                 <span class="match-detail-team-subtitle font-number">
                   {{ team.kills }}/{{ team.deaths }}/{{ team.assists }} ·
                   {{ formatCompactNumber(team.gold) }} 金币
@@ -249,24 +263,10 @@
                                 circle
                                 size="tiny"
                                 class="match-detail-player-ai-trigger"
-                                :class="{
-                                  'match-detail-player-ai-trigger--busy':
-                                    ai.aiLoading.value &&
-                                    ai.aiMode.value === 'player' &&
-                                    ai.aiTargetParticipantId.value === player.participantId
-                                }"
-                                @click.stop="ai.openPlayerAnalysis(player.participantId)"
+                                @click.stop="openReview(player.participantId, true)"
                               >
                                 <template #icon>
-                                  <n-spin
-                                    v-if="
-                                      ai.aiLoading.value &&
-                                      ai.aiMode.value === 'player' &&
-                                      ai.aiTargetParticipantId.value === player.participantId
-                                    "
-                                    :size="12"
-                                  />
-                                  <n-icon v-else><SparklesOutline /></n-icon>
+                                  <n-icon><SparklesOutline /></n-icon>
                                 </template>
                               </n-button>
                             </template>
@@ -482,23 +482,17 @@
             </div>
           </section>
         </div>
+
+        <!-- 复盘：首次切到该标签才挂载（打开即生成整局点评），之后 v-show 保留状态 -->
+        <div
+          v-if="reviewMounted"
+          v-show="activeTab === 'review'"
+          class="match-detail-body match-detail-body--review"
+        >
+          <ReviewTab ref="reviewTab" :game="game" />
+        </div>
       </div>
     </div>
-
-    <MatchAIPanel
-      :show="ai.showAiModal.value"
-      :mode="ai.aiMode.value"
-      :target-participant-id="ai.aiTargetParticipantId.value"
-      :loading="ai.aiLoading.value"
-      :ai-loading="ai.aiLoading.value"
-      :ai-state-label="ai.aiStateLabel.value"
-      :rendered-result="ai.renderedAiResult.value"
-      :player-options="aiPlayerOptions"
-      @update:show="ai.showAiModal.value = $event"
-      @update:mode="ai.aiMode.value = $event"
-      @update:target-participant-id="ai.aiTargetParticipantId.value = $event"
-      @rerun="ai.runCurrentAiAnalysis"
-    />
   </div>
   <div v-else class="match-detail-empty-state">
     <span class="match-detail-empty-title">暂无对局详情</span>
@@ -507,9 +501,9 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, ref, watch, onMounted, toRef } from 'vue'
+import { computed, nextTick, ref, watch, onMounted, toRef } from 'vue'
 import { CopyOutline, PlayCircleOutline, SparklesOutline } from '@vicons/ionicons5'
-import { NButton, NIcon, NTag, NTooltip } from 'naive-ui'
+import { NButton, NIcon, NTab, NTabs, NTag, NTooltip } from 'naive-ui'
 import { invoke } from '@tauri-apps/api/core'
 import { useCopy } from '@renderer/composables/useCopy'
 
@@ -518,7 +512,7 @@ import { assetPrefix } from '@renderer/services/http'
 import type { Game, ParticipantStats } from '@renderer/types/domain/match'
 import type { Summoner } from '@renderer/types/domain/player'
 import AssetTooltipContent from './AssetTooltipContent.vue'
-import MatchAIPanel from './MatchAIPanel.vue'
+import ReviewTab from './review/ReviewTab.vue'
 import LazyImg from '@renderer/components/common/LazyImg.vue'
 import PlayerNoteBadge from '@renderer/components/common/PlayerNoteBadge.vue'
 import { deathsColor, kdaColor } from '@renderer/utils/colors'
@@ -529,7 +523,6 @@ import {
   useMatchDetailPlayers,
   type DetailPlayer
 } from '@renderer/composables/useMatchDetailPlayers'
-import { useMatchAIAnalysis } from '@renderer/composables/useMatchAIAnalysis'
 import { useMatchReplay } from '@renderer/composables/useMatchReplay'
 import { useMatchPlayerRanks } from '@renderer/composables/useMatchPlayerRanks'
 import type { OneGamePlayer } from '@renderer/types/domain/analysis'
@@ -552,7 +545,13 @@ const currentPlayerKey = computed(() => {
 
 const gameRef = toRef(() => props.game)
 const { detailPlayers, mySummary, teamSections } = useMatchDetailPlayers(gameRef, currentPlayerKey)
-const ai = useMatchAIAnalysis(gameRef)
+
+/** teamId 100 = 蓝方，200 = 红方；斗魂等 subteam 编号（1~4）无阵营，返回 null */
+function sideOf(teamId: number): { key: 'blue' | 'red'; label: string } | null {
+  if (teamId === 100) return { key: 'blue', label: '蓝方' }
+  if (teamId === 200) return { key: 'red', label: '红方' }
+  return null
+}
 const replay = useMatchReplay(gameRef)
 const assets = useRecordAssets()
 const { copy } = useCopy()
@@ -710,14 +709,26 @@ const usesAugments = computed(() => {
   return detailPlayers.value.some(p => playerAugmentIds(p.stats).length > 0)
 })
 
-const aiPlayerOptions = computed(() =>
-  detailPlayers.value.map(p => ({ label: p.displayName, value: p.participantId }))
-)
+/** 记分板 / 复盘标签 */
+const activeTab = ref<'board' | 'review'>('board')
+/** 复盘标签是否已挂载（首次打开才挂载，避免没看复盘也拉时间线、烧 AI 调用） */
+const reviewMounted = ref(false)
+const reviewTab = ref<InstanceType<typeof ReviewTab> | null>(null)
 
-function onOverview() {
-  ai.openOverviewAnalysis(
-    mySummary.value?.participantId ?? detailPlayers.value[0]?.participantId ?? null
-  )
+watch(activeTab, tab => {
+  if (tab === 'review') reviewMounted.value = true
+})
+
+/**
+ * 切到复盘标签；带 participantId 时选中该玩家（withAi 同时生成其单人点评）。
+ * 首次挂载需等一帧拿到 ReviewTab 实例。
+ */
+async function openReview(participantId?: number, withAi = false): Promise<void> {
+  activeTab.value = 'review'
+  reviewMounted.value = true
+  if (participantId === undefined) return
+  await nextTick()
+  reviewTab.value?.focusPlayer(participantId, withAi)
 }
 
 function loadAssetsIfNeeded() {
@@ -764,9 +775,6 @@ onMounted(async () => {
 watch(
   () => props.game?.gameId,
   () => {
-    ai.resetOnGameChange(
-      mySummary.value?.participantId ?? detailPlayers.value[0]?.participantId ?? null
-    )
     loadAssetsIfNeeded()
   },
   { immediate: true }
@@ -823,8 +831,8 @@ defineExpose({
   overflow: hidden;
   /* 头部是固定内容区，绝不参与压缩：它是 .match-detail-shell（flex column, height:100%）
      的子项，默认 flex-shrink:1 会在窗口高度不足时被挤扁。一旦挤扁，比左栏更高的右侧
-     按钮列（统计条 + 观看回放 + AI 整局复盘）就会超出头部，被上面的 overflow:hidden
-     裁掉底部——表现为「AI 整局复盘」按钮缺一截。窗口越矮越明显。
+     按钮列（统计条 + 观看回放 + 复盘）就会超出头部，被上面的 overflow:hidden
+     裁掉底部——表现为「复盘」按钮缺一截。窗口越矮越明显。
      该滚动的是下面的正文区，不是头部。 */
   flex-shrink: 0;
   display: grid;
@@ -1035,6 +1043,29 @@ defineExpose({
   gap: var(--space-12);
 }
 
+.match-detail-tabs {
+  flex-shrink: 0;
+  padding: 0 var(--space-12);
+}
+
+/* 复盘标签自带卡片底色，正文区不再加列间距 */
+.match-detail-body--review {
+  display: block;
+}
+
+/*
+ * 缩放只按记分板定：useDetailZoom 测量期间在缩放容器（详情窗）上挂 data-zoom-measuring，
+ * 此时无视当前标签强制显示记分板、隐藏复盘（!important 压过 v-show 的内联 display:none）。
+ * 同步测量后立即移除，不会被绘制。
+ */
+[data-zoom-measuring] .match-detail-body--board {
+  display: flex !important;
+}
+
+[data-zoom-measuring] .match-detail-body--review {
+  display: none !important;
+}
+
 /* 细滚动条，替代系统默认宽条 */
 .match-detail-body::-webkit-scrollbar {
   width: 6px;
@@ -1059,6 +1090,31 @@ defineExpose({
   flex-direction: column;
   gap: var(--space-4);
   flex-shrink: 0;
+}
+
+/* 红蓝方：区块左侧细色边 + 标题旁小药丸（颜色与复盘标签一致，见 global.css） */
+.match-detail-team-section--blue {
+  --side-color: var(--side-blue);
+}
+
+.match-detail-team-section--red {
+  --side-color: var(--side-red);
+}
+
+.match-detail-team-section[data-side] {
+  border-left: 3px solid var(--side-color);
+  padding-left: var(--space-6);
+}
+
+.match-detail-side-pill {
+  padding: 1px var(--space-6);
+  border-radius: var(--radius-xs);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--side-color);
+  background: color-mix(in srgb, var(--side-color) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--side-color) 45%, transparent);
+  line-height: 1.4;
 }
 
 .match-detail-team-card {
@@ -1263,15 +1319,14 @@ defineExpose({
   white-space: nowrap;
 }
 
-/* 行内 AI 按钮：默认隐身，行 hover 或加载中才浮现——把每行常驻噪音降到最低 */
+/* 行内 AI 按钮：默认隐身，仅行 hover 时浮现——把每行常驻噪音降到最低 */
 .match-detail-player-ai-trigger {
   --n-text-color: var(--text-secondary);
   opacity: 0;
   transition: opacity var(--dur-fast) var(--ease-expo);
 }
 
-.match-detail-row:hover .match-detail-player-ai-trigger,
-.match-detail-player-ai-trigger--busy {
+.match-detail-row:hover .match-detail-player-ai-trigger {
   opacity: 1;
 }
 

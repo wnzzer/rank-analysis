@@ -214,6 +214,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             command::sgp::get_sgp_regions,
             command::sgp::get_current_sgp_region,
             command::sgp::get_sgp_match_history_by_name,
+            command::sgp::get_match_timeline,
             command::cloud_sync::cloud_pull_notes,
             command::cloud_sync::cloud_push_notes,
             command::cloud_sync::read_text_file,
