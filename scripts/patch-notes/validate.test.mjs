@@ -1,6 +1,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildTitleIndex, buildWhitelist, validateExtraction } from './validate.mjs'
+import {
+  buildTitleIndex,
+  buildWhitelist,
+  resolveChampionName,
+  validateExtraction
+} from './validate.mjs'
 
 // CommunityDragon zh_cn：name=称号、description=中文名
 const SUMMARY = [
@@ -88,7 +93,7 @@ test('称号与中文名混用时合并为同一英雄', () => {
 })
 
 test('拒绝：英雄名不在白名单（AI 幻觉名）', () => {
-  const r = validateExtraction(extracted(champ({ name: '娜美子' })), wl(), ARTICLE)
+  const r = validateExtraction(extracted(champ({ name: '娜米' })), wl(), ARTICLE)
   assert.equal(r.ok, false)
   assert.match(r.errors.join(), /白名单/)
 })
@@ -181,7 +186,7 @@ test('lines 上限容纳大改英雄的长改动列表', () => {
 
 test('失败时 champions 为空数组', () => {
   const r = validateExtraction(
-    extracted(champ({ name: '娜美子' }), champ()), // 第一个名字不在白名单，第二个合法
+    extracted(champ({ name: '娜米' }), champ()), // 第一个名字不在白名单，第二个合法
     wl(),
     ARTICLE
   )
@@ -197,12 +202,45 @@ test('个别英雄不合格时只跳过它，其余正常放行', () => {
     { id: 3, name: '正义巨像', description: '加里奥', alias: 'Galio' }
   ]
   const r = validateExtraction(
-    extracted(ok('娜美'), ok('安妮'), ok('奥拉夫'), ok('加里奥'), champ({ name: '娜美子' })),
+    extracted(ok('娜美'), ok('安妮'), ok('奥拉夫'), ok('加里奥'), champ({ name: '娜米' })),
     buildWhitelist(summary),
     ARTICLE
   )
   assert.equal(r.ok, true)
   assert.equal(r.champions.length, 4)
   assert.equal(r.skipped.length, 1)
-  assert.match(r.skipped[0], /娜美子/)
+  assert.match(r.skipped[0], /娜米/)
+})
+
+// 复现真实数据里的子串冲突：烬 ⊂ 灰烬驱魔人（洛克的称号）、洛 ⊂ 瓦洛兰之盾（塔里克的称号）
+const TRICKY = [
+  ...SUMMARY,
+  { id: 202, name: '戏命师', description: '烬', alias: 'Jhin' },
+  { id: 497, name: '幻翎', description: '洛', alias: 'Rakan' },
+  { id: 44, name: '瓦洛兰之盾', description: '塔里克', alias: 'Taric' },
+  { id: 9001, name: '灰烬驱魔人', description: '洛克', alias: 'Locke' },
+  { id: 157, name: '疾风剑豪', description: '亚索', alias: 'Yasuo' }
+]
+const resolve = n => resolveChampionName(n, buildWhitelist(TRICKY), buildTitleIndex(TRICKY))
+
+test('子串查找：无分隔连写、附带多余文字时归一', () => {
+  assert.equal(resolve('疾风剑豪亚索'), '亚索')
+  assert.equal(resolve('亚索（加强）'), '亚索')
+  assert.equal(resolve('英雄：亚索'), '亚索')
+  assert.equal(resolve('疾风剑豪 亚索'), '亚索')
+})
+
+test('子串查找：被更长命中包住的短名不干扰', () => {
+  assert.equal(resolve('灰烬驱魔人 洛克'), '洛克')
+  assert.equal(resolve('灰烬驱魔人'), '洛克')
+  assert.equal(resolve('瓦洛兰之盾塔里克'), '塔里克')
+  assert.equal(resolve('烬'), '烬')
+  assert.equal(resolve('戏命师 烬'), '烬')
+})
+
+test('子串查找：指向多个英雄或一无所获时返回 null', () => {
+  assert.equal(resolve('亚索和烬'), null)
+  assert.equal(resolve('疾风剑豪 娜美'), null)
+  assert.equal(resolve('不存在的英雄'), null)
+  assert.equal(resolve(''), null)
 })
