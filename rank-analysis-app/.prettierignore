@@ -32,3 +32,4 @@ src/data/baseline/*.json
 src/services/ai/shared/scoring/__tests__/fixtures/*.json
 scripts/baseline/__tests__/fixtures/*.json
 scripts/baseline/raw
+src/services/ai/shared/timeline/__tests__/fixtures/*.json
