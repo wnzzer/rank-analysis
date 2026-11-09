@@ -36,7 +36,8 @@ const score = (participantId: number, label: VerdictLabel, total: number): Playe
     deathQuality: null,
     growth: null,
     resources: null,
-    vision: null
+    vision: null,
+    duty: null
   },
   contributions: {},
   mitigation: { mitigated: false, reasons: [] },

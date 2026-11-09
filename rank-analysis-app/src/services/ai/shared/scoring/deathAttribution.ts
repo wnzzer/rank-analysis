@@ -11,8 +11,12 @@
  * 2. 搭档缺位：职责表（LANE_PARTNER_DUTIES）里「该在身边」的搭档不在时，分走一份责任，
  *    死者相应减责。目前只配了对线期辅助 → 下路：保护 AD 是辅助的本职，
  *    中野游走抓人是本职、不在此列。
+ *
+ * 后果再做一步修正（2026-11-09，第 3 层）：牵制换资源。被 ≥3 人包抄的阵亡，若死后 60 秒内
+ * 己方在别处拿了资源/建筑，说明死者拖住了多人、队伍换到了东西；后果按「丢的 − 换到的」净值算
+ * （不低于 0），否则被包后丢塔会在后果里再放大一次，和以少打多减责互相抵消。
  */
-import { lossesAfterDeath, nearestAllyDistance } from '../timeline/cards/death'
+import { gainsAfterDeath, lossesAfterDeath, nearestAllyDistance } from '../timeline/cards/death'
 import { clusterFights } from '../timeline/cards/fight'
 import { dist, positionAt } from '../timeline/geometry'
 import { laneOpponent } from '../timeline/cards/lane'
@@ -97,12 +101,17 @@ export const PARTNER_ABSENT_DISTANCE = 3000
  */
 export const ROLE_DEATH_FACTOR: Readonly<Record<string, number>> = { UTILITY: 0.8 }
 
+/** 牵制换资源：至少几名敌人参与击杀才算「拖住了多人」（与以少打多衰减起点一致） */
+export const TRADE_MIN_ENEMIES = 3
+
 /**
  * 单次阵亡的归责结果
  * @property responsibility - 死者本人责任（已含以少打多与搭档缺位的修正）
  * @property enemies - 参与击杀的敌方英雄数（击杀者 + 助攻；塔/小兵终结时只算助攻）
  * @property absentPartner - 该在身边却不在的搭档及其分担的责任；无则缺省
- * @property consequence - 后果 = 1 + 死后 60 秒己方丢失资源/建筑数 + 送出终结赏金/300
+ * @property consequence - 后果 = 1 + 死后 60 秒己方丢失资源/建筑数 + 送出终结赏金/300；
+ *   牵制换资源时丢失数改为「丢失 − 换到」的净值（不低于 0）
+ * @property traded - 被 ≥3 人包抄且死后 60 秒内己方换到了资源/建筑；未换到则缺省
  */
 export interface AttributedDeath {
   victimId: number
@@ -112,6 +121,7 @@ export interface AttributedDeath {
   enemies: number
   absentPartner?: { participantId: number; share: number }
   consequence: number
+  traded?: boolean
 }
 
 /**
@@ -132,8 +142,8 @@ const round2 = (v: number): number => Math.round(v * 100) / 100
 /** 下路与辅助同属一条线 */
 const laneGroup = (pos: string): string => (pos === 'BOTTOM' || pos === 'UTILITY' ? 'BOT' : pos)
 
-/** 阵亡地点是否在本人分路区域（打野 = 己方野区） */
-function inOwnLaneArea(victim: RosterPlayer, x: number, y: number, mapId: number): boolean {
+/** 某地点是否在该玩家的分路区域（打野 = 己方野区）；死亡归责与游走指标共用 */
+export function inOwnLaneArea(victim: RosterPlayer, x: number, y: number, mapId: number): boolean {
   const zone = zoneOf(x, y, mapId)
   switch (victim.teamPosition) {
     case 'TOP':
@@ -254,6 +264,9 @@ export function attributeDeaths(input: CardInput): AttributedDeath[] {
     const absent = absentGuardian(e, victim, enemies)
     if (absent) responsibility *= absent.duty.relief
     if (hasLanes && kind !== 'solo') responsibility *= ROLE_DEATH_FACTOR[victim.teamPosition] ?? 1
+    const losses = lossesAfterDeath(tl, victim.teamId, e.timestamp).length
+    const gains = enemies >= TRADE_MIN_ENEMIES ? gainsAfterDeath(tl, victim.teamId, e.timestamp) : 0
+    const traded = gains > 0
     out.push({
       victimId: e.victimId,
       timestamp: e.timestamp,
@@ -268,10 +281,8 @@ export function attributeDeaths(input: CardInput): AttributedDeath[] {
             }
           }
         : {}),
-      consequence:
-        1 +
-        lossesAfterDeath(tl, victim.teamId, e.timestamp).length +
-        e.shutdownBounty / SHUTDOWN_UNIT
+      consequence: 1 + Math.max(0, losses - gains) + e.shutdownBounty / SHUTDOWN_UNIT,
+      ...(traded ? { traded: true } : {})
     })
   }
   return out

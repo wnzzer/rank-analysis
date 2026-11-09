@@ -148,6 +148,8 @@ export interface StatContext {
   hasLanes: boolean
   /** 作为缺位搭档被分担责任的阵亡次数（如辅助不在时 AD 阵亡）；无时间线为 null，缺省按 0 */
   partnerAbsences?: number | null
+  /** teamPosition：「职责」分项按位置取数据；缺省按无位置 */
+  position?: string
 }
 
 const r1 = (v: number): number => Math.round(v * 10) / 10
@@ -206,6 +208,19 @@ export function partStats(key: SubScoreKey, c: StatContext): string[] {
           : null,
         objPerMin !== null ? `每分钟对建筑/野怪伤害 ${Math.round(objPerMin)}` : null
       )
+      break
+    }
+    case 'duty': {
+      // 与 subScores.dutyScore 的位置口径一致：打野看抓人、中单/辅助看游走，辅助另看缺位
+      const roam = m?.roamKills != null ? `对线期离线参与击杀 ${m.roamKills} 次` : null
+      if (c.position === 'JUNGLE')
+        out.push(m?.gankKills != null ? `对线期到线上参与击杀 ${m.gankKills} 次` : null)
+      else if (c.position === 'MIDDLE') out.push(roam)
+      else if (c.position === 'UTILITY')
+        out.push(
+          roam,
+          m?.partnerAbsences != null ? `AD 被多人击杀时不在身边 ${m.partnerAbsences} 次` : null
+        )
       break
     }
     case 'vision': {

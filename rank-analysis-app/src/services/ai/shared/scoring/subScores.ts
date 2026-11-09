@@ -16,14 +16,17 @@ export const LOWER_IS_BETTER: ReadonlySet<MetricName> = new Set<MetricName>([
   'deathCostPerMin',
   'laneDeathResponsibility',
   'fightAbsenceRate',
-  'fightFirstDeathRate'
+  'fightFirstDeathRate',
+  'partnerAbsences'
 ])
 
 /**
+ * @property position - teamPosition；决定「职责」分项取哪些指标
  * @property z - 某指标的 z（无值/无基准为 null）
  */
 export interface SubScoreInput {
   hasLanes: boolean
+  position: string
   z: (m: MetricName) => number | null
 }
 
@@ -32,7 +35,25 @@ const mean = (xs: Array<number | null>): number | null => {
   return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null
 }
 
-/** 计算六个分项（不适用或无数据的分项为 null） */
+/**
+ * 「职责」分项（第 2 层）：按位置取本职指标；其他位置 / 无分路为 null（权重表里也没有）。
+ * 辅助的脱岗净收益 = 游走收益与「AD 被包时不在身边」两个 z 的均值——游走带来击杀才算赚，
+ * 只走不赚、还让 AD 被包，两头都扣。
+ */
+function dutyScore(position: string, goodness: (m: MetricName) => number | null): number | null {
+  switch (position) {
+    case 'JUNGLE':
+      return goodness('gankKills')
+    case 'MIDDLE':
+      return goodness('roamKills')
+    case 'UTILITY':
+      return mean([goodness('roamKills'), goodness('partnerAbsences')])
+    default:
+      return null
+  }
+}
+
+/** 计算七个分项（不适用或无数据的分项为 null） */
 export function computeSubScores(i: SubScoreInput): SubScores {
   const { hasLanes } = i
   // 「越高越好」化的 z：LOWER_IS_BETTER 里的指标取负
@@ -58,7 +79,8 @@ export function computeSubScores(i: SubScoreInput): SubScores {
     deathQuality: goodness('deathCostPerMin') ?? goodness('deathsPerMin'),
     growth: hasLanes ? mean([goodness('gpm'), goodness('csm')]) : goodness('damagePerGold'),
     resources: mean([goodness('objectiveDamagePerMin'), goodness('objectiveParticipation')]),
-    vision: mean([goodness('visionPerMin'), goodness('controlWardsPerMin')])
+    vision: mean([goodness('visionPerMin'), goodness('controlWardsPerMin')]),
+    duty: hasLanes ? dutyScore(i.position, goodness) : null
   }
 }
 

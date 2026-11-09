@@ -359,3 +359,53 @@ describe('attributeDeaths', () => {
     expect(attributeDeaths(input({ events: [kill(5 * MIN, 0, 6, [], 0, 0)] }))).toEqual([])
   })
 })
+
+describe('牵制换资源（第 3 层）', () => {
+  const T = 20 * MIN
+  const baron: SlimEvent = {
+    type: 'ELITE_MONSTER_KILL',
+    timestamp: T + 30000,
+    killerId: 2,
+    killerTeamId: 100,
+    monsterType: 'BARON_NASHOR',
+    monsterSubType: '',
+    x: 5007,
+    y: 10471
+  }
+  const tower: SlimEvent = {
+    type: 'BUILDING_KILL',
+    timestamp: T + 40000,
+    killerId: 6,
+    teamId: 100,
+    buildingType: 'TOWER_BUILDING',
+    towerType: 'OUTER_TURRET',
+    laneType: 'BOT_LANE'
+  }
+
+  it('被 3 人包抄、己方换到大龙：后果按净值（丢塔 − 大龙 = 0），标记 traded', () => {
+    const [x] = attributeDeaths(
+      input({ events: [kill(T, 4, 6, [7, 8], 13000, 2000), baron, tower] })
+    )
+    expect(x.enemies).toBe(3)
+    expect(x.traded).toBe(true)
+    expect(x.consequence).toBe(1)
+  })
+
+  it('换到的比丢的多：净值不低于 0', () => {
+    const [x] = attributeDeaths(input({ events: [kill(T, 4, 6, [7, 8], 13000, 2000), baron] }))
+    expect(x.consequence).toBe(1)
+    expect(x.traded).toBe(true)
+  })
+
+  it('只有 2 人参与：不算牵制，后果照常累加', () => {
+    const [x] = attributeDeaths(input({ events: [kill(T, 4, 6, [7], 13000, 2000), baron, tower] }))
+    expect(x.traded).toBeUndefined()
+    expect(x.consequence).toBe(2)
+  })
+
+  it('被包但己方什么都没换到：不标记，后果照常', () => {
+    const [x] = attributeDeaths(input({ events: [kill(T, 4, 6, [7, 8], 13000, 2000), tower] }))
+    expect(x.traded).toBeUndefined()
+    expect(x.consequence).toBe(2)
+  })
+})

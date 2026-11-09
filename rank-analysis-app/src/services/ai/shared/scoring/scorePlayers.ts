@@ -79,7 +79,7 @@ export function scorePlayers(
         lookupStats(data.baseline, ctx.queueId, p.position, p.championId, ctx.hasLanes, m) ??
           local(m)
       )
-    const sub = computeSubScores({ hasLanes: ctx.hasLanes, z })
+    const sub = computeSubScores({ hasLanes: ctx.hasLanes, position: p.position, z })
     return { sub, combined: combineSubScores(sub, weightProfile(p.position, ctx.hasLanes)) }
   })
 

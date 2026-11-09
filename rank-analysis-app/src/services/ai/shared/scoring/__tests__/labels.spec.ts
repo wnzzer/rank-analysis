@@ -30,6 +30,12 @@ describe('mitigationEvidence', () => {
     expect(m.mitigated).toBe(true)
     expect(m.reasons).toEqual(['阵亡 4 次中 2 次是被抓、队友先倒下或搭档不在身边'])
   })
+  it('牵制换资源的阵亡也算减责，并写进理由', () => {
+    const traded = { ...d('other'), enemies: 4, traded: true }
+    const m = mitigationEvidence([traded, d('ganked'), d('solo')], [])
+    expect(m.mitigated).toBe(true)
+    expect(m.reasons).toEqual(['阵亡 3 次中 2 次是被抓、队友先倒下或被多人包抄换来了资源'])
+  })
   it('占比不足 50% 不成立', () => {
     expect(mitigationEvidence([d('ganked'), d('solo'), d('solo')], []).mitigated).toBe(false)
   })
@@ -61,7 +67,8 @@ const NONE = {
   deathQuality: null,
   growth: null,
   resources: null,
-  vision: null
+  vision: null,
+  duty: null
 }
 const base: LabelInput = {
   win: false,

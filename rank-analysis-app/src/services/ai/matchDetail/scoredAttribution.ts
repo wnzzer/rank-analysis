@@ -61,6 +61,7 @@ export function toBrief(
     fights: fightCards,
     deaths: kinds,
     hasLanes,
+    position: p.teamPosition,
     partnerAbsences:
       snapshot.timeline?.deaths.filter(d => d.absentPartner?.participantId === s.participantId)
         .length ?? null
