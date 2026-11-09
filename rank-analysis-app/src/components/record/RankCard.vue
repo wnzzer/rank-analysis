@@ -134,6 +134,7 @@
               <!-- 10 / 3 与后端 hidden_mmr/estimate.rs 的 WINDOW / MIN_RECORDS 对应，需同步修改 -->
               <div>2. 取最近 10 局：隐藏分 ≈ 当前段位 +（平均赢分 − 平均输分）× 10 LP</div>
               <div>3. 赢得多输得少 → 隐藏分高于段位</div>
+              <div>4. 双倍胜点局（赢分约为平时 2 倍）按一半计</div>
             </div>
             <div class="rank-card-mmr-disclaimer">估算值，非官方 MMR</div>
           </div>
@@ -258,7 +259,11 @@ function formatSigned(n: number): string {
 
 /** tooltip 里的逐局加减分，新 → 旧 */
 const recentText = computed(
-  () => ready.value?.recent.map(r => formatSigned(r.delta)).join(' / ') ?? ''
+  () =>
+    ready.value?.recent
+      // 双倍胜点局标出来：估算按一半计，不标会让人对不上平均赢分
+      .map(r => (r.doubled ? `${formatSigned(r.delta)}（双倍）` : formatSigned(r.delta)))
+      .join(' / ') ?? ''
 )
 
 // n-card 的 content-style 需要字符串/对象,这里用 token 占位以避免 inline 字面量

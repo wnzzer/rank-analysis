@@ -11,10 +11,15 @@ import { invoke } from '@tauri-apps/api/core'
 /** 参与估算的排位队列 */
 export type RankedQueueType = 'RANKED_SOLO_5x5' | 'RANKED_FLEX_SR'
 
-/** 最近一局的 LP 加减分 */
+/**
+ * 最近一局的 LP 加减分
+ * @property delta - 实际加减分（双倍局为翻倍后的原值）
+ * @property doubled - 判定为双倍胜点，估算时按一半计；旧版后端不下发时视为 false
+ */
 export interface HiddenMmrRecentDelta {
   delta: number
   source: 'notification' | 'snapshot'
+  doubled?: boolean
 }
 
 /**

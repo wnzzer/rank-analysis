@@ -142,6 +142,9 @@ pub struct LpChangeNotification {
     /// 输局时消耗的安慰分（少扣分），大于 0 说明本局扣分被人为减免
     pub consolation_lp_used: i32,
     pub provisional_games_remaining: i32,
+    /// 未单独建模的其余字段，只用于日志取证（如双倍胜点在通知里有没有标记）
+    #[serde(flatten)]
+    pub extra: std::collections::BTreeMap<String, serde_json::Value>,
 }
 
 impl LpChangeNotification {

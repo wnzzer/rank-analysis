@@ -373,7 +373,14 @@ async fn collect(app: AppHandle) -> Result<(), String> {
         if let Ok(n) = LpChangeNotification::get().await {
             match judge_notification(&n, game_id, now_ms()) {
                 NotificationOutcome::Accepted(record) => {
-                    return persist(&app, &puuid, record).await
+                    // 取证：双倍胜点等特殊结算目前只能按数值识别，记下未建模字段以便找到标记
+                    log::info!(
+                        "隐藏分：第 {} 局 LP {:+}，通知其余字段 {}",
+                        game_id,
+                        record.delta,
+                        serde_json::to_string(&n.extra).unwrap_or_default()
+                    );
+                    return persist(&app, &puuid, record).await;
                 }
                 NotificationOutcome::Rejected(why) => {
                     log::info!("隐藏分：第 {} 局不计入（{}）", game_id, why);
@@ -425,6 +432,19 @@ async fn persist(app: &AppHandle, puuid: &str, record: LpRecord) -> Result<(), S
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn should_keep_unmodeled_notification_fields_for_logging() {
+        let n: LpChangeNotification = serde_json::from_value(serde_json::json!({
+            "gameId": 1,
+            "leaguePointsDelta": 40,
+            "lpMultiplier": 2
+        }))
+        .unwrap();
+        assert_eq!(n.league_points_delta, 40);
+        assert_eq!(n.extra.get("lpMultiplier"), Some(&serde_json::json!(2)));
+        assert!(!n.extra.contains_key("leaguePointsDelta"));
+    }
 
     fn notification() -> LpChangeNotification {
         LpChangeNotification {
