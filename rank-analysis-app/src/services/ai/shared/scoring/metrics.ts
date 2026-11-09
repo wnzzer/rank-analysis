@@ -11,7 +11,7 @@ import { clusterFights, fightPresence } from '../timeline/cards/fight'
 import { laneOpponent } from '../timeline/cards/lane'
 import { laneCheckFrame } from '../timeline/teamContext'
 import type { CardInput, SlimEvent } from '../timeline/types'
-import { LANE_PHASE_MS, type AttributedDeath } from './deathAttribution'
+import { blameOf, LANE_PHASE_MS, type AttributedDeath } from './deathAttribution'
 
 /** 终局指标名单 */
 export const END_METRICS = [
@@ -127,14 +127,13 @@ export function timelineMetrics(
       csDiff14 = a.cs - b.cs
     }
 
-    const cost = deaths
-      .filter(d => d.victimId === pid)
-      .reduce((s, d) => s + d.responsibility * d.consequence, 0)
+    // 本人阵亡 + 作为缺位搭档分担的阵亡（blameOf 对无关阵亡返回 0）
+    const cost = deaths.reduce((s, d) => s + blameOf(d, pid) * d.consequence, 0)
 
     // 对线期（<14 分钟）阵亡责任之和：作为基线指标，让「正常死 1~2 次」不被扣分
     const laneDeathResponsibility = deaths
-      .filter(d => d.victimId === pid && d.timestamp < LANE_PHASE_MS)
-      .reduce((s, d) => s + d.responsibility, 0)
+      .filter(d => d.timestamp < LANE_PHASE_MS)
+      .reduce((s, d) => s + blameOf(d, pid), 0)
 
     const ownElites = elites.filter(e => e.killerTeamId === me.teamId)
     const atObjective = ownElites.filter(e => {

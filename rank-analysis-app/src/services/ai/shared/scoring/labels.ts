@@ -42,9 +42,15 @@ export function mitigationEvidence(
 ): Mitigation {
   const reasons: string[] = []
   if (deaths && deaths.length > 0) {
-    const k = deaths.filter(x => x.kind === 'ganked' || x.kind === 'collapse').length
-    if (k / deaths.length >= MITIGATION_DEATH_SHARE) {
-      reasons.push(`阵亡 ${deaths.length} 次中 ${k} 次是被抓或队友先倒下`)
+    // 搭档缺位（如辅助不在身边）与被抓、队友先崩同属「不全是自己的锅」，同一次阵亡只计一次
+    const excused = deaths.filter(
+      x => x.kind === 'ganked' || x.kind === 'collapse' || !!x.absentPartner
+    )
+    if (excused.length / deaths.length >= MITIGATION_DEATH_SHARE) {
+      const why = excused.some(x => x.absentPartner)
+        ? '被抓、队友先倒下或搭档不在身边'
+        : '被抓或队友先倒下'
+      reasons.push(`阵亡 ${deaths.length} 次中 ${excused.length} 次是${why}`)
     }
   }
   const collapsed = teammateLaneScores.filter(s => s !== null && s < LANE_COLLAPSE_SCORE).length

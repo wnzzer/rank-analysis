@@ -13,6 +13,7 @@ const d = (kind: DeathKind): AttributedDeath => ({
   timestamp: 0,
   kind,
   responsibility: 1,
+  enemies: 1,
   consequence: 1
 })
 
@@ -21,6 +22,13 @@ describe('mitigationEvidence', () => {
     const m = mitigationEvidence([d('ganked'), d('collapse'), d('solo'), d('solo')], [])
     expect(m.mitigated).toBe(true)
     expect(m.reasons).toEqual(['阵亡 4 次中 2 次是被抓或队友先倒下'])
+  })
+  it('搭档缺位的阵亡也算减责，且与被抓重叠时只计一次', () => {
+    const absent = { ...d('isolated'), absentPartner: { participantId: 5, share: 0.3 } }
+    const both = { ...d('ganked'), absentPartner: { participantId: 5, share: 0.3 } }
+    const m = mitigationEvidence([absent, both, d('solo'), d('solo')], [])
+    expect(m.mitigated).toBe(true)
+    expect(m.reasons).toEqual(['阵亡 4 次中 2 次是被抓、队友先倒下或搭档不在身边'])
   })
   it('占比不足 50% 不成立', () => {
     expect(mitigationEvidence([d('ganked'), d('solo'), d('solo')], []).mitigated).toBe(false)

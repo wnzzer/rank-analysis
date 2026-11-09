@@ -134,6 +134,15 @@ describe('partStats', () => {
     expect(partStats('vision', ctx)).toEqual(['每分钟视野得分 1', '插控制守卫 3 个'])
   })
 
+  it('作为缺位搭档被分担责任时，死亡质量写出次数', () => {
+    expect(partStats('deathQuality', { ...ctx, partnerAbsences: 2 })).toEqual([
+      '阵亡 11 次',
+      '其中自身问题 2 次',
+      '下路搭档阵亡时不在身边 2 次'
+    ])
+    expect(partStats('deathQuality', { ...ctx, partnerAbsences: 0 })).toHaveLength(2)
+  })
+
   it('领先写领先、持平写持平；缺数据的项跳过', () => {
     const c: StatContext = {
       ...ctx,

@@ -92,6 +92,7 @@ describe('构造局：单线被单杀 ≥3 次、无 gank', () => {
     timestamp: minute * 60000,
     kind: 'solo',
     responsibility: 1,
+    enemies: 1,
     consequence: 1
   })
 

@@ -37,7 +37,8 @@ export const WEIGHTS: Record<
   JUNGLE: { lane: 0.1, teamfight: 0.25, deathQuality: 0.2, growth: 0.15, resources: 0.3 },
   MIDDLE: { lane: 0.25, teamfight: 0.25, deathQuality: 0.25, growth: 0.15, resources: 0.1 },
   BOTTOM: { lane: 0.2, teamfight: 0.35, deathQuality: 0.2, growth: 0.15, resources: 0.1 },
-  UTILITY: { lane: 0.2, teamfight: 0.3, deathQuality: 0.25, resources: 0.1, vision: 0.15 },
+  // 2026-11-09：辅助死亡质量 0.25 → 0.20、视野 0.15 → 0.20（用户要求辅助阵亡减责）
+  UTILITY: { lane: 0.2, teamfight: 0.3, deathQuality: 0.2, resources: 0.1, vision: 0.2 },
   NO_LANES: { teamfight: 0.5, deathQuality: 0.3, growth: 0.2 }
 }
 

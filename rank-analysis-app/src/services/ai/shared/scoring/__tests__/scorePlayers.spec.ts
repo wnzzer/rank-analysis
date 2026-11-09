@@ -65,6 +65,7 @@ const death = (victimId: number, minute: number, kind: DeathKind, r: number): At
   timestamp: minute * 60000,
   kind,
   responsibility: r,
+  enemies: 1,
   consequence: 1
 })
 const game = (overrides: Record<number, Partial<PlayerScoringInput>>) =>

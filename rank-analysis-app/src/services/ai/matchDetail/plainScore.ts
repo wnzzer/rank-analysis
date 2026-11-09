@@ -146,6 +146,8 @@ export interface StatContext {
   fights: Array<{ subjects: number[] }>
   deaths: DeathKind[] | null
   hasLanes: boolean
+  /** 作为缺位搭档被分担责任的阵亡次数（如辅助不在时 AD 阵亡）；无时间线为 null，缺省按 0 */
+  partnerAbsences?: number | null
 }
 
 const r1 = (v: number): number => Math.round(v * 10) / 10
@@ -185,6 +187,8 @@ export function partStats(key: SubScoreKey, c: StatContext): string[] {
       out.push(`阵亡 ${p.deaths} 次`)
       if (c.deaths && p.deaths > 0)
         out.push(`其中自身问题 ${c.deaths.filter(k => OWN_FAULT.has(k)).length} 次`)
+      // 缺位分担也计入死亡质量，不写出来模型会对着「只死 2 次」解释不了低分
+      if (c.partnerAbsences) out.push(`下路搭档阵亡时不在身边 ${c.partnerAbsences} 次`)
       break
     case 'growth':
       if (c.hasLanes) out.push(`每分钟补刀 ${r1(p.csm)}`, `每分钟经济 ${Math.round(p.gpm)}`)
