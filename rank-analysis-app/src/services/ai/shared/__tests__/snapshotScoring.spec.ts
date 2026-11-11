@@ -17,7 +17,14 @@ describe('snapshot scoring inputs', () => {
   it('有时间线：deaths 与 metrics', () => {
     const snap = buildMatchSnapshot(makeScoringGame(), undefined, makeScoringTimeline())
     expect(snap.timeline?.deaths).toEqual([
-      { victimId: 6, timestamp: 300000, kind: 'solo', responsibility: 1, consequence: 1 }
+      {
+        victimId: 6,
+        timestamp: 300000,
+        kind: 'solo',
+        responsibility: 1,
+        enemies: 1,
+        consequence: 1
+      }
     ])
     expect(snap.timeline?.metrics[6].deathCostPerMin).toBeCloseTo(1 / 30)
     expect(snap.timeline?.metrics[1].controlWardsPerMin).toBe(0)

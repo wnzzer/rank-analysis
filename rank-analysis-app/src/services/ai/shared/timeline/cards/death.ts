@@ -52,6 +52,22 @@ export function lossesAfterDeath(tl: SlimTimeline, victimTeamId: number, ms: num
 }
 
 /**
+ * 阵亡后 60 秒内己方拿到的资源/建筑数（对面丢的大型野怪归己方、对面被推的建筑）。
+ * 与 lossesAfterDeath 同窗口，用于识别「被多人包抄、队友趁机换资源」。
+ * @param victimTeamId - 死者所在队伍
+ * @param ms - 阵亡时刻
+ */
+export function gainsAfterDeath(tl: SlimTimeline, victimTeamId: number, ms: number): number {
+  let n = 0
+  for (const later of tl.events) {
+    if (later.timestamp <= ms || later.timestamp > ms + CONSEQUENCE_WINDOW_MS) continue
+    if (later.type === 'ELITE_MONSTER_KILL' && later.killerTeamId === victimTeamId) n++
+    if (later.type === 'BUILDING_KILL' && later.teamId !== victimTeamId) n++
+  }
+  return n
+}
+
+/**
  * 生成死亡卡。
  * @param input - 提取器输入
  * @returns 每次阵亡一张；weight = 1 + 有后果 2 + 送终结 1

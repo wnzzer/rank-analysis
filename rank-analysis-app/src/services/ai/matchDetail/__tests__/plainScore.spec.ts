@@ -114,7 +114,10 @@ describe('partStats', () => {
       fightAbsenceRate: 0.3,
       fightFirstDeathRate: 0.1,
       objectiveParticipation: 0.6,
-      controlWardsPerMin: 0.1
+      controlWardsPerMin: 0.1,
+      gankKills: 3,
+      roamKills: 2,
+      partnerAbsences: 1
     },
     minutes: 30,
     fights: [{ subjects: [1, 4] }, { subjects: [1, 2] }, { subjects: [4] }],
@@ -132,6 +135,26 @@ describe('partStats', () => {
       '每分钟对建筑/野怪伤害 300'
     ])
     expect(partStats('vision', ctx)).toEqual(['每分钟视野得分 1', '插控制守卫 3 个'])
+  })
+
+  it('作为缺位搭档被分担责任时，死亡质量写出次数', () => {
+    expect(partStats('deathQuality', { ...ctx, partnerAbsences: 2 })).toEqual([
+      '阵亡 11 次',
+      '其中自身问题 2 次',
+      '下路搭档阵亡时不在身边 2 次'
+    ])
+    expect(partStats('deathQuality', { ...ctx, partnerAbsences: 0 })).toHaveLength(2)
+  })
+
+  it('职责按位置取数据：打野看抓人、中单看游走、辅助看游走与缺位；其他位置为空', () => {
+    expect(partStats('duty', { ...ctx, position: 'JUNGLE' })).toEqual(['对线期到线上参与击杀 3 次'])
+    expect(partStats('duty', { ...ctx, position: 'MIDDLE' })).toEqual(['对线期离线参与击杀 2 次'])
+    expect(partStats('duty', { ...ctx, position: 'UTILITY' })).toEqual([
+      '对线期离线参与击杀 2 次',
+      'AD 被多人击杀时不在身边 1 次'
+    ])
+    expect(partStats('duty', { ...ctx, position: 'TOP' })).toEqual([])
+    expect(partStats('duty', { ...ctx, position: 'JUNGLE', metrics: null })).toEqual([])
   })
 
   it('领先写领先、持平写持平；缺数据的项跳过', () => {

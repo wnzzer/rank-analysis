@@ -114,7 +114,7 @@ const tl = {
   ]
 }
 const deaths: AttributedDeath[] = [
-  { victimId: 6, timestamp: T20, kind: 'fight', responsibility: 0.6, consequence: 2 }
+  { victimId: 6, timestamp: T20, kind: 'fight', enemies: 1, responsibility: 0.6, consequence: 2 }
 ]
 
 describe('timelineMetrics', () => {
@@ -133,13 +133,51 @@ describe('timelineMetrics', () => {
 
   it('对线期阵亡责任 = 14 分钟前阵亡的责任之和（20 分钟的死不计）', () => {
     const early: AttributedDeath[] = [
-      { victimId: 1, timestamp: 5 * MIN, kind: 'solo', responsibility: 1, consequence: 1 },
-      { victimId: 1, timestamp: 10 * MIN, kind: 'ganked', responsibility: 0.5, consequence: 1 },
-      { victimId: 1, timestamp: 20 * MIN, kind: 'solo', responsibility: 1, consequence: 1 }
+      {
+        victimId: 1,
+        timestamp: 5 * MIN,
+        kind: 'solo',
+        enemies: 1,
+        responsibility: 1,
+        consequence: 1
+      },
+      {
+        victimId: 1,
+        timestamp: 10 * MIN,
+        kind: 'ganked',
+        enemies: 1,
+        responsibility: 0.5,
+        consequence: 1
+      },
+      {
+        victimId: 1,
+        timestamp: 20 * MIN,
+        kind: 'solo',
+        enemies: 1,
+        responsibility: 1,
+        consequence: 1
+      }
     ]
     const e = timelineMetrics(input(tl), [...deaths, ...early], 1500)
     expect(e[1].laneDeathResponsibility).toBeCloseTo(1.5)
     expect(e[6].laneDeathResponsibility).toBe(0)
+  })
+
+  it('缺位搭档按分担计入死亡成本与对线期阵亡责任', () => {
+    const roam: AttributedDeath = {
+      victimId: 4,
+      timestamp: 6 * MIN,
+      kind: 'isolated',
+      enemies: 2,
+      responsibility: 0.7,
+      absentPartner: { participantId: 5, share: 0.3 },
+      consequence: 2
+    }
+    const e = timelineMetrics(input(tl), [roam], 1500)
+    expect(e[4].deathCostPerMin).toBeCloseTo((0.7 * 2) / 25)
+    expect(e[5].deathCostPerMin).toBeCloseTo((0.3 * 2) / 25)
+    expect(e[5].laneDeathResponsibility).toBeCloseTo(0.3)
+    expect(e[3].deathCostPerMin).toBe(0)
   })
 
   it('团战缺席率与团内先死率', () => {
@@ -171,5 +209,67 @@ describe('timelineMetrics', () => {
     const quiet = timelineMetrics(input({ frames: tl.frames, events: [] }), [], 1500)
     expect(quiet[1].fightAbsenceRate).toBeNull()
     expect(quiet[1].fightFirstDeathRate).toBeNull()
+  })
+})
+
+describe('职责指标（第 2 层）', () => {
+  const k = (
+    timestamp: number,
+    victimId: number,
+    killerId: number,
+    assisting: number[],
+    x: number,
+    y: number
+  ): SlimEvent => ({
+    type: 'CHAMPION_KILL',
+    timestamp,
+    killerId,
+    victimId,
+    assisting,
+    x,
+    y,
+    bounty: 300,
+    shutdownBounty: 0,
+    damageReceived: []
+  })
+  const events = [
+    k(5 * MIN, 6, 1, [2], 1000, 10000), // 上路：打野 2 来抓
+    k(6 * MIN, 9, 4, [3, 5], 13000, 2000), // 下路：中单 3 游走、辅助 5 在线上
+    k(7 * MIN, 8, 3, [5], 7000, 7000), // 中路：辅助 5 游走
+    k(8 * MIN, 7, 2, [], 4000, 6500), // 蓝方野区：打野 2 反野，不算抓人
+    k(15 * MIN, 6, 2, [3], 1000, 10000), // 过了对线期，不计
+    k(9 * MIN, 2, 7, [], 1000, 10000) // 己方阵亡，不计
+  ]
+  const absent: AttributedDeath = {
+    victimId: 4,
+    timestamp: 10 * MIN,
+    kind: 'isolated',
+    enemies: 2,
+    responsibility: 0.7,
+    absentPartner: { participantId: 5, share: 0.3 },
+    consequence: 1
+  }
+  const m = timelineMetrics(input({ events }), [absent], 1500)
+
+  it('抓人 = 对线期参与的、发生在野区以外的击杀', () => {
+    expect(m[2].gankKills).toBe(1)
+    expect(m[3].gankKills).toBe(2)
+  })
+
+  it('游走 = 对线期参与的、发生在本人分路区域以外的击杀', () => {
+    expect(m[3].roamKills).toBe(1)
+    expect(m[5].roamKills).toBe(1)
+    expect(m[1].roamKills).toBe(0)
+    expect(m[2].roamKills).toBe(1)
+  })
+
+  it('搭档缺位次数只记在缺位的辅助身上', () => {
+    expect(m[5].partnerAbsences).toBe(1)
+    expect(m[4].partnerAbsences).toBe(0)
+  })
+
+  it('无分路：三项均为 null', () => {
+    const n = timelineMetrics(input({ events }, { hasLanes: false }), [absent], 1500)
+    expect([n[2].gankKills, n[3].roamKills, n[5].partnerAbsences]).toEqual([null, null, null])
   })
 })

@@ -9,9 +9,10 @@
 import { dist, positionAt } from '../timeline/geometry'
 import { clusterFights, fightPresence } from '../timeline/cards/fight'
 import { laneOpponent } from '../timeline/cards/lane'
+import { zoneOf } from '../timeline/labels'
 import { laneCheckFrame } from '../timeline/teamContext'
 import type { CardInput, SlimEvent } from '../timeline/types'
-import { LANE_PHASE_MS, type AttributedDeath } from './deathAttribution'
+import { blameOf, inOwnLaneArea, LANE_PHASE_MS, type AttributedDeath } from './deathAttribution'
 
 /** 终局指标名单 */
 export const END_METRICS = [
@@ -38,7 +39,10 @@ export const TIMELINE_METRICS = [
   'fightAbsenceRate',
   'fightFirstDeathRate',
   'objectiveParticipation',
-  'controlWardsPerMin'
+  'controlWardsPerMin',
+  'gankKills',
+  'roamKills',
+  'partnerAbsences'
 ] as const
 export type TimelineMetric = (typeof TIMELINE_METRICS)[number]
 
@@ -66,6 +70,9 @@ export interface EndStatsInput {
   ccSeconds: number | null
 }
 
+/** 野区判定：zoneOf 的野区名都以「野区」结尾 */
+const isJungleZone = (zone: string): boolean => zone.endsWith('野区')
+
 /** 野怪参与：距野怪坑 ≤2500 码算在场 */
 const OBJECTIVE_RADIUS = 2500
 
@@ -91,6 +98,7 @@ export function endMetrics(s: EndStatsInput): EndMetricValues {
 }
 
 type Elite = Extract<SlimEvent, { type: 'ELITE_MONSTER_KILL' }>
+type Kill = Extract<SlimEvent, { type: 'CHAMPION_KILL' }>
 
 /**
  * 计算名册内每位玩家的时间线指标。
@@ -111,6 +119,9 @@ export function timelineMetrics(
   const presence = fights.map(f => fightPresence(input, f))
   const teamOf = new Map(roster.map(r => [r.participantId, r.teamId]))
   const elites = tl.events.filter((e): e is Elite => e.type === 'ELITE_MONSTER_KILL')
+  const laneKills = hasLanes
+    ? tl.events.filter((e): e is Kill => e.type === 'CHAMPION_KILL' && e.timestamp < LANE_PHASE_MS)
+    : []
   const out: Record<number, TimelineMetricValues> = {}
 
   for (const me of roster) {
@@ -127,14 +138,13 @@ export function timelineMetrics(
       csDiff14 = a.cs - b.cs
     }
 
-    const cost = deaths
-      .filter(d => d.victimId === pid)
-      .reduce((s, d) => s + d.responsibility * d.consequence, 0)
+    // 本人阵亡 + 作为缺位搭档分担的阵亡（blameOf 对无关阵亡返回 0）
+    const cost = deaths.reduce((s, d) => s + blameOf(d, pid) * d.consequence, 0)
 
     // 对线期（<14 分钟）阵亡责任之和：作为基线指标，让「正常死 1~2 次」不被扣分
     const laneDeathResponsibility = deaths
-      .filter(d => d.victimId === pid && d.timestamp < LANE_PHASE_MS)
-      .reduce((s, d) => s + d.responsibility, 0)
+      .filter(d => d.timestamp < LANE_PHASE_MS)
+      .reduce((s, d) => s + blameOf(d, pid), 0)
 
     const ownElites = elites.filter(e => e.killerTeamId === me.teamId)
     const atObjective = ownElites.filter(e => {
@@ -142,6 +152,26 @@ export function timelineMetrics(
       const p = positionAt(tl, pid, e.timestamp)
       return !!p && dist(p.x, p.y, e.x, e.y) <= OBJECTIVE_RADIUS
     }).length
+
+    // 职责指标（第 2 层）：对线期本人参与（击杀或助攻）的敌方阵亡
+    const joined = laneKills.filter(
+      k =>
+        teamOf.get(k.victimId) !== undefined &&
+        teamOf.get(k.victimId) !== me.teamId &&
+        (k.killerId === pid || k.assisting.includes(pid))
+    )
+    // 抓人：发生在野区以外（三路与河道）——打野去线上的收益
+    const gankKills = hasLanes
+      ? joined.filter(k => !isJungleZone(zoneOf(k.x, k.y, input.mapId))).length
+      : null
+    // 游走：发生在本人分路区域以外——中单/辅助离线支援的收益
+    const roamKills = hasLanes
+      ? joined.filter(k => !inOwnLaneArea(me, k.x, k.y, input.mapId)).length
+      : null
+    // 搭档缺位：职责表里「该在身边却不在」的次数（辅助不在时 AD 被多人击杀）
+    const partnerAbsences = hasLanes
+      ? deaths.filter(d => d.absentPartner?.participantId === pid).length
+      : null
 
     const controlWards = tl.events.filter(
       e => e.type === 'WARD_PLACED' && e.creatorId === pid && e.wardType === 'CONTROL_WARD'
@@ -162,7 +192,10 @@ export function timelineMetrics(
           ).length / fights.length
         : null,
       objectiveParticipation: ownElites.length ? atObjective / ownElites.length : null,
-      controlWardsPerMin: perMin(controlWards)
+      controlWardsPerMin: perMin(controlWards),
+      gankKills,
+      roamKills,
+      partnerAbsences
     }
   }
   return out

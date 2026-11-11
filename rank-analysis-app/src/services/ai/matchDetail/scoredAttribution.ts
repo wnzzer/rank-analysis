@@ -60,7 +60,11 @@ export function toBrief(
     minutes: snapshot.durationSeconds / 60,
     fights: fightCards,
     deaths: kinds,
-    hasLanes
+    hasLanes,
+    position: p.teamPosition,
+    partnerAbsences:
+      snapshot.timeline?.deaths.filter(d => d.absentPartner?.participantId === s.participantId)
+        .length ?? null
   }
   const parts = SUB_SCORE_KEYS.filter(
     k => s.contributions[k] !== undefined && s.sub[k] !== null

@@ -50,7 +50,8 @@ describe('LOWER_IS_BETTER', () => {
         'deathsPerMin',
         'fightAbsenceRate',
         'fightFirstDeathRate',
-        'laneDeathResponsibility'
+        'laneDeathResponsibility',
+        'partnerAbsences'
       ].sort()
     )
   })
@@ -58,7 +59,7 @@ describe('LOWER_IS_BETTER', () => {
 
 describe('computeSubScores', () => {
   it('有分路：各分项为对应 z 的均值，死亡类取负，对线 = 三差均值 + 0.5×(−z(对线阵亡责任))', () => {
-    const s = computeSubScores({ hasLanes: true, z })
+    const s = computeSubScores({ hasLanes: true, position: 'TOP', z })
     expect(s.lane).toBeCloseTo(-0.25)
     expect(s.teamfight).toBeCloseTo(0.23333, 4)
     expect(s.deathQuality).toBeCloseTo(-1.2)
@@ -69,6 +70,7 @@ describe('computeSubScores', () => {
   it('对线阵亡与基准持平（z=0）：不扣分，对线 = 三差均值', () => {
     const s = computeSubScores({
       hasLanes: true,
+      position: 'TOP',
       z: m => (m === 'laneDeathResponsibility' ? 0 : z(m))
     })
     expect(s.lane).toBeCloseTo(0.5)
@@ -76,26 +78,57 @@ describe('computeSubScores', () => {
   it('对线阵亡比基准少 1 个标准差：加 0.5；z 缺失：只看三差', () => {
     const fewer = computeSubScores({
       hasLanes: true,
+      position: 'TOP',
       z: m => (m === 'laneDeathResponsibility' ? -1 : z(m))
     })
     expect(fewer.lane).toBeCloseTo(1)
     const missing = computeSubScores({
       hasLanes: true,
+      position: 'TOP',
       z: m => (m === 'laneDeathResponsibility' ? null : z(m))
     })
     expect(missing.lane).toBeCloseTo(0.5)
   })
   it('无分路：对线缺失，发育 = 伤害/经济比', () => {
-    const s = computeSubScores({ hasLanes: false, z })
+    const s = computeSubScores({ hasLanes: false, position: 'TOP', z })
     expect(s.lane).toBeNull()
     expect(s.growth).toBeCloseTo(0.2)
   })
   it('无时间线（死亡成本缺失）：死亡质量退回 −z(每分钟死亡)', () => {
     const s = computeSubScores({
       hasLanes: true,
+      position: 'TOP',
       z: m => (m === 'deathCostPerMin' ? null : z(m))
     })
     expect(s.deathQuality).toBeCloseTo(-2)
+  })
+})
+
+describe('职责分项（第 2 层）', () => {
+  const dz: Partial<Record<MetricName, number>> = {
+    gankKills: 1.2,
+    roamKills: 0.8,
+    partnerAbsences: 1
+  }
+  const zz = (m: MetricName) => dz[m] ?? null
+  it('打野 = z(抓人)，中单 = z(游走)', () => {
+    expect(computeSubScores({ hasLanes: true, position: 'JUNGLE', z: zz }).duty).toBeCloseTo(1.2)
+    expect(computeSubScores({ hasLanes: true, position: 'MIDDLE', z: zz }).duty).toBeCloseTo(0.8)
+  })
+  it('辅助 = 游走 z 与 −z(缺位) 的均值：游走多但 AD 常被包，两头相抵', () => {
+    expect(computeSubScores({ hasLanes: true, position: 'UTILITY', z: zz }).duty).toBeCloseTo(-0.1)
+  })
+  it('上单/下路/无分路没有职责分项', () => {
+    expect(computeSubScores({ hasLanes: true, position: 'TOP', z: zz }).duty).toBeNull()
+    expect(computeSubScores({ hasLanes: true, position: 'BOTTOM', z: zz }).duty).toBeNull()
+    expect(computeSubScores({ hasLanes: false, position: 'JUNGLE', z: zz }).duty).toBeNull()
+  })
+  it('职责只进打野/中单/辅助的权重组', () => {
+    expect(WEIGHTS.JUNGLE.duty).toBeGreaterThan(0)
+    expect(WEIGHTS.MIDDLE.duty).toBeGreaterThan(0)
+    expect(WEIGHTS.UTILITY.duty).toBeGreaterThan(0)
+    expect(WEIGHTS.TOP.duty).toBeUndefined()
+    expect(WEIGHTS.BOTTOM.duty).toBeUndefined()
   })
 })
 
@@ -106,7 +139,8 @@ describe('combineSubScores', () => {
     deathQuality: -1.2,
     growth: 0.1,
     resources: 0.6,
-    vision: -1
+    vision: -1,
+    duty: null
   }
   it('上单：Σ w·分项（视野不在上单组里）', () => {
     const c = combineSubScores(sub, WEIGHTS.TOP)
@@ -126,7 +160,8 @@ describe('combineSubScores', () => {
       deathQuality: null,
       growth: null,
       resources: null,
-      vision: null
+      vision: null,
+      duty: null
     }
     expect(combineSubScores(none, WEIGHTS.TOP)).toEqual({ total: 0, contributions: {} })
   })

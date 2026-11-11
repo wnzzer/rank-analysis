@@ -5,7 +5,7 @@
 import { describe, it, expect } from 'vitest'
 import { frame, input, pf } from '../../timeline/__tests__/helpers'
 import type { SlimEvent } from '../../timeline/types'
-import { attributeDeaths } from '../deathAttribution'
+import { attributeDeaths, blameOf } from '../deathAttribution'
 
 const MIN = 60000
 
@@ -36,7 +36,14 @@ describe('attributeDeaths', () => {
   it('对位无助攻击杀 → 单杀，全责，无后果时 consequence = 1', () => {
     const out = attributeDeaths(input({ events: [kill(5 * MIN, 1, 6, [], 1000, 10000)] }))
     expect(out).toEqual([
-      { victimId: 1, timestamp: 5 * MIN, kind: 'solo', responsibility: 1, consequence: 1 }
+      {
+        victimId: 1,
+        timestamp: 5 * MIN,
+        kind: 'solo',
+        responsibility: 1,
+        enemies: 1,
+        consequence: 1
+      }
     ])
   })
 
@@ -197,7 +204,208 @@ describe('attributeDeaths', () => {
     })
   })
 
+  describe('以少打多：按参与击杀的敌方人数衰减本人责任', () => {
+    it('对线期被 3 人包（被抓）→ 0.5 × 0.75，辅助在身边不追责', () => {
+      const out = attributeDeaths(
+        input({
+          frames: [frame(6 * MIN, [pf(5, { x: 12300, y: 2200 })])],
+          events: [kill(6 * MIN, 4, 9, [10, 7], 12000, 2000)]
+        })
+      )
+      expect(out[0]).toMatchObject({ kind: 'ganked', enemies: 3, responsibility: 0.38 })
+      expect(out[0].absentPartner).toBeUndefined()
+    })
+
+    it('后期边路被 4 包 1：仍是孤立，但不再吃满全责（1 × 0.6）', () => {
+      const out = attributeDeaths(
+        input({
+          frames: [frame(19 * MIN), frame(21 * MIN)],
+          events: [kill(20 * MIN, 1, 6, [7, 8, 9], 1000, 10000)]
+        })
+      )
+      expect(out[0]).toMatchObject({ kind: 'isolated', enemies: 4, responsibility: 0.6 })
+    })
+
+    it('被塔终结时塔不算人：只数助攻的敌方英雄', () => {
+      const out = attributeDeaths(
+        input({
+          frames: [frame(19 * MIN), frame(21 * MIN)],
+          events: [kill(20 * MIN, 1, 0, [6, 7, 8], 1000, 10000)]
+        })
+      )
+      expect(out[0].enemies).toBe(3)
+    })
+
+    it('团战阵亡不按人数衰减', () => {
+      const near = [1, 2, 3, 4, 5].map(id => pf(id, { x: 7000, y: 7000 }))
+      const out = attributeDeaths(
+        input({
+          frames: [frame(20 * MIN, near), frame(21 * MIN, near)],
+          events: [
+            kill(20 * MIN, 1, 8, [6, 7, 9], 7000, 7000),
+            kill(20 * MIN + 5000, 2, 6, [7], 7000, 7000),
+            kill(20 * MIN + 10000, 3, 7, [], 7000, 7000)
+          ]
+        })
+      )
+      expect(out[0]).toMatchObject({ kind: 'fight', enemies: 4, responsibility: 0.6 })
+    })
+  })
+
+  describe('搭档缺位：对线期辅助不在身边时 AD 阵亡', () => {
+    it('AD 被对面下路 2v1、辅助在中路 → 辅助分担 0.3，AD 责任 × 0.7', () => {
+      const out = attributeDeaths(
+        input({
+          frames: [frame(6 * MIN, [pf(5, { x: 7000, y: 7000 })])],
+          events: [kill(6 * MIN, 4, 9, [10], 12000, 2000)]
+        })
+      )
+      expect(out[0]).toMatchObject({
+        kind: 'isolated',
+        enemies: 2,
+        responsibility: 0.7,
+        absentPartner: { participantId: 5, share: 0.3 }
+      })
+    })
+
+    it('同样 2v1 但辅助就在旁边 → 不追责', () => {
+      const out = attributeDeaths(
+        input({
+          frames: [frame(6 * MIN, [pf(5, { x: 12500, y: 2000 })])],
+          events: [kill(6 * MIN, 4, 9, [10], 12000, 2000)]
+        })
+      )
+      expect(out[0].absentPartner).toBeUndefined()
+    })
+
+    it('辅助 30 秒内先倒下（一起打输）不算缺位', () => {
+      const out = attributeDeaths(
+        input({
+          frames: [frame(6 * MIN, [pf(5, { x: 7000, y: 7000 })])],
+          events: [
+            kill(6 * MIN - 10000, 5, 10, [9], 12000, 2000),
+            kill(6 * MIN, 4, 9, [10], 12000, 2000)
+          ]
+        })
+      )
+      expect(out[1].absentPartner).toBeUndefined()
+    })
+
+    it('被对位单杀不怪辅助（至少 2 名敌人才追责）', () => {
+      const out = attributeDeaths(
+        input({
+          frames: [frame(6 * MIN, [pf(5, { x: 7000, y: 7000 })])],
+          events: [kill(6 * MIN, 4, 9, [], 12000, 2000)]
+        })
+      )
+      expect(out[0]).toMatchObject({ kind: 'solo', responsibility: 1 })
+      expect(out[0].absentPartner).toBeUndefined()
+    })
+
+    it('过了对线期不追责：中后期辅助跟团是本职', () => {
+      const out = attributeDeaths(
+        input({
+          frames: [frame(19 * MIN, [pf(5, { x: 7000, y: 7000 })]), frame(21 * MIN)],
+          events: [kill(20 * MIN, 4, 9, [10], 12000, 2000)]
+        })
+      )
+      expect(out[0].absentPartner).toBeUndefined()
+    })
+
+    it('中单被抓时辅助不在不追责：职责表只有辅助 → AD', () => {
+      const out = attributeDeaths(
+        input({
+          frames: [frame(6 * MIN, [pf(5, { x: 12500, y: 2000 })])],
+          events: [kill(6 * MIN, 3, 8, [7], 7000, 7000)]
+        })
+      )
+      expect(out[0].absentPartner).toBeUndefined()
+    })
+
+    it('blameOf：死者取本人责任，缺位搭档取分担，无关者为 0', () => {
+      const [d] = attributeDeaths(
+        input({
+          frames: [frame(6 * MIN, [pf(5, { x: 7000, y: 7000 })])],
+          events: [kill(6 * MIN, 4, 9, [10], 12000, 2000)]
+        })
+      )
+      expect([blameOf(d, 4), blameOf(d, 5), blameOf(d, 3)]).toEqual([0.7, 0.3, 0])
+    })
+  })
+
+  describe('辅助本人阵亡减责（× 0.8）', () => {
+    it('辅助在下路被 2v1、AD 在身边 → 其他 0.8 × 0.8', () => {
+      const out = attributeDeaths(
+        input({
+          frames: [frame(6 * MIN, [pf(4, { x: 12300, y: 2200 })])],
+          events: [kill(6 * MIN, 5, 9, [10], 12000, 2000)]
+        })
+      )
+      expect(out[0]).toMatchObject({ kind: 'other', responsibility: 0.64 })
+    })
+
+    it('辅助被对位单杀仍是全责', () => {
+      const out = attributeDeaths(
+        input({
+          frames: [frame(6 * MIN, [pf(4, { x: 12300, y: 2200 })])],
+          events: [kill(6 * MIN, 5, 10, [], 12000, 2000)]
+        })
+      )
+      expect(out[0]).toMatchObject({ kind: 'solo', responsibility: 1 })
+    })
+  })
+
   it('死者不在名册（victimId 0）不产出', () => {
     expect(attributeDeaths(input({ events: [kill(5 * MIN, 0, 6, [], 0, 0)] }))).toEqual([])
+  })
+})
+
+describe('牵制换资源（第 3 层）', () => {
+  const T = 20 * MIN
+  const baron: SlimEvent = {
+    type: 'ELITE_MONSTER_KILL',
+    timestamp: T + 30000,
+    killerId: 2,
+    killerTeamId: 100,
+    monsterType: 'BARON_NASHOR',
+    monsterSubType: '',
+    x: 5007,
+    y: 10471
+  }
+  const tower: SlimEvent = {
+    type: 'BUILDING_KILL',
+    timestamp: T + 40000,
+    killerId: 6,
+    teamId: 100,
+    buildingType: 'TOWER_BUILDING',
+    towerType: 'OUTER_TURRET',
+    laneType: 'BOT_LANE'
+  }
+
+  it('被 3 人包抄、己方换到大龙：后果按净值（丢塔 − 大龙 = 0），标记 traded', () => {
+    const [x] = attributeDeaths(
+      input({ events: [kill(T, 4, 6, [7, 8], 13000, 2000), baron, tower] })
+    )
+    expect(x.enemies).toBe(3)
+    expect(x.traded).toBe(true)
+    expect(x.consequence).toBe(1)
+  })
+
+  it('换到的比丢的多：净值不低于 0', () => {
+    const [x] = attributeDeaths(input({ events: [kill(T, 4, 6, [7, 8], 13000, 2000), baron] }))
+    expect(x.consequence).toBe(1)
+    expect(x.traded).toBe(true)
+  })
+
+  it('只有 2 人参与：不算牵制，后果照常累加', () => {
+    const [x] = attributeDeaths(input({ events: [kill(T, 4, 6, [7], 13000, 2000), baron, tower] }))
+    expect(x.traded).toBeUndefined()
+    expect(x.consequence).toBe(2)
+  })
+
+  it('被包但己方什么都没换到：不标记，后果照常', () => {
+    const [x] = attributeDeaths(input({ events: [kill(T, 4, 6, [7, 8], 13000, 2000), tower] }))
+    expect(x.traded).toBeUndefined()
+    expect(x.consequence).toBe(2)
   })
 })
