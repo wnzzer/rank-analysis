@@ -23,12 +23,27 @@ pub const OFFSET_PER_LP_GAP: f64 = 10.0;
 /// |偏移| 不超过该值视为「持平」，避免一两分的波动来回翻箭头。
 pub const FLAT_THRESHOLD: i32 = 50;
 
+/// 双倍胜点判定：本局赢分至少是其余赢局中位数的这么多倍才怀疑是双倍。
+///
+/// 国服有双倍胜点卡等活动（2026-11-08 实测一局 +40，前后正常赢局都是 +20），
+/// LP 变化通知里暂未找到能标记双倍的字段，只能按数值识别。
+pub const DOUBLE_MIN_RATIO: f64 = 1.6;
+
+/// 双倍胜点判定：本局赢分与「其余赢局中位数 × 2」的最大偏差（LP），
+/// 取 4 LP 与 15% 中的较大者，容纳相邻几局之间自然的一两分浮动。
+pub const DOUBLE_TOLERANCE_LP: f64 = 4.0;
+pub const DOUBLE_TOLERANCE_RATIO: f64 = 0.15;
+
 /// 最近一局的加减分，供 tooltip 展示。
+///
+/// - `delta`: 实际加减分（双倍局为翻倍后的原值，便于和客户端对照）
+/// - `doubled`: 是否判定为双倍胜点；为 true 时估算按 `delta / 2` 计
 #[derive(Serialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct RecentDelta {
     pub delta: i32,
     pub source: Source,
+    pub doubled: bool,
 }
 
 /// 隐藏分相对当前段位的方向。
@@ -94,6 +109,48 @@ fn round1(value: f64) -> f64 {
     (value * 10.0).round() / 10.0
 }
 
+fn median(values: &mut [i32]) -> f64 {
+    values.sort_unstable();
+    let n = values.len();
+    if n % 2 == 1 {
+        values[n / 2] as f64
+    } else {
+        (values[n / 2 - 1] + values[n / 2]) as f64 / 2.0
+    }
+}
+
+/// 识别窗口内的双倍胜点局。
+///
+/// 只看赢局：双倍胜点卡只作用于赢局。一局赢分 ≥ 其余赢局中位数 × 1.6，
+/// 且接近中位数的 2 倍（偏差不超过容差）才算双倍；没有其余赢局时无从比较，不判定。
+///
+/// # 返回值
+/// 与 `deltas` 等长，true 表示该局判定为双倍。
+pub fn detect_doubled(deltas: &[i32]) -> Vec<bool> {
+    deltas
+        .iter()
+        .enumerate()
+        .map(|(i, &d)| {
+            if d <= 0 {
+                return false;
+            }
+            let mut others: Vec<i32> = deltas
+                .iter()
+                .enumerate()
+                .filter(|(j, v)| *j != i && **v > 0)
+                .map(|(_, v)| *v)
+                .collect();
+            if others.is_empty() {
+                return false;
+            }
+            let base = median(&mut others);
+            let expected = base * 2.0;
+            let tolerance = DOUBLE_TOLERANCE_LP.max(expected * DOUBLE_TOLERANCE_RATIO);
+            d as f64 >= base * DOUBLE_MIN_RATIO && (d as f64 - expected).abs() <= tolerance
+        })
+        .collect()
+}
+
 /// 由记录和当前段位算出隐藏分。
 ///
 /// # 参数
@@ -118,10 +175,24 @@ pub fn estimate(records: &[LpRecord], current_score: Option<i32>, provisional: b
             need: MIN_RECORDS,
         };
     }
-    let wins: Vec<i32> = window.iter().map(|r| r.delta).filter(|d| *d > 0).collect();
-    let losses: Vec<i32> = window
+    let raw: Vec<i32> = window.iter().map(|r| r.delta).collect();
+    let doubled = detect_doubled(&raw);
+    // 双倍局按一半计：保留这局「赢了、正常该加多少」的信息，而不是整局丢掉
+    let effective: Vec<i32> = raw
         .iter()
-        .map(|r| r.delta)
+        .zip(&doubled)
+        .map(|(d, dbl)| {
+            if *dbl {
+                (*d as f64 / 2.0).round() as i32
+            } else {
+                *d
+            }
+        })
+        .collect();
+    let wins: Vec<i32> = effective.iter().copied().filter(|d| *d > 0).collect();
+    let losses: Vec<i32> = effective
+        .iter()
+        .copied()
         .filter(|d| *d < 0)
         .map(i32::abs)
         .collect();
@@ -154,10 +225,12 @@ pub fn estimate(records: &[LpRecord], current_score: Option<i32>, provisional: b
         avg_loss: round1(avg_loss),
         recent: window
             .iter()
+            .zip(&doubled)
             .rev()
-            .map(|r| RecentDelta {
+            .map(|(r, dbl)| RecentDelta {
                 delta: r.delta,
                 source: r.source,
+                doubled: *dbl,
             })
             .collect(),
     }
@@ -307,6 +380,45 @@ mod tests {
     }
 
     #[test]
+    fn should_halve_doubled_win_in_estimate() {
+        // 2026-11-08 实测序列：最后一局双倍胜点 +40
+        let HiddenMmr::Ready {
+            avg_win,
+            avg_loss,
+            offset,
+            recent,
+            ..
+        } = estimate(&recs(&[-20, 20, -20, -20, 20, 40]), Some(2440), false)
+        else {
+            panic!("expected ready");
+        };
+        assert_eq!(avg_win, 20.0);
+        assert_eq!(avg_loss, 20.0);
+        assert_eq!(offset, 0);
+        assert_eq!(recent[0].delta, 40);
+        assert!(recent[0].doubled);
+        assert!(!recent[1].doubled);
+    }
+
+    #[test]
+    fn should_detect_doubled_only_near_twice_the_median_win() {
+        assert_eq!(detect_doubled(&[20, -20, 40]), vec![false, false, true]);
+        // 自然浮动：+26 对 +20 不到 1.6 倍
+        assert_eq!(detect_doubled(&[20, 26, -18]), vec![false, false, false]);
+        // 远超 2 倍（如 +60 对 +20）不像双倍，不处理
+        assert_eq!(detect_doubled(&[20, 60, -18]), vec![false, false, false]);
+        // 2 倍附近有容差：+38 对 +19
+        assert_eq!(
+            detect_doubled(&[19, 18, 38, -20]),
+            vec![false, false, true, false]
+        );
+        // 只有一局赢：无从比较
+        assert_eq!(detect_doubled(&[40, -20, -20]), vec![false, false, false]);
+        // 输局不判定
+        assert_eq!(detect_doubled(&[-20, -40, 20]), vec![false, false, false]);
+    }
+
+    #[test]
     fn should_never_go_below_zero() {
         let HiddenMmr::Ready { score, .. } = estimate(&recs(&[5, -30, 5]), Some(10), false) else {
             panic!("expected ready");
@@ -337,5 +449,6 @@ mod tests {
         assert_eq!(ready["equivalentTier"], "DIAMOND");
         assert_eq!(ready["equivalentShort"], "钻石 III 80LP");
         assert_eq!(ready["recent"][0]["source"], "notification");
+        assert_eq!(ready["recent"][0]["doubled"], false);
     }
 }

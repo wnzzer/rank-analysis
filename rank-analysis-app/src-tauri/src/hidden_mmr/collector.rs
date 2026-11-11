@@ -74,8 +74,12 @@ pub fn judge_notification(
     if n.consolation_lp_used != 0 {
         return NotificationOutcome::Rejected("使用了安慰分");
     }
-    if n.provisional_games_remaining > 0 {
+    // 定级赛：剩余场次是「结算后」的值，最后一场定级赛已经是 0，要靠 LEAGUE_SEEDED 识别
+    if n.provisional_games_remaining > 0 || n.notify_reason == "LEAGUE_SEEDED" {
         return NotificationOutcome::Rejected("定级赛");
+    }
+    if n.notify_reason.starts_with("LEAGUE_POINTS_UPDATE_SKIPPED") {
+        return NotificationOutcome::Rejected("本局未更新 LP");
     }
     if n.league_points_delta == 0 {
         return NotificationOutcome::Rejected("LP 无变化（掉段保护等）");
@@ -368,12 +372,24 @@ async fn collect(app: AppHandle) -> Result<(), String> {
         return Ok(());
     }
     LAST_COLLECT_START_MS.store(now_ms(), Ordering::SeqCst);
+    // 赛前还在定级赛：本局是定级赛（含最后一场），通知里看不出来时靠快照兜住
+    if pending.as_ref().is_some_and(|p| p.before.is_provisional) {
+        log::info!("隐藏分：第 {} 局不计入（定级赛）", game_id);
+        return Ok(());
+    }
 
     for _ in 0..POLL_ATTEMPTS {
         if let Ok(n) = LpChangeNotification::get().await {
             match judge_notification(&n, game_id, now_ms()) {
                 NotificationOutcome::Accepted(record) => {
-                    return persist(&app, &puuid, record).await
+                    // 取证：双倍胜点等特殊结算目前只能按数值识别，记下未建模字段以便找到标记
+                    log::info!(
+                        "隐藏分：第 {} 局 LP {:+}，通知其余字段 {}",
+                        game_id,
+                        record.delta,
+                        serde_json::to_string(&n.extra).unwrap_or_default()
+                    );
+                    return persist(&app, &puuid, record).await;
                 }
                 NotificationOutcome::Rejected(why) => {
                     log::info!("隐藏分：第 {} 局不计入（{}）", game_id, why);
@@ -425,6 +441,48 @@ async fn persist(app: &AppHandle, puuid: &str, record: LpRecord) -> Result<(), S
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn should_reject_last_placement_and_skipped_updates() {
+        let seeded = LpChangeNotification {
+            notify_reason: "LEAGUE_SEEDED".into(),
+            provisional_games_remaining: 0,
+            ..notification()
+        };
+        assert_eq!(
+            judge_notification(&seeded, seeded.game_id, 0),
+            NotificationOutcome::Rejected("定级赛")
+        );
+        let skipped = LpChangeNotification {
+            notify_reason: "LEAGUE_POINTS_UPDATE_SKIPPED_FULL_PARTY".into(),
+            ..notification()
+        };
+        assert_eq!(
+            judge_notification(&skipped, skipped.game_id, 0),
+            NotificationOutcome::Rejected("本局未更新 LP")
+        );
+        let promoted = LpChangeNotification {
+            notify_reason: "LEAGUE_PROMOTED".into(),
+            ..notification()
+        };
+        assert!(matches!(
+            judge_notification(&promoted, promoted.game_id, 0),
+            NotificationOutcome::Accepted(_)
+        ));
+    }
+
+    #[test]
+    fn should_keep_unmodeled_notification_fields_for_logging() {
+        let n: LpChangeNotification = serde_json::from_value(serde_json::json!({
+            "gameId": 1,
+            "leaguePointsDelta": 40,
+            "lpMultiplier": 2
+        }))
+        .unwrap();
+        assert_eq!(n.league_points_delta, 40);
+        assert_eq!(n.extra.get("lpMultiplier"), Some(&serde_json::json!(2)));
+        assert!(!n.extra.contains_key("leaguePointsDelta"));
+    }
 
     fn notification() -> LpChangeNotification {
         LpChangeNotification {

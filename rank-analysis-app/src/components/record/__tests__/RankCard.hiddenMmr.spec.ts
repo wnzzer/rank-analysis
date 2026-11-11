@@ -235,6 +235,23 @@ describe('RankCard hidden MMR tooltip', () => {
     expect(text).not.toContain('天梯分')
   })
 
+  it('should mark doubled-LP games in recent deltas and explain the rule', () => {
+    const text = mountCard(
+      {
+        ...ready,
+        recent: [
+          { delta: 40, source: 'notification', doubled: true },
+          { delta: -20, source: 'notification', doubled: false },
+          { delta: 20, source: 'notification', doubled: false }
+        ]
+      },
+      openTooltip
+    ).text()
+
+    expect(text).toContain('最近 3 局：+40（双倍） / −20 / +20')
+    expect(text).toContain('4. 双倍胜点局（赢分约为平时 2 倍）按一半计')
+  })
+
   it('should say lower and equal relative to the current tier', () => {
     const lower = mountCard({ ...ready, direction: 'down', offset: -35 }, openTooltip).text()
     const equal = mountCard({ ...ready, direction: 'flat', offset: 0 }, openTooltip).text()
