@@ -127,6 +127,7 @@ export interface AttributedDeath {
   kind: DeathKind
   responsibility: number
   enemies: number
+  allies: number
   absentPartner?: { participantId: number; share: number }
   consequence: number
   traded?: boolean

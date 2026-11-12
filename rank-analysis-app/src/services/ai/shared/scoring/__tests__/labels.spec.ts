@@ -14,6 +14,7 @@ const d = (kind: DeathKind): AttributedDeath => ({
   kind,
   responsibility: 1,
   enemies: 1,
+  allies: 1,
   consequence: 1
 })
 
