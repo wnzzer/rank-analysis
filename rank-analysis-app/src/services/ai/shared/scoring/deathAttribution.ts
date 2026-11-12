@@ -20,7 +20,7 @@
  * 没来支援可能是在别处做等价的事，时间线 60 秒一帧也判断不了「本可以来」。
  * 责任是唯一的扣分货币：只经 blameOf 进死亡质量 / 对线期阵亡责任，职责分项只记收益，不重复扣。
  *
- * 后果再做一步修正（2026-11-09，第 3 层）：牵制换资源。被 ≥3 人包抄的阵亡，若死后 60 秒内
+ * 后果再做一步修正（2026-11-09，第 3 层）：牵制换资源。以少打多（人数差下标 ≥3，如 3 包 1、4 包 2）的阵亡，若死后 60 秒内
  * 己方在别处拿了资源/建筑，说明死者拖住了多人、队伍换到了东西；后果按「丢的 − 换到的」净值算
  * （不低于 0），否则被包后丢塔会在后果里再放大一次，和以少打多减责互相抵消。
  */
@@ -108,8 +108,12 @@ export const PARTNER_ABSENT_DISTANCE = 3000
  */
 export const ROLE_DEATH_FACTOR: Readonly<Record<string, number>> = { UTILITY: 0.8 }
 
-/** 牵制换资源：至少几名敌人参与击杀才算「拖住了多人」（与以少打多衰减起点一致） */
-export const TRADE_MIN_ENEMIES = 3
+/**
+ * 牵制换资源：人数差下标（敌方参与 − 我方在场 + 1）至少多少才算「拖住了多人」，与以少打多衰减起点一致。
+ * 2026-11-12 起按人数差而非敌方绝对人数：5 打 5 团战里一次击杀有 3 人参与很常见，
+ * 按绝对人数会把赢团后拿龙的那波里己方每个阵亡都标成「牵制换资源」，减责证据泛滥。
+ */
+export const TRADE_MIN_GAP = 3
 
 /**
  * 单次阵亡的归责结果
@@ -119,7 +123,7 @@ export const TRADE_MIN_ENEMIES = 3
  * @property absentPartner - 该在身边却不在的搭档及其分担的责任（与 responsibility 之和 = 责任池）；无则缺省
  * @property consequence - 后果 = 1 + 死后 60 秒己方丢失资源/建筑数 + 送出终结赏金/300；
  *   牵制换资源时丢失数改为「丢失 − 换到」的净值（不低于 0）
- * @property traded - 被 ≥3 人包抄且死后 60 秒内己方换到了资源/建筑；未换到则缺省
+ * @property traded - 以少打多（人数差下标 ≥3）且死后 60 秒内己方换到了资源/建筑；未换到则缺省
  */
 export interface AttributedDeath {
   victimId: number
@@ -292,7 +296,7 @@ export function attributeDeaths(input: CardInput): AttributedDeath[] {
     const absent = absentGuardian(e, victim, enemies)
     const responsibility = absent ? round2(pool * absent.duty.relief) : pool
     const losses = lossesAfterDeath(tl, victim.teamId, e.timestamp).length
-    const gains = enemies >= TRADE_MIN_ENEMIES ? gainsAfterDeath(tl, victim.teamId, e.timestamp) : 0
+    const gains = gap >= TRADE_MIN_GAP ? gainsAfterDeath(tl, victim.teamId, e.timestamp) : 0
     const traded = gains > 0
     out.push({
       victimId: e.victimId,

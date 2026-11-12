@@ -453,6 +453,23 @@ describe('牵制换资源（第 3 层）', () => {
     expect(x.traded).toBe(true)
   })
 
+  it('人数相当（3 打 3）不算牵制：即便己方随后拿到大龙也不标记，后果照常累加', () => {
+    const [x] = attributeDeaths(
+      input({
+        events: [
+          kill(T - 10000, 6, 1, [2], 13000, 2500), // 队友 1、2 在场打出交互
+          kill(T, 4, 6, [7, 8], 13000, 2000),
+          baron,
+          tower
+        ]
+      })
+    ).filter(d => d.victimId === 4)
+    expect(x.enemies).toBe(3)
+    expect(x.allies).toBe(3)
+    expect(x.traded).toBeUndefined()
+    expect(x.consequence).toBe(2)
+  })
+
   it('只有 2 人参与：不算牵制，后果照常累加', () => {
     const [x] = attributeDeaths(input({ events: [kill(T, 4, 6, [7], 13000, 2000), baron, tower] }))
     expect(x.traded).toBeUndefined()
