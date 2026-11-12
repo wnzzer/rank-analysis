@@ -16,8 +16,7 @@ export const LOWER_IS_BETTER: ReadonlySet<MetricName> = new Set<MetricName>([
   'deathCostPerMin',
   'laneDeathResponsibility',
   'fightAbsenceRate',
-  'fightFirstDeathRate',
-  'partnerAbsences'
+  'fightFirstDeathRate'
 ])
 
 /**
@@ -37,8 +36,8 @@ const mean = (xs: Array<number | null>): number | null => {
 
 /**
  * 「职责」分项（第 2 层）：按位置取本职指标；其他位置 / 无分路为 null（权重表里也没有）。
- * 辅助的脱岗净收益 = 游走收益与「AD 被包时不在身边」两个 z 的均值——游走带来击杀才算赚，
- * 只走不赚、还让 AD 被包，两头都扣。
+ * 只记收益：缺位的代价已作为责任经 blameOf 进了死亡质量与对线期阵亡责任，这里再扣就是重复计罚。
+ * 辅助的「脱岗净收益」因此跨分项闭环：游走击杀在职责里加分，AD 被包时不在身边在死亡质量里扣分。
  */
 function dutyScore(position: string, goodness: (m: MetricName) => number | null): number | null {
   switch (position) {
@@ -47,7 +46,7 @@ function dutyScore(position: string, goodness: (m: MetricName) => number | null)
     case 'MIDDLE':
       return goodness('roamKills')
     case 'UTILITY':
-      return mean([goodness('roamKills'), goodness('partnerAbsences')])
+      return goodness('roamKills')
     default:
       return null
   }

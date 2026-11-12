@@ -291,6 +291,34 @@ describe('attributeDeaths', () => {
       expect(out[1].absentPartner).toBeUndefined()
     })
 
+    it('辅助随后 30 秒内也倒下（2v3 一起打输）不算缺位', () => {
+      const out = attributeDeaths(
+        input({
+          frames: [frame(6 * MIN, [pf(5, { x: 7000, y: 7000 })])],
+          events: [
+            kill(6 * MIN, 4, 9, [10], 12000, 2000),
+            kill(6 * MIN + 5000, 5, 10, [9], 12000, 2000)
+          ]
+        })
+      )
+      expect(out[0].absentPartner).toBeUndefined()
+    })
+
+    it('责任守恒：AD 被打野 gank（池 0.5）时辅助只分走 AD 减掉的那份，不凭空多出', () => {
+      const out = attributeDeaths(
+        input({
+          frames: [frame(6 * MIN, [pf(5, { x: 7000, y: 7000 })])],
+          events: [kill(6 * MIN, 4, 7, [9], 12000, 2000)]
+        })
+      )
+      expect(out[0]).toMatchObject({
+        kind: 'ganked',
+        responsibility: 0.35,
+        absentPartner: { participantId: 5, share: 0.15 }
+      })
+      expect(blameOf(out[0], 4) + blameOf(out[0], 5)).toBeCloseTo(0.5)
+    })
+
     it('被对位单杀不怪辅助（至少 2 名敌人才追责）', () => {
       const out = attributeDeaths(
         input({
