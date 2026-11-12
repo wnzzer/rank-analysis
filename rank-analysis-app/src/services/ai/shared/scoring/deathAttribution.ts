@@ -6,8 +6,10 @@
  * 「被抓」只在对线期（< 14 分钟）判：过了对线期，人员轮转后「本人分路区域」已经没有意义。
  *
  * 类型定下后再做两步修正（2026-11-09）：
- * 1. 以少打多：被抓 / 孤立 / 其他三类按参与击杀的敌方人数衰减本人责任（3 包 1 起），
- *    否则后期边路被 4 包 1 会落进「孤立」吃满全责，和被对位单杀同罪。
+ * 1. 以少打多：所有类型统一按「人数差」衰减本人责任（敌方参与人数 − 我方在场人数 + 1，
+ *    3 包 1 起），否则后期边路被 4 包 1 会落进「孤立」吃满全责，和被对位单杀同罪。
+ *    2026-11-12 起团战 / 队友先崩也按人数差衰减：原先它们被排除在外，4 包 2 若换掉对面一人
+ *    凑满 3 个击杀就成了「团战」、减责消失，换到人头反而背锅更多；人数相当的团战下标 ≤2 自然不衰减。
  * 2. 搭档缺位：职责表（LANE_PARTNER_DUTIES）里「该在身边」的搭档不在时，分走一份责任，
  *    死者相应减责。目前只配了对线期辅助 → 下路：保护 AD 是辅助的本职，
  *    中野游走抓人是本职、不在此列。
@@ -70,13 +72,14 @@ const SHUTDOWN_UNIT = 300
 const ROAMERS = new Set(['JUNGLE', 'MIDDLE', 'UTILITY'])
 
 /**
- * 以少打多的本人责任系数，下标 = 参与击杀的敌方英雄数（击杀者 + 助攻）。
- * 1~2 人不衰减（2 人是普通 gank，「被抓」0.5 已经折算过）；超出表长取最后一项。
- * 不降到 0：被包也有站位、视野、带线时机的问题。
+ * 以少打多的本人责任系数，下标 = 人数差 + 1 = 敌方参与人数 − 我方在场人数 + 1。
+ * 4 包 1 → 4（0.6），4 包 2 → 3（0.75），人数相当 → ≤2 不衰减（2 包 1 是普通 gank，「被抓」0.5 已折算）；
+ * 超出表长取最后一项。不降到 0：被包也有站位、视野、带线时机的问题。
  */
 export const OUTNUMBERED_FACTOR = [1, 1, 1, 0.75, 0.6, 0.5]
-/** 参与衰减的阵亡类型：团战 / 队友先崩本身就是多打多，人数说明不了谁吃亏 */
-const OUTNUMBER_KINDS: ReadonlySet<DeathKind> = new Set<DeathKind>(['ganked', 'isolated', 'other'])
+/** 我方在场：死者阵亡前后此时间窗、此距离内有交互（阵亡 / 击杀 / 助攻）的队友才算 */
+const ALLY_PRESENT_WINDOW_MS = 30000
+const ALLY_PRESENT_DISTANCE = 3000
 
 /**
  * 搭档职责：对线期 `ward` 位置阵亡时，`guardian` 位置的队友不在身边就分担一份责任。
@@ -112,6 +115,7 @@ export const TRADE_MIN_ENEMIES = 3
  * 单次阵亡的归责结果
  * @property responsibility - 死者本人责任（已含以少打多与搭档缺位的修正）
  * @property enemies - 参与击杀的敌方英雄数（击杀者 + 助攻；塔/小兵终结时只算助攻）
+ * @property allies - 我方在场人数（含死者本人），与 enemies 一起决定以少打多衰减
  * @property absentPartner - 该在身边却不在的搭档及其分担的责任（与 responsibility 之和 = 责任池）；无则缺省
  * @property consequence - 后果 = 1 + 死后 60 秒己方丢失资源/建筑数 + 送出终结赏金/300；
  *   牵制换资源时丢失数改为「丢失 − 换到」的净值（不低于 0）
@@ -227,6 +231,22 @@ export function attributeDeaths(input: CardInput): AttributedDeath[] {
       })
     ).size
 
+  /**
+   * 我方在场人数（含死者）：前后 30 秒、3000 码内阵亡或拿到击杀/助攻的队友。
+   * 只认带精确坐标的事件，不用 60 秒一帧的插值；没打出交互的队友不计——宁可少算人数，不多减责。
+   */
+  const alliesPresent = (e: Kill, victim: RosterPlayer): number => {
+    const present = new Set<number>([victim.participantId])
+    for (const k of kills) {
+      if (Math.abs(k.timestamp - e.timestamp) > ALLY_PRESENT_WINDOW_MS) continue
+      if (Math.hypot(k.x - e.x, k.y - e.y) > ALLY_PRESENT_DISTANCE) continue
+      for (const id of [k.victimId, k.killerId, ...k.assisting]) {
+        if (byId.get(id)?.teamId === victim.teamId) present.add(id)
+      }
+    }
+    return present.size
+  }
+
   /** 职责表命中且搭档不在身边时，返回该搭档 */
   const absentGuardian = (
     e: Kill,
@@ -263,9 +283,9 @@ export function attributeDeaths(input: CardInput): AttributedDeath[] {
     const enemies = enemyCount(e, victim)
     // 责任池：类型 × 以少打多 × 位置系数；搭档缺位只在池内分配，死者 + 搭档 = 池
     let pool = RESPONSIBILITY[kind]
-    if (OUTNUMBER_KINDS.has(kind)) {
-      pool *= OUTNUMBERED_FACTOR[Math.min(enemies, OUTNUMBERED_FACTOR.length - 1)]
-    }
+    const allies = alliesPresent(e, victim)
+    const gap = Math.max(0, enemies - allies + 1)
+    pool *= OUTNUMBERED_FACTOR[Math.min(gap, OUTNUMBERED_FACTOR.length - 1)]
     if (hasLanes && kind !== 'solo') pool *= ROLE_DEATH_FACTOR[victim.teamPosition] ?? 1
     pool = round2(pool)
     const absent = absentGuardian(e, victim, enemies)
@@ -279,6 +299,7 @@ export function attributeDeaths(input: CardInput): AttributedDeath[] {
       kind,
       responsibility,
       enemies,
+      allies,
       ...(absent
         ? {
             absentPartner: {

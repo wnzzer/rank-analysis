@@ -23,6 +23,7 @@ describe('snapshot scoring inputs', () => {
         kind: 'solo',
         responsibility: 1,
         enemies: 1,
+        allies: 1,
         consequence: 1
       }
     ])

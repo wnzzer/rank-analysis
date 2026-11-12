@@ -42,6 +42,7 @@ describe('attributeDeaths', () => {
         kind: 'solo',
         responsibility: 1,
         enemies: 1,
+        allies: 1,
         consequence: 1
       }
     ])
@@ -204,7 +205,7 @@ describe('attributeDeaths', () => {
     })
   })
 
-  describe('以少打多：按参与击杀的敌方人数衰减本人责任', () => {
+  describe('以少打多：按人数差（敌方参与 − 我方在场）衰减本人责任', () => {
     it('对线期被 3 人包（被抓）→ 0.5 × 0.75，辅助在身边不追责', () => {
       const out = attributeDeaths(
         input({
@@ -236,7 +237,7 @@ describe('attributeDeaths', () => {
       expect(out[0].enemies).toBe(3)
     })
 
-    it('团战阵亡不按人数衰减', () => {
+    it('人数相当的团战（4 打 3）不衰减', () => {
       const near = [1, 2, 3, 4, 5].map(id => pf(id, { x: 7000, y: 7000 }))
       const out = attributeDeaths(
         input({
@@ -248,7 +249,34 @@ describe('attributeDeaths', () => {
           ]
         })
       )
-      expect(out[0]).toMatchObject({ kind: 'fight', enemies: 4, responsibility: 0.6 })
+      expect(out[0]).toMatchObject({ kind: 'fight', enemies: 4, allies: 3, responsibility: 0.6 })
+    })
+
+    describe('后期 4 包 2（AD + 辅助被抓）', () => {
+      const pos = [pf(4, { x: 7000, y: 7000 }), pf(5, { x: 7200, y: 7000 })]
+      const frames = [frame(19 * MIN, pos), frame(21 * MIN, pos)]
+      const lost = [
+        kill(20 * MIN, 4, 6, [7, 8, 9], 7000, 7000),
+        kill(20 * MIN + 3000, 5, 7, [6, 8, 9], 7200, 7000)
+      ]
+
+      it('我方在场 2 人：按差 2 人衰减（×0.75），比 4 包 1 的 ×0.6 减得少', () => {
+        const out = attributeDeaths(input({ frames, events: lost }))
+        expect(out[0]).toMatchObject({ enemies: 4, allies: 2 })
+        expect(out[0].responsibility).toBeCloseTo(0.8 * 0.75)
+      })
+
+      it('换掉对面一人凑成「团战」后，责任不再比没换到时更重', () => {
+        const noTrade = attributeDeaths(input({ frames, events: lost }))
+        const traded = attributeDeaths(
+          input({ frames, events: [...lost, kill(20 * MIN + 1500, 9, 4, [5], 7100, 7000)] })
+        )
+        const adNo = noTrade.find(d => d.victimId === 4)!
+        const adTraded = traded.find(d => d.victimId === 4)!
+        expect(adTraded.kind).toBe('fight')
+        expect(adTraded.allies).toBe(2)
+        expect(adTraded.responsibility).toBeLessThanOrEqual(adNo.responsibility)
+      })
     })
   })
 
