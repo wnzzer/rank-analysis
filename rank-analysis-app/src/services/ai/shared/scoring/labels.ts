@@ -1,7 +1,7 @@
 /**
  * 减责证据与标签判定（spec §2「减责证据」、§3「总分与标签」，2026-11-07 用户确认的拆分）。
  *
- * 按顺序取第一个命中：尽力（胜方 ≥P80）→ 被连累（败方且 ≥P70，或本队唯一最高且 ≥P40；不需要证据）→
+ * 按顺序取第一个命中：Carry（胜方本队唯一最高且 ≥P90）→ 尽力（胜方 ≥P80）→ 被连累（败方且 ≥P70，或本队唯一最高且 ≥P40；不需要证据）→
  * 被爆（<P70、对线或死亡质量 ≤P10、有证据）→ 犯罪（败方、无证据；有时间线 ≤P30，无时间线 ≤P20；
  * 且须是本队最低分，非最低分要 ≤P10 才算）→
  * 缚地灵（团战 ≤P10 且发育 ≥P60）→ 正常。
@@ -31,6 +31,12 @@ export const CRIME_PERCENTILE_NO_TIMELINE = 20
  * 而玩家心里该背锅的通常只有一个；本队最低分仍按犯罪线，其余人要明显拉胯（≤P10）才连坐。
  */
 export const CRIME_PERCENTILE_NOT_WORST = 10
+
+/**
+ * Carry 线（2026-11-14 用户要求加赞扬标签）：胜方本队唯一最高分，且总分 ≥ 同位置该百分位。
+ * 每局最多一人；「尽力」原本占约 17%、每局 1~2 人，太常见算不上夸奖。
+ */
+export const CARRY_PERCENTILE = 90
 
 /** @property reasons - 成立的证据（中文人话，喂模型用；不含分数，避免模型抄分数） */
 export interface Mitigation {
@@ -102,6 +108,7 @@ export function decideLabel(i: LabelInput): VerdictLabel {
   }
   const p70 = decileAt(t.total, 70)
 
+  if (i.win && i.teamBest && i.total >= decileAt(t.total, CARRY_PERCENTILE)) return 'Carry'
   if (i.win && i.total >= decileAt(t.total, 80)) return '尽力'
   if (!i.win && (i.total >= p70 || (i.teamBest && i.total >= decileAt(t.total, 40))))
     return '被连累'

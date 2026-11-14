@@ -267,3 +267,19 @@ describe('犯罪只追主责（2026-11-14 真机标注）', () => {
     expect(decideLabel({ ...nt, total: -0.8 })).toBe('犯罪')
   })
 })
+
+describe('Carry（赞扬标签）', () => {
+  it('胜方本队唯一最高且 ≥ P90 → Carry', () => {
+    expect(decideLabel({ ...base, win: true, teamBest: true, total: 0.8 })).toBe('Carry')
+    expect(decideLabel({ ...base, win: true, teamBest: true, total: 1.5 })).toBe('Carry')
+  })
+  it('不是本队最高：再高也只是尽力', () => {
+    expect(decideLabel({ ...base, win: true, teamBest: false, total: 1.5 })).toBe('尽力')
+  })
+  it('本队最高但没到 P90：尽力', () => {
+    expect(decideLabel({ ...base, win: true, teamBest: true, total: 0.6 })).toBe('尽力')
+  })
+  it('败方再高也不是 Carry', () => {
+    expect(decideLabel({ ...base, win: false, teamBest: true, total: 1.5 })).toBe('被连累')
+  })
+})

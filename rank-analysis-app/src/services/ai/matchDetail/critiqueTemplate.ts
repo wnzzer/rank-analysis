@@ -21,10 +21,13 @@ const NEGATIVE_LABELS: ReadonlySet<VerdictLabel> = new Set<VerdictLabel>([
 
 const CRIMINAL_LABELS: ReadonlySet<VerdictLabel> = new Set<VerdictLabel>(['犯罪'])
 
-const POSITIVE_LABELS: ReadonlySet<VerdictLabel> = new Set<VerdictLabel>(['尽力'])
+const POSITIVE_LABELS: ReadonlySet<VerdictLabel> = new Set<VerdictLabel>(['Carry', '尽力'])
 
 export function renderFallbackCritique(attribution: AttributionResult): string {
-  const efforts = attribution.verdicts.filter(v => POSITIVE_LABELS.has(v.label))
+  // Carry 排在「谁尽力了」第一位
+  const efforts = attribution.verdicts
+    .filter(v => POSITIVE_LABELS.has(v.label))
+    .sort((a, b) => Number(b.label === 'Carry') - Number(a.label === 'Carry'))
   const criminals = attribution.verdicts.filter(v => CRIMINAL_LABELS.has(v.label))
   const negatives = attribution.verdicts.filter(v => NEGATIVE_LABELS.has(v.label))
 
