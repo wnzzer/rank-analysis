@@ -82,13 +82,9 @@ const emit = defineEmits<{
 .segmented-item.active {
   color: var(--text-primary);
   font-weight: var(--font-weight-medium, 500);
-  /* 深色：面板与 --bg-elevated 几乎同色，用半透明白抬起；浅色见下方覆盖 */
-  background: rgba(255, 255, 255, 0.09);
+  background: var(--segment-active-bg);
   box-shadow: var(--shadow-card);
   cursor: default;
-}
-:global(.theme-light) .segmented-item.active {
-  background: var(--bg-elevated);
 }
 .segmented-item:disabled {
   opacity: 0.45;

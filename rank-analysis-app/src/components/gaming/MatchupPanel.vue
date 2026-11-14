@@ -360,13 +360,10 @@ onMounted(async () => {
 }
 /* 选中敌方：中性抬起，不用主色描边（与分段切换同一套视觉） */
 .enemy-choice[aria-pressed='true'] {
-  background: rgba(255, 255, 255, 0.09);
+  background: var(--segment-active-bg);
   border-color: var(--border-subtle);
-  color: var(--text-primary);
-}
-:global(.theme-light) .enemy-choice[aria-pressed='true'] {
-  background: var(--bg-elevated);
   box-shadow: var(--shadow-card);
+  color: var(--text-primary);
 }
 .enemy-choice:hover:not(:disabled) {
   background: var(--bg-elevated);
