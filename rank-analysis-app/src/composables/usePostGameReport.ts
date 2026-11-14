@@ -46,8 +46,50 @@ const loading = ref(false)
 /** 正在加载 / 已加载的 gameId，防同局重复触发（PreEndOfGame 与 EndOfGame 都会来） */
 let currentGameId = 0
 let token = 0
+/** 自己的 puuid 取值函数：在用到时再读（刚启动时可能还没拿到，不能在加载开始时就定死） */
+let myPuuid: () => string = () => ''
+
+/**
+ * 取自己的 puuid：优先用页面已有的；页面刚加载、连接状态还没推过来时直接问后端。
+ * 拿不到返回空串（战报照常显示，只是「我」的视角与 LP 缺失）。
+ */
+async function resolvePuuid(): Promise<string> {
+  const known = myPuuid()
+  if (known) return known
+  try {
+    return (await invoke<{ puuid: string }>('get_my_summoner')).puuid ?? ''
+  } catch {
+    return ''
+  }
+}
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+
+/**
+ * 把 get_game_by_id 的整局数据改成「以我为视角」的形状：复盘 / 详情窗口约定
+ * `participantIdentities[0]` 是当前玩家（战绩列表的局就是这样），而整局详情按 1~10 排，
+ * 不改的话「我」会变成 1 号位。完整 10 人放进 gameDetail，名字 / 位置映射不受影响。
+ * @param puuid - 自己的 puuid；找不到自己时原样返回
+ */
+export function asMyGame(game: Game, puuid: string): Game {
+  const all = game.gameDetail?.participantIdentities?.length
+    ? game.gameDetail.participantIdentities
+    : game.participantIdentities
+  if (!puuid || game.participantIdentities?.[0]?.player?.puuid === puuid) return game
+  const mine = all?.find(i => i.player?.puuid === puuid)
+  if (!mine) return game
+  return {
+    ...game,
+    gameDetail: {
+      ...game.gameDetail,
+      participants: game.gameDetail?.participants?.length
+        ? game.gameDetail.participants
+        : game.participants,
+      participantIdentities: all
+    },
+    participantIdentities: [mine]
+  }
+}
 
 /** 按固定间隔重试，直到拿到非空结果或次数用完 */
 async function poll<T>(fn: () => Promise<T>, isStale: () => boolean): Promise<T | null> {
@@ -64,7 +106,8 @@ async function poll<T>(fn: () => Promise<T>, isStale: () => boolean): Promise<T 
 }
 
 /** 取本局 LP 变化与隐藏分（隐藏分记录可能比对局数据晚到，事件到达时会再调一次） */
-async function refreshLp(puuid: string): Promise<void> {
+async function refreshLp(known?: string): Promise<void> {
+  const puuid = known || (await resolvePuuid())
   const r = report.value
   const queue = r ? REPORT_QUEUES[r.game.queueId] : undefined
   if (!r || !queue || !puuid) return
@@ -74,7 +117,7 @@ async function refreshLp(puuid: string): Promise<void> {
   if (report.value?.game.gameId === r.game.gameId) report.value = { ...r, lpDelta, mmr }
 }
 
-async function load(puuid: string): Promise<void> {
+async function load(): Promise<void> {
   const t = ++token
   const stale = () => t !== token
   loading.value = true
@@ -87,7 +130,9 @@ async function load(puuid: string): Promise<void> {
     currentGameId = ended.gameId
     const game = await poll(() => invoke<Game>('get_game_by_id', { gameId: ended.gameId }), stale)
     if (!game || stale()) return
-    report.value = { game, lpDelta: null, mmr: null }
+    const puuid = await resolvePuuid()
+    if (stale()) return
+    report.value = { game: asMyGame(game, puuid), lpDelta: null, mmr: null }
     dismissed.value = false
     await refreshLp(puuid)
   } finally {
@@ -113,6 +158,7 @@ export function usePostGameReport(
   dismissed: Ref<boolean>
   dismiss: () => void
 } {
+  myPuuid = puuid
   watch(
     phase,
     p => {
@@ -129,14 +175,23 @@ export function usePostGameReport(
         // 已在加载，或这一局的战报已经有了（PreEndOfGame 与 EndOfGame 会各触发一次）
         if (loading.value) return
         if (report.value && report.value.game.gameId === currentGameId) return
-        void load(puuid())
+        void load()
       }
     },
     { immediate: true }
   )
 
+  // 刚启动时 puuid 可能还没拿到：拿到后补齐「我」的视角与 LP / 隐藏分
+  watch(puuid, id => {
+    const r = report.value
+    if (!id || !r) return
+    const fixed = asMyGame(r.game, id)
+    if (fixed !== r.game) report.value = { ...r, game: fixed }
+    void refreshLp(id)
+  })
+
   if (!unlisten) {
-    listen(HIDDEN_MMR_UPDATED_EVENT, () => void refreshLp(puuid()))
+    listen(HIDDEN_MMR_UPDATED_EVENT, () => void refreshLp())
       .then(fn => (unlisten = fn))
       .catch(() => {
         // 非 Tauri 环境（单测）没有事件系统

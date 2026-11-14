@@ -3,7 +3,13 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick, ref } from 'vue'
-import { __resetPostGameReport, POLL_INTERVAL_MS, usePostGameReport } from './usePostGameReport'
+import type { Game } from '@renderer/types/domain/match'
+import {
+  __resetPostGameReport,
+  asMyGame,
+  POLL_INTERVAL_MS,
+  usePostGameReport
+} from './usePostGameReport'
 
 const calls = vi.hoisted(() => ({ ended: 0, game: 0, endedFailFirst: 0 }))
 
@@ -14,6 +20,7 @@ vi.mock('@tauri-apps/api/core', () => ({
       if (calls.ended <= calls.endedFailFirst) throw new Error('eog not ready')
       return { gameId: 777, queueType: 'RANKED_SOLO_5x5' }
     }
+    if (cmd === 'get_my_summoner') return { puuid: 'me' }
     if (cmd === 'get_game_by_id') {
       calls.game++
       return { gameId: args!.gameId, queueId: 420, platformId: 'TJ100', gameDuration: 1800 }
@@ -36,11 +43,11 @@ vi.mock('@renderer/services/hiddenMmr', () => ({
 const phase = ref('InProgress')
 const queue = ref(420)
 
-function setup() {
+function setup(puuid = 'me') {
   return usePostGameReport(
     () => phase.value,
     () => queue.value,
-    () => 'me'
+    () => puuid
   )
 }
 
@@ -92,6 +99,13 @@ describe('usePostGameReport', () => {
     expect(calls.game).toBe(1)
   })
 
+  it('页面还没拿到 puuid 时向后端要，照样取到本局 LP', async () => {
+    const r = setup('')
+    phase.value = 'EndOfGame'
+    await settle()
+    expect(r.report.value?.lpDelta).toBe(21)
+  })
+
   it('非排位不出战报', async () => {
     queue.value = 450
     const r = setup()
@@ -114,5 +128,32 @@ describe('usePostGameReport', () => {
     await nextTick()
     expect(r.report.value).toBeNull()
     expect(r.dismissed.value).toBe(false)
+  })
+})
+
+describe('asMyGame', () => {
+  const ids = [1, 2, 3].map(n => ({
+    participantId: n,
+    player: { puuid: `p${n}`, gameName: `n${n}`, tagLine: 't' }
+  }))
+  const parts = [1, 2, 3].map(n => ({ participantId: n }))
+  const game = {
+    gameId: 1,
+    participantIdentities: ids,
+    participants: parts,
+    gameDetail: undefined
+  } as unknown as Game
+
+  it('整局数据按 1~N 排时，把我放到 participantIdentities[0]，完整名单进 gameDetail', () => {
+    const g = asMyGame(game, 'p3')
+    expect(g.participantIdentities.map(i => i.player.puuid)).toEqual(['p3'])
+    expect(g.gameDetail.participantIdentities).toBe(ids)
+    expect(g.gameDetail.participants).toBe(parts)
+  })
+  it('我已经在首位、找不到我、或 puuid 为空时原样返回', () => {
+    const once = asMyGame(game, 'p2')
+    expect(asMyGame(once, 'p2')).toBe(once)
+    expect(asMyGame(game, 'nobody')).toBe(game)
+    expect(asMyGame(game, '')).toBe(game)
   })
 })
