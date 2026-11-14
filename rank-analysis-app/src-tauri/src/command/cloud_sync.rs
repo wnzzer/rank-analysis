@@ -187,26 +187,20 @@ async fn pull_payloads(puuid: &str, data_type: &str) -> Result<Vec<serde_json::V
     Ok(rows.into_iter().map(|r| r.payload).collect())
 }
 
-/// 把 payload upsert 到本设备的 (owner_id, puuid, data_type) 行（notes/config 共用）
-async fn push_payload(
-    puuid: &str,
-    data_type: &str,
-    payload: serde_json::Value,
-) -> Result<(), String> {
-    validate_puuid(puuid)?;
+/// 带匿名会话鉴权的 PostgREST upsert（POST + merge-duplicates，不回传行）。
+///
+/// 云同步与对局标注（`match_label`）共用：会话获取 / 刷新 / 重注册都在 [`ensure_session`] 里。
+///
+/// # 参数
+/// - `path_query`: `rest/v1/` 之后的部分，如 `"match_labels?on_conflict=owner_id,game_id"`
+/// - `body`: 行数组或单行
+pub(crate) async fn post_rest(path_query: &str, body: serde_json::Value) -> Result<(), String> {
     let session = ensure_session().await?;
-    let url = format!("{SUPABASE_URL}/rest/v1/sync_data?on_conflict=owner_id,puuid,data_type");
-    let body = json!([{
-        "owner_id": session.user_id,
-        "puuid": puuid,
-        "data_type": data_type,
-        "payload": payload,
-    }]);
     let resp = http()
-        .post(url)
+        .post(format!("{SUPABASE_URL}/rest/v1/{path_query}"))
         .header("apikey", SUPABASE_PUBLISHABLE_KEY)
         .header("Authorization", format!("Bearer {}", session.access_token))
-        .header("Prefer", "resolution=merge-duplicates")
+        .header("Prefer", "resolution=merge-duplicates,return=minimal")
         .json(&body)
         .send()
         .await
@@ -215,6 +209,24 @@ async fn push_payload(
         return Err(format!("推送失败: HTTP {}", resp.status()));
     }
     Ok(())
+}
+
+/// 把 payload upsert 到本设备的 (owner_id, puuid, data_type) 行（notes/config 共用）
+async fn push_payload(
+    puuid: &str,
+    data_type: &str,
+    payload: serde_json::Value,
+) -> Result<(), String> {
+    validate_puuid(puuid)?;
+    // 先取会话拿 user_id：sync_data 的 owner_id 由客户端显式写入
+    let session = ensure_session().await?;
+    let body = json!([{
+        "owner_id": session.user_id,
+        "puuid": puuid,
+        "data_type": data_type,
+        "payload": payload,
+    }]);
+    post_rest("sync_data?on_conflict=owner_id,puuid,data_type", body).await
 }
 
 /// 拉取云端某 puuid 下所有设备的备注 payload 列表（前端负责合并）

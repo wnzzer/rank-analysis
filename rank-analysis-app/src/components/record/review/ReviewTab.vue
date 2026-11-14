@@ -93,6 +93,17 @@
         @overview="ai.ensureOverview()"
         @rerun="ai.runCurrentAiAnalysis()"
       />
+
+      <!-- 玩家标注：有基准评分时才有「模型结论」可对比；:key 让换对局时重建卡片状态 -->
+      <LabelCard
+        v-if="m.hasBaseline"
+        :key="game.gameId"
+        class="review-box"
+        :players="labelPlayers"
+        :game-id="game.gameId"
+        :platform="game.platformId"
+        :queue-id="game.queueId"
+      />
     </template>
   </div>
 </template>
@@ -117,6 +128,7 @@ import DeathList from './DeathList.vue'
 import DeathMap from './DeathMap.vue'
 import GoldCurve from './GoldCurve.vue'
 import ItemTimeline from './ItemTimeline.vue'
+import LabelCard from './LabelCard.vue'
 import MatchupBoard from './MatchupBoard.vue'
 import PlayerScoreCard from './PlayerScoreCard.vue'
 
@@ -150,6 +162,11 @@ const timelineNotice = computed(() => {
   const cause = timelineStatus.value === 'disabled' ? '已在设置中关闭时间线' : '本局时间线不可用'
   return `${cause}：经济曲线、阵亡地图与出装对比已隐藏，阵亡无法细分责任。`
 })
+
+/** 标注卡用的 10 人（按 participantId 排序，蓝方 1~5 在前） */
+const labelPlayers = computed<PlayerView[]>(() =>
+  m.value ? Object.values(m.value.players).sort((a, b) => a.participantId - b.participantId) : []
+)
 
 const winnerText = computed(() => {
   const w = m.value?.header.winner

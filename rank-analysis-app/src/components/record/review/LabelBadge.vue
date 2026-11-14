@@ -5,7 +5,7 @@
 <script setup lang="ts">
 /**
  * 评分标签徽章。配色与 AI 锐评章节一致（styles/ai-report.css）：
- * 尽力 = 胜利绿（谁尽力了），被连累/被爆 = 琥珀（谁被打爆/被连累），犯罪/缚地灵 = 失败红（谁要背锅），
+ * Carry = 金色（谁尽力了，排第一），尽力 = 胜利绿（谁尽力了），被连累/被爆 = 琥珀（谁被打爆/被连累），犯罪/缚地灵 = 失败红（谁要背锅），
  * 正常 = 中性灰。
  * @property label - 评分标签
  */
@@ -15,7 +15,8 @@ import type { VerdictLabel } from '@renderer/services/ai/matchDetail/types'
 const props = defineProps<{ label: VerdictLabel }>()
 
 /** 标签 → 色调 */
-const TONE: Record<VerdictLabel, 'good' | 'warn' | 'bad' | 'neutral'> = {
+const TONE: Record<VerdictLabel, 'carry' | 'good' | 'warn' | 'bad' | 'neutral'> = {
+  Carry: 'carry',
   尽力: 'good',
   被连累: 'warn',
   被爆: 'warn',
@@ -36,6 +37,11 @@ const tone = computed(() => TONE[props.label])
   font-weight: 600;
   line-height: 16px;
   white-space: nowrap;
+}
+
+.review-label--carry {
+  color: var(--accent-gold-deep);
+  background: color-mix(in srgb, var(--accent-gold) 20%, transparent);
 }
 
 .review-label--good {

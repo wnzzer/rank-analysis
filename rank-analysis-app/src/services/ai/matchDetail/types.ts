@@ -7,7 +7,7 @@
 import type { DeathKind } from '../shared/scoring/deathAttribution'
 import type { ScoreLevel } from './plainScore'
 
-export type VerdictLabel = '尽力' | '犯罪' | '被爆' | '被连累' | '缚地灵' | '正常'
+export type VerdictLabel = 'Carry' | '尽力' | '犯罪' | '被爆' | '被连累' | '缚地灵' | '正常'
 
 export type MitigatingFactorKind = 'off-role' | 'first-time-champion' | 'team-collapse' | 'targeted'
 

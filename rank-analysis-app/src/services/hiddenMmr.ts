@@ -17,6 +17,8 @@ export type RankedQueueType = 'RANKED_SOLO_5x5' | 'RANKED_FLEX_SR'
  * @property doubled - 判定为双倍胜点，估算时按一半计；旧版后端不下发时视为 false
  */
 export interface HiddenMmrRecentDelta {
+  /** 该局 gameId（赛后战报按它取本局 LP 变化） */
+  gameId: number
   delta: number
   source: 'notification' | 'snapshot'
   doubled?: boolean

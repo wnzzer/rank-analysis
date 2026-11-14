@@ -316,7 +316,7 @@ fn effective_current(
 ///
 /// 先试实时统计 block；结算页后期它会 404，此时改用 `eog-stats-block`（可能是上一局）。
 /// 两者都失败才返回合并了两条信息的错误。
-async fn fetch_current_game() -> Result<(i64, String, bool), String> {
+pub(crate) async fn fetch_current_game() -> Result<(i64, String, bool), String> {
     match EogStatsBlock::get().await {
         Ok(b) => Ok((b.game_id, b.queue_type, false)),
         Err(e1) => EogSummary::get()

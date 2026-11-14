@@ -12,6 +12,7 @@ const PERSON_SECTIONS = ['谁尽力了', '谁要背锅', '谁被打爆 / 被连�
 
 /** label → 应归属的人物章节标题(正常 = 不上榜) */
 const SECTION_OF_LABEL: Record<string, string> = {
+  Carry: '谁尽力了',
   尽力: '谁尽力了',
   犯罪: '谁要背锅',
   缚地灵: '谁要背锅',
