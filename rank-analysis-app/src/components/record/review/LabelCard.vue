@@ -9,13 +9,14 @@
  * @property gameId / platform / queueId - 对局标识
  */
 import { computed, onMounted, ref } from 'vue'
-import { NButton, NModal } from 'naive-ui'
+import { NButton, NInput, NModal } from 'naive-ui'
 import { getVersion } from '@tauri-apps/api/app'
 import { useAssetUrl } from '@renderer/composables/useAssetUrl'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import type { PlayerView } from '@renderer/services/ai/review/buildReviewModel'
 import { BASELINE } from '@renderer/services/ai/shared/scoring/data'
 import {
+  MATCH_LABEL_NOTE_MAX,
   MATCH_LABEL_SHARE_KEY,
   buildModelSnapshot,
   compareText,
@@ -42,6 +43,8 @@ const blue = computed(() => props.players.filter(p => p.teamId === 100))
 const red = computed(() => props.players.filter(p => p.teamId !== 100))
 
 const picks = ref<Record<Kind, number | null>>({ key: null, blame: null })
+/** 可选说明 */
+const note = ref('')
 const phase = ref<'edit' | 'done'>('edit')
 const saving = ref(false)
 /** 分享状态：shared = 已上传；local = 未同意分享；failed = 上传失败已存本地 */
@@ -79,6 +82,7 @@ onMounted(async () => {
   const saved = await getMatchLabel(props.gameId)
   if (!saved) return
   picks.value = { key: saved.keyPick?.slot ?? null, blame: saved.blamePick?.slot ?? null }
+  note.value = saved.note ?? ''
   phase.value = 'done'
   const share = await getConfigByIpc<boolean>(MATCH_LABEL_SHARE_KEY)
   if (share !== true) shareState.value = 'local'
@@ -125,6 +129,7 @@ async function persist(share: boolean): Promise<void> {
     keyPick: byPid(picks.value.key) ? toPick(byPid(picks.value.key)!) : null,
     blamePick: byPid(picks.value.blame) ? toPick(byPid(picks.value.blame)!) : null,
     labelerSide: me ? (me.win ? 'win' : 'lose') : null,
+    note: note.value.trim() || null,
     model: buildModelSnapshot(props.players),
     modelVersion: await modelVersion()
   }
@@ -192,6 +197,17 @@ const shareText = computed(() => {
           </template>
         </div>
       </div>
+      <n-input
+        v-model:value="note"
+        type="textarea"
+        size="small"
+        class="label-note"
+        :maxlength="MATCH_LABEL_NOTE_MAX"
+        show-count
+        :autosize="{ minRows: 1, maxRows: 3 }"
+        placeholder="可选：说说理由，比如「下路被克制」「打野一直没来」"
+        data-test="label-note"
+      />
       <div class="label-card-foot">
         <span v-if="saveError" class="label-error">{{ saveError }}</span>
         <n-button
@@ -220,6 +236,9 @@ const shareText = computed(() => {
           >{{ r.text }}<template v-if="r.agree"> ✓</template></span
         >
       </div>
+      <div v-if="note.trim()" class="label-note-done" data-test="label-note-done">
+        <span class="label-row-title">📝 说明</span><span>{{ note.trim() }}</span>
+      </div>
       <div class="label-card-hint" data-test="label-share">{{ shareText }} · 模型判断仅供参考</div>
     </template>
 
@@ -235,8 +254,8 @@ const shareText = computed(() => {
       @negative-click="answerConsent(false)"
     >
       <p class="label-consent-text">
-        只上传：对局 ID、你选的英雄与位置、当时模型的评分。<br />
-        不上传召唤师名、账号或任何个人信息。可随时在设置里关闭。
+        只上传：对局 ID、你选的英雄与位置、你写的说明（如有）、当时模型的评分。<br />
+        不上传召唤师名、账号或任何个人信息（说明里也请不要写）。可随时在设置里关闭。
       </p>
     </n-modal>
   </section>
@@ -333,6 +352,16 @@ const shareText = computed(() => {
   border-radius: var(--radius-xs);
   background: var(--semantic-win);
   color: var(--bg-base);
+}
+.label-note {
+  max-width: 560px;
+}
+.label-note-done {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-12);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
 }
 .label-card-foot {
   display: flex;

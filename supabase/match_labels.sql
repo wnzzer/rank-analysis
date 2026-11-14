@@ -26,6 +26,10 @@ create table if not exists public.match_labels (
   check (model is null or pg_column_size(model) < 16384)
 );
 
+-- 2026-11-14 追加：玩家可选填写的说明（如「下路被克制」「打野没来」），最多 200 字
+alter table public.match_labels
+  add column if not exists note text check (note is null or char_length(note) <= 200);
+
 -- 改判时刷新 updated_at
 create or replace function public.match_labels_touch() returns trigger
 language plpgsql set search_path = '' as $$

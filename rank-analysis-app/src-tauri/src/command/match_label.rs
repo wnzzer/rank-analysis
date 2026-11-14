@@ -17,6 +17,9 @@ use super::cloud_sync::post_rest;
 /// 本地最多保留的标注条数（按更新时间保留最新的）
 const MAX_LOCAL_LABELS: usize = 500;
 
+/// 可选说明的最大字数（与表上 check 约束一致）
+pub const MAX_NOTE_CHARS: usize = 200;
+
 /// 被选中的一名玩家
 ///
 /// - `slot`: participantId（1~10）
@@ -33,6 +36,7 @@ pub struct Pick {
 /// 一局的标注（本地存储与前端交互的形状）
 ///
 /// - `labeler_side`: 标注人所在方 `win` / `lose`；观战他人对局等拿不到时为 None
+/// - `note`: 玩家可选填写的说明（如「下路被克制」），最多 [`MAX_NOTE_CHARS`] 字
 /// - `model`: 提交时的模型快照（10 人总分 / 标签与模型选择）；时间线未就绪时为 None
 /// - `uploaded`: 是否已成功上传（本地字段，不上传）
 /// - `updated_at`: 本地最后修改时间（unix 毫秒，本地字段）
@@ -48,6 +52,8 @@ pub struct MatchLabel {
     pub blame_pick: Option<Pick>,
     #[serde(default)]
     pub labeler_side: Option<String>,
+    #[serde(default)]
+    pub note: Option<String>,
     #[serde(default)]
     pub model: Option<Value>,
     pub model_version: String,
@@ -126,6 +132,15 @@ fn valid_platform(p: &str) -> bool {
             .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit())
 }
 
+/// 说明去首尾空白、截到 [`MAX_NOTE_CHARS`] 字；空串视为没填
+pub fn clean_note(note: Option<&str>) -> Option<String> {
+    let t = note?.trim();
+    if t.is_empty() {
+        return None;
+    }
+    Some(t.chars().take(MAX_NOTE_CHARS).collect())
+}
+
 /// 校验并生成上传行（列名与 `match_labels` 表一致）。
 ///
 /// # 错误
@@ -145,6 +160,7 @@ pub fn upload_body(label: &MatchLabel) -> Result<Value, String> {
         "key_pick": label.key_pick,
         "blame_pick": label.blame_pick,
         "labeler_side": label.labeler_side,
+        "note": clean_note(label.note.as_deref()),
         "model": label.model,
         "model_version": label.model_version,
     }))
@@ -175,6 +191,7 @@ pub async fn save_match_label(mut label: MatchLabel, share: bool) -> Result<Save
     if label.key_pick.is_none() && label.blame_pick.is_none() {
         return Err("至少选择一项".to_string());
     }
+    label.note = clean_note(label.note.as_deref());
     label.updated_at = now_ms();
     label.uploaded = false;
     let mut result = SaveResult {
@@ -270,6 +287,7 @@ mod tests {
             key_pick: Some(pick(1)),
             blame_pick: None,
             labeler_side: Some("win".to_string()),
+            note: None,
             model: None,
             model_version: "test".to_string(),
             uploaded: false,
@@ -333,6 +351,7 @@ mod tests {
                 "labeler_side",
                 "model",
                 "model_version",
+                "note",
                 "platform",
                 "queue_id"
             ]
@@ -340,6 +359,24 @@ mod tests {
         let text = body.to_string();
         assert!(!text.contains("puuid") && !text.contains("uploaded"));
         assert_eq!(body["key_pick"]["teamId"], 100);
+    }
+
+    #[test]
+    fn should_trim_and_cap_note() {
+        assert_eq!(clean_note(None), None);
+        assert_eq!(clean_note(Some("   ")), None);
+        assert_eq!(
+            clean_note(Some("  下路被克制 ")),
+            Some("下路被克制".to_string())
+        );
+        let long = "字".repeat(MAX_NOTE_CHARS + 30);
+        assert_eq!(
+            clean_note(Some(&long)).unwrap().chars().count(),
+            MAX_NOTE_CHARS
+        );
+        let mut l = label(1, 1);
+        l.note = Some(" 打野没来 ".to_string());
+        assert_eq!(upload_body(&l).unwrap()["note"], "打野没来");
     }
 
     #[test]

@@ -104,6 +104,29 @@ describe('LabelCard', () => {
     expect(w.get('[data-test="label-share"]').text()).toContain('已分享')
   })
 
+  it('可选说明：去首尾空白后随标注提交，提交后显示；不填为 null', async () => {
+    ipc.config.set('matchLabelShare', true)
+    const w = mountCard()
+    await flushPromises()
+    await w.get(`[data-test="pick-key-${keyPid}"]`).trigger('click')
+    await w.get('[data-test="label-note"] textarea').setValue('  下路被克制  ')
+    await submitBtn(w).trigger('click')
+    await flushPromises()
+    expect(api.save.mock.calls[0][0].note).toBe('下路被克制')
+    expect(w.get('[data-test="label-note-done"]').text()).toContain('下路被克制')
+  })
+
+  it('不填说明时 note 为 null', async () => {
+    ipc.config.set('matchLabelShare', true)
+    const w = mountCard()
+    await flushPromises()
+    await w.get(`[data-test="pick-key-${keyPid}"]`).trigger('click')
+    await submitBtn(w).trigger('click')
+    await flushPromises()
+    expect(api.save.mock.calls[0][0].note).toBeNull()
+    expect(w.find('[data-test="label-note-done"]').exists()).toBe(false)
+  })
+
   it('上传失败：照常显示对比，提示已存本地', async () => {
     ipc.config.set('matchLabelShare', true)
     api.save.mockResolvedValue({ uploaded: false, error: '云端连接失败' })

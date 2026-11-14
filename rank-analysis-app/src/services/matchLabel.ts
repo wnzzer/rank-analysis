@@ -11,6 +11,9 @@ import type { PlayerView } from '@renderer/services/ai/review/buildReviewModel'
 /** 同意分享的配置键：未设置 = 未决定（首次提交时询问） */
 export const MATCH_LABEL_SHARE_KEY = 'matchLabelShare'
 
+/** 可选说明的最大字数（与 Rust MAX_NOTE_CHARS、表上 check 约束一致） */
+export const MATCH_LABEL_NOTE_MAX = 200
+
 /**
  * 被选中的一名玩家
  * @property slot - participantId（1~10）
@@ -42,6 +45,8 @@ export interface MatchLabel {
   keyPick: MatchLabelPick | null
   blamePick: MatchLabelPick | null
   labelerSide: 'win' | 'lose' | null
+  /** 可选说明（如「下路被克制」），最多 MATCH_LABEL_NOTE_MAX 字；没填为 null */
+  note?: string | null
   model: MatchLabelModel | null
   modelVersion: string
   uploaded?: boolean
