@@ -1,13 +1,14 @@
 <script setup lang="ts">
 /** 英雄对位内页；不读取召唤师隐私，不触发选人或锁定动作。 */
 import { computed, inject, onMounted, ref } from 'vue'
-import { NButton, NRadioButton, NRadioGroup, NSelect, NSkeleton, NTooltip } from 'naive-ui'
+import { NButton, NSelect, NSkeleton, NTooltip } from 'naive-ui'
 import { MATCHUP_API, MATCHUP_POSITIONS, matchupApi } from '@renderer/services/matchup'
 import { TIER_OPTIONS, type OpggTier } from '@renderer/services/opgg'
 import { useMatchup, MATCHUP_SMALL_SAMPLE } from '@renderer/composables/useMatchup'
 import type { MatchupEnemy, MatchupPosition, MatchupSource } from '@renderer/types/matchup'
 import MatchupAvatar from './MatchupAvatar.vue'
 import ProgressMiniRow from './ProgressMiniRow.vue'
+import SegmentedSwitch from '@renderer/components/common/SegmentedSwitch.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -187,10 +188,14 @@ onMounted(async () => {
       >
     </div>
     <div class="matchup-tabs" role="group" aria-label="推荐类型">
-      <n-radio-group v-model:value="tab" size="small">
-        <n-radio-button value="good">推荐应对</n-radio-button>
-        <n-radio-button value="bad">谨慎选择</n-radio-button>
-      </n-radio-group>
+      <SegmentedSwitch
+        v-model:value="tab"
+        aria-label="推荐类型"
+        :options="[
+          { value: 'good', label: '推荐应对' },
+          { value: 'bad', label: '谨慎选择' }
+        ]"
+      />
       <n-tooltip
         ><template #trigger><small class="sort-note">候选英雄视角 ⓘ</small></template
         >按敌方列表胜率排序；下方比率使用候选自身详情，源缓存时间可能不同。少于200局置后提示。</n-tooltip
@@ -353,10 +358,15 @@ onMounted(async () => {
   text-overflow: ellipsis;
   font-size: var(--font-size-2xs);
 }
+/* 选中敌方：中性抬起，不用主色描边（与分段切换同一套视觉） */
 .enemy-choice[aria-pressed='true'] {
-  background: color-mix(in srgb, var(--semantic-win) 12%, transparent);
-  border-color: var(--semantic-win);
+  background: rgba(255, 255, 255, 0.09);
+  border-color: var(--border-subtle);
   color: var(--text-primary);
+}
+:global(.theme-light) .enemy-choice[aria-pressed='true'] {
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-card);
 }
 .enemy-choice:hover:not(:disabled) {
   background: var(--bg-elevated);

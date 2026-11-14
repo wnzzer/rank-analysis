@@ -4,6 +4,7 @@ import { nextTick, ref, watch } from 'vue'
 import type { MatchupEnemy } from '@renderer/types/matchup'
 import type { OpggTier } from '@renderer/services/opgg'
 import MatchupPanel from './MatchupPanel.vue'
+import SegmentedSwitch from '@renderer/components/common/SegmentedSwitch.vue'
 const props = withDefaults(
   defineProps<{
     /** 仅敌方传统峡谷选人阶段开启。 */
@@ -90,33 +91,20 @@ watch(
       data-page-nav
       aria-label="敌方区域页面"
     >
-      <!-- 轻量分段切换：不用 n-radio-group 的主色实心块，避免在卡片区上方过重 -->
-      <div class="page-switch" role="radiogroup" aria-label="敌方区域视图">
-        <button
-          type="button"
-          role="radio"
-          class="page-switch-item"
-          :class="{ active: !opened }"
-          :aria-checked="!opened"
-          data-page-switch="records"
-          @click="opened && back()"
-        >
-          玩家战绩
-        </button>
-        <button
-          type="button"
-          role="radio"
-          class="page-switch-item"
-          :class="{ active: opened }"
-          :aria-checked="opened"
-          :disabled="selectedSlot < 0"
-          title="从敌方卡片选择要分析的英雄"
-          data-page-switch="matchup"
-          @click="!opened && open(selectedSlot)"
-        >
-          英雄对位
-        </button>
-      </div>
+      <SegmentedSwitch
+        aria-label="敌方区域视图"
+        :value="opened ? 'matchup' : 'records'"
+        :options="[
+          { value: 'records', label: '玩家战绩' },
+          {
+            value: 'matchup',
+            label: '英雄对位',
+            disabled: selectedSlot < 0,
+            title: '从敌方卡片选择要分析的英雄'
+          }
+        ]"
+        @update:value="value => (value === 'matchup' ? open(selectedSlot) : back())"
+      />
     </div>
     <div class="workspace-pages" :class="{ 'detail-open': opened }">
       <div
@@ -163,52 +151,6 @@ watch(
   display: flex;
   justify-content: flex-end;
   gap: var(--space-4);
-}
-/* 分段切换：浅色轨道 + 选中项微抬起，文字层级区分，不用主色填充 */
-.page-switch {
-  display: inline-flex;
-  padding: 2px;
-  gap: 2px;
-  border-radius: var(--radius-sm);
-  background: var(--surface-group);
-  border: 1px solid var(--border-subtle);
-}
-.page-switch-item {
-  appearance: none;
-  border: 0;
-  background: transparent;
-  color: var(--text-tertiary);
-  font: inherit;
-  font-size: var(--font-size-sm);
-  line-height: 1;
-  padding: 5px 10px;
-  border-radius: calc(var(--radius-sm) - 2px);
-  cursor: pointer;
-  transition:
-    color var(--transition-fast),
-    background-color var(--transition-fast);
-}
-.page-switch-item:hover:not(:disabled):not(.active) {
-  color: var(--text-secondary);
-}
-.page-switch-item.active {
-  color: var(--text-primary);
-  font-weight: var(--font-weight-medium, 500);
-  /* 深色：面板与 --bg-elevated 几乎同色，用半透明白抬起；浅色见下方覆盖 */
-  background: rgba(255, 255, 255, 0.09);
-  box-shadow: var(--shadow-card);
-  cursor: default;
-}
-:global(.theme-light) .page-switch-item.active {
-  background: var(--bg-elevated);
-}
-.page-switch-item:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-.page-switch-item:focus-visible {
-  outline: 1px solid var(--accent-hover);
-  outline-offset: 1px;
 }
 .workspace-pages {
   flex: 1;
