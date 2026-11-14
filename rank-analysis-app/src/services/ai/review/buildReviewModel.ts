@@ -188,6 +188,8 @@ export interface PlayerView {
   position: string
   roleCn: string
   label: VerdictLabel
+  /** 总分（单位：基准标准差）；对局标注用它取「模型最关键 / 最犯罪」 */
+  total: number
   rank: string | null
   parts: ScorePartView[]
   flags: string[]
@@ -496,6 +498,7 @@ export function buildReviewModel(
       position: p.teamPosition,
       roleCn: brief.role,
       label: s.label,
+      total: s.total,
       rank: hasBaseline ? brief.rank : null,
       parts: brief.parts.map(x => ({
         // toBrief 只产出 SUB_SCORE_KEYS 里的键（ScorePart.key 声明为 string 是给 prompt 层留的宽类型）
