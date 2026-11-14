@@ -159,27 +159,29 @@ const placeholderCount = computed(() =>
 </script>
 
 <style scoped>
+/* 对位入口：每张敌方卡一个，五个并排时描边按钮过重；改为次级文字链接，悬停才显主色 */
 .matchup-entry {
   width: 100%;
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: var(--space-4);
-  border: 1px solid color-mix(in srgb, var(--semantic-win) 35%, transparent);
+  gap: 2px;
+  border: 0;
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--semantic-win) 5%, transparent);
-  color: var(--semantic-win);
-  padding: var(--space-6) var(--space-4);
+  background: transparent;
+  color: var(--text-tertiary);
+  padding: var(--space-4) var(--space-4);
   font: inherit;
-  font-size: var(--font-size-2xs);
+  font-size: var(--font-size-xs);
+  line-height: 1;
   cursor: pointer;
   transition:
-    background-color var(--dur-fast),
-    border-color var(--dur-fast);
+    color var(--dur-fast),
+    background-color var(--dur-fast);
 }
 .matchup-entry:hover {
-  background: color-mix(in srgb, var(--semantic-win) 15%, transparent);
-  border-color: var(--semantic-win);
+  color: var(--semantic-win);
+  background: color-mix(in srgb, var(--semantic-win) 8%, transparent);
 }
 .matchup-entry:focus-visible {
   outline: 2px solid var(--semantic-win);
@@ -195,7 +197,7 @@ const placeholderCount = computed(() =>
   width: auto;
   flex-shrink: 0;
   white-space: nowrap;
-  padding-inline: var(--space-8);
+  padding-inline: var(--space-6);
 }
 .subteam-card-body:has(.matchup-workspace) {
   overflow: hidden;
