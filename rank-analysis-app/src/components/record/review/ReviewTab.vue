@@ -21,6 +21,10 @@
         <div class="review-header-reason" data-test="key-reason">
           胜负关键：{{ m.header.keyReason }}
         </div>
+        <!-- 免责声明：评分、标签与点评都是按大盘数据的统计估算，不是对玩家的定论 -->
+        <div class="review-disclaimer" data-test="review-disclaimer">
+          评分、标签与 AI 点评由模型按国服大盘数据估算，仅供参考，不代表对玩家的真实评价。
+        </div>
       </header>
 
       <div class="review-row">
@@ -325,6 +329,12 @@ defineExpose({
   max-width: 60%;
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
+}
+
+.review-disclaimer {
+  flex-basis: 100%;
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
 }
 
 .review-tab :deep(.review-section-title) {

@@ -96,6 +96,12 @@ export function scorePlayers(
       players.every(
         (q, j) => j === i || q.teamId !== p.teamId || first[j].combined.total < combined.total
       )
+    // 本队唯一最低：犯罪的主责人；同理并列不算、无队友不成立
+    const teamWorst =
+      hasMate &&
+      players.every(
+        (q, j) => j === i || q.teamId !== p.teamId || first[j].combined.total > combined.total
+      )
     const thresholds = lookupThresholds(
       data.thresholds,
       ctx.queueId,
@@ -117,7 +123,8 @@ export function scorePlayers(
         thresholds,
         mitigated: mitigation.mitigated,
         hasTimeline: p.timeline !== null,
-        teamBest
+        teamBest,
+        teamWorst
       }),
       deaths: p.deaths
     }

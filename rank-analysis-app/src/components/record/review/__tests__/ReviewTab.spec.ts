@@ -59,6 +59,7 @@ describe('ReviewTab', () => {
     expect(w.find('[data-test="score-card-name"]').text()).toBe('英雄112（你）')
     expect(w.find('[data-pid="9"]').classes()).toContain('is-selected')
     expect(w.find('[data-test="key-reason"]').text()).toContain('胜负关键：蓝方')
+    expect(w.find('[data-test="review-disclaimer"]').text()).toContain('仅供参考')
   })
 
   it('点击对位玩家：个人卡、阵亡列表、曲线阵亡点同步切换', async () => {
