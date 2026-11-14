@@ -61,9 +61,9 @@ const ready: HiddenMmr = {
   avgWin: 28,
   avgLoss: 14,
   recent: [
-    { delta: 28, source: 'notification' },
-    { delta: -14, source: 'notification' },
-    { delta: 28, source: 'snapshot' }
+    { gameId: 1, delta: 28, source: 'notification' },
+    { gameId: 2, delta: -14, source: 'notification' },
+    { gameId: 3, delta: 28, source: 'snapshot' }
   ]
 }
 
@@ -240,9 +240,9 @@ describe('RankCard hidden MMR tooltip', () => {
       {
         ...ready,
         recent: [
-          { delta: 40, source: 'notification', doubled: true },
-          { delta: -20, source: 'notification', doubled: false },
-          { delta: 20, source: 'notification', doubled: false }
+          { gameId: 4, delta: 40, source: 'notification', doubled: true },
+          { gameId: 5, delta: -20, source: 'notification', doubled: false },
+          { gameId: 6, delta: 20, source: 'notification', doubled: false }
         ]
       },
       openTooltip

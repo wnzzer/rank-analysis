@@ -5,7 +5,13 @@
   要写注释请放元素内部或这里。
 -->
 <template>
-  <template v-if="!sessionData.phase">
+  <template v-if="!sessionData.phase && showReport">
+    <div class="gaming-report-page">
+      <!-- 没有对局时：保留最近一局的战报，直到下一局进选人 -->
+      <PostGameReport :report="postGame.report.value!" @dismiss="postGame.dismiss" />
+    </div>
+  </template>
+  <template v-else-if="!sessionData.phase">
     <LoadingComponent :hint="isConnected ? '进入英雄选择后这里会自动展示对局分析' : undefined">
       <!-- 已连接时不提示「启动客户端」——那会跟左下角的绿色连接灯自相矛盾 -->
       {{ isConnected ? '等待加入游戏...' : '未连接到客户端' }}
@@ -93,6 +99,12 @@
         </div>
         <div v-else class="ai-result-empty">暂无分析结果，点「重新分析」生成。</div>
       </n-modal>
+
+      <PostGameReport
+        v-if="showReport && isEndPhase"
+        :report="postGame.report.value!"
+        @dismiss="postGame.dismiss"
+      />
 
       <div class="gaming-intel-banner">
         <div class="banner-main" :class="{ 'banner-main-split': champSelectStage }">
@@ -232,6 +244,8 @@ import LoadingComponent from '@renderer/components/LoadingComponent.vue'
 import SubteamCard from '@renderer/components/gaming/SubteamCard.vue'
 import BpDecisionBar from '@renderer/components/gaming/BpDecisionBar.vue'
 import BuildRecommendBar from '@renderer/components/gaming/BuildRecommendBar.vue'
+import PostGameReport from '@renderer/components/gaming/PostGameReport.vue'
+import { usePostGameReport } from '@renderer/composables/usePostGameReport'
 import { useGamingAIAnalysis } from '@renderer/composables/useGamingAIAnalysis'
 import { useBpDecision } from '@renderer/composables/useBpDecision'
 import { useChampionBuild } from '@renderer/composables/useChampionBuild'
@@ -271,6 +285,17 @@ const { isConnected, summoner: mySummoner } = useGameState()
 
 /** 自己的 puuid，用于在玩家卡上标出「我」 */
 const mySummonerPuuid = computed(() => mySummoner.value?.puuid ?? '')
+
+/** 赛后战报：排位结束后在对局页顶部展示，回到大厅后保留到下一局选人 */
+const postGame = usePostGameReport(
+  () => sessionData.phase,
+  () => sessionData.queueId,
+  () => mySummonerPuuid.value
+)
+const showReport = computed(() => !!postGame.report.value && !postGame.dismissed.value)
+const isEndPhase = computed(
+  () => sessionData.phase === 'PreEndOfGame' || sessionData.phase === 'EndOfGame'
+)
 
 const density = computed<'normal' | 'compact'>(() =>
   sessionData.isMultiTeam ? 'compact' : 'normal'
@@ -585,6 +610,10 @@ onMounted(async () => {
 </script>
 
 <style lang="css" scoped>
+.gaming-report-page {
+  padding: var(--space-16);
+  max-width: 960px;
+}
 .gaming-page {
   padding: var(--space-16);
   /* 右缘悬浮按钮（设置/AI）占一条竖向通道，多留白避免压在卡片内容上 */

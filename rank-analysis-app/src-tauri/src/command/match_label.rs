@@ -200,6 +200,26 @@ pub async fn save_match_label(mut label: MatchLabel, share: bool) -> Result<Save
     Ok(result)
 }
 
+/// 刚结束的那局（结算页）
+#[derive(Serialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct EndedGame {
+    pub game_id: i64,
+    pub queue_type: String,
+}
+
+/// 赛后战报用：取结算页对应的 gameId（与隐藏分采集同一识别逻辑）。
+///
+/// 结算页停留几分钟后客户端会清掉统计端点，此时返回 Err，前端按「拿不到」处理。
+#[tauri::command]
+pub async fn get_ended_game() -> Result<EndedGame, String> {
+    let (game_id, queue_type, _) = crate::hidden_mmr::collector::fetch_current_game().await?;
+    Ok(EndedGame {
+        game_id,
+        queue_type,
+    })
+}
+
 /// 读取某局的本地标注
 #[tauri::command]
 pub async fn get_match_label(game_id: i64) -> Result<Option<MatchLabel>, String> {

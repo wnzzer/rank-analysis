@@ -180,6 +180,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             command::match_label::save_match_label,
             command::match_label::get_match_label,
             command::match_label::retry_match_label_uploads,
+            command::match_label::get_ended_game,
             command::match_history::get_match_history_by_puuid,
             command::match_history::get_match_history_by_name,
             command::match_history::get_filter_match_history_by_name,

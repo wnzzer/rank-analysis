@@ -41,6 +41,8 @@ pub const DOUBLE_TOLERANCE_RATIO: f64 = 0.15;
 #[derive(Serialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct RecentDelta {
+    /// 该局 gameId：赛后战报按它取本局 LP 变化
+    pub game_id: i64,
     pub delta: i32,
     pub source: Source,
     pub doubled: bool,
@@ -228,6 +230,7 @@ pub fn estimate(records: &[LpRecord], current_score: Option<i32>, provisional: b
             .zip(&doubled)
             .rev()
             .map(|(r, dbl)| RecentDelta {
+                game_id: r.game_id,
                 delta: r.delta,
                 source: r.source,
                 doubled: *dbl,
@@ -450,5 +453,6 @@ mod tests {
         assert_eq!(ready["equivalentShort"], "钻石 III 80LP");
         assert_eq!(ready["recent"][0]["source"], "notification");
         assert_eq!(ready["recent"][0]["doubled"], false);
+        assert_eq!(ready["recent"][0]["gameId"], 2);
     }
 }
