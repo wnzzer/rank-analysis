@@ -15,7 +15,7 @@ import { buildScoredAttribution } from '../../../matchDetail/scoredAttribution'
 import { scoreSnapshot, selectVerdicts } from '../match'
 import { END_METRICS, TIMELINE_METRICS } from '../metrics'
 import type { Baseline } from '../baseline'
-import type { AttributedDeath } from '../deathAttribution'
+import { blameOf, RESPONSIBILITY, type AttributedDeath } from '../deathAttribution'
 import { scorePlayers, type PlayerScoringInput, type ScoringData } from '../scorePlayers'
 import type { Thresholds } from '../thresholds'
 import a from './fixtures/regression-a.json'
@@ -93,6 +93,7 @@ describe('构造局：单线被单杀 ≥3 次、无 gank', () => {
     kind: 'solo',
     responsibility: 1,
     enemies: 1,
+    allies: 1,
     consequence: 1
   })
 
@@ -140,6 +141,23 @@ describe('确定性', () => {
       expect(r1.map(s => s.label)).toEqual(r2.map(s => s.label))
       expect(selectVerdicts(s1.players, r1)).toEqual(selectVerdicts(s2.players, r2))
       expect(buildScoredAttribution(s1)).toEqual(buildScoredAttribution(s2))
+    }
+  })
+})
+
+describe('责任闭环（真实对局 A/B）', () => {
+  // 每次阵亡的责任只在死者与缺位搭档之间分配：全场分到的总和不超过该类型的满额系数，不凭空多出
+  it.each([
+    ['A', a],
+    ['B', b]
+  ])('标注局 %s：每次阵亡全场分到的责任 ≤ 类型系数，且 = 死者 + 搭档分担', (_, fx) => {
+    const deaths = snapOf(fx).timeline?.deaths ?? []
+    expect(deaths.length).toBeGreaterThan(0)
+    const pids = snapOf(fx).players.map(p => p.participantId)
+    for (const d of deaths) {
+      const total = pids.reduce((s, pid) => s + blameOf(d, pid), 0)
+      expect(total).toBeCloseTo(d.responsibility + (d.absentPartner?.share ?? 0), 6)
+      expect(total).toBeLessThanOrEqual(RESPONSIBILITY[d.kind] + 1e-9)
     }
   })
 })

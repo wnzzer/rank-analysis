@@ -50,8 +50,7 @@ describe('LOWER_IS_BETTER', () => {
         'deathsPerMin',
         'fightAbsenceRate',
         'fightFirstDeathRate',
-        'laneDeathResponsibility',
-        'partnerAbsences'
+        'laneDeathResponsibility'
       ].sort()
     )
   })
@@ -115,8 +114,8 @@ describe('职责分项（第 2 层）', () => {
     expect(computeSubScores({ hasLanes: true, position: 'JUNGLE', z: zz }).duty).toBeCloseTo(1.2)
     expect(computeSubScores({ hasLanes: true, position: 'MIDDLE', z: zz }).duty).toBeCloseTo(0.8)
   })
-  it('辅助 = 游走 z 与 −z(缺位) 的均值：游走多但 AD 常被包，两头相抵', () => {
-    expect(computeSubScores({ hasLanes: true, position: 'UTILITY', z: zz }).duty).toBeCloseTo(-0.1)
+  it('辅助 = z(游走)；缺位只走死亡质量（blameOf），职责里不重复扣', () => {
+    expect(computeSubScores({ hasLanes: true, position: 'UTILITY', z: zz }).duty).toBeCloseTo(0.8)
   })
   it('上单/下路/无分路没有职责分项', () => {
     expect(computeSubScores({ hasLanes: true, position: 'TOP', z: zz }).duty).toBeNull()

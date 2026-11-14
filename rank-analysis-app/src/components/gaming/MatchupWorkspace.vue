@@ -1,10 +1,10 @@
 <script setup lang="ts">
 /** 敌方区域一级战绩/二级对位页面容器，始终保留原战绩节点和滚动。 */
 import { nextTick, ref, watch } from 'vue'
-import { NRadioButton, NRadioGroup } from 'naive-ui'
 import type { MatchupEnemy } from '@renderer/types/matchup'
 import type { OpggTier } from '@renderer/services/opgg'
 import MatchupPanel from './MatchupPanel.vue'
+import SegmentedSwitch from '@renderer/components/common/SegmentedSwitch.vue'
 const props = withDefaults(
   defineProps<{
     /** 仅敌方传统峡谷选人阶段开启。 */
@@ -91,19 +91,20 @@ watch(
       data-page-nav
       aria-label="敌方区域页面"
     >
-      <n-radio-group
-        size="small"
+      <SegmentedSwitch
+        aria-label="敌方区域视图"
         :value="opened ? 'matchup' : 'records'"
+        :options="[
+          { value: 'records', label: '玩家战绩' },
+          {
+            value: 'matchup',
+            label: '英雄对位',
+            disabled: selectedSlot < 0,
+            title: '从敌方卡片选择要分析的英雄'
+          }
+        ]"
         @update:value="value => (value === 'matchup' ? open(selectedSlot) : back())"
-      >
-        <n-radio-button value="records">玩家战绩</n-radio-button>
-        <n-radio-button
-          value="matchup"
-          :disabled="selectedSlot < 0"
-          title="从敌方卡片选择要分析的英雄"
-          >英雄对位</n-radio-button
-        >
-      </n-radio-group>
+      />
     </div>
     <div class="workspace-pages" :class="{ 'detail-open': opened }">
       <div

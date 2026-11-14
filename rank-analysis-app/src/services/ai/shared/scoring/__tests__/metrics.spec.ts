@@ -114,7 +114,15 @@ const tl = {
   ]
 }
 const deaths: AttributedDeath[] = [
-  { victimId: 6, timestamp: T20, kind: 'fight', enemies: 1, responsibility: 0.6, consequence: 2 }
+  {
+    victimId: 6,
+    timestamp: T20,
+    kind: 'fight',
+    enemies: 1,
+    allies: 1,
+    responsibility: 0.6,
+    consequence: 2
+  }
 ]
 
 describe('timelineMetrics', () => {
@@ -138,6 +146,7 @@ describe('timelineMetrics', () => {
         timestamp: 5 * MIN,
         kind: 'solo',
         enemies: 1,
+        allies: 1,
         responsibility: 1,
         consequence: 1
       },
@@ -146,6 +155,7 @@ describe('timelineMetrics', () => {
         timestamp: 10 * MIN,
         kind: 'ganked',
         enemies: 1,
+        allies: 1,
         responsibility: 0.5,
         consequence: 1
       },
@@ -154,6 +164,7 @@ describe('timelineMetrics', () => {
         timestamp: 20 * MIN,
         kind: 'solo',
         enemies: 1,
+        allies: 1,
         responsibility: 1,
         consequence: 1
       }
@@ -169,6 +180,7 @@ describe('timelineMetrics', () => {
       timestamp: 6 * MIN,
       kind: 'isolated',
       enemies: 2,
+      allies: 1,
       responsibility: 0.7,
       absentPartner: { participantId: 5, share: 0.3 },
       consequence: 2
@@ -245,6 +257,7 @@ describe('职责指标（第 2 层）', () => {
     timestamp: 10 * MIN,
     kind: 'isolated',
     enemies: 2,
+    allies: 1,
     responsibility: 0.7,
     absentPartner: { participantId: 5, share: 0.3 },
     consequence: 1

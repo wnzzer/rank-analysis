@@ -196,6 +196,8 @@
   --detail-row-me-bg: color-mix(in srgb, var(--semantic-win) 10%, transparent);
   /* 带胜负色渐变的小条（遇见记录）底色：暗色渐变铺透明底，亮色渐变消失后露出凹面 */
   --result-row-bg: transparent;
+  /* 分段切换 / 选中项微抬起：暗色面板与 --bg-elevated 几乎同色，用半透明白；亮色为白卡 */
+  --segment-active-bg: rgba(255, 255, 255, 0.09);
 
   /* === 效果强度开关：暗色 1 / 亮色 0。组件写 calc(N% * var(--fx-glow)) 等，
      暗色计算结果与原写法完全一致，亮色则整体消失（白底上光晕 / 色块读作污渍）=== */
@@ -294,6 +296,7 @@
   --detail-column-header-bg: var(--surface-sunken);
   --detail-row-me-bg: color-mix(in srgb, var(--semantic-win) 8%, transparent);
   --result-row-bg: var(--surface-sunken);
+  --segment-active-bg: #ffffff;
   --fx-glow: 0;
   --fx-wash: 0;
   --fx-ambient: 0;

@@ -211,16 +211,11 @@ export function partStats(key: SubScoreKey, c: StatContext): string[] {
       break
     }
     case 'duty': {
-      // 与 subScores.dutyScore 的位置口径一致：打野看抓人、中单/辅助看游走，辅助另看缺位
+      // 与 subScores.dutyScore 的位置口径一致：打野看抓人、中单/辅助看游走（缺位代价在死亡质量里写）
       const roam = m?.roamKills != null ? `对线期离线参与击杀 ${m.roamKills} 次` : null
       if (c.position === 'JUNGLE')
         out.push(m?.gankKills != null ? `对线期到线上参与击杀 ${m.gankKills} 次` : null)
-      else if (c.position === 'MIDDLE') out.push(roam)
-      else if (c.position === 'UTILITY')
-        out.push(
-          roam,
-          m?.partnerAbsences != null ? `AD 被多人击杀时不在身边 ${m.partnerAbsences} 次` : null
-        )
+      else if (c.position === 'MIDDLE' || c.position === 'UTILITY') out.push(roam)
       break
     }
     case 'vision': {

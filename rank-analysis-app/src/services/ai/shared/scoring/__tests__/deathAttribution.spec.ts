@@ -42,6 +42,7 @@ describe('attributeDeaths', () => {
         kind: 'solo',
         responsibility: 1,
         enemies: 1,
+        allies: 1,
         consequence: 1
       }
     ])
@@ -204,7 +205,7 @@ describe('attributeDeaths', () => {
     })
   })
 
-  describe('以少打多：按参与击杀的敌方人数衰减本人责任', () => {
+  describe('以少打多：按人数差（敌方参与 − 我方在场）衰减本人责任', () => {
     it('对线期被 3 人包（被抓）→ 0.5 × 0.75，辅助在身边不追责', () => {
       const out = attributeDeaths(
         input({
@@ -236,7 +237,7 @@ describe('attributeDeaths', () => {
       expect(out[0].enemies).toBe(3)
     })
 
-    it('团战阵亡不按人数衰减', () => {
+    it('人数相当的团战（4 打 3）不衰减', () => {
       const near = [1, 2, 3, 4, 5].map(id => pf(id, { x: 7000, y: 7000 }))
       const out = attributeDeaths(
         input({
@@ -248,7 +249,34 @@ describe('attributeDeaths', () => {
           ]
         })
       )
-      expect(out[0]).toMatchObject({ kind: 'fight', enemies: 4, responsibility: 0.6 })
+      expect(out[0]).toMatchObject({ kind: 'fight', enemies: 4, allies: 3, responsibility: 0.6 })
+    })
+
+    describe('后期 4 包 2（AD + 辅助被抓）', () => {
+      const pos = [pf(4, { x: 7000, y: 7000 }), pf(5, { x: 7200, y: 7000 })]
+      const frames = [frame(19 * MIN, pos), frame(21 * MIN, pos)]
+      const lost = [
+        kill(20 * MIN, 4, 6, [7, 8, 9], 7000, 7000),
+        kill(20 * MIN + 3000, 5, 7, [6, 8, 9], 7200, 7000)
+      ]
+
+      it('我方在场 2 人：按差 2 人衰减（×0.75），比 4 包 1 的 ×0.6 减得少', () => {
+        const out = attributeDeaths(input({ frames, events: lost }))
+        expect(out[0]).toMatchObject({ enemies: 4, allies: 2 })
+        expect(out[0].responsibility).toBeCloseTo(0.8 * 0.75)
+      })
+
+      it('换掉对面一人凑成「团战」后，责任不再比没换到时更重', () => {
+        const noTrade = attributeDeaths(input({ frames, events: lost }))
+        const traded = attributeDeaths(
+          input({ frames, events: [...lost, kill(20 * MIN + 1500, 9, 4, [5], 7100, 7000)] })
+        )
+        const adNo = noTrade.find(d => d.victimId === 4)!
+        const adTraded = traded.find(d => d.victimId === 4)!
+        expect(adTraded.kind).toBe('fight')
+        expect(adTraded.allies).toBe(2)
+        expect(adTraded.responsibility).toBeLessThanOrEqual(adNo.responsibility)
+      })
     })
   })
 
@@ -289,6 +317,34 @@ describe('attributeDeaths', () => {
         })
       )
       expect(out[1].absentPartner).toBeUndefined()
+    })
+
+    it('辅助随后 30 秒内也倒下（2v3 一起打输）不算缺位', () => {
+      const out = attributeDeaths(
+        input({
+          frames: [frame(6 * MIN, [pf(5, { x: 7000, y: 7000 })])],
+          events: [
+            kill(6 * MIN, 4, 9, [10], 12000, 2000),
+            kill(6 * MIN + 5000, 5, 10, [9], 12000, 2000)
+          ]
+        })
+      )
+      expect(out[0].absentPartner).toBeUndefined()
+    })
+
+    it('责任守恒：AD 被打野 gank（池 0.5）时辅助只分走 AD 减掉的那份，不凭空多出', () => {
+      const out = attributeDeaths(
+        input({
+          frames: [frame(6 * MIN, [pf(5, { x: 7000, y: 7000 })])],
+          events: [kill(6 * MIN, 4, 7, [9], 12000, 2000)]
+        })
+      )
+      expect(out[0]).toMatchObject({
+        kind: 'ganked',
+        responsibility: 0.35,
+        absentPartner: { participantId: 5, share: 0.15 }
+      })
+      expect(blameOf(out[0], 4) + blameOf(out[0], 5)).toBeCloseTo(0.5)
     })
 
     it('被对位单杀不怪辅助（至少 2 名敌人才追责）', () => {
@@ -395,6 +451,23 @@ describe('牵制换资源（第 3 层）', () => {
     const [x] = attributeDeaths(input({ events: [kill(T, 4, 6, [7, 8], 13000, 2000), baron] }))
     expect(x.consequence).toBe(1)
     expect(x.traded).toBe(true)
+  })
+
+  it('人数相当（3 打 3）不算牵制：即便己方随后拿到大龙也不标记，后果照常累加', () => {
+    const [x] = attributeDeaths(
+      input({
+        events: [
+          kill(T - 10000, 6, 1, [2], 13000, 2500), // 队友 1、2 在场打出交互
+          kill(T, 4, 6, [7, 8], 13000, 2000),
+          baron,
+          tower
+        ]
+      })
+    ).filter(d => d.victimId === 4)
+    expect(x.enemies).toBe(3)
+    expect(x.allies).toBe(3)
+    expect(x.traded).toBeUndefined()
+    expect(x.consequence).toBe(2)
   })
 
   it('只有 2 人参与：不算牵制，后果照常累加', () => {

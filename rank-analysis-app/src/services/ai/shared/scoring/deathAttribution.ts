@@ -6,13 +6,21 @@
  * 「被抓」只在对线期（< 14 分钟）判：过了对线期，人员轮转后「本人分路区域」已经没有意义。
  *
  * 类型定下后再做两步修正（2026-11-09）：
- * 1. 以少打多：被抓 / 孤立 / 其他三类按参与击杀的敌方人数衰减本人责任（3 包 1 起），
- *    否则后期边路被 4 包 1 会落进「孤立」吃满全责，和被对位单杀同罪。
+ * 1. 以少打多：所有类型统一按「人数差」衰减本人责任（敌方参与人数 − 我方在场人数 + 1，
+ *    3 包 1 起），否则后期边路被 4 包 1 会落进「孤立」吃满全责，和被对位单杀同罪。
+ *    2026-11-12 起团战 / 队友先崩也按人数差衰减：原先它们被排除在外，4 包 2 若换掉对面一人
+ *    凑满 3 个击杀就成了「团战」、减责消失，换到人头反而背锅更多；人数相当的团战下标 ≤2 自然不衰减。
  * 2. 搭档缺位：职责表（LANE_PARTNER_DUTIES）里「该在身边」的搭档不在时，分走一份责任，
  *    死者相应减责。目前只配了对线期辅助 → 下路：保护 AD 是辅助的本职，
  *    中野游走抓人是本职、不在此列。
  *
- * 后果再做一步修正（2026-11-09，第 3 层）：牵制换资源。被 ≥3 人包抄的阵亡，若死后 60 秒内
+ * 责任守恒（2026-11-12）：一次阵亡的责任池 = 类型系数 × 以少打多 × 位置系数，
+ * 死者与缺位搭档只在池内分配（死者 relief、搭档 1 − relief），两者之和恒等于池，不凭空多出来。
+ * 池外被衰减掉的部分记在「对面打得好」上，不再分给其他没来支援的队友——
+ * 没来支援可能是在别处做等价的事，时间线 60 秒一帧也判断不了「本可以来」。
+ * 责任是唯一的扣分货币：只经 blameOf 进死亡质量 / 对线期阵亡责任，职责分项只记收益，不重复扣。
+ *
+ * 后果再做一步修正（2026-11-09，第 3 层）：牵制换资源。以少打多（人数差下标 ≥3，如 3 包 1、4 包 2）的阵亡，若死后 60 秒内
  * 己方在别处拿了资源/建筑，说明死者拖住了多人、队伍换到了东西；后果按「丢的 − 换到的」净值算
  * （不低于 0），否则被包后丢塔会在后果里再放大一次，和以少打多减责互相抵消。
  */
@@ -64,31 +72,30 @@ const SHUTDOWN_UNIT = 300
 const ROAMERS = new Set(['JUNGLE', 'MIDDLE', 'UTILITY'])
 
 /**
- * 以少打多的本人责任系数，下标 = 参与击杀的敌方英雄数（击杀者 + 助攻）。
- * 1~2 人不衰减（2 人是普通 gank，「被抓」0.5 已经折算过）；超出表长取最后一项。
- * 不降到 0：被包也有站位、视野、带线时机的问题。
+ * 以少打多的本人责任系数，下标 = 人数差 + 1 = 敌方参与人数 − 我方在场人数 + 1。
+ * 4 包 1 → 4（0.6），4 包 2 → 3（0.75），人数相当 → ≤2 不衰减（2 包 1 是普通 gank，「被抓」0.5 已折算）；
+ * 超出表长取最后一项。不降到 0：被包也有站位、视野、带线时机的问题。
  */
 export const OUTNUMBERED_FACTOR = [1, 1, 1, 0.75, 0.6, 0.5]
-/** 参与衰减的阵亡类型：团战 / 队友先崩本身就是多打多，人数说明不了谁吃亏 */
-const OUTNUMBER_KINDS: ReadonlySet<DeathKind> = new Set<DeathKind>(['ganked', 'isolated', 'other'])
+/** 我方在场：死者阵亡前后此时间窗、此距离内有交互（阵亡 / 击杀 / 助攻）的队友才算 */
+const ALLY_PRESENT_WINDOW_MS = 30000
+const ALLY_PRESENT_DISTANCE = 3000
 
 /**
  * 搭档职责：对线期 `ward` 位置阵亡时，`guardian` 位置的队友不在身边就分担一份责任。
  * @property minEnemies - 至少几名敌人参与击杀才追责（对面单杀不该怪搭档）
- * @property share - 搭档分走的责任
- * @property relief - 死者本人责任的折算系数
+ * @property relief - 死者在责任池里保留的比例；搭档分走其余 1 − relief（责任守恒）
  */
 interface PartnerDuty {
   guardian: string
   ward: string
   minEnemies: number
-  share: number
   relief: number
 }
 
 /** 职责表：只放「保护对方是本职」的组合；中野游走是本职，不进表 */
 export const LANE_PARTNER_DUTIES: readonly PartnerDuty[] = [
-  { guardian: 'UTILITY', ward: 'BOTTOM', minEnemies: 2, share: 0.3, relief: 0.7 }
+  { guardian: 'UTILITY', ward: 'BOTTOM', minEnemies: 2, relief: 0.7 }
 ]
 /** 搭档离阵亡地点超过此距离（码，帧插值约值）算不在身边；比孤立阈值宽，帧位置误差大 */
 export const PARTNER_ABSENT_DISTANCE = 3000
@@ -101,17 +108,22 @@ export const PARTNER_ABSENT_DISTANCE = 3000
  */
 export const ROLE_DEATH_FACTOR: Readonly<Record<string, number>> = { UTILITY: 0.8 }
 
-/** 牵制换资源：至少几名敌人参与击杀才算「拖住了多人」（与以少打多衰减起点一致） */
-export const TRADE_MIN_ENEMIES = 3
+/**
+ * 牵制换资源：人数差下标（敌方参与 − 我方在场 + 1）至少多少才算「拖住了多人」，与以少打多衰减起点一致。
+ * 2026-11-12 起按人数差而非敌方绝对人数：5 打 5 团战里一次击杀有 3 人参与很常见，
+ * 按绝对人数会把赢团后拿龙的那波里己方每个阵亡都标成「牵制换资源」，减责证据泛滥。
+ */
+export const TRADE_MIN_GAP = 3
 
 /**
  * 单次阵亡的归责结果
  * @property responsibility - 死者本人责任（已含以少打多与搭档缺位的修正）
  * @property enemies - 参与击杀的敌方英雄数（击杀者 + 助攻；塔/小兵终结时只算助攻）
- * @property absentPartner - 该在身边却不在的搭档及其分担的责任；无则缺省
+ * @property allies - 我方在场人数（含死者本人），与 enemies 一起决定以少打多衰减
+ * @property absentPartner - 该在身边却不在的搭档及其分担的责任（与 responsibility 之和 = 责任池）；无则缺省
  * @property consequence - 后果 = 1 + 死后 60 秒己方丢失资源/建筑数 + 送出终结赏金/300；
  *   牵制换资源时丢失数改为「丢失 − 换到」的净值（不低于 0）
- * @property traded - 被 ≥3 人包抄且死后 60 秒内己方换到了资源/建筑；未换到则缺省
+ * @property traded - 以少打多（人数差下标 ≥3）且死后 60 秒内己方换到了资源/建筑；未换到则缺省
  */
 export interface AttributedDeath {
   victimId: number
@@ -119,6 +131,7 @@ export interface AttributedDeath {
   kind: DeathKind
   responsibility: number
   enemies: number
+  allies: number
   absentPartner?: { participantId: number; share: number }
   consequence: number
   traded?: boolean
@@ -223,6 +236,22 @@ export function attributeDeaths(input: CardInput): AttributedDeath[] {
       })
     ).size
 
+  /**
+   * 我方在场人数（含死者）：前后 30 秒、3000 码内阵亡或拿到击杀/助攻的队友。
+   * 只认带精确坐标的事件，不用 60 秒一帧的插值；没打出交互的队友不计——宁可少算人数，不多减责。
+   */
+  const alliesPresent = (e: Kill, victim: RosterPlayer): number => {
+    const present = new Set<number>([victim.participantId])
+    for (const k of kills) {
+      if (Math.abs(k.timestamp - e.timestamp) > ALLY_PRESENT_WINDOW_MS) continue
+      if (Math.hypot(k.x - e.x, k.y - e.y) > ALLY_PRESENT_DISTANCE) continue
+      for (const id of [k.victimId, k.killerId, ...k.assisting]) {
+        if (byId.get(id)?.teamId === victim.teamId) present.add(id)
+      }
+    }
+    return present.size
+  }
+
   /** 职责表命中且搭档不在身边时，返回该搭档 */
   const absentGuardian = (
     e: Kill,
@@ -237,14 +266,14 @@ export function attributeDeaths(input: CardInput): AttributedDeath[] {
         r => r.teamId === victim.teamId && r.teamPosition === duty.guardian
       )
       if (!guardian) continue
-      // 搭档刚在 30 秒内先倒下是一起打输了，不是游走缺位（插值位置会落回泉水，误判成「不在」）
-      const guardianJustDied = kills.some(
+      // 搭档在前后 30 秒内也阵亡：多半是一起打输了（先倒或随后跟着倒），不是游走缺位；
+      // 即便是死在别处，那次阵亡已按他本人记过责任，不再叠一份缺位
+      const guardianDiedNearby = kills.some(
         k =>
           k.victimId === guardian.participantId &&
-          k.timestamp <= e.timestamp &&
-          k.timestamp >= e.timestamp - COLLAPSE_WINDOW_MS
+          Math.abs(k.timestamp - e.timestamp) <= COLLAPSE_WINDOW_MS
       )
-      if (guardianJustDied) continue
+      if (guardianDiedNearby) continue
       const p = positionAt(tl, guardian.participantId, e.timestamp)
       if (p && dist(p.x, p.y, e.x, e.y) > PARTNER_ABSENT_DISTANCE) return { duty, guardian }
     }
@@ -257,27 +286,30 @@ export function attributeDeaths(input: CardInput): AttributedDeath[] {
     if (!victim) continue
     const kind = classify(e, victim)
     const enemies = enemyCount(e, victim)
-    let responsibility = RESPONSIBILITY[kind]
-    if (OUTNUMBER_KINDS.has(kind)) {
-      responsibility *= OUTNUMBERED_FACTOR[Math.min(enemies, OUTNUMBERED_FACTOR.length - 1)]
-    }
+    // 责任池：类型 × 以少打多 × 位置系数；搭档缺位只在池内分配，死者 + 搭档 = 池
+    let pool = RESPONSIBILITY[kind]
+    const allies = alliesPresent(e, victim)
+    const gap = Math.max(0, enemies - allies + 1)
+    pool *= OUTNUMBERED_FACTOR[Math.min(gap, OUTNUMBERED_FACTOR.length - 1)]
+    if (hasLanes && kind !== 'solo') pool *= ROLE_DEATH_FACTOR[victim.teamPosition] ?? 1
+    pool = round2(pool)
     const absent = absentGuardian(e, victim, enemies)
-    if (absent) responsibility *= absent.duty.relief
-    if (hasLanes && kind !== 'solo') responsibility *= ROLE_DEATH_FACTOR[victim.teamPosition] ?? 1
+    const responsibility = absent ? round2(pool * absent.duty.relief) : pool
     const losses = lossesAfterDeath(tl, victim.teamId, e.timestamp).length
-    const gains = enemies >= TRADE_MIN_ENEMIES ? gainsAfterDeath(tl, victim.teamId, e.timestamp) : 0
+    const gains = gap >= TRADE_MIN_GAP ? gainsAfterDeath(tl, victim.teamId, e.timestamp) : 0
     const traded = gains > 0
     out.push({
       victimId: e.victimId,
       timestamp: e.timestamp,
       kind,
-      responsibility: round2(responsibility),
+      responsibility,
       enemies,
+      allies,
       ...(absent
         ? {
             absentPartner: {
               participantId: absent.guardian.participantId,
-              share: absent.duty.share
+              share: round2(pool - responsibility)
             }
           }
         : {}),

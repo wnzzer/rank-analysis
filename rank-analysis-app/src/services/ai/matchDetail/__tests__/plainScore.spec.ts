@@ -146,13 +146,10 @@ describe('partStats', () => {
     expect(partStats('deathQuality', { ...ctx, partnerAbsences: 0 })).toHaveLength(2)
   })
 
-  it('职责按位置取数据：打野看抓人、中单看游走、辅助看游走与缺位；其他位置为空', () => {
+  it('职责按位置取数据：打野看抓人、中单/辅助看游走（缺位写在死亡质量）；其他位置为空', () => {
     expect(partStats('duty', { ...ctx, position: 'JUNGLE' })).toEqual(['对线期到线上参与击杀 3 次'])
     expect(partStats('duty', { ...ctx, position: 'MIDDLE' })).toEqual(['对线期离线参与击杀 2 次'])
-    expect(partStats('duty', { ...ctx, position: 'UTILITY' })).toEqual([
-      '对线期离线参与击杀 2 次',
-      'AD 被多人击杀时不在身边 1 次'
-    ])
+    expect(partStats('duty', { ...ctx, position: 'UTILITY' })).toEqual(['对线期离线参与击杀 2 次'])
     expect(partStats('duty', { ...ctx, position: 'TOP' })).toEqual([])
     expect(partStats('duty', { ...ctx, position: 'JUNGLE', metrics: null })).toEqual([])
   })
