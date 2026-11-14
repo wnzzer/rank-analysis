@@ -78,7 +78,9 @@ const base: LabelInput = {
   sub: NONE,
   thresholds: TH,
   mitigated: false,
-  teamBest: false
+  teamBest: false,
+  // 既有用例按「本队最低分」测犯罪线；非最低分的连坐规则见下方单独用例
+  teamWorst: true
 }
 
 describe('decideLabel', () => {
@@ -244,5 +246,24 @@ describe('标签边界与规则互斥', () => {
         sub: { ...NONE, lane: -2 }
       })
     ).toBe('被连累')
+  })
+})
+
+describe('犯罪只追主责（2026-11-14 真机标注）', () => {
+  it('非本队最低分：P30 线下但没到 P10 → 不判犯罪', () => {
+    expect(decideLabel({ ...base, teamWorst: false, total: -0.6 })).toBe('正常')
+    expect(decideLabel({ ...base, teamWorst: false, total: -0.3 })).toBe('正常')
+  })
+  it('非本队最低分但明显拉胯（≤P10）→ 仍判犯罪', () => {
+    expect(decideLabel({ ...base, teamWorst: false, total: -0.8 })).toBe('犯罪')
+    expect(decideLabel({ ...base, teamWorst: false, total: -1.2 })).toBe('犯罪')
+  })
+  it('本队最低分按原犯罪线（有时间线 P30）', () => {
+    expect(decideLabel({ ...base, teamWorst: true, total: -0.3 })).toBe('犯罪')
+  })
+  it('无时间线时非最低分同样要 ≤P10', () => {
+    const nt = { ...base, hasTimeline: false, teamWorst: false }
+    expect(decideLabel({ ...nt, total: -0.5 })).toBe('正常')
+    expect(decideLabel({ ...nt, total: -0.8 })).toBe('犯罪')
   })
 })
