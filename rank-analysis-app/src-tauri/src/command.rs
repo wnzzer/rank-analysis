@@ -51,6 +51,7 @@ pub mod hidden_mmr;
 pub mod info;
 pub mod launcher;
 pub mod match_history;
+pub mod match_label;
 pub mod opgg;
 pub mod portable_update;
 pub mod rank;
