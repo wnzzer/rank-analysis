@@ -1,7 +1,6 @@
 <script setup lang="ts">
 /** 敌方区域一级战绩/二级对位页面容器，始终保留原战绩节点和滚动。 */
 import { nextTick, ref, watch } from 'vue'
-import { NRadioButton, NRadioGroup } from 'naive-ui'
 import type { MatchupEnemy } from '@renderer/types/matchup'
 import type { OpggTier } from '@renderer/services/opgg'
 import MatchupPanel from './MatchupPanel.vue'
@@ -91,19 +90,33 @@ watch(
       data-page-nav
       aria-label="敌方区域页面"
     >
-      <n-radio-group
-        size="small"
-        :value="opened ? 'matchup' : 'records'"
-        @update:value="value => (value === 'matchup' ? open(selectedSlot) : back())"
-      >
-        <n-radio-button value="records">玩家战绩</n-radio-button>
-        <n-radio-button
-          value="matchup"
+      <!-- 轻量分段切换：不用 n-radio-group 的主色实心块，避免在卡片区上方过重 -->
+      <div class="page-switch" role="radiogroup" aria-label="敌方区域视图">
+        <button
+          type="button"
+          role="radio"
+          class="page-switch-item"
+          :class="{ active: !opened }"
+          :aria-checked="!opened"
+          data-page-switch="records"
+          @click="opened && back()"
+        >
+          玩家战绩
+        </button>
+        <button
+          type="button"
+          role="radio"
+          class="page-switch-item"
+          :class="{ active: opened }"
+          :aria-checked="opened"
           :disabled="selectedSlot < 0"
           title="从敌方卡片选择要分析的英雄"
-          >英雄对位</n-radio-button
+          data-page-switch="matchup"
+          @click="!opened && open(selectedSlot)"
         >
-      </n-radio-group>
+          英雄对位
+        </button>
+      </div>
     </div>
     <div class="workspace-pages" :class="{ 'detail-open': opened }">
       <div
@@ -150,6 +163,52 @@ watch(
   display: flex;
   justify-content: flex-end;
   gap: var(--space-4);
+}
+/* 分段切换：浅色轨道 + 选中项微抬起，文字层级区分，不用主色填充 */
+.page-switch {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-group);
+  border: 1px solid var(--border-subtle);
+}
+.page-switch-item {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-tertiary);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  line-height: 1;
+  padding: 5px 10px;
+  border-radius: calc(var(--radius-sm) - 2px);
+  cursor: pointer;
+  transition:
+    color var(--transition-fast),
+    background-color var(--transition-fast);
+}
+.page-switch-item:hover:not(:disabled):not(.active) {
+  color: var(--text-secondary);
+}
+.page-switch-item.active {
+  color: var(--text-primary);
+  font-weight: var(--font-weight-medium, 500);
+  /* 深色：面板与 --bg-elevated 几乎同色，用半透明白抬起；浅色见下方覆盖 */
+  background: rgba(255, 255, 255, 0.09);
+  box-shadow: var(--shadow-card);
+  cursor: default;
+}
+:global(.theme-light) .page-switch-item.active {
+  background: var(--bg-elevated);
+}
+.page-switch-item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.page-switch-item:focus-visible {
+  outline: 1px solid var(--accent-hover);
+  outline-offset: 1px;
 }
 .workspace-pages {
   flex: 1;
