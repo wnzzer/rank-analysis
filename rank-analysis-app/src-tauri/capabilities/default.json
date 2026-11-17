@@ -34,6 +34,7 @@
     "mcp-bridge:default",
     "sentry:default",
     "dialog:allow-open",
-    "dialog:allow-save"
+    "dialog:allow-save",
+    "clipboard-manager:allow-write-image"
   ]
 }

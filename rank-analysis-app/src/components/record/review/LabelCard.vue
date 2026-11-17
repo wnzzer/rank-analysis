@@ -7,8 +7,9 @@
  * - 上传失败照常显示对比，标注已存本地，下次打开复盘时补传。
  * @property players - 本局 10 人（复盘视图模型）
  * @property gameId / platform / queueId - 对局标识
+ * @emits done - 进入「已提交」状态（本次提交，或打开时恢复了已有标注）；战报据此揭晓战报图
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { NButton, NInput, NModal } from 'naive-ui'
 import { getVersion } from '@tauri-apps/api/app'
 import { useAssetUrl } from '@renderer/composables/useAssetUrl'
@@ -34,6 +35,8 @@ const props = defineProps<{
   queueId: number
 }>()
 
+const emit = defineEmits<{ (e: 'done'): void }>()
+
 type Kind = 'key' | 'blame'
 
 const { getChampionUrl } = useAssetUrl()
@@ -51,6 +54,10 @@ const saving = ref(false)
 const shareState = ref<'shared' | 'local' | 'failed'>('local')
 const consentOpen = ref(false)
 const saveError = ref<string | null>(null)
+
+watch(phase, p => {
+  if (p === 'done') emit('done')
+})
 
 const canSubmit = computed(() => picks.value.key !== null || picks.value.blame !== null)
 

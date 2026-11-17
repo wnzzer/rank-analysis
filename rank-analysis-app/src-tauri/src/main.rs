@@ -100,6 +100,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .register_asynchronous_uri_scheme_protocol("asset", move |_ctx, request, responder| {
             let path = request.uri().path();
             // path is like /champion/123
@@ -135,11 +136,16 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             //
             // Cache-Control: no-store —— 成功响应命中 Rust 端 BINARY_CACHE 是 O(1)，
             // 重新请求成本可忽略；失败响应不被浏览器负缓存，cache 就绪后下次请求即恢复。
+            //
+            // Access-Control-Allow-Origin: * —— 战报图导出要 fetch 图标转 data URL 画进 canvas，
+            // asset 协议与页面不同源，不带这个头会被 CORS 拦下、导出的图里头像空白。
+            // 只是本地英雄 / 物品图标，对任意来源开放无风险。
             tauri::async_runtime::spawn(async move {
                 let response = match asset_api::get_asset_binary(kind, id).await {
                     Ok((bytes, mime)) => tauri::http::Response::builder()
                         .header("Content-Type", mime)
                         .header("Cache-Control", "no-store")
+                        .header("Access-Control-Allow-Origin", "*")
                         .body(bytes)
                         .unwrap(),
                     Err(e) => tauri::http::Response::builder()
@@ -181,6 +187,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             command::match_label::get_match_label,
             command::match_label::retry_match_label_uploads,
             command::match_label::get_ended_game,
+            command::match_label::track_share_card,
             command::match_history::get_match_history_by_puuid,
             command::match_history::get_match_history_by_name,
             command::match_history::get_filter_match_history_by_name,

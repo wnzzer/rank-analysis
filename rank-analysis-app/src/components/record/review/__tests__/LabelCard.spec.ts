@@ -161,4 +161,25 @@ describe('LabelCard', () => {
     await w.get('[data-test="label-edit"]').trigger('click')
     expect(w.get(`[data-test="pick-blame-${blamePid}"]`).attributes('aria-pressed')).toBe('true')
   })
+
+  it('进入已提交状态时发 done：提交后发一次，恢复已标注也发（战报据此揭晓战报图）', async () => {
+    ipc.config.set('matchLabelShare', true)
+    const w = mountCard()
+    await flushPromises()
+    expect(w.emitted('done')).toBeUndefined()
+    await w.get(`[data-test="pick-key-${keyPid}"]`).trigger('click')
+    await submitBtn(w).trigger('click')
+    await flushPromises()
+    expect(w.emitted('done')).toHaveLength(1)
+
+    api.saved = {
+      gameId: 42,
+      keyPick: null,
+      blamePick: null,
+      uploaded: true
+    } as unknown as MatchLabel
+    const restored = mountCard()
+    await flushPromises()
+    expect(restored.emitted('done')).toHaveLength(1)
+  })
 })

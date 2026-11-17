@@ -266,9 +266,46 @@ pub async fn retry_match_label_uploads() -> Result<usize, String> {
     Ok(done)
 }
 
+/// 战报图打点：前端动作名 → 静态功能名
+///
+/// `track_feature` 只收 `&'static str`（不让任意字符串进 Sentry），这里用白名单映射；
+/// 未知动作返回 None，不上报。
+pub fn share_card_feature(action: &str) -> Option<&'static str> {
+    match action {
+        "shown" => Some("share_card_shown"),
+        "copied" => Some("share_card_copied"),
+        "angle" => Some("share_card_angle"),
+        "self_roast" => Some("share_card_self_roast"),
+        _ => None,
+    }
+}
+
+/// 战报图用量打点（展示 / 复制 / 换角度 / 打开自嘲版），漏斗看分享率
+///
+/// # 参数
+/// - `action`: `shown` | `copied` | `angle` | `self_roast`，其余忽略
+#[tauri::command]
+pub fn track_share_card(action: String) {
+    if let Some(feature) = share_card_feature(&action) {
+        crate::observability::track_feature(feature);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn should_map_only_whitelisted_share_card_actions() {
+        assert_eq!(share_card_feature("copied"), Some("share_card_copied"));
+        assert_eq!(share_card_feature("shown"), Some("share_card_shown"));
+        assert_eq!(share_card_feature("angle"), Some("share_card_angle"));
+        assert_eq!(
+            share_card_feature("self_roast"),
+            Some("share_card_self_roast")
+        );
+        assert_eq!(share_card_feature("anything else"), None);
+    }
 
     fn pick(slot: u8) -> Pick {
         Pick {

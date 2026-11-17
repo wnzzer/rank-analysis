@@ -27,7 +27,7 @@ panic = "abort"   # 恐慌时直接中止，减少错误处理代码
 strip = true      # 剥离符号信息，减小二进制大小
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["image-png"] } # image-png：剪贴板 writeImage 解码战报图
 tauri-plugin-opener = "2"
 
 serde = { version = "1", features = ["derive", "rc"] }
@@ -46,6 +46,8 @@ base64 = "0.21"
 tauri-plugin-http = "2"
 tauri-plugin-process = "2"
 tauri-plugin-dialog = "2.7.1" # 导入导出文件选择对话框
+# 战报图一键复制到剪贴板（writeImage 解 PNG 需要 tauri 的 image-png feature）
+tauri-plugin-clipboard-manager = "2.3"
 moka = { version = "0.12", features = ["future"] }
 phf = { version = "0.12", features = ["macros"] } # 用于静态配置编译期生成
 tokio = { version = "1", features = ["full"] }
