@@ -20,7 +20,7 @@ import ShareCard from './ShareCard.vue'
 
 const props = defineProps<{ model: ReviewModel; meta: string[] }>()
 
-const { getChampionUrl } = useAssetUrl()
+const { getChampionUrl, getSplashUrl } = useAssetUrl()
 
 const card = computed(() => buildShareCard(props.model))
 const tier = computed(() => card.value?.copy.tier ?? 'secondary')
@@ -29,6 +29,7 @@ const expanded = ref(false)
 const angle = ref(0)
 const hideName = ref(false)
 const iconUrl = ref<string | null>(null)
+const splashUrl = ref<string | null>(null)
 const copying = ref(false)
 const status = ref<{ ok: boolean; text: string } | null>(null)
 const cardEl = ref<{ $el: HTMLElement } | null>(null)
@@ -61,7 +62,12 @@ watch(
 watch(
   () => card.value?.championId,
   async id => {
-    iconUrl.value = id ? await toDataUrl(getChampionUrl(id)) : null
+    // 头像与原画都转成 data URL：导出时不再跨源取图（见 services/shareCard.ts）
+    const [icon, splash] = id
+      ? await Promise.all([toDataUrl(getChampionUrl(id)), toDataUrl(getSplashUrl(id))])
+      : [null, null]
+    iconUrl.value = icon
+    splashUrl.value = splash
   },
   { immediate: true }
 )
@@ -118,6 +124,7 @@ async function copy(): Promise<void> {
           :angle="angle"
           :hide-name="hideName"
           :icon-url="iconUrl"
+          :splash-url="splashUrl"
           :meta="meta"
         />
       </div>

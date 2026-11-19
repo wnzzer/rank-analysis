@@ -188,6 +188,8 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             command::match_label::retry_match_label_uploads,
             command::match_label::get_ended_game,
             command::match_label::track_share_card,
+            rank_analysis_lib::postgame_toast::postgame_toast_open_main,
+            rank_analysis_lib::postgame_toast::track_postgame_toast,
             command::match_history::get_match_history_by_puuid,
             command::match_history::get_match_history_by_name,
             command::match_history::get_filter_match_history_by_name,

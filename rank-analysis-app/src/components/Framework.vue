@@ -1,6 +1,7 @@
 <template>
   <div class="full-container">
     <MatchDetail v-if="isStandaloneDetailWindow" />
+    <PostGameToast v-else-if="isToastWindow" />
     <n-flex v-else vertical size="large">
       <!-- 启动弹窗队列：同一时刻至多一个可见，顺序见 useStartupDialogs。
            云端配置拉取裁决（CloudConfigPullDialog）不再走这里自动弹出，改成
@@ -46,6 +47,9 @@ import { useMessage } from 'naive-ui'
 import Header from './Header.vue'
 import SideNavigation from './SideNavigation.vue'
 import MatchDetail from '@renderer/views/MatchDetail.vue'
+import PostGameToast from '@renderer/views/PostGameToast.vue'
+import { isPostGameToastWindow } from '@renderer/services/postGameToast'
+import { usePostGameToastNavigation } from '@renderer/composables/usePostGameToastNavigation'
 import ErrorReportingConsentDialog from '@renderer/components/common/ErrorReportingConsentDialog.vue'
 import { useGameState } from '@renderer/composables/useGameState'
 import { useZoom } from '@renderer/composables/useZoom'
@@ -64,6 +68,7 @@ import { useStarPrompt } from '@renderer/composables/useStarPrompt'
  * 支持两种显示模式：
  * 1. 完整布局模式：显示完整的侧边栏 + 头部 + 内容区
  * 2. 独立窗口模式：用于战绩详情弹窗，仅渲染 MatchDetail 组件
+ * 3. 赛后弹卡窗口：右下角小窗，仅渲染 PostGameToast（见 services/postGameToast.ts）
  *
  * @example
  * <!-- 在 App.vue 中使用 -->
@@ -85,20 +90,26 @@ const isSettingsRoute = computed(() => route.path.startsWith('/Settings'))
  */
 const isStandaloneDetailWindow = computed(() => currentWindow.label.startsWith('match-detail-'))
 
+/** 当前窗口是否为赛后右下角弹卡（只渲染卡片，不挂任何主窗口逻辑） */
+const isToastWindow = isPostGameToastWindow()
+
 /**
  * 初始化游戏状态监听
  * 包含自动跳转逻辑：当检测到游戏开始时自动切换到对局页面
  */
-useGameState()
+if (!isToastWindow) useGameState()
+
+// 弹卡上点「去猜一下 / 看完整战报」：Rust 把主窗口拉到前台后通知这里跳到对局页
+if (!isStandaloneDetailWindow.value && !isToastWindow) usePostGameToastNavigation()
 
 // 浏览器式缩放（Ctrl+滚轮 / Ctrl±0）只作用于主窗口；详情窗由 useDetailZoom 以
 // CSS zoom 铺满 + 倍率管理（见 views/MatchDetail.vue），不能叠加 webview 缩放
-if (!isStandaloneDetailWindow.value) useZoom()
+if (!isStandaloneDetailWindow.value && !isToastWindow) useZoom()
 
 // 腾讯登录客户端注册的 LOL 开机自启无权限清理时，提示用户一键提权关闭（仅主窗口）
-if (!isStandaloneDetailWindow.value) useLolAutostartGuard()
+if (!isStandaloneDetailWindow.value && !isToastWindow) useLolAutostartGuard()
 // 累计使用满几天后一次性求 Star（仅主窗口）
-if (!isStandaloneDetailWindow.value) useStarPrompt()
+if (!isStandaloneDetailWindow.value && !isToastWindow) useStarPrompt()
 
 const message = useMessage()
 

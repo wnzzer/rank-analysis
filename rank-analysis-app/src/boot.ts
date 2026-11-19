@@ -13,6 +13,7 @@ import { initPlatform, initInstallForm } from './services/platform'
 import { useSettingsStore } from './pinia/setting'
 import { applySavedWindowZoom } from './composables/useZoom'
 import { isMatchDetailWindow } from './components/record/detailWindow'
+import { isPostGameToastWindow } from './services/postGameToast'
 
 /**
  * mount 前的准备：平台三项 + 主题 + 主窗口缩放，互不依赖、全部并发
@@ -25,8 +26,8 @@ export async function prepareBoot(pinia: Pinia): Promise<void> {
     initPlatform(),
     initInstallForm(),
     useSettingsStore(pinia).initTheme(),
-    // 详情窗缩放由 useDetailZoom 以 CSS zoom 管理，webview 缩放保持 1
-    isMatchDetailWindow() ? Promise.resolve() : applySavedWindowZoom()
+    // 详情窗缩放由 useDetailZoom 以 CSS zoom 管理；赛后弹卡按固定尺寸排版——两者 webview 缩放都保持 1
+    isMatchDetailWindow() || isPostGameToastWindow() ? Promise.resolve() : applySavedWindowZoom()
   ])
 }
 

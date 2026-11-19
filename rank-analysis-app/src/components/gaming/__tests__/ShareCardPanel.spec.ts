@@ -49,7 +49,7 @@ describe('ShareCardPanel', () => {
     await flushPromises()
     expect(w.find('[data-test="share-card"]').exists()).toBe(true)
     expect(w.text()).toContain('输了，但锅不在我')
-    expect(w.text()).toContain('37:12 · -18 LP')
+    expect(w.findAll('.sc-chip').map(c => c.text())).toEqual(['37:12', '-18 LP'])
     expect(tracked()).toEqual(['shown'])
   })
 
@@ -113,13 +113,21 @@ describe('ShareCardPanel', () => {
     expect(tracked()).not.toContain('copied')
   })
 
-  it('头像转 data URL 后画进卡片；转换失败不画', async () => {
+  it('头像与原画都转 data URL 后画进卡片；转换失败不画', async () => {
     const w = mountPanel('被连累')
     await flushPromises()
     expect(w.find('.sc-icon').attributes('src')).toBe('data:image/png;base64,AAAA')
+    expect(w.find('[data-test="share-card-splash"]').attributes('src')).toBe(
+      'data:image/png;base64,AAAA'
+    )
+    const urls = svc.toDataUrl.mock.calls.map(c => String(c[0]))
+    expect(urls.some(u => u.includes('/champion/'))).toBe(true)
+    expect(urls.some(u => u.includes('/splash/'))).toBe(true)
+
     svc.toDataUrl.mockResolvedValue(null)
     const w2 = mountPanel('被连累')
     await flushPromises()
     expect(w2.find('.sc-icon').exists()).toBe(false)
+    expect(w2.find('[data-test="share-card-splash"]').exists()).toBe(false)
   })
 })

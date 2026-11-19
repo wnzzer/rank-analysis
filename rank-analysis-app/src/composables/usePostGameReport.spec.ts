@@ -7,7 +7,12 @@ import type { Game } from '@renderer/types/domain/match'
 import {
   __resetPostGameReport,
   asMyGame,
+  formatDuration,
+  formatLp,
+  formatMmr,
+  loadEndedGameReport,
   POLL_INTERVAL_MS,
+  reportMeta,
   usePostGameReport
 } from './usePostGameReport'
 
@@ -155,5 +160,42 @@ describe('asMyGame', () => {
     expect(asMyGame(once, 'p2')).toBe(once)
     expect(asMyGame(game, 'nobody')).toBe(game)
     expect(asMyGame(game, '')).toBe(game)
+  })
+})
+
+describe('loadEndedGameReport（赛后弹卡）', () => {
+  it('不看阶段直接取刚结束那局；再次调用不重复加载', async () => {
+    const r = loadEndedGameReport()
+    await vi.runAllTimersAsync()
+    expect(r.report.value?.game.gameId).toBe(777)
+    expect(r.report.value?.lpDelta).toBe(21)
+    loadEndedGameReport()
+    await vi.runAllTimersAsync()
+    expect(calls.game).toBe(1)
+  })
+})
+
+describe('战报小字格式化', () => {
+  it('时长 m:ss', () => {
+    expect(formatDuration(2232)).toBe('37:12')
+    expect(formatDuration(65)).toBe('1:05')
+  })
+  it('LP 带正负号；没记到为 null', () => {
+    expect(formatLp(21)).toBe('+21 LP')
+    expect(formatLp(-18)).toBe('-18 LP')
+    expect(formatLp(0)).toBe('0 LP')
+    expect(formatLp(null)).toBeNull()
+  })
+  it('隐藏分只在 ready 时给出', () => {
+    expect(formatMmr(null)).toBeNull()
+    expect(
+      formatMmr({ status: 'ready', equivalentShort: '钻石 II', direction: 'up' } as never)
+    ).toBe('隐藏分 ≈ 钻石 II · 高于段位')
+    expect(formatMmr({ status: 'hidden' })).toBeNull()
+  })
+  it('reportMeta 跳过缺失项', () => {
+    const game = { gameDuration: 1800 } as Game
+    expect(reportMeta({ game, lpDelta: null, mmr: null })).toEqual(['30:00'])
+    expect(reportMeta({ game, lpDelta: 15, mmr: null })).toEqual(['30:00', '+15 LP'])
   })
 })

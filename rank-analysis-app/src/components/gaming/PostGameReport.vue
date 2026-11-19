@@ -11,7 +11,13 @@
  */
 import { computed, ref, watch } from 'vue'
 import { NButton, NSkeleton } from 'naive-ui'
-import type { PostGameReport } from '@renderer/composables/usePostGameReport'
+import {
+  formatDuration,
+  formatLp,
+  formatMmr,
+  reportMeta,
+  type PostGameReport
+} from '@renderer/composables/usePostGameReport'
 import { useReviewModel } from '@renderer/composables/useReviewModel'
 import { openMatchDetailWindow } from '@renderer/components/record/detailWindow'
 import LabelCard from '@renderer/components/record/review/LabelCard.vue'
@@ -30,23 +36,9 @@ const players = computed<PlayerView[]>(() =>
 )
 const me = computed(() => players.value.find(p => p.isMe) ?? null)
 
-const minutes = computed(() => {
-  const s = props.report.game.gameDuration
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
-})
-
-const lpText = computed(() => {
-  const d = props.report.lpDelta
-  if (d === null) return null
-  return `${d > 0 ? '+' : ''}${d} LP`
-})
-
-const mmrText = computed(() => {
-  const m = props.report.mmr
-  if (m?.status !== 'ready') return null
-  const dir = m.direction === 'up' ? '高于段位' : m.direction === 'down' ? '低于段位' : '持平'
-  return `隐藏分 ≈ ${m.equivalentShort} · ${dir}`
-})
+const minutes = computed(() => formatDuration(props.report.game.gameDuration))
+const lpText = computed(() => formatLp(props.report.lpDelta))
+const mmrText = computed(() => formatMmr(props.report.mmr))
 
 /** 战报图已揭晓（标注提交 / 恢复已有标注 / 玩家跳过） */
 const revealed = ref(false)
@@ -56,9 +48,7 @@ watch(
 )
 
 /** 战报图底部小字：时长、LP、隐藏分 */
-const shareMeta = computed(() =>
-  [`${minutes.value}`, lpText.value, mmrText.value].filter((x): x is string => !!x)
-)
+const shareMeta = computed(() => reportMeta(props.report))
 
 function openReview(): void {
   void openMatchDetailWindow(props.report.game)

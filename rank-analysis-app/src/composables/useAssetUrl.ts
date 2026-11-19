@@ -15,6 +15,15 @@ export function useAssetUrl() {
   }
 
   /**
+   * 获取英雄默认皮肤原画 URL（居中裁切，1280×720；赛后弹卡与战报图打底用）
+   * @param championId 英雄 ID
+   * @returns 原画 URL
+   */
+  const getSplashUrl = (championId: number | string): string => {
+    return `${assetPrefix}/splash/${championId}`
+  }
+
+  /**
    * 获取召唤师头像 URL
    * @param profileIconId 头像图标 ID
    * @returns 召唤师头像 URL
@@ -62,6 +71,7 @@ export function useAssetUrl() {
   return {
     assetPrefix,
     getChampionUrl,
+    getSplashUrl,
     getProfileUrl,
     getItemUrl,
     getSpellUrl,
