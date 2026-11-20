@@ -343,11 +343,13 @@ const barTone = (bar: number): string => (bar >= 0.5 ? 'up' : bar <= -0.5 ? 'dow
 .sc-parts {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 5px 14px;
+  /* 列间距要明显大于行内间距，否则左列等级词会和右列分项名连读（「大幅领先团战」） */
+  gap: 5px 20px;
 }
 .sc-part {
   display: grid;
-  grid-template-columns: 46px 1fr 46px;
+  /* 50px = 4 个 12px 字（「大幅领先」）再留 2px */
+  grid-template-columns: 46px 1fr 50px;
   align-items: center;
   gap: 6px;
   font-size: 11px;
@@ -358,6 +360,9 @@ const barTone = (bar: number): string => (bar >= 0.5 ? 'up' : bar <= -0.5 ? 'dow
   white-space: nowrap;
 }
 .sc-part-level {
+  /* 等级词是这一行的结论：比分项名大一号并加粗，微软雅黑常规体在 11px 彩色字下发虚 */
+  font-size: 12px;
+  font-weight: 600;
   text-align: right;
   white-space: nowrap;
 }
