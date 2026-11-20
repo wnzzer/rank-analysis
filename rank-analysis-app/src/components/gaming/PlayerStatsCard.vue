@@ -125,7 +125,8 @@ const hasGames = computed(
     background var(--dur-normal) var(--ease-expo),
     border-color var(--dur-normal) var(--ease-expo),
     box-shadow var(--dur-normal) var(--ease-expo);
-  border: 1px solid var(--sunken-border);
+  /* 收起态不描边（保留 1px 透明边，展开时不会跳 1px）：靠底色与卡片区分即可 */
+  border: 1px solid transparent;
 }
 
 .stats-card.is-expanded {
