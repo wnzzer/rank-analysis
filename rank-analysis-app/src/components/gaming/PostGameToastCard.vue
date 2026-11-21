@@ -7,7 +7,9 @@
  *
  * 三种状态：
  * - loading：复盘还在算，只有胜负 / KDA / LP 一行 +「看完整战报」；
- * - guess：还没标注——不露 AI 结论，十个英雄头像压暗当钩子，主按钮「去猜一下」；
+ * - guess：还没标注——不露 AI 结论，直接在卡上点头像猜：先选最关键，再选最犯罪，
+ *   选完发 submit（两项都可跳过）。不跳主窗口：弹卡出现时玩家在客户端里，
+ *   为了猜一下把主窗口拉到前台太重了；
  * - revealed：已标注（或本队列无标注卡）——标签 + 一条事实，主按钮「复制战报图」。
  *
  * 无交互 ttlMs 后发 expire；鼠标悬停期间暂停倒计时。
@@ -15,16 +17,36 @@
  * @property win / champion / kda / lpText - 顶行
  * @property label / tone / tagline / headline - 揭晓后的标签与事实
  * @property splashUrl / iconUrl - 原画（打底）与头像（原画缺失时的兜底）
- * @property allies / enemies - 双方英雄 id（guess 状态的头像排，己方在左）
+ * @property allies / enemies - 双方玩家（guess 状态的头像排，己方在左）
+ * @property compare - 揭晓后「你 vs AI」的一行对比；没猜过为 null
  * @property copyState - 复制按钮状态
  * @property ttlMs - 自动关闭时长；0 不自动关
- * @emits guess / open / copy / close / expire
+ * @emits submit - 猜完（或两项都跳过）；payload 为所选玩家的 participantId，跳过为 null
+ * @emits open / copy / close / expire
  */
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { ShareTone } from '@renderer/services/ai/review/shareFacts'
 
 export type ToastState = 'loading' | 'guess' | 'revealed'
 export type ToastCopyState = 'idle' | 'copying' | 'copied' | 'failed'
+
+/**
+ * 头像排里的一名玩家
+ * @property pid - participantId
+ * @property url - 英雄头像
+ * @property name - 英雄名（悬停提示）
+ */
+export interface ToastAvatar {
+  pid: number
+  url: string
+  name?: string
+}
+
+/** 玩家的猜测：所选玩家的 participantId，跳过为 null */
+export interface ToastGuess {
+  keyPid: number | null
+  blamePid: number | null
+}
 
 const props = withDefaults(
   defineProps<{
@@ -39,8 +61,9 @@ const props = withDefaults(
     headline?: string | null
     splashUrl?: string | null
     iconUrl?: string | null
-    allies?: string[]
-    enemies?: string[]
+    allies?: ToastAvatar[]
+    enemies?: ToastAvatar[]
+    compare?: string | null
     copyState?: ToastCopyState
     ttlMs?: number
   }>(),
@@ -54,13 +77,14 @@ const props = withDefaults(
     iconUrl: null,
     allies: () => [],
     enemies: () => [],
+    compare: null,
     copyState: 'idle',
     ttlMs: 25_000
   }
 )
 
 const emit = defineEmits<{
-  (e: 'guess'): void
+  (e: 'submit', guess: ToastGuess): void
   (e: 'open'): void
   (e: 'copy'): void
   (e: 'close'): void
@@ -79,6 +103,33 @@ const copyText = computed(
       copied: '已复制，去群里粘贴',
       failed: '复制失败，再试一次'
     })[props.copyState]
+)
+
+// ── 猜：先最关键、再最犯罪，两步各点一个头像（或跳过），第二步结束即提交 ──
+const step = ref<'key' | 'blame'>('key')
+const keyPid = ref<number | null>(null)
+
+function choose(pid: number | null): void {
+  if (step.value === 'key') {
+    keyPid.value = pid
+    step.value = 'blame'
+    return
+  }
+  emit('submit', { keyPid: keyPid.value, blamePid: pid })
+}
+
+/** 退回上一步重选最关键 */
+function back(): void {
+  step.value = 'key'
+  keyPid.value = null
+}
+
+// 换了一局（或状态被外部重置回 guess）时从头开始
+watch(
+  () => props.state,
+  s => {
+    if (s === 'guess') back()
+  }
 )
 
 // ── 自动关闭倒计时：rAF 不可靠（窗口刚 show 时可能暂停），用定时器 + 剩余时长 ──
@@ -169,14 +220,28 @@ const barStyle = computed(() => ({
 
       <template v-if="state === 'guess'">
         <div class="pgt-main" data-test="pgt-guess-text">
-          AI 已圈出本局 <span class="pgt-key">最关键</span> 和
-          <span class="pgt-blame">最犯罪</span> 的人
+          <template v-if="step === 'key'">
+            你觉得谁是本局 <span class="pgt-key">最关键</span> 的人？
+          </template>
+          <template v-else>那谁 <span class="pgt-blame">最犯罪</span>？</template>
         </div>
-        <div class="pgt-sub">你先猜猜是谁？</div>
+        <div class="pgt-sub">点头像选一个 · 选完揭晓 AI 的判断</div>
         <div class="pgt-lineup" data-test="pgt-lineup">
-          <img v-for="(u, i) in allies" :key="`a${i}`" class="pgt-mini" :src="u" alt="" />
-          <span class="pgt-vs">?</span>
-          <img v-for="(u, i) in enemies" :key="`e${i}`" class="pgt-mini" :src="u" alt="" />
+          <template v-for="(team, ti) in [allies, enemies]" :key="ti">
+            <span v-if="ti === 1" class="pgt-vs">VS</span>
+            <button
+              v-for="a in team"
+              :key="a.pid"
+              type="button"
+              class="pgt-mini"
+              :class="{ 'is-key': keyPid === a.pid }"
+              :title="a.name"
+              :data-test="`pgt-pick-${a.pid}`"
+              @click="choose(a.pid)"
+            >
+              <img :src="a.url" alt="" />
+            </button>
+          </template>
         </div>
       </template>
 
@@ -192,6 +257,7 @@ const barStyle = computed(() => ({
           <span v-if="tagline" class="pgt-tagline">{{ tagline }}</span>
         </div>
         <div v-if="headline" class="pgt-fact" data-test="pgt-headline">{{ headline }}</div>
+        <div v-if="compare" class="pgt-compare" data-test="pgt-compare">{{ compare }}</div>
       </template>
 
       <template v-else>
@@ -200,15 +266,20 @@ const barStyle = computed(() => ({
       </template>
 
       <div class="pgt-actions">
-        <button
-          v-if="state === 'guess'"
-          class="pgt-btn is-primary"
-          type="button"
-          data-test="pgt-guess"
-          @click="emit('guess')"
-        >
-          去猜一下
-        </button>
+        <template v-if="state === 'guess'">
+          <button class="pgt-btn is-ghost" type="button" data-test="pgt-skip" @click="choose(null)">
+            {{ step === 'key' ? '跳过这项' : '没有 / 跳过' }}
+          </button>
+          <button
+            v-if="step === 'blame'"
+            class="pgt-btn is-ghost"
+            type="button"
+            data-test="pgt-back"
+            @click="back"
+          >
+            重选
+          </button>
+        </template>
         <button
           v-else-if="state === 'revealed'"
           class="pgt-btn is-primary"
@@ -432,7 +503,7 @@ const barStyle = computed(() => ({
   }
 }
 
-/* 头像排：压暗去色当钩子，不露 AI 选了谁 */
+/* 头像排：十个可点的头像，己方在左。不露 AI 选了谁 */
 .pgt-lineup {
   display: flex;
   align-items: center;
@@ -440,25 +511,48 @@ const barStyle = computed(() => ({
   margin-top: 2px;
 }
 .pgt-mini {
-  width: 22px;
-  height: 22px;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
   border-radius: 6px;
-  filter: grayscale(0.55) brightness(0.72);
-  box-shadow: 0 0 0 1px var(--pgt-w10);
+  background: var(--pgt-w06);
+  box-shadow: 0 0 0 1px var(--pgt-w16);
+  overflow: hidden;
+  cursor: pointer;
+  transition:
+    transform 120ms,
+    box-shadow 120ms;
+}
+.pgt-mini img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  filter: brightness(0.82);
+  transition: filter 120ms;
+}
+.pgt-mini:hover {
+  transform: translateY(-2px) scale(1.12);
+  box-shadow: 0 0 0 2px var(--pgt-accent);
+}
+.pgt-mini:hover img {
+  filter: none;
+}
+/* 第一步选中的「最关键」在第二步保持金圈，提醒玩家刚才选了谁 */
+.pgt-mini.is-key {
+  box-shadow: 0 0 0 2px #f5b544;
+}
+.pgt-mini.is-key img {
+  filter: none;
 }
 .pgt-vs {
-  width: 20px;
-  height: 20px;
-  margin: 0 4px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
+  margin: 0 3px;
   font-family: var(--pgt-num);
-  font-size: 12px;
-  font-weight: 700;
-  color: #fff;
-  background: color-mix(in srgb, var(--pgt-accent) 50%, transparent);
-  box-shadow: 0 0 12px color-mix(in srgb, var(--pgt-accent) 70%, transparent); /* theme-fixed */
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  color: var(--pgt-sub);
 }
 
 .pgt-verdict {
@@ -514,6 +608,16 @@ const barStyle = computed(() => ({
   line-height: 1.45;
   color: var(--pgt-text);
   text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+}
+
+.pgt-compare {
+  max-width: 250px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--pgt-sub);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ── 按钮 ── */

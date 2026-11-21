@@ -32,8 +32,9 @@ const CHAMPS = {
 } as const
 type ChampKey = keyof typeof CHAMPS
 
-const LINEUP_ALLIES = [157, 64, 103, 222, 412].map(icon)
-const LINEUP_ENEMIES = [86, 121, 134, 51, 117].map(icon)
+/** 头像排：pid 己方 1~5、敌方 6~10 */
+const LINEUP_ALLIES = [157, 64, 103, 222, 412].map((id, i) => ({ pid: i + 1, url: icon(id) }))
+const LINEUP_ENEMIES = [86, 121, 134, 51, 117].map((id, i) => ({ pid: i + 6, url: icon(id) }))
 
 const fact = (headline: string, detail: string | null = null): ShareFact => ({
   kind: 'blame',

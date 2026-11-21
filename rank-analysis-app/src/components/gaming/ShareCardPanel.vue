@@ -111,7 +111,13 @@ async function copy(): Promise<void> {
         @click="openSelfRoast"
         >来张自嘲版战报图</n-button
       >
-      <n-button v-else size="small" secondary data-test="share-open" @click="expanded = true"
+      <n-button
+        v-else
+        size="small"
+        type="primary"
+        secondary
+        data-test="share-open"
+        @click="expanded = true"
         >生成战报图</n-button
       >
     </template>
@@ -153,6 +159,8 @@ async function copy(): Promise<void> {
 .share-panel {
   display: flex;
   flex-direction: column;
+  /* 收起态只有一个入口按钮：按内容宽度，不要被纵向 flex 拉成通栏 */
+  align-items: flex-start;
   gap: var(--space-8);
 }
 .share-body {

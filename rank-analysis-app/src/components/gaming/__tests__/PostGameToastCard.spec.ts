@@ -36,20 +36,63 @@ describe('PostGameToastCard', () => {
     expect(text).toContain('+21 LP')
   })
 
-  it('guess：不出现任何 AI 结论，只有十人头像排与「去猜一下」', async () => {
-    const w = mountCard({
-      state: 'guess',
-      label: '被连累',
-      headline: '9 次阵亡，本人责任只算 4 次',
-      allies: ['a1', 'a2', 'a3', 'a4', 'a5'],
-      enemies: ['e1', 'e2', 'e3', 'e4', 'e5']
-    })
+  const avatars = (from: number) =>
+    Array.from({ length: 5 }, (_, i) => ({ pid: from + i, url: `u${from + i}` }))
+  const guessProps = {
+    state: 'guess' as const,
+    label: '被连累',
+    headline: '9 次阵亡，本人责任只算 4 次',
+    allies: avatars(1),
+    enemies: avatars(6)
+  }
+
+  it('guess：不出现任何 AI 结论，只有十个可点的头像', () => {
+    const w = mountCard(guessProps)
     expect(w.text()).not.toContain('被连累')
     expect(w.text()).not.toContain('本人责任')
     expect(w.findAll('.pgt-mini')).toHaveLength(10)
     expect(w.find('[data-test="pgt-copy"]').exists()).toBe(false)
-    await w.get('[data-test="pgt-guess"]').trigger('click')
-    expect(w.emitted('guess')).toHaveLength(1)
+    expect(w.get('[data-test="pgt-guess-text"]').text()).toContain('最关键')
+  })
+
+  it('guess：先点最关键、再点最犯罪，第二次点完才提交', async () => {
+    const w = mountCard(guessProps)
+
+    await w.get('[data-test="pgt-pick-3"]').trigger('click')
+    expect(w.emitted('submit')).toBeUndefined()
+    expect(w.get('[data-test="pgt-guess-text"]').text()).toContain('最犯罪')
+    // 第一步选中的人保持金圈
+    expect(w.get('[data-test="pgt-pick-3"]').classes()).toContain('is-key')
+
+    await w.get('[data-test="pgt-pick-8"]').trigger('click')
+    expect(w.emitted('submit')).toEqual([[{ keyPid: 3, blamePid: 8 }]])
+  })
+
+  it('guess：两项都可以跳过', async () => {
+    const w = mountCard(guessProps)
+
+    await w.get('[data-test="pgt-skip"]').trigger('click')
+    await w.get('[data-test="pgt-skip"]').trigger('click')
+
+    expect(w.emitted('submit')).toEqual([[{ keyPid: null, blamePid: null }]])
+  })
+
+  it('guess：第二步可以退回重选最关键', async () => {
+    const w = mountCard(guessProps)
+    await w.get('[data-test="pgt-pick-3"]').trigger('click')
+
+    await w.get('[data-test="pgt-back"]').trigger('click')
+
+    expect(w.get('[data-test="pgt-guess-text"]').text()).toContain('最关键')
+    expect(w.get('[data-test="pgt-pick-3"]').classes()).not.toContain('is-key')
+    await w.get('[data-test="pgt-pick-4"]').trigger('click')
+    await w.get('[data-test="pgt-pick-9"]').trigger('click')
+    expect(w.emitted('submit')).toEqual([[{ keyPid: 4, blamePid: 9 }]])
+  })
+
+  it('revealed：有对比时显示「你 vs AI」一行', () => {
+    const w = mountCard({ state: 'revealed', compare: '最关键 ✓ 与 AI 一致' })
+    expect(w.get('[data-test="pgt-compare"]').text()).toBe('最关键 ✓ 与 AI 一致')
   })
 
   it('revealed：标签、一句人话、事实与复制按钮', async () => {
@@ -88,7 +131,7 @@ describe('PostGameToastCard', () => {
 
   it('loading：没有主按钮，只能看完整战报', () => {
     const w = mountCard({ state: 'loading' })
-    expect(w.find('[data-test="pgt-guess"]').exists()).toBe(false)
+    expect(w.find('[data-test="pgt-skip"]').exists()).toBe(false)
     expect(w.find('[data-test="pgt-copy"]').exists()).toBe(false)
     expect(w.find('[data-test="pgt-open"]').exists()).toBe(true)
   })

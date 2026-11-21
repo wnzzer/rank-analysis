@@ -6,13 +6,17 @@
  * 刚结束那局 → 复盘视图模型 → 本地是否已有标注。复盘模型（无时间线版，很快）就绪后才 show，
  * 取不到（POSTGAME_TOAST_GIVE_UP_MS 内）或是重开局就直接关掉，玩家什么都看不到。
  *
- * 先猜再揭晓：还没标注时卡上不出现 AI 结论，只引导「去猜一下」（跳主窗口对局页的标注卡）；
- * 已标注 / 本队列没有标注卡时直接揭晓标签与一条事实，可一键复制战报图。
+ * 先猜再揭晓：还没标注时卡上不出现 AI 结论，玩家直接在卡上点头像猜（不跳主窗口）；
+ * 猜完——或已标注 / 本队列没有标注卡——就地揭晓标签与一条事实，可一键复制战报图。
+ * 卡上猜的结果与对局页标注卡存的是同一份标注；是否上传沿用已有的分享设置，
+ * 还没决定过就只存本地（弹卡上不弹同意询问，留给标注卡第一次提交时问）。
  * 复制用离屏渲染的 ShareCard（与对局页战报图同一组件、同一导出逻辑）。
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import PostGameToastCard, {
+  type ToastAvatar,
   type ToastCopyState,
+  type ToastGuess,
   type ToastState
 } from '@renderer/components/gaming/PostGameToastCard.vue'
 import ShareCard from '@renderer/components/gaming/ShareCard.vue'
@@ -20,7 +24,16 @@ import { formatLp, loadEndedGameReport, reportMeta } from '@renderer/composables
 import { useReviewModel } from '@renderer/composables/useReviewModel'
 import { useAssetUrl } from '@renderer/composables/useAssetUrl'
 import { buildShareCard, pickAngle } from '@renderer/services/ai/review/shareFacts'
-import { getMatchLabel } from '@renderer/services/matchLabel'
+import { getConfigByIpc } from '@renderer/services/ipc'
+import {
+  MATCH_LABEL_SHARE_KEY,
+  buildMatchLabel,
+  compareSummary,
+  currentModelVersion,
+  getMatchLabel,
+  saveMatchLabel,
+  type MatchLabel
+} from '@renderer/services/matchLabel'
 import { copyCardImage, toDataUrl } from '@renderer/services/shareCard'
 import {
   POSTGAME_TOAST_GIVE_UP_MS,
@@ -39,29 +52,46 @@ const game = computed(() => report.value?.game ?? null)
 const { model, isRemake, failed } = useReviewModel(game)
 const { getChampionUrl, getSplashUrl } = useAssetUrl()
 
-/** 本局本地已有标注（在复盘页 / 对局页标过）；null = 还没查到 */
-const hasLabel = ref<boolean | null>(null)
+const players = computed(() => (model.value ? Object.values(model.value.players) : []))
+
+/** 本局本地已有的标注（在复盘页 / 对局页标过）；undefined = 还没查到，null = 没标过 */
+const savedLabel = ref<MatchLabel | null | undefined>(undefined)
+/** 玩家在卡上的猜测；猜完（或跳过）即就地揭晓 */
+const guess = ref<ToastGuess | null>(null)
 watch(
   () => game.value?.gameId,
   async id => {
-    hasLabel.value = null
+    savedLabel.value = undefined
+    guess.value = null
     if (!id) return
     try {
-      hasLabel.value = !!(await getMatchLabel(id))
+      savedLabel.value = await getMatchLabel(id)
     } catch {
-      hasLabel.value = false
+      savedLabel.value = null
     }
   },
   { immediate: true }
 )
+const hasLabel = computed(() => (savedLabel.value === undefined ? null : !!savedLabel.value))
 
-const players = computed(() => (model.value ? Object.values(model.value.players) : []))
+/** 揭晓后「你 vs AI」的一行对比：卡上刚猜的优先，其次是之前存过的标注 */
+const compare = computed(() => {
+  const g =
+    guess.value ??
+    (savedLabel.value
+      ? {
+          keyPid: savedLabel.value.keyPick?.slot ?? null,
+          blamePid: savedLabel.value.blamePick?.slot ?? null
+        }
+      : null)
+  return g ? compareSummary(g, players.value) : null
+})
 const me = computed(() => players.value.find(p => p.isMe) ?? null)
 const card = computed(() => (model.value ? buildShareCard(model.value) : null))
 
 const state = computed<ToastState>(() => {
   if (!model.value || !card.value || hasLabel.value === null) return 'loading'
-  return model.value.hasBaseline && !hasLabel.value ? 'guess' : 'revealed'
+  return model.value.hasBaseline && !hasLabel.value && !guess.value ? 'guess' : 'revealed'
 })
 
 /** 顶行：本人英雄、胜负、KDA */
@@ -78,9 +108,14 @@ const self = computed(() => {
 const lineup = computed(() => {
   const myTeam = me.value?.teamId
   const byPid = [...players.value].sort((a, b) => a.participantId - b.participantId)
+  const avatar = (p: (typeof byPid)[number]): ToastAvatar => ({
+    pid: p.participantId,
+    url: getChampionUrl(p.championId),
+    name: p.isMe ? `${p.champion}（你）` : p.champion
+  })
   return {
-    allies: byPid.filter(p => p.teamId === myTeam).map(p => getChampionUrl(p.championId)),
-    enemies: byPid.filter(p => p.teamId !== myTeam).map(p => getChampionUrl(p.championId))
+    allies: byPid.filter(p => p.teamId === myTeam).map(avatar),
+    enemies: byPid.filter(p => p.teamId !== myTeam).map(avatar)
   }
 })
 
@@ -128,9 +163,34 @@ function expire(): void {
   void closeToastWindow()
 }
 
-function guess(): void {
+/**
+ * 玩家在卡上猜完：立刻揭晓，标注在后台保存。
+ *
+ * 揭晓不等保存——保存失败只是少一条标注，不该让玩家卡在「猜完没反应」。
+ * 两项都跳过时不保存（后端也不收空标注），效果等同对局页的「跳过，直接看战报图」。
+ */
+async function submitGuess(g: ToastGuess): Promise<void> {
   trackPostGameToast('guess')
-  void openMainFromToast()
+  guess.value = g
+  const current = game.value
+  if (!current || (g.keyPid === null && g.blamePid === null)) return
+  try {
+    const share = (await getConfigByIpc<boolean>(MATCH_LABEL_SHARE_KEY)) === true
+    await saveMatchLabel(
+      buildMatchLabel({
+        players: players.value,
+        gameId: current.gameId,
+        platform: current.platformId,
+        queueId: current.queueId,
+        keyPid: g.keyPid,
+        blamePid: g.blamePid,
+        modelVersion: await currentModelVersion()
+      }),
+      share
+    )
+  } catch (e) {
+    console.warn('post-game toast: save label failed', e)
+  }
 }
 
 function open(): void {
@@ -187,9 +247,10 @@ async function copy(): Promise<void> {
       :icon-url="self.championId ? getChampionUrl(self.championId) : null"
       :allies="lineup.allies"
       :enemies="lineup.enemies"
+      :compare="compare"
       :copy-state="copyState"
       :ttl-ms="POSTGAME_TOAST_TTL_MS"
-      @guess="guess"
+      @submit="submitGuess"
       @open="open"
       @copy="copy"
       @close="close"
