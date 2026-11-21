@@ -33,7 +33,13 @@ export const isClaudeModel = (model: string) => model.startsWith('claude-')
 
 /** AI 场景名（与 data/ai-config.json 的 models 键一一对应） */
 export type AiScene =
-  'matchAttribution' | 'matchCritique' | 'inGame' | 'champSelect' | 'matchSearch' | 'tagSuggest'
+  | 'matchAttribution'
+  | 'matchCritique'
+  | 'inGame'
+  | 'champSelect'
+  | 'matchSearch'
+  | 'tagSuggest'
+  | 'labelRebuttal'
 
 interface AiConfig {
   schemaVersion: number
