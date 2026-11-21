@@ -4,7 +4,13 @@
 //! 引回战报与标注。触发放在 Rust：主窗口最小化后 WebView2 会节流前端定时器，
 //! 靠前端 watch 阶段再开窗不可靠。
 //!
-//! - 只弹 420 / 440（与隐藏分同一队列判断），每局一次；主窗口已在前台时不弹
+//! - 只弹 420 / 440（与隐藏分同一队列判断），每局一次
+//! - **不看主窗口在不在前台，一律弹**。曾经有过「主窗口已在前台就不弹」的规则，
+//!   但那个判断靠不住：游戏进程退出时 Windows 会先把焦点还给玩家上一个用过的窗口，
+//!   如果正好是我们的主窗口，结算瞬间它就算「在前台」，一两秒后客户端才盖上来——
+//!   玩家看着客户端结算页，弹卡却被压掉了（真机 2026-11-21，v2.2.2 日志
+//!   `16:44:50 赛后弹卡：主窗口在前台，不弹`）。弹卡不抢焦点、25 秒自动收起，
+//!   多弹一次的代价远小于该弹没弹
 //! - 窗口不抢焦点（`focused(false)` + `focusable(false)`），不能打断玩家点「再来一局」
 //! - 窗口先隐藏创建，弹卡页面取到数据后自己 show；取不到 / 重开局自己关
 //! - 进选人 / 匹配时立刻关掉
@@ -111,15 +117,6 @@ async fn enabled() -> bool {
         .unwrap_or(true)
 }
 
-/// 主窗口是否已在前台（可见、未最小化、有焦点）：此时玩家已经看得到对局页的战报，不弹
-fn main_in_foreground(app: &AppHandle) -> bool {
-    app.get_webview_window("main").is_some_and(|w| {
-        w.is_visible().unwrap_or(false)
-            && !w.is_minimized().unwrap_or(true)
-            && w.is_focused().unwrap_or(false)
-    })
-}
-
 async fn maybe_show(app: AppHandle) {
     if !enabled().await {
         return;
@@ -143,10 +140,6 @@ async fn maybe_show(app: AppHandle) {
     }
     // 两个阶段的触发者可能同时走到这里：只放行先占到位的那个
     if SHOWN_GAME.swap(game_id, Ordering::SeqCst) == game_id {
-        return;
-    }
-    if main_in_foreground(&app) {
-        log::info!("赛后弹卡：主窗口在前台，不弹");
         return;
     }
     if let Err(e) = open(&app, game_id) {
