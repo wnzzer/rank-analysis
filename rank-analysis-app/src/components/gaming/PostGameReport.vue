@@ -254,7 +254,7 @@ function openReview(): void {
   white-space: nowrap;
   color: rgba(241, 243, 248, 0.82);
   background: rgba(13, 16, 23, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.14); /* theme-fixed：横幅配色固定在深色 */
 }
 .pgr-lp {
   font-weight: var(--font-weight-semibold);
@@ -283,7 +283,7 @@ function openReview(): void {
   appearance: none;
   padding: 3px 10px;
   border-radius: var(--radius-sm);
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.16); /* theme-fixed：横幅配色固定在深色 */
   background: rgba(13, 16, 23, 0.5);
   color: rgba(241, 243, 248, 0.82);
   font: inherit;
@@ -297,7 +297,7 @@ function openReview(): void {
 }
 .pgr-btn:hover {
   color: #fff;
-  background: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.16); /* theme-fixed：横幅配色固定在深色 */
 }
 .pgr-btn:focus-visible {
   outline: 1px solid #fff;
