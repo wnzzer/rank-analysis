@@ -4,7 +4,8 @@
 //! 引回战报与标注。触发放在 Rust：主窗口最小化后 WebView2 会节流前端定时器，
 //! 靠前端 watch 阶段再开窗不可靠。
 //!
-//! - 只弹 420 / 440（与隐藏分同一队列判断），每局一次；主窗口已在前台时不弹
+//! - 只弹 420 / 440（与隐藏分同一队列判断），每局一次；主窗口**持续**在前台时不弹
+//!   （只看结算那一瞬间不行，见 [`FOREGROUND_SAMPLES`]）
 //! - 窗口不抢焦点（`focused(false)` + `focusable(false)`），不能打断玩家点「再来一局」
 //! - 窗口先隐藏创建，弹卡页面取到数据后自己 show；取不到 / 重开局自己关
 //! - 进选人 / 匹配时立刻关掉
@@ -45,6 +46,18 @@ const EDGE_GAP: f64 = 16.0;
 /// 结算页刚出现时对局端点常常还没就绪：每 3 秒问一次，最多 1 分钟
 const FIND_INTERVAL: Duration = Duration::from_secs(3);
 const FIND_ATTEMPTS: u32 = 20;
+
+/// 判断「主窗口在前台」要连续采样几次、每次间隔多久。
+///
+/// 只看结算那一瞬间会误判：游戏进程退出时，Windows 先把焦点还给玩家上一个用过的窗口
+/// ——如果那是我们的主窗口（选人期看过对局页），这一瞬间它就是「可见、有焦点」的；
+/// 一两秒后 LOL 客户端才弹到前台把它盖住。真机 2026-11-21（v2.2.2）：
+/// `16:44:50 赛后弹卡：主窗口在前台，不弹`，而玩家看到的是客户端结算页，什么都没弹。
+///
+/// 所以要求连续几次都在前台才算数：第一次不在前台就立刻弹，不多等；
+/// 在前台则隔一会儿再看，中途任何一次不在了就弹。
+const FOREGROUND_SAMPLES: u32 = 5;
+const FOREGROUND_SAMPLE_INTERVAL: Duration = Duration::from_millis(1500);
 
 /// 已弹过的 gameId（PreEndOfGame 与 EndOfGame 各触发一次，同一局只弹一次）
 static SHOWN_GAME: AtomicI64 = AtomicI64::new(0);
@@ -120,6 +133,29 @@ fn main_in_foreground(app: &AppHandle) -> bool {
     })
 }
 
+/// 一组前台采样是否说明「玩家确实一直看着主窗口」：至少采到一次，且每次都在前台。
+pub fn stayed_in_foreground(samples: &[bool]) -> bool {
+    !samples.is_empty() && samples.iter().all(|s| *s)
+}
+
+/// 主窗口是否持续在前台（见 [`FOREGROUND_SAMPLES`]）。
+///
+/// 一旦某次采样不在前台就提前返回 false——玩家已经不在看主窗口了，弹卡越早出来越好。
+async fn main_stays_in_foreground(app: &AppHandle) -> bool {
+    let mut samples = Vec::with_capacity(FOREGROUND_SAMPLES as usize);
+    for i in 0..FOREGROUND_SAMPLES {
+        if i > 0 {
+            tokio::time::sleep(FOREGROUND_SAMPLE_INTERVAL).await;
+        }
+        let foreground = main_in_foreground(app);
+        samples.push(foreground);
+        if !foreground {
+            break;
+        }
+    }
+    stayed_in_foreground(&samples)
+}
+
 async fn maybe_show(app: AppHandle) {
     if !enabled().await {
         return;
@@ -145,8 +181,8 @@ async fn maybe_show(app: AppHandle) {
     if SHOWN_GAME.swap(game_id, Ordering::SeqCst) == game_id {
         return;
     }
-    if main_in_foreground(&app) {
-        log::info!("赛后弹卡：主窗口在前台，不弹");
+    if main_stays_in_foreground(&app).await {
+        log::info!("赛后弹卡：主窗口持续在前台，不弹");
         return;
     }
     if let Err(e) = open(&app, game_id) {
@@ -251,6 +287,19 @@ pub fn track_postgame_toast(action: String) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn should_suppress_toast_only_when_main_window_stays_in_foreground() {
+        // 一直在前台：玩家确实在看主窗口，对局页已经有战报
+        assert!(stayed_in_foreground(&[true, true, true, true]));
+        // 结算瞬间在前台、随后被客户端盖住（真机 2026-11-21 的情况）：要弹
+        assert!(!stayed_in_foreground(&[true, false]));
+        assert!(!stayed_in_foreground(&[true, true, true, false]));
+        // 一开始就不在前台：要弹
+        assert!(!stayed_in_foreground(&[false]));
+        // 没采到样本不能当成「在前台」
+        assert!(!stayed_in_foreground(&[]));
+    }
 
     #[test]
     fn should_show_only_ranked_and_once_per_game() {
