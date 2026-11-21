@@ -37,6 +37,8 @@ export const REBUTTAL_TIMEOUT_MS = 20_000
 export const REBUTTAL_FALLBACK_REPLY = '你的理由已记下。这局的判断依据可以在完整复盘里看到。'
 /** 每名玩家最多列几次阵亡明细，控制材料长度 */
 const MAX_DEATHS_LISTED = 8
+/** 模型输出不合格时最多再要几次（合格率高，重试一次基本够；每次 1～2 秒） */
+const REBUTTAL_ATTEMPTS = 2
 /** 数字校验的容差：模型偶尔把 8.20 写成 8.2 */
 const NUMBER_TOLERANCE = 0.05
 
@@ -124,6 +126,18 @@ function deathLine(d: NonNullable<PlayerView['deathList']>[number]): string {
   return `${d.time} ${d.kindCn}（${odds}${d.traded ? '，队友趁机换到了资源' : ''}）`
 }
 
+/**
+ * 玩家本人「情有可原」的一次阵亡。只有确实被人数压制时才写人数：
+ * 被抓、队友先倒下这两类即使人数不吃亏也算情有可原，带上「我方 2 人、对面 1 人」
+ * 会被模型一并概括成「全是多打少」（真机实测）。
+ */
+function excusedLine(d: NonNullable<PlayerView['deathList']>[number]): string {
+  const bits: string[] = []
+  if (d.enemies > d.allies) bits.push(`我方 ${d.allies} 人、对面 ${d.enemies} 人`)
+  if (d.traded) bits.push('队友趁机换到了资源')
+  return `${d.time} ${d.kindCn}${bits.length ? `（${bits.join('，')}）` : ''}`
+}
+
 /** 这次阵亡是否「情有可原」：被抓、队友先倒下、以少打多、牵制换到了资源 */
 function excusable(d: NonNullable<PlayerView['deathList']>[number]): boolean {
   return d.kind === 'ganked' || d.kind === 'collapse' || d.enemies > d.allies || d.traded
@@ -140,9 +154,9 @@ const AHEAD: ReadonlySet<string> = new Set(['领先', '大幅领先'])
  * 但……」）。所以落后的分项、自己该负责的阵亡、负面的「值得一提」一律不给，
  * 模型想说也没有材料。
  */
-function selfFacts(p: PlayerView): string {
+function selfFacts(p: PlayerView, tags: string[] = []): string {
   const lines: string[] = [
-    `${p.champion}（${p.roleCn}，${p.win ? '胜方' : '败方'}，就是玩家本人，称呼为「你」）`
+    `${p.champion}（${p.roleCn}，${p.win ? '胜方' : '败方'}，就是玩家本人，称呼为「你」${tags.map(t => `，${t}`).join('')}）`
   ]
   const good = p.parts.filter(x => AHEAD.has(x.level))
   if (good.length) {
@@ -152,7 +166,28 @@ function selfFacts(p: PlayerView): string {
   }
   const excused = (p.deathList ?? []).filter(excusable).slice(0, MAX_DEATHS_LISTED)
   if (excused.length) {
-    lines.push(`不该算在他头上的阵亡：${excused.map(deathLine).join('；')}`)
+    lines.push(`不该算在他头上的阵亡：${excused.map(excusedLine).join('；')}`)
+  }
+  return lines.join('\n')
+}
+
+/**
+ * 「最关键」人选的事实卡：只放这个人打得好的地方。
+ *
+ * 玩家选他是因为觉得他打得最好。给全量数据时，模型会把里面落后的分项、
+ * 「数据好看作用有限」之类拿来当反面证据（真机实测：玩家选对面中单为最关键，
+ * 模型回复「他这关键确实站不住」）。与 {@link selfFacts} 同理：不给，就说不出来。
+ */
+function praiseFacts(p: PlayerView, tags: string[]): string {
+  const lines: string[] = [
+    `${p.champion}（${[p.roleCn, p.win ? '胜方' : '败方', ...tags].join('，')}）`,
+    `KDA ${p.kills}/${p.deaths}/${p.assists}`
+  ]
+  const good = p.parts.filter(x => AHEAD.has(x.level))
+  if (good.length) {
+    lines.push(
+      `打得好的：${good.map(x => (x.stats.length ? `${x.cn}${x.level}（${x.stats.join('，')}）` : `${x.cn}${x.level}`)).join('、')}`
+    )
   }
   return lines.join('\n')
 }
@@ -163,11 +198,17 @@ function selfFacts(p: PlayerView): string {
  * 玩家本人走 {@link selfFacts}，只有对他有利的事实。
  * @param p - 该玩家
  * @param team - 与其同队的全部玩家（含本人），供队内对比类事实使用
+ * @param tags - 写在名字后面的身份说明（如「你的队友」「玩家认为他最犯罪」）；不传则不写
  */
-export function playerFacts(p: PlayerView, team: PlayerView[]): string {
-  if (p.isMe) return selfFacts(p)
+export function playerFacts(p: PlayerView, team: PlayerView[], tags: string[] = []): string {
+  // 「你的队友」对玩家本人没有意义，只留他在分歧里的身份（如「评分选的最犯罪」）
+  if (p.isMe)
+    return selfFacts(
+      p,
+      tags.filter(t => t !== '你的队友')
+    )
   const lines: string[] = [
-    `${p.champion}（${p.roleCn}，${p.win ? '胜方' : '败方'}）`,
+    `${p.champion}（${[p.roleCn, p.win ? '胜方' : '败方', ...tags].join('，')}）`,
     `KDA ${p.kills}/${p.deaths}/${p.assists}`
   ]
   if (p.parts.length) {
@@ -210,7 +251,8 @@ const REBUTTAL_TARGET_REPLY = 110
  * 纯情绪的话被当成认账、类别归错、人称混乱（把玩家的数据说成「我这边」、
  * 把玩家说成「他」）、结尾反问、开头重复立场标签、材料里有印证的数据却不用、
  * 提示词里举的口头禅（「换谁都上火」）被每条回复照抄当开场、玩家骂某人「混子」时
- * 反过来夸那个人对线打得好。
+ * 反过来夸那个人对线打得好、把玩家选的「最关键」（对面中单）的数据当成
+ * 「你家中路不动」的证据。
  */
 export const REBUTTAL_SYSTEM_PROMPT = [
   '你是英雄联盟玩家的开黑队友，刚陪他打完这局。复盘工具的评分给出了「最关键」「最犯罪」的判断，他不服，写了理由。你站在他这边，回他一段话。',
@@ -222,7 +264,9 @@ export const REBUTTAL_SYSTEM_PROMPT = [
   '4. 一个字都不要提玩家本人的失误、阵亡、落后的分项。即使评分把「最犯罪」判给了他，也只说「评分把锅扣在你头上，是因为它看不到……」，然后说它看不到什么。',
   '5. 事实和他说的对不上时：不要纠正他、不要说「其实」「不过数据显示」。先认同他的感受，再挑【事实】里能支持他的部分说；对不上的那部分最多轻轻带一句，或者干脆不提。',
   '6. 不要夸他指的那个人，不要替那个人开脱。对那个人有利的数据（对线领先、发育好之类）不要主动提。',
-  '7. 口气像朋友聊天：短句，口语。不要官腔，不要「评分看到的是」「综合来看」这类解释腔，不要说教。开头每次换个说法，贴着他这句话的内容接，不要用固定的套话开场。',
+  '7. 分清他在说谁：事实分成【玩家这边】和【对面】两个区。标了「玩家认为他是全场打得最好的」的人，是他觉得最关键的——认同这一点，说这个人哪里打得好，绝对不能说这个人不行。标了「玩家认为他最犯罪」的人才是他要怪的。',
+  '8. 他的理由按位置点名时（如「中路」「辅助」「打野」「上单」）：说的一定是【玩家这边】的人。到【玩家这边】里按位置找到那个人，用那个人的数据；【对面】同位置的人不是他说的人，一个数字都不能借用。找不到数据就只认同感受。',
+  '9. 口气像朋友聊天：短句，口语。不要官腔，不要「评分看到的是」「综合来看」这类解释腔，不要说教。开头每次换个说法，贴着他这句话的内容接，不要用固定的套话开场。',
   '',
   '底线（违反任何一条，整段回复作废）：',
   'A. 只能说【事实】里有的数字、时间和事件，一个都不能编。没有数据撑腰的话可以说，但不能带编出来的数。',
@@ -231,6 +275,7 @@ export const REBUTTAL_SYSTEM_PROMPT = [
   'D. 人称：对玩家说「你」；【事实】里标了「就是玩家本人」的那个人就是他，提到一律说「你」；其他人用英雄名；「我」只指你自己。',
   'E. 只有这一次回应：不提问，不请他补充。',
   'F. reply 不要以「你说得对」「有一部分道理」开头，界面上已经单独显示了。',
+  'G. 不要把这些要求里的话写进 reply（如「轻带一句」「就事论事」）。',
   '',
   `输出一个 JSON 对象，不要输出别的：`,
   '{"stance": "concede|partial|hold", "category": "absence|targeted|empty_stats|attitude|draft|teamwork|other", "reply": "回他的话"}',
@@ -250,8 +295,36 @@ export const REBUTTAL_SYSTEM_PROMPT = [
   `reply 用中文，${REBUTTAL_TARGET_REPLY} 字以内，不要分点，不要加引号或前缀。`
 ].join('\n')
 
+/** 相对玩家本人：队友还是对面 */
+function sideOf(p: PlayerView, me: PlayerView | undefined): string {
+  if (!me) return p.win ? '胜方' : '败方'
+  return p.teamId === me.teamId ? '你的队友' : '对面的'
+}
+
 /**
- * 拼用户提示词：分歧、事实、评分说明、玩家理由
+ * 玩家其余队友的一行摘要（位置、英雄、战绩、团战与资源的真实数据）。
+ *
+ * 玩家的理由常按位置点名（「中路一动不动」「辅助乱游走」），而分歧涉及的只有两到四个人。
+ * 真机（2026-11-21 用户截图）：玩家选了对面中单为最关键，理由里骂的是自己家中路；材料里
+ * 唯一的中单是对面那个，模型就把对面中单的参团率当成了「你家中路不动」的证据——
+ * 等于在骂玩家认为全场最好的人。所以把队友都列出来，让模型能按位置找对人。
+ */
+function teammateLine(p: PlayerView): string {
+  const stat = (key: string): string => p.parts.find(x => x.key === key)?.stats.join('，') ?? ''
+  const bits = [`KDA ${p.kills}/${p.deaths}/${p.assists}`, stat('teamfight'), stat('resources')]
+  return `- ${p.roleCn} ${p.champion}：${bits.filter(Boolean).join('，')}`
+}
+
+/**
+ * 拼用户提示词：分歧、按阵营分区的事实、评分说明、玩家理由。
+ *
+ * 事实按「玩家这边 / 对面」分成两个区，而不是把涉及的人排成一列：玩家按位置点名
+ * （「中路一动不动」）说的一定是自己这边的人，分区后模型不用靠每张卡上的小标签去判断。
+ * 每个人给多少事实取决于他在分歧里的身份：
+ * - 玩家本人：只给对他有利的（{@link selfFacts}）；
+ * - 「最关键」的人选（玩家选的、评分选的）：只给打得好的地方（{@link praiseFacts}）；
+ * - 「最犯罪」的人选：全量；
+ * - 玩家的其余队友：一行摘要（{@link teammateLine}）。
  * @param disputes - 分歧项
  * @param players - 本局 10 人
  * @param note - 玩家写的理由
@@ -261,22 +334,67 @@ export function buildRebuttalPrompt(
   players: PlayerView[],
   note: string
 ): string {
-  const involved: PlayerView[] = []
-  for (const d of disputes) {
-    for (const p of [d.mine, d.model]) {
-      if (!involved.some(x => x.participantId === p.participantId)) involved.push(p)
+  const me = players.find(p => p.isMe)
+  // 涉及的人：在分歧里的身份，以及是否只因「最关键」而涉及
+  const involved: Array<{ p: PlayerView; tags: string[]; praiseOnly: boolean }> = []
+  const tag = (p: PlayerView, text: string, praise: boolean): void => {
+    const hit = involved.find(x => x.p.participantId === p.participantId)
+    if (hit) {
+      hit.tags.push(text)
+      // 同时被指为最犯罪的人要看全量，不能只说好话
+      hit.praiseOnly = hit.praiseOnly && praise
+    } else {
+      involved.push({ p, tags: [text], praiseOnly: praise })
     }
   }
+  for (const d of disputes) {
+    const key = d.kind === 'key'
+    tag(d.mine, key ? '玩家认为他是全场打得最好的' : '玩家认为他最犯罪', key)
+    tag(d.model, `评分选的${KIND_CN[d.kind]}`, key)
+  }
   const teamOf = (p: PlayerView): PlayerView[] => players.filter(q => q.teamId === p.teamId)
+  const card = (x: (typeof involved)[number]): string =>
+    x.p.isMe
+      ? playerFacts(x.p, teamOf(x.p), x.tags)
+      : x.praiseOnly
+        ? praiseFacts(x.p, x.tags)
+        : playerFacts(x.p, teamOf(x.p), x.tags)
+  const who = (p: PlayerView): string =>
+    p.isMe ? '玩家自己' : `${sideOf(p, me)}${p.roleCn}${p.champion}`
   const disputeLines = disputes.map(
-    d => `- ${KIND_CN[d.kind]}：玩家选了${d.mine.champion}，你选的是${d.model.champion}`
+    d => `- ${KIND_CN[d.kind]}：玩家认为是${who(d.mine)}，评分选的是${who(d.model)}`
   )
+  const isInvolved = (p: PlayerView): boolean =>
+    involved.some(x => x.p.participantId === p.participantId)
+
+  const facts: string[] = []
+  if (me) {
+    const mine = involved.filter(x => x.p.teamId === me.teamId)
+    const theirs = involved.filter(x => x.p.teamId !== me.teamId)
+    const rest = players.filter(p => p.teamId === me.teamId && !p.isMe && !isInvolved(p))
+    // 玩家本人不在分歧里时也给他那张卡：里面是能替他说话的事实
+    const selfCard = isInvolved(me) ? [] : [playerFacts(me, teamOf(me))]
+    facts.push(
+      `【事实 · 玩家这边（${me.win ? '胜方' : '败方'}）】`,
+      ...[...selfCard, ...mine.map(card)].flatMap(c => [c, '']),
+      ...(rest.length ? ['玩家的其余队友：', ...rest.map(teammateLine), ''] : [])
+    )
+    if (theirs.length) {
+      facts.push(
+        `【事实 · 对面（${me.win ? '败方' : '胜方'}）】`,
+        ...theirs.map(card).flatMap(c => [c, ''])
+      )
+    }
+  } else {
+    // 标注人不在这局里（看别人的对局）：没有「这边 / 对面」，按原样排
+    facts.push('【事实】', ...involved.map(card).flatMap(c => [c, '']))
+  }
+
   return [
     '【分歧】',
     ...disputeLines,
     '',
-    '【事实】',
-    ...involved.map(p => playerFacts(p, teamOf(p))).flatMap(card => [card, '']),
+    ...facts,
     // 有没有时间线看阵亡明细：有时间线时每个人的 deathList 都是数组（哪怕为空）
     scoringNotesText(players.some(p => p.deathList !== null)),
     '',
@@ -285,12 +403,23 @@ export function buildRebuttalPrompt(
   ].join('\n')
 }
 
-/** 回复里的数字是否都能在材料里找到 */
+/**
+ * 回复里的数字是否都能在材料里找到。
+ *
+ * 允许取整：材料里是 37.1%，模型说「37%」「不到 38%」都算有依据——口语里本来就会这么说，
+ * 当成编造整条作废太严（真机实测约九分之一的回复因此走了保底）。
+ */
 function numbersGrounded(reply: string, prompt: string): boolean {
   const allowed = [...extractNumbers(prompt)]
-  return [...extractNumbers(reply)].every(n =>
-    allowed.some(a => Math.abs(a - n) <= NUMBER_TOLERANCE)
-  )
+  const grounded = (n: number): boolean =>
+    allowed.some(
+      a =>
+        Math.abs(a - n) <= NUMBER_TOLERANCE ||
+        Math.round(a) === n ||
+        Math.floor(a) === n ||
+        Math.ceil(a) === n
+    )
+  return [...extractNumbers(reply)].every(grounded)
 }
 
 /** 保底回应：立场未知，类别归到其他 */
@@ -336,7 +465,7 @@ export function parseRebuttal(raw: string, prompt: string): ParsedRebuttal {
  * @param disputes - 分歧项（不能为空）
  * @param players - 本局 10 人
  * @param note - 玩家写的理由
- * @returns 解析后的回应与所用模型名；模型输出不合格时是保底回应（不抛错）
+ * @returns 解析后的回应与所用模型名；模型输出不合格时重试一次，仍不合格则是保底回应（不抛错）
  * @throws 调用失败或超过 {@link REBUTTAL_TIMEOUT_MS} 时抛出，由调用方提示重试
  * @example
  * ```ts
@@ -354,28 +483,33 @@ export async function requestRebuttal(
 ): Promise<ParsedRebuttal & { model: string }> {
   const prompt = buildRebuttalPrompt(disputes, players, note)
   const model = await resolveModel('labelRebuttal', DEFAULT_MODEL)
-  const raw = await new Promise<string>((resolve, reject) => {
-    let text = ''
-    const timer = setTimeout(() => reject(new Error('AI 回应超时')), REBUTTAL_TIMEOUT_MS)
-    void requestAIContentStream(
-      prompt,
-      {
-        onChunk: chunk => {
-          text += chunk
+  const ask = (): Promise<string> =>
+    new Promise<string>((resolve, reject) => {
+      let text = ''
+      const timer = setTimeout(() => reject(new Error('AI 回应超时')), REBUTTAL_TIMEOUT_MS)
+      void requestAIContentStream(
+        prompt,
+        {
+          onChunk: chunk => {
+            text += chunk
+          },
+          onDone: () => {
+            clearTimeout(timer)
+            resolve(text)
+          },
+          onError: e => {
+            clearTimeout(timer)
+            reject(new Error(e))
+          }
         },
-        onDone: () => {
-          clearTimeout(timer)
-          resolve(text)
-        },
-        onError: e => {
-          clearTimeout(timer)
-          reject(new Error(e))
-        }
-      },
-      REBUTTAL_SYSTEM_PROMPT,
-      model,
-      { jsonMode: true }
-    )
-  })
-  return { ...parseRebuttal(raw, prompt), model }
+        REBUTTAL_SYSTEM_PROMPT,
+        model,
+        { jsonMode: true }
+      )
+    })
+  let parsed = parseRebuttal(await ask(), prompt)
+  for (let i = 1; i < REBUTTAL_ATTEMPTS && parsed.stance === 'unknown'; i++) {
+    parsed = parseRebuttal(await ask(), prompt)
+  }
+  return { ...parsed, model }
 }

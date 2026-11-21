@@ -7,7 +7,9 @@
  * - ready：立场标签 + 回复正文 + 两个态度按钮；
  * - failed：调用失败或超时，给「重试」。
  *
- * 立场为 unknown（模型输出没通过校验，走了保底文案）时不显示立场标签。
+ * 立场标签只在认账（concede）时显示「你说得对」。回复的口吻永远站在玩家这边，
+ * 「有一部分道理」「我还是这么看」这类标签和下面整段替他说话的正文摆在一起是自相矛盾的
+ * （真机反馈）；立场照常记录、上传，只是不再显示。
  *
  * 回复下面是「反馈去向」一栏，**按真实的上传状态说话**：
  * - uploaded：已上传，明确告诉玩家这条会用来改进评分；
@@ -52,11 +54,11 @@ const emit = defineEmits<{
   (e: 'share'): void
 }>()
 
-/** 立场 → 标签文案；unknown 不显示标签 */
+/** 立场 → 标签文案；只有认账时显示（见文件头说明） */
 const STANCE_TEXT: Record<RebuttalStance, string | null> = {
   concede: '你说得对',
-  partial: '有一部分道理',
-  hold: '我还是这么看',
+  partial: null,
+  hold: null,
   unknown: null
 }
 

@@ -251,9 +251,9 @@ describe('LabelCard · AI 回应', () => {
 
     expect(w.find('[data-test="result-blame"]').exists()).toBe(true)
     expect(w.find('[data-test="rebuttal-loading"]').exists()).toBe(true)
-    finish({ stance: 'hold', category: 'other', reply: '事实不支持。', model: 'm' })
+    finish({ stance: 'hold', category: 'other', reply: '这火我懂。', model: 'm' })
     await flushPromises()
-    expect(w.get('[data-test="rebuttal-stance"]').text()).toBe('我还是这么看')
+    expect(w.get('[data-test="rebuttal-text"]').text()).toBe('这火我懂。')
   })
 
   it('should offer an entry to add a reason when there is a dispute without one', async () => {

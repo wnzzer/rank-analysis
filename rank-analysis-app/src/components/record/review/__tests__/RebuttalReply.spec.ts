@@ -47,20 +47,20 @@ describe('RebuttalReply', () => {
     )
   })
 
-  it.each([
-    ['concede', '你说得对'],
-    ['partial', '有一部分道理'],
-    ['hold', '我还是这么看']
-  ] as const)('should label the %s stance', (stance, text) => {
-    const tag = ready({ stance }).get('[data-test="rebuttal-stance"]')
+  it('should show the stance label when the AI concedes', () => {
+    const tag = ready({ stance: 'concede' }).get('[data-test="rebuttal-stance"]')
 
-    expect(tag.text()).toBe(text)
-    expect(tag.classes()).toContain(`stance-${stance}`)
+    expect(tag.text()).toBe('你说得对')
+    expect(tag.classes()).toContain('stance-concede')
   })
 
-  it('should hide the stance label for a fallback reply', () => {
-    expect(ready({ stance: 'unknown' }).find('[data-test="rebuttal-stance"]').exists()).toBe(false)
-  })
+  it.each(['partial', 'hold', 'unknown'] as const)(
+    'should not show a stance label for %s',
+    stance => {
+      // 正文永远站在玩家这边，「有一部分道理」「我还是这么看」摆在上面是自相矛盾的
+      expect(ready({ stance }).find('[data-test="rebuttal-stance"]').exists()).toBe(false)
+    }
+  )
 
   it('should emit the verdict the player clicked', async () => {
     const w = ready()
