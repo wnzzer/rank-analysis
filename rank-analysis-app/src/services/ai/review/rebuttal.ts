@@ -605,16 +605,27 @@ function fallback(): ParsedRebuttal {
   return { stance: 'unknown', category: 'other', reply: REBUTTAL_FALLBACK_REPLY }
 }
 
-/** 从模型输出里取出 JSON 对象（容忍前后多余的文字与 ```json 围栏） */
+/**
+ * 从模型输出里取出 JSON 对象。
+ *
+ * 容忍三种常见的不规矩：前后多余的文字与 ```json 围栏；把对象包在数组里
+ * （真机实测 qwen4-max 偶尔输出 `[{...}, {...}]`，取第一个）；一次给了多个对象。
+ * 回复对象里没有嵌套花括号，所以「第一个 { 到它后面第一个 }」就是第一个对象。
+ */
 function extractJson(raw: string): unknown {
-  const start = raw.indexOf('{')
-  const end = raw.lastIndexOf('}')
-  if (start < 0 || end <= start) return null
-  try {
-    return JSON.parse(raw.slice(start, end + 1))
-  } catch {
-    return null
+  const parse = (text: string): unknown => {
+    try {
+      return JSON.parse(text)
+    } catch {
+      return undefined
+    }
   }
+  const start = raw.indexOf('{')
+  if (start < 0) return null
+  const whole = parse(raw.slice(start, raw.lastIndexOf('}') + 1))
+  if (whole !== undefined) return whole
+  const first = parse(raw.slice(start, raw.indexOf('}', start) + 1))
+  return first === undefined ? null : first
 }
 
 /**
