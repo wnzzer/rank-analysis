@@ -1134,6 +1134,110 @@ async fn start_apply_runes_automation(app: tauri::AppHandle) {
     }
 }
 
+/// 守护任务这一 tick 该不该管：补写归谁负责。
+///
+/// 自动应用开着、且最后写的那套不是用户手动选的——那是自动任务写的，被抢后由它自己
+/// 补写（它还要顺带处理换人、方案变更），守护任务不插手，免得两边同一秒各写一次。
+/// 其余情况（开关没开，或用户手动应用过）自动任务都不会管，由守护任务兜住。
+fn rune_guard_is_responsible(auto_apply_on: bool, manual_override: bool) -> bool {
+    !auto_apply_on || manual_override
+}
+
+/// 符文页守护任务：把「本次选人期我们最后写的那套符文」守到进游戏。
+///
+/// **无条件启动**，不看 `settings.auto.applyRunesSwitch`。要防的是客户端自带的符文推荐器：
+/// 它会在选人期收尾、开局前几秒把当前的临时页原地改写成它的推荐。自动应用的任务自己会
+/// 抢回来，但用户**手动**应用的那套此前没人管——真机 2026-11-21：用户手动应用了致命节奏，
+/// 开局前 9 秒被推荐器改成强攻，进游戏带的是强攻。
+///
+/// 只抢「被推荐器改走」的页；用户自己换页、或在客户端里亲手改了我们那页，都算用户的
+/// 决定，不动（判定见 `rune_page::inspect_current_page`）。用户换了英雄也不动——那套
+/// 符文是给原来的英雄配的。
+async fn start_rune_guard_automation(app: tauri::AppHandle) {
+    use crate::command::rune_page;
+    use tauri::Emitter;
+
+    log::info!("Starting rune page guard (always-on)");
+    let mut ticker = interval(Duration::from_secs(2));
+    ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
+    let mut reasserts = KeyedAttempts::default();
+
+    loop {
+        ticker.tick().await;
+
+        match get_phase().await {
+            Ok(phase) if phase == CHAMPSELECT => {}
+            Ok(_) => {
+                reasserts = KeyedAttempts::default();
+                continue;
+            }
+            Err(_) => continue,
+        }
+        let Some((key, rune)) = rune_page::last_applied_rune() else {
+            continue;
+        };
+        let auto_on = switch_enabled("settings.auto.applyRunesSwitch").await;
+        let manual = rune_page::is_manual_override(key.champion_id, &key.position);
+        if !rune_guard_is_responsible(auto_on, manual) {
+            continue;
+        }
+
+        // 用户换了英雄：那套符文不再适用，不守
+        let Ok(session) = get_champion_select_session().await else {
+            continue;
+        };
+        let Ok(me) = crate::lcu::api::summoner::Summoner::get_my_summoner().await else {
+            continue;
+        };
+        let my_champion = session
+            .my_team
+            .iter()
+            .find(|p| p.puuid == me.puuid)
+            .map(crate::lcu::api::champion_select::display_champion_id)
+            .unwrap_or(0);
+        if my_champion != 0 && my_champion != key.champion_id {
+            continue;
+        }
+
+        let current = match rune_page::fetch_current_page().await {
+            Ok(page) => rune_page::inspect_current_page(page.as_ref(), &rune),
+            Err(e) => {
+                log::debug!("rune guard: read current page failed: {}", e);
+                continue;
+            }
+        };
+        let done = if reasserts.key.as_ref() == Some(&key) {
+            reasserts.count
+        } else {
+            0
+        };
+        if !rune_page::guard_should_reassert(current, done, MAX_RUNE_REASSERTS) {
+            continue;
+        }
+        reasserts.record(&key);
+        log::info!(
+            "符文页被客户端推荐器改写，抢回（第 {}/{} 次，英雄 {}）",
+            reasserts.count,
+            MAX_RUNE_REASSERTS,
+            key.champion_id
+        );
+
+        let result = rune_page::apply_rune_page_core(key.champion_id, &key.position, &rune).await;
+        if !result.ok {
+            log::warn!("rune guard: reassert failed: {:?}", result.reason);
+        }
+        let event = RuneApplyEvent {
+            champion_id: key.champion_id,
+            perk_ids: key.perk_ids,
+            ok: result.ok,
+            reason: result.reason,
+        };
+        if let Err(e) = app.emit("rune-apply-result", &event) {
+            log::warn!("emit rune-apply-result failed: {}", e);
+        }
+    }
+}
+
 /// 初始化并启动自动化任务。
 ///
 /// 根据配置文件中的开关状态启动对应的自动化任务。
@@ -1156,6 +1260,8 @@ async fn init_run_automation(app: tauri::AppHandle) {
 
     // 决策快照求值：无条件常驻，未开自动化的用户也能看到建议带
     manager.start_task("bp_decision", start_bp_decision_automation(app.clone()));
+    // 符文页守护：同样无条件常驻——手动应用的符文也要防客户端推荐器在开局前改走
+    manager.start_task("rune_guard", start_rune_guard_automation(app.clone()));
 
     // 检查配置并启动对应的自动化任务
     match get_config("settings.auto.startMatchSwitch").await {
@@ -1447,6 +1553,17 @@ mod tests {
 mod apply_runes_tests {
     use super::*;
     use crate::command::rune_page::{last_applied, record_applied, AppliedKey, CurrentPage};
+
+    #[test]
+    fn rune_guard_should_cover_what_the_auto_task_does_not() {
+        // 自动应用没开：没人管，守护任务兜住
+        assert!(rune_guard_is_responsible(false, false));
+        assert!(rune_guard_is_responsible(false, true));
+        // 开着但用户手动应用过：自动任务会跳过这个英雄，守护任务兜住
+        assert!(rune_guard_is_responsible(true, true));
+        // 开着且是自动任务写的：它自己会补写，守护任务不插手
+        assert!(!rune_guard_is_responsible(true, false));
+    }
 
     fn key(champion_id: i32, last_perk: i32) -> AppliedKey {
         AppliedKey {
