@@ -3,9 +3,10 @@
  * 对局页「本局战报」：排位结束后显示胜负、KDA、LP 变化与隐藏分，右侧是标注卡与战报图。
  * 评分来自复盘视图模型（不依赖时间线）；「看完整复盘」打开对局详情窗口。
  *
- * 版式（2026-11-21）：左侧是英雄原画打底的结果区（与赛后弹卡、战报图同一套视觉），
- * 右侧放交互。结果区配色固定在深色、不跟主题——原画本身是深色图，亮色主题下
- * 用主题色压字会看不清。
+ * 版式（2026-11-21）：顶部是英雄原画打底的结果横幅（与赛后弹卡、战报图同一套视觉），
+ * 下面放交互。横幅高度固定——试过把结果区放左侧整列，战报图一展开那一列就被拉成
+ * 一长条，原画被裁成看不出是什么的局部。横幅配色固定在深色、不跟主题：原画本身是
+ * 深色图，亮色主题下用主题色压字会看不清。
  *
  * 先猜再揭晓（2026-11-17）：有标注卡时，战报图在标注提交后才出现——先让玩家凭自己判断标，
  * 再揭晓 AI 结论和战报图，揭晓那一刻顺手分享；标注数据也保持「未受模型影响」。
@@ -73,7 +74,7 @@ function openReview(): void {
     :class="me ? (me.win ? 'is-win' : 'is-loss') : ''"
     data-test="post-game-report"
   >
-    <aside class="pgr-hero">
+    <header class="pgr-hero">
       <template v-if="me">
         <img
           v-if="!splashBroken"
@@ -91,34 +92,32 @@ function openReview(): void {
           <div class="pgr-kda font-number">
             {{ me.kills }}<i>/</i>{{ me.deaths }}<i>/</i>{{ me.assists }}
           </div>
-          <div class="pgr-champ">{{ me.champion }} · {{ minutes }}</div>
-          <div class="pgr-chips">
-            <span
-              v-if="lpText"
-              class="pgr-chip pgr-lp"
-              :class="report.lpDelta! >= 0 ? 'is-up' : 'is-down'"
-              >{{ lpText }}</span
-            >
-            <span v-if="mmrText" class="pgr-chip pgr-mmr">{{ mmrText }}</span>
+          <div class="pgr-info">
+            <div class="pgr-champ">{{ me.champion }} · {{ minutes }}</div>
+            <div v-if="lpText || mmrText" class="pgr-chips">
+              <span
+                v-if="lpText"
+                class="pgr-chip pgr-lp"
+                :class="report.lpDelta! >= 0 ? 'is-up' : 'is-down'"
+                >{{ lpText }}</span
+              >
+              <span v-if="mmrText" class="pgr-chip pgr-mmr">{{ mmrText }}</span>
+            </div>
           </div>
         </template>
-        <n-skeleton v-else text :repeat="2" />
+        <span v-else class="pgr-pending">本局战报生成中…</span>
+        <div class="pgr-actions">
+          <button type="button" class="pgr-btn" data-test="pgr-open" @click="openReview">
+            看完整复盘 ›
+          </button>
+          <button type="button" class="pgr-btn" data-test="pgr-dismiss" @click="emit('dismiss')">
+            收起
+          </button>
+        </div>
       </div>
-    </aside>
+    </header>
 
     <div class="pgr-main">
-      <header class="pgr-head">
-        <span class="pgr-title">本局战报</span>
-        <div class="pgr-actions">
-          <n-button size="tiny" quaternary data-test="pgr-open" @click="openReview"
-            >看完整复盘 ›</n-button
-          >
-          <n-button size="tiny" quaternary data-test="pgr-dismiss" @click="emit('dismiss')"
-            >收起</n-button
-          >
-        </div>
-      </header>
-
       <n-skeleton v-if="!model" text :repeat="3" />
       <template v-else>
         <LabelCard
@@ -151,8 +150,8 @@ function openReview(): void {
 <style scoped>
 .post-game-report {
   --pgr-accent: var(--text-tertiary);
-  display: grid;
-  grid-template-columns: 232px minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   border-radius: var(--radius-lg);
   background: var(--bg-elevated);
   border: 1px solid color-mix(in srgb, var(--pgr-accent) 30%, var(--border-subtle));
@@ -165,60 +164,65 @@ function openReview(): void {
   --pgr-accent: var(--semantic-loss);
 }
 
-/* ── 结果区：原画打底，配色固定在深色 ── */
+/* ── 结果横幅：原画打底，高度固定，配色固定在深色 ── */
 .pgr-hero {
   --pgr-hero-bg: #0d1017;
   position: relative;
-  min-height: 148px;
+  flex: none;
+  height: 84px;
   background: var(--pgr-hero-bg);
   color: #f1f3f8;
   overflow: hidden;
 }
+/* 原画只占右侧一段，左侧留给文字 */
 .pgr-splash {
   position: absolute;
-  inset: 0;
-  width: 100%;
+  top: 0;
+  right: 0;
+  width: min(62%, 720px);
   height: 100%;
   object-fit: cover;
-  object-position: 62% 22%;
+  object-position: 50% 24%;
 }
 .pgr-splash.is-icon {
-  object-position: center;
-  filter: blur(6px) saturate(1.1);
-  transform: scale(1.2);
+  filter: blur(8px) saturate(1.1);
+  transform: scale(1.3);
 }
 .pgr-hero-shade {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(0deg, var(--pgr-hero-bg) 4%, rgba(13, 16, 23, 0.78) 46%, rgba(13, 16, 23, 0.2)),
-    linear-gradient(90deg, color-mix(in srgb, var(--pgr-accent) 26%, transparent), transparent 70%);
+    linear-gradient(
+      90deg,
+      var(--pgr-hero-bg) 34%,
+      rgba(13, 16, 23, 0.72) 58%,
+      rgba(13, 16, 23, 0.35) 100%
+    ),
+    linear-gradient(90deg, color-mix(in srgb, var(--pgr-accent) 30%, transparent), transparent 46%);
 }
 .pgr-hero-body {
   position: relative;
   height: 100%;
   box-sizing: border-box;
-  padding: var(--space-12) var(--space-16);
+  padding: 0 var(--space-12) 0 var(--space-16);
   display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  gap: 2px;
+  align-items: center;
+  gap: var(--space-16);
 }
 .pgr-result {
-  align-self: flex-start;
-  margin-bottom: auto;
-  padding: 2px 10px;
+  flex: none;
+  padding: 3px 12px;
   border-radius: 999px;
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
   letter-spacing: 2px;
   color: #fff;
-  background: color-mix(in srgb, var(--pgr-accent) 55%, rgba(0, 0, 0, 0.35));
-  backdrop-filter: blur(6px);
+  background: color-mix(in srgb, var(--pgr-accent) 60%, rgba(0, 0, 0, 0.35));
 }
 .pgr-kda {
+  flex: none;
   font-size: 34px;
-  line-height: 1.05;
+  line-height: 1;
   letter-spacing: 1px;
   text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
 }
@@ -227,16 +231,21 @@ function openReview(): void {
   font-style: normal;
   opacity: 0.45;
 }
+.pgr-info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
 .pgr-champ {
   font-size: var(--font-size-sm);
-  color: rgba(241, 243, 248, 0.78);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
   text-shadow: 0 1px 6px rgba(0, 0, 0, 0.7);
 }
 .pgr-chips {
   display: flex;
-  flex-wrap: wrap;
   gap: var(--space-6);
-  margin-top: var(--space-6);
 }
 .pgr-chip {
   padding: 1px 8px;
@@ -244,8 +253,8 @@ function openReview(): void {
   font-size: var(--font-size-xs);
   white-space: nowrap;
   color: rgba(241, 243, 248, 0.82);
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(13, 16, 23, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.14);
 }
 .pgr-lp {
   font-weight: var(--font-weight-semibold);
@@ -258,6 +267,42 @@ function openReview(): void {
   color: #ff9a9d;
   border-color: rgba(255, 154, 157, 0.4);
 }
+.pgr-pending {
+  font-size: var(--font-size-sm);
+  color: rgba(241, 243, 248, 0.7);
+}
+.pgr-actions {
+  margin-left: auto;
+  align-self: flex-start;
+  padding-top: var(--space-8);
+  display: flex;
+  gap: var(--space-6);
+}
+/* 横幅上的按钮不用主题按钮：亮色主题下主题文字色是深色，压在深色原画上看不见 */
+.pgr-btn {
+  appearance: none;
+  padding: 3px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(13, 16, 23, 0.5);
+  color: rgba(241, 243, 248, 0.82);
+  font: inherit;
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  transition:
+    background var(--dur-fast),
+    color var(--dur-fast);
+}
+.pgr-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.16);
+}
+.pgr-btn:focus-visible {
+  outline: 1px solid #fff;
+  outline-offset: 1px;
+}
 
 /* ── 交互区 ── */
 .pgr-main {
@@ -266,22 +311,6 @@ function openReview(): void {
   flex-direction: column;
   gap: var(--space-12);
   padding: var(--space-12) var(--space-16) var(--space-16);
-}
-.pgr-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-8);
-}
-.pgr-title {
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: 2px;
-  color: var(--text-tertiary);
-}
-.pgr-actions {
-  display: flex;
-  gap: var(--space-4);
 }
 .pgr-reveal-hint {
   display: flex;
@@ -301,15 +330,5 @@ function openReview(): void {
   color: var(--text-secondary);
   background: var(--surface-group);
   border: 1px dashed var(--border-subtle);
-}
-
-/* 窄窗口：结果区收成顶部一条 */
-@media (max-width: 720px) {
-  .post-game-report {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .pgr-hero {
-    min-height: 120px;
-  }
 }
 </style>

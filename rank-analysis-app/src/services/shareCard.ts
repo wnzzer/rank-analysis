@@ -13,6 +13,17 @@ import { domToBlob } from 'modern-screenshot'
 /** 导出倍率：卡片按 360×480 CSS 像素排版，×3 得 1080×1440（3:4，群聊 / 朋友圈都不裁） */
 export const SHARE_CARD_SCALE = 3
 
+/**
+ * 写剪贴板的尝试次数与间隔。
+ *
+ * Windows 的剪贴板是全系统共用的一把锁：剪贴板历史、输入法、远程桌面、各种剪贴板工具
+ * 都会在内容变化的瞬间去读它。真机上（2026-11-21）偶发
+ * 「SetClipboardData failed … 线程没有打开的剪贴板 (os error 1418)」，紧接着再点一次就成功。
+ * 这类失败是瞬时的，隔一小会儿重试即可，不该让玩家自己再点。
+ */
+export const CLIPBOARD_ATTEMPTS = 4
+export const CLIPBOARD_RETRY_MS = 150
+
 /** 战报图打点动作 */
 export type ShareCardAction = 'shown' | 'copied' | 'angle' | 'self_roast'
 
@@ -50,5 +61,24 @@ export async function toDataUrl(url: string): Promise<string | null> {
  */
 export async function copyCardImage(el: HTMLElement): Promise<void> {
   const blob = await domToBlob(el, { scale: SHARE_CARD_SCALE, type: 'image/png' })
-  await writeImage(new Uint8Array(await blob.arrayBuffer()))
+  await writeImageWithRetry(new Uint8Array(await blob.arrayBuffer()))
+}
+
+/**
+ * 把 PNG 写入剪贴板，瞬时失败时自动重试
+ * @param png - PNG 文件内容
+ * @throws 连续 {@link CLIPBOARD_ATTEMPTS} 次都失败时抛出最后一次的错误
+ */
+export async function writeImageWithRetry(png: Uint8Array): Promise<void> {
+  let lastError: unknown
+  for (let attempt = 0; attempt < CLIPBOARD_ATTEMPTS; attempt++) {
+    if (attempt > 0) await new Promise(resolve => setTimeout(resolve, CLIPBOARD_RETRY_MS))
+    try {
+      await writeImage(png)
+      return
+    } catch (e) {
+      lastError = e
+    }
+  }
+  throw lastError
 }
