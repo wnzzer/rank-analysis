@@ -99,12 +99,63 @@ describe('playerFacts', () => {
     expect(card).toContain(`${p.parts[0].cn}${p.parts[0].level}`)
   })
 
-  it('should not leak raw scores', () => {
-    // 原始分是带小数的标准差数值；只查非整数的，整数（如 0）会和 KDA 之类的正常数字撞上
-    const raw = [p.total, ...p.parts.map(x => x.value)].filter(v => !Number.isInteger(v))
+  it('should carry the real stats behind each part', () => {
+    const withStats = p.parts.find(x => x.stats.length > 0)!
 
-    expect(raw.length).toBeGreaterThan(0)
+    expect(withStats).toBeDefined()
+    expect(card).toContain(`${withStats.cn}${withStats.level}（${withStats.stats.join('，')}）`)
+  })
+
+  it('should not leak raw scores', () => {
+    // 原始分是多位小数的标准差数值。只查小数位不少于 3 位的：短小数（0.8）会和
+    // 分项后面带的真实数据（如 KDA 0.8）撞上，不能说明泄漏
+    const raw = [p.total, ...p.parts.map(x => x.value)].filter(
+      v => (String(v).split('.')[1] ?? '').length >= 3
+    )
+
     for (const v of raw) expect(card).not.toContain(String(v))
+    expect(card).not.toContain(String(p.total))
+  })
+})
+
+describe('playerFacts for the player themself', () => {
+  const me = players.find(q => q.isMe)!
+  const card = playerFacts(
+    me,
+    players.filter(q => q.teamId === me.teamId)
+  )
+
+  it('should say who the card is about', () => {
+    expect(card).toContain(me.champion)
+    expect(card).toContain('就是玩家本人')
+  })
+
+  it('should leave out everything that counts against the player', () => {
+    // 落后的分项、KDA、自己该负责的阵亡都不给：模型手里没有，就说不出来
+    for (const part of me.parts.filter(x => x.level === '落后' || x.level === '大幅落后')) {
+      expect(card).not.toContain(`${part.cn}${part.level}`)
+    }
+    expect(card).not.toContain(`KDA ${me.kills}/${me.deaths}/${me.assists}`)
+    expect(card).not.toContain('值得一提')
+    expect(card).not.toContain('被对位单杀')
+    expect(card).not.toContain('孤立被杀（我方 1 人、对面 1 人')
+  })
+
+  it('should keep the parts where the player did well', () => {
+    for (const part of me.parts.filter(x => x.level === '领先' || x.level === '大幅领先')) {
+      expect(card).toContain(`${part.cn}${part.level}`)
+    }
+  })
+
+  it('should word head counts so they cannot be read backwards', () => {
+    const someone = players.find(q => !q.isMe && (q.deathList?.length ?? 0) > 0)!
+    const text = playerFacts(
+      someone,
+      players.filter(q => q.teamId === someone.teamId)
+    )
+    const d = someone.deathList![0]
+
+    expect(text).toContain(`我方 ${d.allies} 人、对面 ${d.enemies} 人`)
   })
 })
 
@@ -130,6 +181,21 @@ describe('buildRebuttalPrompt', () => {
     const header = `${other.champion}（${other.roleCn}`
 
     expect(text.split(header).length - 1).toBe(1)
+  })
+
+  it('should not tell the model the timeline is missing when the game has one', () => {
+    expect(prompt).not.toContain('没有时间线数据')
+  })
+
+  it('should tell the model when the game has no timeline', () => {
+    const bare = Object.values(modelB({ timeline: false }).players).sort(
+      (a, b) => a.participantId - b.participantId
+    )
+    const blame = modelPicks(bare).blamePid
+    const someone = bare.find(q => q.participantId !== blame)!
+    const d = findDisputes({ keyPid: null, blamePid: someone.participantId }, bare)
+
+    expect(buildRebuttalPrompt(d, bare, '他全程单带不参团')).toContain('这局没有时间线数据')
   })
 
   it('should ask the model for JSON', () => {

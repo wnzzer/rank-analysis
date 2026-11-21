@@ -28,15 +28,24 @@ export const NOT_SCORED: readonly string[] = [
   '推塔伤害直接算进资源分项，不和同一时间队伍丢掉的东西对冲',
   '不看英雄克制与阵容搭配',
   '不看语音、打字、信号等沟通，也看不出挂机、故意送、摆烂这类态度问题',
-  '不看装备选择与出装顺序',
-  '这局没有时间线数据时，没有逐次阵亡的归责，只能看终局数据'
+  '不看装备选择与出装顺序'
 ]
 
 /**
+ * 只在这局确实没有时间线时才给模型看的一条。
+ *
+ * 不能无条件放进 NOT_SCORED：真机（2026-11-21）模型把「没有时间线数据时……」这句条件句
+ * 读成了陈述，在一局有完整时间线的对局里回复「这局没时间线数据，具体时点我也核不出来」。
+ */
+export const NO_TIMELINE_NOTE = '这局没有时间线数据：没有逐次阵亡的归责，只能看终局数据'
+
+/**
  * 拼成给模型看的一段文本
+ * @param hasTimeline - 这局有没有时间线；没有时多给一条 {@link NO_TIMELINE_NOTE}
  * @returns 两个小节：评分看什么 / 评分不看什么
  */
-export function scoringNotesText(): string {
+export function scoringNotesText(hasTimeline: boolean): string {
   const list = (items: readonly string[]): string => items.map(s => `- ${s}`).join('\n')
-  return `【评分看什么】\n${list(SCORED)}\n\n【评分不看什么】\n${list(NOT_SCORED)}`
+  const notScored = hasTimeline ? NOT_SCORED : [...NOT_SCORED, NO_TIMELINE_NOTE]
+  return `【评分看什么】\n${list(SCORED)}\n\n【评分不看什么】\n${list(notScored)}`
 }

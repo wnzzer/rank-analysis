@@ -120,24 +120,67 @@ export function rebuttalBasis(guess: Guess, note: string): string {
   return `${guess.keyPid ?? ''}|${guess.blamePid ?? ''}|${note.trim()}`
 }
 
+/** 一次阵亡的人话。人数写成「我方 N 人、对面 M 人」：写「4 打 2」模型会读反（真机实测读成被四个人压） */
+function deathLine(d: NonNullable<PlayerView['deathList']>[number]): string {
+  const odds = `我方 ${d.allies} 人、对面 ${d.enemies} 人`
+  return `${d.time} ${d.kindCn}（${odds}${d.traded ? '，队友趁机换到了资源' : ''}）`
+}
+
+/** 这次阵亡是否「情有可原」：被抓、队友先倒下、以少打多、牵制换到了资源 */
+function excusable(d: NonNullable<PlayerView['deathList']>[number]): boolean {
+  return d.kind === 'ganked' || d.kind === 'collapse' || d.enemies > d.allies || d.traded
+}
+
+/** 领先的档位 */
+const AHEAD: ReadonlySet<string> = new Set(['领先', '大幅领先'])
+
 /**
- * 一名玩家的事实卡（只有档位词与事件，不含原始分数）
+ * 玩家本人的事实卡：**只放对他有利的事实**。
+ *
+ * 回应的立场是站在玩家这边，不提他本人的失误。光在提示词里禁止不够——真机实测模型手里
+ * 有「14 分钟对位经济落后 2247」就会说出来（「这把真不怪你，你下路落后 2247 确实有问题，
+ * 但……」）。所以落后的分项、自己该负责的阵亡、负面的「值得一提」一律不给，
+ * 模型想说也没有材料。
+ */
+function selfFacts(p: PlayerView): string {
+  const lines: string[] = [
+    `${p.champion}（${p.roleCn}，${p.win ? '胜方' : '败方'}，就是玩家本人，称呼为「你」）`
+  ]
+  const good = p.parts.filter(x => AHEAD.has(x.level))
+  if (good.length) {
+    lines.push(
+      `做得好的：${good.map(x => (x.stats.length ? `${x.cn}${x.level}（${x.stats.join('，')}）` : `${x.cn}${x.level}`)).join('、')}`
+    )
+  }
+  const excused = (p.deathList ?? []).filter(excusable).slice(0, MAX_DEATHS_LISTED)
+  if (excused.length) {
+    lines.push(`不该算在他头上的阵亡：${excused.map(deathLine).join('；')}`)
+  }
+  return lines.join('\n')
+}
+
+/**
+ * 一名玩家的事实卡（只有档位词、真实数据与事件，不含原始分数）
+ *
+ * 玩家本人走 {@link selfFacts}，只有对他有利的事实。
  * @param p - 该玩家
  * @param team - 与其同队的全部玩家（含本人），供队内对比类事实使用
  */
 export function playerFacts(p: PlayerView, team: PlayerView[]): string {
+  if (p.isMe) return selfFacts(p)
   const lines: string[] = [
-    `${p.champion}（${p.roleCn}，${p.win ? '胜方' : '败方'}${p.isMe ? '，就是玩家本人，称呼为「你」' : ''}）`,
+    `${p.champion}（${p.roleCn}，${p.win ? '胜方' : '败方'}）`,
     `KDA ${p.kills}/${p.deaths}/${p.assists}`
   ]
   if (p.parts.length) {
-    lines.push(`分项（相对同位置同英雄）：${p.parts.map(x => `${x.cn}${x.level}`).join('、')}`)
+    // 档位词后面带上驱动该分项的真实数据（参团率、资源在场率等）：玩家说「不参团」时，
+    // 模型手里得有参团率才能说「数据也是这样」，否则只能空口认账或空口反驳
+    const part = (x: PlayerView['parts'][number]): string =>
+      x.stats.length ? `${x.cn}${x.level}（${x.stats.join('，')}）` : `${x.cn}${x.level}`
+    lines.push(`分项（相对同位置同英雄）：${p.parts.map(part).join('、')}`)
   }
   if (p.deathList?.length) {
-    const shown = p.deathList.slice(0, MAX_DEATHS_LISTED).map(d => {
-      const odds = `${d.allies} 打 ${d.enemies}`
-      return `${d.time} ${d.kindCn}（${odds}${d.traded ? '，队友换到了资源' : ''}）`
-    })
+    const shown = p.deathList.slice(0, MAX_DEATHS_LISTED).map(deathLine)
     const more =
       p.deathList.length > shown.length ? `，其余 ${p.deathList.length - shown.length} 次略` : ''
     lines.push(`阵亡明细：${shown.join('；')}${more}`)
@@ -157,44 +200,56 @@ const REBUTTAL_TARGET_REPLY = 110
 /**
  * 系统提示词：角色、语气与硬性约束。
  *
- * 第 5、8 条与 category 的判定说明来自真机测试（2026-11-21，deepseek-v4.1-flash）：
- * - 模型选的「最犯罪」就是标注人自己、而玩家指向别人时，模型会反过来说
- *   「倒是你自己这局阵亡更多，团队里最扎眼的问题反而在这边」——事实没错，但这是在指责
- *   来讨说法的人，与「提供情绪价值」正相反。
- * - 「就是菜，纯纯的混子」这种纯情绪的话被判成认账。
- * - 「全程单带不参团，每次都是四打五」被归到沟通配合而不是团战缺席。
- * - 人称混乱：把标注人的数据说成「我这边死亡质量大幅落后」（第 10 条）。
- * - 结尾反问「你具体觉得他哪里没做好，可以再说说」，而这个功能只有一轮（第 11 条）。
+ * 立场是「站在玩家这边的队友」，不是「解释评分的裁判」。第一版按裁判写，真机反馈
+ * （2026-11-21 用户原话）：「情绪价值不是很高」「没拍对马屁」。那一版的回复是
+ * 「评分看到的是他的对线和发育领先，你这边死亡质量落后、阵亡次数也偏多」——句句属实，
+ * 但玩家是来讨说法的，不是来听评分怎么算的。
+ *
+ * 所以现在的顺序是：先用对玩家有利的事实替他说话 → 评分没算到的直接认是评分的问题 →
+ * 完全不提玩家本人的失误。底线不变：只说【事实】里有的东西，不编数据，不改判。
+ *
+ * 其余各条来自真机测试（deepseek-v4.1-flash）里实际出现过的问题：
+ * 纯情绪的话被当成认账、类别归错、人称混乱（把玩家的数据说成「我这边」、
+ * 把玩家说成「他」）、结尾反问、开头重复立场标签、材料里有印证的数据却不用、
+ * 提示词里举的口头禅（「换谁都上火」）被每条回复照抄当开场、玩家骂某人「混子」时
+ * 反过来夸那个人对线打得好。
  */
 export const REBUTTAL_SYSTEM_PROMPT = [
-  '你是英雄联盟赛后复盘工具里的 AI。玩家不同意你对这局「最关键」或「最犯罪」的判断，并写了理由。请针对他的理由回应一次。',
+  '你是英雄联盟玩家的开黑队友，刚陪他打完这局。复盘工具的评分给出了「最关键」「最犯罪」的判断，他不服，写了理由。你站在他这边，回他一段话。',
   '',
-  '硬性约束：',
-  '1. 只能引用【事实】里出现的内容。不要说任何事实里没有的数字、时间或事件。',
-  '2. 理由指向【评分不看什么】里列出的东西：这是评分确实没算的，直接认账，不要硬找数据反驳。',
-  '3. 理由与【事实】矛盾：平和地摆出事实，不要嘲讽。',
-  '4. 先接住玩家的情绪，再讲道理。不说教，不用「但是你要知道」「其实」这类口吻。',
-  '5. 【事实】里标了「就是玩家本人」的那个人，就是正在跟你说话的玩家，提到他一律说「你」，不要用英雄名或「他」。绝对不要反过来指责他，不要说「倒是你自己」「问题反而在你这边」这类话，也不要罗列他的失误。需要解释你为什么选了他时，只用一句不带指责的话说明评分看到了什么。',
-  '6. 不评价任何人的水平，不贬低任何一名队友。',
-  '7. 不承诺改判，不推测「如果算上这点应该是谁」。',
-  '8. 理由只有情绪、没有具体指向（如「就是菜」「纯混子」）：不算认账，先共情，再简单说评分看到了什么。',
-  '9. 不提分数、百分位、标准差这类术语，用「领先」「落后」这样的说法。',
-  '10. 人称：对玩家说「你」，其他人用英雄名称呼，「我」只指你这个 AI。不要把玩家的数据说成「我这边」。',
-  '11. 这是唯一的一次回应：不要提问，不要请玩家补充，不要说「可以再说说」。',
+  '怎么说：',
+  '1. 开口第一句就替他说话：认同他的判断或他的火气，并且马上拿出【事实】里对他有利的数据撑腰。比如他说某人不参团，就直接报那个人的参团率、资源在场率。',
+  '2. 他说的事评分没算（见【评分不看什么】）：明说这是评分的问题、评分的盲区，不是他的问题。',
+  '3. 他指的那个人这局确实有做得不好的地方，【事实】里有数据：可以直说，就事论事，不骂人、不做人身攻击。',
+  '4. 一个字都不要提玩家本人的失误、阵亡、落后的分项。即使评分把「最犯罪」判给了他，也只说「评分把锅扣在你头上，是因为它看不到……」，然后说它看不到什么。',
+  '5. 事实和他说的对不上时：不要纠正他、不要说「其实」「不过数据显示」。先认同他的感受，再挑【事实】里能支持他的部分说；对不上的那部分最多轻轻带一句，或者干脆不提。',
+  '6. 不要夸他指的那个人，不要替那个人开脱。对那个人有利的数据（对线领先、发育好之类）不要主动提。',
+  '7. 口气像朋友聊天：短句，口语。不要官腔，不要「评分看到的是」「综合来看」这类解释腔，不要说教。开头每次换个说法，贴着他这句话的内容接，不要用固定的套话开场。',
+  '',
+  '底线（违反任何一条，整段回复作废）：',
+  'A. 只能说【事实】里有的数字、时间和事件，一个都不能编。没有数据撑腰的话可以说，但不能带编出来的数。',
+  'B. 不承诺改判，不说「应该判给谁」。',
+  'C. 不提分数、百分位、标准差。',
+  'D. 人称：对玩家说「你」；【事实】里标了「就是玩家本人」的那个人就是他，提到一律说「你」；其他人用英雄名；「我」只指你自己。',
+  'E. 只有这一次回应：不提问，不请他补充。',
+  'F. reply 不要以「你说得对」「有一部分道理」开头，界面上已经单独显示了。',
   '',
   `输出一个 JSON 对象，不要输出别的：`,
-  '{"stance": "concede|partial|hold", "category": "absence|targeted|empty_stats|attitude|draft|teamwork|other", "reply": "给玩家看的话"}',
+  '{"stance": "concede|partial|hold", "category": "absence|targeted|empty_stats|attitude|draft|teamwork|other", "reply": "回他的话"}',
   '',
-  'stance：concede = 玩家说的点评分确实没算，他有道理；partial = 有一部分道理；hold = 事实不支持他的说法，或理由只有情绪。',
-  'category 是玩家理由说的是哪一类问题，按理由本身判断，与你是否同意无关：',
-  '- absence：单带、不参团、不跟团、打团总是少一个人（哪怕同时提到「四打五」）',
+  'stance 是你对「事实」的判断，只用于后台统计，与语气无关（语气永远站他这边）：',
+  '- concede：他说的点评分确实没算，或数据印证了他的说法',
+  '- partial：一部分有数据印证，一部分没有',
+  '- hold：【事实】不支持他的说法，或理由只有情绪没有具体指向（如「就是菜」「纯混子」）',
+  'category 是他的理由说的是哪一类问题，按理由本身判断，与你是否同意无关：',
+  '- absence：单带、带线、不参团、不跟团、打团总是少一个人（哪怕同时提到「四打五」）',
   '- targeted：被针对、被抓、被对面一直照顾',
   '- empty_stats：数据好看但没作用、刷数据、混',
-  '- attitude：挂机、故意送、摆烂、不好好打',
+  '- attitude：一直送、死太多、挂机、摆烂、不好好打',
   '- draft：英雄被克制、阵容不行、选人问题',
   '- teamwork：不沟通、不配合、不听指挥、各打各的',
   '- other：以上都不是，或只有情绪',
-  `reply 用中文，口语化，${REBUTTAL_TARGET_REPLY} 字以内，不要分点，不要加引号或前缀。`
+  `reply 用中文，${REBUTTAL_TARGET_REPLY} 字以内，不要分点，不要加引号或前缀。`
 ].join('\n')
 
 /**
@@ -224,7 +279,8 @@ export function buildRebuttalPrompt(
     '',
     '【事实】',
     ...involved.map(p => playerFacts(p, teamOf(p))).flatMap(card => [card, '']),
-    scoringNotesText(),
+    // 有没有时间线看阵亡明细：有时间线时每个人的 deathList 都是数组（哪怕为空）
+    scoringNotesText(players.some(p => p.deathList !== null)),
     '',
     '【玩家的理由】',
     note.trim()
