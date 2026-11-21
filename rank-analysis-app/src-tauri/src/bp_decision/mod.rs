@@ -5,6 +5,8 @@
 //! - 与 `rule_engine` 平行而非嵌套：本模块不修改 `rule_engine.rs`
 //! - 快照是会话级单例、一次算完、纯展示
 
+pub mod damage;
 pub mod evaluate;
+pub mod panel;
 pub mod store;
 pub mod types;

@@ -299,29 +299,14 @@ watch(
   }
 }
 
-/* 意向：半透明呼吸 + 琥珀光晕 + 琥珀细边框，比旧版明显得多 */
+/* 意向：只用琥珀细边框表达。多张卡会同时处于意向态，各自呼吸会让屏幕一直在闪，
+   循环动画只留给「正在选」那一张 */
 .intel-intent {
   border-color: rgba(230, 193, 90, 0.55);
-  animation:
-    intel-enter 0.32s var(--ease-expo) both,
-    intel-breathe 2s ease-in-out infinite;
-  animation-delay: calc(55ms * var(--stagger-i, 0)), 0s;
 }
 .intel-intent .intel-avatar {
   border-color: rgba(230, 193, 90, 0.7);
 }
-@keyframes intel-breathe {
-  0%,
-  100% {
-    opacity: 0.82;
-    box-shadow: 0 0 0 0 transparent;
-  }
-  50% {
-    opacity: 1;
-    box-shadow: 0 0 9px 1px rgba(230, 193, 90, 0.22); /* theme-fixed: 情报卡状态动画 */
-  }
-}
-
 /* 正在选：绿色粗边框 + 外扩 ring 呼吸 + 极淡绿 tint，头像同步脉冲 */
 .intel-picking {
   border: 2px solid var(--semantic-win, #18a058);
@@ -355,28 +340,14 @@ watch(
 }
 
 /* 禁用中：ban 阶段全队（含对面 5 个占位）同时点亮，红色必须克制——
-   1px 半透明边框 + 慢速微呼吸，仅提示状态；威胁感交给文案「禁用中…」 */
+   只有 1px 半透明边框、不做动画，仅提示状态；威胁感交给文案「禁用中…」 */
 .intel-banning {
   border: 1px solid color-mix(in srgb, var(--semantic-loss, #d03050) 45%, transparent);
   background: rgba(208, 48, 80, 0.04);
-  animation:
-    intel-enter 0.32s var(--ease-expo) both,
-    intel-ban-pulse 2s ease-in-out infinite;
-  animation-delay: calc(55ms * var(--stagger-i, 0)), 0s;
 }
 .intel-banning .intel-avatar {
   border-color: color-mix(in srgb, var(--semantic-loss, #d03050) 55%, transparent);
 }
-@keyframes intel-ban-pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 rgba(208, 48, 80, 0.08);
-  }
-  50% {
-    box-shadow: 0 0 0 2px rgba(208, 48, 80, 0.08);
-  }
-}
-
 /* 锁定：定格入场，bounce 过冲 + 一次性 ring 闪光收敛，仅播一次 */
 .intel-locked {
   animation:
@@ -427,12 +398,9 @@ watch(
 
 @media (prefers-reduced-motion: reduce) {
   .intel-card,
-  .intel-intent,
   .intel-picking,
-  .intel-banning,
   .intel-locked,
   .intel-picking .intel-avatar,
-  .intel-banning .intel-avatar,
   .intel-card.intel-swapped .intel-avatar {
     animation: none;
   }

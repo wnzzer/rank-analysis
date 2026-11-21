@@ -13,6 +13,7 @@
 //! 任何写入 panic 导致毒化时，取回数据继续用——快照是纯展示数据，
 //! 一帧旧值不值得让功能永久失能。
 
+use crate::bp_decision::panel::BpPanel;
 use crate::bp_decision::types::BpDecision;
 use std::sync::{OnceLock, PoisonError, RwLock};
 
@@ -32,7 +33,19 @@ struct StoreState {
     last_hovered: Option<i32>,
     /// 已判定接管的 action id。每个 ban/pick action 的 id 唯一，
     /// 因此阶段推进后旧标记自然失效，无需显式清理。
-    overridden_action_id: Option<i32>,
+    ///
+    /// 是集合而不是单个值：ban 与 pick 是两个 action，用户可以两个都接管
+    /// （ban 阶段在操作台里手动 ban，同时又在客户端里预选了别的英雄）。
+    /// 只记一个的话，后记的会把先记的顶掉，被顶掉的那条轨道会恢复自动执行。
+    overridden_action_ids: Vec<i32>,
+    /// 操作台快照，与 `decision` 同一个求值 tick 产出
+    panel: Option<BpPanel>,
+    /// 用户在操作台里指定的目标：(action id, 英雄 ID)。
+    ///
+    /// 与「接管」是两回事：接管 = 用户去客户端里自己操作了，自动化退让；
+    /// 指定目标 = 用户在我们的面板上换了人选，自动化照常到点执行，只是执行的是这个英雄。
+    /// 同样按 action 作用域，阶段推进后自然失效。
+    manual_targets: Vec<(i32, i32)>,
 }
 
 static STORE: OnceLock<RwLock<StoreState>> = OnceLock::new();
@@ -99,15 +112,59 @@ pub fn is_overridden(action_id: i32) -> bool {
     store()
         .read()
         .unwrap_or_else(PoisonError::into_inner)
-        .overridden_action_id
-        .is_some_and(|id| id == action_id)
+        .overridden_action_ids
+        .contains(&action_id)
 }
 
 pub fn mark_overridden(action_id: i32) {
+    let mut s = store().write().unwrap_or_else(PoisonError::into_inner);
+    if !s.overridden_action_ids.contains(&action_id) {
+        s.overridden_action_ids.push(action_id);
+    }
+}
+
+/// 用户在操作台里为该 action 指定的目标英雄。
+pub fn manual_target(action_id: i32) -> Option<i32> {
+    store()
+        .read()
+        .unwrap_or_else(PoisonError::into_inner)
+        .manual_targets
+        .iter()
+        .find(|(id, _)| *id == action_id)
+        .map(|(_, champion_id)| *champion_id)
+}
+
+/// 记下用户为该 action 指定的目标英雄（覆盖之前指定的）。
+pub fn set_manual_target(action_id: i32, champion_id: i32) {
+    let mut s = store().write().unwrap_or_else(PoisonError::into_inner);
+    s.manual_targets.retain(|(id, _)| *id != action_id);
+    s.manual_targets.push((action_id, champion_id));
+}
+
+/// 撤销用户为该 action 指定的目标（英雄被 ban / 被选走后调用）。
+pub fn clear_manual_target(action_id: i32) {
     store()
         .write()
         .unwrap_or_else(PoisonError::into_inner)
-        .overridden_action_id = Some(action_id);
+        .manual_targets
+        .retain(|(id, _)| *id != action_id);
+}
+
+/// 读取操作台快照。
+pub fn read_panel() -> Option<BpPanel> {
+    store()
+        .read()
+        .unwrap_or_else(PoisonError::into_inner)
+        .panel
+        .clone()
+}
+
+/// 覆盖写入操作台快照。
+pub fn write_panel(panel: Option<BpPanel>) {
+    store()
+        .write()
+        .unwrap_or_else(PoisonError::into_inner)
+        .panel = panel;
 }
 
 /// 离开选人期时清空全部状态。
@@ -137,6 +194,28 @@ mod tests {
     }
 
     #[test]
+    fn manual_target_is_scoped_to_action_id_and_replaceable() {
+        let _guard = TEST_LOCK.lock().unwrap_or_else(PoisonError::into_inner);
+        reset();
+        assert_eq!(manual_target(10), None);
+
+        set_manual_target(10, 103);
+        set_manual_target(11, 238);
+        assert_eq!(manual_target(10), Some(103));
+        assert_eq!(manual_target(11), Some(238));
+
+        // 同一个 action 再指定一次：覆盖
+        set_manual_target(10, 90);
+        assert_eq!(manual_target(10), Some(90));
+
+        clear_manual_target(10);
+        assert_eq!(manual_target(10), None);
+        assert_eq!(manual_target(11), Some(238));
+        reset();
+        assert_eq!(manual_target(11), None);
+    }
+
+    #[test]
     fn override_is_scoped_to_action_id() {
         let _guard = TEST_LOCK.lock().unwrap_or_else(PoisonError::into_inner);
         reset();
@@ -145,6 +224,10 @@ mod tests {
         assert!(is_overridden(10));
         // 换到下一个 action（阶段推进）→ 标记自动失效
         assert!(!is_overridden(11));
+        // 再接管另一个 action，不能把前一个顶掉
+        mark_overridden(11);
+        assert!(is_overridden(10));
+        assert!(is_overridden(11));
         reset();
     }
 }

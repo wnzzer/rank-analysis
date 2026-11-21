@@ -180,7 +180,18 @@
           </div>
         </div>
 
+        <!-- 有操作台快照时用操作台（可手动预选 / 确认）；快照缺失时退回只读的决策带 -->
+        <BpCommandPanel
+          v-if="bpPanel.view.value"
+          v-bind="bpPanel.view.value"
+          :secs-left="bpPanel.secsLeft.value"
+          :total-secs="bpPanel.totalSecs.value"
+          :champion-options="bpPanel.championOptions.value"
+          @hover="bpPanel.hover"
+          @confirm="bpPanel.confirm"
+        />
         <BpDecisionBar
+          v-else
           :decision="bp.decision.value"
           :display-secs="bp.displaySecs.value"
           @save-rule="handleSaveRule"
@@ -242,12 +253,14 @@ import { useMessage } from 'naive-ui'
 
 import LoadingComponent from '@renderer/components/LoadingComponent.vue'
 import SubteamCard from '@renderer/components/gaming/SubteamCard.vue'
+import BpCommandPanel from '@renderer/components/gaming/BpCommandPanel.vue'
 import BpDecisionBar from '@renderer/components/gaming/BpDecisionBar.vue'
 import BuildRecommendBar from '@renderer/components/gaming/BuildRecommendBar.vue'
 import PostGameReport from '@renderer/components/gaming/PostGameReport.vue'
 import { usePostGameReport } from '@renderer/composables/usePostGameReport'
 import { useGamingAIAnalysis } from '@renderer/composables/useGamingAIAnalysis'
 import { useBpDecision } from '@renderer/composables/useBpDecision'
+import { useBpPanel } from '@renderer/composables/useBpPanel'
 import { useChampionBuild } from '@renderer/composables/useChampionBuild'
 import { useSessionSync } from '@renderer/composables/useSessionSync'
 import { useSessionTiers } from '@renderer/composables/useSessionTiers'
@@ -402,6 +415,12 @@ watch(opggMode, m => getOpggStatus(m).then(s => (opggStatus.value = s)), { immed
  * 一次算完、纯展示，不进 per-player 的同步链。
  */
 const bp = useBpDecision(() => sessionData.phase)
+
+/** 选人期 BP 操作台：候选打分 + 手动预选 / 确认。快照缺失时页面退回上面的决策带 */
+const bpPanel = useBpPanel(() => sessionData.phase, {
+  icon: getChampionUrl,
+  onError: text => message.error(text)
+})
 
 const router = useRouter()
 

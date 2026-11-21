@@ -392,8 +392,8 @@ watch(
   border: 1px solid var(--glass-border) !important;
   box-shadow: var(--shadow-md), var(--glass-highlight) !important;
   transition: box-shadow var(--dur-normal) var(--ease-expo);
-  animation: fade-up var(--dur-normal) var(--ease-expo) both;
-  animation-delay: calc(var(--stagger) * var(--stagger-i, 0));
+  /* 卡片不做各自的入场位移：页面级过渡（Framework 的 page-enter）已经整体淡入一次，
+     十张卡再逐张上浮会让首屏第一秒全在飘。 */
 }
 
 .player-card:hover {
@@ -716,35 +716,20 @@ watch(
  * `box-shadow: ... !important`（CSS 优先级里 author !important 高于 CSS 动画，动画对它
  * 无效）。这里改用 filter: drop-shadow 做发光（不受该 !important 影响，且天然贴合圆角），
  * 边框色/宽度走静态声明——靠复合选择器 `.player-card.pc-xxx` 的更高特异度 + 同为
- * !important 正常参与层叠，无需动画介入。逗号组合规则同情报卡：fade-up 恒第一位，
- * 状态动画第二位，delay 列表对应（stagger 延迟, 0s）。
+ * !important 正常参与层叠，无需动画介入。
+ * 循环动画只留给「正在选」这一张：意向与禁用中是多张卡同时成立的状态，各自呼吸会让
+ * 屏幕上一直有几处不同节奏的闪动，所以它们只用静态描边表达。
  * 发光标 theme-fixed：状态反馈一闪而过、不读作污渍，两主题一致，不接 --fx-glow。
  */
 .player-card.pc-intent {
   border-width: 1px !important;
   border-color: rgba(230, 193, 90, 0.55) !important;
-  animation:
-    fade-up var(--dur-normal) var(--ease-expo) both,
-    pc-breathe 2s ease-in-out infinite;
-  animation-delay: calc(var(--stagger) * var(--stagger-i, 0)), 0s;
-}
-@keyframes pc-breathe {
-  0%,
-  100% {
-    filter: drop-shadow(0 0 0 transparent);
-  }
-  50% {
-    filter: drop-shadow(0 0 6px rgba(230, 193, 90, 0.22)); /* theme-fixed */
-  }
 }
 
 .player-card.pc-picking {
   border-width: 2px !important;
   border-color: var(--semantic-win) !important;
-  animation:
-    fade-up var(--dur-normal) var(--ease-expo) both,
-    pc-pulse 1.1s ease-in-out infinite;
-  animation-delay: calc(var(--stagger) * var(--stagger-i, 0)), 0s;
+  animation: pc-pulse 1.1s ease-in-out infinite;
 }
 @keyframes pc-pulse {
   0%,
@@ -757,32 +742,16 @@ watch(
 }
 
 /* 禁用阶段是全队同时进行的——ban 时 5 张卡（加敌方 5 个占位）一起变红，
-   所以这里刻意比 pc-picking 克制：1px 半透明边框 + 更慢更弱的呼吸，只做状态提示不抢焦点 */
+   所以这里刻意比 pc-picking 克制：只有 1px 半透明边框，不做动画 */
 .player-card.pc-banning {
   border-width: 1px !important;
   border-color: color-mix(in srgb, var(--semantic-loss) 45%, transparent) !important;
-  animation:
-    fade-up var(--dur-normal) var(--ease-expo) both,
-    pc-ban-pulse 2s ease-in-out infinite;
-  animation-delay: calc(var(--stagger) * var(--stagger-i, 0)), 0s;
-}
-@keyframes pc-ban-pulse {
-  0%,
-  100% {
-    filter: drop-shadow(0 0 0 rgba(239, 68, 68, 0));
-  }
-  50% {
-    filter: drop-shadow(0 0 3px rgba(239, 68, 68, 0.12)); /* theme-fixed */
-  }
 }
 
 /* 锁定：一次性 ring 闪光 + 轻微 scale 过冲，比情报卡的 0.82→1.05→1 收敛很多——
    PlayerCard 尺寸大，同等幅度的 scale 在真实布局里观感是"晃"而非"确认感" */
 .player-card.pc-locked {
-  animation:
-    fade-up var(--dur-normal) var(--ease-expo) both,
-    pc-lock-in 0.28s var(--ease-expo) both;
-  animation-delay: calc(var(--stagger) * var(--stagger-i, 0)), 0s;
+  animation: pc-lock-in 0.28s var(--ease-expo) both;
 }
 @keyframes pc-lock-in {
   0% {
@@ -809,7 +778,7 @@ watch(
 }
 
 /* 换人闪烁：一次性反馈，动画只落在头像元素上（同 ChampionIntelCard 的 intel-swapped 机制），
- * 不往 .player-card 的 fade-up/四态逗号动画列表里加第三项，避免破坏既有组合规则。
+ * 不占用 .player-card 自身的 animation（那里留给选人状态动画）。
  */
 .player-card.pc-swapped .champion-img {
   animation: pc-swap-flash 0.5s ease-out;
@@ -827,9 +796,7 @@ watch(
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .player-card.pc-intent,
   .player-card.pc-picking,
-  .player-card.pc-banning,
   .player-card.pc-locked,
   .player-card.pc-swapped .champion-img {
     animation: none;

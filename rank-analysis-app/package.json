@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite",
     "demo:matchup": "vite --config vite.matchup-demo.config.ts",
+    "demo:bp": "vite --config vite.bp-demo.config.ts",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "tauri": "tauri",

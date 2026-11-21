@@ -615,6 +615,8 @@ async fn start_bp_decision_automation(app: tauri::AppHandle) {
     // 失败重试交给下一局（离开选人期时清空），避免 2s 热循环里对不可达的
     // op.gg 反复发起 HTTP 与刷屏 warn
     let mut opgg_cache: Option<(String, Option<Arc<OpggSnapshot>>)> = None;
+    // 本人近期各英雄的场次与胜场（操作台的熟练度项）：同样选人期内只取一次
+    let mut my_stats: Option<HashMap<i32, (u32, u32)>> = None;
 
     loop {
         ticker.tick().await;
@@ -627,6 +629,7 @@ async fn start_bp_decision_automation(app: tauri::AppHandle) {
             // 离开选人期：清空快照与跨 tick 状态
             store::reset();
             opgg_cache = None;
+            my_stats = None;
             continue;
         }
 
@@ -699,6 +702,20 @@ async fn start_bp_decision_automation(app: tauri::AppHandle) {
                 last_hovered,
             };
             let mut d = evaluate::evaluate_for_action(&ctx, pending)?;
+            // 用户在操作台里指定了人选：取代规则 / 兜底池的结果。指定的英雄已不可用
+            // （被 ban / 被选走）时撤销指定，退回引擎自己的选择
+            if let Some(champion_id) = store::manual_target(pending.action_id) {
+                let applied = evaluate::apply_manual_target(
+                    &mut d,
+                    champion_id,
+                    &session,
+                    snapshot.as_deref(),
+                    my_position,
+                );
+                if !applied {
+                    store::clear_manual_target(pending.action_id);
+                }
+            }
             // 接管标记以执行侧的粘性记录为准：一旦判定接管，即使用户随后撤回 hover
             // (detect_override 重算为 false)，本阶段也不会再自动执行——快照必须如实
             // 反映，否则决策带会承诺一次永远不会发生的自动锁定
@@ -717,11 +734,87 @@ async fn start_bp_decision_automation(app: tauri::AppHandle) {
                 .find(|(id, _)| *id == p.action_id)
                 .map(|(_, d)| d.clone())
         });
+        // 决策先落盘再算操作台：操作台要取战绩与伤害类型（首个 tick 有几十个本地请求），
+        // 不能让执行侧等它——到点锁定读的是下面这份决策。
+        let pick_for_panel = pick_decision.as_ref().map(|(_, d)| d.clone());
+        let ban_for_panel = ban_decision.as_ref().map(|(_, d)| d.clone());
         store::write(
             current,
             ban_decision.map(|(_, d)| d),
             pick_decision.map(|(_, d)| d),
         );
+
+        // ---- 操作台快照 ----
+        // 面板上的自动目标 / 接管状态直接取自上面两份决策
+        if my_stats.is_none() {
+            my_stats = Some(load_my_champion_stats(&my_summoner.puuid).await);
+        }
+        let mut damage_ids: Vec<i32> = session
+            .my_team
+            .iter()
+            .map(crate::lcu::api::champion_select::display_champion_id)
+            .chain(session.their_team.iter().map(|p| p.champion_id))
+            .chain(pick_pool.iter().copied())
+            .chain(ban_pool.iter().copied())
+            .collect();
+        if let Some(snap) = snapshot.as_deref() {
+            damage_ids.extend(snap.champions.keys().copied());
+        }
+        crate::bp_decision::damage::ensure(&damage_ids, DAMAGE_FETCH_PER_TICK).await;
+        let damage = crate::bp_decision::damage::table();
+        let panel =
+            crate::bp_decision::panel::build_panel(&crate::bp_decision::panel::PanelInput {
+                session: &session,
+                my_puuid: &my_summoner.puuid,
+                snapshot: snapshot.as_deref(),
+                pick_pool: &pick_pool,
+                ban_pool: &ban_pool,
+                pick_decision: pick_for_panel.as_ref(),
+                ban_decision: ban_for_panel.as_ref(),
+                my_stats: my_stats.as_ref().unwrap_or(&HashMap::new()),
+                damage: &damage,
+            });
+        store::write_panel(panel);
+    }
+}
+
+/// 每个求值 tick 最多补多少个英雄的伤害类型。
+///
+/// 已亮出的英雄与英雄池排在请求列表最前面，第一个 tick 就能取到；
+/// 其余（版本强势榜里的候选）在随后几个 tick 里补齐。
+const DAMAGE_FETCH_PER_TICK: usize = 40;
+
+/// 召唤师峡谷的地图 ID。熟练度只统计这张图上的对局——大乱斗等模式的胜率
+/// 不能说明排位里这个英雄玩得怎么样。
+const SUMMONERS_RIFT_MAP_ID: i32 = 11;
+
+/// 把一页战绩聚合成「英雄 → (场次, 胜场)」，只算召唤师峡谷的对局。
+fn champion_stats_of(games: &[crate::lcu::api::match_history::Game]) -> HashMap<i32, (u32, u32)> {
+    let mut stats: HashMap<i32, (u32, u32)> = HashMap::new();
+    for game in games.iter().filter(|g| g.map_id == SUMMONERS_RIFT_MAP_ID) {
+        // 战绩列表里每局只带本人一条 participant
+        let Some(me) = game.participants.first() else {
+            continue;
+        };
+        let entry = stats.entry(me.champion_id).or_default();
+        entry.0 += 1;
+        if me.stats.win {
+            entry.1 += 1;
+        }
+    }
+    stats
+}
+
+/// 读取本人近期各英雄的场次与胜场；取不到时返回空表（熟练度项退化为不加不减）。
+async fn load_my_champion_stats(puuid: &str) -> HashMap<i32, (u32, u32)> {
+    match crate::lcu::api::match_history::MatchHistory::get_match_history_by_puuid(puuid, 0, 49)
+        .await
+    {
+        Ok(history) => champion_stats_of(&history.games.games),
+        Err(e) => {
+            log::debug!("BP panel: match history unavailable: {}", e);
+            HashMap::new()
+        }
     }
 }
 
@@ -790,6 +883,9 @@ async fn apply_bp_decision(
         return Ok(());
     }
 
+    // 决策快照是 2 秒前算的；用户刚在操作台里换了人选时，快照里还是旧目标。
+    // 这里直接读指定目标，否则下面的 hover 同步会把用户刚点的英雄又换回去。
+    let decision = &with_manual_target(decision, store::manual_target(pending.action_id));
     let Some(target) = decision.target.as_ref() else {
         return Ok(());
     };
@@ -868,6 +964,27 @@ async fn apply_bp_decision(
         .await?;
     }
     Ok(())
+}
+
+/// 执行侧看到的决策：用户在操作台里指定了人选时，以它为目标并锁定。
+///
+/// 与求值侧的 `evaluate::apply_manual_target` 结果一致，区别只是不查可用性、不附
+/// 对位依据——执行侧每秒一跳，不可用的英雄 PATCH 会被客户端拒绝，求值侧随后撤销指定。
+fn with_manual_target(
+    decision: &crate::bp_decision::types::BpDecision,
+    manual: Option<i32>,
+) -> crate::bp_decision::types::BpDecision {
+    use crate::bp_decision::types::{BpOrigin, BpTarget};
+    let mut d = decision.clone();
+    if let Some(champion_id) = manual {
+        d.target = Some(BpTarget {
+            champion_id,
+            lock: true,
+            origin: BpOrigin::Manual,
+            evidence: None,
+        });
+    }
+    d
 }
 
 /// 读取一个布尔开关配置，缺失/异常一律当作关闭。
@@ -1648,6 +1765,83 @@ mod apply_runes_tests {
 #[cfg(test)]
 mod bp_execution_tests {
     use super::*;
+
+    #[test]
+    fn manual_target_overrides_snapshot_target_for_execution() {
+        // 快照里的目标是 64 且不锁定；用户在操作台里点了 103
+        let mut snapshot = decision(BpMode::Auto, 4.0, false);
+        snapshot.target.as_mut().unwrap().lock = false;
+
+        let effective = with_manual_target(&snapshot, Some(103));
+
+        let t = effective.target.as_ref().unwrap();
+        assert_eq!(t.champion_id, 103);
+        assert_eq!(t.origin, BpOrigin::Manual);
+        // 指定的人选到点要真的锁定
+        assert!(should_lock(&effective, 4.0, true, "BAN_PICK"));
+    }
+
+    #[test]
+    fn manual_target_gives_execution_a_target_when_engine_has_none() {
+        let mut snapshot = decision(BpMode::Auto, 4.0, false);
+        snapshot.target = None;
+
+        let effective = with_manual_target(&snapshot, Some(103));
+
+        assert_eq!(effective.target.unwrap().champion_id, 103);
+    }
+
+    #[test]
+    fn execution_keeps_snapshot_target_without_manual_choice() {
+        let snapshot = decision(BpMode::Auto, 4.0, false);
+
+        assert_eq!(with_manual_target(&snapshot, None), snapshot);
+    }
+
+    #[test]
+    fn manual_target_does_not_execute_when_automation_is_off() {
+        // 开关没开：指定人选只影响展示，不会替用户锁定
+        let effective = with_manual_target(&decision(BpMode::Advisory, 4.0, false), Some(103));
+
+        assert!(!should_act(&effective));
+    }
+
+    #[test]
+    fn should_aggregate_champion_stats_on_summoners_rift_only() {
+        use crate::lcu::api::match_history::Game;
+        use crate::lcu::api::model::{Participant, Stats};
+
+        let game = |map_id: i32, champion_id: i32, win: bool| Game {
+            map_id,
+            participants: vec![Participant {
+                champion_id,
+                stats: Stats {
+                    win,
+                    ..Stats::default()
+                },
+                ..Participant::default()
+            }],
+            ..Game::default()
+        };
+        let games = vec![
+            game(11, 103, true),
+            game(11, 103, false),
+            game(11, 90, true),
+            // 大乱斗（地图 12）不计入
+            game(12, 103, true),
+            // 没有 participant 的残缺记录跳过
+            Game {
+                map_id: 11,
+                ..Game::default()
+            },
+        ];
+
+        let stats = champion_stats_of(&games);
+
+        assert_eq!(stats.get(&103), Some(&(2, 1)));
+        assert_eq!(stats.get(&90), Some(&(1, 1)));
+        assert_eq!(stats.len(), 2);
+    }
     use crate::bp_decision::types::{BpActionType, BpDecision, BpMode, BpOrigin, BpTarget};
 
     fn decision(mode: BpMode, time_left: f64, overridden: bool) -> BpDecision {

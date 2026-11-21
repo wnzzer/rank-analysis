@@ -73,10 +73,10 @@ defineProps<{ games: Game[] }>()
   /* P0 收紧到 4px 配合 1 屏 4 场布局 */
   padding: var(--space-4) 5px;
   font-size: var(--font-size-2xs);
-  border: 1px solid var(--sunken-border);
-  /* P1: 左侧锚点 2px + 半透明，更轻盈 */
-  border-left-width: 2px;
-  border-left-color: color-mix(in srgb, var(--semantic-loss) 70%, transparent);
+  /* 只留左侧 2px 胜负色条，不再四边描边：外层玩家卡已经有一层边界，
+     条目再各自描边会变成框套框，满屏都是线 */
+  border: 0;
+  border-left: 2px solid color-mix(in srgb, var(--semantic-loss) 70%, transparent);
 }
 
 .history-item.is-win {
@@ -136,15 +136,14 @@ defineProps<{ games: Game[] }>()
   text-align: center;
 }
 
-.kill {
-  color: var(--semantic-win);
+/* KDA 用中性色：胜负已经由左侧色条和「胜/负」表达，数字再各上一种颜色，
+   四十条战绩铺开就是满屏红绿，颜色不再能表示「重要」 */
+.kill,
+.assist {
+  color: var(--text-primary);
 }
 
 .death {
-  color: var(--semantic-loss);
-}
-
-.assist {
   color: var(--text-secondary);
 }
 
