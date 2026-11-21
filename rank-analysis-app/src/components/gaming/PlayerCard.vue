@@ -384,7 +384,13 @@ watch(
   margin-top: var(--space-8);
 }
 .player-card {
-  height: 100%;
+  /*
+   * 与同列的其他行（玩家卡 / 「等待选人」占位）等分高度，且不矮于自身内容。
+   * 不能写 height: 100%：那等于让每张卡都先要整列的高度，再靠收缩互相让。五张卡时
+   * 让出来正好等分，看不出问题；但少人对局（自定义 / 训练模式）里只有一两张卡，
+   * 其余是不参与收缩的占位行，这张卡就独占了几乎整列，战绩被挤到中间、上下大片空白（#190）。
+   */
+  flex: 1 1 0;
   display: flex;
   flex-direction: column;
   border-radius: var(--radius-md);

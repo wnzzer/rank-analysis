@@ -10,6 +10,9 @@ import { useSettingsStore } from '@renderer/pinia/setting'
 import { createDemoTeams, demoApi, demoState } from './data'
 provide(MATCHUP_API, demoApi)
 const teams = ref(createDemoTeams())
+/** 地址栏 `?mine=1` 把我方裁到 N 人，用于验收少人对局（自定义 / 训练模式）的卡片布局。 */
+const mineSize = Number(new URLSearchParams(window.location.search).get('mine'))
+if (mineSize >= 1 && mineSize < 5) teams.value[0].players.splice(mineSize)
 const tier = ref<OpggTier>(DEFAULT_OPGG_TIER)
 const changing = ref(false)
 const phase = ref('ChampSelect')
