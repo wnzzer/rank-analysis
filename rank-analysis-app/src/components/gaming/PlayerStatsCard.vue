@@ -15,7 +15,9 @@
       <div v-if="!showStats" class="stats-compact" @click="showStats = true">
         <div class="compact-row">
           <span class="label">模式</span>
-          <span class="value">{{ recent.selectModeCn }}</span>
+          <span class="value value-clip" :title="recent.selectModeCn">{{
+            recent.selectModeCn
+          }}</span>
         </div>
         <div class="compact-row">
           <span class="label">KDA</span>
@@ -171,8 +173,21 @@ const hasGames = computed(
 .compact-row {
   display: flex;
   justify-content: space-between;
+  gap: var(--space-6);
   font-size: var(--font-size-xs);
   margin-bottom: var(--space-2);
+}
+
+/*
+ * 收起态的框很窄，模式名长的时候（如「召唤师峡谷自选自定义」）要截断而不是换行：
+ * 换行会把左边的「模式」两个字也挤成上下两行（#190 截图里的「模 / 式」）。
+ * 完整名字在悬停提示和展开态里都看得到。
+ */
+.value-clip {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .stats-full {
@@ -190,6 +205,9 @@ const hasGames = computed(
 }
 
 .label {
+  /* 标签永远完整显示在一行，不让右边的值把它挤窄 */
+  flex: none;
+  white-space: nowrap;
   color: var(--n-text-color-3);
 }
 
