@@ -423,10 +423,7 @@ describe('parseRebuttal', () => {
   it('should take the first object when the model wraps its answer in an array', () => {
     // 真机实测 qwen4-max 偶尔输出 [{...}, {...}]
     const second = { ...ok, reply: '第二个对象不该被采用。' }
-    const raw = '[
-  ' + JSON.stringify(ok) + ',
-  ' + JSON.stringify(second) + '
-]'
+    const raw = JSON.stringify([ok, second], null, 2)
 
     expect(parseRebuttal(raw, prompt)).toEqual(ok)
     expect(parseRebuttal('[' + JSON.stringify(ok) + ']', prompt)).toEqual(ok)
