@@ -47,6 +47,21 @@ function mountCard(
   })
 }
 
+/** 记录不足时的初步估算：上一局 9 名有段位玩家的平均段位 */
+const lobby: HiddenMmr = {
+  status: 'lobby',
+  score: 2600,
+  equivalent: '璀璨钻石 II 0LP',
+  equivalentShort: '钻石 II 0LP',
+  equivalentTier: 'DIAMOND',
+  offset: 160,
+  direction: 'up',
+  players: 9,
+  reason: 'too_few',
+  have: 1,
+  need: 3
+}
+
 /** 让 tooltip 内容常驻渲染，绕开 naive 的 hover 延迟与 teleport */
 const openTooltip = { Tooltip: { template: '<div><slot name="trigger" /><slot /></div>' } }
 
@@ -258,6 +273,32 @@ describe('RankCard hidden MMR tooltip', () => {
 
     expect(lower).toContain('比当前段位低 35 LP')
     expect(equal).toContain('与当前段位持平')
+  })
+
+  it('should show the lobby average as a preliminary estimate', () => {
+    const row = mountCard(lobby).get('[data-test="hidden-mmr"]')
+
+    expect(row.text()).toContain('钻石 II 0LP')
+    expect(row.get('[data-test="hidden-mmr-prelim"]').text()).toBe('初步')
+    expect(row.get('[data-test="hidden-mmr-tier"]').attributes('src')).toBe(tierImage('DIAMOND'))
+    expect(row.find('.rank-card-mmr-trend.up').exists()).toBe(true)
+    // 有估算值了就不再显示「记录中」的进度点
+    expect(row.find('.rank-card-mmr-dot').exists()).toBe(false)
+  })
+
+  it('should not mark a real estimate as preliminary', () => {
+    expect(mountCard(ready).find('[data-test="hidden-mmr-prelim"]').exists()).toBe(false)
+  })
+
+  it('should explain where the preliminary estimate comes from', () => {
+    const text = mountCard(lobby, openTooltip).text()
+
+    expect(text).toContain('≈ 璀璨钻石 II 0LP，比当前段位高 160 LP')
+    expect(text).toContain('初步估算：上一局 9 名有段位玩家的平均段位')
+    expect(text).toContain('已记录 1 局有效排位，满 3')
+    expect(text).toContain('5. 记录不足 3 局或只有胜 / 只有负时，暂用上一局全员的平均段位')
+    // 初步估算没有逐局加减分可列
+    expect(text).not.toContain('平均赢 +')
   })
 
   it('should show progress hint and rules when collecting', () => {

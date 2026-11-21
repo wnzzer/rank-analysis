@@ -6,10 +6,12 @@
 //! - [`store`]：每局记录的本地 JSON 存储
 //! - [`estimate`]：由记录和当前段位算出估算结果
 //! - [`collector`]：随客户端阶段变化采集每局 LP 变化
+//! - [`lobby`]：记录不足时的兜底——上一局全员平均段位
 //!
 //! 设计见 `docs/superpowers/specs/2026-11-06-hidden-mmr-design.md`。
 
 pub mod axis;
 pub mod collector;
 pub mod estimate;
+pub mod lobby;
 pub mod store;

@@ -6,6 +6,7 @@
 use serde::Serialize;
 
 use super::axis;
+use super::lobby::LobbyAverage;
 use super::store::{LpRecord, Source};
 
 /// 参与估算的最近记录数。
@@ -81,6 +82,26 @@ pub enum HiddenMmr {
         have: usize,
         need: usize,
     },
+    /// 加减分记录还不够，暂用上一局全员平均段位作初步估算
+    Lobby {
+        /// 平均段位在分数轴上的值
+        score: i32,
+        /// 等效段位文案，如「璀璨钻石 II 40LP」
+        equivalent: String,
+        /// 等效段位短文案，用于卡片隐藏分行
+        equivalent_short: String,
+        /// 等效大段英文键，用于查段位图标
+        equivalent_tier: String,
+        /// 相对当前段位的偏移（LP）
+        offset: i32,
+        direction: Direction,
+        /// 参与平均的玩家数（上一局里有段位的）
+        players: usize,
+        /// 为什么还不能用加减分估算，以及进度
+        reason: CollectingReason,
+        have: usize,
+        need: usize,
+    },
     /// 已给出估算
     Ready {
         /// 隐藏分在分数轴上的值
@@ -101,6 +122,51 @@ pub enum HiddenMmr {
         /// 窗口内的记录，新 → 旧
         recent: Vec<RecentDelta>,
     },
+}
+
+/// 偏移 → 方向；|偏移| 不超过 [`FLAT_THRESHOLD`] 视为持平。
+fn direction_of(offset: i32) -> Direction {
+    if offset > FLAT_THRESHOLD {
+        Direction::Up
+    } else if offset < -FLAT_THRESHOLD {
+        Direction::Down
+    } else {
+        Direction::Flat
+    }
+}
+
+/// 记录不足时改用上一局全员平均段位。
+///
+/// 只改写 [`HiddenMmr::Collecting`]：已有正式估算、或本就不该显示（未定级 / 定级赛）时原样返回。
+///
+/// # 参数
+/// - `result`: 加减分估算的结果
+/// - `current_score`: 当前段位在轴上的分数，用来算偏移
+/// - `lobby`: 上一局全员平均段位；取不到为 `None`，此时保持「数据收集中」
+pub fn with_lobby_fallback(
+    result: HiddenMmr,
+    current_score: Option<i32>,
+    lobby: Option<LobbyAverage>,
+) -> HiddenMmr {
+    let HiddenMmr::Collecting { reason, have, need } = result else {
+        return result;
+    };
+    let (Some(current), Some(lobby)) = (current_score, lobby) else {
+        return HiddenMmr::Collecting { reason, have, need };
+    };
+    let offset = lobby.score - current;
+    HiddenMmr::Lobby {
+        score: lobby.score,
+        equivalent: axis::format_score(lobby.score),
+        equivalent_short: axis::format_score_short(lobby.score),
+        equivalent_tier: axis::tier_of_score(lobby.score).to_string(),
+        offset,
+        direction: direction_of(offset),
+        players: lobby.players,
+        reason,
+        have,
+        need,
+    }
 }
 
 fn mean(values: &[i32]) -> f64 {
@@ -209,13 +275,7 @@ pub fn estimate(records: &[LpRecord], current_score: Option<i32>, provisional: b
     let avg_loss = mean(&losses);
     let offset = ((avg_win - avg_loss) * OFFSET_PER_LP_GAP).round() as i32;
     let score = (current + offset).max(0);
-    let direction = if offset > FLAT_THRESHOLD {
-        Direction::Up
-    } else if offset < -FLAT_THRESHOLD {
-        Direction::Down
-    } else {
-        Direction::Flat
-    };
+    let direction = direction_of(offset);
     HiddenMmr::Ready {
         score,
         equivalent: axis::format_score(score),
