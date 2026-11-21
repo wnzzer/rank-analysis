@@ -163,6 +163,8 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             command::ai::get_ai_config,
             command::ai::check_claude_region,
             command::ai::prewarm_claude_relay,
+            command::ai_endpoint::list_ai_models,
+            command::ai_endpoint::test_ai_endpoint,
             command::asset::get_asset_details,
             command::bp::get_bp_decision,
             command::bp::get_bp_panel,

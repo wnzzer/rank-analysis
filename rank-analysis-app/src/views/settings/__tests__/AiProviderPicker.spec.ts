@@ -79,6 +79,6 @@ describe('AiProviderPicker', () => {
 
   it('should warn about fallback when saved Claude but region now blocked', async () => {
     const wrapper = await mountWithRegion({ country: 'HK', allowed: false }, 'claude')
-    expect(wrapper.text()).toContain('自动使用 DeepSeek')
+    expect(wrapper.text()).toContain('自动使用内置服务')
   })
 })

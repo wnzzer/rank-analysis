@@ -76,6 +76,12 @@ const routes: Array<RouteRecordRaw> = [
         meta: { title: '常规设置' }
       },
       {
+        path: '/Settings/Ai',
+        name: 'Ai',
+        component: () => import('@renderer/views/settings/Ai.vue'),
+        meta: { title: 'AI 模型' }
+      },
+      {
         path: '/Settings/Automation',
         name: 'Automation',
         component: () => import('@renderer/views/settings/Automation.vue'),
