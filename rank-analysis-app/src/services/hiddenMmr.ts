@@ -28,11 +28,26 @@ export interface HiddenMmrRecentDelta {
  * 隐藏分估算结果
  * - hidden：未定级 / 定级赛中，不显示
  * - collecting：数据不足；too_few 为不够 3 局，one_sided 为只有赢局或只有输局
+ * - lobby：加减分记录还不够，暂用上一局全员平均段位作初步估算；players 为参与平均的人数
  * - ready：score 为分数轴上的值，equivalent 为等效段位文案，recent 为新 → 旧
  */
 export type HiddenMmr =
   | { status: 'hidden' }
   | { status: 'collecting'; reason: 'too_few' | 'one_sided'; have: number; need: number }
+  | {
+      status: 'lobby'
+      score: number
+      equivalent: string
+      equivalentShort: string
+      equivalentTier: string
+      offset: number
+      direction: 'up' | 'flat' | 'down'
+      /** 参与平均的玩家数（上一局里有段位的） */
+      players: number
+      reason: 'too_few' | 'one_sided'
+      have: number
+      need: number
+    }
   | {
       status: 'ready'
       score: number

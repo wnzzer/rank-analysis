@@ -74,7 +74,7 @@
           </template>
         </n-tooltip>
         <n-tooltip
-          v-if="ready || collecting"
+          v-if="estimate || collecting"
           trigger="manual"
           placement="bottom-start"
           :show="tipActive.mmr.hover || tipActive.mmr.focus"
@@ -91,19 +91,22 @@
             >
               <span class="rank-card-mmr-label">隐藏分</span>
               <span class="rank-card-mmr-value">
-                <template v-if="ready">
+                <template v-if="estimate">
                   <img
-                    :src="tierImage(ready.equivalentTier)"
+                    :src="tierImage(estimate.equivalentTier)"
                     class="rank-card-mmr-tier"
                     data-test="hidden-mmr-tier"
                     alt=""
                   />
-                  <span class="rank-card-mmr-rank">{{ ready.equivalentShort }}</span>
-                  <n-icon :size="12" class="rank-card-mmr-trend" :class="ready.direction">
-                    <TrendingUp v-if="ready.direction === 'up'" />
-                    <TrendingDown v-else-if="ready.direction === 'down'" />
+                  <span class="rank-card-mmr-rank">{{ estimate.equivalentShort }}</span>
+                  <n-icon :size="12" class="rank-card-mmr-trend" :class="estimate.direction">
+                    <TrendingUp v-if="estimate.direction === 'up'" />
+                    <TrendingDown v-else-if="estimate.direction === 'down'" />
                     <Remove v-else />
                   </n-icon>
+                  <span v-if="lobby" class="rank-card-mmr-prelim" data-test="hidden-mmr-prelim"
+                    >初步</span
+                  >
                 </template>
                 <template v-else-if="collecting">
                   <span class="rank-card-mmr-dots">
@@ -125,6 +128,14 @@
               <div>最近 {{ ready.recent.length }} 局：{{ recentText }}</div>
               <div>平均赢 +{{ ready.avgWin }} / 平均输 −{{ ready.avgLoss }}</div>
             </template>
+            <template v-else-if="lobby">
+              <div>≈ {{ lobby.equivalent }}，{{ tierCompare }}</div>
+              <div>初步估算：上一局 {{ lobby.players }} 名有段位玩家的平均段位</div>
+              <div>
+                已记录 {{ lobby.have }} 局有效排位，满 {{ lobby.need }}
+                局且有胜有负后改按加减分估算
+              </div>
+            </template>
             <div v-else-if="collecting">
               已记录 {{ collecting.have }} 局有效排位，至少需要 {{ collecting.need }} 局且有胜有负
             </div>
@@ -135,6 +146,7 @@
               <div>2. 取最近 10 局：隐藏分 ≈ 当前段位 +（平均赢分 − 平均输分）× 10 LP</div>
               <div>3. 赢得多输得少 → 隐藏分高于段位</div>
               <div>4. 双倍胜点局（赢分约为平时 2 倍）按一半计</div>
+              <div>5. 记录不足 3 局或只有胜 / 只有负时，暂用上一局全员的平均段位</div>
             </div>
             <div class="rank-card-mmr-disclaimer">估算值，非官方 MMR</div>
           </div>
@@ -236,6 +248,12 @@ const winRateClass = computed(() => {
 /** status 为 ready 时的估算（模板里用它做类型收窄） */
 const ready = computed(() => (props.hiddenMmr?.status === 'ready' ? props.hiddenMmr : null))
 
+/** status 为 lobby 时的初步估算：加减分记录不足，暂用上一局全员平均段位 */
+const lobby = computed(() => (props.hiddenMmr?.status === 'lobby' ? props.hiddenMmr : null))
+
+/** 卡片上要显示的估算值：正式估算优先，没有则用初步估算 */
+const estimate = computed(() => ready.value ?? lobby.value)
+
 /** status 为 collecting 时的进度（模板里用它做类型收窄） */
 const collecting = computed(() =>
   props.hiddenMmr?.status === 'collecting' ? props.hiddenMmr : null
@@ -243,7 +261,7 @@ const collecting = computed(() =>
 
 /** tooltip 里隐藏分相对当前段位的 LP 差距 */
 const tierCompare = computed(() => {
-  const offset = ready.value?.offset ?? 0
+  const offset = estimate.value?.offset ?? 0
   if (offset === 0) return '与当前段位持平'
   return `比当前段位${offset > 0 ? '高' : '低'} ${Math.abs(offset)} LP`
 })
@@ -429,6 +447,17 @@ const cardContentStyle = 'padding: var(--space-10)'
 }
 
 .rank-card-mmr-trend.flat,
+/* 初步估算的标记：弱化成描边小字，提醒这不是按加减分算出来的 */
+.rank-card-mmr-prelim {
+  flex: none;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border-subtle);
+  font-size: var(--font-size-3xs);
+  line-height: 1.5;
+  color: var(--text-tertiary);
+}
+
 .rank-card-mmr-collecting {
   color: var(--text-tertiary);
 }
