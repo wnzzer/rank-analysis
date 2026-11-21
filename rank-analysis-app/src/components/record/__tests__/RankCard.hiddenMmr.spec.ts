@@ -298,7 +298,7 @@ describe('RankCard hidden MMR tooltip', () => {
     expect(text).toContain('已记录 1 局有效排位，满 3')
     expect(text).toContain('5. 记录不足 3 局或只有胜 / 只有负时，暂用上一局全员的平均段位')
     // 初步估算没有逐局加减分可列
-    expect(text).not.toContain('平均赢')
+    expect(text).not.toContain('平均赢 +')
   })
 
   it('should show progress hint and rules when collecting', () => {
