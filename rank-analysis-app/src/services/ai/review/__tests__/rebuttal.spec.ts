@@ -14,6 +14,8 @@ import {
   findDisputes,
   parseRebuttal,
   playerFacts,
+  statsText,
+  METRIC_NOTES,
   rebuttalBasis,
   requestRebuttal,
   shouldRebut
@@ -103,7 +105,7 @@ describe('playerFacts', () => {
     const withStats = p.parts.find(x => x.stats.length > 0)!
 
     expect(withStats).toBeDefined()
-    expect(card).toContain(`${withStats.cn}${withStats.level}（${withStats.stats.join('，')}）`)
+    expect(card).toContain(`${withStats.cn}${withStats.level}（${statsText(withStats.stats)}）`)
   })
 
   it('should not leak raw scores', () => {
@@ -156,6 +158,20 @@ describe('playerFacts for the player themself', () => {
     const d = someone.deathList![0]
 
     expect(text).toContain(`我方 ${d.allies} 人、对面 ${d.enemies} 人`)
+  })
+})
+
+describe('statsText', () => {
+  it('should call kill participation what it is, not a turn-up rate', () => {
+    // 「参团率」在复盘里是击杀参与率；和「团战缺席」并排会像自相矛盾
+    expect(statsText(['参团率 37.1%', '9 场团战缺席 3 场'])).toBe(
+      '击杀参与率 37.1%，9 场团战缺席 3 场'
+    )
+  })
+
+  it('should leave other stats alone', () => {
+    expect(statsText(['每分钟补刀 9.9', '每分钟经济 433'])).toBe('每分钟补刀 9.9，每分钟经济 433')
+    expect(statsText([])).toBe('')
   })
 })
 
@@ -269,6 +285,11 @@ describe('buildRebuttalPrompt', () => {
     const d = findDisputes({ keyPid: null, blamePid: someone.participantId }, bare)
 
     expect(buildRebuttalPrompt(d, bare, '他全程单带不参团')).toContain('这局没有时间线数据')
+  })
+
+  it('should never show the model the ambiguous name', () => {
+    expect(prompt).not.toContain('参团率')
+    expect(prompt).toContain(METRIC_NOTES)
   })
 
   it('should ask the model for JSON', () => {

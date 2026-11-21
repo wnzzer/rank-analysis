@@ -120,6 +120,25 @@ export function rebuttalBasis(guess: Guess, note: string): string {
   return `${guess.keyPid ?? ''}|${guess.blamePid ?? ''}|${note.trim()}`
 }
 
+/**
+ * 分项后面带的真实数据，拼成一段。
+ *
+ * 复盘里的「参团率」是击杀参与率（(击杀 + 助攻) ÷ 全队击杀），不是到场率；到场情况是另一条
+ * 「N 场团战缺席 M 场」。两条并排时会像自相矛盾——真机用户原话：「9 缺 3，凭什么是 37 参团率」
+ * （那名玩家 5 杀 8 助攻、全队 35 个人头，13 ÷ 35 = 37.1%，而 9 场团战他到了 6 场）。
+ * 所以在给模型的材料里改叫「击杀参与率」，并在提示词里说明两者的区别。
+ */
+export function statsText(stats: string[]): string {
+  return stats.map(t => t.split('参团率').join('击杀参与率')).join('，')
+}
+
+/** 给模型看的指标说明：防止它把击杀参与率当成到场率 */
+export const METRIC_NOTES = [
+  '【指标说明】',
+  '- 击杀参与率 =（击杀 + 助攻）÷ 全队击杀数。它说的是「参与了多少击杀」，不是到场率：到了场但没拿到击杀或助攻，这个数也会低。',
+  '- 有没有到场，看「N 场团战缺席 M 场」。'
+].join('\n')
+
 /** 一次阵亡的人话。人数写成「我方 N 人、对面 M 人」：写「4 打 2」模型会读反（真机实测读成被四个人压） */
 function deathLine(d: NonNullable<PlayerView['deathList']>[number]): string {
   const odds = `我方 ${d.allies} 人、对面 ${d.enemies} 人`
@@ -161,7 +180,7 @@ function selfFacts(p: PlayerView, tags: string[] = []): string {
   const good = p.parts.filter(x => AHEAD.has(x.level))
   if (good.length) {
     lines.push(
-      `做得好的：${good.map(x => (x.stats.length ? `${x.cn}${x.level}（${x.stats.join('，')}）` : `${x.cn}${x.level}`)).join('、')}`
+      `做得好的：${good.map(x => (x.stats.length ? `${x.cn}${x.level}（${statsText(x.stats)}）` : `${x.cn}${x.level}`)).join('、')}`
     )
   }
   const excused = (p.deathList ?? []).filter(excusable).slice(0, MAX_DEATHS_LISTED)
@@ -186,7 +205,7 @@ function praiseFacts(p: PlayerView, tags: string[]): string {
   const good = p.parts.filter(x => AHEAD.has(x.level))
   if (good.length) {
     lines.push(
-      `打得好的：${good.map(x => (x.stats.length ? `${x.cn}${x.level}（${x.stats.join('，')}）` : `${x.cn}${x.level}`)).join('、')}`
+      `打得好的：${good.map(x => (x.stats.length ? `${x.cn}${x.level}（${statsText(x.stats)}）` : `${x.cn}${x.level}`)).join('、')}`
     )
   }
   return lines.join('\n')
@@ -215,7 +234,7 @@ export function playerFacts(p: PlayerView, team: PlayerView[], tags: string[] = 
     // 档位词后面带上驱动该分项的真实数据（参团率、资源在场率等）：玩家说「不参团」时，
     // 模型手里得有参团率才能说「数据也是这样」，否则只能空口认账或空口反驳
     const part = (x: PlayerView['parts'][number]): string =>
-      x.stats.length ? `${x.cn}${x.level}（${x.stats.join('，')}）` : `${x.cn}${x.level}`
+      x.stats.length ? `${x.cn}${x.level}（${statsText(x.stats)}）` : `${x.cn}${x.level}`
     lines.push(`分项（相对同位置同英雄）：${p.parts.map(part).join('、')}`)
   }
   if (p.deathList?.length) {
@@ -276,6 +295,7 @@ export const REBUTTAL_SYSTEM_PROMPT = [
   'E. 只有这一次回应：不提问，不请他补充。',
   'F. reply 不要以「你说得对」「有一部分道理」开头，界面上已经单独显示了。',
   'G. 不要把这些要求里的话写进 reply（如「轻带一句」「就事论事」）。',
+  'H. 说某人不来打团，用「N 场团战缺席 M 场」。击杀参与率只能说成「参与的击杀少」「打团没打出东西」，不能说成到场率，也不要说「参团率」。两个数不要并排当成同一件事说。',
   '',
   `输出一个 JSON 对象，不要输出别的：`,
   '{"stance": "concede|partial|hold", "category": "absence|targeted|empty_stats|attitude|draft|teamwork|other", "reply": "回他的话"}',
@@ -310,7 +330,7 @@ function sideOf(p: PlayerView, me: PlayerView | undefined): string {
  * 等于在骂玩家认为全场最好的人。所以把队友都列出来，让模型能按位置找对人。
  */
 function teammateLine(p: PlayerView): string {
-  const stat = (key: string): string => p.parts.find(x => x.key === key)?.stats.join('，') ?? ''
+  const stat = (key: string): string => statsText(p.parts.find(x => x.key === key)?.stats ?? [])
   const bits = [`KDA ${p.kills}/${p.deaths}/${p.assists}`, stat('teamfight'), stat('resources')]
   return `- ${p.roleCn} ${p.champion}：${bits.filter(Boolean).join('，')}`
 }
@@ -390,17 +410,19 @@ export function buildRebuttalPrompt(
     facts.push('【事实】', ...involved.map(card).flatMap(c => [c, '']))
   }
 
-  return [
+  const material = [
     '【分歧】',
     ...disputeLines,
     '',
     ...facts,
-    // 有没有时间线看阵亡明细：有时间线时每个人的 deathList 都是数组（哪怕为空）
-    scoringNotesText(players.some(p => p.deathList !== null)),
+    METRIC_NOTES,
     '',
-    '【玩家的理由】',
-    note.trim()
+    // 有没有时间线看阵亡明细：有时间线时每个人的 deathList 都是数组（哪怕为空）
+    scoringNotesText(players.some(p => p.deathList !== null))
   ].join('\n')
+  // 材料里别处出现的「参团率」（如「值得一提」里的句子）也统一改名；
+  // 玩家自己写的理由原样保留，不替他改字
+  return [statsText([material]), '', '【玩家的理由】', note.trim()].join('\n')
 }
 
 /**
