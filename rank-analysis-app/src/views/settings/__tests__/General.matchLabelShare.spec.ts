@@ -57,3 +57,30 @@ describe('分享对局判断开关', () => {
     expect(store.retry).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('赛后右下角弹卡开关', () => {
+  it('键不存在时默认开', async () => {
+    store.config.set('postGameToast', '')
+    const w = mountGeneral()
+    await flushPromises()
+    expect(w.get('[data-test="postgame-toast-switch"]').classes()).toContain('n-switch--active')
+  })
+
+  it('关闭后写回 false，再打开写回 true', async () => {
+    const w = mountGeneral()
+    await flushPromises()
+    await w.get('[data-test="postgame-toast-switch"]').trigger('click')
+    await flushPromises()
+    expect(store.config.get('postGameToast')).toBe(false)
+    await w.get('[data-test="postgame-toast-switch"]').trigger('click')
+    await flushPromises()
+    expect(store.config.get('postGameToast')).toBe(true)
+  })
+
+  it('已关闭时显示为关', async () => {
+    store.config.set('postGameToast', false)
+    const w = mountGeneral()
+    await flushPromises()
+    expect(w.get('[data-test="postgame-toast-switch"]').classes()).not.toContain('n-switch--active')
+  })
+})

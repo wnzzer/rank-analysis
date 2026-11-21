@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main and match detail windows",
-  "windows": ["main", "match-detail-*"],
+  "description": "Capability for the main, match detail and post-game toast windows",
+  "windows": ["main", "match-detail-*", "postgame-toast-*"],
   "permissions": [
     "core:default",
     "opener:default",
@@ -34,6 +34,7 @@
     "mcp-bridge:default",
     "sentry:default",
     "dialog:allow-open",
-    "dialog:allow-save"
+    "dialog:allow-save",
+    "clipboard-manager:allow-write-image"
   ]
 }

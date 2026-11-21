@@ -30,6 +30,18 @@
           </n-text>
         </n-space>
       </n-form-item>
+      <n-form-item label="赛后右下角弹卡">
+        <n-space vertical :size="4">
+          <n-switch
+            v-model:value="postGameToast"
+            data-test="postgame-toast-switch"
+            @update:value="handlePostGameToastUpdate"
+          />
+          <n-text :depth="3" style="font-size: var(--font-size-sm)">
+            排位结束后在屏幕右下角弹出本局战报小卡，不抢焦点，25 秒后自动收起，进选人时立刻关闭。
+          </n-text>
+        </n-space>
+      </n-form-item>
       <n-form-item label="AI 模型">
         <AiProviderPicker />
       </n-form-item>
@@ -60,6 +72,7 @@ import { CONFIG_KEYS } from '@renderer/services/configKeys'
 import { useMessage } from 'naive-ui'
 import AiProviderPicker from './AiProviderPicker.vue'
 import { MATCH_LABEL_SHARE_KEY, retryMatchLabelUploads } from '@renderer/services/matchLabel'
+import { POSTGAME_TOAST_CONFIG_KEY } from '@renderer/services/postGameToast'
 
 const matchCount = ref(4)
 const errorReporting = ref(false)
@@ -68,6 +81,8 @@ const aiUseNotes = ref(true)
 const aiUseTimeline = ref(true)
 /** 是否同意匿名分享对局标注（未决定时显示为关；首次标注时会单独询问） */
 const matchLabelShare = ref(false)
+/** 赛后右下角弹卡（默认开：键不存在时视为 true） */
+const postGameToast = ref(true)
 const message = useMessage()
 
 onMounted(async () => {
@@ -101,6 +116,11 @@ onMounted(async () => {
     console.error(e)
   }
   try {
+    postGameToast.value = (await getConfigByIpc<boolean>(POSTGAME_TOAST_CONFIG_KEY)) !== false
+  } catch (e) {
+    console.error(e)
+  }
+  try {
     const useTimeline = await getConfigByIpc<boolean>(CONFIG_KEYS.aiUseTimeline)
     if (typeof useTimeline === 'boolean') {
       aiUseTimeline.value = useTimeline
@@ -124,6 +144,15 @@ const handleReportingUpdate = async (value: boolean) => {
   try {
     await putConfigByIpc(CONFIG_KEYS.errorReportingEnabled, value)
     message.success('设置已保存，重启后生效')
+  } catch (e) {
+    message.error('保存失败')
+  }
+}
+
+const handlePostGameToastUpdate = async (value: boolean) => {
+  try {
+    await putConfigByIpc(POSTGAME_TOAST_CONFIG_KEY, value)
+    message.success('设置已保存')
   } catch (e) {
     message.error('保存失败')
   }

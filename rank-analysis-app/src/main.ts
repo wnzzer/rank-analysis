@@ -7,6 +7,7 @@ import { usePlayerNotesStore } from './pinia/playerNotes'
 import { useCloudSyncStore } from './pinia/cloudSync'
 import { prepareBoot, revealMainWindow } from './boot'
 import { isMatchDetailWindow } from './components/record/detailWindow'
+import { isPostGameToastWindow } from './services/postGameToast'
 import './global.css'
 import './styles/ai-report.css'
 
@@ -20,15 +21,19 @@ async function bootstrap() {
   app.use(router)
   app.use(naive)
 
-  // 载入本地玩家备注（issue #67）
-  usePlayerNotesStore().init()
-  // 云同步：开关已开启时后台自动同步一次（issue 云同步）
-  useCloudSyncStore().init()
+  // 赛后弹卡只是右下角一张小卡：不载备注、不触发云同步
+  if (!isPostGameToastWindow()) {
+    // 载入本地玩家备注（issue #67）
+    usePlayerNotesStore().init()
+    // 云同步：开关已开启时后台自动同步一次（issue 云同步）
+    useCloudSyncStore().init()
+  }
 
   app.mount('#app')
 
-  // 详情窗由 views/MatchDetail.vue 在内容就绪后自行亮出（见 detailWindow.ts）
-  if (!isMatchDetailWindow()) {
+  // 详情窗由 views/MatchDetail.vue 在内容就绪后自行亮出（见 detailWindow.ts）；
+  // 赛后弹卡由 views/PostGameToast.vue 在数据就绪后自行亮出
+  if (!isMatchDetailWindow() && !isPostGameToastWindow()) {
     await nextTick()
     await revealMainWindow()
   }

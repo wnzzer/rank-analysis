@@ -721,6 +721,7 @@ pub async fn get_asset_binary(type_string: String, id: i64) -> Result<(Vec<u8>, 
         "perk" => get_perk_binary(id).await,
         "spell" => get_spell_binary(id).await,
         "profile" => get_profile_binary(id).await,
+        "splash" => get_splash_binary(id).await,
         _ => Err("Invalid type string".to_string()),
     }?;
 
@@ -1021,6 +1022,41 @@ async fn get_profile_binary(id: i64) -> Result<(Vec<u8>, String), String> {
     log::info!("Getting profile binary for id {}", id);
     let profile_url = format!("/lol-game-data/assets/v1/profile-icons/{}.jpg", id);
     fetch_binary(&profile_url).await
+}
+
+/// 英雄默认皮肤原画（居中裁切版，1280×720 JPG）
+///
+/// 赛后弹卡与战报图拿它打底。原画路径不能按 id 拼：LCU / CommunityDragon 早已把
+/// `v1/champion-splashes/{id}/…` 换成按英雄名组织的 `ASSETS/Characters/…`，
+/// 只能先取英雄详情 `champions/{id}.json`，读默认皮肤的 `splashPath`。
+/// 详情与图片都是 LCU 优先、镜像兜底（[`fetch_binary`]）。
+async fn get_splash_binary(id: i64) -> Result<(Vec<u8>, String), String> {
+    log::info!("Getting splash binary for id {}", id);
+    let uri = format!("lol-game-data/assets/v1/champions/{}.json", id);
+    let detail = match lcu_get::<serde_json::Value>(&uri).await {
+        Ok(v) => v,
+        Err(lcu_err) => {
+            let Some(mirror) = cdragon_url(CDRAGON_DATA_ROOT, &uri) else {
+                return Err(lcu_err);
+            };
+            external_get_json::<serde_json::Value>(&mirror)
+                .await
+                .map_err(|cdn_err| format!("LCU: {} / 镜像: {}", lcu_err, cdn_err))?
+        }
+    };
+    let path = splash_path_of(&detail).ok_or_else(|| format!("英雄 {} 没有原画路径", id))?;
+    fetch_binary(&path).await
+}
+
+/// 从英雄详情 JSON 取默认皮肤（`skins[0]`）的居中原画路径
+fn splash_path_of(detail: &serde_json::Value) -> Option<String> {
+    detail
+        .get("skins")?
+        .get(0)?
+        .get("splashPath")?
+        .as_str()
+        .filter(|p| !p.is_empty())
+        .map(str::to_string)
 }
 
 fn build_asset_key(type_string: &str, id: i64) -> String {
@@ -1370,6 +1406,44 @@ mod tests {
     //
     // `cdragon_url` 是整条离线兜底链的单点：它错了，未开客户端时所有图标和所有
     // 列表一起失效，而失败表现只是「图裂 + 下拉空」，没有任何报错指向这里。
+
+    #[test]
+    fn should_read_default_skin_splash_path() {
+        let detail = serde_json::json!({
+            "id": 157,
+            "skins": [
+                { "splashPath": "/lol-game-data/assets/ASSETS/Characters/Yasuo/Skins/Base/Images/yasuo_splash_centered_0.jpg" },
+                { "splashPath": "/other.jpg" }
+            ]
+        });
+
+        assert_eq!(
+            splash_path_of(&detail).as_deref(),
+            Some("/lol-game-data/assets/ASSETS/Characters/Yasuo/Skins/Base/Images/yasuo_splash_centered_0.jpg")
+        );
+        assert_eq!(splash_path_of(&serde_json::json!({ "skins": [] })), None);
+        assert_eq!(
+            splash_path_of(&serde_json::json!({ "skins": [{ "splashPath": "" }] })),
+            None
+        );
+    }
+
+    #[test]
+    fn cdragon_url_converts_splash_path() {
+        // 原画路径带大写（ASSETS/Characters/Yasuo），镜像要求全小写
+        let got = cdragon_url(
+            CDRAGON_IMAGE_ROOT,
+            "/lol-game-data/assets/ASSETS/Characters/Yasuo/Skins/Base/Images/yasuo_splash_centered_0.jpg",
+        );
+
+        assert_eq!(
+            got.as_deref(),
+            Some(concat!(
+                "https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/",
+                "default/assets/characters/yasuo/skins/base/images/yasuo_splash_centered_0.jpg"
+            ))
+        );
+    }
 
     #[test]
     fn cdragon_url_converts_icon_path_from_list() {

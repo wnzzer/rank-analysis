@@ -6,7 +6,9 @@
  * 上传内容只含对局标识、所选玩家的位置与英雄、模型快照，不含 puuid / 召唤师名。
  */
 import { invoke } from '@tauri-apps/api/core'
+import { getVersion } from '@tauri-apps/api/app'
 import type { PlayerView } from '@renderer/services/ai/review/buildReviewModel'
+import { BASELINE } from '@renderer/services/ai/shared/scoring/data'
 
 /** 同意分享的配置键：未设置 = 未决定（首次提交时询问） */
 export const MATCH_LABEL_SHARE_KEY = 'matchLabelShare'
@@ -125,6 +127,87 @@ export function compareText(
       ? `排${side}第 ${teamRank(mine, players, false)}`
       : `排${side}倒数第 ${teamRank(mine, players, true)}`
   return { agree: false, text: `模型选的是${model.champion}（${mine.champion}${rank}）` }
+}
+
+/**
+ * 一句话的「你 vs 模型」对比，给空间很小的地方用（赛后弹卡）。
+ * @param guess - 玩家选的 participantId；没选的项为 null
+ * @param players - 本局 10 人
+ * @returns 如「最关键 ✓ 与 AI 一致 · 最犯罪 AI 选了诺克萨斯之手」；两项都没选为 null
+ */
+export function compareSummary(
+  guess: { keyPid: number | null; blamePid: number | null },
+  players: PlayerView[]
+): string | null {
+  const picks = modelPicks(players)
+  const part = (title: string, minePid: number | null, modelPid: number | null): string[] => {
+    if (minePid === null) return []
+    const model = players.find(p => p.participantId === modelPid)
+    if (!model) return []
+    return [minePid === modelPid ? `${title} ✓ 与 AI 一致` : `${title} AI 选了${model.champion}`]
+  }
+  const parts = [
+    ...part('最关键', guess.keyPid, picks.keyPid),
+    ...part('最犯罪', guess.blamePid, picks.blamePid)
+  ]
+  return parts.length ? parts.join(' · ') : null
+}
+
+/**
+ * 模型版本号：基准构建时间 + 应用版本，随标注一起保存，便于之后按版本回看。
+ * @returns 形如「基准构建时间@应用版本」；非 Tauri 环境（单测 / 浏览器预览）应用版本为 unknown
+ */
+export async function currentModelVersion(): Promise<string> {
+  let app = 'unknown'
+  try {
+    app = await getVersion()
+  } catch {
+    // 非 Tauri 环境拿不到版本号
+  }
+  return `${BASELINE.meta.builtAt}@${app}`
+}
+
+/**
+ * 组装一局标注所需的输入
+ * @property players - 本局 10 人（复盘视图模型）
+ * @property keyPid - 玩家选的最关键（participantId）；没选为 null
+ * @property blamePid - 玩家选的最犯罪（participantId）；没选为 null
+ * @property note - 可选说明；空白视为没填
+ * @property modelVersion - 见 {@link currentModelVersion}
+ */
+export interface MatchLabelInput {
+  players: PlayerView[]
+  gameId: number
+  platform: string
+  queueId: number
+  keyPid: number | null
+  blamePid: number | null
+  note?: string
+  modelVersion: string
+}
+
+/**
+ * 组装一局标注（纯函数；保存见 {@link saveMatchLabel}）。
+ * @param input - 对局标识、玩家的选择与模型版本
+ * @returns 可直接交给 saveMatchLabel 的标注
+ */
+export function buildMatchLabel(input: MatchLabelInput): MatchLabel {
+  const byPid = (pid: number | null): PlayerView | undefined =>
+    pid === null ? undefined : input.players.find(p => p.participantId === pid)
+  const key = byPid(input.keyPid)
+  const blame = byPid(input.blamePid)
+  const me = input.players.find(p => p.isMe)
+  return {
+    gameId: input.gameId,
+    platform: input.platform,
+    queueId: input.queueId,
+    keyPick: key ? toPick(key) : null,
+    blamePick: blame ? toPick(blame) : null,
+    labelerSide: me ? (me.win ? 'win' : 'lose') : null,
+    note: input.note?.trim() || null,
+    model: buildModelSnapshot(input.players),
+    modelVersion: input.modelVersion
+  }
 }
 
 /**

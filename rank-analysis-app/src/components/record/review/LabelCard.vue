@@ -7,24 +7,22 @@
  * - 上传失败照常显示对比，标注已存本地，下次打开复盘时补传。
  * @property players - 本局 10 人（复盘视图模型）
  * @property gameId / platform / queueId - 对局标识
+ * @emits done - 进入「已提交」状态（本次提交，或打开时恢复了已有标注）；战报据此揭晓战报图
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { NButton, NInput, NModal } from 'naive-ui'
-import { getVersion } from '@tauri-apps/api/app'
 import { useAssetUrl } from '@renderer/composables/useAssetUrl'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import type { PlayerView } from '@renderer/services/ai/review/buildReviewModel'
-import { BASELINE } from '@renderer/services/ai/shared/scoring/data'
 import {
   MATCH_LABEL_NOTE_MAX,
   MATCH_LABEL_SHARE_KEY,
-  buildModelSnapshot,
+  buildMatchLabel,
   compareText,
+  currentModelVersion,
   getMatchLabel,
   retryMatchLabelUploads,
-  saveMatchLabel,
-  toPick,
-  type MatchLabel
+  saveMatchLabel
 } from '@renderer/services/matchLabel'
 
 const props = defineProps<{
@@ -33,6 +31,8 @@ const props = defineProps<{
   platform: string
   queueId: number
 }>()
+
+const emit = defineEmits<{ (e: 'done'): void }>()
 
 type Kind = 'key' | 'blame'
 
@@ -52,11 +52,15 @@ const shareState = ref<'shared' | 'local' | 'failed'>('local')
 const consentOpen = ref(false)
 const saveError = ref<string | null>(null)
 
+watch(phase, p => {
+  if (p === 'done') emit('done')
+})
+
 const canSubmit = computed(() => picks.value.key !== null || picks.value.blame !== null)
 
 const ROWS: Array<{ kind: Kind; title: string }> = [
-  { kind: 'key', title: '👑 最关键' },
-  { kind: 'blame', title: '💣 最犯罪' }
+  { kind: 'key', title: '最关键' },
+  { kind: 'blame', title: '最犯罪' }
 ]
 
 /** 点头像：选中；再点同一人取消 */
@@ -90,16 +94,6 @@ onMounted(async () => {
   else shareState.value = (await retryMatchLabelUploads()) > 0 ? 'shared' : 'failed'
 })
 
-async function modelVersion(): Promise<string> {
-  let app = 'unknown'
-  try {
-    app = await getVersion()
-  } catch {
-    // 非 Tauri 环境（单测 / 浏览器预览）拿不到版本号
-  }
-  return `${BASELINE.meta.builtAt}@${app}`
-}
-
 /** 点「提交」：首次先问是否分享 */
 async function submit(): Promise<void> {
   if (!canSubmit.value || saving.value) return
@@ -121,18 +115,16 @@ async function answerConsent(share: boolean): Promise<void> {
 async function persist(share: boolean): Promise<void> {
   saving.value = true
   saveError.value = null
-  const me = props.players.find(p => p.isMe)
-  const label: MatchLabel = {
+  const label = buildMatchLabel({
+    players: props.players,
     gameId: props.gameId,
     platform: props.platform,
     queueId: props.queueId,
-    keyPick: byPid(picks.value.key) ? toPick(byPid(picks.value.key)!) : null,
-    blamePick: byPid(picks.value.blame) ? toPick(byPid(picks.value.blame)!) : null,
-    labelerSide: me ? (me.win ? 'win' : 'lose') : null,
-    note: note.value.trim() || null,
-    model: buildModelSnapshot(props.players),
-    modelVersion: await modelVersion()
-  }
+    keyPid: picks.value.key,
+    blamePid: picks.value.blame,
+    note: note.value,
+    modelVersion: await currentModelVersion()
+  })
   try {
     const r = await saveMatchLabel(label, share)
     shareState.value = !share ? 'local' : r.uploaded ? 'shared' : 'failed'
@@ -162,8 +154,8 @@ const shareText = computed(() => {
       <div class="review-section-title">你怎么看这局？</div>
       <n-button
         v-if="phase === 'done'"
-        text
-        size="small"
+        quaternary
+        size="tiny"
         data-test="label-edit"
         @click="phase = 'edit'"
         >修改</n-button
@@ -173,10 +165,10 @@ const shareText = computed(() => {
 
     <template v-if="phase === 'edit'">
       <div v-for="row in ROWS" :key="row.kind" class="label-row">
-        <div class="label-row-title">{{ row.title }}</div>
+        <span class="label-tag" :class="`is-${row.kind}`">{{ row.title }}</span>
         <div class="label-row-avatars">
           <template v-for="(team, ti) in [blue, red]" :key="ti">
-            <span v-if="ti === 1" class="label-row-gap" aria-hidden="true"></span>
+            <span v-if="ti === 1" class="label-row-gap" aria-hidden="true">VS</span>
             <button
               v-for="p in team"
               :key="p.participantId"
@@ -212,6 +204,7 @@ const shareText = computed(() => {
         <span v-if="saveError" class="label-error">{{ saveError }}</span>
         <n-button
           size="small"
+          type="primary"
           :disabled="!canSubmit"
           :loading="saving"
           data-test="label-submit"
@@ -223,21 +216,24 @@ const shareText = computed(() => {
 
     <template v-else>
       <div v-for="r in results" :key="r.kind" class="label-result" :data-test="`result-${r.kind}`">
-        <span class="label-row-title">{{ r.title }}</span>
+        <span class="label-tag" :class="`is-${r.kind}`">{{ r.title }}</span>
         <span
           class="label-avatar"
           :class="[r.mine.teamId === 100 ? 'is-blue' : 'is-red', `picked-${r.kind}`]"
         >
           <img :src="getChampionUrl(r.mine.championId)" :alt="r.mine.champion" />
         </span>
+        <span v-if="r.agree !== null" class="label-verdict" :class="r.agree ? 'agree' : 'differ'">{{
+          r.agree ? '✓ 与 AI 一致' : 'AI 另有人选'
+        }}</span>
         <span
           class="label-result-text"
           :class="r.agree === true ? 'agree' : r.agree === false ? 'differ' : ''"
-          >{{ r.text }}<template v-if="r.agree"> ✓</template></span
+          >{{ r.text }}</span
         >
       </div>
       <div v-if="note.trim()" class="label-note-done" data-test="label-note-done">
-        <span class="label-row-title">📝 说明</span><span>{{ note.trim() }}</span>
+        <span class="label-tag">说明</span><span>{{ note.trim() }}</span>
       </div>
       <div class="label-card-hint" data-test="label-share">{{ shareText }} · 模型判断仅供参考</div>
     </template>
@@ -274,6 +270,8 @@ const shareText = computed(() => {
 }
 .label-card-head .review-section-title {
   margin-bottom: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
 }
 .label-card-hint {
   font-size: var(--font-size-xs);
@@ -284,10 +282,27 @@ const shareText = computed(() => {
   align-items: center;
   gap: var(--space-12);
 }
-.label-row-title {
-  flex: 0 0 64px;
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
+/* 行标签：最关键金、最犯罪红，颜色与头像选中圈一致 */
+.label-tag {
+  --tag-color: var(--text-secondary);
+  flex: 0 0 auto;
+  min-width: 52px;
+  box-sizing: border-box;
+  padding: 2px 8px;
+  border-radius: 999px;
+  text-align: center;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  color: var(--tag-color);
+  background: color-mix(in srgb, var(--tag-color) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tag-color) 35%, transparent);
+}
+.label-tag.is-key {
+  --tag-color: var(--accent-gold);
+}
+.label-tag.is-blame {
+  --tag-color: var(--semantic-loss);
 }
 .label-row-avatars {
   display: flex;
@@ -295,28 +310,33 @@ const shareText = computed(() => {
   gap: var(--space-6);
 }
 .label-row-gap {
-  width: var(--space-12);
+  padding: 0 var(--space-4);
+  font-size: var(--font-size-3xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 1px;
+  color: var(--text-tertiary);
 }
 .label-avatar {
   appearance: none;
   position: relative;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   padding: 0;
   border: 2px solid transparent;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   background: var(--surface-group);
   cursor: pointer;
-  opacity: 0.7;
+  opacity: 0.72;
   transition:
     opacity var(--dur-fast),
     border-color var(--dur-fast),
+    box-shadow var(--dur-fast),
     transform var(--dur-fast);
 }
 .label-avatar img {
   width: 100%;
   height: 100%;
-  border-radius: calc(var(--radius-sm) - 2px);
+  border-radius: calc(var(--radius-md) - 2px);
   display: block;
 }
 /* 阵营：底边一条细色带 */
@@ -328,15 +348,17 @@ const shareText = computed(() => {
 }
 .label-avatar:hover {
   opacity: 1;
-  transform: translateY(-1px);
+  transform: translateY(-2px);
 }
 .label-avatar.picked-key {
   opacity: 1;
   border-color: var(--accent-gold);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-gold) 22%, transparent);
 }
 .label-avatar.picked-blame {
   opacity: 1;
   border-color: var(--semantic-loss);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--semantic-loss) 22%, transparent);
 }
 .label-avatar:focus-visible {
   outline: 1px solid var(--accent-hover);
@@ -365,7 +387,7 @@ const shareText = computed(() => {
 }
 .label-card-foot {
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
   align-items: center;
   gap: var(--space-8);
 }
@@ -384,15 +406,22 @@ const shareText = computed(() => {
 .label-result .label-avatar:hover {
   transform: none;
 }
-.label-result-text {
+/* 结论先行：一致 / 不一致用色块说清，细节文字跟在后面 */
+.label-verdict {
+  flex: none;
   font-size: var(--font-size-sm);
-  color: var(--text-secondary);
+  font-weight: var(--font-weight-semibold);
 }
-.label-result-text.agree {
+.label-verdict.agree {
   color: var(--semantic-win);
 }
-.label-result-text.differ {
+.label-verdict.differ {
   color: var(--semantic-warn);
+}
+.label-result-text {
+  min-width: 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
 }
 .label-consent-text {
   margin: 0;

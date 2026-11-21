@@ -190,15 +190,58 @@ export function usePostGameReport(
     void refreshLp(id)
   })
 
-  if (!unlisten) {
-    listen(HIDDEN_MMR_UPDATED_EVENT, () => void refreshLp())
-      .then(fn => (unlisten = fn))
-      .catch(() => {
-        // 非 Tauri 环境（单测）没有事件系统
-      })
-  }
+  listenMmrUpdates()
 
   return { report, loading, dismissed, dismiss: () => (dismissed.value = true) }
+}
+
+/** 对局时长 `m:ss` */
+export function formatDuration(seconds: number): string {
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
+}
+
+/** 本局 LP 变化 `+21 LP`；没记到为 null */
+export function formatLp(delta: number | null): string | null {
+  if (delta === null) return null
+  return `${delta > 0 ? '+' : ''}${delta} LP`
+}
+
+/** 隐藏分一句话 `隐藏分 ≈ 钻石 II · 高于段位`；未就绪为 null */
+export function formatMmr(mmr: HiddenMmr | null): string | null {
+  if (mmr?.status !== 'ready') return null
+  const dir = mmr.direction === 'up' ? '高于段位' : mmr.direction === 'down' ? '低于段位' : '持平'
+  return `隐藏分 ≈ ${mmr.equivalentShort} · ${dir}`
+}
+
+/** 战报图底部小字：时长、LP、隐藏分（缺的项跳过） */
+export function reportMeta(r: PostGameReport): string[] {
+  return [formatDuration(r.game.gameDuration), formatLp(r.lpDelta), formatMmr(r.mmr)].filter(
+    (x): x is string => !!x
+  )
+}
+
+/** 隐藏分记录晚到时补齐 LP（每个 webview 只注册一次） */
+function listenMmrUpdates(): void {
+  if (unlisten) return
+  listen(HIDDEN_MMR_UPDATED_EVENT, () => void refreshLp())
+    .then(fn => (unlisten = fn))
+    .catch(() => {
+      // 非 Tauri 环境（单测）没有事件系统
+    })
+}
+
+/**
+ * 不跟随阶段、直接取刚结束那局的战报。
+ * 赛后弹卡用：弹卡窗口只在排位结算时由 Rust 创建（见 postgame_toast.rs），无需再看阶段。
+ * @returns 与 usePostGameReport 同一份模块级状态（各 webview 各自一份）
+ */
+export function loadEndedGameReport(): {
+  report: Ref<PostGameReport | null>
+  loading: Ref<boolean>
+} {
+  listenMmrUpdates()
+  if (!report.value && !loading.value) void load()
+  return { report, loading }
 }
 
 /** 单测用：重置模块级状态 */

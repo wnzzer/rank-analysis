@@ -268,6 +268,8 @@ impl GameStateMonitor {
         if new_state.phase != self.last_state.phase {
             if let Some(phase) = new_state.phase.as_deref() {
                 crate::hidden_mmr::collector::on_phase_change(self.app_handle.clone(), phase);
+                // 赛后右下角弹卡：结算时弹、进选人 / 匹配时关（见 postgame_toast）
+                crate::postgame_toast::on_phase_change(self.app_handle.clone(), phase);
             }
         }
         let now = SystemTime::now();

@@ -12,6 +12,13 @@ vi.mock('@renderer/services/http', () => ({
 }))
 
 describe('useAssetUrl', () => {
+  describe('getSplashUrl', () => {
+    it('should return splash URL by champion id', () => {
+      const { getSplashUrl } = useAssetUrl()
+      expect(getSplashUrl(157)).toBe('http://asset.localhost/splash/157')
+    })
+  })
+
   describe('getChampionUrl', () => {
     /**
      * 测试：当传入数字ID时应返回正确的英雄URL

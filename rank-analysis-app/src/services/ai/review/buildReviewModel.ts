@@ -140,6 +140,9 @@ export interface ScorePartView {
  * @property index - 该玩家阵亡序号（0 起），列表/地图/曲线联动用
  * @property cardId - 对应 D 卡编号（AI 引用定位）；无卡为 null
  * @property x / y - 地图坐标（召唤师峡谷 0~14870）；时间线里找不到对应击杀事件时为 null（地图不画点）
+ * @property blame - 本人责任（已含以少打多 / 搭档缺位修正，即 AttributedDeath.responsibility）
+ * @property enemies / allies - 敌方参与人数 / 我方在场人数（含本人），战报图说「4 包 1」用
+ * @property traded - 以少打多被拖住且 60 秒内己方换到了资源/建筑（牵制换资源）
  */
 export interface DeathView {
   index: number
@@ -152,6 +155,10 @@ export interface DeathView {
   kind: DeathKind
   kindCn: string
   resp: Responsibility
+  blame: number
+  enemies: number
+  allies: number
+  traded: boolean
   x: number | null
   y: number | null
 }
@@ -477,6 +484,10 @@ export function buildReviewModel(
               kind: d.kind,
               kindCn: DEATH_PLAIN[d.kind].name,
               resp: RESPONSIBILITY_OF[d.kind],
+              blame: d.responsibility,
+              enemies: d.enemies,
+              allies: d.allies,
+              traded: d.traded === true,
               x,
               y
             }
