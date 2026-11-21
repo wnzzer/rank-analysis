@@ -35,6 +35,32 @@ export interface MatchLabelModel {
   blameSlot: number | null
 }
 
+/** AI 回应的立场；unknown = 模型输出没通过校验，走了保底文案 */
+export type RebuttalStance = 'concede' | 'partial' | 'hold' | 'unknown'
+
+/** 玩家理由所属的类别（与 Rust REBUTTAL_CATEGORIES、表上 check 约束一致） */
+export type RebuttalCategory =
+  'absence' | 'targeted' | 'empty_stats' | 'attitude' | 'draft' | 'teamwork' | 'other'
+
+/** 玩家看完回应后的态度 */
+export type RebuttalVerdict = 'convinced' | 'unconvinced'
+
+/**
+ * AI 对玩家理由的一次回应（与 Rust `Rebuttal` 一致）
+ * @property reply - 给玩家看的回复正文（只存本地，不上传）
+ * @property verdict - 玩家的态度；没点为 null
+ * @property model - 生成这条回应的模型名
+ * @property basis - 回应针对的选择与说明的指纹：变了才重新调用
+ */
+export interface MatchLabelRebuttal {
+  stance: RebuttalStance
+  category: RebuttalCategory
+  reply: string
+  verdict: RebuttalVerdict | null
+  model: string
+  basis: string
+}
+
 /**
  * 一局标注（与 Rust `MatchLabel` 一致，camelCase）
  * @property labelerSide - 标注人所在方；拿不到（如看别人的对局）为 null
@@ -51,6 +77,8 @@ export interface MatchLabel {
   note?: string | null
   model: MatchLabelModel | null
   modelVersion: string
+  /** AI 对玩家理由的回应；没触发过为空（旧版本存下的标注也没有） */
+  rebuttal?: MatchLabelRebuttal | null
   uploaded?: boolean
   updatedAt?: number
 }

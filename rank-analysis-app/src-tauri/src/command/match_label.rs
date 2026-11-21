@@ -6,6 +6,10 @@
 //!
 //! 上传体只含对局标识、所选玩家的位置与英雄、当时的模型快照，**不含任何 puuid / 召唤师名**；
 //! `owner_id` 由服务端默认 `auth.uid()` 填（设备匿名账号）。
+//!
+//! 玩家写了理由且与模型有分歧时，AI 会回应一次（设计见
+//! `docs/superpowers/specs/2026-11-21-label-rebuttal-design.md`）。回应随标注存在本地；
+//! 上传时只带立场、类别、玩家态度与模型名，**回复正文不上传**。
 
 use std::path::{Path, PathBuf};
 
@@ -33,11 +37,90 @@ pub struct Pick {
     pub position: String,
 }
 
+/// AI 对玩家理由的回应立场；`unknown` = 模型输出没通过校验，走了保底文案
+pub const REBUTTAL_STANCES: [&str; 4] = ["concede", "partial", "hold", "unknown"];
+
+/// 玩家理由所属的类别，用于统计评分最常漏算什么
+pub const REBUTTAL_CATEGORIES: [&str; 7] = [
+    "absence",
+    "targeted",
+    "empty_stats",
+    "attitude",
+    "draft",
+    "teamwork",
+    "other",
+];
+
+/// 玩家看完回应后的态度
+pub const REBUTTAL_VERDICTS: [&str; 2] = ["convinced", "unconvinced"];
+
+/// 模型名的最大长度（与表上 check 约束一致）
+pub const MAX_REBUTTAL_MODEL_CHARS: usize = 64;
+
+/// AI 对玩家理由的一次回应
+///
+/// - `stance`: 见 [`REBUTTAL_STANCES`]
+/// - `category`: 见 [`REBUTTAL_CATEGORIES`]
+/// - `reply`: 给玩家看的回复正文（只存本地，不上传）
+/// - `verdict`: 玩家的态度，见 [`REBUTTAL_VERDICTS`]；没点为 None
+/// - `model`: 生成这条回应的模型名
+/// - `basis`: 回应针对的选择与说明的指纹，前端据此判断要不要重新调用
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Rebuttal {
+    pub stance: String,
+    pub category: String,
+    #[serde(default)]
+    pub reply: String,
+    #[serde(default)]
+    pub verdict: Option<String>,
+    #[serde(default)]
+    pub model: String,
+    #[serde(default)]
+    pub basis: String,
+}
+
+/// 枚举值在白名单内才保留，否则为 None。
+fn allowed<'a>(value: &'a str, list: &[&str]) -> Option<&'a str> {
+    list.contains(&value).then_some(value)
+}
+
+/// 回应里要上传的四个字段（立场、类别、态度、模型名）。
+///
+/// 立场或类别不在白名单内时四项全为 null：数据库上有 check 约束，带着非法值整行都会被拒，
+/// 标注本身就传不上去了。
+fn rebuttal_columns(rebuttal: Option<&Rebuttal>) -> [Value; 4] {
+    let valid = rebuttal.and_then(|r| {
+        let stance = allowed(&r.stance, &REBUTTAL_STANCES)?;
+        let category = allowed(&r.category, &REBUTTAL_CATEGORIES)?;
+        Some((r, stance, category))
+    });
+    let Some((r, stance, category)) = valid else {
+        return [Value::Null, Value::Null, Value::Null, Value::Null];
+    };
+    let verdict = r
+        .verdict
+        .as_deref()
+        .and_then(|v| allowed(v, &REBUTTAL_VERDICTS));
+    let model: String = r.model.chars().take(MAX_REBUTTAL_MODEL_CHARS).collect();
+    [
+        json!(stance),
+        json!(category),
+        json!(verdict),
+        if model.is_empty() {
+            Value::Null
+        } else {
+            json!(model)
+        },
+    ]
+}
+
 /// 一局的标注（本地存储与前端交互的形状）
 ///
 /// - `labeler_side`: 标注人所在方 `win` / `lose`；观战他人对局等拿不到时为 None
 /// - `note`: 玩家可选填写的说明（如「下路被克制」），最多 [`MAX_NOTE_CHARS`] 字
 /// - `model`: 提交时的模型快照（10 人总分 / 标签与模型选择）；时间线未就绪时为 None
+/// - `rebuttal`: AI 对玩家理由的回应；没触发过为 None（旧版本存下的标注也没有）
 /// - `uploaded`: 是否已成功上传（本地字段，不上传）
 /// - `updated_at`: 本地最后修改时间（unix 毫秒，本地字段）
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -57,6 +140,8 @@ pub struct MatchLabel {
     #[serde(default)]
     pub model: Option<Value>,
     pub model_version: String,
+    #[serde(default)]
+    pub rebuttal: Option<Rebuttal>,
     #[serde(default)]
     pub uploaded: bool,
     #[serde(default)]
@@ -153,6 +238,7 @@ pub fn upload_body(label: &MatchLabel) -> Result<Value, String> {
     if label.key_pick.is_none() && label.blame_pick.is_none() {
         return Err("至少选择一项".to_string());
     }
+    let [stance, category, verdict, rebuttal_model] = rebuttal_columns(label.rebuttal.as_ref());
     Ok(json!({
         "game_id": label.game_id,
         "platform": label.platform,
@@ -163,6 +249,10 @@ pub fn upload_body(label: &MatchLabel) -> Result<Value, String> {
         "note": clean_note(label.note.as_deref()),
         "model": label.model,
         "model_version": label.model_version,
+        "rebuttal_stance": stance,
+        "rebuttal_category": category,
+        "rebuttal_verdict": verdict,
+        "rebuttal_model": rebuttal_model,
     }))
 }
 
@@ -327,9 +417,109 @@ mod tests {
             note: None,
             model: None,
             model_version: "test".to_string(),
+            rebuttal: None,
             uploaded: false,
             updated_at,
         }
+    }
+
+    fn rebuttal(stance: &str, category: &str) -> Rebuttal {
+        Rebuttal {
+            stance: stance.to_string(),
+            category: category.to_string(),
+            reply: "你说的单带不参团，目前的评分确实没算进去。".to_string(),
+            verdict: Some("unconvinced".to_string()),
+            model: "deepseek-v4.1-flash-1017".to_string(),
+            basis: "1|6|他一直单带".to_string(),
+        }
+    }
+
+    #[test]
+    fn should_load_labels_saved_before_rebuttal_existed() {
+        let raw = r#"{"gameId":1,"platform":"TJ100","queueId":420,
+            "keyPick":{"slot":1,"teamId":100,"championId":103,"position":"MIDDLE"},
+            "modelVersion":"old"}"#;
+
+        let parsed: MatchLabel = serde_json::from_str(raw).unwrap();
+
+        assert_eq!(parsed.rebuttal, None);
+    }
+
+    #[test]
+    fn should_round_trip_rebuttal_in_camel_case() {
+        let mut l = label(1, 1);
+        l.rebuttal = Some(rebuttal("concede", "absence"));
+
+        let text = serde_json::to_string(&l).unwrap();
+        let back: MatchLabel = serde_json::from_str(&text).unwrap();
+
+        assert!(text.contains("\"rebuttal\":{\"stance\":\"concede\""));
+        assert_eq!(back, l);
+    }
+
+    #[test]
+    fn should_upload_rebuttal_summary_but_never_the_reply_text() {
+        let mut l = label(1, 1);
+        l.rebuttal = Some(rebuttal("concede", "absence"));
+
+        let body = upload_body(&l).unwrap();
+
+        assert_eq!(body["rebuttal_stance"], "concede");
+        assert_eq!(body["rebuttal_category"], "absence");
+        assert_eq!(body["rebuttal_verdict"], "unconvinced");
+        assert_eq!(body["rebuttal_model"], "deepseek-v4.1-flash-1017");
+        let text = body.to_string();
+        assert!(!text.contains("单带不参团"));
+        assert!(!text.contains("basis"));
+    }
+
+    #[test]
+    fn should_upload_null_rebuttal_columns_without_a_rebuttal() {
+        let body = upload_body(&label(1, 1)).unwrap();
+
+        // 键必须存在：upsert 时用 null 覆盖掉上一次的回应（玩家改判后与模型一致了）
+        for key in [
+            "rebuttal_stance",
+            "rebuttal_category",
+            "rebuttal_verdict",
+            "rebuttal_model",
+        ] {
+            assert!(body.get(key).is_some_and(Value::is_null), "{key}");
+        }
+    }
+
+    #[test]
+    fn should_drop_rebuttal_columns_with_values_outside_the_whitelist() {
+        // 数据库有 check 约束：带着非法枚举值整行会被拒，连标注都传不上去
+        for (stance, category) in [("angry", "absence"), ("concede", "cheating")] {
+            let mut l = label(1, 1);
+            l.rebuttal = Some(rebuttal(stance, category));
+
+            let body = upload_body(&l).unwrap();
+
+            assert!(body["rebuttal_stance"].is_null());
+            assert!(body["rebuttal_category"].is_null());
+            assert!(body["rebuttal_verdict"].is_null());
+            assert!(body["rebuttal_model"].is_null());
+        }
+    }
+
+    #[test]
+    fn should_null_an_unknown_verdict_and_truncate_the_model_name() {
+        let mut r = rebuttal("hold", "other");
+        r.verdict = Some("maybe".to_string());
+        r.model = "m".repeat(200);
+        let mut l = label(1, 1);
+        l.rebuttal = Some(r);
+
+        let body = upload_body(&l).unwrap();
+
+        assert_eq!(body["rebuttal_stance"], "hold");
+        assert!(body["rebuttal_verdict"].is_null());
+        assert_eq!(
+            body["rebuttal_model"].as_str().unwrap().chars().count(),
+            MAX_REBUTTAL_MODEL_CHARS
+        );
     }
 
     #[test]
@@ -390,7 +580,11 @@ mod tests {
                 "model_version",
                 "note",
                 "platform",
-                "queue_id"
+                "queue_id",
+                "rebuttal_category",
+                "rebuttal_model",
+                "rebuttal_stance",
+                "rebuttal_verdict"
             ]
         );
         let text = body.to_string();
