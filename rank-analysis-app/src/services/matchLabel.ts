@@ -202,6 +202,7 @@ export async function currentModelVersion(): Promise<string> {
  * @property blamePid - 玩家选的最犯罪（participantId）；没选为 null
  * @property note - 可选说明；空白视为没填
  * @property modelVersion - 见 {@link currentModelVersion}
+ * @property rebuttal - AI 对玩家理由的回应；没有为空
  */
 export interface MatchLabelInput {
   players: PlayerView[]
@@ -212,6 +213,7 @@ export interface MatchLabelInput {
   blamePid: number | null
   note?: string
   modelVersion: string
+  rebuttal?: MatchLabelRebuttal | null
 }
 
 /**
@@ -234,7 +236,8 @@ export function buildMatchLabel(input: MatchLabelInput): MatchLabel {
     labelerSide: me ? (me.win ? 'win' : 'lose') : null,
     note: input.note?.trim() || null,
     model: buildModelSnapshot(input.players),
-    modelVersion: input.modelVersion
+    modelVersion: input.modelVersion,
+    rebuttal: input.rebuttal ?? null
   }
 }
 

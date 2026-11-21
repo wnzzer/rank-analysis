@@ -5,15 +5,25 @@
  * - 提交前不显示模型结论，避免先入为主；两项各自可选可不选，至少一项才可提交。
  * - 首次提交时询问是否匿名分享（配置键 matchLabelShare），之后按选择保存 / 上传。
  * - 上传失败照常显示对比，标注已存本地，下次打开复盘时补传。
+ * - 与模型有分歧且写了理由时，提交后 AI 针对理由回应一次（不改判；见
+ *   docs/superpowers/specs/2026-11-21-label-rebuttal-design.md）。有分歧但没写理由时给一个入口
+ *   回去补。回应随标注保存，再次打开直接显示，不重新调用。
  * @property players - 本局 10 人（复盘视图模型）
  * @property gameId / platform / queueId - 对局标识
  * @emits done - 进入「已提交」状态（本次提交，或打开时恢复了已有标注）；战报据此揭晓战报图
  */
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { NButton, NInput, NModal } from 'naive-ui'
 import { useAssetUrl } from '@renderer/composables/useAssetUrl'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
 import type { PlayerView } from '@renderer/services/ai/review/buildReviewModel'
+import {
+  findDisputes,
+  rebuttalBasis,
+  requestRebuttal,
+  shouldRebut
+} from '@renderer/services/ai/review/rebuttal'
+import RebuttalReply, { type RebuttalState } from './RebuttalReply.vue'
 import {
   MATCH_LABEL_NOTE_MAX,
   MATCH_LABEL_SHARE_KEY,
@@ -22,7 +32,9 @@ import {
   currentModelVersion,
   getMatchLabel,
   retryMatchLabelUploads,
-  saveMatchLabel
+  saveMatchLabel,
+  type MatchLabelRebuttal,
+  type RebuttalVerdict
 } from '@renderer/services/matchLabel'
 
 const props = defineProps<{
@@ -52,9 +64,24 @@ const shareState = ref<'shared' | 'local' | 'failed'>('local')
 const consentOpen = ref(false)
 const saveError = ref<string | null>(null)
 
+/** AI 对玩家理由的回应；没触发过为 null */
+const rebuttal = ref<MatchLabelRebuttal | null>(null)
+/** 回应区的状态；idle = 不显示回应区 */
+const rebuttalState = ref<RebuttalState | 'idle'>('idle')
+/** 调用代际：玩家点「修改」或重新提交后递增，在途调用的迟到结果据此作废 */
+let rebuttalSeq = 0
+/** 说明输入框（从「不服？说说理由」入口回到编辑态时聚焦） */
+const noteInput = ref<{ focus: () => void } | null>(null)
+
 watch(phase, p => {
   if (p === 'done') emit('done')
 })
+
+const guess = computed(() => ({ keyPid: picks.value.key, blamePid: picks.value.blame }))
+/** 玩家与模型的分歧（只在已提交状态下有意义） */
+const disputes = computed(() => findDisputes(guess.value, props.players))
+/** 理由够长，可以直接让 AI 回应 */
+const canRebutNow = computed(() => shouldRebut(disputes.value, note.value))
 
 const canSubmit = computed(() => picks.value.key !== null || picks.value.blame !== null)
 
@@ -87,6 +114,9 @@ onMounted(async () => {
   if (!saved) return
   picks.value = { key: saved.keyPick?.slot ?? null, blame: saved.blamePick?.slot ?? null }
   note.value = saved.note ?? ''
+  // 已有回应直接显示，不重新调用
+  rebuttal.value = saved.rebuttal ?? null
+  rebuttalState.value = rebuttal.value ? 'ready' : 'idle'
   phase.value = 'done'
   const share = await getConfigByIpc<boolean>(MATCH_LABEL_SHARE_KEY)
   if (share !== true) shareState.value = 'local'
@@ -112,9 +142,8 @@ async function answerConsent(share: boolean): Promise<void> {
   await persist(share)
 }
 
-async function persist(share: boolean): Promise<void> {
-  saving.value = true
-  saveError.value = null
+/** 按当前的选择、说明与回应保存一次标注，并更新分享状态 */
+async function saveCurrent(share: boolean): Promise<void> {
   const label = buildMatchLabel({
     players: props.players,
     gameId: props.gameId,
@@ -123,17 +152,96 @@ async function persist(share: boolean): Promise<void> {
     keyPid: picks.value.key,
     blamePid: picks.value.blame,
     note: note.value,
-    modelVersion: await currentModelVersion()
+    modelVersion: await currentModelVersion(),
+    rebuttal: rebuttal.value
   })
+  const r = await saveMatchLabel(label, share)
+  shareState.value = !share ? 'local' : r.uploaded ? 'shared' : 'failed'
+}
+
+/** 玩家是否同意分享（没决定过按不分享） */
+async function sharing(): Promise<boolean> {
+  return (await getConfigByIpc<boolean>(MATCH_LABEL_SHARE_KEY)) === true
+}
+
+async function persist(share: boolean): Promise<void> {
+  saving.value = true
+  saveError.value = null
+  // 选择和说明都没变：上一次的回应仍然对得上，留着；变了就作废
+  const basis = rebuttalBasis(guess.value, note.value)
+  if (rebuttal.value?.basis !== basis) {
+    rebuttal.value = null
+    rebuttalState.value = 'idle'
+  }
   try {
-    const r = await saveMatchLabel(label, share)
-    shareState.value = !share ? 'local' : r.uploaded ? 'shared' : 'failed'
+    await saveCurrent(share)
     phase.value = 'done'
   } catch (e) {
     saveError.value = `保存失败：${String(e)}`
+    return
   } finally {
     saving.value = false
   }
+  if (!rebuttal.value && canRebutNow.value) void runRebuttal()
+}
+
+/**
+ * 让 AI 回应一次，成功后把回应写回标注。
+ *
+ * 标注本身已经存好了：这里失败只影响回应，不影响标注。
+ */
+async function runRebuttal(): Promise<void> {
+  const seq = ++rebuttalSeq
+  const basis = rebuttalBasis(guess.value, note.value)
+  rebuttalState.value = 'loading'
+  try {
+    const r = await requestRebuttal(disputes.value, props.players, note.value)
+    if (seq !== rebuttalSeq) return // 玩家已经点了「修改」或重新提交
+    rebuttal.value = { ...r, verdict: null, basis }
+    rebuttalState.value = 'ready'
+  } catch (e) {
+    if (seq !== rebuttalSeq) return
+    console.warn('label rebuttal failed:', e)
+    rebuttalState.value = 'failed'
+    return
+  }
+  await saveQuietly()
+}
+
+/** 回应相关的保存：失败不打扰玩家（标注本身早已存好），留到下次保存一并写入 */
+async function saveQuietly(): Promise<void> {
+  try {
+    await saveCurrent(await sharing())
+  } catch (e) {
+    console.warn('save rebuttal failed:', e)
+  }
+}
+
+/** 玩家对回应的态度（可改选） */
+async function setVerdict(verdict: RebuttalVerdict): Promise<void> {
+  if (!rebuttal.value || rebuttal.value.verdict === verdict) return
+  rebuttal.value = { ...rebuttal.value, verdict }
+  await saveQuietly()
+}
+
+/** 回到编辑态；在途的 AI 调用作废 */
+function edit(): void {
+  rebuttalSeq++
+  if (rebuttalState.value === 'loading' || rebuttalState.value === 'failed') {
+    rebuttalState.value = 'idle'
+  }
+  phase.value = 'edit'
+}
+
+/** 「不服？」入口：理由够长就直接让 AI 回应，否则回去补理由 */
+async function onRebutEntry(): Promise<void> {
+  if (canRebutNow.value) {
+    void runRebuttal()
+    return
+  }
+  edit()
+  await nextTick()
+  noteInput.value?.focus()
 }
 
 const shareText = computed(() => {
@@ -152,12 +260,7 @@ const shareText = computed(() => {
   <section class="label-card" data-test="label-card">
     <div class="label-card-head">
       <div class="review-section-title">你怎么看这局？</div>
-      <n-button
-        v-if="phase === 'done'"
-        quaternary
-        size="tiny"
-        data-test="label-edit"
-        @click="phase = 'edit'"
+      <n-button v-if="phase === 'done'" quaternary size="tiny" data-test="label-edit" @click="edit"
         >修改</n-button
       >
       <span v-else class="label-card-hint">帮助改进评分 · 可跳过</span>
@@ -190,6 +293,7 @@ const shareText = computed(() => {
         </div>
       </div>
       <n-input
+        ref="noteInput"
         v-model:value="note"
         type="textarea"
         size="small"
@@ -197,7 +301,7 @@ const shareText = computed(() => {
         :maxlength="MATCH_LABEL_NOTE_MAX"
         show-count
         :autosize="{ minRows: 1, maxRows: 3 }"
-        placeholder="可选：说说理由，比如「下路被克制」「打野一直没来」"
+        placeholder="说说理由，AI 会回应你，比如「下路被克制」「打野一直没来」"
         data-test="label-note"
       />
       <div class="label-card-foot">
@@ -235,6 +339,22 @@ const shareText = computed(() => {
       <div v-if="note.trim()" class="label-note-done" data-test="label-note-done">
         <span class="label-tag">说明</span><span>{{ note.trim() }}</span>
       </div>
+      <RebuttalReply
+        v-if="rebuttalState !== 'idle'"
+        :state="rebuttalState"
+        :rebuttal="rebuttal"
+        @verdict="setVerdict"
+        @retry="runRebuttal"
+      />
+      <button
+        v-else-if="disputes.length"
+        type="button"
+        class="label-rebut"
+        data-test="label-rebut"
+        @click="onRebutEntry"
+      >
+        {{ canRebutNow ? '让 AI 回应你的理由 ›' : '不服？说说理由 ›' }}
+      </button>
       <div class="label-card-hint" data-test="label-share">{{ shareText }} · 模型判断仅供参考</div>
     </template>
 
@@ -422,6 +542,25 @@ const shareText = computed(() => {
   min-width: 0;
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
+}
+/* 「不服？」入口：文字链接，不抢对比结果的视线 */
+.label-rebut {
+  appearance: none;
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--font-size-sm);
+  color: var(--accent-blue);
+  cursor: pointer;
+}
+.label-rebut:hover {
+  text-decoration: underline;
+}
+.label-rebut:focus-visible {
+  outline: 1px solid var(--accent-hover);
+  outline-offset: 2px;
 }
 .label-consent-text {
   margin: 0;
