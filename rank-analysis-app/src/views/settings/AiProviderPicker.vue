@@ -51,7 +51,7 @@
         @click="select('custom')"
       >
         <span class="card__title">自定义</span>
-        <span class="card__sub">你自己的 OpenAI 兼容接入点</span>
+        <span class="card__sub">OpenAI 兼容接入点</span>
       </button>
     </div>
 
