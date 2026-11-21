@@ -27,7 +27,7 @@ import type { RecentPlayerProfile, TeamPosition } from '@renderer/services/ai/sh
 export function useMatchAIAnalysis(game: MaybeRefOrGetter<Game | null>) {
   const message = useMessage()
 
-  // 打开含 AI 入口的页面即预热 Claude 中转连接（选了 DeepSeek 时不做事）
+  // 打开含 AI 入口的页面即预热 Claude 中转连接（没选 Claude 时不做事）
   prewarmAi()
 
   const aiLoading = ref(false)

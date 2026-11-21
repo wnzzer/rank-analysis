@@ -42,7 +42,8 @@ import {
   SettingsOutline,
   PricetagOutline,
   BookmarksOutline,
-  CloudOutline
+  CloudOutline,
+  SparklesOutline
 } from '@vicons/ionicons5'
 import { useCloudSyncStore } from '@renderer/pinia/cloudSync'
 
@@ -88,6 +89,11 @@ const menuOptions = computed(() => [
     label: '自动化',
     key: 'Automation',
     icon: renderIcon(FlashOutline)
+  },
+  {
+    label: 'AI 模型',
+    key: 'Ai',
+    icon: renderIcon(SparklesOutline)
   },
   {
     label: '标签管理',

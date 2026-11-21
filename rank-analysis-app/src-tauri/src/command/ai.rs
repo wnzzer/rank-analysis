@@ -1,11 +1,13 @@
 //! # AI 分析命令模块
 //!
-//! 提供流式 AI 分析功能，两个 provider：
+//! 提供流式 AI 分析功能，三个 provider：
 //!
 //! ## 主要功能
 //!
 //! - **流式 AI 请求**: 通过 Tauri Channel 实现 SSE 流式输出到前端
 //! - **DashScope (阿里云，默认 DeepSeek)**: 直连 OpenAI 兼容端点，密钥在 Rust 层解析（见 resolve_api_key）
+//! - **自定义**: 用户在设置里填的 OpenAI 兼容接入点（地址 + 密钥），协议与 DashScope 相同；
+//!   阿里云专有参数只在目标主机是阿里云时才带（见 [`is_dashscope_host`]）
 //! - **Claude**: 经 Oracle 中转（`relay/claude-relay`）。客户端不内置 Anthropic key，
 //!   中转按出口 IP 做区域门控（见 [`check_claude_region`]），并把 Anthropic 流转成与
 //!   DashScope 相同的 SSE 行格式，故两者共用同一套流解析
@@ -28,8 +30,55 @@ use serde_json::json;
 use std::time::Duration;
 use tauri::ipc::Channel;
 
-/// DashScope OpenAI 兼容 chat 端点。
-const DASHSCOPE_URL: &str = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
+/// DashScope OpenAI 兼容接入点（到 `/v1` 为止）。内置服务用它；设置页也把它显示给用户看。
+/// 与前端 `services/ai/endpoint.ts` 的 `DASHSCOPE_BASE_URL` 保持一致。
+pub(crate) const DASHSCOPE_BASE_URL: &str = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+
+/// 接入点地址 → chat 端点。`base` 须已经过 [`validate_base_url`]（末尾无 `/`）。
+pub(crate) fn chat_url(base: &str) -> String {
+    format!("{}/chat/completions", base)
+}
+
+/// 校验并规整用户填的接入点地址。纯函数，便于单测。
+///
+/// - 必须是 `https://`；主机是本机（`localhost` / `127.0.0.1` / `::1`）时允许 `http://`，
+///   给本地模型（Ollama 等）用。其余 `http://` 一律拒绝：密钥和对局数据会明文过网
+/// - 去掉首尾空白与末尾 `/`；用户把完整的 `.../chat/completions` 粘进来时自动截掉
+///
+/// # 返回
+/// 规整后的地址（到 `/v1` 为止，末尾无 `/`）
+pub(crate) fn validate_base_url(raw: &str) -> Result<String, String> {
+    let trimmed = raw.trim().trim_end_matches('/');
+    let trimmed = trimmed
+        .strip_suffix("/chat/completions")
+        .unwrap_or(trimmed)
+        .trim_end_matches('/');
+    if trimmed.is_empty() {
+        return Err("未填写接入点地址".to_string());
+    }
+    let url = reqwest::Url::parse(trimmed).map_err(|_| "接入点地址格式不正确".to_string())?;
+    let host = url.host_str().unwrap_or_default();
+    if host.is_empty() {
+        return Err("接入点地址格式不正确".to_string());
+    }
+    let local = matches!(host, "localhost" | "127.0.0.1" | "[::1]" | "::1");
+    match url.scheme() {
+        "https" => Ok(trimmed.to_string()),
+        "http" if local => Ok(trimmed.to_string()),
+        "http" => Err("接入点地址必须以 https:// 开头（本机地址除外）".to_string()),
+        _ => Err("接入点地址必须以 https:// 开头".to_string()),
+    }
+}
+
+/// 接入点是否是阿里云 DashScope（含国际站 `dashscope-intl`）。
+///
+/// 阿里云专有参数（`enable_thinking`）只发给它：别家不认识的参数会直接回 400。
+pub(crate) fn is_dashscope_host(base: &str) -> bool {
+    reqwest::Url::parse(base)
+        .ok()
+        .and_then(|u| u.host_str().map(str::to_string))
+        .is_some_and(|h| h.starts_with("dashscope") && h.ends_with(".aliyuncs.com"))
+}
 
 /// Claude 中转默认地址：Oracle 上 Caddy 终结 TLS（443 被 xray 占用故走 8443）。
 /// 用域名而非 IP：换服务器只改 DNS，收不到更新的老版本也不受影响。
@@ -56,7 +105,7 @@ const RELAY_USER_AGENT: &str = concat!("rank-analysis/", env!("CARGO_PKG_VERSION
 /// 永远在重新握手（到美东中转一次 TCP+TLS 握手就是数百毫秒）。共享后空闲连接留在池里
 /// 复用，配合 [`prewarm_claude_relay`] 在用户点「AI 分析」前就把连接建好。
 /// 超时按请求设（`RequestBuilder::timeout`），不同 provider 不必各建一个客户端。
-fn http_client() -> &'static reqwest::Client {
+pub(crate) fn http_client() -> &'static reqwest::Client {
     static CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
     CLIENT.get_or_init(|| {
         reqwest::Client::builder()
@@ -74,22 +123,36 @@ fn http_client() -> &'static reqwest::Client {
 enum Provider {
     DashScope,
     Claude,
+    /// 用户自填的 OpenAI 兼容接入点
+    Custom,
 }
 
 impl Provider {
-    /// 前端传 `"claude"` 走 Claude，其余（含缺省）都走 DashScope，老前端不受影响
+    /// 前端传 `"claude"` 走 Claude、`"custom"` 走自定义接入点，其余（含缺省）都走 DashScope，
+    /// 老前端不受影响
     fn parse(s: Option<&str>) -> Self {
         match s {
             Some("claude") => Provider::Claude,
+            Some("custom") => Provider::Custom,
             _ => Provider::DashScope,
         }
     }
 
-    /// 总请求超时。Opus 5.5 思考恒开、输出也更长，60s 会截断长复盘
+    /// 总请求超时。Opus 5.5 思考恒开、输出也更长，60s 会截断长复盘；
+    /// 自定义接入点不知道对面是什么模型（可能是本机慢推理），给宽一些
     fn request_timeout(self) -> Duration {
         Duration::from_secs(match self {
             Provider::DashScope => REQUEST_TIMEOUT_SECS,
             Provider::Claude => 180,
+            Provider::Custom => 180,
+        })
+    }
+
+    /// 首字看门狗时长。自定义接入点可能要先加载模型（本机 Ollama 冷启动），给宽一些
+    fn first_token_timeout(self) -> Duration {
+        Duration::from_secs(match self {
+            Provider::Custom => 60,
+            _ => FIRST_TOKEN_TIMEOUT_SECS,
         })
     }
 }
@@ -115,7 +178,7 @@ fn resolve_api_key(
 
 /// 解析最终密钥：用户覆盖 → 运行时环境变量（测试/开发）→ `option_env!` 编译期注入（线上）。
 /// 线上由 CI 在构建时设 `DASHSCOPE_API_KEY`，明文密钥不进源码 / git。
-fn api_key(override_key: Option<&str>) -> Result<String, String> {
+pub(crate) fn api_key(override_key: Option<&str>) -> Result<String, String> {
     let runtime = std::env::var("DASHSCOPE_API_KEY").ok();
     resolve_api_key(
         override_key,
@@ -159,7 +222,7 @@ fn extract_stream_error(line: &str) -> Option<String> {
 
 /// 非 2xx 响应体转成给用户看的错误：`{"error":{"message":"..."}}` 形态（中转 / DashScope
 /// 都是）取 message，否则原样带上状态码与正文。纯函数，便于单测。
-fn format_http_error(status: u16, body: &str) -> String {
+pub(crate) fn format_http_error(status: u16, body: &str) -> String {
     serde_json::from_str::<serde_json::Value>(body)
         .ok()
         .and_then(|v| v.get("error")?.get("message")?.as_str().map(str::to_string))
@@ -176,19 +239,21 @@ const FIRST_TOKEN_TIMEOUT_SECS: u64 = 20;
 /// 首块到达前的最大尝试次数（含首次）。仅在"流尚未开始"时重试，避免重复输出。
 const MAX_ATTEMPTS: u32 = 2;
 
-/// 构建 DashScope chat 请求体。纯函数，便于单测。
+/// 构建 OpenAI 兼容的 chat 请求体（DashScope 与自定义接入点共用）。纯函数，便于单测。
 ///
 /// `response_format` 为 `Some` 时附加 OpenAI 兼容的 `response_format: {"type": ...}`
 /// 字段（如 `json_object` 强制 JSON 输出）；`None` 时不带该字段，保持普通文本输出。
 ///
-/// 恒带 `enable_thinking: false`：deepseek-v4.1 / qwen3.8 等混合思考模型默认先吐一段
-/// reasoning_content（实测），而 `extract_delta_content` 只转发 content，用户会干等
-/// 推理结束才见首字。非混合模型（如 qwen-flash）DashScope 忽略该字段。
+/// `dashscope` 为 true（目标是阿里云）时带 `enable_thinking: false`：deepseek-v4.1 / qwen3.8
+/// 等混合思考模型默认先吐一段 reasoning_content（实测），而 `extract_delta_content` 只转发
+/// content，用户会干等推理结束才见首字。非混合模型（如 qwen-flash）DashScope 忽略该字段。
+/// 发给别家时不能带：OpenAI 官方等遇到不认识的参数直接 400。
 fn build_request_body(
     model: &str,
     system_prompt: &str,
     user_prompt: &str,
     response_format: Option<&str>,
+    dashscope: bool,
 ) -> serde_json::Value {
     let mut body = json!({
         "model": model,
@@ -196,9 +261,11 @@ fn build_request_body(
             { "role": "system", "content": system_prompt },
             { "role": "user", "content": user_prompt }
         ],
-        "stream": true,
-        "enable_thinking": false
+        "stream": true
     });
+    if dashscope {
+        body["enable_thinking"] = json!(false);
+    }
     if let Some(fmt) = response_format {
         body["response_format"] = json!({ "type": fmt });
     }
@@ -221,6 +288,14 @@ fn build_claude_relay_body(
         "prompt": user_prompt,
         "jsonMode": json_mode
     })
+}
+
+/// 接入点是否因为不支持 `response_format` 而拒绝了请求。纯函数，便于单测。
+///
+/// 不少 OpenAI 兼容服务（部分本地模型、旧网关）不认这个字段。判据是 4xx 且错误正文提到了
+/// 字段名——提到就说明问题出在它身上，去掉重发即可；JSON 格式改由提示词约束。
+fn rejects_response_format(status: u16, body: &str) -> bool {
+    (400..500).contains(&status) && body.contains("response_format")
 }
 
 /// HTTP 状态码是否值得重试：仅 429（限流）与 5xx（服务端错误）。纯函数，便于单测。
@@ -252,8 +327,10 @@ pub struct AiStreamRequest {
     /// OpenAI 兼容 `response_format.type`（如 `json_object`，强制模型输出合法 JSON）。
     /// 缺省不传该字段（普通文本/markdown 输出）。Claude 下转为中转的 `jsonMode`。
     pub response_format: Option<String>,
-    /// `"claude"` 走 Claude 中转；缺省 / 其他值走 DashScope
+    /// `"claude"` 走 Claude 中转；`"custom"` 走 `base_url` 指向的自定义接入点；缺省 / 其他值走 DashScope
     pub provider: Option<String>,
+    /// 自定义接入点地址（到 `/v1` 为止）。`provider` 为 `custom` 时必填，其余忽略
+    pub base_url: Option<String>,
 }
 
 /// AI 流式响应事件
@@ -298,7 +375,49 @@ pub async fn stream_ai_analysis(
     let mut headers = HeaderMap::new();
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
 
-    let (url, body) = match provider {
+    // 失败时发 error 事件并结束（不 reject 命令）
+    let fail = |msg: String| {
+        let _ = on_event.send(AiStreamEvent {
+            event: "error".to_string(),
+            data: Some(msg),
+        });
+    };
+
+    let (url, mut body) = match provider {
+        Provider::Custom => {
+            let base = match validate_base_url(request.base_url.as_deref().unwrap_or_default()) {
+                Ok(b) => b,
+                Err(e) => {
+                    fail(e);
+                    return Ok(());
+                }
+            };
+            if model.trim().is_empty() {
+                fail("未填写模型名".to_string());
+                return Ok(());
+            }
+            // 密钥可空：本机模型（Ollama 等）不需要
+            if let Some(k) = request
+                .api_key
+                .as_deref()
+                .map(str::trim)
+                .filter(|k| !k.is_empty())
+            {
+                headers.insert(
+                    AUTHORIZATION,
+                    HeaderValue::from_str(&format!("Bearer {}", k))
+                        .map_err(|e| format!("Invalid API key: {}", e))?,
+                );
+            }
+            let body = build_request_body(
+                &model,
+                &system_prompt,
+                &request.prompt,
+                request.response_format.as_deref(),
+                is_dashscope_host(&base),
+            );
+            (chat_url(&base), body)
+        }
         Provider::DashScope => {
             // 解析密钥（用户覆盖 → env → 编译期注入）。失败时发 error 事件并结束（不 reject 命令）。
             let key = match api_key(request.api_key.as_deref()) {
@@ -321,8 +440,9 @@ pub async fn stream_ai_analysis(
                 &system_prompt,
                 &request.prompt,
                 request.response_format.as_deref(),
+                true,
             );
-            (DASHSCOPE_URL.to_string(), body)
+            (chat_url(DASHSCOPE_BASE_URL), body)
         }
         Provider::Claude => {
             headers.insert(
@@ -409,6 +529,16 @@ pub async fn stream_ai_analysis(
                     .text()
                     .await
                     .unwrap_or_else(|_| "Unknown error".to_string());
+                // 接入点不认 response_format：去掉重发一次（不占重试次数）。此时流尚未开始
+                if body.get("response_format").is_some()
+                    && rejects_response_format(status.as_u16(), &error_text)
+                {
+                    if let Some(obj) = body.as_object_mut() {
+                        obj.remove("response_format");
+                    }
+                    attempt -= 1;
+                    continue;
+                }
                 let _ = on_event.send(AiStreamEvent {
                     event: "error".to_string(),
                     data: Some(format_http_error(status.as_u16(), &error_text)),
@@ -418,9 +548,7 @@ pub async fn stream_ai_analysis(
 
             // 首字看门狗：等首个响应字节，超时 / 流即报错 / 空流都判这次尝试失败
             let mut s = response.bytes_stream();
-            match tokio::time::timeout(Duration::from_secs(FIRST_TOKEN_TIMEOUT_SECS), s.next())
-                .await
-            {
+            match tokio::time::timeout(provider.first_token_timeout(), s.next()).await {
                 Ok(Some(Ok(bytes))) => break (s, bytes),
                 _ => {
                     if attempt < MAX_ATTEMPTS {
@@ -431,7 +559,7 @@ pub async fn stream_ai_analysis(
                         event: "error".to_string(),
                         data: Some(format!(
                             "首响应超时或为空（{}s 内无数据）",
-                            FIRST_TOKEN_TIMEOUT_SECS
+                            provider.first_token_timeout().as_secs()
                         )),
                     });
                     return Ok(());
@@ -644,7 +772,7 @@ mod tests {
 
     #[test]
     fn body_omits_response_format_by_default() {
-        let body = build_request_body("qwen-flash", "sys", "user", None);
+        let body = build_request_body("qwen-flash", "sys", "user", None, true);
         assert!(body.get("response_format").is_none());
         assert_eq!(body["model"], "qwen-flash");
         assert_eq!(body["stream"], true);
@@ -653,15 +781,113 @@ mod tests {
     }
 
     #[test]
-    fn body_always_disables_thinking() {
+    fn body_disables_thinking_for_dashscope() {
         // 混合思考模型不关思考会先输出整段推理，首字延迟成倍增加
-        let body = build_request_body("deepseek-v4.1-flash-1017", "sys", "user", None);
+        let body = build_request_body("deepseek-v4.1-flash-1017", "sys", "user", None, true);
         assert_eq!(body["enable_thinking"], false);
     }
 
     #[test]
+    fn body_omits_dashscope_params_for_other_hosts() {
+        // 别家不认识 enable_thinking，带上会直接 400
+        let body = build_request_body("gpt-x", "sys", "user", Some("json_object"), false);
+        assert!(body.get("enable_thinking").is_none());
+        assert_eq!(body["response_format"]["type"], "json_object");
+    }
+
+    #[test]
+    fn base_url_requires_https_except_localhost() {
+        assert_eq!(
+            validate_base_url("https://api.example.com/v1").unwrap(),
+            "https://api.example.com/v1"
+        );
+        assert_eq!(
+            validate_base_url("http://localhost:11434/v1").unwrap(),
+            "http://localhost:11434/v1"
+        );
+        assert_eq!(
+            validate_base_url("http://127.0.0.1:1234/v1").unwrap(),
+            "http://127.0.0.1:1234/v1"
+        );
+        assert!(validate_base_url("http://[::1]:8080/v1").is_ok());
+        // 非本机的明文地址：密钥会明文过网
+        assert!(validate_base_url("http://api.example.com/v1").is_err());
+        assert!(validate_base_url("http://192.168.1.5:8000/v1").is_err());
+        // 主机名里带 localhost 字样不算本机
+        assert!(validate_base_url("http://localhost.evil.com/v1").is_err());
+        assert!(validate_base_url("ftp://example.com").is_err());
+        assert!(validate_base_url("not a url").is_err());
+        assert!(validate_base_url("   ").is_err());
+    }
+
+    #[test]
+    fn base_url_is_normalized() {
+        // 末尾斜杠、首尾空白、误粘的完整端点都规整掉
+        assert_eq!(
+            validate_base_url("  https://api.example.com/v1/  ").unwrap(),
+            "https://api.example.com/v1"
+        );
+        assert_eq!(
+            validate_base_url("https://api.example.com/v1/chat/completions").unwrap(),
+            "https://api.example.com/v1"
+        );
+        assert_eq!(
+            chat_url(&validate_base_url("https://api.example.com/v1/").unwrap()),
+            "https://api.example.com/v1/chat/completions"
+        );
+    }
+
+    #[test]
+    fn builtin_base_url_passes_its_own_validation() {
+        assert_eq!(
+            validate_base_url(DASHSCOPE_BASE_URL).unwrap(),
+            DASHSCOPE_BASE_URL
+        );
+        assert!(is_dashscope_host(DASHSCOPE_BASE_URL));
+    }
+
+    #[test]
+    fn dashscope_host_detection() {
+        assert!(is_dashscope_host(
+            "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+        ));
+        assert!(!is_dashscope_host("https://api.openai.com/v1"));
+        assert!(!is_dashscope_host("https://api.deepseek.com"));
+        // 路径或子域里出现 dashscope 字样不算
+        assert!(!is_dashscope_host(
+            "https://evil.com/dashscope.aliyuncs.com/v1"
+        ));
+        assert!(!is_dashscope_host(
+            "https://dashscope.aliyuncs.com.evil.com/v1"
+        ));
+        assert!(!is_dashscope_host("garbage"));
+    }
+
+    #[test]
+    fn response_format_rejection_is_detected() {
+        assert!(rejects_response_format(
+            400,
+            r#"{"error":{"message":"Unknown parameter: 'response_format'"}}"#
+        ));
+        assert!(rejects_response_format(
+            422,
+            "response_format is not supported"
+        ));
+        // 别的 400、鉴权失败、服务端错误都不该触发去字段重发
+        assert!(!rejects_response_format(400, "model not found"));
+        assert!(!rejects_response_format(401, "invalid api key"));
+        assert!(!rejects_response_format(500, "response_format exploded"));
+    }
+
+    #[test]
+    fn custom_provider_gets_longer_timeouts() {
+        assert!(Provider::Custom.request_timeout() > Provider::DashScope.request_timeout());
+        assert!(Provider::Custom.first_token_timeout() > Provider::DashScope.first_token_timeout());
+    }
+
+    #[test]
     fn body_includes_response_format_when_requested() {
-        let body = build_request_body("qwen-flash", "sys", "user", Some("json_object"));
+        let body = build_request_body("qwen-flash", "sys", "user", Some("json_object"), true);
         assert_eq!(body["response_format"]["type"], "json_object");
     }
 
@@ -674,6 +900,7 @@ mod tests {
     #[test]
     fn provider_parse_defaults_to_dashscope() {
         assert_eq!(Provider::parse(Some("claude")), Provider::Claude);
+        assert_eq!(Provider::parse(Some("custom")), Provider::Custom);
         assert_eq!(Provider::parse(Some("dashscope")), Provider::DashScope);
         assert_eq!(Provider::parse(None), Provider::DashScope);
         assert_eq!(Provider::parse(Some("whatever")), Provider::DashScope);

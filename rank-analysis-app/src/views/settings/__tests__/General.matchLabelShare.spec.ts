@@ -17,7 +17,6 @@ vi.mock('@renderer/services/matchLabel', () => ({
   MATCH_LABEL_SHARE_KEY: 'matchLabelShare',
   retryMatchLabelUploads: store.retry
 }))
-vi.mock('../AiProviderPicker.vue', () => ({ default: defineComponent({ render: () => null }) }))
 
 function mountGeneral() {
   return mount(defineComponent({ render: () => h(NMessageProvider, () => h(General)) }), {

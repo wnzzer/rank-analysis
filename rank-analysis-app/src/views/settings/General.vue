@@ -24,25 +24,6 @@
           </n-text>
         </n-space>
       </n-form-item>
-      <n-form-item label="AI 模型">
-        <AiProviderPicker />
-      </n-form-item>
-      <n-form-item label="AI 分析携带玩家备注">
-        <n-space vertical :size="4">
-          <n-switch v-model:value="aiUseNotes" @update:value="handleAiUseNotesUpdate" />
-          <n-text :depth="3" style="font-size: var(--font-size-sm)">
-            开启后你的玩家备注会随分析请求发送到 AI 服务。
-          </n-text>
-        </n-space>
-      </n-form-item>
-      <n-form-item label="复盘使用对局时间线">
-        <n-space vertical :size="4">
-          <n-switch v-model:value="aiUseTimeline" @update:value="handleAiUseTimelineUpdate" />
-          <n-text :depth="3" style="font-size: var(--font-size-sm)">
-            开启后赛后复盘会拉取官方对局时间线（出装、加点、团战、死亡位置），拉取失败自动按终局数据复盘。
-          </n-text>
-        </n-space>
-      </n-form-item>
     </n-form>
   </n-card>
 </template>
@@ -50,16 +31,11 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { getConfigByIpc, putConfigByIpc } from '@renderer/services/ipc'
-import { CONFIG_KEYS } from '@renderer/services/configKeys'
 import { useMessage } from 'naive-ui'
-import AiProviderPicker from './AiProviderPicker.vue'
 import ShareSwitch from './ShareSwitch.vue'
 import { POSTGAME_TOAST_CONFIG_KEY } from '@renderer/services/postGameToast'
 
 const matchCount = ref(4)
-/** AI 分析是否携带玩家备注（默认开：键不存在时视为 true） */
-const aiUseNotes = ref(true)
-const aiUseTimeline = ref(true)
 /** 赛后右下角弹卡（默认开：键不存在时视为 true） */
 const postGameToast = ref(true)
 const message = useMessage()
@@ -74,23 +50,7 @@ onMounted(async () => {
     console.error(e)
   }
   try {
-    const useNotes = await getConfigByIpc<boolean>(CONFIG_KEYS.aiUsePlayerNotes)
-    if (typeof useNotes === 'boolean') {
-      aiUseNotes.value = useNotes
-    }
-  } catch (e) {
-    console.error(e)
-  }
-  try {
     postGameToast.value = (await getConfigByIpc<boolean>(POSTGAME_TOAST_CONFIG_KEY)) !== false
-  } catch (e) {
-    console.error(e)
-  }
-  try {
-    const useTimeline = await getConfigByIpc<boolean>(CONFIG_KEYS.aiUseTimeline)
-    if (typeof useTimeline === 'boolean') {
-      aiUseTimeline.value = useTimeline
-    }
   } catch (e) {
     console.error(e)
   }
@@ -109,24 +69,6 @@ const handleUpdate = async (value: number | null) => {
 const handlePostGameToastUpdate = async (value: boolean) => {
   try {
     await putConfigByIpc(POSTGAME_TOAST_CONFIG_KEY, value)
-    message.success('设置已保存')
-  } catch (e) {
-    message.error('保存失败')
-  }
-}
-
-const handleAiUseNotesUpdate = async (value: boolean) => {
-  try {
-    await putConfigByIpc(CONFIG_KEYS.aiUsePlayerNotes, value)
-    message.success('设置已保存')
-  } catch (e) {
-    message.error('保存失败')
-  }
-}
-
-const handleAiUseTimelineUpdate = async (value: boolean) => {
-  try {
-    await putConfigByIpc(CONFIG_KEYS.aiUseTimeline, value)
     message.success('设置已保存')
   } catch (e) {
     message.error('保存失败')

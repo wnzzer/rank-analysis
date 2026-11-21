@@ -1,8 +1,9 @@
 <!--
-  AI 服务提供方选择：阿里云 DeepSeek（默认）/ Claude Opus 5.5（经 Oracle 中转）。
+  AI 服务选择：内置（阿里云百炼，默认）/ Claude Opus 5.5（经 Oracle 中转）/ 自定义（OpenAI 兼容接入点）。
 
+  内置与自定义的地址、密钥、模型在 AiEndpointForm 里配；这里只管选哪一个，以及 Claude 自己的密钥。
   Claude 受 Anthropic 服务地区限制：挂载时经中转按出口 IP 检测，不可用则卡片置灰；
-  已选 Claude 但地区不可用时 resolveModel 会静默回落 DeepSeek，这里给出提示。
+  已选 Claude 但地区不可用时 resolveModel 会静默回落到内置服务，这里给出提示。
   选中 Claude 时带流光边框 + 粒子迸发特效（prefers-reduced-motion 下关闭）。
 -->
 <template>
@@ -14,8 +15,8 @@
         :class="{ 'is-active': provider === 'dashscope' }"
         @click="select('dashscope')"
       >
-        <span class="card__title">DeepSeek</span>
-        <span class="card__sub">阿里云百炼 · 快速稳定</span>
+        <span class="card__title">内置</span>
+        <span class="card__sub">阿里云百炼 · 开箱即用</span>
       </button>
 
       <button
@@ -42,10 +43,20 @@
           <i v-for="n in SPARK_COUNT" :key="n" :style="sparkStyle(n)" />
         </span>
       </button>
+
+      <button
+        type="button"
+        class="card card--custom"
+        :class="{ 'is-active': provider === 'custom' }"
+        @click="select('custom')"
+      >
+        <span class="card__title">自定义</span>
+        <span class="card__sub">你自己的 OpenAI 兼容接入点</span>
+      </button>
     </div>
 
     <n-text v-if="provider === 'claude' && region && !region.allowed" :depth="3" class="hint warn">
-      当前地区暂不可用 Claude，AI 分析会自动使用 DeepSeek。
+      当前地区暂不可用 Claude，AI 分析会自动使用内置服务。
     </n-text>
     <n-text v-else-if="!claudeAvailable && region" :depth="3" class="hint">
       Claude 仅在 Anthropic 提供服务的地区可用（按当前网络出口判定）。
@@ -64,18 +75,6 @@
         填入你自己的 Anthropic API Key 则走你的额度、不受内置限额约束；留空使用官方内置 Key。
       </n-text>
     </template>
-    <template v-else>
-      <n-input
-        v-model:value="dashscopeKey"
-        type="password"
-        show-password-on="click"
-        placeholder="留空使用内置 Key"
-        @blur="saveKey(CONFIG_KEYS.dashscopeApiKey, dashscopeKey)"
-      />
-      <n-text :depth="3" class="hint">
-        填入你自己的 DashScope (阿里云百炼) API Key 则走你的额度；留空使用内置 Key。
-      </n-text>
-    </template>
   </div>
 </template>
 
@@ -92,12 +91,23 @@ const SPARK_COUNT = 16
 /** 粒子动画时长（ms），与 CSS 的 spark-fly 一致 */
 const BURST_MS = 900
 
+const emit = defineEmits<{
+  /** 当前选中的服务（挂载读到配置后、以及每次切换后触发） */
+  change: [provider: AiProvider]
+}>()
+
+/** 切换成功后的提示 */
+const SWITCHED: Record<AiProvider, string> = {
+  dashscope: '已切换到内置服务',
+  claude: '已切换到 Claude Opus 5.5',
+  custom: '已切换到自定义接入点'
+}
+
 const message = useMessage()
 const provider = ref<AiProvider>('dashscope')
 const region = ref<ClaudeRegion | null>(null)
 const detecting = ref(false)
 const anthropicKey = ref('')
-const dashscopeKey = ref('')
 const bursting = ref(false)
 const claudeCard = ref<HTMLElement | null>(null)
 
@@ -137,14 +147,13 @@ async function detect(force = false) {
 }
 
 onMounted(async () => {
-  const [p, ak, dk] = await Promise.all([
+  const [p, ak] = await Promise.all([
     getConfigByIpc<string>(CONFIG_KEYS.aiProvider).catch(() => undefined),
-    getConfigByIpc<string>(CONFIG_KEYS.anthropicApiKey).catch(() => undefined),
-    getConfigByIpc<string>(CONFIG_KEYS.dashscopeApiKey).catch(() => undefined)
+    getConfigByIpc<string>(CONFIG_KEYS.anthropicApiKey).catch(() => undefined)
   ])
-  provider.value = p === 'claude' ? 'claude' : 'dashscope'
+  provider.value = p === 'claude' || p === 'custom' ? p : 'dashscope'
+  emit('change', provider.value)
   if (typeof ak === 'string') anthropicKey.value = ak
-  if (typeof dk === 'string') dashscopeKey.value = dk
   await detect()
 })
 
@@ -159,8 +168,9 @@ async function select(next: AiProvider) {
   try {
     await putConfigByIpc(CONFIG_KEYS.aiProvider, next)
     provider.value = next
+    emit('change', next)
     if (next === 'claude') burst()
-    message.success(next === 'claude' ? '已切换到 Claude Opus 5.5' : '已切换到 DeepSeek')
+    message.success(SWITCHED[next])
   } catch {
     message.error('保存失败')
   }
@@ -219,7 +229,7 @@ function trackPointer(e: PointerEvent) {
 
 .cards {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: var(--space-10);
 }
 
@@ -262,7 +272,8 @@ function trackPointer(e: PointerEvent) {
   color: var(--text-tertiary);
 }
 
-.card--ds.is-active {
+.card--ds.is-active,
+.card--custom.is-active {
   border-color: var(--semantic-win);
   box-shadow: 0 0 0 1px var(--semantic-win) inset;
 }

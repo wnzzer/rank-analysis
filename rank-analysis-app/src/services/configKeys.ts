@@ -19,8 +19,20 @@ export const CONFIG_KEYS = {
   errorReportingConsentShown: 'errorReportingConsentShown',
   /** 用户自定义 DashScope API Key（留空用内置打包 key） */
   dashscopeApiKey: 'dashscopeApiKey',
-  /** AI 服务提供方：'dashscope'（阿里云，默认）| 'claude'（经 Oracle 中转，限 Anthropic 服务地区） */
+  /**
+   * AI 服务提供方：'dashscope'（内置的阿里云，默认）| 'claude'（经 Oracle 中转，限 Anthropic 服务地区）
+   * | 'custom'（用户自填的 OpenAI 兼容接入点）
+   */
   aiProvider: 'aiProvider',
+  /** 自定义接入点地址（到 `/v1` 为止，不含 `/chat/completions`） */
+  aiCustomBaseUrl: 'aiCustomBaseUrl',
+  /** 自定义接入点密钥（不上云，见 Rust `config::CLOUD_ONLY_BLACKLIST`） */
+  aiCustomApiKey: 'aiCustomApiKey',
+  /**
+   * 用户改过的模型：`{ dashscope?: {...}, custom?: {...} }`，每边是 `{ default?, [场景]? }`。
+   * 只存改过的值，没改的跟随远程推荐（见 services/ai/modelConfig.ts）
+   */
+  aiModels: 'aiModels',
   /** 用户自带 Anthropic API Key（留空用中转内置的官方 key；不上云） */
   anthropicApiKey: 'anthropicApiKey',
   /** 玩家备注是否随 AI 分析请求发送到云端模型（默认开） */
