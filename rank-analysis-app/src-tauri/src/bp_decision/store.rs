@@ -13,6 +13,7 @@
 //! 任何写入 panic 导致毒化时，取回数据继续用——快照是纯展示数据，
 //! 一帧旧值不值得让功能永久失能。
 
+use crate::bp_decision::panel::BpPanel;
 use crate::bp_decision::types::BpDecision;
 use std::sync::{OnceLock, PoisonError, RwLock};
 
@@ -32,7 +33,13 @@ struct StoreState {
     last_hovered: Option<i32>,
     /// 已判定接管的 action id。每个 ban/pick action 的 id 唯一，
     /// 因此阶段推进后旧标记自然失效，无需显式清理。
-    overridden_action_id: Option<i32>,
+    ///
+    /// 是集合而不是单个值：ban 与 pick 是两个 action，用户可以两个都接管
+    /// （ban 阶段在操作台里手动 ban，同时又在客户端里预选了别的英雄）。
+    /// 只记一个的话，后记的会把先记的顶掉，被顶掉的那条轨道会恢复自动执行。
+    overridden_action_ids: Vec<i32>,
+    /// 操作台快照，与 `decision` 同一个求值 tick 产出
+    panel: Option<BpPanel>,
 }
 
 static STORE: OnceLock<RwLock<StoreState>> = OnceLock::new();
@@ -99,15 +106,32 @@ pub fn is_overridden(action_id: i32) -> bool {
     store()
         .read()
         .unwrap_or_else(PoisonError::into_inner)
-        .overridden_action_id
-        .is_some_and(|id| id == action_id)
+        .overridden_action_ids
+        .contains(&action_id)
 }
 
 pub fn mark_overridden(action_id: i32) {
+    let mut s = store().write().unwrap_or_else(PoisonError::into_inner);
+    if !s.overridden_action_ids.contains(&action_id) {
+        s.overridden_action_ids.push(action_id);
+    }
+}
+
+/// 读取操作台快照。
+pub fn read_panel() -> Option<BpPanel> {
+    store()
+        .read()
+        .unwrap_or_else(PoisonError::into_inner)
+        .panel
+        .clone()
+}
+
+/// 覆盖写入操作台快照。
+pub fn write_panel(panel: Option<BpPanel>) {
     store()
         .write()
         .unwrap_or_else(PoisonError::into_inner)
-        .overridden_action_id = Some(action_id);
+        .panel = panel;
 }
 
 /// 离开选人期时清空全部状态。
@@ -145,6 +169,10 @@ mod tests {
         assert!(is_overridden(10));
         // 换到下一个 action（阶段推进）→ 标记自动失效
         assert!(!is_overridden(11));
+        // 再接管另一个 action，不能把前一个顶掉
+        mark_overridden(11);
+        assert!(is_overridden(10));
+        assert!(is_overridden(11));
         reset();
     }
 }

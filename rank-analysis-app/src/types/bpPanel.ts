@@ -81,3 +81,74 @@ export interface BpChampionOption {
   value: number
   label: string
 }
+
+// ── 后端快照（与 src-tauri/src/bp_decision/panel.rs 同构，字段保持 snake_case） ──
+
+/** 后端理由类型；前端据此生成文案并归到 {@link BpReasonKind} */
+export type BpSnapshotReasonKind =
+  | 'Meta'
+  | 'Mastery'
+  | 'Counters'
+  | 'CounteredBy'
+  | 'Risk'
+  | 'CompSkew'
+  | 'CompFill'
+  | 'ThreatToPick'
+
+/**
+ * 后端给出的一条理由
+ * @property champion_id - 理由涉及的另一个英雄；与英雄无关时为 0
+ * @property delta - 对评估胜率的贡献（百分点）；无法量化为 null
+ * @property tier - OP.GG T 级（仅 Meta；无数据为 0）
+ * @property ban_rate - Ban 率 0~1（仅 ban 阶段的 Meta）
+ */
+export interface BpSnapshotReason {
+  kind: BpSnapshotReasonKind
+  champion_id: number
+  delta: number | null
+  tier: number
+  ban_rate: number | null
+}
+
+/**
+ * 后端给出的一张候选卡片
+ * @property score - pick：评估胜率 0~1；ban：威胁度 0~95
+ * @property physical_share - 物理伤害占比 0~1；伤害类型未知为 null
+ * @property games - 近期场次（ban 阶段恒为 0）
+ * @property wins - 近期胜场（ban 阶段恒为 0）
+ */
+export interface BpSnapshotCandidate {
+  champion_id: number
+  score: number
+  in_pool: boolean
+  physical_share: number | null
+  games: number
+  wins: number
+  unfamiliar: boolean
+  reasons: BpSnapshotReason[]
+  warning: 'LackMagic' | 'LackPhysical' | null
+}
+
+/**
+ * 操作台快照（`get_bp_panel` 的返回值）
+ * @property auto_target_id - 到点会被自动执行的英雄；null = 不会自动执行
+ * @property hovered_id - 客户端里当前实际预选的英雄，0 = 未预选
+ * @property time_left_secs - 快照生成时本回合的剩余秒数
+ * @property execute_at_secs_left - 自动执行发生在剩余多少秒时
+ * @property ally_mix - 我方伤害构成，不含我自己
+ * @property result_champion_id - Done 状态下我最终选定的英雄，其余为 0
+ */
+export interface BpPanelSnapshot {
+  action_type: 'Ban' | 'Pick'
+  stage: 'Waiting' | 'Acting' | 'Done'
+  candidates: BpSnapshotCandidate[]
+  auto_target_id: number | null
+  hovered_id: number
+  overridden: boolean
+  time_left_secs: number
+  total_secs: number
+  execute_at_secs_left: number
+  ally_mix: BpDamageMix
+  enemy_mix: BpDamageMix
+  result_champion_id: number
+}

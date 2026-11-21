@@ -615,6 +615,8 @@ async fn start_bp_decision_automation(app: tauri::AppHandle) {
     // 失败重试交给下一局（离开选人期时清空），避免 2s 热循环里对不可达的
     // op.gg 反复发起 HTTP 与刷屏 warn
     let mut opgg_cache: Option<(String, Option<Arc<OpggSnapshot>>)> = None;
+    // 本人近期各英雄的场次与胜场（操作台的熟练度项）：同样选人期内只取一次
+    let mut my_stats: Option<HashMap<i32, (u32, u32)>> = None;
 
     loop {
         ticker.tick().await;
@@ -627,6 +629,7 @@ async fn start_bp_decision_automation(app: tauri::AppHandle) {
             // 离开选人期：清空快照与跨 tick 状态
             store::reset();
             opgg_cache = None;
+            my_stats = None;
             continue;
         }
 
@@ -717,11 +720,87 @@ async fn start_bp_decision_automation(app: tauri::AppHandle) {
                 .find(|(id, _)| *id == p.action_id)
                 .map(|(_, d)| d.clone())
         });
+        // 决策先落盘再算操作台：操作台要取战绩与伤害类型（首个 tick 有几十个本地请求），
+        // 不能让执行侧等它——到点锁定读的是下面这份决策。
+        let pick_for_panel = pick_decision.as_ref().map(|(_, d)| d.clone());
+        let ban_for_panel = ban_decision.as_ref().map(|(_, d)| d.clone());
         store::write(
             current,
             ban_decision.map(|(_, d)| d),
             pick_decision.map(|(_, d)| d),
         );
+
+        // ---- 操作台快照 ----
+        // 面板上的自动目标 / 接管状态直接取自上面两份决策
+        if my_stats.is_none() {
+            my_stats = Some(load_my_champion_stats(&my_summoner.puuid).await);
+        }
+        let mut damage_ids: Vec<i32> = session
+            .my_team
+            .iter()
+            .map(crate::lcu::api::champion_select::display_champion_id)
+            .chain(session.their_team.iter().map(|p| p.champion_id))
+            .chain(pick_pool.iter().copied())
+            .chain(ban_pool.iter().copied())
+            .collect();
+        if let Some(snap) = snapshot.as_deref() {
+            damage_ids.extend(snap.champions.keys().copied());
+        }
+        crate::bp_decision::damage::ensure(&damage_ids, DAMAGE_FETCH_PER_TICK).await;
+        let damage = crate::bp_decision::damage::table();
+        let panel =
+            crate::bp_decision::panel::build_panel(&crate::bp_decision::panel::PanelInput {
+                session: &session,
+                my_puuid: &my_summoner.puuid,
+                snapshot: snapshot.as_deref(),
+                pick_pool: &pick_pool,
+                ban_pool: &ban_pool,
+                pick_decision: pick_for_panel.as_ref(),
+                ban_decision: ban_for_panel.as_ref(),
+                my_stats: my_stats.as_ref().unwrap_or(&HashMap::new()),
+                damage: &damage,
+            });
+        store::write_panel(panel);
+    }
+}
+
+/// 每个求值 tick 最多补多少个英雄的伤害类型。
+///
+/// 已亮出的英雄与英雄池排在请求列表最前面，第一个 tick 就能取到；
+/// 其余（版本强势榜里的候选）在随后几个 tick 里补齐。
+const DAMAGE_FETCH_PER_TICK: usize = 40;
+
+/// 召唤师峡谷的地图 ID。熟练度只统计这张图上的对局——大乱斗等模式的胜率
+/// 不能说明排位里这个英雄玩得怎么样。
+const SUMMONERS_RIFT_MAP_ID: i32 = 11;
+
+/// 把一页战绩聚合成「英雄 → (场次, 胜场)」，只算召唤师峡谷的对局。
+fn champion_stats_of(games: &[crate::lcu::api::match_history::Game]) -> HashMap<i32, (u32, u32)> {
+    let mut stats: HashMap<i32, (u32, u32)> = HashMap::new();
+    for game in games.iter().filter(|g| g.map_id == SUMMONERS_RIFT_MAP_ID) {
+        // 战绩列表里每局只带本人一条 participant
+        let Some(me) = game.participants.first() else {
+            continue;
+        };
+        let entry = stats.entry(me.champion_id).or_default();
+        entry.0 += 1;
+        if me.stats.win {
+            entry.1 += 1;
+        }
+    }
+    stats
+}
+
+/// 读取本人近期各英雄的场次与胜场；取不到时返回空表（熟练度项退化为不加不减）。
+async fn load_my_champion_stats(puuid: &str) -> HashMap<i32, (u32, u32)> {
+    match crate::lcu::api::match_history::MatchHistory::get_match_history_by_puuid(puuid, 0, 49)
+        .await
+    {
+        Ok(history) => champion_stats_of(&history.games.games),
+        Err(e) => {
+            log::debug!("BP panel: match history unavailable: {}", e);
+            HashMap::new()
+        }
     }
 }
 
@@ -1648,6 +1727,43 @@ mod apply_runes_tests {
 #[cfg(test)]
 mod bp_execution_tests {
     use super::*;
+
+    #[test]
+    fn should_aggregate_champion_stats_on_summoners_rift_only() {
+        use crate::lcu::api::match_history::Game;
+        use crate::lcu::api::model::{Participant, Stats};
+
+        let game = |map_id: i32, champion_id: i32, win: bool| Game {
+            map_id,
+            participants: vec![Participant {
+                champion_id,
+                stats: Stats {
+                    win,
+                    ..Stats::default()
+                },
+                ..Participant::default()
+            }],
+            ..Game::default()
+        };
+        let games = vec![
+            game(11, 103, true),
+            game(11, 103, false),
+            game(11, 90, true),
+            // 大乱斗（地图 12）不计入
+            game(12, 103, true),
+            // 没有 participant 的残缺记录跳过
+            Game {
+                map_id: 11,
+                ..Game::default()
+            },
+        ];
+
+        let stats = champion_stats_of(&games);
+
+        assert_eq!(stats.get(&103), Some(&(2, 1)));
+        assert_eq!(stats.get(&90), Some(&(1, 1)));
+        assert_eq!(stats.len(), 2);
+    }
     use crate::bp_decision::types::{BpActionType, BpDecision, BpMode, BpOrigin, BpTarget};
 
     fn decision(mode: BpMode, time_left: f64, overridden: bool) -> BpDecision {
