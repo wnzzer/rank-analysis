@@ -30,28 +30,30 @@ beforeEach(() => {
   store.retry.mockReset().mockResolvedValue(2)
 })
 
-describe('分享对局判断开关', () => {
-  it('未决定时显示为关', async () => {
+describe('分享对局判断（「帮助改进」下的子项，细节见 ShareSwitch.spec.ts）', () => {
+  it('未决定时显示为未勾', async () => {
     const w = mountGeneral()
     await flushPromises()
-    expect(w.get('[data-test="match-label-share"]').classes()).not.toContain('n-switch--active')
+    expect(w.get('[data-test="share-labels"]').classes()).not.toContain('n-checkbox--checked')
   })
 
-  it('已同意时显示为开', async () => {
+  it('已同意时显示为勾上，总开关为开', async () => {
     store.config.set('matchLabelShare', true)
     const w = mountGeneral()
     await flushPromises()
-    expect(w.get('[data-test="match-label-share"]').classes()).toContain('n-switch--active')
+    expect(w.get('[data-test="share-labels"]').classes()).toContain('n-checkbox--checked')
+    expect(w.get('[data-test="share-master"]').classes()).toContain('n-switch--active')
   })
 
-  it('打开：写配置并补传本地标注；关闭：只写配置', async () => {
+  it('勾上：写配置并补传本地标注；取消：只写配置', async () => {
+    store.config.set('errorReportingEnabled', true)
     const w = mountGeneral()
     await flushPromises()
-    await w.get('[data-test="match-label-share"]').trigger('click')
+    await w.get('[data-test="share-labels"]').trigger('click')
     await flushPromises()
     expect(store.config.get('matchLabelShare')).toBe(true)
     expect(store.retry).toHaveBeenCalledTimes(1)
-    await w.get('[data-test="match-label-share"]').trigger('click')
+    await w.get('[data-test="share-labels"]').trigger('click')
     await flushPromises()
     expect(store.config.get('matchLabelShare')).toBe(false)
     expect(store.retry).toHaveBeenCalledTimes(1)
