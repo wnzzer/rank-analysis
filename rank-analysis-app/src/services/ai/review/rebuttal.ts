@@ -26,8 +26,11 @@ import {
 
 /** 理由至少多少个字才触发：太短（「菜」「他送」）AI 没法针对性回应 */
 export const REBUTTAL_MIN_NOTE = 4
-/** 回复正文上限（字） */
-export const REBUTTAL_MAX_REPLY = 160
+/**
+ * 回复正文上限（字）。提示词里要的是 REBUTTAL_TARGET_REPLY 字以内，
+ * 真机实测模型常写到 120～155 字；上限放到 200，超过才作废走保底。
+ */
+export const REBUTTAL_MAX_REPLY = 200
 /** 调用超时 */
 export const REBUTTAL_TIMEOUT_MS = 20_000
 /** 模型输出没通过校验时给玩家看的保底文案 */
@@ -124,7 +127,7 @@ export function rebuttalBasis(guess: Guess, note: string): string {
  */
 export function playerFacts(p: PlayerView, team: PlayerView[]): string {
   const lines: string[] = [
-    `${p.champion}（${p.roleCn}，${p.win ? '胜方' : '败方'}${p.isMe ? '，标注人自己' : ''}）`,
+    `${p.champion}（${p.roleCn}，${p.win ? '胜方' : '败方'}${p.isMe ? '，就是玩家本人，称呼为「你」' : ''}）`,
     `KDA ${p.kills}/${p.deaths}/${p.assists}`
   ]
   if (p.parts.length) {
@@ -148,7 +151,21 @@ export function playerFacts(p: PlayerView, team: PlayerView[]): string {
   return lines.join('\n')
 }
 
-/** 系统提示词：角色、语气与硬性约束 */
+/** 提示词里要求的回复长度：比硬上限短一截，留出模型超写的余量 */
+const REBUTTAL_TARGET_REPLY = 110
+
+/**
+ * 系统提示词：角色、语气与硬性约束。
+ *
+ * 第 5、8 条与 category 的判定说明来自真机测试（2026-11-21，deepseek-v4.1-flash）：
+ * - 模型选的「最犯罪」就是标注人自己、而玩家指向别人时，模型会反过来说
+ *   「倒是你自己这局阵亡更多，团队里最扎眼的问题反而在这边」——事实没错，但这是在指责
+ *   来讨说法的人，与「提供情绪价值」正相反。
+ * - 「就是菜，纯纯的混子」这种纯情绪的话被判成认账。
+ * - 「全程单带不参团，每次都是四打五」被归到沟通配合而不是团战缺席。
+ * - 人称混乱：把标注人的数据说成「我这边死亡质量大幅落后」（第 10 条）。
+ * - 结尾反问「你具体觉得他哪里没做好，可以再说说」，而这个功能只有一轮（第 11 条）。
+ */
 export const REBUTTAL_SYSTEM_PROMPT = [
   '你是英雄联盟赛后复盘工具里的 AI。玩家不同意你对这局「最关键」或「最犯罪」的判断，并写了理由。请针对他的理由回应一次。',
   '',
@@ -157,16 +174,27 @@ export const REBUTTAL_SYSTEM_PROMPT = [
   '2. 理由指向【评分不看什么】里列出的东西：这是评分确实没算的，直接认账，不要硬找数据反驳。',
   '3. 理由与【事实】矛盾：平和地摆出事实，不要嘲讽。',
   '4. 先接住玩家的情绪，再讲道理。不说教，不用「但是你要知道」「其实」这类口吻。',
-  '5. 不评价玩家本人的水平，不贬低任何一名队友。',
-  '6. 不承诺改判，不推测「如果算上这点应该是谁」。',
-  '7. 不提分数、百分位、标准差这类术语，用「领先」「落后」这样的说法。',
+  '5. 【事实】里标了「就是玩家本人」的那个人，就是正在跟你说话的玩家，提到他一律说「你」，不要用英雄名或「他」。绝对不要反过来指责他，不要说「倒是你自己」「问题反而在你这边」这类话，也不要罗列他的失误。需要解释你为什么选了他时，只用一句不带指责的话说明评分看到了什么。',
+  '6. 不评价任何人的水平，不贬低任何一名队友。',
+  '7. 不承诺改判，不推测「如果算上这点应该是谁」。',
+  '8. 理由只有情绪、没有具体指向（如「就是菜」「纯混子」）：不算认账，先共情，再简单说评分看到了什么。',
+  '9. 不提分数、百分位、标准差这类术语，用「领先」「落后」这样的说法。',
+  '10. 人称：对玩家说「你」，其他人用英雄名称呼，「我」只指你这个 AI。不要把玩家的数据说成「我这边」。',
+  '11. 这是唯一的一次回应：不要提问，不要请玩家补充，不要说「可以再说说」。',
   '',
   `输出一个 JSON 对象，不要输出别的：`,
   '{"stance": "concede|partial|hold", "category": "absence|targeted|empty_stats|attitude|draft|teamwork|other", "reply": "给玩家看的话"}',
   '',
-  'stance：concede = 玩家说的点评分确实没算，他有道理；partial = 有一部分道理；hold = 事实不支持他的说法。',
-  'category 是玩家理由的类别：absence 团战缺席或单带；targeted 被针对；empty_stats 数据好看但没作用；attitude 挂机、送、摆烂；draft 英雄或阵容；teamwork 沟通配合；other 其他。',
-  `reply 用中文，口语化，${REBUTTAL_MAX_REPLY} 字以内，不要分点，不要加引号或前缀。`
+  'stance：concede = 玩家说的点评分确实没算，他有道理；partial = 有一部分道理；hold = 事实不支持他的说法，或理由只有情绪。',
+  'category 是玩家理由说的是哪一类问题，按理由本身判断，与你是否同意无关：',
+  '- absence：单带、不参团、不跟团、打团总是少一个人（哪怕同时提到「四打五」）',
+  '- targeted：被针对、被抓、被对面一直照顾',
+  '- empty_stats：数据好看但没作用、刷数据、混',
+  '- attitude：挂机、故意送、摆烂、不好好打',
+  '- draft：英雄被克制、阵容不行、选人问题',
+  '- teamwork：不沟通、不配合、不听指挥、各打各的',
+  '- other：以上都不是，或只有情绪',
+  `reply 用中文，口语化，${REBUTTAL_TARGET_REPLY} 字以内，不要分点，不要加引号或前缀。`
 ].join('\n')
 
 /**
