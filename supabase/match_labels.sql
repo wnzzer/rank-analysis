@@ -30,6 +30,21 @@ create table if not exists public.match_labels (
 alter table public.match_labels
   add column if not exists note text check (note is null or char_length(note) <= 200);
 
+-- 2026-11-21 追加：AI 对玩家理由的回应（设计见 docs/superpowers/specs/2026-11-21-label-rebuttal-design.md）。
+-- 只收立场、类别、玩家态度与模型名，用来统计评分最常漏算什么；回复正文不上传。
+alter table public.match_labels
+  add column if not exists rebuttal_stance text
+    check (rebuttal_stance is null
+           or rebuttal_stance in ('concede', 'partial', 'hold', 'unknown')),
+  add column if not exists rebuttal_category text
+    check (rebuttal_category is null
+           or rebuttal_category in ('absence', 'targeted', 'empty_stats', 'attitude',
+                                    'draft', 'teamwork', 'other')),
+  add column if not exists rebuttal_verdict text
+    check (rebuttal_verdict is null or rebuttal_verdict in ('convinced', 'unconvinced')),
+  add column if not exists rebuttal_model text
+    check (rebuttal_model is null or char_length(rebuttal_model) <= 64);
+
 -- 改判时刷新 updated_at
 create or replace function public.match_labels_touch() returns trigger
 language plpgsql set search_path = '' as $$

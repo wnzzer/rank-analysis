@@ -43,6 +43,28 @@ describe('resolveModel', () => {
     expect(await resolveModel('inGame', 'builtin')).toBe('remote')
   })
 
+  it('should skip the remote default for a scene with its own hand-picked model', async () => {
+    // 新场景随版本发布，而远程配置里还没有它的条目：用代码里挑好的，不掉回全局默认
+    mockInvoke.mockResolvedValue({
+      schemaVersion: 1,
+      models: { default: 'deepseek-v4.1-flash-1017' }
+    })
+
+    expect(await resolveModel('labelRebuttal', 'qwen4-max', { sceneOnly: true })).toBe('qwen4-max')
+    expect(await resolveModel('labelRebuttal', 'qwen4-max')).toBe('deepseek-v4.1-flash-1017')
+  })
+
+  it('should still let the remote config override a hand-picked scene model', async () => {
+    mockInvoke.mockResolvedValue({
+      schemaVersion: 1,
+      models: { default: 'deepseek-v4.1-flash-1017', labelRebuttal: 'kimi-k3.1-pro' }
+    })
+
+    expect(await resolveModel('labelRebuttal', 'qwen4-max', { sceneOnly: true })).toBe(
+      'kimi-k3.1-pro'
+    )
+  })
+
   it('should ignore malformed config values', async () => {
     mockInvoke.mockResolvedValue({ models: { inGame: '', default: 42 } })
     expect(await resolveModel('inGame', 'builtin')).toBe('builtin')

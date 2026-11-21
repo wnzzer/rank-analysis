@@ -33,7 +33,13 @@ export const isClaudeModel = (model: string) => model.startsWith('claude-')
 
 /** AI 场景名（与 data/ai-config.json 的 models 键一一对应） */
 export type AiScene =
-  'matchAttribution' | 'matchCritique' | 'inGame' | 'champSelect' | 'matchSearch' | 'tagSuggest'
+  | 'matchAttribution'
+  | 'matchCritique'
+  | 'inGame'
+  | 'champSelect'
+  | 'matchSearch'
+  | 'tagSuggest'
+  | 'labelRebuttal'
 
 interface AiConfig {
   schemaVersion: number
@@ -92,14 +98,21 @@ export function prewarmAi(): void {
  * 解析某场景应使用的模型名
  * @param scene - AI 场景
  * @param fallback - IPC 失败时的内置默认模型
+ * @param opts.sceneOnly - true 时跳过远程的 default：场景配置 > fallback。
+ *   给「专门挑过模型」的场景用——远程配置里还没有这个场景的条目时（比如新场景随版本发布，
+ *   而配置文件在 main 上尚未更新），应当用代码里挑好的那个，而不是掉回全局默认模型。
  * @returns 选 Claude 且区域可用：claudeModels 场景 > claudeModels.default > 内置 Claude 默认；
- *          否则：场景配置 > default 配置 > fallback
+ *          否则：场景配置 > default 配置（sceneOnly 时跳过）> fallback
  * @example
  * ```ts
  * const model = await resolveModel('inGame', DEFAULT_MODEL)
  * ```
  */
-export async function resolveModel(scene: AiScene, fallback: string): Promise<string> {
+export async function resolveModel(
+  scene: AiScene,
+  fallback: string,
+  opts: { sceneOnly?: boolean } = {}
+): Promise<string> {
   const [config, provider] = await Promise.all([loadConfig(), loadProvider()])
   const pick = (v: unknown) => (typeof v === 'string' && v ? v : undefined)
   if (provider === 'claude' && (await checkClaudeRegion()).allowed) {
@@ -109,5 +122,5 @@ export async function resolveModel(scene: AiScene, fallback: string): Promise<st
     return model && isClaudeModel(model) ? model : DEFAULT_CLAUDE_MODEL
   }
   const models = config?.models
-  return pick(models?.[scene]) ?? pick(models?.default) ?? fallback
+  return pick(models?.[scene]) ?? (opts.sceneOnly ? undefined : pick(models?.default)) ?? fallback
 }

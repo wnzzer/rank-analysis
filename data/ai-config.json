@@ -2,7 +2,8 @@
   "schemaVersion": 1,
   "models": {
     "default": "deepseek-v4.1-flash-1017",
-    "tagSuggest": "qwen-plus"
+    "tagSuggest": "qwen-plus",
+    "labelRebuttal": "qwen4-max"
   },
   "claudeModels": {
     "default": "claude-opus-5-5"
