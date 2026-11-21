@@ -660,7 +660,7 @@ export async function requestRebuttal(
   note: string
 ): Promise<ParsedRebuttal & { model: string }> {
   const prompt = buildRebuttalPrompt(disputes, players, note)
-  const model = await resolveModel('labelRebuttal', REBUTTAL_MODEL)
+  const model = await resolveModel('labelRebuttal', REBUTTAL_MODEL, { sceneOnly: true })
   const ask = (): Promise<string> =>
     new Promise<string>((resolve, reject) => {
       let text = ''

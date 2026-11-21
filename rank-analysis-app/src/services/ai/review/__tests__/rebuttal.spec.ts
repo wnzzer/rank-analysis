@@ -492,7 +492,8 @@ describe('requestRebuttal', () => {
       reply: '你说得对。',
       model: 'test-model'
     })
-    expect(h.resolveModel).toHaveBeenCalledWith('labelRebuttal', 'qwen4-max')
+    // sceneOnly：远程配置里没有这个场景时用 qwen4-max，而不是掉回全局默认模型
+    expect(h.resolveModel).toHaveBeenCalledWith('labelRebuttal', 'qwen4-max', { sceneOnly: true })
     const [prompt, , system, usedModel, opts] = h.stream.mock.calls[0]
     expect(prompt).toContain('他全程单带不参团')
     expect(system).toBe(REBUTTAL_SYSTEM_PROMPT)
