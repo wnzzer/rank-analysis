@@ -7,8 +7,12 @@
  *
  * 预选（单击卡片）与确认（按钮 / 回车）分两步，是因为确认不可撤回——
  * 两步操作本身就是确认，所以不再弹确认框。
+ *
+ * 还没轮到我时默认收成一行，可以手动展开提前看推荐：轮到自己只有二三十秒，
+ * 真正用来想的时间是在等待阶段。展开后 pick 可以提前预选（客户端里会亮出意向），
+ * ban 只能看——ban 没有「提前亮意向」这回事。确认始终要等轮到自己。
  */
-import { computed, onBeforeUnmount, onMounted } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import type {
   BpCandidate,
   BpChampionOption,
@@ -55,6 +59,17 @@ const emit = defineEmits<{
   (e: 'confirm'): void
 }>()
 
+/** 等待阶段是否已手动展开；面板在整个选人期只挂载一次，所以本局内会记住 */
+const expanded = ref(false)
+
+/** 面板主体是否展开 */
+const open = computed(
+  () => props.stage === 'acting' || (props.stage === 'waiting' && expanded.value)
+)
+
+/** 现在能不能预选：轮到我时都可以；等待阶段只有展开后的 pick 可以 */
+const canHover = computed(() => props.stage === 'acting' || (open.value && props.action === 'pick'))
+
 const verb = computed(() => (props.action === 'ban' ? '禁用' : '选择'))
 const confirmVerb = computed(() => (props.action === 'ban' ? '禁用' : '锁定'))
 
@@ -93,13 +108,27 @@ const RING_LEN = 2 * Math.PI * 15.5
 const statusText = computed(() => {
   if (props.stage === 'done') return `已${confirmVerb.value} ${props.resultName}`
   if (props.stage === 'waiting') {
-    const top = autoTarget.value ?? props.candidates[0]
+    // 自动兜底生效时说「将自动」而不是「建议」：那是到点真的会发生的事
+    if (autoActive.value && autoTarget.value)
+      return `轮到你时将自动${verb.value} ${autoTarget.value.name}`
+    const top = hovered.value ?? autoTarget.value ?? props.candidates[0]
     return top ? `轮到你时建议${verb.value} ${top.name}` : `等待轮到你${verb.value}`
   }
   if (props.overridden) return '你已接管，本回合不会自动执行'
   if (autoTarget.value)
     return `不操作将在 ${secsDisplay.value}s 后自动${verb.value} ${autoTarget.value.name}`
   return `请${verb.value}英雄，系统不会替你操作`
+})
+
+/** 底栏提示：等待阶段说清现在能做什么 */
+const hintText = computed(() => {
+  if (props.stage === 'acting') return `数字键预选 · 回车${confirmVerb.value}`
+  return props.action === 'pick' ? '还没轮到你 · 可以先预选' : '还没轮到你 · 先看看'
+})
+
+const confirmText = computed(() => {
+  if (props.stage !== 'acting') return `轮到你时可${confirmVerb.value}`
+  return props.hoveredId ? `${confirmVerb.value} ${hoveredName.value}` : `先${verb.value}一个英雄`
 })
 
 const REASON_ICON: Record<BpReasonKind, string> = {
@@ -133,7 +162,7 @@ function mixLabel(mix: BpDamageMix): string {
 }
 
 function onHover(championId: number): void {
-  if (props.stage !== 'acting') return
+  if (!canHover.value) return
   emit('hover', championId)
 }
 
@@ -147,7 +176,7 @@ function onConfirm(): void {
  * 焦点在输入控件里时不拦截，否则搜索框里打数字会误触发预选。
  */
 function onKeydown(event: KeyboardEvent): void {
-  if (props.stage !== 'acting') return
+  if (!open.value) return
   const el = event.target as HTMLElement | null
   if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return
   if (event.key === 'Enter') {
@@ -172,10 +201,20 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
       <span v-if="stage === 'acting'" class="bp-timer" :class="{ urgent: secsDisplay <= 5 }">
         {{ secsDisplay }}s
       </span>
+      <button
+        v-else-if="stage === 'waiting'"
+        type="button"
+        class="bp-toggle"
+        data-test="toggle"
+        :aria-expanded="expanded"
+        @click="expanded = !expanded"
+      >
+        {{ expanded ? '收起' : '提前看推荐' }}
+      </button>
     </header>
 
     <Transition name="bp-expand">
-      <div v-if="stage === 'acting'" class="bp-body">
+      <div v-if="open" class="bp-body" :class="{ 'read-only': !canHover }">
         <div class="bp-mix">
           <div v-for="side in ['ally', 'enemy'] as const" :key="side" class="bp-mix-row">
             <span class="bp-mix-side">{{ side === 'ally' ? '我方' : '敌方' }}</span>
@@ -222,8 +261,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
               <span v-if="c.championId === hoveredId" class="bp-check">✓</span>
             </span>
 
-            <span v-if="autoActive && c.championId === autoTargetId" class="bp-auto">
-              <svg class="bp-ring" viewBox="0 0 36 36" aria-hidden="true">
+            <span
+              v-if="autoActive && c.championId === autoTargetId"
+              class="bp-auto"
+              :class="{ 'no-ring': stage !== 'acting' }"
+            >
+              <svg v-if="stage === 'acting'" class="bp-ring" viewBox="0 0 36 36" aria-hidden="true">
                 <circle class="rail" cx="18" cy="18" r="15.5" />
                 <circle
                   class="fill"
@@ -234,7 +277,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
                   :stroke-dashoffset="RING_LEN * (1 - ringRatio)"
                 />
               </svg>
-              <span class="bp-auto-secs">{{ secsDisplay }}</span>
+              <span v-if="stage === 'acting'" class="bp-auto-secs">{{ secsDisplay }}</span>
               <span class="bp-auto-text">将自动{{ verb }}</span>
             </span>
 
@@ -273,17 +316,18 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
             filterable
             size="small"
             placeholder="搜索其他英雄"
+            :disabled="!canHover"
             @update:value="(id: number) => onHover(id)"
           />
-          <span class="bp-hint">数字键预选 · 回车{{ confirmVerb }}</span>
+          <span class="bp-hint">{{ hintText }}</span>
           <button
             type="button"
             class="bp-confirm"
             data-test="confirm"
-            :disabled="!hoveredId"
+            :disabled="!hoveredId || stage !== 'acting'"
             @click="onConfirm"
           >
-            {{ hoveredId ? `${confirmVerb} ${hoveredName}` : `先${verb}一个英雄` }}
+            {{ confirmText }}
           </button>
         </footer>
       </div>
@@ -355,6 +399,35 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   font-weight: var(--font-weight-bold);
   font-variant-numeric: tabular-nums;
   color: var(--bp-accent);
+}
+
+/* 等待阶段的展开开关：弱化成文字按钮，不抢状态文字 */
+.bp-toggle {
+  appearance: none;
+  flex: none;
+  padding: var(--space-2) var(--space-10);
+  border-radius: var(--radius-pill);
+  border: 1px solid color-mix(in srgb, var(--bp-accent) 40%, transparent);
+  background: transparent;
+  color: var(--bp-accent);
+  font: inherit;
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+  transition: background var(--dur-fast);
+}
+
+.bp-toggle:hover {
+  background: color-mix(in srgb, var(--bp-accent) 14%, transparent);
+}
+
+/* 只读（等待阶段的 ban）：卡片照常展示，但不给可点的暗示 */
+.bp-body.read-only .bp-card {
+  cursor: default;
+}
+
+/* 还没轮到我：自动目标只挂文字标记，不画倒计时环——那个环走的是别人的回合 */
+.bp-auto.no-ring {
+  padding-left: var(--space-8);
 }
 
 .bp-timer.urgent {

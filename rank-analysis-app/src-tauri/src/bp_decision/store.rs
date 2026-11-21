@@ -40,6 +40,12 @@ struct StoreState {
     overridden_action_ids: Vec<i32>,
     /// 操作台快照，与 `decision` 同一个求值 tick 产出
     panel: Option<BpPanel>,
+    /// 用户在操作台里指定的目标：(action id, 英雄 ID)。
+    ///
+    /// 与「接管」是两回事：接管 = 用户去客户端里自己操作了，自动化退让；
+    /// 指定目标 = 用户在我们的面板上换了人选，自动化照常到点执行，只是执行的是这个英雄。
+    /// 同样按 action 作用域，阶段推进后自然失效。
+    manual_targets: Vec<(i32, i32)>,
 }
 
 static STORE: OnceLock<RwLock<StoreState>> = OnceLock::new();
@@ -117,6 +123,33 @@ pub fn mark_overridden(action_id: i32) {
     }
 }
 
+/// 用户在操作台里为该 action 指定的目标英雄。
+pub fn manual_target(action_id: i32) -> Option<i32> {
+    store()
+        .read()
+        .unwrap_or_else(PoisonError::into_inner)
+        .manual_targets
+        .iter()
+        .find(|(id, _)| *id == action_id)
+        .map(|(_, champion_id)| *champion_id)
+}
+
+/// 记下用户为该 action 指定的目标英雄（覆盖之前指定的）。
+pub fn set_manual_target(action_id: i32, champion_id: i32) {
+    let mut s = store().write().unwrap_or_else(PoisonError::into_inner);
+    s.manual_targets.retain(|(id, _)| *id != action_id);
+    s.manual_targets.push((action_id, champion_id));
+}
+
+/// 撤销用户为该 action 指定的目标（英雄被 ban / 被选走后调用）。
+pub fn clear_manual_target(action_id: i32) {
+    store()
+        .write()
+        .unwrap_or_else(PoisonError::into_inner)
+        .manual_targets
+        .retain(|(id, _)| *id != action_id);
+}
+
 /// 读取操作台快照。
 pub fn read_panel() -> Option<BpPanel> {
     store()
@@ -158,6 +191,28 @@ mod tests {
         assert_eq!(last_hovered(), Some(64));
         reset();
         assert_eq!(last_hovered(), None);
+    }
+
+    #[test]
+    fn manual_target_is_scoped_to_action_id_and_replaceable() {
+        let _guard = TEST_LOCK.lock().unwrap_or_else(PoisonError::into_inner);
+        reset();
+        assert_eq!(manual_target(10), None);
+
+        set_manual_target(10, 103);
+        set_manual_target(11, 238);
+        assert_eq!(manual_target(10), Some(103));
+        assert_eq!(manual_target(11), Some(238));
+
+        // 同一个 action 再指定一次：覆盖
+        set_manual_target(10, 90);
+        assert_eq!(manual_target(10), Some(90));
+
+        clear_manual_target(10);
+        assert_eq!(manual_target(10), None);
+        assert_eq!(manual_target(11), Some(238));
+        reset();
+        assert_eq!(manual_target(11), None);
     }
 
     #[test]

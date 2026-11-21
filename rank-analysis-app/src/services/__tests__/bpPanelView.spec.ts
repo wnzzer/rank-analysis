@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  autoTargetOf,
   countdownOf,
   damageTypeOf,
   effectiveHoverId,
@@ -196,11 +197,47 @@ describe('toPanelView', () => {
     expect(view.resultName).toBe('英雄103')
   })
 
-  it('should merge local takeover into overridden', () => {
-    const view = toPanelView(snapshot(), deps, { hoverId: 90, overridden: true })
+  it('should not treat a panel click as takeover', () => {
+    const view = toPanelView(snapshot({ auto_target_id: 238 }), deps, {
+      hoverId: 103,
+      confirmed: false
+    })
+
+    expect(view.hoveredId).toBe(103)
+    expect(view.overridden).toBe(false)
+    // 自动化照常执行，只是执行的是刚点的英雄
+    expect(view.autoTargetId).toBe(103)
+  })
+
+  it('should stop promising auto execution once the user confirmed', () => {
+    const view = toPanelView(snapshot({ auto_target_id: 103 }), deps, {
+      hoverId: 103,
+      confirmed: true
+    })
 
     expect(view.overridden).toBe(true)
-    expect(view.hoveredId).toBe(90)
+  })
+
+  it('should report takeover decided by the backend', () => {
+    expect(toPanelView(snapshot({ overridden: true }), deps).overridden).toBe(true)
+  })
+})
+
+describe('autoTargetOf', () => {
+  it('should follow the panel click when automation is on', () => {
+    expect(autoTargetOf(snapshot({ auto_target_id: 238 }), 103)).toBe(103)
+  })
+
+  it('should stay empty when automation is off', () => {
+    expect(autoTargetOf(snapshot({ auto_target_id: null }), 103)).toBeNull()
+  })
+
+  it('should wait for the backend when the clicked champion is not a candidate yet', () => {
+    expect(autoTargetOf(snapshot({ auto_target_id: 238 }), 999)).toBe(238)
+  })
+
+  it('should keep the backend target without a local click', () => {
+    expect(autoTargetOf(snapshot({ auto_target_id: 238 }), null)).toBe(238)
   })
 })
 

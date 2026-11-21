@@ -5,6 +5,9 @@
  * 手动操作（预选 / 确认）先在本地立即生效再发请求——等后端下一个快照回来要 2~3 秒，
  * 点了没反应会让人以为没点上。
  *
+ * 在面板上预选**不算接管**：那只是换人选，自动化开着的话到点执行的就是刚点的英雄。
+ * 接管只发生在用户去客户端里自己换英雄时（后端判定）。
+ *
  * @module composables/useBpPanel
  */
 import {
@@ -44,7 +47,7 @@ export interface UseBpPanelOptions {
  * @property secsLeft - 本地插值后的剩余秒数
  * @property totalSecs - 本回合总秒数（倒计时环的分母）
  * @property championOptions - 搜索框可选英雄
- * @property hover - 预选一个英雄并接管
+ * @property hover - 把一个英雄定为人选并在客户端里预选（不算接管）
  * @property confirm - 确认当前预选
  */
 export interface UseBpPanelReturn {
@@ -74,8 +77,8 @@ export function useBpPanel(
   const championOptions = ref<BpChampionOption[]>([])
   /** 用户在面板上刚点的英雄；回合切换时清空 */
   const localHoverId = ref<number | null>(null)
-  /** 用户是否已在面板上接管；回合切换时清空 */
-  const localOverridden = ref(false)
+  /** 用户刚按了确认；回合切换时清空 */
+  const localConfirmed = ref(false)
   /** 英雄名缓存是否已加载（加载完成后触发 view 重算） */
   const namesReady = ref(false)
   /** 最近一次新快照到达的本地时刻 */
@@ -94,7 +97,7 @@ export function useBpPanel(
     return toPanelView(
       snapshot.value,
       { name: getChampionName, icon: options.icon },
-      { hoverId: localHoverId.value, overridden: localOverridden.value }
+      { hoverId: localHoverId.value, confirmed: localConfirmed.value }
     )
   })
 
@@ -110,14 +113,30 @@ export function useBpPanel(
   })
   const totalSecs = computed(() => countdown.value.totalSecs)
 
-  /** 「同一个回合」的标识：变了就该丢掉本地的预选与接管状态 */
+  /**
+   * 「同一个动作」的标识：变了就该丢掉本地状态。
+   *
+   * 只看动作类型与是否已完成，不看等待 / 轮到我——等待阶段预选的英雄，
+   * 轮到我时应当还是它，不能因为阶段切换闪回后端两秒前的值。
+   */
   const turnKey = computed(() =>
-    snapshot.value ? `${snapshot.value.action_type}:${snapshot.value.stage}` : ''
+    snapshot.value
+      ? `${snapshot.value.action_type}:${snapshot.value.stage === 'Done' ? 'done' : 'open'}`
+      : ''
   )
   watch(turnKey, () => {
     localHoverId.value = null
-    localOverridden.value = false
+    localConfirmed.value = false
   })
+
+  // 客户端里的预选变了：要么是后端追上了我刚点的，要么是用户去客户端里换了英雄。
+  // 两种情况都该以客户端为准，丢掉本地记的那个。（ban 的预选可能一直是 0，本地值保留。）
+  watch(
+    () => snapshot.value?.hovered_id,
+    id => {
+      if (id) localHoverId.value = null
+    }
+  )
 
   async function poll(): Promise<void> {
     const gen = pollGeneration
@@ -184,7 +203,6 @@ export function useBpPanel(
 
   async function hover(championId: number): Promise<void> {
     localHoverId.value = championId
-    localOverridden.value = true
     try {
       await invoke('bp_hover', { championId })
     } catch (e) {
@@ -195,11 +213,13 @@ export function useBpPanel(
   async function confirm(): Promise<void> {
     const championId = view.value?.hoveredId
     if (!championId) return
-    localOverridden.value = true
+    localConfirmed.value = true
     try {
       await invoke('bp_confirm', { championId })
       void poll()
     } catch (e) {
+      // 没提交成功：动作还开着，自动兜底也还在
+      localConfirmed.value = false
       report(e)
     }
   }

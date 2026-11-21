@@ -34,11 +34,11 @@ export interface BpPanelViewDeps {
 /**
  * 面板本地状态：后端快照还没反映出来的用户操作
  * @property hoverId - 用户在面板上刚点的英雄；没点过为 null
- * @property overridden - 用户是否已在面板上接管
+ * @property confirmed - 用户刚按了确认（提交已发出，快照还没变成「已完成」）
  */
 export interface BpPanelLocalState {
   hoverId: number | null
-  overridden: boolean
+  confirmed: boolean
 }
 
 /** 面板除倒计时与事件外的全部展示属性，可直接 v-bind 到 BpCommandPanel */
@@ -155,6 +155,26 @@ export function effectiveHoverId(
 }
 
 /**
+ * 面板上标为「将自动执行」的英雄
+ *
+ * 自动化开着时，用户在面板上点了谁，到点执行的就是谁。后端下一个快照（最多 2 秒后）
+ * 会反映这一点；在那之前先按用户刚点的显示，否则倒计时环会在旧卡片上多停两秒。
+ * 用户点的英雄不在当前候选里（从搜索框选的）时等后端快照——面板要靠候选列表取名字。
+ * @param snapshot - 后端快照
+ * @param localHoverId - 用户在面板上刚点的英雄；没点过为 null
+ * @returns 英雄 ID；自动化没开或没有目标时为 null
+ */
+export function autoTargetOf(
+  snapshot: BpPanelSnapshot,
+  localHoverId: number | null
+): number | null {
+  if (snapshot.auto_target_id === null || localHoverId === null) return snapshot.auto_target_id
+  return snapshot.candidates.some(c => c.champion_id === localHoverId)
+    ? localHoverId
+    : snapshot.auto_target_id
+}
+
+/**
  * 后端快照 → 面板展示属性
  * @param snapshot - `get_bp_panel` 的返回值
  * @param deps - 英雄名与头像的取法
@@ -168,10 +188,12 @@ export function effectiveHoverId(
 export function toPanelView(
   snapshot: BpPanelSnapshot,
   deps: BpPanelViewDeps,
-  local: BpPanelLocalState = { hoverId: null, overridden: false }
+  local: BpPanelLocalState = { hoverId: null, confirmed: false }
 ): BpPanelView {
   const action: BpPanelAction = snapshot.action_type === 'Ban' ? 'ban' : 'pick'
-  const overridden = snapshot.overridden || local.overridden
+  // 在面板上点卡片不算接管——那只是换人选，自动化照常到点执行（见 autoTargetId）。
+  // 接管只有两种：用户去客户端里自己换了英雄（后端判定），或刚按了确认。
+  const overridden = snapshot.overridden || local.confirmed
   const hoveredId = effectiveHoverId(snapshot, local.hoverId, overridden)
 
   // 我方构成条把当前预选也算进去，点卡片能立刻看到阵容变化
@@ -189,7 +211,7 @@ export function toPanelView(
     action,
     stage: snapshot.stage.toLowerCase() as BpPanelStage,
     candidates: snapshot.candidates.map(c => toCandidate(c, action, deps)),
-    autoTargetId: snapshot.auto_target_id,
+    autoTargetId: autoTargetOf(snapshot, local.hoverId),
     hoveredId,
     overridden,
     allyMix,

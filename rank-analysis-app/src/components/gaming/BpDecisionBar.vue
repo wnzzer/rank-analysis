@@ -40,7 +40,9 @@ const headline = computed(() => {
 const originLabel = computed(() => {
   const o = props.decision?.target?.origin
   if (!o) return ''
-  return o.type === 'Rule' ? `命中《${o.rule_name}》` : `兜底池 ${o.pool_size} 选 1`
+  if (o.type === 'Rule') return `命中《${o.rule_name}》`
+  if (o.type === 'Manual') return '你指定的'
+  return `兜底池 ${o.pool_size} 选 1`
 })
 
 const isFallback = computed(() => props.decision?.target?.origin.type === 'Fallback')

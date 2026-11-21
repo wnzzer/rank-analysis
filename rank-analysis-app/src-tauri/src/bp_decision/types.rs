@@ -54,6 +54,8 @@ pub enum BpOrigin {
     Rule { rule_id: String, rule_name: String },
     /// 没有规则命中，走的兜底池
     Fallback { pool_size: usize },
+    /// 用户在操作台里亲手指定的
+    Manual,
 }
 
 /// 目标英雄的对位数据支撑。

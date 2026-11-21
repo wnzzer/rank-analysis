@@ -702,6 +702,20 @@ async fn start_bp_decision_automation(app: tauri::AppHandle) {
                 last_hovered,
             };
             let mut d = evaluate::evaluate_for_action(&ctx, pending)?;
+            // 用户在操作台里指定了人选：取代规则 / 兜底池的结果。指定的英雄已不可用
+            // （被 ban / 被选走）时撤销指定，退回引擎自己的选择
+            if let Some(champion_id) = store::manual_target(pending.action_id) {
+                let applied = evaluate::apply_manual_target(
+                    &mut d,
+                    champion_id,
+                    &session,
+                    snapshot.as_deref(),
+                    my_position,
+                );
+                if !applied {
+                    store::clear_manual_target(pending.action_id);
+                }
+            }
             // 接管标记以执行侧的粘性记录为准：一旦判定接管，即使用户随后撤回 hover
             // (detect_override 重算为 false)，本阶段也不会再自动执行——快照必须如实
             // 反映，否则决策带会承诺一次永远不会发生的自动锁定
@@ -869,6 +883,9 @@ async fn apply_bp_decision(
         return Ok(());
     }
 
+    // 决策快照是 2 秒前算的；用户刚在操作台里换了人选时，快照里还是旧目标。
+    // 这里直接读指定目标，否则下面的 hover 同步会把用户刚点的英雄又换回去。
+    let decision = &with_manual_target(decision, store::manual_target(pending.action_id));
     let Some(target) = decision.target.as_ref() else {
         return Ok(());
     };
@@ -947,6 +964,27 @@ async fn apply_bp_decision(
         .await?;
     }
     Ok(())
+}
+
+/// 执行侧看到的决策：用户在操作台里指定了人选时，以它为目标并锁定。
+///
+/// 与求值侧的 `evaluate::apply_manual_target` 结果一致，区别只是不查可用性、不附
+/// 对位依据——执行侧每秒一跳，不可用的英雄 PATCH 会被客户端拒绝，求值侧随后撤销指定。
+fn with_manual_target(
+    decision: &crate::bp_decision::types::BpDecision,
+    manual: Option<i32>,
+) -> crate::bp_decision::types::BpDecision {
+    use crate::bp_decision::types::{BpOrigin, BpTarget};
+    let mut d = decision.clone();
+    if let Some(champion_id) = manual {
+        d.target = Some(BpTarget {
+            champion_id,
+            lock: true,
+            origin: BpOrigin::Manual,
+            evidence: None,
+        });
+    }
+    d
 }
 
 /// 读取一个布尔开关配置，缺失/异常一律当作关闭。
@@ -1727,6 +1765,46 @@ mod apply_runes_tests {
 #[cfg(test)]
 mod bp_execution_tests {
     use super::*;
+
+    #[test]
+    fn manual_target_overrides_snapshot_target_for_execution() {
+        // 快照里的目标是 64 且不锁定；用户在操作台里点了 103
+        let mut snapshot = decision(BpMode::Auto, 4.0, false);
+        snapshot.target.as_mut().unwrap().lock = false;
+
+        let effective = with_manual_target(&snapshot, Some(103));
+
+        let t = effective.target.as_ref().unwrap();
+        assert_eq!(t.champion_id, 103);
+        assert_eq!(t.origin, BpOrigin::Manual);
+        // 指定的人选到点要真的锁定
+        assert!(should_lock(&effective, 4.0, true, "BAN_PICK"));
+    }
+
+    #[test]
+    fn manual_target_gives_execution_a_target_when_engine_has_none() {
+        let mut snapshot = decision(BpMode::Auto, 4.0, false);
+        snapshot.target = None;
+
+        let effective = with_manual_target(&snapshot, Some(103));
+
+        assert_eq!(effective.target.unwrap().champion_id, 103);
+    }
+
+    #[test]
+    fn execution_keeps_snapshot_target_without_manual_choice() {
+        let snapshot = decision(BpMode::Auto, 4.0, false);
+
+        assert_eq!(with_manual_target(&snapshot, None), snapshot);
+    }
+
+    #[test]
+    fn manual_target_does_not_execute_when_automation_is_off() {
+        // 开关没开：指定人选只影响展示，不会替用户锁定
+        let effective = with_manual_target(&decision(BpMode::Advisory, 4.0, false), Some(103));
+
+        assert!(!should_act(&effective));
+    }
 
     #[test]
     fn should_aggregate_champion_stats_on_summoners_rift_only() {

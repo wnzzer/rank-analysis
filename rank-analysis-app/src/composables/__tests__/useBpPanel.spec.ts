@@ -112,22 +112,80 @@ describe('useBpPanel', () => {
     app.unmount()
   })
 
-  it('should hover optimistically and take over', async () => {
+  it('should hover optimistically without taking over', async () => {
     stubInvoke({ panel: snapshot() })
     const [panel, app] = withSetup(() => useBpPanel('ChampSelect', { icon }))
     await vi.advanceTimersByTimeAsync(50)
-    // 未接管时显示自动目标
+    // 没点过时显示自动目标
     expect(panel.view.value?.hoveredId).toBe(103)
-    expect(panel.view.value?.overridden).toBe(false)
 
     await panel.hover(90)
 
     expect(callsOf('bp_hover')).toEqual([['bp_hover', { championId: 90 }]])
     expect(panel.view.value?.hoveredId).toBe(90)
-    expect(panel.view.value?.overridden).toBe(true)
-    // 接管后倒计时指向回合结束，而不是自动执行
-    expect(panel.totalSecs.value).toBe(27)
+    // 在面板上换人选不算接管：自动兜底还在，倒计时仍指向自动执行
+    expect(panel.view.value?.overridden).toBe(false)
+    expect(panel.totalSecs.value).toBe(22)
 
+    app.unmount()
+  })
+
+  it('should move the auto target to the clicked candidate right away', async () => {
+    const two = snapshot()
+    two.candidates.push({ ...two.candidates[0], champion_id: 90 })
+    stubInvoke({ panel: two })
+    const [panel, app] = withSetup(() => useBpPanel('ChampSelect', { icon }))
+    await vi.advanceTimersByTimeAsync(50)
+    expect(panel.view.value?.autoTargetId).toBe(103)
+
+    await panel.hover(90)
+
+    expect(panel.view.value?.autoTargetId).toBe(90)
+    app.unmount()
+  })
+
+  it('should stop the auto countdown after confirming', async () => {
+    stubInvoke({ panel: snapshot() })
+    const [panel, app] = withSetup(() => useBpPanel('ChampSelect', { icon }))
+    await vi.advanceTimersByTimeAsync(50)
+
+    await panel.confirm()
+
+    expect(panel.view.value?.overridden).toBe(true)
+    app.unmount()
+  })
+
+  it('should keep a pre-selected pick when my turn starts', async () => {
+    const state = {
+      panel: snapshot({ stage: 'Waiting', auto_target_id: null }) as BpPanelSnapshot | null
+    }
+    stubInvoke(state)
+    const [panel, app] = withSetup(() => useBpPanel('ChampSelect', { icon }))
+    await vi.advanceTimersByTimeAsync(50)
+    await panel.hover(90)
+
+    // 轮到我了，后端快照还没来得及带上刚才的预选
+    state.panel = snapshot({ stage: 'Acting', auto_target_id: null })
+    await vi.advanceTimersByTimeAsync(1100)
+
+    expect(panel.view.value?.stage).toBe('acting')
+    expect(panel.view.value?.hoveredId).toBe(90)
+    app.unmount()
+  })
+
+  it('should defer to the client when the hover changes there', async () => {
+    const state = { panel: snapshot() as BpPanelSnapshot | null }
+    stubInvoke(state)
+    const [panel, app] = withSetup(() => useBpPanel('ChampSelect', { icon }))
+    await vi.advanceTimersByTimeAsync(50)
+    await panel.hover(90)
+
+    // 用户去客户端里换成了 7
+    state.panel = snapshot({ hovered_id: 7, overridden: true })
+    await vi.advanceTimersByTimeAsync(1100)
+
+    expect(panel.view.value?.hoveredId).toBe(7)
+    expect(panel.view.value?.overridden).toBe(true)
     app.unmount()
   })
 
@@ -166,6 +224,8 @@ describe('useBpPanel', () => {
     await panel.confirm()
 
     expect(onError).toHaveBeenCalledWith('还没轮到你操作')
+    // 没提交成功：自动兜底还在
+    expect(panel.view.value?.overridden).toBe(false)
     app.unmount()
   })
 

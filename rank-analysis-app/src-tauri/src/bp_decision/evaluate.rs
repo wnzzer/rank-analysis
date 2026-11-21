@@ -425,6 +425,38 @@ pub fn evaluate_for_action(ctx: &BpContext, pending: MyPendingAction) -> Option<
     })
 }
 
+/// 把用户在操作台里指定的英雄套到决策上。
+///
+/// 指定的英雄取代规则 / 兜底池选出的目标，执行时一律锁定——用户在面板上点了它，
+/// 意思就是「到点选这个」。自动化是否真的执行仍由 `mode` 决定（开关没开就只是展示）。
+///
+/// # 返回值
+/// - `true`: 已套用
+/// - `false`: 该英雄已被 ban / 被选走，决策保持原样；调用方应撤销这条指定
+pub fn apply_manual_target(
+    decision: &mut BpDecision,
+    champion_id: i32,
+    session: &SelectSession,
+    snapshot: Option<&OpggSnapshot>,
+    my_position: Option<Position>,
+) -> bool {
+    if unavailable_map(session).contains_key(&champion_id) {
+        return false;
+    }
+    decision.target = Some(BpTarget {
+        champion_id,
+        lock: true,
+        origin: BpOrigin::Manual,
+        evidence: worst_matchup(
+            champion_id,
+            &enemy_champion_ids(session),
+            snapshot,
+            my_position,
+        ),
+    });
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -477,6 +509,67 @@ mod tests {
             cell_id: 0,
             champion_pick_intent: 0,
         }
+    }
+
+    fn bare_decision() -> BpDecision {
+        BpDecision {
+            action_type: BpActionType::Pick,
+            target: Some(BpTarget {
+                champion_id: 64,
+                lock: false,
+                origin: BpOrigin::Fallback { pool_size: 3 },
+                evidence: None,
+            }),
+            rejected: vec![],
+            mode: BpMode::Auto,
+            time_left_secs: 20.0,
+            execute_at_secs_left: 5.0,
+            user_overridden: false,
+            is_in_progress: true,
+        }
+    }
+
+    #[test]
+    fn manual_target_replaces_engine_target_and_always_locks() {
+        let s = session(vec![vec![action(0, 1, 0, false, true, "pick", true)]]);
+        let mut d = bare_decision();
+
+        let applied = apply_manual_target(&mut d, 103, &s, None, None);
+
+        assert!(applied);
+        let t = d.target.unwrap();
+        assert_eq!(t.champion_id, 103);
+        assert_eq!(t.origin, BpOrigin::Manual);
+        // 引擎原目标是「只预选不锁定」，用户亲手指定的一律锁定
+        assert!(t.lock);
+    }
+
+    #[test]
+    fn manual_target_is_rejected_when_banned_or_taken() {
+        let s = session(vec![vec![
+            action(5, 1, 103, true, false, "ban", false),
+            action(6, 2, 90, true, false, "pick", false),
+            action(0, 3, 0, false, true, "pick", true),
+        ]]);
+
+        for unavailable in [103, 90] {
+            let mut d = bare_decision();
+            assert!(!apply_manual_target(&mut d, unavailable, &s, None, None));
+            // 决策保持引擎原来的选择
+            assert_eq!(d.target.unwrap().champion_id, 64);
+        }
+    }
+
+    #[test]
+    fn manual_target_carries_matchup_evidence() {
+        let mut s = session(vec![vec![action(0, 1, 0, false, true, "pick", true)]]);
+        s.their_team = vec![player(238, "", "enemy")];
+        let mut d = bare_decision();
+
+        apply_manual_target(&mut d, 157, &s, Some(&snap()), Some(Position::Middle));
+
+        let ev = d.target.unwrap().evidence.unwrap();
+        assert_eq!(ev.against_champion_id, 238);
     }
 
     /// 盲僧(64) 打野被 豹女(60) 克制到 44.7%；亚索(157) 中路被 劫(238) 克制到 46%

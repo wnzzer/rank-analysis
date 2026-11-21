@@ -113,8 +113,63 @@ describe('BpCommandPanel', () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }))
 
     expect(wrapper.find('.bp-body').exists()).toBe(false)
-    expect(wrapper.get('[data-test="status"]').text()).toBe('轮到你时建议选择 阿狸')
+    expect(wrapper.get('[data-test="status"]').text()).toBe('轮到你时将自动选择 阿狸')
     expect(wrapper.emitted('hover')).toBeUndefined()
+  })
+
+  it('should only suggest while waiting when nothing will run automatically', () => {
+    const wrapper = mountPanel({ stage: 'waiting', autoTargetId: null, hoveredId: null })
+
+    expect(wrapper.get('[data-test="status"]').text()).toBe('轮到你时建议选择 阿狸')
+  })
+
+  it('should expand on demand while waiting and allow pre-selecting a pick', async () => {
+    const wrapper = mountPanel({ stage: 'waiting' })
+
+    await wrapper.get('[data-test="toggle"]').trigger('click')
+    expect(wrapper.find('.bp-body').exists()).toBe(true)
+
+    await wrapper.get('[data-test="card-711"]').trigger('click')
+    expect(wrapper.emitted('hover')).toEqual([[711]])
+  })
+
+  it('should not allow confirming before my turn', async () => {
+    const wrapper = mountPanel({ stage: 'waiting' })
+    await wrapper.get('[data-test="toggle"]').trigger('click')
+
+    const confirm = wrapper.get('[data-test="confirm"]')
+    expect(confirm.attributes('disabled')).toBeDefined()
+    expect(confirm.text()).toBe('轮到你时可锁定')
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
+    expect(wrapper.emitted('confirm')).toBeUndefined()
+  })
+
+  it('should be view-only when expanded while waiting to ban', async () => {
+    const wrapper = mountPanel({ action: 'ban', stage: 'waiting' })
+    await wrapper.get('[data-test="toggle"]').trigger('click')
+
+    await wrapper.get('[data-test="card-711"]').trigger('click')
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '2' }))
+
+    expect(wrapper.find('.bp-body').classes()).toContain('read-only')
+    expect(wrapper.emitted('hover')).toBeUndefined()
+  })
+
+  it('should not draw the countdown ring on the auto target before my turn', async () => {
+    const wrapper = mountPanel({ stage: 'waiting' })
+    await wrapper.get('[data-test="toggle"]').trigger('click')
+
+    expect(wrapper.find('.bp-auto').exists()).toBe(true)
+    expect(wrapper.find('.bp-ring').exists()).toBe(false)
+  })
+
+  it('should collapse again from the toggle', async () => {
+    const wrapper = mountPanel({ stage: 'waiting' })
+
+    await wrapper.get('[data-test="toggle"]').trigger('click')
+    await wrapper.get('[data-test="toggle"]').trigger('click')
+
+    expect(wrapper.find('.bp-body').exists()).toBe(false)
   })
 
   it('should use ban wording and show the result when done', () => {

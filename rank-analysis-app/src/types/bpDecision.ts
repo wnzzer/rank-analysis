@@ -13,7 +13,10 @@ export type BpActionType = 'Ban' | 'Pick'
 export type BpMode = 'Auto' | 'Advisory'
 
 export type BpOrigin =
-  { type: 'Rule'; rule_id: string; rule_name: string } | { type: 'Fallback'; pool_size: number }
+  | { type: 'Rule'; rule_id: string; rule_name: string }
+  | { type: 'Fallback'; pool_size: number }
+  /** 用户在操作台里亲手指定的 */
+  | { type: 'Manual' }
 
 /**
  * 目标英雄的对位数据支撑。

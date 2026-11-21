@@ -4,7 +4,10 @@
 //! 并提供操作台的两个手动动作：预选、确认。
 //!
 //! 两个读取命令纯读进程内静态存储，无 I/O、无锁等待，前端可安心高频轮询。
-//! 两个手动动作会写 LCU，且一经调用即登记「用户接管」，本阶段自动化不再执行。
+//! 两个手动动作会写 LCU：
+//! - 预选 = 换人选。自动化**不退让**，到点照常执行，只是执行的是用户点的这个英雄。
+//!   （用户去客户端里自己换英雄才算接管，那由 automation 的接管检测负责。）
+//! - 确认 = 立刻提交，动作就此完成。
 
 use crate::bp_decision::panel::BpPanel;
 use crate::bp_decision::types::{BpActionType, BpDecision, MyPendingAction, Unavailable};
@@ -33,15 +36,11 @@ pub async fn get_bp_panel() -> Result<Option<BpPanel>, String> {
     Ok(store::read_panel())
 }
 
-/// 手动操作前的共同步骤：取实时会话，定位我当前的待办动作，并登记接管。
-///
-/// 登记接管放在任何 LCU 写操作之前：用户已经表达了「我自己来」的意图，
-/// 即使随后的 PATCH 失败，自动化也不该在本阶段再替用户动手。
-async fn take_over() -> Result<(SelectSession, MyPendingAction), String> {
+/// 手动操作前的共同步骤：取实时会话，定位我当前的待办动作。
+async fn my_pending() -> Result<(SelectSession, MyPendingAction), String> {
     let session = get_fresh_champion_select_session().await?;
     let pending =
         evaluate::find_my_pending_action(&session).ok_or("当前没有需要你操作的 BP 动作")?;
-    store::mark_overridden(pending.action_id);
     Ok((session, pending))
 }
 
@@ -60,7 +59,10 @@ fn action_name(action_type: BpActionType) -> &'static str {
     }
 }
 
-/// 在客户端里预选一个英雄（可撤回），并接管本阶段——之后自动化不再替用户操作。
+/// 把一个英雄定为本动作的人选，并在客户端里预选它（可撤回、可再换）。
+///
+/// 还没轮到我时也可以调用：pick 会在客户端里亮出意向，ban 只记下人选。
+/// 自动化开着的话，到点执行的就是这个英雄。
 ///
 /// # 参数
 /// - `champion_id`: 要预选的英雄
@@ -71,10 +73,14 @@ fn action_name(action_type: BpActionType) -> &'static str {
 /// - 客户端拒绝了预选请求
 #[tauri::command]
 pub async fn bp_hover(champion_id: i32) -> Result<(), String> {
-    let (session, pending) = take_over().await?;
+    let (session, pending) = my_pending().await?;
     if let Some(reason) = unavailable_reason(&session, champion_id) {
         return Err(reason.to_string());
     }
+    // 人选先记下、并记成「我们 hover 的」，再去写客户端：执行侧每秒读一次，顺序反过来
+    // 的话它会在这一秒的空档里把客户端里的预选认成「用户在客户端里换了英雄」而判接管
+    store::set_manual_target(pending.action_id, champion_id);
+    store::set_last_hovered(Some(champion_id));
     let patched = patch_session_action(
         pending.action_id,
         champion_id,
@@ -91,9 +97,6 @@ pub async fn bp_hover(champion_id: i32) -> Result<(), String> {
         }
         return Err(e);
     }
-    // 记成「我们 hover 的」：否则下一个 tick 的接管检测拿它和旧值比，结论虽然同样是
-    // 已接管，但日志里会多出一条来源不明的 hover 变化
-    store::set_last_hovered(Some(champion_id));
     Ok(())
 }
 
@@ -111,13 +114,15 @@ pub async fn bp_hover(champion_id: i32) -> Result<(), String> {
 /// - 客户端拒绝了请求
 #[tauri::command]
 pub async fn bp_confirm(champion_id: i32) -> Result<(), String> {
-    let (session, pending) = take_over().await?;
+    let (session, pending) = my_pending().await?;
     if !pending.is_in_progress || !evaluate::is_actionable_phase(&session.timer.phase) {
         return Err("还没轮到你操作".to_string());
     }
     if let Some(reason) = unavailable_reason(&session, champion_id) {
         return Err(reason.to_string());
     }
+    // 用户亲手提交：自动化在这个动作上不该再做任何事（哪怕这次提交被客户端拒绝）
+    store::mark_overridden(pending.action_id);
     patch_session_action(
         pending.action_id,
         champion_id,
