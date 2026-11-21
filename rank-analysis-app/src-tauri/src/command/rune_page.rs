@@ -31,7 +31,7 @@ pub struct ApplyRuneResult {
 }
 
 /// LCU 符文页（只解出认领与内容比对所需的字段）
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct PerkPage {
     pub id: i64,
@@ -45,6 +45,28 @@ pub struct PerkPage {
     pub sub_style_id: i32,
     #[serde(default)]
     pub selected_perk_ids: Vec<i32>,
+    /// 客户端符文推荐器写这一页时填的英雄 ID；不是它写的为 0。
+    ///
+    /// 真机（2026-11-21）：推荐器在开局前 9 秒原地改写了我们的页，改写后
+    /// `recommendationChampionId: 145`、`runeRecommendationId: "2026-11-08.000799"`，
+    /// 页名变成「虚空之女 - 强攻」。我们自己写的页这两个字段都是空的。
+    #[serde(default)]
+    pub recommendation_champion_id: i32,
+    /// 客户端符文推荐器的推荐编号；不是它写的为空串
+    #[serde(default)]
+    pub rune_recommendation_id: String,
+}
+
+impl PerkPage {
+    /// 这一页的当前内容是不是客户端符文推荐器写的。
+    fn written_by_recommender(&self) -> bool {
+        self.recommendation_champion_id > 0 || !self.rune_recommendation_id.is_empty()
+    }
+
+    /// 这一页是否还挂着我们的页名（推荐器改写时会连名字一起改掉）。
+    fn has_our_name(&self) -> bool {
+        self.name.ends_with(PAGE_NAME_SUFFIX)
+    }
 }
 
 /// `POST /lol-perks/v1/pages` / `PUT /lol-perks/v1/pages/{id}` 的请求体
@@ -117,6 +139,21 @@ pub fn record_applied(key: AppliedKey) {
     *LAST_APPLIED.lock().unwrap_or_else(|p| p.into_inner()) = Some(key);
 }
 
+/// 最近一次成功写入的那套符文本体（与 [`LAST_APPLIED`] 同步写入、同步清空）。
+///
+/// 幂等键里只有符文 ID，不足以重新写一遍；守护任务被抢后要原样补写，所以把整套存下来。
+static LAST_APPLIED_RUNE: Mutex<Option<RuneBuild>> = Mutex::new(None);
+
+/// 最近一次成功写入的内容及符文本体；本次选人期还没写过为 `None`
+pub fn last_applied_rune() -> Option<(AppliedKey, RuneBuild)> {
+    let key = last_applied()?;
+    let rune = LAST_APPLIED_RUNE
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .clone()?;
+    Some((key, rune))
+}
+
 /// 最近一次成功写入的内容
 pub fn last_applied() -> Option<AppliedKey> {
     LAST_APPLIED
@@ -156,6 +193,7 @@ fn override_matches(stored: &Option<(i32, String)>, champion_id: i32, position: 
 /// 清空写入记录、手动接管与自有页 id（离开选人期时调用：三者的生命周期都是一次选人期）
 pub fn clear_applied() {
     *LAST_APPLIED.lock().unwrap_or_else(|p| p.into_inner()) = None;
+    *LAST_APPLIED_RUNE.lock().unwrap_or_else(|p| p.into_inner()) = None;
     *MANUAL_OVERRIDE.lock().unwrap_or_else(|p| p.into_inner()) = None;
     *OWNED_PAGE_ID.lock().unwrap_or_else(|p| p.into_inner()) = None;
 }
@@ -255,7 +293,9 @@ pub enum CurrentPage {
     /// 内容不是我们要的，且那一页可以抢回：临时页（客户端推荐器的暂存页，或被它
     /// 原地改写的我们那一页），或客户端处于「无当前页」
     Reclaimable,
-    /// 用户自己的持久页正被选中——当成用户接管，不抢方向盘
+    /// 是用户自己的决定——当成用户接管，不抢方向盘。两种情况：
+    /// 用户切到了自己的持久页；或用户在客户端里亲手改了我们那一页
+    /// （页名还是我们的、也没有推荐器的标记，只是内容变了）
     UserOwned,
     /// 读不到当前页（客户端抖动 / 端点异常）——按老行为走，不因为观测失败改变决策
     Unknown,
@@ -271,11 +311,28 @@ pub fn inspect_current_page(current: Option<&PerkPage>, rune: &RuneBuild) -> Cur
         && perk_ids_equivalent(&page.selected_perk_ids, &rune.perk_ids());
     if same {
         CurrentPage::Matches
-    } else if page.is_temporary {
-        CurrentPage::Reclaimable
-    } else {
+    } else if !page.is_temporary {
         CurrentPage::UserOwned
+    } else if page.has_our_name() && !page.written_by_recommender() {
+        // 页名没变、也没有推荐器的标记：改内容的只能是用户自己在客户端里动的手。
+        // 推荐器改写时会同时改名并打上标记（见 PerkPage 字段注释），两个信号任一出现都算它干的。
+        CurrentPage::UserOwned
+    } else {
+        CurrentPage::Reclaimable
     }
+}
+
+/// 守护任务本 tick 要不要把页抢回来。
+///
+/// 只在「页被推荐器之类的改走了」时动手；用户自己换页 / 改页、读不到当前页、
+/// 或已经抢到上限时都不动。
+///
+/// # 参数
+/// - `current`: 当前页相对「我们最后写的那套」的处境
+/// - `reasserts`: 本选人期这套内容已经抢回过几次
+/// - `limit`: 抢回次数上限
+pub fn guard_should_reassert(current: CurrentPage, reasserts: u32, limit: u32) -> bool {
+    current == CurrentPage::Reclaimable && reasserts < limit
 }
 
 /// 读客户端当前页；「无当前页」返回 `Ok(None)`。
@@ -374,6 +431,7 @@ pub async fn apply_rune_page_core(
             );
             remember_owned_page(page_id);
             record_applied(AppliedKey::of(champion_id, position, rune));
+            *LAST_APPLIED_RUNE.lock().unwrap_or_else(|p| p.into_inner()) = Some(rune.clone());
             ApplyRuneResult {
                 ok: true,
                 page_id: Some(page_id),
@@ -450,6 +508,7 @@ mod tests {
             primary_style_id: 0,
             sub_style_id: 0,
             selected_perk_ids: vec![],
+            ..PerkPage::default()
         }
     }
 
@@ -462,6 +521,7 @@ mod tests {
             primary_style_id: 8000,
             sub_style_id: 8400,
             selected_perk_ids: perk_ids,
+            ..PerkPage::default()
         }
     }
 
@@ -592,6 +652,61 @@ mod tests {
             inspect_current_page(Some(&page), &rune()),
             CurrentPage::Reclaimable
         );
+    }
+
+    #[test]
+    fn current_page_should_be_reclaimable_when_recommender_rewrote_our_page() {
+        // 真机 2026-11-21：推荐器原地改写我们的页，改名并打上推荐标记
+        let raw = r#"{"id":898719904,"name":"虚空之女 - 强攻","isTemporary":true,
+            "primaryStyleId":8000,"subStyleId":8100,
+            "selectedPerkIds":[8005,8009,9103,8014,8139,8135,5005,5008,5001],
+            "recommendationChampionId":145,"runeRecommendationId":"2026-11-08.000799"}"#;
+        let page: PerkPage = serde_json::from_str(raw).unwrap();
+
+        assert!(page.written_by_recommender());
+        assert_eq!(
+            inspect_current_page(Some(&page), &rune()),
+            CurrentPage::Reclaimable
+        );
+    }
+
+    #[test]
+    fn current_page_should_be_reclaimable_when_recommender_kept_our_name() {
+        // 两个信号任一出现都算推荐器：即使它哪天不改名了，标记还在
+        let mut ids = rune().perk_ids();
+        ids[0] = 8214;
+        let mut page = page_of(7, true, ids);
+        page.name = "卡莎 · 下路 (RA)".into();
+        page.recommendation_champion_id = 145;
+
+        assert_eq!(
+            inspect_current_page(Some(&page), &rune()),
+            CurrentPage::Reclaimable
+        );
+    }
+
+    #[test]
+    fn current_page_should_be_user_owned_when_user_edited_our_page_in_client() {
+        // 用户在客户端里把我们那页的基石改了：页名还是我们的，没有推荐器标记
+        let mut ids = rune().perk_ids();
+        ids[0] = 8214;
+        let mut page = page_of(7, true, ids);
+        page.name = "卡莎 · 下路 (RA)".into();
+
+        assert_eq!(
+            inspect_current_page(Some(&page), &rune()),
+            CurrentPage::UserOwned
+        );
+    }
+
+    #[test]
+    fn guard_should_reassert_only_reclaimable_pages_within_limit() {
+        assert!(guard_should_reassert(CurrentPage::Reclaimable, 0, 5));
+        assert!(guard_should_reassert(CurrentPage::Reclaimable, 4, 5));
+        assert!(!guard_should_reassert(CurrentPage::Reclaimable, 5, 5));
+        assert!(!guard_should_reassert(CurrentPage::Matches, 0, 5));
+        assert!(!guard_should_reassert(CurrentPage::UserOwned, 0, 5));
+        assert!(!guard_should_reassert(CurrentPage::Unknown, 0, 5));
     }
 
     #[test]
