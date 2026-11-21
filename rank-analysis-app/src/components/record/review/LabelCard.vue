@@ -68,6 +68,12 @@ const saveError = ref<string | null>(null)
 const rebuttal = ref<MatchLabelRebuttal | null>(null)
 /** 回应区的状态；idle = 不显示回应区 */
 const rebuttalState = ref<RebuttalState | 'idle'>('idle')
+/** 正在上传反馈（玩家点了「上传反馈」） */
+const sharingNow = ref(false)
+/** 回应区里「反馈去向」一栏的状态，由标注的分享状态换算 */
+const feedback = computed(() =>
+  shareState.value === 'shared' ? 'uploaded' : shareState.value === 'failed' ? 'failed' : 'local'
+)
 /** 调用代际：玩家点「修改」或重新提交后递增，在途调用的迟到结果据此作废 */
 let rebuttalSeq = 0
 /** 说明输入框（从「不服？说说理由」入口回到编辑态时聚焦） */
@@ -224,6 +230,26 @@ async function setVerdict(verdict: RebuttalVerdict): Promise<void> {
   await saveQuietly()
 }
 
+/**
+ * 玩家在回应区点了「上传反馈」：等同于同意分享对局判断，记进配置并立即上传这一局。
+ *
+ * 上传是否成功由 saveCurrent 写进 shareState，回应区据此显示「已反馈成功」或「没成功」——
+ * 不在这里乐观地先标成功。
+ */
+async function shareFeedback(): Promise<void> {
+  if (sharingNow.value) return
+  sharingNow.value = true
+  try {
+    await putConfigByIpc(MATCH_LABEL_SHARE_KEY, true)
+    await saveCurrent(true)
+  } catch (e) {
+    console.warn('share rebuttal feedback failed:', e)
+    shareState.value = 'failed'
+  } finally {
+    sharingNow.value = false
+  }
+}
+
 /** 回到编辑态；在途的 AI 调用作废 */
 function edit(): void {
   rebuttalSeq++
@@ -343,8 +369,11 @@ const shareText = computed(() => {
         v-if="rebuttalState !== 'idle'"
         :state="rebuttalState"
         :rebuttal="rebuttal"
+        :feedback="feedback"
+        :sharing="sharingNow"
         @verdict="setVerdict"
         @retry="runRebuttal"
+        @share="shareFeedback"
       />
       <button
         v-else-if="disputes.length"

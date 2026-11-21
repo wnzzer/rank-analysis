@@ -361,6 +361,75 @@ describe('LabelCard · AI 回应', () => {
     expect(api.save).toHaveBeenCalledTimes(2)
   })
 
+  /** 选最犯罪、填说明、提交；首次询问时选「只保存在本地」 */
+  async function submitLocalOnly(pid: number, reason: string) {
+    ipc.config.set('matchLabelShare', false)
+    api.save.mockResolvedValue({ uploaded: false, error: null })
+    const w = mountCard()
+    await flushPromises()
+    await w.get(`[data-test="pick-blame-${pid}"]`).trigger('click')
+    await w.get('[data-test="label-note"] textarea').setValue(reason)
+    await submitBtn(w).trigger('click')
+    await flushPromises()
+    return w
+  }
+
+  it('should confirm the feedback was uploaded when the player shares', async () => {
+    const w = await submitBlame(disputed, '他全程单带不参团')
+
+    expect(w.get('[data-test="rebuttal-feedback"]').text()).toContain('已反馈成功')
+  })
+
+  it('should not claim an upload for a player who keeps labels local', async () => {
+    const w = await submitLocalOnly(disputed, '他全程单带不参团')
+
+    expect(w.get('[data-test="rebuttal-not-uploaded"]').text()).toContain('只存在你的电脑上')
+    expect(w.text()).not.toContain('已反馈成功')
+  })
+
+  it('should upload and turn sharing on when the player clicks upload feedback', async () => {
+    const w = await submitLocalOnly(disputed, '他全程单带不参团')
+    api.save.mockClear().mockResolvedValue({ uploaded: true, error: null })
+
+    await w.get('[data-test="rebuttal-share"]').trigger('click')
+    await flushPromises()
+
+    expect(ipc.config.get('matchLabelShare')).toBe(true)
+    expect(api.save).toHaveBeenCalledTimes(1)
+    const [label, share] = api.save.mock.calls[0]
+    expect(share).toBe(true)
+    expect(label.rebuttal).toMatchObject({ stance: 'concede', category: 'absence' })
+    expect(w.get('[data-test="rebuttal-feedback"]').text()).toContain('已反馈成功')
+  })
+
+  it('should not show success when the upload fails, and let the player retry', async () => {
+    const w = await submitLocalOnly(disputed, '他全程单带不参团')
+    api.save.mockClear().mockResolvedValue({ uploaded: false, error: '网络错误' })
+
+    await w.get('[data-test="rebuttal-share"]').trigger('click')
+    await flushPromises()
+
+    expect(w.text()).not.toContain('已反馈成功')
+    expect(w.get('[data-test="rebuttal-not-uploaded"]').text()).toContain('上传没成功')
+
+    api.save.mockResolvedValue({ uploaded: true, error: null })
+    await w.get('[data-test="rebuttal-share"]').trigger('click')
+    await flushPromises()
+
+    expect(w.get('[data-test="rebuttal-feedback"]').text()).toContain('已反馈成功')
+  })
+
+  it('should not show success when saving throws', async () => {
+    const w = await submitLocalOnly(disputed, '他全程单带不参团')
+    api.save.mockClear().mockRejectedValue(new Error('disk full'))
+
+    await w.get('[data-test="rebuttal-share"]').trigger('click')
+    await flushPromises()
+
+    expect(w.text()).not.toContain('已反馈成功')
+    expect(w.get('[data-test="rebuttal-share"]').text()).toBe('重试上传')
+  })
+
   it('should restore a saved reply without calling the AI', async () => {
     const blame = players.find(p => p.participantId === disputed)!
     api.saved = {

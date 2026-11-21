@@ -35,8 +35,6 @@ export const REBUTTAL_MAX_REPLY = 200
 export const REBUTTAL_TIMEOUT_MS = 20_000
 /** 模型输出没通过校验时给玩家看的保底文案 */
 export const REBUTTAL_FALLBACK_REPLY = '你的理由已记下。这局的判断依据可以在完整复盘里看到。'
-/** 认账时界面追加的一句（不让模型写，避免它发挥成「我们会尽快修复」之类的承诺） */
-export const REBUTTAL_CONCEDE_SUFFIX = '这条已记下，会用来改进评分。'
 /** 每名玩家最多列几次阵亡明细，控制材料长度 */
 const MAX_DEATHS_LISTED = 8
 /** 数字校验的容差：模型偶尔把 8.20 写成 8.2 */
