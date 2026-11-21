@@ -15,6 +15,7 @@ import {
   parseRebuttal,
   playerFacts,
   statsText,
+  teamComparison,
   METRIC_NOTES,
   rebuttalBasis,
   requestRebuttal,
@@ -22,10 +23,7 @@ import {
 } from '../rebuttal'
 
 const h = vi.hoisted(() => ({ stream: vi.fn(), resolveModel: vi.fn() }))
-vi.mock('../../stream', () => ({
-  DEFAULT_MODEL: 'default-model',
-  requestAIContentStream: h.stream
-}))
+vi.mock('../../stream', () => ({ requestAIContentStream: h.stream }))
 vi.mock('../../modelConfig', () => ({ resolveModel: h.resolveModel }))
 
 const model = modelB({ timeline: true })
@@ -175,6 +173,95 @@ describe('statsText', () => {
   })
 })
 
+describe('teamComparison', () => {
+  /** 只带对比用得到的字段的玩家 */
+  const mk = (
+    pid: number,
+    champion: string,
+    roleCn: string,
+    kp: number,
+    absent: number,
+    gpm: number,
+    deaths: number,
+    isolated: number
+  ) =>
+    ({
+      participantId: pid,
+      champion,
+      roleCn,
+      isMe: pid === 1,
+      deaths,
+      parts: [
+        { key: 'teamfight', stats: [`参团率 ${kp}%`, `5 场团战缺席 ${absent} 场`] },
+        { key: 'growth', stats: ['每分钟补刀 7.5', `每分钟经济 ${gpm}`] }
+      ],
+      deathList: Array.from({ length: isolated }, () => ({ kind: 'isolated' }))
+    }) as unknown as (typeof players)[number]
+  const team = [
+    mk(1, '奥术先驱', '中单', 70, 0, 380, 9, 1),
+    mk(2, '灰烬驱魔人', '打野', 55, 1, 519, 6, 3),
+    mk(3, '暗裔剑魔', '上单', 62, 0, 400, 7, 1),
+    mk(4, '虚空之女', '下路（ADC）', 68, 0, 430, 5, 0),
+    mk(5, '深海泰坦', '辅助', 75, 0, 280, 8, 2)
+  ]
+  const rows = teamComparison(team[1], team)
+  const row = (label: string): string => rows.find(r => r.startsWith(`- ${label}：`))!
+
+  it('should put the target next to the other teammates with a neutral rank', () => {
+    expect(row('击杀参与率')).toBe('- 击杀参与率：灰烬驱魔人 55%（几个人里最低）｜其余队友 62～75%')
+  })
+
+  it('should leave the player out of the comparison', () => {
+    // 放了，模型会说「他的参与率比你还高」
+    for (const r of rows) {
+      expect(r).not.toContain('你 ')
+      expect(r).not.toContain('奥术先驱')
+    }
+  })
+
+  it('should rank by value without judging good or bad', () => {
+    expect(row('团战缺席场次')).toContain('灰烬驱魔人 1 场（几个人里最高）')
+    expect(row('落单被杀')).toContain('灰烬驱魔人 3 次（几个人里最高）')
+    // 阵亡 6 次：7 次、8 次比他多，5 次比他少
+    expect(row('阵亡次数')).toContain('灰烬驱魔人 6 次（第 3 高）')
+    // 经济最高——配上参与率最低，正是「只顾自己刷」的数据形状；好坏由模型结合玩家的话判断
+    expect(row('每分钟经济')).toContain('灰烬驱魔人 519（几个人里最高）')
+  })
+
+  it('should read the absent count, not the number of fights', () => {
+    // 文案是「5 场团战缺席 N 场」：其余三人都缺席 0 场，而不是 5
+    expect(row('团战缺席场次')).toContain('其余队友 0 场')
+  })
+
+  it('should not name the other teammates', () => {
+    // 点了名，模型会把话题转到数据最差的那个队友身上
+    for (const r of rows) {
+      expect(r).not.toContain('暗裔剑魔')
+      expect(r).not.toContain('深海泰坦')
+    }
+  })
+
+  it('should skip metrics without enough data', () => {
+    // 这组假数据没有资源、死亡质量分项
+    expect(rows.some(r => r.includes('资源在场率'))).toBe(false)
+    expect(rows.some(r => r.includes('自身问题'))).toBe(false)
+    // 去掉玩家本人后只剩两个人：不比
+    expect(teamComparison(team[1], team.slice(0, 3))).toEqual([])
+  })
+
+  it('should say so when everyone is level', () => {
+    const same = team.map((p, i) => mk(i + 1, p.champion, p.roleCn, 60, 0, 400, 5, 0))
+
+    expect(teamComparison(same[1], same)[0]).toContain('（几个人一样）')
+  })
+
+  it('should still work when the player themself is the target', () => {
+    const mine = teamComparison(team[0], team)
+
+    expect(mine[0]).toContain('奥术先驱 70%')
+  })
+})
+
 describe('buildRebuttalPrompt', () => {
   const disputes = findDisputes({ keyPid: null, blamePid: other.participantId }, players)
   const prompt = buildRebuttalPrompt(disputes, players, '  他全程单带不参团  ')
@@ -223,6 +310,27 @@ describe('buildRebuttalPrompt', () => {
       expect(mySection(prompt)).not.toContain(`${foe.champion}（`)
       expect(mySection(prompt)).not.toContain(` ${foe.champion}：`)
     }
+  })
+
+  it('should compare the blamed player with their teammates', () => {
+    expect(prompt).toContain(`【队内对比 · ${other.champion}和同队其他人（不含玩家本人）】`)
+    expect(prompt).toContain(`- 击杀参与率：${other.champion} `)
+  })
+
+  it("should not hand over facts about the scoring's pick for most at fault", () => {
+    // 评分选的人不是玩家本人时：给了全量，模型会顺着说「这锅才该他背」
+    const blamed = players.find(q => q.participantId === picks.blamePid)!
+    const fake = players.map(q => ({ ...q, isMe: q.participantId === other.participantId }))
+    const target = fake.find(
+      q => q.participantId !== picks.blamePid && q.participantId !== other.participantId
+    )!
+    const d = findDisputes({ keyPid: null, blamePid: target.participantId }, fake)
+    const text = buildRebuttalPrompt(d, fake, '他全程单带不参团')
+
+    expect(d[0].model.participantId).toBe(blamed.participantId)
+    expect(text).toContain(blamed.champion) // 分歧里仍然点了名
+    expect(text).not.toContain(`${blamed.champion}（${blamed.roleCn}，`)
+    expect(text).not.toContain('评分选的最犯罪')
   })
 
   it('should give only the good side of someone the player picked as most key', () => {
@@ -384,7 +492,7 @@ describe('requestRebuttal', () => {
       reply: '你说得对。',
       model: 'test-model'
     })
-    expect(h.resolveModel).toHaveBeenCalledWith('labelRebuttal', 'default-model')
+    expect(h.resolveModel).toHaveBeenCalledWith('labelRebuttal', 'qwen4-max')
     const [prompt, , system, usedModel, opts] = h.stream.mock.calls[0]
     expect(prompt).toContain('他全程单带不参团')
     expect(system).toBe(REBUTTAL_SYSTEM_PROMPT)

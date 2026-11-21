@@ -17,12 +17,34 @@ import { shareFacts } from './shareFacts'
 import { scoringNotesText } from './scoringNotes'
 import { extractNumbers } from '../matchDetail/postprocess'
 import { resolveModel } from '../modelConfig'
-import { DEFAULT_MODEL, requestAIContentStream } from '../stream'
+import { requestAIContentStream } from '../stream'
 import {
   modelPicks,
   type RebuttalCategory,
   type RebuttalStance
 } from '@renderer/services/matchLabel'
+
+/**
+ * 本场景的默认模型（远程配置 `labelRebuttal` 可覆盖）。
+ *
+ * 不用全局默认的 deepseek-v4.1-flash：这个场景要同时做到「只围绕玩家那句话说」「不反驳他」
+ * 「不把话题转到别人身上」，对指令遵循的要求比写点评高。2026-11-21 同一份提示词
+ * （真机对局，玩家理由「玩的太独了」，数据并不怎么支持他）各跑 4 次：
+ *
+ * | 模型 | 平均耗时 | 出现反驳口吻 | 转到别人身上 |
+ * |---|---|---|---|
+ * | deepseek-v4.1-flash-1017 | 1.6s | 4/4 | 0 |
+ * | deepseek-v4-pro | 6.1s | 3/4 | 0 |
+ * | qwen3.7-plus | 2.8s | 4/4 | 0 |
+ * | qwen3.8-flash | 2.2s | 1/4 | 0 |
+ * | qwen3.8-max | 3.1s | 0 | 1/4 |
+ * | kimi-k3.1-pro | 4.8s | 0 | 0 |
+ * | qwen4-max | 3.3s | 0 | 0 |
+ *
+ * qwen4-max 与 kimi-k3.1-pro 都没出问题；qwen4-max 更快、回复更紧凑，论据都落在玩家说的那一点上。
+ * 样本很小（一局、一个理由、每个模型 4 次），换模型前应当用更多对局重测。
+ */
+export const REBUTTAL_MODEL = 'qwen4-max'
 
 /** 理由至少多少个字才触发：太短（「菜」「他送」）AI 没法针对性回应 */
 export const REBUTTAL_MIN_NOTE = 4
@@ -277,12 +299,17 @@ export const REBUTTAL_SYSTEM_PROMPT = [
   '你是英雄联盟玩家的开黑队友，刚陪他打完这局。复盘工具的评分给出了「最关键」「最犯罪」的判断，他不服，写了理由。你站在他这边，回他一段话。',
   '',
   '怎么说：',
-  '1. 开口第一句就替他说话：认同他的判断或他的火气，并且马上拿出【事实】里对他有利的数据撑腰。比如他说某人不参团，就直接报那个人的参团率、资源在场率。',
+  '0. 整段话只讲一件事：他理由里说的那件事。先把他的话拆成数据能证明的点（比如「太独」= 不跟团、只顾自己刷、落单被杀；「送」= 阵亡多、自己的问题多；「不参团」= 团战缺席、资源团不在），再用【队内对比】逐条对上。不要东拉西扯到别的人、别的事。',
+  '1. 论据必须带对比：不要只报一个数，要说出他和队友差多少、排第几（【队内对比】里已经标好了「最高」「最低」「第几高」，直接用）。比如「击杀参与率就他最低，55%，别人都在 65% 以上」。单独一个数字不算论据。名次只说高低，是好是坏你结合他的话判断：他说人家「独」「只顾自己刷」，那经济最高就是证据。',
+  '1b. 把这种打法让人多难受说透，用游戏里的话（比如「你们四个在打，他在另一边刷」），但不要编具体的事件和时间。',
+  '1c. 【队内对比】里对不上他说法的项（比如他说人家不参团，可那人参与率是最高的）：跳过，一个字不提。绝对不要用数据反驳他，不要说「可是」「不过他其实」「没看出」，不要拿他本人和任何人比。',
+  '1d. 能对上的一项都没有：不要硬找，也不要编。直说这种事数据里看不出来——评分只数人头和次数，看不到该来的时候来没来、是不是只在安全的时候才露面、资源是不是自己全吃了——但看不出来不代表没发生，你在场上的感受是真的。',
   '2. 他说的事评分没算（见【评分不看什么】）：明说这是评分的问题、评分的盲区，不是他的问题。',
   '3. 他指的那个人这局确实有做得不好的地方，【事实】里有数据：可以直说，就事论事，不骂人、不做人身攻击。',
   '4. 一个字都不要提玩家本人的失误、阵亡、落后的分项。即使评分把「最犯罪」判给了他，也只说「评分把锅扣在你头上，是因为它看不到……」，然后说它看不到什么。',
   '5. 事实和他说的对不上时：不要纠正他、不要说「其实」「不过数据显示」。先认同他的感受，再挑【事实】里能支持他的部分说；对不上的那部分最多轻轻带一句，或者干脆不提。',
   '6. 不要夸他指的那个人，不要替那个人开脱。对那个人有利的数据（对线领先、发育好之类）不要主动提。',
+  '6b. 不要把话题转到评分选的那个人身上，不要说「这锅该某某背」「真正的问题在某某」。他要怪谁，就只说谁。',
   '7. 分清他在说谁：事实分成【玩家这边】和【对面】两个区。标了「玩家认为他是全场打得最好的」的人，是他觉得最关键的——认同这一点，说这个人哪里打得好，绝对不能说这个人不行。标了「玩家认为他最犯罪」的人才是他要怪的。',
   '8. 他的理由按位置点名时（如「中路」「辅助」「打野」「上单」）：说的一定是【玩家这边】的人。到【玩家这边】里按位置找到那个人，用那个人的数据；【对面】同位置的人不是他说的人，一个数字都不能借用。找不到数据就只认同感受。',
   '9. 口气像朋友聊天：短句，口语。不要官腔，不要「评分看到的是」「综合来看」这类解释腔，不要说教。开头每次换个说法，贴着他这句话的内容接，不要用固定的套话开场。',
@@ -314,6 +341,123 @@ export const REBUTTAL_SYSTEM_PROMPT = [
   '- other：以上都不是，或只有情绪',
   `reply 用中文，${REBUTTAL_TARGET_REPLY} 字以内，不要分点，不要加引号或前缀。`
 ].join('\n')
+
+/**
+ * 队内对比的一项指标
+ * @property label - 给模型看的名字
+ * @property unit - 数值后缀
+ * @property higherIsBetter - 越高越好；用来算队内名次
+ * @property value - 从一名玩家身上取这项的值；取不到为 null
+ */
+interface CompareMetric {
+  label: string
+  unit: string
+  higherIsBetter: boolean
+  value: (p: PlayerView) => number | null
+}
+
+/** 取某分项的某条数据里的第 index 个数字（数据文案由 plainScore.partStats 生成，格式固定） */
+function statNumber(p: PlayerView, part: string, keyword: string, index = 0): number | null {
+  const text = p.parts.find(x => x.key === part)?.stats.find(t => t.includes(keyword))
+  if (!text) return null
+  const numbers = (text.match(/\d+(?:\.\d+)?/g) ?? []).map(Number)
+  return numbers.length > index ? numbers[index] : null
+}
+
+/**
+ * 拿来做队内对比的指标。选的是能直接回答玩家常见说法的那几项：
+ * 不参团 / 太独（击杀参与率、团战缺席、资源在场率、落单被杀）、送（阵亡、自身问题阵亡）、
+ * 只顾自己刷（每分钟经济——经济高而参与低正是「独」的数据形状）。
+ */
+const COMPARE_METRICS: readonly CompareMetric[] = [
+  {
+    label: '击杀参与率',
+    unit: '%',
+    higherIsBetter: true,
+    value: p => statNumber(p, 'teamfight', '参团率')
+  },
+  {
+    label: '团战缺席场次',
+    unit: ' 场',
+    higherIsBetter: false,
+    // 文案是「N 场团战缺席 M 场」：第二个数才是缺席场次
+    value: p => statNumber(p, 'teamfight', '团战缺席', 1)
+  },
+  {
+    label: '大型野怪资源在场率',
+    unit: '%',
+    higherIsBetter: true,
+    value: p => statNumber(p, 'resources', '资源在场率')
+  },
+  {
+    label: '每分钟经济',
+    unit: '',
+    higherIsBetter: true,
+    value: p => statNumber(p, 'growth', '每分钟经济')
+  },
+  { label: '阵亡次数', unit: ' 次', higherIsBetter: false, value: p => p.deaths },
+  {
+    label: '自身问题的阵亡',
+    unit: ' 次',
+    higherIsBetter: false,
+    value: p => statNumber(p, 'deathQuality', '自身问题')
+  },
+  {
+    label: '落单被杀',
+    unit: ' 次',
+    higherIsBetter: false,
+    value: p => (p.deathList ? p.deathList.filter(d => d.kind === 'isolated').length : null)
+  }
+]
+
+/** 至少几个人有数据才做对比：只有两个人的「队内最低」没有意义 */
+const COMPARE_MIN_PLAYERS = 3
+
+/**
+ * 某人与同队其他人的逐项对比，带队内名次。
+ *
+ * 单独一个数字立不住论据——真机用户反馈「论证不合理」：回复说「击杀参与率才 55%」，
+ * 可 55% 是高是低？得能说出「全队就他最低，队友都在 65% 以上」。所以把队友的数并排给出来，
+ * 并直接标出名次，不让模型自己比大小（它会比错）。
+ *
+ * 名次只说「最高 / 最低 / 第几高」，不说好坏：经济全队最高，在「他太独、只顾自己刷」的语境里
+ * 是罪证不是优点，好坏留给模型结合玩家的话去判断。
+ *
+ * 对比里**不放玩家本人**：放了，模型会说「他的参与率比你还高」（真机实测）——拿数据压
+ * 来讨说法的人。名次也只在其余的人里排。
+ * @param target - 玩家指的那个人
+ * @param team - 与其同队的全部玩家（含本人）
+ * @returns 每项一行；拿不到足够数据的项跳过
+ */
+export function teamComparison(target: PlayerView, team: PlayerView[]): string[] {
+  const out: string[] = []
+  for (const m of COMPARE_METRICS) {
+    const rows = team
+      .filter(p => !p.isMe || p.participantId === target.participantId)
+      .map(p => ({ p, v: m.value(p) }))
+      .filter((r): r is { p: PlayerView; v: number } => r.v !== null)
+    const mine = rows.find(r => r.p.participantId === target.participantId)
+    if (!mine || rows.length < COMPARE_MIN_PLAYERS) continue
+    const higher = rows.filter(r => r.v > mine.v).length
+    const lower = rows.filter(r => r.v < mine.v).length
+    const rank =
+      higher === 0 && lower === 0
+        ? '几个人一样'
+        : higher === 0
+          ? '几个人里最高'
+          : lower === 0
+            ? '几个人里最低'
+            : `第 ${higher + 1} 高`
+    // 其余的人只给一个范围，不点名：点了名，模型会顺手去说「真正拖后腿的是某某」
+    // （真机实测 4 次里 3 次把话题转到了数据最差的那个队友身上）
+    const others = rows.filter(r => r.p.participantId !== target.participantId).map(r => r.v)
+    const lo = Math.min(...others)
+    const hi = Math.max(...others)
+    const range = lo === hi ? `${lo}${m.unit}` : `${lo}～${hi}${m.unit}`
+    out.push(`- ${m.label}：${target.champion} ${mine.v}${m.unit}（${rank}）｜其余队友 ${range}`)
+  }
+  return out
+}
 
 /** 相对玩家本人：队友还是对面 */
 function sideOf(p: PlayerView, me: PlayerView | undefined): string {
@@ -370,7 +514,9 @@ export function buildRebuttalPrompt(
   for (const d of disputes) {
     const key = d.kind === 'key'
     tag(d.mine, key ? '玩家认为他是全场打得最好的' : '玩家认为他最犯罪', key)
-    tag(d.model, `评分选的${KIND_CN[d.kind]}`, key)
+    // 「最犯罪」分歧里评分选的那个人不给事实卡（玩家本人除外，他那张只有有利事实）：
+    // 给了全量，模型会顺着数据说「这锅才该他背」——等于替评分说话，和玩家的立场正相反
+    if (key || d.model.isMe) tag(d.model, `评分选的${KIND_CN[d.kind]}`, key)
   }
   const teamOf = (p: PlayerView): PlayerView[] => players.filter(q => q.teamId === p.teamId)
   const card = (x: (typeof involved)[number]): string =>
@@ -386,6 +532,15 @@ export function buildRebuttalPrompt(
   )
   const isInvolved = (p: PlayerView): boolean =>
     involved.some(x => x.p.participantId === p.participantId)
+  // 玩家要怪的人：逐个给出与同队队友的对比
+  const comparisons = disputes
+    .filter(d => d.kind === 'blame' && !d.mine.isMe)
+    .flatMap(d => {
+      const rows = teamComparison(d.mine, teamOf(d.mine))
+      return rows.length
+        ? [`【队内对比 · ${d.mine.champion}和同队其他人（不含玩家本人）】`, ...rows, '']
+        : []
+    })
 
   const facts: string[] = []
   if (me) {
@@ -415,6 +570,7 @@ export function buildRebuttalPrompt(
     ...disputeLines,
     '',
     ...facts,
+    ...comparisons,
     METRIC_NOTES,
     '',
     // 有没有时间线看阵亡明细：有时间线时每个人的 deathList 都是数组（哪怕为空）
@@ -504,7 +660,7 @@ export async function requestRebuttal(
   note: string
 ): Promise<ParsedRebuttal & { model: string }> {
   const prompt = buildRebuttalPrompt(disputes, players, note)
-  const model = await resolveModel('labelRebuttal', DEFAULT_MODEL)
+  const model = await resolveModel('labelRebuttal', REBUTTAL_MODEL)
   const ask = (): Promise<string> =>
     new Promise<string>((resolve, reject) => {
       let text = ''
