@@ -4,7 +4,7 @@
  * 读 PARITY_IN 下每个 `{ game, slim }` JSON（回归 fixture 或 dump_parity_corpus 导出，champions.json 除外），
  * 跑现有 TS：remapTimeline(slim, buildPuuidMap(game)) → buildMatchSnapshot(game, undefined, remapped)，
  * 写 PARITY_OUT/<文件名>.golden.json：
- *   { version, kind: 'lcu', name, input: { game, slim, championNames }, expected: { snapshot, remappedTimeline } }
+ *   { version, kind: 'lcu', name, input: { game, slim, championNames, spellNames, spellFallback }, expected: { snapshot, remappedTimeline } }
  * snapshot 只含 P1 子集：去掉 timeline（P2/P3）与 players[].recentProfile（不在子项目 1）。
  *
  * 用法（在 rank-analysis-app/ 下）：
@@ -22,7 +22,8 @@ import path from 'node:path'
 vi.mock('@tauri-apps/api/core', async () => {
   const nodeFs = await import('node:fs')
   const nodePath = await import('node:path')
-  const file = nodePath.resolve(process.env.PARITY_IN ?? '.', 'champions.json')
+  if (!process.env.PARITY_IN) throw new Error('需设 PARITY_IN（输入目录）')
+  const file = nodePath.resolve(process.env.PARITY_IN, 'champions.json')
   const list = nodeFs.existsSync(file)
     ? JSON.parse(nodeFs.readFileSync(file, 'utf8'))
     : Array.from({ length: 999 }, (_, i) => ({ value: i + 1, label: `测试英雄${i + 1}` }))
@@ -31,6 +32,7 @@ vi.mock('@tauri-apps/api/core', async () => {
 
 import { getChampionName, loadChampionNames } from '@renderer/services/ai/champion-names'
 import { buildMatchSnapshot, type MatchSnapshot } from '@renderer/services/ai/shared/snapshot'
+import { SPELL_FALLBACK_NAME, SPELL_NAMES } from '@renderer/services/ai/shared/summonerSpells'
 import { buildPuuidMap, remapTimeline } from '@renderer/services/ai/shared/timeline/remap'
 import type { SlimTimeline } from '@renderer/services/ai/shared/timeline/types'
 import type { Game } from '@renderer/types/domain/match'
@@ -113,7 +115,13 @@ describe('parity golden', () => {
           version: GOLDEN_VERSION,
           kind: 'lcu',
           name,
-          input: { game, slim: slim ?? null, championNames: championNames(game) },
+          input: {
+            game,
+            slim: slim ?? null,
+            championNames: championNames(game),
+            spellNames: SPELL_NAMES,
+            spellFallback: SPELL_FALLBACK_NAME
+          },
           expected: { snapshot: p1Subset(snapshot), remappedTimeline: remapped }
         }
         fs.writeFileSync(path.join(outDir, `${name}.golden.json`), JSON.stringify(golden))
@@ -125,6 +133,7 @@ describe('parity golden', () => {
     console.log(
       `写出 ${written} 份黄金，失败 ${failed.length}${failed.length ? '：' + failed.join('；') : ''}`
     )
+    expect(failed).toEqual([])
     expect(written).toBeGreaterThan(0)
   })
 })
