@@ -18,6 +18,8 @@ tauri-build = { version = "2", features = [] }
 sevenz-rust2 = { version = "0.22", default-features = false, features = [
     "compress",
 ] }
+# examples/train_wp.rs 读 .json.gz 语料；只在离线训练用，不进 release 产物
+flate2 = "1"
 
 [profile.release]
 opt-level = "z"   # 优化级别设为 "z"，专注于大小优化

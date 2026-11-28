@@ -17,3 +17,4 @@ pub mod paths;
 pub mod postgame_toast;
 pub mod rule_engine;
 pub mod state;
+pub mod win_prob;

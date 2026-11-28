@@ -4,6 +4,7 @@
  * 固定事实来自 fixture（regression-a：本人 pid 4 蓝方下路、红方胜；regression-b：本人 pid 9 红方下路、蓝方胜）。
  */
 import { describe, it, expect } from 'vitest'
+import { gameB, modelB } from '@renderer/components/record/review/__tests__/fixtureModels'
 import type { Game } from '@renderer/types/domain/match'
 import { DEATH_PLAIN } from '../../matchDetail/plainScore'
 import { scoreSnapshot } from '../../shared/scoring/match'
@@ -284,5 +285,48 @@ describe('DeathView 类型守护', () => {
     const { model } = load(b)
     const list = model.players[9].deathList as DeathView[]
     expect(list.every(d => d.cardId === null || /^D\d+$/.test(d.cardId))).toBe(true)
+  })
+})
+
+const fxB = b as unknown as { slim: SlimTimeline }
+const WP = {
+  blue: [0.52, 0.55, 0.4, 0.42],
+  turningPoints: [{ minute: 3, from: 0.55, to: 0.4, text: '团战蓝方 1 换 3' }]
+}
+
+function modelWithWp(patch = {}) {
+  const g = gameB(patch)
+  return reviewModelFromGame(
+    g,
+    remapTimeline({ ...fxB.slim, winProbability: WP }, buildPuuidMap(g))
+  )
+}
+
+describe('GoldCurve 胜率透传', () => {
+  it('有分路且有胜率：点按分钟编号、转折原样、本人在红方', () => {
+    const c = modelWithWp().goldCurve!
+    expect(c.winProb!.points).toEqual([
+      { minute: 1, p: 0.52 },
+      { minute: 2, p: 0.55 },
+      { minute: 3, p: 0.4 },
+      { minute: 4, p: 0.42 }
+    ])
+    expect(c.winProb!.turns).toEqual(WP.turningPoints)
+    expect(c.mySide).toBe('red') // 回归局 B：本人 pid 9 红方
+  })
+
+  it('时间线没带胜率：winProb 为 null', () => {
+    expect(modelB().goldCurve!.winProb).toBeNull()
+  })
+
+  it('快速匹配（490）：训练只用排位，不显示胜率但金币曲线仍在', () => {
+    const c = modelWithWp({ queueId: 490 }).goldCurve
+    expect(c).not.toBeNull()
+    expect(c!.winProb).toBeNull()
+  })
+
+  it('无分路模式（大乱斗）：即使带了胜率也不显示', () => {
+    const c = modelWithWp({ queueId: 450, gameMode: 'ARAM', mapId: 12 }).goldCurve
+    expect(c?.winProb ?? null).toBeNull()
   })
 })
