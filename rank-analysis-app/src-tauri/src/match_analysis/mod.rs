@@ -12,8 +12,12 @@
 //!
 //! 本模块暂无调用方（子项目 2 才接 command），线上行为不变。
 
+pub mod input;
 pub mod js;
 pub mod lane_facts;
 pub mod mode;
 
 pub mod position;
+
+#[cfg(test)]
+pub(crate) mod test_support;
