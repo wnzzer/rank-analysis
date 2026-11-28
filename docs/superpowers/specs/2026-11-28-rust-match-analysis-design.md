@@ -131,17 +131,21 @@ TS 现有相关单测（`scoring/__tests__`、`timeline` 卡片、`positionAssig
 
 ## 已登记差异
 
-经用户 2026-11-28 批准，P1 通过登记表修复以下 TS 疑似问题（TS 代码不改，子项目 2 切换调用方时随之生效）。登记表在 `src-tauri/src/match_analysis/parity.rs` 的 `EXPECTED_DIFFS`；每条可限定队列（`queues`），只放行指定队列局里的差异。
+经用户 2026-11-28 批准，P1 通过登记表修复以下 TS 疑似问题（TS 代码不改，子项目 2 切换调用方时随之生效）。登记表在 `src-tauri/src/match_analysis/parity.rs` 的 `EXPECTED_DIFFS`。每条登记可以限定队列（`queues`），也可以带取值谓词（`when(TS 值, Rust 值)`）。只有路径命中、队列符合、谓词成立三者同时满足，差异才算登记内。
 
-| 编号 | 字段路径 | 队列 | TS 行为 | Rust 行为 | 影响评分 | 测试 |
+| 编号 | 字段路径 | 队列 / 取值谓词 | TS 行为 | Rust 行为 | 影响评分 | 测试 |
 |---|---|---|---|---|---|---|
-| P1-F1 | `modeContext.{kind,description,hasLanes,championAssignment}`、`players[*]` 与 `teams[*].players[*]` 的 `teamPosition` / `vsLaneOpponent` | 400 | 400 不在 `RANKED_QUEUE_IDS`，兜底成大乱斗：无分路、无对位差值 | 400 归入有分路排位类，分路走选秀槽位 | 是，标注复测：P3 | `mode::should_classify_400_as_ranked_with_lanes`、`snapshot::should_assign_slot_positions_for_normal_draft_400` |
-| P1-F2 | `players[*].isMe`、`teams[*].players[*].isMe` | 全部 | 按显示名比较，改名 / 撞车误判 | `MatchInput.me_puuid` 与玩家 puuid 都非空时按 puuid，否则退回显示名 | 否（只影响 P3 点评名单本人置顶） | `input::should_mark_me_by_puuid_when_renamed`、`input::should_fall_back_to_display_name_when_player_puuid_missing` |
-| P1-F3 | `players[*].controlWardsPlaced`、`teams[*].players[*].controlWardsPlaced` | 全部 | 读已废弃的 `sightWardsBoughtInGame`（恒 0） | 读 `visionWardsBoughtInGame`（真眼购买数） | 否（评分真眼指标取时间线） | `snapshot::should_read_control_wards_from_vision_wards_bought` |
-| P1-F4 | `players[*].name`、`teams[*].players[*].name` 及两处 `vsLaneOpponent.opponentName` | 全部 | 拼 `gameName#tagLine`，缺字段出 `undefined`，缺 `player` 抛错 | `gameName#tagLine` → `gameName` → `summonerName` → `未知玩家`；缺整条身份仍为 `玩家<pid>`；本人键同规则 | 否 | `input::should_build_display_name_with_fallbacks`、`input::should_name_missing_player_and_missing_identity`、`input::should_mark_me_when_tag_line_missing` |
+| P1-F1 | `modeContext.{kind,description,hasLanes,championAssignment}`；`players[*]` 与 `teams[*].players[*]` 的 `teamPosition` / `vsLaneOpponent` | 仅 400 | 400 不在 `RANKED_QUEUE_IDS`，兜底成大乱斗：无分路、无对位差值 | 400 归入有分路的排位类，分路走选秀槽位 | 是，标注复测：P3 | `mode::should_classify_400_as_ranked_with_lanes`、`snapshot::should_assign_slot_positions_for_normal_draft_400`、`parity::should_match_ts_golden_regression_a_queue_400` |
+| P1-F3 | `players[*].controlWardsPlaced`、`teams[*].players[*].controlWardsPlaced` | 全部；TS 为 0 或 null 且 Rust 为数字 | 读已废弃的 `sightWardsBoughtInGame`（恒为 0） | 读 `visionWardsBoughtInGame`（真眼购买数） | 否（评分的真眼指标取自时间线） | `snapshot::should_read_control_wards_from_vision_wards_bought` |
+| P1-F4 | `players[*].name`、`teams[*].players[*].name` 及两处 `vsLaneOpponent.opponentName` | 全部；TS 值含 `undefined` | 拼 `gameName#tagLine`，缺字段时出现 `undefined`，缺 `player` 时抛错 | `gameName#tagLine` → `gameName` → `summonerName` → `未知玩家`；整条身份缺失时仍为 `玩家<pid>`；本人键用同一规则 | 否 | `input::should_build_display_name_with_fallbacks` 等 3 条、`parity::should_match_ts_golden_regression_a_missing_names` |
 
 说明：
 
-- **对拍中的 `me_puuid`**：黄金不含调用方参数，`check_golden` 取 TS 标 `isMe` 的玩家的 puuid 作 `me_puuid`，因此 P1-F2 只在改名 / 撞车局出差异，由单测覆盖。
-- **P1-F3 依据**：回归局 A/B 共 20 人 `sightWardsBoughtInGame` 全为 0；`visionWardsBoughtInGame` 有 16 人非 0，20 人中 16 人与时间线 `ITEM_PURCHASED` itemId 2055（真眼）次数相等，不等的 4 人都是辅助位、LCU 数更大。app 的 `Game` 不带该字段，app 路径仍为 null（`Game` 不动）。
-- **未修：斗魂「2v2」描述（原计划 P1-F5）**：本机 LCU `lol-game-queues/v1/queues/1700` 返回 `numPlayersPerTeam=16`、`maximumParticipantListSize=16`、`numberOfTeamsInLobby=1`，是整局人数而非小队人数，不能证明 1700 不是 2 人一队（16 = 8×2，与 2v2 相容），按约定不改。另：同一份队列表里在开的 1750（「斗魂竞技场 3x6」，18 人）走 `gameMode == CHERRY` 分支同样拿到「2v2」描述，留待后续按 queueId 区分。
+- **P1-F2（isMe 按 puuid）是有意不登记的行为修复**：`MatchInput.me_puuid` 与玩家 puuid 都非空时按 puuid 判定，否则退回显示名比较。对拍的 `me_puuid` 取输入里的战绩查询对象（`LcuGame::queried_puuid`，即顶层身份第一个的 puuid，也是 app 调用方将传入的值），不看 TS 结果。A/B 与本人 50 局的 isMe 差异均为零。改名或显示名撞车的局如果出现，会作为登记表外差异暴露，交给人判断。行为由 `input::should_mark_me_by_puuid_when_renamed` 覆盖。
+- **P1-F3 依据**：回归局 A/B 共 20 人，`sightWardsBoughtInGame` 全为 0。`visionWardsBoughtInGame` 有 16 人非 0；20 人中 16 人与时间线 `ITEM_PURCHASED` itemId 2055（真眼）的次数相等，不相等的 4 人都是辅助位，且 LCU 的数更大。
+- **入库黄金**：除 A/B 外，还有两份由回归局 A 派生、经 TS 脚本实际生成的黄金。`regression-a-q400` 把 `game.queueId` 改为 400；`regression-a-missing-names` 修改了 gameDetail 身份：pid 3 删 `tagLine`，pid 7 删 `gameName`/`tagLine` 并加 `summonerName`，pid 8 的名字字段全删。`cargo test` 会钉住每份黄金的登记内差异计数（按登记编号）。
+
+### 子项目 2 待办 / 待用户决定
+
+- **【子项目 2 必做】P1-F3 在 app 路径尚未生效**：app 的 Rust `Stats` 没有声明 `visionWardsBoughtInGame`（`sightWardsBoughtInGame` 同样没有），所以经 `LcuGame::from_app_game` 进来的对局里 `controlWardsPlaced` / `visionWardsBought` 恒为 null。子项目 2 切换调用方时，必须把该字段带进 app 路径（`Stats` 加字段，或让 command 直接读原始 LCU JSON）。
+- **【待用户决定】斗魂 1750「2v2」描述错误**：本机 LCU 队列表显示，当前开放的 1750 是「斗魂竞技场 3x6」（18 人，3 人一队），但 `classify_mode` 只要 `gameMode == CHERRY` 就给出「2v2 配对（每队两人）」的描述，TS 与 Rust 都是如此。原计划 P1-F5 只核实了 1700：`numPlayersPerTeam=16`、`maximumParticipantListSize=16` 是整局人数（16 = 8×2，与 2v2 相容），不能证明 1700 不是 2 人一队，所以未改。是否按 queueId 区分 2 人 / 3 人描述，由用户决定。
