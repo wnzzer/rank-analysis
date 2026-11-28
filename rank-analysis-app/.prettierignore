@@ -33,3 +33,6 @@ src/services/ai/shared/scoring/__tests__/fixtures/*.json
 scripts/baseline/__tests__/fixtures/*.json
 scripts/baseline/raw
 src/services/ai/shared/timeline/__tests__/fixtures/*.json
+
+# 胜率模型训练产物（examples/train_wp.rs 生成），不要被 prettier 改写
+src-tauri/src/win_prob/model.json

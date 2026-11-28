@@ -34,28 +34,46 @@ fn arg(name: &str, default: &str) -> PathBuf {
         .unwrap_or_else(|| PathBuf::from(default))
 }
 
-fn load(path: &std::path::Path) -> Option<Game> {
+/// 语料文件被跳过的原因，用于汇总报告（避免语料悄悄缩水）
+#[derive(Clone, Copy)]
+enum Skip {
+    Io,
+    Gzip,
+    Json,
+    NoGameEnd,
+    BadFrames,
+    TooShort,
+}
+
+fn load(path: &std::path::Path) -> Result<Game, Skip> {
     let mut text = String::new();
-    GzDecoder::new(std::fs::File::open(path).ok()?)
+    GzDecoder::new(std::fs::File::open(path).map_err(|_| Skip::Io)?)
         .read_to_string(&mut text)
-        .ok()?;
+        .map_err(|_| Skip::Gzip)?;
     // 语料文件有的包了一层 {"json": …}（SGP 原样），有的没包
     let raw = serde_json::from_str::<RawDetails>(&text)
         .map(|r| r.json)
         .or_else(|_| serde_json::from_str(&text))
-        .ok()?;
+        .map_err(|_| Skip::Json)?;
     let slim = slim_from_raw(raw, &HashMap::new());
-    let win = slim.events.iter().find_map(|e| match e {
-        SlimEvent::GameEnd {
-            winning_team: 100, ..
-        } => Some(1.0),
-        SlimEvent::GameEnd {
-            winning_team: 200, ..
-        } => Some(0.0),
-        _ => None,
-    })?;
-    let rows = minute_features(&slim)?;
-    (rows.len() >= MIN_FRAMES).then_some(Game {
+    let win = slim
+        .events
+        .iter()
+        .find_map(|e| match e {
+            SlimEvent::GameEnd {
+                winning_team: 100, ..
+            } => Some(1.0),
+            SlimEvent::GameEnd {
+                winning_team: 200, ..
+            } => Some(0.0),
+            _ => None,
+        })
+        .ok_or(Skip::NoGameEnd)?;
+    let rows = minute_features(&slim).ok_or(Skip::BadFrames)?;
+    if rows.len() < MIN_FRAMES {
+        return Err(Skip::TooShort);
+    }
+    Ok(Game {
         game_id: slim.game_id,
         win,
         rows,
@@ -65,13 +83,29 @@ fn load(path: &std::path::Path) -> Option<Game> {
 fn main() {
     let corpus = arg("--corpus", "../scripts/baseline/raw/details");
     let out = arg("--out", "src/win_prob/model.json");
-    let mut files: Vec<PathBuf> = std::fs::read_dir(&corpus)
-        .unwrap_or_else(|e| panic!("读不了语料目录 {}: {e}", corpus.display()))
+    if let Some(dir) = out.parent().filter(|d| !d.as_os_str().is_empty()) {
+        if !dir.is_dir() {
+            eprintln!("输出目录不存在：{}", dir.display());
+            std::process::exit(1);
+        }
+    }
+    let entries = std::fs::read_dir(&corpus).unwrap_or_else(|e| {
+        eprintln!("读不了语料目录 {}: {e}", corpus.display());
+        std::process::exit(1);
+    });
+    let mut files: Vec<PathBuf> = entries
         .filter_map(|e| e.ok().map(|e| e.path()))
         .filter(|p| p.extension().is_some_and(|x| x == "gz"))
         .collect();
     files.sort();
-    let games: Vec<Game> = files.iter().filter_map(|p| load(p)).collect();
+    let mut skips = [0usize; 6];
+    let mut games: Vec<Game> = Vec::new();
+    for p in &files {
+        match load(p) {
+            Ok(g) => games.push(g),
+            Err(s) => skips[s as usize] += 1,
+        }
+    }
     let (test, train): (Vec<&Game>, Vec<&Game>) = games.iter().partition(|g| g.game_id % 5 == 0);
     println!(
         "语料 {} 份，可用 {} 局：训练 {}，留出 {}",
@@ -79,6 +113,15 @@ fn main() {
         games.len(),
         train.len(),
         test.len()
+    );
+    println!(
+        "跳过：读取 {}，解压 {}，JSON {}，无终局 {}，帧残缺 {}，过短 {}",
+        skips[Skip::Io as usize],
+        skips[Skip::Gzip as usize],
+        skips[Skip::Json as usize],
+        skips[Skip::NoGameEnd as usize],
+        skips[Skip::BadFrames as usize],
+        skips[Skip::TooShort as usize]
     );
 
     let (mut rows, mut ys) = (vec![], vec![]);
@@ -126,20 +169,23 @@ fn main() {
         std::process::exit(1);
     }
     model.meta = serde_json::json!({
-        "trainedAt": chrono_like_now(),
+        "trainedAt": unix_now(),
         "games": games.len(),
         "trainGames": train.len(),
         "testGames": test.len(),
         "auc": aucs,
         "calibrationMaxError": (calib * 1000.0).round() / 1000.0,
     });
-    std::fs::write(&out, serde_json::to_string_pretty(&model).unwrap())
-        .expect("写 model.json 失败");
+    let json = serde_json::to_string_pretty(&model).unwrap() + "\n";
+    if let Err(e) = std::fs::write(&out, json) {
+        eprintln!("写入 {} 失败: {e}", out.display());
+        std::process::exit(1);
+    }
     println!("已写入 {}", out.display());
 }
 
-/// 训练时间（UTC，秒精度）；不为一个时间戳引入 chrono
-fn chrono_like_now() -> String {
+/// 训练时间戳，格式 `unix:<秒>`（Unix 纪元秒）；时钟异常时秒数取 0。不为一个时间戳引入 chrono
+fn unix_now() -> String {
     let secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
