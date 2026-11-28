@@ -131,6 +131,18 @@ export interface SlimTimeline {
   events: SlimEvent[]
   /** 键为 itemId 字符串 */
   items: Record<string, ItemMeta>
+  /** 胜率曲线与关键转折（Rust win_prob::analyze）；旧版本 / 数据不完整为缺省或 null */
+  winProbability?: WinProbability | null
+}
+
+/**
+ * 一局的胜率结果（蓝方视角）
+ * @property blue - 逐分钟蓝方胜率 0~1，blue[i] 对应第 i+1 分钟
+ * @property turningPoints - 最多 3 个，按时间升序
+ */
+export interface WinProbability {
+  blue: number[]
+  turningPoints: Array<{ minute: number; from: number; to: number; text: string }>
 }
 
 /** 卡片类别 */

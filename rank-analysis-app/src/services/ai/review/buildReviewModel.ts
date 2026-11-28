@@ -230,6 +230,20 @@ export type CurveMarker =
       title: string
     }
 
+/** 胜率曲线上的一点（minute 为第几分钟，p 为蓝方胜率 0~1） */
+export interface WinProbPoint {
+  minute: number
+  p: number
+}
+
+/** 胜率关键转折（from / to 为转折前后的蓝方胜率） */
+export interface WinTurn {
+  minute: number
+  from: number
+  to: number
+  text: string
+}
+
 /**
  * 经济差曲线
  * @property maxAbs - 纵轴半幅（≥ MIN_CURVE_RANGE）
@@ -240,6 +254,10 @@ export interface GoldCurve {
   markers: CurveMarker[]
   maxAbs: number
   endMinute: number
+  /** 胜率模式数据；无分路或时间线没带胜率为 null */
+  winProb: { points: WinProbPoint[]; turns: WinTurn[] } | null
+  /** 本人所在方（图例「你在红方」）；拿不到本人为 null */
+  mySide: 'blue' | 'red' | null
 }
 
 /**
@@ -398,11 +416,23 @@ function buildGoldCurve(
       title: `${fmtTime(e.timestamp)} ${sideLabel(e.killerTeamId)}拿下${monsterLabel(e.monsterType)}`
     }))
   const last = points[points.length - 1]
+  const wp = tl.winProbability
+  const winProb =
+    snapshot.modeContext.hasLanes && wp && wp.blue.length > 0
+      ? {
+          points: wp.blue.map((p, i) => ({ minute: i + 1, p })),
+          turns: wp.turningPoints.map(t => ({ ...t }))
+        }
+      : null
+  const me = snapshot.players.find(p => p.isMe)
+  const mySide = me ? (me.teamId === 100 ? 'blue' : 'red') : null
   return {
     points,
     markers: [...fights, ...objectives].sort((a, b) => a.minute - b.minute),
     maxAbs: Math.max(MIN_CURVE_RANGE, ...points.map(p => Math.abs(p.diff))),
-    endMinute: Math.max(snapshot.durationSeconds / 60, last?.minute ?? 0)
+    endMinute: Math.max(snapshot.durationSeconds / 60, last?.minute ?? 0),
+    winProb,
+    mySide
   }
 }
 
