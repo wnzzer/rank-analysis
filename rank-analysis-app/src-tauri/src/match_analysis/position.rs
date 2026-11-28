@@ -1,4 +1,4 @@
-//! # 分路（TS `positionInfer.ts` / `positionAssign.ts`；快照里的优先级见 [`resolve_positions`]，T7 加入）
+//! # 分路（TS `positionInfer.ts` / `positionAssign.ts`；快照里的优先级见 [`resolve_positions`]）
 //!
 //! - 逐人启发式 [`infer_team_position`]：LCU 真实值透传 → 惩戒 → 传送 → 治疗/屏障 → 虚弱 → 点燃 → 职业兜底
 //! - 整队求解 [`assign_team_positions`]：恰 5 人时，选秀队列（400/420/440）且槽位可信按

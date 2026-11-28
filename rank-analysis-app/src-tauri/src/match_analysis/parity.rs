@@ -143,7 +143,8 @@ pub const EXPECTED_DIFFS: &[ExpectedDiff] = &[ExpectedDiff {
     reason: "400 是有 BP、有分路的征召模式；TS 两处口径矛盾，槽位分路与对位差值在 400 永远不生效。\
              会改变 400 局的评分口径，标注复测：P3（评分进 Rust 后执行）",
     test: "mode::tests::should_classify_400_as_ranked_with_lanes, \
-           snapshot::tests::should_assign_slot_positions_for_normal_draft_400",
+           snapshot::tests::should_assign_slot_positions_for_normal_draft_400, \
+           parity::tests::should_match_ts_golden_regression_a_queue_400",
     affects_score: true,
 }, ExpectedDiff {
     id: "P1-F3",
@@ -158,7 +159,13 @@ pub const EXPECTED_DIFFS: &[ExpectedDiff] = &[ExpectedDiff {
     reason: "回归局 A/B 共 20 人 sightWardsBoughtInGame 全为 0；visionWardsBoughtInGame 16 人非 0，\
              20 人中 16 人与时间线 ITEM_PURCHASED itemId 2055（真眼）次数相等，不等的 4 人都是辅助位且 LCU 数更大。\
              快照字段不进评分（评分的真眼指标取时间线 WARD_PLACED）",
-    test: "snapshot::tests::should_read_control_wards_from_vision_wards_bought",
+    test: "snapshot::tests::should_read_control_wards_from_vision_wards_bought, \
+           parity::tests::should_require_control_wards_to_match_rust_vision_wards_bought, \
+           parity::tests::should_flag_control_ward_mutation_outside_predicate, \
+           parity::tests::should_match_ts_golden_regression_a, \
+           parity::tests::should_match_ts_golden_regression_b, \
+           parity::tests::should_match_ts_golden_regression_a_queue_400, \
+           parity::tests::should_match_ts_golden_regression_a_missing_names",
     affects_score: false,
 }, ExpectedDiff {
     id: "P1-F4",
@@ -178,9 +185,24 @@ pub const EXPECTED_DIFFS: &[ExpectedDiff] = &[ExpectedDiff {
              isMe 若因此变化会作为登记表外差异暴露",
     test: "input::tests::should_build_display_name_with_fallbacks, \
            input::tests::should_name_missing_player_and_missing_identity, \
-           input::tests::should_mark_me_when_tag_line_missing",
+           input::tests::should_mark_me_when_tag_line_missing, \
+           parity::tests::should_accept_only_rule_shaped_display_name_fallbacks, \
+           parity::tests::should_match_ts_golden_regression_a_missing_names, \
+           parity::tests::should_match_ts_golden_regression_a_app_blank_names",
     affects_score: false,
 }];
+
+/// 差异示例里该路径的取值是否含个人信息（名字 / puuid），须脱敏后再打印
+///
+/// 命中规则：路径以 `.name` / `.opponentName` 结尾，或最后一段（去掉下标）含 `Name` / `puuid`（不分大小写）
+pub fn is_sensitive_path(path: &str) -> bool {
+    let last = path.rsplit('.').next().unwrap_or(path);
+    let last = last.split('[').next().unwrap_or(last).to_lowercase();
+    path.ends_with(".name")
+        || path.ends_with(".opponentName")
+        || last.contains("name")
+        || last.contains("puuid")
+}
 
 /// 一处差异；`registered` 为命中的登记编号
 #[derive(Debug, Clone, PartialEq)]
@@ -452,6 +474,27 @@ mod tests {
         let mut out = Vec::new();
         diff_json("root", &expected, &actual, &mut out);
         out
+    }
+
+    #[test]
+    fn should_redact_name_and_puuid_paths_only() {
+        for p in [
+            "snapshot.players[3].name",
+            "snapshot.teams[0].players[1].vsLaneOpponent.opponentName",
+            "snapshot.players[0].summonerName",
+            "snapshot.players[0].puuid",
+            "snapshot.me.PUUID",
+            "snapshot.currentPlayerKey.gameName",
+        ] {
+            assert!(is_sensitive_path(p), "{p} 应脱敏");
+        }
+        for p in [
+            "snapshot.players[3].teamPosition",
+            "snapshot.players[0].kills",
+            "snapshot.players[0].controlWardsPlaced",
+        ] {
+            assert!(!is_sensitive_path(p), "{p} 不应脱敏");
+        }
     }
 
     #[test]

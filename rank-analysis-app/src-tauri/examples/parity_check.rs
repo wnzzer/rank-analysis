@@ -7,14 +7,19 @@
 //!       SGP 适配层自洽冒烟（TS 无 SGP 快照路径，无黄金可比）：人数一致、有分路队列的
 //!       快照分路等于 SUMMARY 真值
 //!
-//! 退出码：0 全部通过；1 有登记表外差异 / 黄金解析失败 / 目录项读取失败 / 冒烟违例、坏行或 0 局；
-//! 2 用法错误、读目录或读文件失败、目录下无黄金。
+//! 退出码：
+//! - 0：全部通过
+//! - 1：黄金目录模式下有登记表外差异、单个黄金文件读取 / 解析 / 比对失败、目录项读取失败；
+//!   SGP 冒烟模式下有违例、坏行或 0 局
+//! - 2：用法错误；读黄金目录失败；目录下没有 *.golden.json；SGP 冒烟读 games.jsonl 失败
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use rank_analysis_lib::match_analysis::input::{from_sgp, NameTable, SgpSummary};
-use rank_analysis_lib::match_analysis::parity::{check_golden, normalize_path, Diff};
+use rank_analysis_lib::match_analysis::parity::{
+    check_golden, is_sensitive_path, normalize_path, Diff,
+};
 use rank_analysis_lib::match_analysis::position::TeamPosition;
 use rank_analysis_lib::match_analysis::snapshot::build_snapshot;
 use serde_json::Value;
@@ -62,12 +67,16 @@ fn record(by_path: &mut BTreeMap<String, PathStat>, game: &str, d: &Diff) {
         .or_insert_with(|| PathStat {
             count: 0,
             registered: d.registered,
-            example: format!(
-                "{game} {} TS={} Rust={}",
-                d.path,
-                short(&d.expected),
-                short(&d.actual)
-            ),
+            example: if is_sensitive_path(&d.path) {
+                format!("{game} {} TS=<redacted> Rust=<redacted>", d.path)
+            } else {
+                format!(
+                    "{game} {} TS={} Rust={}",
+                    d.path,
+                    short(&d.expected),
+                    short(&d.actual)
+                )
+            },
         });
     entry.count += 1;
 }
