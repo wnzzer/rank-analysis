@@ -4,6 +4,7 @@
 //! 特征 / 推理 / 转折 / 训练全部在本模块，前端只渲染；训练程序 examples/train_wp.rs 复用同一份代码。
 
 pub mod features;
+pub mod model;
 
 use serde::{Deserialize, Serialize};
 
