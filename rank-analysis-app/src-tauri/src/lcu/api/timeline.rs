@@ -196,6 +196,9 @@ pub struct SlimTimeline {
     pub events: Vec<SlimEvent>,
     /// 仅本局被购买过的物品元数据（键为 itemId，JSON 中为字符串键）
     pub items: BTreeMap<i64, ItemMeta>,
+    /// 胜率曲线与关键转折（`win_prob::analyze` 计算，每次返回前重算；旧缓存缺省为 None）
+    #[serde(default)]
+    pub win_probability: Option<crate::win_prob::WinProbability>,
 }
 
 /// participantId ↔ puuid。
@@ -591,6 +594,7 @@ pub fn slim_from_raw(raw: RawDetailsJson, items: &HashMap<i64, ItemMeta>) -> Sli
         frames,
         events,
         items,
+        win_probability: None,
     }
 }
 
