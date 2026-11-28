@@ -739,7 +739,12 @@ mod tests {
         for which in ['a', 'b'] {
             let (game, slim) = regression_fixture(which);
             let snap = build_snapshot(&from_lcu(&game, Some(&slim), &NameTable::default(), None));
-            for (p, raw) in snap.players.iter().zip(game.snapshot_participants()) {
+            for raw in game.snapshot_participants() {
+                let p = snap
+                    .players
+                    .iter()
+                    .find(|p| p.participant_id == raw.participant_id)
+                    .expect("快照里有该参与者");
                 let bought = raw.stats.vision_wards_bought_in_game;
                 assert!(bought.is_some(), "fixture 里该字段有值");
                 assert_eq!(
