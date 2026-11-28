@@ -116,6 +116,7 @@ mod tests {
         let wp = analyze(&tl).expect("完整帧应有结果");
         assert_eq!(wp.blue.len(), 7);
         assert!(wp.blue.iter().all(|p| (0.0..=1.0).contains(p)));
+        assert!(!wp.turning_points.is_empty());
         assert!(wp.turning_points.len() <= 3);
         for t in &wp.turning_points {
             assert!(!t.text.is_empty());

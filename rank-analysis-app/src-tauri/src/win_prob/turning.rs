@@ -126,7 +126,12 @@ pub fn describe(events: &[SlimEvent], from_ts: i64, to_ts: i64) -> String {
     }
     let mut parts: Vec<String> = vec![];
     if blue_kills + red_kills >= TEAMFIGHT_KILLS {
-        parts.push(format!("团战蓝方 {blue_kills} 换 {red_kills}"));
+        // 人头多的一方开头；平局以蓝方开头
+        if blue_kills >= red_kills {
+            parts.push(format!("团战蓝方 {blue_kills} 换 {red_kills}"));
+        } else {
+            parts.push(format!("团战红方 {red_kills} 换 {blue_kills}"));
+        }
     } else {
         if blue_kills > 0 {
             parts.push(format!("蓝方击杀 {blue_kills}"));
@@ -232,6 +237,18 @@ mod tests {
             describe(&ev, 60_000, 120_000),
             "团战蓝方 3 换 2，蓝方推掉 2 座塔，蓝方拿下虚空巢虫×3，红方拿下远古龙"
         );
+    }
+
+    #[test]
+    fn describe_teamfight_leads_with_winning_side() {
+        // 蓝方 1..=4 号位被红方击杀 4 次 → 红方人头多，应以红方开头
+        let ev = vec![
+            kill(61_000, 6, 1),
+            kill(62_000, 7, 2),
+            kill(63_000, 8, 3),
+            kill(64_000, 9, 4),
+        ];
+        assert_eq!(describe(&ev, 60_000, 120_000), "团战红方 4 换 0");
     }
 
     #[test]
