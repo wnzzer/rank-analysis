@@ -7,7 +7,8 @@
 //!       SGP 适配层自洽冒烟（TS 无 SGP 快照路径，无黄金可比）：人数一致、有分路队列的
 //!       快照分路等于 SUMMARY 真值
 //!
-//! 退出码：0 全部通过；1 有登记表外差异 / 解析失败 / 冒烟违例；2 用法或读文件错误。
+//! 退出码：0 全部通过；1 有登记表外差异 / 黄金解析失败 / 目录项读取失败 / 冒烟违例、坏行或 0 局；
+//! 2 用法错误、读目录或读文件失败、目录下无黄金。
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -72,16 +73,30 @@ fn record(by_path: &mut BTreeMap<String, PathStat>, game: &str, d: &Diff) {
 }
 
 fn golden_dir(dir: &Path) -> i32 {
-    let mut files: Vec<PathBuf> = match std::fs::read_dir(dir) {
-        Ok(rd) => rd
-            .filter_map(|e| e.ok().map(|e| e.path()))
-            .filter(|p| p.to_string_lossy().ends_with(".golden.json"))
-            .collect(),
+    let mut files: Vec<PathBuf> = Vec::new();
+    let mut entry_errors = 0usize;
+    match std::fs::read_dir(dir) {
+        Ok(rd) => {
+            for entry in rd {
+                match entry {
+                    Ok(e) => {
+                        let p = e.path();
+                        if p.to_string_lossy().ends_with(".golden.json") {
+                            files.push(p);
+                        }
+                    }
+                    Err(e) => {
+                        entry_errors += 1;
+                        eprintln!("[错误] 读目录项失败 {}: {e}", dir.display());
+                    }
+                }
+            }
+        }
         Err(e) => {
             eprintln!("读目录失败 {}: {e}", dir.display());
             return 2;
         }
-    };
+    }
     files.sort();
     if files.is_empty() {
         eprintln!("{} 下没有 *.golden.json", dir.display());
@@ -89,7 +104,7 @@ fn golden_dir(dir: &Path) -> i32 {
     }
 
     let mut by_path: BTreeMap<String, PathStat> = BTreeMap::new();
-    let (mut clean, mut errors) = (0usize, 0usize);
+    let (mut clean, mut errors) = (0usize, entry_errors);
     for file in &files {
         let report = std::fs::read_to_string(file)
             .map_err(|e| e.to_string())
@@ -188,6 +203,14 @@ fn sgp_smoke(file: &Path, limit: usize) -> i32 {
         }
     }
     println!("SGP 冒烟 {games} 局（坏行 {bad_lines}）：违例 {violations}");
+    if games == 0 {
+        eprintln!("[失败] 一局都没解析成功（空文件或全是坏行），冒烟不能算通过");
+        return 1;
+    }
+    if bad_lines > 0 {
+        eprintln!("[失败] 有 {bad_lines} 行无法解析为 SgpSummary，冒烟不能算通过");
+        return 1;
+    }
     if violations > 0 {
         1
     } else {

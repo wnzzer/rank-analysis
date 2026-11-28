@@ -84,13 +84,61 @@ pub fn normalize_path(path: &str) -> String {
     out
 }
 
-/// 登记路径匹配：归一化后相等，或模式以 `**` 结尾且为前缀
+/// 登记路径匹配：归一化后相等，或模式以 `**` 结尾且为前缀。
+///
+/// 前缀必须落在路径段边界上：前缀以 `.` 结尾直接算；以 `]` 结尾时，其后须是结尾、`.` 或 `[`。
+/// 因此 `snapshot.players**` 这种写法永远匹配不到 `snapshot.playersX`（并且
+/// [`validate_pattern`] 也会拒绝它）。
 pub fn path_matches(pattern: &str, path: &str) -> bool {
     let normalized = normalize_path(path);
     match pattern.strip_suffix("**") {
-        Some(prefix) => normalized.starts_with(prefix),
+        Some(prefix) => match normalized.strip_prefix(prefix) {
+            Some(rest) => {
+                (prefix.ends_with('.') || prefix.ends_with(']'))
+                    && (prefix.ends_with('.')
+                        || rest.is_empty()
+                        || rest.starts_with('.')
+                        || rest.starts_with('['))
+            }
+            None => false,
+        },
         None => normalized == pattern,
     }
+}
+
+/// 校验一条登记路径模式，防止写得过宽把真正的移植错误吞掉。
+///
+/// 规则：不能为空；`**` 只能出现在结尾一次，且紧跟在 `.` 或 `]` 之后；
+/// `**` 之前的固定前缀至少 2 段（`snapshot.**` 太宽，须写成 `snapshot.players[*].**` 这类）。
+///
+/// # 错误
+/// 返回违反的规则说明
+pub fn validate_pattern(pattern: &str) -> Result<(), String> {
+    if pattern.trim().is_empty() {
+        return Err("模式为空".to_string());
+    }
+    let Some(idx) = pattern.find("**") else {
+        return Ok(());
+    };
+    if idx + 2 != pattern.len() || pattern[..idx].contains("**") {
+        return Err(format!("{pattern}: `**` 只能出现在模式结尾"));
+    }
+    let prefix = &pattern[..idx];
+    if prefix.is_empty() {
+        return Err(format!("{pattern}: `**` 前缀为空"));
+    }
+    if !(prefix.ends_with('.') || prefix.ends_with(']')) {
+        return Err(format!("{pattern}: `**` 必须紧跟在 `.` 或 `]` 之后"));
+    }
+    let segments = prefix
+        .trim_end_matches('.')
+        .split('.')
+        .filter(|s| !s.is_empty())
+        .count();
+    if segments < 2 {
+        return Err(format!("{pattern}: `**` 前的固定前缀不足 2 段，范围过宽"));
+    }
+    Ok(())
 }
 
 /// 在给定登记表里找命中的条目（测试可传自建表）
@@ -336,6 +384,118 @@ mod tests {
             ] {
                 assert!(!v.trim().is_empty(), "{} 的 {field} 为空", d.id);
             }
+        }
+    }
+
+    #[test]
+    fn should_validate_registry_patterns() {
+        for d in EXPECTED_DIFFS {
+            validate_pattern(d.path).unwrap_or_else(|e| panic!("{} 的路径非法: {e}", d.id));
+        }
+    }
+
+    #[test]
+    fn should_accept_good_and_reject_bad_patterns() {
+        for good in [
+            "snapshot.players[*].kda",
+            "snapshot.players[*].**",
+            "snapshot.modeContext.**",
+            "remappedTimeline.frames[*].**",
+        ] {
+            assert!(validate_pattern(good).is_ok(), "{good}");
+        }
+        for bad in [
+            "",
+            "**",
+            ".**",
+            "snapshot.**",
+            "snapshot**",
+            "snapshot.players**",
+            "snapshot.players[*]**x",
+            "snapshot.**.kda",
+            "a.b.****",
+        ] {
+            assert!(validate_pattern(bad).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn should_not_match_across_segment_boundary() {
+        assert!(!path_matches("snapshot.players**", "snapshot.playersX"));
+        assert!(!path_matches(
+            "snapshot.players[*]**",
+            "snapshot.players[0]X"
+        ));
+        assert!(path_matches(
+            "snapshot.players[*]**",
+            "snapshot.players[0].kda"
+        ));
+    }
+
+    fn mutated_paths(mutate: impl FnOnce(&mut Value)) -> Vec<String> {
+        let mut golden: Value = serde_json::from_str(GOLDEN_A).unwrap();
+        mutate(&mut golden["expected"]);
+        let report = check_golden(&golden).unwrap();
+        report.unregistered().map(|d| d.path.clone()).collect()
+    }
+
+    #[test]
+    fn should_detect_remapped_timeline_mutations() {
+        let paths = mutated_paths(|e| {
+            let g = &mut e["remappedTimeline"]["frames"][1]["players"][0]["totalGold"];
+            *g = Value::from(g.as_f64().unwrap() + 1.0);
+        });
+        assert_eq!(
+            paths,
+            vec!["remappedTimeline.frames[1].players[0].totalGold"]
+        );
+
+        let paths = mutated_paths(|e| {
+            e["remappedTimeline"]["events"]
+                .as_array_mut()
+                .unwrap()
+                .pop();
+        });
+        assert_eq!(paths, vec!["remappedTimeline.events.length"]);
+    }
+
+    #[test]
+    fn should_detect_removed_snapshot_player_key() {
+        let paths = mutated_paths(|e| {
+            e["snapshot"]["players"][0]
+                .as_object_mut()
+                .unwrap()
+                .remove("kda");
+        });
+        assert_eq!(paths, vec!["snapshot.players[0].kda"]);
+    }
+
+    #[test]
+    fn should_detect_swapped_snapshot_players() {
+        let paths = mutated_paths(|e| e["snapshot"]["players"].as_array_mut().unwrap().swap(0, 1));
+        assert!(
+            paths.iter().any(|p| p.starts_with("snapshot.players[0].")),
+            "{paths:?}"
+        );
+        assert!(
+            paths.iter().any(|p| p.starts_with("snapshot.players[1].")),
+            "{paths:?}"
+        );
+        assert!(
+            paths.iter().all(|p| p.starts_with("snapshot.players[")),
+            "{paths:?}"
+        );
+    }
+
+    #[test]
+    fn should_detect_extra_array_elements() {
+        for key in ["players", "teams"] {
+            let paths = mutated_paths(|e| {
+                let arr = e["snapshot"][key].as_array_mut().unwrap();
+                let first = arr[0].clone();
+                arr.push(first);
+            });
+            assert_eq!(paths, vec![format!("snapshot.{key}.length")]);
         }
     }
 
