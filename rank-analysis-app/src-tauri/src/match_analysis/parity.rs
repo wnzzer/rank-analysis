@@ -97,6 +97,24 @@ pub const EXPECTED_DIFFS: &[ExpectedDiff] = &[ExpectedDiff {
              快照字段不进评分（评分的真眼指标取时间线 WARD_PLACED）",
     test: "snapshot::tests::should_read_control_wards_from_vision_wards_bought",
     affects_score: false,
+}, ExpectedDiff {
+    id: "P1-F4",
+    paths: &[
+        "snapshot.players[*].name",
+        "snapshot.teams[*].players[*].name",
+        "snapshot.players[*].vsLaneOpponent.opponentName",
+        "snapshot.teams[*].players[*].vsLaneOpponent.opponentName",
+    ],
+    queues: &[],
+    ts: "`${gameName}#${tagLine}`：缺字段拼出 \"undefined#undefined\" / \"甲#undefined\"，缺 player 抛错",
+    rust: "gameName#tagLine → gameName → summonerName → 未知玩家（空串视同缺失）；缺整条身份仍为 玩家<pid>；\
+           本人键 currentPlayerKey 用同一规则",
+    reason: "显示名会进 AI 提示词与界面，不能出现 undefined。只有缺名局会出差异（真实国服数据极少）；\
+             本人键随之变化引起的 isMe 差异落在 P1-F2 的路径上",
+    test: "input::tests::should_build_display_name_with_fallbacks, \
+           input::tests::should_name_missing_player_and_missing_identity, \
+           input::tests::should_mark_me_when_tag_line_missing",
+    affects_score: false,
 }];
 
 /// 一处差异；`registered` 为命中的登记编号

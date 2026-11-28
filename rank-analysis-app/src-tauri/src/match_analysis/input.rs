@@ -42,7 +42,8 @@ pub struct MatchInput {
 
 /// 一名玩家的中立输入。
 ///
-/// - `name`: 显示名（TS `buildDisplayName`：`gameName#tagLine`，缺身份为 `玩家<pid>`）
+/// - `name`: 显示名：`gameName#tagLine` → `gameName` → `summonerName` → `未知玩家`（登记 P1-F4），
+///   缺整条身份为 `玩家<pid>`（同 TS）
 /// - `is_me`: 本人判定。`me_puuid` 与本玩家 puuid 都非空时按 puuid 相等（登记 P1-F2，改名不误判），
 ///   否则退回 TS 的显示名比较（`displayName === currentPlayerKey`）
 /// - `lcu_team_position`: LCU participant 的 `teamPosition` 原值，缺失为 `""`
@@ -240,6 +241,8 @@ pub struct LcuIdentity {
 pub struct LcuPlayer {
     pub game_name: Option<String>,
     pub tag_line: Option<String>,
+    /// 旧版召唤师名；只在缺 `gameName` 时作显示名兜底（登记 P1-F4）
+    pub summoner_name: Option<String>,
     pub puuid: Option<String>,
 }
 
@@ -346,22 +349,32 @@ impl From<&LcuStats> for PlayerStats {
     }
 }
 
-/// TS 模板字符串里 undefined 的样子（身份缺字段时复刻 `"undefined#undefined"`）
-fn js_str(v: Option<&str>) -> &str {
-    v.unwrap_or("undefined")
+/// 缺显示名时的兜底（登记 P1-F4）
+const UNKNOWN_PLAYER_NAME: &str = "未知玩家";
+
+/// 玩家显示名（登记 P1-F4，TS `buildDisplayName` 的修正版）。
+///
+/// 规则（空串视同缺失）：`gameName` 与 `tagLine` 都有 → `gameName#tagLine`；只有 `gameName` →
+/// `gameName`；否则 `summonerName`；都没有（含缺 `player`）→ `未知玩家`。绝不输出 `undefined`
+/// （TS 缺字段时拼出 `undefined#undefined`，缺 `player` 直接抛错）。
+fn player_display_name(player: Option<&LcuPlayer>) -> String {
+    let non_empty = |v: Option<&String>| v.filter(|s| !s.is_empty()).cloned();
+    let game_name = non_empty(player.and_then(|p| p.game_name.as_ref()));
+    let tag_line = non_empty(player.and_then(|p| p.tag_line.as_ref()));
+    let summoner_name = non_empty(player.and_then(|p| p.summoner_name.as_ref()));
+    match (game_name, tag_line) {
+        (Some(g), Some(t)) => format!("{g}#{t}"),
+        (Some(g), None) => g,
+        (None, _) => summoner_name.unwrap_or_else(|| UNKNOWN_PLAYER_NAME.to_string()),
+    }
 }
 
-/// TS `buildDisplayName`。身份存在但缺 `player` 时 TS 会抛错，这里按缺字段处理（非真实数据）。
+/// 快照里的显示名：缺整条身份时同 TS 为 `玩家<pid>`，否则 [`player_display_name`]
 fn display_name(identity: Option<&LcuIdentity>, fallback_id: i64) -> String {
-    let Some(identity) = identity else {
-        return format!("玩家{fallback_id}");
-    };
-    let player = identity.player.as_ref();
-    format!(
-        "{}#{}",
-        js_str(player.and_then(|p| p.game_name.as_deref())),
-        js_str(player.and_then(|p| p.tag_line.as_deref()))
-    )
+    match identity {
+        None => format!("玩家{fallback_id}"),
+        Some(identity) => player_display_name(identity.player.as_ref()),
+    }
 }
 
 impl LcuGame {
@@ -387,18 +400,15 @@ impl LcuGame {
         }
     }
 
-    /// TS `getCurrentPlayerKey`：**顶层**身份第一个（战绩查询对象）的 `gameName#tagLine`，无则 `""`
+    /// TS `getCurrentPlayerKey`：**顶层**身份第一个（战绩查询对象）的显示名，无则 `""`。
+    /// 与玩家显示名同一套兜底规则（登记 P1-F4），否则缺 tagLine 的本人会对不上。
     pub fn current_player_key(&self) -> String {
         match self
             .participant_identities
             .first()
             .and_then(|i| i.player.as_ref())
         {
-            Some(p) => format!(
-                "{}#{}",
-                js_str(p.game_name.as_deref()),
-                js_str(p.tag_line.as_deref())
-            ),
+            Some(p) => player_display_name(Some(p)),
             None => String::new(),
         }
     }
@@ -1149,6 +1159,85 @@ mod tests {
         .unwrap();
         let input = from_lcu(&game, None, &NameTable::default(), Some("me"));
         assert_eq!(me_pids(&input), vec![1]);
+    }
+
+    fn names_of(players: serde_json::Value) -> Vec<String> {
+        let identities: Vec<serde_json::Value> = players
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|p| json!({ "player": p }))
+            .collect();
+        let participants: Vec<serde_json::Value> = (1..=identities.len())
+            .map(|i| json!({ "participantId": i, "teamId": 100, "stats": {} }))
+            .collect();
+        let game: LcuGame = serde_json::from_value(json!({
+            "participants": participants, "participantIdentities": identities
+        }))
+        .unwrap();
+        from_lcu(&game, None, &NameTable::default(), None)
+            .players
+            .into_iter()
+            .map(|p| p.name)
+            .collect()
+    }
+
+    // P1-F4：TS 缺 gameName / tagLine 时拼出 "undefined#undefined"
+    #[test]
+    fn should_build_display_name_with_fallbacks() {
+        let names = names_of(json!([
+            { "gameName": "甲", "tagLine": "123", "summonerName": "旧甲" },
+            { "gameName": "乙", "summonerName": "旧乙" },
+            { "gameName": "丙", "tagLine": "" },
+            { "summonerName": "丁" },
+            { "gameName": "", "tagLine": "9", "summonerName": "戊" },
+            { "tagLine": "9" },
+            { "gameName": "", "summonerName": "" },
+        ]));
+        assert_eq!(
+            names,
+            vec!["甲#123", "乙", "丙", "丁", "戊", "未知玩家", "未知玩家"]
+        );
+        assert!(names.iter().all(|n| !n.contains("undefined")));
+    }
+
+    // P1-F4：身份缺 player（TS 抛错）也给兜底名；缺整条身份仍是 TS 的「玩家<pid>」
+    #[test]
+    fn should_name_missing_player_and_missing_identity() {
+        let game: LcuGame = serde_json::from_value(json!({
+            "participants": [
+                { "participantId": 1, "teamId": 100, "stats": {} },
+                { "participantId": 2, "teamId": 100, "stats": {} }
+            ],
+            "participantIdentities": [{}]
+        }))
+        .unwrap();
+        let names: Vec<String> = from_lcu(&game, None, &NameTable::default(), None)
+            .players
+            .into_iter()
+            .map(|p| p.name)
+            .collect();
+        assert_eq!(names, vec!["未知玩家", "玩家2"]);
+    }
+
+    // P1-F4：本人键与显示名同一套规则，缺 tagLine 的本人仍判为本人
+    #[test]
+    fn should_mark_me_when_tag_line_missing() {
+        let game: LcuGame = serde_json::from_value(json!({
+            "participants": [
+                { "participantId": 1, "teamId": 100, "stats": {} },
+                { "participantId": 2, "teamId": 100, "stats": {} }
+            ],
+            "participantIdentities": [
+                { "player": { "gameName": "甲" } },
+                { "player": { "gameName": "乙" } }
+            ]
+        }))
+        .unwrap();
+        let input = from_lcu(&game, None, &NameTable::default(), None);
+        assert_eq!(input.players[0].name, "甲");
+        assert!(input.players[0].is_me);
+        assert!(!input.players[1].is_me);
     }
 
     #[test]
