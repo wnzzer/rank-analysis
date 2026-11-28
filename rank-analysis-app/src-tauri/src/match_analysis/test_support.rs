@@ -12,8 +12,10 @@ use crate::lcu::api::timeline::{SlimEvent, SlimFrame, SlimPlayerFrame, SlimTimel
 
 const POS: [&str; 5] = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"];
 
-/// 浅合并（TS 对象展开 `{ ...base, ...overrides }`）；`null` 值表示 TS 的 `undefined`
-#[allow(dead_code)] // 后续任务（snapshot 测试）才使用
+/// 浅合并（TS 对象展开 `{ ...base, ...overrides }`）。
+///
+/// 覆盖值为 `null` 时只对 `Option` 字段等价于 TS 的 `undefined`；
+/// 非 `Option` 字段收到 `null` 会让 `serde_json::from_value` 报错，需要缺省请直接不传该键。
 pub(crate) fn merge_shallow(base: &mut Value, overrides: Value) {
     if let (Some(b), Value::Object(o)) = (base.as_object_mut(), overrides) {
         for (k, v) in o {
@@ -137,4 +139,16 @@ pub(crate) fn regression_fixture(which: char) -> (LcuGame, SlimTimeline) {
         serde_json::from_value(v["game"].clone()).expect("fixture game 可解析为 LcuGame"),
         serde_json::from_value(v["slim"].clone()).expect("fixture slim 可解析为 SlimTimeline"),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_override_insert_and_null_override_in_merge_shallow() {
+        let mut base = json!({ "a": 1, "b": 2 });
+        merge_shallow(&mut base, json!({ "a": 9, "c": 3, "b": null }));
+        assert_eq!(base, json!({ "a": 9, "b": null, "c": 3 }));
+    }
 }

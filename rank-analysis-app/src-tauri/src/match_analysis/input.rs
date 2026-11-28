@@ -979,4 +979,86 @@ mod tests {
         assert_eq!(p.lane, "");
         assert_eq!(p.lcu_team_position, "");
     }
+
+    #[test]
+    fn should_map_every_lcu_stats_field_to_its_own_slot() {
+        let s = LcuStats {
+            win: true,
+            kills: 11,
+            deaths: 12,
+            assists: 13,
+            gold_earned: 14,
+            total_damage_dealt_to_champions: 15,
+            total_damage_taken: 16,
+            total_heal: 17,
+            damage_dealt_to_turrets: 18,
+            total_minions_killed: 19,
+            neutral_minions_killed: 20,
+            perk0: 21,
+            perk_sub_style: 22,
+            player_augment1: 31,
+            player_augment2: 32,
+            player_augment3: 33,
+            player_augment4: 34,
+            player_augment5: 35,
+            player_augment6: 36,
+            item0: 101,
+            item1: 102,
+            item2: 103,
+            item3: 104,
+            item4: 105,
+            item5: 106,
+            item6: 107,
+            damage_dealt_to_objectives: Some(41),
+            time_c_cing_others: Some(42),
+            vision_score: Some(43),
+            sight_wards_bought_in_game: Some(44),
+            vision_wards_bought_in_game: Some(45),
+            double_kills: Some(51),
+            triple_kills: Some(52),
+            quadra_kills: Some(53),
+            penta_kills: Some(54),
+        };
+        let p = PlayerStats::from(&s);
+        assert!(p.win);
+        assert_eq!(
+            [p.kills, p.deaths, p.assists, p.gold_earned],
+            [11, 12, 13, 14]
+        );
+        assert_eq!(
+            [
+                p.total_damage_dealt_to_champions,
+                p.total_damage_taken,
+                p.total_heal,
+                p.damage_dealt_to_turrets
+            ],
+            [15, 16, 17, 18]
+        );
+        assert_eq!(
+            [
+                p.total_minions_killed,
+                p.neutral_minions_killed,
+                p.perk0,
+                p.perk_sub_style
+            ],
+            [19, 20, 21, 22]
+        );
+        assert_eq!(p.augments, [31, 32, 33, 34, 35, 36]);
+        assert_eq!(p.items, [101, 102, 103, 104, 105, 106]);
+        assert_eq!(p.trinket_id, 107);
+        assert_eq!(p.damage_dealt_to_objectives, Some(41));
+        assert_eq!(p.time_c_cing_others, Some(42));
+        assert_eq!(p.vision_score, Some(43));
+        assert_eq!(p.sight_wards_bought_in_game, Some(44));
+        assert_eq!(p.vision_wards_bought_in_game, Some(45));
+        assert_eq!(
+            [
+                p.double_kills,
+                p.triple_kills,
+                p.quadra_kills,
+                p.penta_kills
+            ],
+            [51, 52, 53, 54]
+        );
+    }
 }
