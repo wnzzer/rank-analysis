@@ -13,3 +13,4 @@
 //! 本模块暂无调用方（子项目 2 才接 command），线上行为不变。
 
 pub mod js;
+pub mod mode;
