@@ -128,3 +128,20 @@ TS 现有相关单测（`scoring/__tests__`、`timeline` 卡片、`positionAssig
 | P3 | `scoring/` 全部 | 分数、标签、阵亡归责、时间线指标 |
 
 每期合并后：Rust 代码与测试全绿、线上行为不变。P3 合并即子项目 1 完成。实施计划按期分别编写，P1 合并后再写 P2 的计划，以吸收前一期的经验。
+
+## 已登记差异
+
+经用户 2026-11-28 批准，P1 通过登记表修复以下 TS 疑似问题（TS 代码不改，子项目 2 切换调用方时随之生效）。登记表在 `src-tauri/src/match_analysis/parity.rs` 的 `EXPECTED_DIFFS`；每条可限定队列（`queues`），只放行指定队列局里的差异。
+
+| 编号 | 字段路径 | 队列 | TS 行为 | Rust 行为 | 影响评分 | 测试 |
+|---|---|---|---|---|---|---|
+| P1-F1 | `modeContext.{kind,description,hasLanes,championAssignment}`、`players[*]` 与 `teams[*].players[*]` 的 `teamPosition` / `vsLaneOpponent` | 400 | 400 不在 `RANKED_QUEUE_IDS`，兜底成大乱斗：无分路、无对位差值 | 400 归入有分路排位类，分路走选秀槽位 | 是，标注复测：P3 | `mode::should_classify_400_as_ranked_with_lanes`、`snapshot::should_assign_slot_positions_for_normal_draft_400` |
+| P1-F2 | `players[*].isMe`、`teams[*].players[*].isMe` | 全部 | 按显示名比较，改名 / 撞车误判 | `MatchInput.me_puuid` 与玩家 puuid 都非空时按 puuid，否则退回显示名 | 否（只影响 P3 点评名单本人置顶） | `input::should_mark_me_by_puuid_when_renamed`、`input::should_fall_back_to_display_name_when_player_puuid_missing` |
+| P1-F3 | `players[*].controlWardsPlaced`、`teams[*].players[*].controlWardsPlaced` | 全部 | 读已废弃的 `sightWardsBoughtInGame`（恒 0） | 读 `visionWardsBoughtInGame`（真眼购买数） | 否（评分真眼指标取时间线） | `snapshot::should_read_control_wards_from_vision_wards_bought` |
+| P1-F4 | `players[*].name`、`teams[*].players[*].name` 及两处 `vsLaneOpponent.opponentName` | 全部 | 拼 `gameName#tagLine`，缺字段出 `undefined`，缺 `player` 抛错 | `gameName#tagLine` → `gameName` → `summonerName` → `未知玩家`；缺整条身份仍为 `玩家<pid>`；本人键同规则 | 否 | `input::should_build_display_name_with_fallbacks`、`input::should_name_missing_player_and_missing_identity`、`input::should_mark_me_when_tag_line_missing` |
+
+说明：
+
+- **对拍中的 `me_puuid`**：黄金不含调用方参数，`check_golden` 取 TS 标 `isMe` 的玩家的 puuid 作 `me_puuid`，因此 P1-F2 只在改名 / 撞车局出差异，由单测覆盖。
+- **P1-F3 依据**：回归局 A/B 共 20 人 `sightWardsBoughtInGame` 全为 0；`visionWardsBoughtInGame` 有 16 人非 0，20 人中 16 人与时间线 `ITEM_PURCHASED` itemId 2055（真眼）次数相等，不等的 4 人都是辅助位、LCU 数更大。app 的 `Game` 不带该字段，app 路径仍为 null（`Game` 不动）。
+- **未修：斗魂「2v2」描述（原计划 P1-F5）**：本机 LCU `lol-game-queues/v1/queues/1700` 返回 `numPlayersPerTeam=16`、`maximumParticipantListSize=16`、`numberOfTeamsInLobby=1`，是整局人数而非小队人数，不能证明 1700 不是 2 人一队（16 = 8×2，与 2v2 相容），按约定不改。另：同一份队列表里在开的 1750（「斗魂竞技场 3x6」，18 人）走 `gameMode == CHERRY` 分支同样拿到「2v2」描述，留待后续按 queueId 区分。
