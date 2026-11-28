@@ -40,7 +40,7 @@
       class="gold-curve-plot"
       data-test="curve-plot"
       @mousemove="onMove"
-      @mouseleave="hover = null"
+      @mouseleave="onLeave"
     >
       <svg class="gold-curve-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
         <line
@@ -127,12 +127,12 @@
       </template>
 
       <div
-        v-if="isWp ? wpHover : hover"
+        v-if="readout"
         class="gold-curve-readout"
-        :style="{ left: `${x((isWp ? wpHover! : hover!).minute)}%` }"
+        :style="{ left: `${x(readout.minute)}%` }"
         data-test="curve-readout"
       >
-        {{ isWp ? wpText(wpHover!) : leadText(hover!) }}
+        {{ readout.text }}
       </div>
 
       <div
@@ -222,10 +222,22 @@ watch(
     if (id !== null) openTurnMinute.value = null
   }
 )
+/** 悬停读数：胜率模式读胜率点，否则读经济差点；无悬停为 null */
+const readout = computed<{ minute: number; text: string } | null>(() => {
+  if (isWp.value)
+    return wpHover.value ? { minute: wpHover.value.minute, text: wpText(wpHover.value) } : null
+  return hover.value ? { minute: hover.value.minute, text: leadText(hover.value) } : null
+})
+
+function onLeave(): void {
+  hover.value = null
+  wpHover.value = null
+}
+
 function toggleTurn(t: WinTurn): void {
   const closing = openTurnMinute.value === t.minute
   openTurnMinute.value = closing ? null : t.minute
-  if (!closing) emit('update:openId', null)
+  if (!closing && props.openId !== null) emit('update:openId', null)
 }
 
 const wpLine = computed(() =>

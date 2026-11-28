@@ -185,6 +185,23 @@ describe('GoldCurve 胜率模式：状态重置与互斥', () => {
     expect(w.find('[data-test="curve-turn-popover"]').exists()).toBe(false)
   })
 
+  it('胜率模式：移入显示读数，移出后消失', async () => {
+    const w = mk()
+    const plot = w.find('[data-test="curve-plot"]')
+    ;(plot.element as HTMLElement).getBoundingClientRect = () =>
+      ({ left: 0, width: 1000, top: 0, height: 140 }) as DOMRect
+    await plot.trigger('mousemove', { clientX: 0 })
+    expect(w.find('[data-test="curve-readout"]').text()).toContain('蓝方胜率')
+    await plot.trigger('mouseleave')
+    expect(w.find('[data-test="curve-readout"]').exists()).toBe(false)
+  })
+
+  it('openId 本就为空时开转折弹出卡不多发 update:openId', async () => {
+    const w = mk()
+    await badge(w).trigger('click')
+    expect(w.emitted('update:openId')).toBeUndefined()
+  })
+
   it('无障碍：模式按钮 aria-pressed，徽标 aria-label', () => {
     const w = mk()
     expect(w.find('[data-test="curve-mode-wp"]').attributes('aria-pressed')).toBe('true')
