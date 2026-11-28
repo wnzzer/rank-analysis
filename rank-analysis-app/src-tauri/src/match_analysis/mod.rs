@@ -16,8 +16,11 @@ pub mod input;
 pub mod js;
 pub mod lane_facts;
 pub mod mode;
-
 pub mod position;
+pub mod snapshot;
+
+pub use input::{from_lcu, from_sgp, MatchInput, NameTable};
+pub use snapshot::{build_snapshot, MatchSnapshot};
 
 #[cfg(test)]
 pub(crate) mod test_support;

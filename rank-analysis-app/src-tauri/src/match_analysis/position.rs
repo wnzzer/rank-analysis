@@ -6,7 +6,9 @@
 //!   ADC/治疗屏障定下路 → 战士 vs 法师刺客 + 传送分上中
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+
+use super::input::PlayerInput;
 
 /// 分路（TS `TeamPosition`），序列化为 `"TOP"` … `"UNKNOWN"`
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -310,6 +312,81 @@ pub fn assign_team_positions(
     result[remaining[0]] = TeamPosition::Middle;
 
     result
+}
+
+/// 整队求解（TS `snapshot.ts#buildTeamPositionMap`）：有分路模式下，每支恰 5 人的队伍
+/// 走 [`assign_team_positions`]；LCU 下发了真实 teamPosition 的成员保留真实值。
+///
+/// # 返回
+/// participantId → 分路；不满足条件（无分路 / 非 5 人队）的成员不在表里
+fn build_team_position_map(
+    players: &[PlayerInput],
+    has_lanes: bool,
+    queue_id: i64,
+) -> HashMap<i64, TeamPosition> {
+    let mut map = HashMap::new();
+    if !has_lanes {
+        return map;
+    }
+    // 队伍按首次出现顺序分组（TS Map 插入序）
+    let mut by_team: Vec<(i64, Vec<&PlayerInput>)> = Vec::new();
+    for p in players {
+        match by_team
+            .iter_mut()
+            .find(|(team_id, _)| *team_id == p.team_id)
+        {
+            Some((_, list)) => list.push(p),
+            None => by_team.push((p.team_id, vec![p])),
+        }
+    }
+    for (_, team) in &by_team {
+        if team.len() != 5 {
+            continue;
+        }
+        let inputs: Vec<PositionAssignInput> = team
+            .iter()
+            .map(|p| PositionAssignInput {
+                champion_id: p.champion_id,
+                spell_ids: p.spell_ids.to_vec(),
+                minions_killed: p.stats.total_minions_killed,
+                jungle_minions_killed: p.stats.neutral_minions_killed,
+                participant_id: Some(p.participant_id),
+            })
+            .collect();
+        let assigned = assign_team_positions(&inputs, Some(queue_id));
+        for (i, p) in team.iter().enumerate() {
+            let pos = TeamPosition::parse_lane(&p.lcu_team_position).unwrap_or(assigned[i]);
+            map.insert(p.participant_id, pos);
+        }
+    }
+    map
+}
+
+/// 快照分路（TS `buildMatchSnapshot` 里 `teamPosition` 的三级取值），与输入同序。
+///
+/// 优先级：SGP 真值（仅有分路模式采信，TS `truthPositionMap`）→ 整队求解
+/// （[`build_team_position_map`]）→ 逐人启发式（TS `readTeamPosition`）。
+pub fn resolve_positions(
+    players: &[PlayerInput],
+    has_lanes: bool,
+    queue_id: i64,
+) -> Vec<TeamPosition> {
+    let team_map = build_team_position_map(players, has_lanes, queue_id);
+    players
+        .iter()
+        .map(|p| {
+            let truth = if has_lanes { p.truth_position } else { None };
+            truth
+                .or_else(|| team_map.get(&p.participant_id).copied())
+                .unwrap_or_else(|| {
+                    infer_team_position(&PositionInferInput {
+                        team_position: &p.lcu_team_position,
+                        spell_ids: &p.spell_ids,
+                        champion_id: p.champion_id,
+                    })
+                })
+        })
+        .collect()
 }
 
 #[cfg(test)]
