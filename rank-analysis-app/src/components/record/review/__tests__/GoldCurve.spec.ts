@@ -5,6 +5,7 @@ import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import GoldCurve from '../GoldCurve.vue'
 import ObjectiveIcon from '../ObjectiveIcon.vue'
+import type { GoldCurve as GoldCurveModel } from '@renderer/services/ai/review/buildReviewModel'
 import { modelB } from './fixtureModels'
 
 const model = modelB()
@@ -82,5 +83,61 @@ describe('GoldCurve', () => {
     expect(w.find('[data-test="curve-readout"]').text()).toBe('0:00 经济持平')
     await plot.trigger('mouseleave')
     expect(w.find('[data-test="curve-readout"]').exists()).toBe(false)
+  })
+})
+
+const wpCurve = {
+  ...curve,
+  winProb: {
+    points: Array.from({ length: 30 }, (_, i) => ({ minute: i + 1, p: i < 19 ? 0.6 : 0.8 })),
+    turns: [
+      { minute: 20, from: 0.49, to: 0.74, text: '团战蓝方 4 换 3，蓝方拿下小龙' },
+      { minute: 25, from: 0.7, to: 0.55, text: '红方拿下大龙' }
+    ]
+  },
+  mySide: 'red' as const
+}
+
+describe('GoldCurve 胜率模式', () => {
+  const mountWp = (c: GoldCurveModel = wpCurve) =>
+    mount(GoldCurve, { props: { curve: c, deaths: null, openId: null } })
+
+  it('有胜率时默认胜率模式，标题与图例对应', () => {
+    const w = mountWp()
+    expect(w.find('[data-test="curve-mode"]').exists()).toBe(true)
+    expect(w.text()).toContain('胜率曲线（上 = 蓝方占优）')
+    expect(w.text()).toContain('你在红方')
+    expect(w.findAll('[data-test="curve-turn"]')).toHaveLength(2)
+  })
+
+  it('转折徽标：幅度与颜色随有利方', () => {
+    const w = mountWp()
+    const [up, down] = w.findAll('[data-test="curve-turn-badge"]')
+    expect(up.text()).toBe('+25')
+    expect(up.classes()).toContain('is-blue')
+    expect(down.text()).toBe('-15')
+    expect(down.classes()).toContain('is-red')
+  })
+
+  it('点徽标弹出说明含胜率变化', async () => {
+    const w = mountWp()
+    await w.findAll('[data-test="curve-turn-badge"]')[0].trigger('click')
+    expect(w.find('[data-test="curve-turn-popover"]').text()).toContain(
+      '团战蓝方 4 换 3，蓝方拿下小龙。蓝方胜率 49% → 74%'
+    )
+  })
+
+  it('切到经济差：转折消失，原有标记仍在', async () => {
+    const w = mountWp()
+    await w.find('[data-test="curve-mode-gold"]').trigger('click')
+    expect(w.text()).toContain('经济差曲线')
+    expect(w.findAll('[data-test="curve-turn"]')).toHaveLength(0)
+    expect(w.findAll('[data-test="curve-marker"]')).toHaveLength(curve.markers.length)
+  })
+
+  it('没有胜率：不出现切换，保持经济差', () => {
+    const w = mountWp({ ...curve, winProb: null, mySide: null })
+    expect(w.find('[data-test="curve-mode"]').exists()).toBe(false)
+    expect(w.text()).toContain('经济差曲线')
   })
 })

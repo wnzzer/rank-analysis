@@ -1,13 +1,37 @@
 <template>
   <section class="gold-curve">
     <div class="review-section-title">
-      经济差曲线（上 = 蓝方领先）<span class="gold-curve-legend" data-test="curve-legend"
+      <template v-if="isWp"
+        >胜率曲线（上 = 蓝方占优）<span v-if="sideText" class="gold-curve-legend">{{
+          sideText
+        }}</span></template
+      >
+      <template v-else>经济差曲线（上 = 蓝方领先）</template
+      ><span class="gold-curve-legend" data-test="curve-legend"
         >⚔️ 团战 ·
         <ObjectiveIcon monster="DRAGON" sub-type="FIRE_DRAGON" :size="14" />
         <ObjectiveIcon monster="BARON_NASHOR" :size="14" />
         <ObjectiveIcon monster="HORDE" :size="14" /> 资源（外圈 = 拿下方） · ● 选中玩家阵亡（颜色 =
         责任）</span
       >
+      <span v-if="curve.winProb" class="gold-curve-mode" data-test="curve-mode">
+        <button
+          type="button"
+          :class="{ 'is-active': mode === 'wp' }"
+          data-test="curve-mode-wp"
+          @click="mode = 'wp'"
+        >
+          胜率
+        </button>
+        <button
+          type="button"
+          :class="{ 'is-active': mode === 'gold' }"
+          data-test="curve-mode-gold"
+          @click="((mode = 'gold'), (openTurn = null))"
+        >
+          经济差
+        </button>
+      </span>
     </div>
     <div
       ref="plotEl"
@@ -25,7 +49,11 @@
           class="gold-curve-zero"
           vector-effect="non-scaling-stroke"
         />
-        <path :d="path" class="gold-curve-line" vector-effect="non-scaling-stroke" />
+        <path
+          :d="isWp ? wpLine : path"
+          class="gold-curve-line"
+          vector-effect="non-scaling-stroke"
+        />
       </svg>
 
       <button
@@ -53,13 +81,55 @@
         data-test="curve-death"
       />
 
+      <template v-if="isWp">
+        <div
+          v-for="t in curve.winProb!.turns"
+          :key="t.minute"
+          class="gold-curve-turn"
+          :class="t.to > t.from ? 'is-blue' : 'is-red'"
+          :style="{ left: `${x(t.minute - 1)}%`, width: `${x(t.minute) - x(t.minute - 1)}%` }"
+          data-test="curve-turn"
+        >
+          <button
+            type="button"
+            class="gold-curve-turn-badge"
+            :class="t.to > t.from ? 'is-blue' : 'is-red'"
+            data-test="curve-turn-badge"
+            @click.stop="openTurn = openTurn === t ? null : t"
+          >
+            {{ turnDelta(t) }}
+          </button>
+        </div>
+        <div
+          v-if="openTurn"
+          class="gold-curve-popover"
+          :class="{ 'gold-curve-popover--flip': x(openTurn.minute) > 60 }"
+          :style="{ left: `${x(openTurn.minute)}%` }"
+          data-test="curve-turn-popover"
+          @click.stop
+        >
+          <div class="gold-curve-popover-title">第 {{ openTurn.minute }} 分钟</div>
+          <div class="gold-curve-popover-line">
+            {{ openTurn.text }}。蓝方胜率 {{ pct(openTurn.from) }} → {{ pct(openTurn.to) }}
+          </div>
+          <button
+            type="button"
+            class="gold-curve-popover-close"
+            aria-label="关闭"
+            @click="openTurn = null"
+          >
+            ×
+          </button>
+        </div>
+      </template>
+
       <div
         v-if="hover"
         class="gold-curve-readout"
         :style="{ left: `${x(hover.minute)}%` }"
         data-test="curve-readout"
       >
-        {{ leadText(hover) }}
+        {{ isWp && wpHover ? wpText(wpHover) : leadText(hover) }}
       </div>
 
       <div
@@ -105,10 +175,12 @@ import { computed, ref } from 'vue'
 import type {
   CurvePoint,
   DeathView,
-  GoldCurve
+  GoldCurve,
+  WinProbPoint,
+  WinTurn
 } from '@renderer/services/ai/review/buildReviewModel'
 import { fmtTime } from '@renderer/services/ai/shared/timeline/geometry'
-import { curvePath, leadText, nearestPoint, xPercent } from './geometry'
+import { curvePath, leadText, nearestPoint, wpPath, wpText, xPercent } from './geometry'
 import ObjectiveIcon from './ObjectiveIcon.vue'
 
 const props = defineProps<{
@@ -122,6 +194,24 @@ const emit = defineEmits<{ 'update:openId': [id: string | null] }>()
 const plotEl = ref<HTMLElement | null>(null)
 const hover = ref<CurvePoint | null>(null)
 
+/** 当前模式：有胜率默认胜率（不记忆上次选择） */
+const mode = ref<'wp' | 'gold'>(props.curve.winProb ? 'wp' : 'gold')
+const isWp = computed(() => mode.value === 'wp' && !!props.curve.winProb)
+const wpHover = ref<WinProbPoint | null>(null)
+const openTurn = ref<WinTurn | null>(null)
+
+const wpLine = computed(() =>
+  props.curve.winProb ? wpPath(props.curve.winProb.points, props.curve.endMinute) : ''
+)
+const sideText = computed(() =>
+  props.curve.mySide ? `你在${props.curve.mySide === 'blue' ? '蓝' : '红'}方` : ''
+)
+const turnDelta = (t: WinTurn): string => {
+  const d = Math.round((t.to - t.from) * 100)
+  return d > 0 ? `+${d}` : `${d}`
+}
+const pct = (p: number): string => `${Math.round(p * 100)}%`
+
 const x = (minute: number): number => xPercent(minute, props.curve.endMinute)
 const path = computed(() =>
   curvePath(props.curve.points, props.curve.endMinute, props.curve.maxAbs)
@@ -134,6 +224,14 @@ function onMove(e: MouseEvent): void {
   if (!rect || rect.width <= 0) return
   const minute = ((e.clientX - rect.left) / rect.width) * props.curve.endMinute
   hover.value = nearestPoint(props.curve.points, minute)
+  const wp = props.curve.winProb
+  wpHover.value = wp
+    ? wp.points.reduce<WinProbPoint | null>(
+        (best, p) =>
+          !best || Math.abs(p.minute - minute) < Math.abs(best.minute - minute) ? p : best,
+        null
+      )
+    : null
 }
 </script>
 
@@ -249,6 +347,73 @@ function onMove(e: MouseEvent): void {
   background: transparent;
   color: var(--text-tertiary);
   cursor: pointer;
+}
+
+.gold-curve-mode {
+  float: right;
+  display: inline-flex;
+  gap: var(--space-2);
+}
+
+.gold-curve-mode button {
+  padding: 0 var(--space-6);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-2xs);
+  cursor: pointer;
+}
+
+.gold-curve-mode button.is-active {
+  color: var(--text-primary);
+  background: var(--bg-elevated);
+}
+
+.gold-curve-turn {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+/* 色带只淡背景：opacity 放伪元素上，徽标不受影响 */
+.gold-curve-turn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.18;
+}
+
+.gold-curve-turn.is-blue::before {
+  background: var(--side-blue);
+}
+
+.gold-curve-turn.is-red::before {
+  background: var(--side-red);
+}
+
+.gold-curve-turn-badge {
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0 var(--space-4);
+  border: none;
+  border-radius: var(--radius-xs);
+  font-size: var(--font-size-2xs);
+  color: #fff;
+  pointer-events: auto;
+  cursor: pointer;
+  opacity: 1;
+}
+
+.gold-curve-turn-badge.is-blue {
+  background: var(--side-blue);
+}
+
+.gold-curve-turn-badge.is-red {
+  background: var(--side-red);
 }
 
 .gold-curve-axis {

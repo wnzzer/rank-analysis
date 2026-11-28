@@ -2,7 +2,7 @@
  * 复盘图表的纯几何换算：经济曲线（分钟/经济差 → 百分比坐标、折线 path、悬停读数）与小地图坐标。
  * 与组件分离以便单测（jsdom 下没有真实布局）。
  */
-import type { CurvePoint } from '@renderer/services/ai/review/buildReviewModel'
+import type { CurvePoint, WinProbPoint } from '@renderer/services/ai/review/buildReviewModel'
 import { fmtTime } from '@renderer/services/ai/shared/timeline/geometry'
 
 /** 最大经济差占半高的比例（上下留白） */
@@ -40,6 +40,21 @@ export function nearestPoint(points: CurvePoint[], minute: number): CurvePoint |
     if (!best || Math.abs(p.minute - minute) < Math.abs(best.minute - minute)) best = p
   }
   return best
+}
+
+/** 胜率折线 path：p − 0.5 当作「差值」，半幅 0.5（与经济差同一套上下留白） */
+export function wpPath(points: WinProbPoint[], endMinute: number): string {
+  return points
+    .map(
+      (p, i) =>
+        `${i === 0 ? 'M' : 'L'}${xPercent(p.minute, endMinute).toFixed(2)} ${yPercent(p.p - 0.5, 0.5).toFixed(2)}`
+    )
+    .join(' ')
+}
+
+/** 胜率悬停读数，如「20:00 蓝方胜率 74%」 */
+export function wpText(p: WinProbPoint): string {
+  return `${fmtTime(p.minute * 60000)} 蓝方胜率 ${Math.round(p.p * 100)}%`
 }
 
 /** 悬停读数，如「12:00 蓝方领先 1234」 */

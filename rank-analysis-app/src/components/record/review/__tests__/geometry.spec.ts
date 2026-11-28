@@ -8,6 +8,8 @@ import {
   mapPercent,
   nearestPoint,
   RIFT_SIZE,
+  wpPath,
+  wpText,
   xPercent,
   yPercent
 } from '../geometry'
@@ -61,5 +63,22 @@ describe('小地图坐标', () => {
     const p = mapPercent(13773, 3917)
     expect(p.left).toBeCloseTo(92.62, 2)
     expect(p.top).toBeCloseTo(73.66, 2)
+  })
+})
+
+describe('胜率几何', () => {
+  it('50% 在中线，100% 在上边留白处', () => {
+    expect(
+      wpPath(
+        [
+          { minute: 0, p: 0.5 },
+          { minute: 10, p: 1 }
+        ],
+        10
+      )
+    ).toBe('M0.00 50.00 L100.00 5.00')
+  })
+  it('读数', () => {
+    expect(wpText({ minute: 20, p: 0.736 })).toBe('20:00 蓝方胜率 74%')
   })
 })
