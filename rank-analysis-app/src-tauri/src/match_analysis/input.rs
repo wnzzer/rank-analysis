@@ -119,6 +119,8 @@ pub struct PlayerStats {
 pub struct NameTable {
     pub champions: HashMap<i64, String>,
     pub spells: HashMap<i64, String>,
+    /// 技能 id 查不到时的兜底名
+    pub spell_fallback: String,
 }
 
 impl NameTable {
@@ -127,6 +129,20 @@ impl NameTable {
         Self {
             champions,
             spells: builtin_spell_names(),
+            spell_fallback: "未知技能".to_string(),
+        }
+    }
+
+    /// 自带技能名表与兜底名（对拍时直接用黄金里的表，不依赖内置表）
+    pub fn with_spells(
+        champions: HashMap<i64, String>,
+        spells: HashMap<i64, String>,
+        spell_fallback: String,
+    ) -> Self {
+        Self {
+            champions,
+            spells,
+            spell_fallback,
         }
     }
 
@@ -143,7 +159,7 @@ impl NameTable {
         self.spells
             .get(&id)
             .cloned()
-            .unwrap_or_else(|| "未知技能".to_string())
+            .unwrap_or_else(|| self.spell_fallback.clone())
     }
 
     /// TS `spellIdsToNames`

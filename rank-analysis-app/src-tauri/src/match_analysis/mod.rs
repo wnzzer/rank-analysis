@@ -16,6 +16,7 @@ pub mod input;
 pub mod js;
 pub mod lane_facts;
 pub mod mode;
+pub mod parity;
 pub mod position;
 pub mod snapshot;
 
