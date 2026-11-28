@@ -118,6 +118,8 @@ fn rebuttal_columns(rebuttal: Option<&Rebuttal>) -> [Value; 4] {
 /// 一局的标注（本地存储与前端交互的形状）
 ///
 /// - `labeler_side`: 标注人所在方 `win` / `lose`；观战他人对局等拿不到时为 None
+/// - `key_is_self` / `blame_is_self`: 所选的是不是标注人自己，用来剔除自评偏差；
+///   只存布尔、不存标注人槽位（槽位配 gameId 能反查到人）。没选该项或拿不到本人为 None
 /// - `note`: 玩家可选填写的说明（如「下路被克制」），最多 [`MAX_NOTE_CHARS`] 字
 /// - `model`: 提交时的模型快照（10 人总分 / 标签与模型选择）；时间线未就绪时为 None
 /// - `rebuttal`: AI 对玩家理由的回应；没触发过为 None（旧版本存下的标注也没有）
@@ -135,6 +137,10 @@ pub struct MatchLabel {
     pub blame_pick: Option<Pick>,
     #[serde(default)]
     pub labeler_side: Option<String>,
+    #[serde(default)]
+    pub key_is_self: Option<bool>,
+    #[serde(default)]
+    pub blame_is_self: Option<bool>,
     #[serde(default)]
     pub note: Option<String>,
     #[serde(default)]
@@ -246,6 +252,9 @@ pub fn upload_body(label: &MatchLabel) -> Result<Value, String> {
         "key_pick": label.key_pick,
         "blame_pick": label.blame_pick,
         "labeler_side": label.labeler_side,
+        // 没选的那项一律传 null：防前端旧状态残留
+        "key_is_self": label.key_pick.as_ref().and(label.key_is_self),
+        "blame_is_self": label.blame_pick.as_ref().and(label.blame_is_self),
         "note": clean_note(label.note.as_deref()),
         "model": label.model,
         "model_version": label.model_version,
@@ -414,6 +423,8 @@ mod tests {
             key_pick: Some(pick(1)),
             blame_pick: None,
             labeler_side: Some("win".to_string()),
+            key_is_self: Some(true),
+            blame_is_self: None,
             note: None,
             model: None,
             model_version: "test".to_string(),
@@ -572,8 +583,10 @@ mod tests {
         assert_eq!(
             keys,
             vec![
+                "blame_is_self",
                 "blame_pick",
                 "game_id",
+                "key_is_self",
                 "key_pick",
                 "labeler_side",
                 "model",
@@ -590,6 +603,24 @@ mod tests {
         let text = body.to_string();
         assert!(!text.contains("puuid") && !text.contains("uploaded"));
         assert_eq!(body["key_pick"]["teamId"], 100);
+    }
+
+    #[test]
+    fn should_upload_self_flags_only_for_chosen_picks() {
+        let mut l = label(1, 1);
+        l.blame_is_self = Some(false); // 没选最犯罪却带了标记：不应上传
+        let body = upload_body(&l).unwrap();
+        assert_eq!(body["key_is_self"], true);
+        assert!(body["blame_is_self"].is_null());
+    }
+
+    #[test]
+    fn should_load_old_labels_without_self_flags() {
+        let old = r#"{"labels":[{"gameId":1,"platform":"TJ100","queueId":420,
+            "keyPick":null,"blamePick":null,"modelVersion":"v"}]}"#;
+        let f: LabelFile = serde_json::from_str(old).unwrap();
+        assert_eq!(f.labels[0].key_is_self, None);
+        assert_eq!(f.labels[0].blame_is_self, None);
     }
 
     #[test]

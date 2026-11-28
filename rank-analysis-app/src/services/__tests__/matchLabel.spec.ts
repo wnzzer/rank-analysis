@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { PlayerView } from '@renderer/services/ai/review/buildReviewModel'
-import { buildModelSnapshot, compareText, modelPicks, toPick } from '../matchLabel'
+import { buildMatchLabel, buildModelSnapshot, compareText, modelPicks, toPick } from '../matchLabel'
 
 function p(
   participantId: number,
@@ -105,5 +105,24 @@ describe('快照', () => {
     expect(s.players[9]).toMatchObject({ slot: 10, total: -0.56, label: '正常' })
     expect([s.keySlot, s.blameSlot]).toEqual([1, 10])
     expect(JSON.stringify(s)).not.toMatch(/name|puuid/)
+  })
+})
+
+describe('buildMatchLabel 标注人是否选了自己', () => {
+  const base = { gameId: 1, platform: 'TJ100', queueId: 420, modelVersion: 'v' }
+  const withMe = players.map(x => (x.participantId === 5 ? { ...x, isMe: true } : x))
+
+  it('选了自己为 true、选别人为 false，且不带标注人槽位', () => {
+    const l = buildMatchLabel({ ...base, players: withMe, keyPid: 5, blamePid: 10 })
+    expect([l.keyIsSelf, l.blameIsSelf]).toEqual([true, false])
+    expect(JSON.stringify(l)).not.toMatch(/labelerSlot|isMe/)
+  })
+  it('没选的项为 null', () => {
+    const l = buildMatchLabel({ ...base, players: withMe, keyPid: null, blamePid: 5 })
+    expect([l.keyIsSelf, l.blameIsSelf]).toEqual([null, true])
+  })
+  it('拿不到本人（看别人的对局）时都为 null', () => {
+    const l = buildMatchLabel({ ...base, players, keyPid: 1, blamePid: 10 })
+    expect([l.keyIsSelf, l.blameIsSelf]).toEqual([null, null])
   })
 })

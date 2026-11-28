@@ -45,6 +45,13 @@ alter table public.match_labels
   add column if not exists rebuttal_model text
     check (rebuttal_model is null or char_length(rebuttal_model) <= 64);
 
+-- 2026-11-28 追加：所选的是不是标注人自己，消融时用来剔除自评偏差。
+-- 只存布尔、不存标注人槽位：槽位配 game_id 就能反查到是谁。没选该项或拿不到本人为 null。
+-- 必须先于发版执行：新客户端会带上这两列，列不存在时整行上传会被 PostgREST 拒绝。
+alter table public.match_labels
+  add column if not exists key_is_self boolean,
+  add column if not exists blame_is_self boolean;
+
 -- 改判时刷新 updated_at
 create or replace function public.match_labels_touch() returns trigger
 language plpgsql set search_path = '' as $$

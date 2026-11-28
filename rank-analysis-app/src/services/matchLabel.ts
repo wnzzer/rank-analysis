@@ -73,6 +73,12 @@ export interface MatchLabel {
   keyPick: MatchLabelPick | null
   blamePick: MatchLabelPick | null
   labelerSide: 'win' | 'lose' | null
+  /**
+   * 最关键 / 最犯罪选的是不是标注人自己：用来剔除「自评」偏差。
+   * 只存布尔不存标注人槽位——槽位配 gameId 就能反查到是谁。没选该项或拿不到本人为 null。
+   */
+  keyIsSelf?: boolean | null
+  blameIsSelf?: boolean | null
   /** 可选说明（如「下路被克制」），最多 MATCH_LABEL_NOTE_MAX 字；没填为 null */
   note?: string | null
   model: MatchLabelModel | null
@@ -227,6 +233,8 @@ export function buildMatchLabel(input: MatchLabelInput): MatchLabel {
   const key = byPid(input.keyPid)
   const blame = byPid(input.blamePid)
   const me = input.players.find(p => p.isMe)
+  const isSelf = (pick: PlayerView | undefined): boolean | null =>
+    me && pick ? pick.participantId === me.participantId : null
   return {
     gameId: input.gameId,
     platform: input.platform,
@@ -234,6 +242,8 @@ export function buildMatchLabel(input: MatchLabelInput): MatchLabel {
     keyPick: key ? toPick(key) : null,
     blamePick: blame ? toPick(blame) : null,
     labelerSide: me ? (me.win ? 'win' : 'lose') : null,
+    keyIsSelf: isSelf(key),
+    blameIsSelf: isSelf(blame),
     note: input.note?.trim() || null,
     model: buildModelSnapshot(input.players),
     modelVersion: input.modelVersion,
