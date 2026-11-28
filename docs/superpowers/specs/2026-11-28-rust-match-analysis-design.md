@@ -136,8 +136,8 @@ TS 现有相关单测（`scoring/__tests__`、`timeline` 卡片、`positionAssig
 | 编号 | 字段路径 | 队列 / 取值谓词 | TS 行为 | Rust 行为 | 影响评分 | 测试 |
 |---|---|---|---|---|---|---|
 | P1-F1 | `modeContext.{kind,description,hasLanes,championAssignment}`；`players[*]` 与 `teams[*].players[*]` 的 `teamPosition` / `vsLaneOpponent` | 仅 400 | 400 不在 `RANKED_QUEUE_IDS`，兜底成大乱斗：无分路、无对位差值 | 400 归入有分路的排位类，分路走选秀槽位 | 是，标注复测：P3 | `mode::should_classify_400_as_ranked_with_lanes`、`snapshot::should_assign_slot_positions_for_normal_draft_400`、`parity::should_match_ts_golden_regression_a_queue_400` |
-| P1-F3 | `players[*].controlWardsPlaced`、`teams[*].players[*].controlWardsPlaced` | 全部；TS 为 0 或 null，Rust 为数字且等于同一玩家 Rust 的 `visionWardsBought` | 读已废弃的 `sightWardsBoughtInGame`（恒为 0） | 读 `visionWardsBoughtInGame`（真眼购买数） | 否（评分的真眼指标取自时间线） | `snapshot::should_read_control_wards_from_vision_wards_bought` |
-| P1-F4 | `players[*].name`、`teams[*].players[*].name` 及两处 `vsLaneOpponent.opponentName` | 全部；TS 为 `g#` / `g#undefined` 时 Rust 须恰为 g；TS 以 `#` / `undefined#` 开头时 Rust 不含 `#`、`undefined`（`undefined` 只按整段匹配） | 拼 `gameName#tagLine`：原始 LCU 缺字段时出现 `undefined`，app 路径空串时出现 `丙#` / `#9` / `#`；缺 `player` 时抛错 | `gameName#tagLine` → `gameName` → `summonerName` → `未知玩家`；整条身份缺失时仍为 `玩家<pid>`；本人键用同一规则 | 否 | `input::should_build_display_name_with_fallbacks` 等 3 条、`parity::should_match_ts_golden_regression_a_missing_names` |
+| P1-F3 | `players[*].controlWardsPlaced`、`teams[*].players[*].controlWardsPlaced` | 全部；TS 为 0 或 null，Rust 为数字且等于同一玩家 Rust 的 `visionWardsBought` | 读已废弃的 `sightWardsBoughtInGame`（恒为 0） | 读 `visionWardsBoughtInGame`（真眼购买数） | 否（评分的真眼指标取自时间线） | `snapshot::should_read_control_wards_from_vision_wards_bought`、`parity::should_require_control_wards_to_match_rust_vision_wards_bought`、`parity::should_flag_control_ward_mutation_outside_predicate`、`parity::should_match_ts_golden_regression_{a,b,a_queue_400,a_missing_names}` |
+| P1-F4 | `players[*].name`、`teams[*].players[*].name` 及两处 `vsLaneOpponent.opponentName` | 全部；TS 为 `g#` / `g#undefined` 时 Rust 须恰为 g；TS 以 `#` / `undefined#` 开头时 Rust 不含 `#`、`undefined`（`undefined` 只按整段匹配） | 拼 `gameName#tagLine`：原始 LCU 缺字段时出现 `undefined`，app 路径空串时出现 `丙#` / `#9` / `#`；缺 `player` 时抛错 | `gameName#tagLine` → `gameName` → `summonerName` → `未知玩家`；整条身份缺失时仍为 `玩家<pid>`；本人键用同一规则 | 否 | `input::should_build_display_name_with_fallbacks`、`input::should_name_missing_player_and_missing_identity`、`input::should_mark_me_when_tag_line_missing`、`parity::should_accept_only_rule_shaped_display_name_fallbacks`、`parity::should_match_ts_golden_regression_a_missing_names`、`parity::should_match_ts_golden_regression_a_app_blank_names` |
 
 说明：
 
@@ -149,3 +149,15 @@ TS 现有相关单测（`scoring/__tests__`、`timeline` 卡片、`positionAssig
 
 - **【子项目 2 必做】P1-F3 在 app 路径尚未生效**：app 的 Rust `Stats` 没有声明 `visionWardsBoughtInGame`（`sightWardsBoughtInGame` 同样没有），所以经 `LcuGame::from_app_game` 进来的对局里 `controlWardsPlaced` / `visionWardsBought` 恒为 null。子项目 2 切换调用方时，必须把该字段带进 app 路径（`Stats` 加字段，或让 command 直接读原始 LCU JSON）。
 - **【待用户决定】斗魂 1750「2v2」描述错误**：本机 LCU 队列表显示，当前开放的 1750 是「斗魂竞技场 3x6」（18 人，3 人一队），但 `classify_mode` 只要 `gameMode == CHERRY` 就给出「2v2 配对（每队两人）」的描述，TS 与 Rust 都是如此。原计划 P1-F5 只核实了 1700：`numPlayersPerTeam=16`、`maximumParticipantListSize=16` 是整局人数（16 = 8×2，与 2v2 相容），不能证明 1700 不是 2 人一队，所以未改。是否按 queueId 区分 2 人 / 3 人描述，由用户决定。
+
+## P2 / P3 / 子项目 3 规划待办（P1 终审）
+
+- **(a) P1-F1 级联**：400 局里，P2 / P3 阶段所有依赖分路的卡片、子分、标签与总分都会出现差异。P2 计划里要在两条路中选一：
+  - TS 生成器加「修复垫片」：mock `modeContext` 把 400 算进去，黄金直接体现 F1，登记项保持在叶子字段层级；
+  - 400 只保留快照黄金，不进评分黄金。
+  
+  终审倾向垫片。F4 若卡片文本含玩家名，同一问题同样适用。
+- **(b) SGP 两条路径的装配不一致**：TS 基线 `scripts/baseline/corpus.ts#toScoringInputs` 直接用原始 `teamPosition`、不做推断，`mapId` 写死，名字为空；Rust 的 `from_sgp` + `build_snapshot` 会解析分路，并优先取 `summary.map_id`。SGP 冒烟只检查有真值分路的玩家。P3 / 子项目 3 要么让 `toScoringInputs` 输出真正的 SGP 对拍目标，要么把这处差异登记并附标注复测数据。
+- **(c) app 路径字段丢失风险（F3 待办的推广）**：app 的 `Stats` 里没有的任何 `LcuStats` 字段，经往返后都会变成 0 / None；个人语料两侧都有同一个洞，对拍看不出来。子项目 2 要加测试，确认每个 `LcuStats` 键都能在 `Game` 序列化后保留，或改成 command 直接读原始 LCU JSON。
+- **P3 前性能项**：`js_to_fixed` 每次调用要格式化约 1100 个字符，在基线规模使用前需要加快速路径。
+- **SGP 宽容度**：非 Option 字段出现显式 `null` 会让整行被拒收，子项目 3 前需要做宽容处理。
