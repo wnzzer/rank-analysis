@@ -25,13 +25,16 @@ pub const NUM_TOLERANCE: f64 = 1e-9;
 ///
 /// - `paths`: 归一化字段路径（下标写 `[*]`），或以 `**` 结尾的前缀；一处修复可能落在多个字段上
 /// - `queues`: 只放行这些队列的局；空切片表示不限队列（能限就限，免得吞掉别的队列的移植错误）
+/// - `when`: 取值谓词 `(TS 值, Rust 值) -> bool`；有谓词时路径命中且谓词成立才算登记内，
+///   只放行「修复本该产生的那种值变化」，同一字段的其他差异仍报错
 /// - `test`: 覆盖此差异的测试名
 /// - `affects_score`: 影响总分 / 标签时为 true，须附 106 条标注复测（一致率 ≥ 51%）
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct ExpectedDiff {
     pub id: &'static str,
     pub paths: &'static [&'static str],
     pub queues: &'static [i64],
+    pub when: Option<fn(&Value, &Value) -> bool>,
     pub ts: &'static str,
     pub rust: &'static str,
     pub reason: &'static str,
@@ -40,11 +43,23 @@ pub struct ExpectedDiff {
 }
 
 impl ExpectedDiff {
-    /// 该登记是否放行 `queue_id` 局里 `path` 处的差异
-    pub fn covers(&self, path: &str, queue_id: i64) -> bool {
+    /// 该登记是否放行 `queue_id` 局里 `path` 处、TS 值 `expected` / Rust 值 `actual` 的差异
+    pub fn covers(&self, path: &str, queue_id: i64, expected: &Value, actual: &Value) -> bool {
         (self.queues.is_empty() || self.queues.contains(&queue_id))
             && self.paths.iter().any(|p| path_matches(p, path))
+            && self.when.is_none_or(|f| f(expected, actual))
     }
+}
+
+/// P1-F3 谓词：TS 为 0 或 null（读了废弃字段），Rust 为数字
+fn f3_zero_to_number(expected: &Value, actual: &Value) -> bool {
+    let ts_zero = expected.is_null() || expected.as_f64() == Some(0.0);
+    ts_zero && actual.is_number()
+}
+
+/// P1-F4 谓词：TS 的显示名里拼进了 `undefined`
+fn f4_ts_has_undefined(expected: &Value, _actual: &Value) -> bool {
+    expected.as_str().is_some_and(|s| s.contains("undefined"))
 }
 
 /// 预期差异登记表：经用户批准的 TS 疑似问题修复（编号 `P1-Fn`，Task 12）。
@@ -67,6 +82,7 @@ pub const EXPECTED_DIFFS: &[ExpectedDiff] = &[ExpectedDiff {
         "snapshot.teams[*].players[*].vsLaneOpponent",
     ],
     queues: &[400],
+    when: None,
     ts: "队列 400（普通征召）不在 RANKED_QUEUE_IDS，兜底成大乱斗：kind=aram、hasLanes=false、\
          championAssignment=random-with-bench，分路走推断、vsLaneOpponent 恒为 null",
     rust:
@@ -84,6 +100,7 @@ pub const EXPECTED_DIFFS: &[ExpectedDiff] = &[ExpectedDiff {
         "snapshot.teams[*].players[*].controlWardsPlaced",
     ],
     queues: &[],
+    when: Some(f3_zero_to_number),
     ts: "controlWardsPlaced = stats.sightWardsBoughtInGame ?? null（已废弃字段，原始 LCU 战绩里恒为 0）",
     rust: "controlWardsPlaced = stats.visionWardsBoughtInGame（真眼购买数）；app 的 Game 不带该字段时仍为 null",
     reason: "回归局 A/B 共 20 人 sightWardsBoughtInGame 全为 0；visionWardsBoughtInGame 16 人非 0，\
@@ -100,6 +117,7 @@ pub const EXPECTED_DIFFS: &[ExpectedDiff] = &[ExpectedDiff {
         "snapshot.teams[*].players[*].vsLaneOpponent.opponentName",
     ],
     queues: &[],
+    when: Some(f4_ts_has_undefined),
     ts: "`${gameName}#${tagLine}`：缺字段拼出 \"undefined#undefined\" / \"甲#undefined\"，缺 player 抛错",
     rust: "gameName#tagLine → gameName → summonerName → 未知玩家（空串视同缺失）；缺整条身份仍为 玩家<pid>；\
            本人键 currentPlayerKey 用同一规则",
@@ -213,13 +231,18 @@ pub fn validate_pattern(pattern: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// 在给定登记表里找放行 `queue_id` 局 `path` 处差异的条目（测试可传自建表）
+/// 在给定登记表里找放行 `queue_id` 局 `path` 处（TS 值 `expected`、Rust 值 `actual`）差异的条目
+/// （测试可传自建表）
 pub fn find_expected_in(
     registry: &'static [ExpectedDiff],
     path: &str,
     queue_id: i64,
+    expected: &Value,
+    actual: &Value,
 ) -> Option<&'static ExpectedDiff> {
-    registry.iter().find(|d| d.covers(path, queue_id))
+    registry
+        .iter()
+        .find(|d| d.covers(path, queue_id, expected, actual))
 }
 
 /// 记一处差异；是否命中登记表由 [`check_golden`] 按本局队列统一判定
@@ -345,7 +368,14 @@ pub fn check_golden(golden: &Value) -> Result<GoldenReport, String> {
         &mut diffs,
     );
     for d in &mut diffs {
-        d.registered = find_expected_in(EXPECTED_DIFFS, &d.path, game.queue_id).map(|e| e.id);
+        d.registered = find_expected_in(
+            EXPECTED_DIFFS,
+            &d.path,
+            game.queue_id,
+            &d.expected,
+            &d.actual,
+        )
+        .map(|e| e.id);
     }
     Ok(GoldenReport { name, diffs })
 }
@@ -439,21 +469,19 @@ mod tests {
                 "snapshot.teams[*].players[*].kda",
             ],
             queues: &[],
+            when: None,
             ts: "ts",
             rust: "rust",
             reason: "测试",
             test: "should_find_registered_diff_in_custom_registry",
             affects_score: false,
         }];
-        assert_eq!(
-            find_expected_in(REGISTRY, "snapshot.players[7].kda", 420).map(|d| d.id),
-            Some("T-1")
-        );
-        assert_eq!(
-            find_expected_in(REGISTRY, "snapshot.teams[1].players[2].kda", 450).map(|d| d.id),
-            Some("T-1")
-        );
-        assert!(find_expected_in(REGISTRY, "snapshot.players[7].gold", 420).is_none());
+        let find = |path: &str, q: i64| {
+            find_expected_in(REGISTRY, path, q, &json!(1), &json!(2)).map(|d| d.id)
+        };
+        assert_eq!(find("snapshot.players[7].kda", 420), Some("T-1"));
+        assert_eq!(find("snapshot.teams[1].players[2].kda", 450), Some("T-1"));
+        assert!(find("snapshot.players[7].gold", 420).is_none());
     }
 
     #[test]
@@ -462,14 +490,67 @@ mod tests {
             id: "T-2",
             paths: &["snapshot.modeContext.hasLanes"],
             queues: &[400],
+            when: None,
             ts: "ts",
             rust: "rust",
             reason: "测试",
             test: "should_only_cover_listed_queues",
             affects_score: false,
         }];
-        assert!(find_expected_in(REGISTRY, "snapshot.modeContext.hasLanes", 400).is_some());
-        assert!(find_expected_in(REGISTRY, "snapshot.modeContext.hasLanes", 420).is_none());
+        let (f, t) = (json!(false), json!(true));
+        let path = "snapshot.modeContext.hasLanes";
+        assert!(find_expected_in(REGISTRY, path, 400, &f, &t).is_some());
+        assert!(find_expected_in(REGISTRY, path, 420, &f, &t).is_none());
+    }
+
+    #[test]
+    fn should_not_register_when_value_predicate_fails() {
+        fn ts_is_zero(e: &Value, _a: &Value) -> bool {
+            e.as_f64() == Some(0.0)
+        }
+        const REGISTRY: &[ExpectedDiff] = &[ExpectedDiff {
+            id: "T-3",
+            paths: &["snapshot.players[*].kda"],
+            queues: &[],
+            when: Some(ts_is_zero),
+            ts: "ts",
+            rust: "rust",
+            reason: "测试",
+            test: "should_not_register_when_value_predicate_fails",
+            affects_score: false,
+        }];
+        let path = "snapshot.players[0].kda";
+        assert!(find_expected_in(REGISTRY, path, 420, &json!(0), &json!(3)).is_some());
+        assert!(find_expected_in(REGISTRY, path, 420, &json!(2), &json!(3)).is_none());
+    }
+
+    #[test]
+    fn should_apply_f3_and_f4_value_predicates() {
+        let find = |path: &str, e: Value, a: Value| {
+            find_expected_in(EXPECTED_DIFFS, path, 420, &e, &a).map(|d| d.id)
+        };
+        let cw = "snapshot.players[1].controlWardsPlaced";
+        assert_eq!(find(cw, json!(0), json!(3)), Some("P1-F3"));
+        assert_eq!(find(cw, Value::Null, json!(3)), Some("P1-F3"));
+        assert_eq!(find(cw, json!(2), json!(3)), None);
+        assert_eq!(find(cw, json!(0), Value::Null), None);
+        let name = "snapshot.teams[0].players[1].name";
+        assert_eq!(
+            find(name, json!("undefined#undefined"), json!("未知玩家")),
+            Some("P1-F4")
+        );
+        assert_eq!(find(name, json!("甲#1"), json!("乙#1")), None);
+        let opp = "snapshot.players[2].vsLaneOpponent.opponentName";
+        assert_eq!(find(opp, json!("甲#undefined"), json!("甲")), Some("P1-F4"));
+        assert_eq!(find(opp, json!("甲#1"), json!("甲")), None);
+    }
+
+    #[test]
+    fn should_flag_control_ward_mutation_outside_predicate() {
+        let paths = mutated_paths(|e| {
+            e["snapshot"]["players"][1]["controlWardsPlaced"] = Value::from(7);
+        });
+        assert_eq!(paths, vec!["snapshot.players[1].controlWardsPlaced"]);
     }
 
     #[test]
