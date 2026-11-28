@@ -25,7 +25,7 @@ pub const NUM_TOLERANCE: f64 = 1e-9;
 ///
 /// - `paths`: 归一化字段路径（下标写 `[*]`），或以 `**` 结尾的前缀；一处修复可能落在多个字段上
 /// - `queues`: 只放行这些队列的局；空切片表示不限队列（能限就限，免得吞掉别的队列的移植错误）
-/// - `when`: 取值谓词 `(TS 值, Rust 值) -> bool`；有谓词时路径命中且谓词成立才算登记内，
+/// - `when`: 取值谓词（见 [`DiffValues`]）；有谓词时路径命中且谓词成立才算登记内，
 ///   只放行「修复本该产生的那种值变化」，同一字段的其他差异仍报错
 /// - `test`: 覆盖此差异的测试名
 /// - `affects_score`: 影响总分 / 标签时为 true，须附 106 条标注复测（一致率 ≥ 51%）
@@ -34,7 +34,7 @@ pub struct ExpectedDiff {
     pub id: &'static str,
     pub paths: &'static [&'static str],
     pub queues: &'static [i64],
-    pub when: Option<fn(&Value, &Value) -> bool>,
+    pub when: Option<fn(&DiffValues<'_>) -> bool>,
     pub ts: &'static str,
     pub rust: &'static str,
     pub reason: &'static str,
@@ -42,24 +42,76 @@ pub struct ExpectedDiff {
     pub affects_score: bool,
 }
 
+/// 登记谓词看到的一处差异的取值
+///
+/// - `expected` / `actual`: 该字段的 TS 值 / Rust 值
+/// - `actual_parent`: Rust 输出里该字段所在的对象（如同一名玩家），供谓词对照兄弟字段；取不到为 `None`
+#[derive(Debug, Clone, Copy)]
+pub struct DiffValues<'a> {
+    pub expected: &'a Value,
+    pub actual: &'a Value,
+    pub actual_parent: Option<&'a Value>,
+}
+
 impl ExpectedDiff {
-    /// 该登记是否放行 `queue_id` 局里 `path` 处、TS 值 `expected` / Rust 值 `actual` 的差异
-    pub fn covers(&self, path: &str, queue_id: i64, expected: &Value, actual: &Value) -> bool {
+    /// 该登记是否放行 `queue_id` 局里 `path` 处取值为 `values` 的差异
+    pub fn covers(&self, path: &str, queue_id: i64, values: &DiffValues<'_>) -> bool {
         (self.queues.is_empty() || self.queues.contains(&queue_id))
             && self.paths.iter().any(|p| path_matches(p, path))
-            && self.when.is_none_or(|f| f(expected, actual))
+            && self.when.is_none_or(|f| f(values))
     }
 }
 
-/// P1-F3 谓词：TS 为 0 或 null（读了废弃字段），Rust 为数字
-fn f3_zero_to_number(expected: &Value, actual: &Value) -> bool {
-    let ts_zero = expected.is_null() || expected.as_f64() == Some(0.0);
-    ts_zero && actual.is_number()
+/// P1-F3 谓词：TS 为 0 或 null（读了废弃字段），Rust 为数字，且等于同一玩家 Rust 的
+/// `visionWardsBought`（该兄弟字段仍与 TS 直接比对，可作基准）
+fn f3_zero_to_vision_wards_bought(v: &DiffValues<'_>) -> bool {
+    let ts_zero = v.expected.is_null() || v.expected.as_f64() == Some(0.0);
+    let sibling = v.actual_parent.map(|p| &p["visionWardsBought"]);
+    ts_zero && v.actual.is_number() && sibling == Some(v.actual)
 }
 
-/// P1-F4 谓词：TS 的显示名里拼进了 `undefined`
-fn f4_ts_has_undefined(expected: &Value, _actual: &Value) -> bool {
-    expected.as_str().is_some_and(|s| s.contains("undefined"))
+/// P1-F4 谓词：TS 拼名 `gameName#tagLine` 的某一段缺失（空串或整段 `undefined`），
+/// 且 Rust 给出的正是规则对应的兜底名。
+///
+/// - TS 为 `g#` / `g#undefined`（g 非空且不是 `undefined`）→ Rust 必须恰为 `g`
+/// - TS 以 `#` / `undefined#` 开头（含 `#`、`undefined#undefined`）→ Rust 走 summonerName / 未知玩家，
+///   不得含 `#` 或 `undefined`
+///
+/// `undefined` 只按整段匹配，名字里恰好含 "undefined" 的真实玩家不会被放行。
+fn f4_display_name_fallback(v: &DiffValues<'_>) -> bool {
+    let (Some(ts), Some(rust)) = (v.expected.as_str(), v.actual.as_str()) else {
+        return false;
+    };
+    let Some((game_name, tag_line)) = ts.split_once('#') else {
+        return false;
+    };
+    let missing = |s: &str| s.is_empty() || s == "undefined";
+    if !missing(game_name) {
+        missing(tag_line) && rust == game_name
+    } else {
+        !rust.contains('#') && !rust.contains("undefined")
+    }
+}
+
+/// 按差异路径（如 `snapshot.players[3].kda`）取其父对象；`roots` 给出各根名对应的值
+fn parent_of<'a>(roots: &[(&str, &'a Value)], path: &str) -> Option<&'a Value> {
+    let parent = &path[..path.rfind('.')?];
+    let root_len = parent.find(['.', '[']).unwrap_or(parent.len());
+    let (_, mut cur) = roots.iter().find(|(r, _)| *r == &parent[..root_len])?;
+    let mut rest = &parent[root_len..];
+    while !rest.is_empty() {
+        if let Some(r) = rest.strip_prefix('[') {
+            let end = r.find(']')?;
+            cur = cur.get(r[..end].parse::<usize>().ok()?)?;
+            rest = &r[end + 1..];
+        } else {
+            let r = rest.strip_prefix('.')?;
+            let end = r.find(['.', '[']).unwrap_or(r.len());
+            cur = cur.get(&r[..end])?;
+            rest = &r[end..];
+        }
+    }
+    Some(cur)
 }
 
 /// 预期差异登记表：经用户批准的 TS 疑似问题修复（编号 `P1-Fn`，Task 12）。
@@ -100,7 +152,7 @@ pub const EXPECTED_DIFFS: &[ExpectedDiff] = &[ExpectedDiff {
         "snapshot.teams[*].players[*].controlWardsPlaced",
     ],
     queues: &[],
-    when: Some(f3_zero_to_number),
+    when: Some(f3_zero_to_vision_wards_bought),
     ts: "controlWardsPlaced = stats.sightWardsBoughtInGame ?? null（已废弃字段，原始 LCU 战绩里恒为 0）",
     rust: "controlWardsPlaced = stats.visionWardsBoughtInGame（真眼购买数）；app 的 Game 不带该字段时仍为 null",
     reason: "回归局 A/B 共 20 人 sightWardsBoughtInGame 全为 0；visionWardsBoughtInGame 16 人非 0，\
@@ -117,7 +169,7 @@ pub const EXPECTED_DIFFS: &[ExpectedDiff] = &[ExpectedDiff {
         "snapshot.teams[*].players[*].vsLaneOpponent.opponentName",
     ],
     queues: &[],
-    when: Some(f4_ts_has_undefined),
+    when: Some(f4_display_name_fallback),
     ts: "`${gameName}#${tagLine}`：缺字段拼出 \"undefined#undefined\" / \"甲#undefined\"，缺 player 抛错",
     rust: "gameName#tagLine → gameName → summonerName → 未知玩家（空串视同缺失）；缺整条身份仍为 玩家<pid>；\
            本人键 currentPlayerKey 用同一规则",
@@ -231,18 +283,14 @@ pub fn validate_pattern(pattern: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// 在给定登记表里找放行 `queue_id` 局 `path` 处（TS 值 `expected`、Rust 值 `actual`）差异的条目
-/// （测试可传自建表）
+/// 在给定登记表里找放行 `queue_id` 局 `path` 处取值为 `values` 的差异的条目（测试可传自建表）
 pub fn find_expected_in(
     registry: &'static [ExpectedDiff],
     path: &str,
     queue_id: i64,
-    expected: &Value,
-    actual: &Value,
+    values: &DiffValues<'_>,
 ) -> Option<&'static ExpectedDiff> {
-    registry
-        .iter()
-        .find(|d| d.covers(path, queue_id, expected, actual))
+    registry.iter().find(|d| d.covers(path, queue_id, values))
 }
 
 /// 记一处差异；是否命中登记表由 [`check_golden`] 按本局队列统一判定
@@ -367,15 +415,15 @@ pub fn check_golden(golden: &Value) -> Result<GoldenReport, String> {
         &remapped,
         &mut diffs,
     );
+    let roots = [("snapshot", &snapshot), ("remappedTimeline", &remapped)];
     for d in &mut diffs {
-        d.registered = find_expected_in(
-            EXPECTED_DIFFS,
-            &d.path,
-            game.queue_id,
-            &d.expected,
-            &d.actual,
-        )
-        .map(|e| e.id);
+        let values = DiffValues {
+            expected: &d.expected,
+            actual: &d.actual,
+            actual_parent: parent_of(&roots, &d.path),
+        };
+        d.registered =
+            find_expected_in(EXPECTED_DIFFS, &d.path, game.queue_id, &values).map(|e| e.id);
     }
     Ok(GoldenReport { name, diffs })
 }
@@ -467,6 +515,15 @@ mod tests {
         ));
     }
 
+    /// 无父对象的取值（自建表测试用）
+    fn vals<'a>(expected: &'a Value, actual: &'a Value) -> DiffValues<'a> {
+        DiffValues {
+            expected,
+            actual,
+            actual_parent: None,
+        }
+    }
+
     #[test]
     fn should_find_registered_diff_in_custom_registry() {
         const REGISTRY: &[ExpectedDiff] = &[ExpectedDiff {
@@ -483,9 +540,9 @@ mod tests {
             test: "should_find_registered_diff_in_custom_registry",
             affects_score: false,
         }];
-        let find = |path: &str, q: i64| {
-            find_expected_in(REGISTRY, path, q, &json!(1), &json!(2)).map(|d| d.id)
-        };
+        let (e, a) = (json!(1), json!(2));
+        let find =
+            |path: &str, q: i64| find_expected_in(REGISTRY, path, q, &vals(&e, &a)).map(|d| d.id);
         assert_eq!(find("snapshot.players[7].kda", 420), Some("T-1"));
         assert_eq!(find("snapshot.teams[1].players[2].kda", 450), Some("T-1"));
         assert!(find("snapshot.players[7].gold", 420).is_none());
@@ -506,14 +563,14 @@ mod tests {
         }];
         let (f, t) = (json!(false), json!(true));
         let path = "snapshot.modeContext.hasLanes";
-        assert!(find_expected_in(REGISTRY, path, 400, &f, &t).is_some());
-        assert!(find_expected_in(REGISTRY, path, 420, &f, &t).is_none());
+        assert!(find_expected_in(REGISTRY, path, 400, &vals(&f, &t)).is_some());
+        assert!(find_expected_in(REGISTRY, path, 420, &vals(&f, &t)).is_none());
     }
 
     #[test]
     fn should_not_register_when_value_predicate_fails() {
-        fn ts_is_zero(e: &Value, _a: &Value) -> bool {
-            e.as_f64() == Some(0.0)
+        fn ts_is_zero(v: &DiffValues<'_>) -> bool {
+            v.expected.as_f64() == Some(0.0)
         }
         const REGISTRY: &[ExpectedDiff] = &[ExpectedDiff {
             id: "T-3",
@@ -527,29 +584,109 @@ mod tests {
             affects_score: false,
         }];
         let path = "snapshot.players[0].kda";
-        assert!(find_expected_in(REGISTRY, path, 420, &json!(0), &json!(3)).is_some());
-        assert!(find_expected_in(REGISTRY, path, 420, &json!(2), &json!(3)).is_none());
+        let (zero, two, three) = (json!(0), json!(2), json!(3));
+        assert!(find_expected_in(REGISTRY, path, 420, &vals(&zero, &three)).is_some());
+        assert!(find_expected_in(REGISTRY, path, 420, &vals(&two, &three)).is_none());
+    }
+
+    /// 用真实登记表判一处差异；`parent` 为 Rust 输出里该字段所在对象
+    fn registered_as(
+        path: &str,
+        e: Value,
+        a: Value,
+        parent: Option<Value>,
+    ) -> Option<&'static str> {
+        let values = DiffValues {
+            expected: &e,
+            actual: &a,
+            actual_parent: parent.as_ref(),
+        };
+        find_expected_in(EXPECTED_DIFFS, path, 420, &values).map(|d| d.id)
     }
 
     #[test]
-    fn should_apply_f3_and_f4_value_predicates() {
-        let find = |path: &str, e: Value, a: Value| {
-            find_expected_in(EXPECTED_DIFFS, path, 420, &e, &a).map(|d| d.id)
-        };
+    fn should_require_control_wards_to_match_rust_vision_wards_bought() {
         let cw = "snapshot.players[1].controlWardsPlaced";
-        assert_eq!(find(cw, json!(0), json!(3)), Some("P1-F3"));
-        assert_eq!(find(cw, Value::Null, json!(3)), Some("P1-F3"));
-        assert_eq!(find(cw, json!(2), json!(3)), None);
-        assert_eq!(find(cw, json!(0), Value::Null), None);
-        let name = "snapshot.teams[0].players[1].name";
+        let player =
+            |vwb: Value| Some(json!({ "controlWardsPlaced": 3, "visionWardsBought": vwb }));
         assert_eq!(
-            find(name, json!("undefined#undefined"), json!("未知玩家")),
-            Some("P1-F4")
+            registered_as(cw, json!(0), json!(3), player(json!(3))),
+            Some("P1-F3")
         );
-        assert_eq!(find(name, json!("甲#1"), json!("乙#1")), None);
-        let opp = "snapshot.players[2].vsLaneOpponent.opponentName";
-        assert_eq!(find(opp, json!("甲#undefined"), json!("甲")), Some("P1-F4"));
-        assert_eq!(find(opp, json!("甲#1"), json!("甲")), None);
+        assert_eq!(
+            registered_as(cw, Value::Null, json!(3), player(json!(3))),
+            Some("P1-F3")
+        );
+        // Rust 值与同一玩家的 visionWardsBought 不等 → 登记表外
+        assert_eq!(
+            registered_as(cw, json!(0), json!(3), player(json!(4))),
+            None
+        );
+        assert_eq!(
+            registered_as(cw, json!(0), json!(3), player(Value::Null)),
+            None
+        );
+        assert_eq!(registered_as(cw, json!(0), json!(3), None), None);
+        // TS 不是 0 / null，或 Rust 不是数字 → 登记表外
+        assert_eq!(
+            registered_as(cw, json!(2), json!(3), player(json!(3))),
+            None
+        );
+        assert_eq!(
+            registered_as(cw, json!(0), Value::Null, player(Value::Null)),
+            None
+        );
+    }
+
+    #[test]
+    fn should_accept_only_rule_shaped_display_name_fallbacks() {
+        for path in [
+            "snapshot.teams[0].players[1].name",
+            "snapshot.players[2].vsLaneOpponent.opponentName",
+        ] {
+            let f4 = |e: &str, a: &str| registered_as(path, json!(e), json!(a), None);
+            // g# / g#undefined → Rust 恰为 g
+            assert_eq!(f4("丙#", "丙"), Some("P1-F4"));
+            assert_eq!(f4("甲#undefined", "甲"), Some("P1-F4"));
+            // #… / undefined#… → summonerName / 未知玩家（无 # 无 undefined）
+            assert_eq!(f4("#", "未知玩家"), Some("P1-F4"));
+            assert_eq!(f4("#9", "旧召唤师名"), Some("P1-F4"));
+            assert_eq!(f4("undefined#undefined", "未知玩家"), Some("P1-F4"));
+            assert_eq!(f4("undefined#9", "旧名"), Some("P1-F4"));
+            // Rust 值不对
+            assert_eq!(f4("丙#", "丁"), None);
+            assert_eq!(f4("甲#undefined", "甲#undefined"), None);
+            // Rust 值带 # / undefined
+            assert_eq!(f4("#9", "某#9"), None);
+            assert_eq!(f4("undefined#undefined", "undefined"), None);
+            // 真实名字里含 undefined，不是缺字段
+            assert_eq!(f4("myundefined#1", "myundefined"), None);
+            assert_eq!(f4("甲#undefinedX", "甲"), None);
+            // 两段都齐全的普通改名
+            assert_eq!(f4("甲#1", "乙#1"), None);
+            assert_eq!(f4("甲#1", "甲"), None);
+        }
+    }
+
+    #[test]
+    fn should_resolve_parent_of_diff_path() {
+        let snap = json!({ "players": [{ "a": 1 }, { "a": 2, "o": { "b": 3 } }] });
+        let tl = json!({ "frames": [] });
+        let roots = [("snapshot", &snap), ("remappedTimeline", &tl)];
+        assert_eq!(
+            parent_of(&roots, "snapshot.players[1].a"),
+            Some(&snap["players"][1])
+        );
+        assert_eq!(
+            parent_of(&roots, "snapshot.players[1].o.b"),
+            Some(&snap["players"][1]["o"])
+        );
+        assert_eq!(
+            parent_of(&roots, "remappedTimeline.frames.length"),
+            Some(&tl["frames"])
+        );
+        assert_eq!(parent_of(&roots, "snapshot.players[9].a"), None);
+        assert_eq!(parent_of(&roots, "other.x"), None);
     }
 
     #[test]
