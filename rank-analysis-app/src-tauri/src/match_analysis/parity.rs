@@ -23,13 +23,15 @@ pub const NUM_TOLERANCE: f64 = 1e-9;
 
 /// 一条有意的行为差异登记。
 ///
-/// - `path`: 归一化字段路径（下标写 `[*]`），或以 `**` 结尾的前缀
+/// - `paths`: 归一化字段路径（下标写 `[*]`），或以 `**` 结尾的前缀；一处修复可能落在多个字段上
+/// - `queues`: 只放行这些队列的局；空切片表示不限队列（能限就限，免得吞掉别的队列的移植错误）
 /// - `test`: 覆盖此差异的测试名
 /// - `affects_score`: 影响总分 / 标签时为 true，须附 106 条标注复测（一致率 ≥ 51%）
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExpectedDiff {
     pub id: &'static str,
-    pub path: &'static str,
+    pub paths: &'static [&'static str],
+    pub queues: &'static [i64],
     pub ts: &'static str,
     pub rust: &'static str,
     pub reason: &'static str,
@@ -37,7 +39,16 @@ pub struct ExpectedDiff {
     pub affects_score: bool,
 }
 
-/// 预期差异登记表。P1 为空：P1 的一切不一致都是移植错误。
+impl ExpectedDiff {
+    /// 该登记是否放行 `queue_id` 局里 `path` 处的差异
+    pub fn covers(&self, path: &str, queue_id: i64) -> bool {
+        (self.queues.is_empty() || self.queues.contains(&queue_id))
+            && self.paths.iter().any(|p| path_matches(p, path))
+    }
+}
+
+/// 预期差异登记表：经用户批准的 TS 疑似问题修复（编号 `P1-Fn`，Task 12）。
+/// 表外的一切不一致都是移植错误。
 pub const EXPECTED_DIFFS: &[ExpectedDiff] = &[];
 
 /// 一处差异；`registered` 为命中的登记编号
@@ -141,25 +152,26 @@ pub fn validate_pattern(pattern: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// 在给定登记表里找命中的条目（测试可传自建表）
+/// 在给定登记表里找放行 `queue_id` 局 `path` 处差异的条目（测试可传自建表）
 pub fn find_expected_in(
     registry: &'static [ExpectedDiff],
     path: &str,
+    queue_id: i64,
 ) -> Option<&'static ExpectedDiff> {
-    registry.iter().find(|d| path_matches(d.path, path))
+    registry.iter().find(|d| d.covers(path, queue_id))
 }
 
+/// 记一处差异；是否命中登记表由 [`check_golden`] 按本局队列统一判定
 fn push_diff(out: &mut Vec<Diff>, path: String, expected: Value, actual: Value) {
-    let registered = find_expected_in(EXPECTED_DIFFS, &path).map(|d| d.id);
     out.push(Diff {
         path,
         expected,
         actual,
-        registered,
+        registered: None,
     });
 }
 
-/// 递归比较两段 JSON，差异追加到 `out`（规则见模块文档）
+/// 递归比较两段 JSON，差异追加到 `out`（规则见模块文档；此处 `registered` 一律为 `None`）
 pub fn diff_json(path: &str, expected: &Value, actual: &Value, out: &mut Vec<Diff>) {
     match (expected, actual) {
         (Value::Number(e), Value::Number(a)) => {
@@ -269,6 +281,9 @@ pub fn check_golden(golden: &Value) -> Result<GoldenReport, String> {
         &remapped,
         &mut diffs,
     );
+    for d in &mut diffs {
+        d.registered = find_expected_in(EXPECTED_DIFFS, &d.path, game.queue_id).map(|e| e.id);
+    }
     Ok(GoldenReport { name, diffs })
 }
 
@@ -356,7 +371,11 @@ mod tests {
     fn should_find_registered_diff_in_custom_registry() {
         const REGISTRY: &[ExpectedDiff] = &[ExpectedDiff {
             id: "T-1",
-            path: "snapshot.players[*].kda",
+            paths: &[
+                "snapshot.players[*].kda",
+                "snapshot.teams[*].players[*].kda",
+            ],
+            queues: &[],
             ts: "ts",
             rust: "rust",
             reason: "测试",
@@ -364,10 +383,30 @@ mod tests {
             affects_score: false,
         }];
         assert_eq!(
-            find_expected_in(REGISTRY, "snapshot.players[7].kda").map(|d| d.id),
+            find_expected_in(REGISTRY, "snapshot.players[7].kda", 420).map(|d| d.id),
             Some("T-1")
         );
-        assert!(find_expected_in(REGISTRY, "snapshot.players[7].gold").is_none());
+        assert_eq!(
+            find_expected_in(REGISTRY, "snapshot.teams[1].players[2].kda", 450).map(|d| d.id),
+            Some("T-1")
+        );
+        assert!(find_expected_in(REGISTRY, "snapshot.players[7].gold", 420).is_none());
+    }
+
+    #[test]
+    fn should_only_cover_listed_queues() {
+        const REGISTRY: &[ExpectedDiff] = &[ExpectedDiff {
+            id: "T-2",
+            paths: &["snapshot.modeContext.hasLanes"],
+            queues: &[400],
+            ts: "ts",
+            rust: "rust",
+            reason: "测试",
+            test: "should_only_cover_listed_queues",
+            affects_score: false,
+        }];
+        assert!(find_expected_in(REGISTRY, "snapshot.modeContext.hasLanes", 400).is_some());
+        assert!(find_expected_in(REGISTRY, "snapshot.modeContext.hasLanes", 420).is_none());
     }
 
     #[test]
@@ -375,8 +414,8 @@ mod tests {
         let mut ids = std::collections::HashSet::new();
         for d in EXPECTED_DIFFS {
             assert!(ids.insert(d.id), "登记编号重复: {}", d.id);
+            assert!(!d.paths.is_empty(), "{} 没有登记路径", d.id);
             for (field, v) in [
-                ("path", d.path),
                 ("ts", d.ts),
                 ("rust", d.rust),
                 ("reason", d.reason),
@@ -390,7 +429,9 @@ mod tests {
     #[test]
     fn should_validate_registry_patterns() {
         for d in EXPECTED_DIFFS {
-            validate_pattern(d.path).unwrap_or_else(|e| panic!("{} 的路径非法: {e}", d.id));
+            for p in d.paths {
+                validate_pattern(p).unwrap_or_else(|e| panic!("{} 的路径 {p} 非法: {e}", d.id));
+            }
         }
     }
 
