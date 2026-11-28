@@ -442,6 +442,11 @@ mod tests {
     /// 加 summonerName；pid 8 名字全删），TS 实生成
     const GOLDEN_A_NAMES: &str =
         include_str!("../../tests/fixtures/parity/regression-a-missing-names.golden.json");
+    /// 回归局 A 的 app 形状变体：经 app `Game` serde 往返（与本人语料同形，名字字段是 String），
+    /// 再把 gameDetail 身份 pid 3 的 tagLine、pid 7 的 gameName/tagLine（另设 summonerName）、
+    /// pid 8 的 gameName/summonerName 置为空串，TS 实生成
+    const GOLDEN_A_APP_NAMES: &str =
+        include_str!("../../tests/fixtures/parity/regression-a-app-blank-names.golden.json");
 
     fn diffs(expected: Value, actual: Value) -> Vec<Diff> {
         let mut out = Vec::new();
@@ -897,6 +902,12 @@ mod tests {
     }
 
     /// 回归局 A 删掉三名玩家的部分名字字段后由 TS 实生成的黄金：F4 全部生效
+    /// app 形状、空串名字：TS 拼出 "玩家3#"、"#"、"#0000"；app Stats 无视野字段，F3 不出现
+    #[test]
+    fn should_match_ts_golden_regression_a_app_blank_names() {
+        assert_registered_exactly(GOLDEN_A_APP_NAMES, &[("P1-F4", 12)]);
+    }
+
     #[test]
     fn should_match_ts_golden_regression_a_missing_names() {
         assert_registered_exactly(GOLDEN_A_NAMES, &[("P1-F3", 16), ("P1-F4", 12)]);
