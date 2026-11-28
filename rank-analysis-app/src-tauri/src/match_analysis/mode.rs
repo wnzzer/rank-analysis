@@ -44,8 +44,10 @@ pub struct ModeContext {
     pub is_team_mode: bool,
 }
 
-/// TS `RANKED_QUEUE_IDS`：单双 420、灵活 440、匹配 430、快速 480/490、冠军杯 700
-const RANKED_QUEUE_IDS: [i64; 6] = [420, 440, 430, 480, 490, 700];
+/// 有分路的召唤师峡谷队列：TS `RANKED_QUEUE_IDS`（单双 420、灵活 440、匹配 430、快速 480/490、
+/// 冠军杯 700）再加普通征召 400——登记 P1-F1：TS 漏了 400，使它落入兜底按大乱斗处理，
+/// 与 `position.rs` 把 400 当选秀局（按槽位分路）矛盾
+const RANKED_QUEUE_IDS: [i64; 7] = [400, 420, 440, 430, 480, 490, 700];
 /// TS `ARAM_QUEUE_IDS`：大乱斗 450、无限火力 900、觉醒之战 1300、1900
 const ARAM_QUEUE_IDS: [i64; 4] = [450, 900, 1300, 1900];
 /// TS `AUGMENT_QUEUE_IDS`：斗魂 1700、海克斯乱斗 2400
@@ -169,6 +171,16 @@ mod tests {
     fn should_classify_480_and_490_as_ranked() {
         assert_eq!(classify_mode(480, "CLASSIC").kind, ModeKind::Ranked);
         assert_eq!(classify_mode(490, "CLASSIC").kind, ModeKind::Ranked);
+    }
+
+    // P1-F1：TS 的 RANKED_QUEUE_IDS 漏了 400，落入兜底按大乱斗处理（hasLanes=false）
+    #[test]
+    fn should_classify_400_as_ranked_with_lanes() {
+        let ctx = classify_mode(400, "CLASSIC");
+        assert_eq!(ctx.kind, ModeKind::Ranked);
+        assert!(ctx.has_lanes);
+        assert_eq!(ctx.champion_assignment, ChampionAssignment::Pick);
+        assert_eq!(ctx, classify_mode(420, "CLASSIC"));
     }
 
     #[test]

@@ -730,6 +730,20 @@ mod tests {
         assert_eq!((pos[7], pos[8]), (Bottom, Middle));
     }
 
+    // P1-F1：回归局 A 改成队列 400，不给时间线（无 SGP 真值），分路必须来自选秀槽位
+    #[test]
+    fn should_assign_slot_positions_for_normal_draft_400() {
+        let (mut game, _) = regression_fixture('a');
+        game.queue_id = 400;
+        let snap = build_snapshot(&from_lcu(&game, None, &NameTable::default()));
+        assert!(snap.mode_context.has_lanes);
+        let mut players = snap.players.clone();
+        players.sort_by_key(|p| p.participant_id);
+        let pos: Vec<TeamPosition> = players.iter().map(|p| p.team_position).collect();
+        assert_eq!(pos, TRUTH.to_vec());
+        assert!(players.iter().all(|p| p.vs_lane_opponent.is_some()));
+    }
+
     // ═════ snapshotScoring.spec.ts ═════
     fn with_sgp() -> SlimTimeline {
         let mut tl = make_scoring_timeline();

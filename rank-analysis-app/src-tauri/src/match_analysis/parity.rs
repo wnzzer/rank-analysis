@@ -49,7 +49,30 @@ impl ExpectedDiff {
 
 /// 预期差异登记表：经用户批准的 TS 疑似问题修复（编号 `P1-Fn`，Task 12）。
 /// 表外的一切不一致都是移植错误。
-pub const EXPECTED_DIFFS: &[ExpectedDiff] = &[];
+pub const EXPECTED_DIFFS: &[ExpectedDiff] = &[ExpectedDiff {
+    id: "P1-F1",
+    paths: &[
+        "snapshot.modeContext.kind",
+        "snapshot.modeContext.description",
+        "snapshot.modeContext.hasLanes",
+        "snapshot.modeContext.championAssignment",
+        "snapshot.players[*].teamPosition",
+        "snapshot.players[*].vsLaneOpponent",
+        "snapshot.teams[*].players[*].teamPosition",
+        "snapshot.teams[*].players[*].vsLaneOpponent",
+    ],
+    queues: &[400],
+    ts: "队列 400（普通征召）不在 RANKED_QUEUE_IDS，兜底成大乱斗：kind=aram、hasLanes=false、\
+         championAssignment=random-with-bench，分路走推断、vsLaneOpponent 恒为 null",
+    rust:
+        "400 与 420/440 同为有分路的排位类：kind=ranked、hasLanes=true、championAssignment=pick，\
+           分路走选秀槽位（position.rs 已把 400 列为槽位队列），有对位差值",
+    reason: "400 是有 BP、有分路的征召模式；TS 两处口径矛盾，槽位分路与对位差值在 400 永远不生效。\
+             会改变 400 局的评分口径，标注复测：P3（评分进 Rust 后执行）",
+    test: "mode::tests::should_classify_400_as_ranked_with_lanes, \
+           snapshot::tests::should_assign_slot_positions_for_normal_draft_400",
+    affects_score: true,
+}];
 
 /// 一处差异；`registered` 为命中的登记编号
 #[derive(Debug, Clone, PartialEq)]
