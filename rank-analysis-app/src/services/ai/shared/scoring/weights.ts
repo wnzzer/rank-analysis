@@ -59,13 +59,17 @@ export const WEIGHTS: Record<
   },
   BOTTOM: { lane: 0.2, teamfight: 0.35, deathQuality: 0.2, growth: 0.15, resources: 0.1 },
   // 2026-11-09：辅助 对线 0.20→0.15、团战 0.30→0.25、死亡质量 0.25→0.20，挪出 0.15 给职责（用户要求辅助阵亡减责）
+  // 2026-11-28：补发育 0.15。原先辅助的经济不计分，摆烂辅助（15 分钟 2823 金）的痕迹进不了总分，
+  // 锅会落到被连累的 AD 头上。发育 z 是相对同位置基准的，正常辅助经济低不会被误伤。
+  // 即原组 + 发育 0.15 后整体除以 1.15 取两位小数（各项相对比例不变）。106 条玩家标注上与现行一致率持平（+2/−1）。
   UTILITY: {
-    lane: 0.15,
-    teamfight: 0.25,
-    deathQuality: 0.2,
-    resources: 0.1,
-    vision: 0.15,
-    duty: 0.15
+    lane: 0.13,
+    teamfight: 0.22,
+    deathQuality: 0.17,
+    growth: 0.13,
+    resources: 0.09,
+    vision: 0.13,
+    duty: 0.13
   },
   NO_LANES: { teamfight: 0.5, deathQuality: 0.3, growth: 0.2 }
 }

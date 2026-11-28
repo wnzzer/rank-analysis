@@ -131,6 +131,38 @@ describe('职责分项（第 2 层）', () => {
   })
 })
 
+describe('辅助的经济计入总分', () => {
+  // 2026-11-28 真机局 TJ100_301083985391（15 分钟投降）：索拉卡 15 分钟 2823 金、705 伤害、视野 6（摆烂），
+  // 库奇被对位压 4410 经济。分项取自该局实算值。辅助组原本没有发育，摆烂的经济痕迹进不了总分，
+  // 模型因此把锅判给了被连累的 AD。
+  const soraka = {
+    lane: -1.36,
+    teamfight: -1.64,
+    deathQuality: 1.28,
+    growth: -2.09,
+    resources: -1.0,
+    vision: -2.25,
+    duty: -1.23
+  }
+  const corki = {
+    lane: -1.98,
+    teamfight: -1.71,
+    deathQuality: 1.15,
+    growth: -1.28,
+    resources: -1.21,
+    vision: -1.15,
+    duty: null
+  }
+  it('辅助组含发育', () => {
+    expect(WEIGHTS.UTILITY.growth).toBeGreaterThan(0)
+  })
+  it('经济远低于同位置平均的摆烂辅助，总分低于被连累的 AD', () => {
+    const sup = combineSubScores(soraka, WEIGHTS.UTILITY).total
+    const adc = combineSubScores(corki, WEIGHTS.BOTTOM).total
+    expect(sup).toBeLessThan(adc)
+  })
+})
+
 describe('combineSubScores', () => {
   const sub = {
     lane: -0.25,
