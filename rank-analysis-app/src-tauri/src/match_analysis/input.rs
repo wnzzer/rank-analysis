@@ -605,6 +605,158 @@ pub fn from_lcu(game: &LcuGame, timeline: Option<&SlimTimeline>, names: &NameTab
     }
 }
 
+// ─────────────────────────── SGP 适配层（子项目 3 预备） ───────────────────────────
+
+/// 有分路的队列：缺 `mapId` 时按 `scripts/baseline/corpus.ts` 推地图（有分路 11，否则 12）
+const LANED_QUEUES: [i64; 2] = [420, 440];
+
+/// SGP 单局 SUMMARY（match-v5）中用到的字段；`games.jsonl` 精简行同名同义。
+#[derive(Deserialize, Debug, Clone, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SgpSummary {
+    pub game_id: i64,
+    pub platform_id: String,
+    pub queue_id: i64,
+    pub game_duration: i64,
+    pub game_mode: Option<String>,
+    pub map_id: Option<i64>,
+    pub participants: Vec<SgpParticipant>,
+}
+
+/// SGP SUMMARY 的一名参与者（缺失字段按 0 / None）
+#[derive(Deserialize, Debug, Clone, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SgpParticipant {
+    pub participant_id: i64,
+    pub team_id: i64,
+    pub puuid: String,
+    pub champion_id: i64,
+    pub win: bool,
+    pub kills: i64,
+    pub deaths: i64,
+    pub assists: i64,
+    pub total_damage_dealt_to_champions: i64,
+    pub gold_earned: i64,
+    pub total_minions_killed: i64,
+    pub neutral_minions_killed: i64,
+    pub total_damage_taken: i64,
+    pub total_heal: i64,
+    pub damage_dealt_to_turrets: i64,
+    pub vision_score: Option<i64>,
+    pub damage_dealt_to_objectives: Option<i64>,
+    #[serde(rename = "timeCCingOthers")]
+    pub time_c_cing_others: Option<i64>,
+    pub team_position: Option<String>,
+    pub summoner1_id: i64,
+    pub summoner2_id: i64,
+    pub riot_id_game_name: Option<String>,
+    pub riot_id_tagline: Option<String>,
+    pub item0: i64,
+    pub item1: i64,
+    pub item2: i64,
+    pub item3: i64,
+    pub item4: i64,
+    pub item5: i64,
+    pub item6: i64,
+    pub double_kills: i64,
+    pub triple_kills: i64,
+    pub quadra_kills: i64,
+    pub penta_kills: i64,
+}
+
+/// SGP SUMMARY → 中立输入（基准管线用，子项目 3 接入；P1 只做自洽冒烟）。
+///
+/// # 参数
+/// - `summary`: SGP SUMMARY（或 games.jsonl 一行）
+/// - `timeline`: 同源 DETAILS 裁剪时间线，participantId 与 SUMMARY 一致，**原样保留不 remap**
+/// - `names`: 调用方提供的名称表
+///
+/// # 行为
+/// - 真实分路 / 终局指标直接取 SUMMARY 字段（`truth_position` 只收五个合法值）
+/// - 无本人概念：`is_me = false`；无 LCU 字段：`lcu_team_position` / `lane` / `role` 为 `""`
+pub fn from_sgp(
+    summary: &SgpSummary,
+    timeline: Option<&SlimTimeline>,
+    names: &NameTable,
+) -> MatchInput {
+    let players = summary
+        .participants
+        .iter()
+        .map(|p| {
+            let name = match (&p.riot_id_game_name, &p.riot_id_tagline) {
+                (Some(g), Some(t)) if !g.is_empty() => format!("{g}#{t}"),
+                _ => format!("玩家{}", p.participant_id),
+            };
+            let spell_ids = [p.summoner1_id, p.summoner2_id];
+            PlayerInput {
+                participant_id: p.participant_id,
+                team_id: p.team_id,
+                name,
+                puuid: p.puuid.clone(),
+                is_me: false,
+                champion_id: p.champion_id,
+                champion_name: names.champion_name(p.champion_id),
+                spell_ids,
+                spell_names: names.spell_names(&spell_ids),
+                lcu_team_position: String::new(),
+                lane: String::new(),
+                role: String::new(),
+                truth_position: p
+                    .team_position
+                    .as_deref()
+                    .and_then(TeamPosition::parse_lane),
+                sgp_vision_score: p.vision_score,
+                sgp_objective_damage: p.damage_dealt_to_objectives,
+                sgp_cc_seconds: p.time_c_cing_others,
+                stats: PlayerStats {
+                    win: p.win,
+                    kills: p.kills,
+                    deaths: p.deaths,
+                    assists: p.assists,
+                    gold_earned: p.gold_earned,
+                    total_damage_dealt_to_champions: p.total_damage_dealt_to_champions,
+                    total_damage_taken: p.total_damage_taken,
+                    total_heal: p.total_heal,
+                    damage_dealt_to_turrets: p.damage_dealt_to_turrets,
+                    total_minions_killed: p.total_minions_killed,
+                    neutral_minions_killed: p.neutral_minions_killed,
+                    perk0: 0,
+                    perk_sub_style: 0,
+                    augments: [0; 6],
+                    items: [p.item0, p.item1, p.item2, p.item3, p.item4, p.item5],
+                    trinket_id: p.item6,
+                    damage_dealt_to_objectives: p.damage_dealt_to_objectives,
+                    time_c_cing_others: p.time_c_cing_others,
+                    vision_score: p.vision_score,
+                    sight_wards_bought_in_game: None,
+                    vision_wards_bought_in_game: None,
+                    double_kills: p.double_kills,
+                    triple_kills: p.triple_kills,
+                    quadra_kills: p.quadra_kills,
+                    penta_kills: p.penta_kills,
+                },
+            }
+        })
+        .collect();
+
+    MatchInput {
+        game_id: summary.game_id,
+        queue_id: summary.queue_id,
+        queue_name: None,
+        game_mode: summary.game_mode.clone().unwrap_or_default(),
+        map_id: summary
+            .map_id
+            .unwrap_or(if LANED_QUEUES.contains(&summary.queue_id) {
+                11
+            } else {
+                12
+            }),
+        duration_seconds: summary.game_duration,
+        players,
+        timeline: timeline.cloned(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1060,5 +1212,106 @@ mod tests {
             ],
             [51, 52, 53, 54]
         );
+    }
+}
+
+#[cfg(test)]
+mod sgp_tests {
+    use super::*;
+    use crate::lcu::api::timeline::SlimTimeline;
+    use std::collections::BTreeMap;
+
+    /// games.jsonl 风格的一行（两名玩家，字段名与 match-v5 一致）
+    const SGP_LINE: &str = r#"{"gameId":42,"platformId":"TJ100","queueId":420,"gameDuration":1700,"gameVersion":"16.22.1","participants":[
+        {"participantId":1,"teamId":100,"puuid":"pa","championId":164,"win":true,"kills":2,"deaths":4,"assists":14,
+         "totalDamageDealtToChampions":22210,"goldEarned":11987,"totalMinionsKilled":183,"neutralMinionsKilled":0,
+         "visionScore":17,"damageDealtToObjectives":15101,"totalHeal":5217,"totalDamageTaken":25662,"timeCCingOthers":28,
+         "teamPosition":"TOP","summoner1Id":12,"summoner2Id":4},
+        {"participantId":6,"teamId":200,"puuid":"pb","championId":950,"win":false,"kills":1,"deaths":3,"assists":2,
+         "totalDamageDealtToChampions":9000,"goldEarned":8000,"totalMinionsKilled":20,"neutralMinionsKilled":180,
+         "teamPosition":"","summoner1Id":4,"summoner2Id":11,"riotIdGameName":"甲","riotIdTagline":"123"}]}"#;
+
+    fn summary(patch: &[(&str, serde_json::Value)]) -> SgpSummary {
+        let mut v: serde_json::Value = serde_json::from_str(SGP_LINE).unwrap();
+        for (k, val) in patch {
+            v[*k] = val.clone();
+        }
+        serde_json::from_value(v).unwrap()
+    }
+
+    #[test]
+    fn should_map_sgp_summary_fields() {
+        let input = from_sgp(&summary(&[]), None, &NameTable::default());
+        assert_eq!(input.game_id, 42);
+        assert_eq!(input.queue_id, 420);
+        assert_eq!(input.game_mode, "");
+        assert_eq!(input.duration_seconds, 1700);
+        assert_eq!(input.queue_name, None);
+        let a = &input.players[0];
+        assert_eq!(a.name, "玩家1");
+        assert!(!a.is_me);
+        assert_eq!(a.puuid, "pa");
+        assert_eq!(a.spell_ids, [12, 4]);
+        assert_eq!(a.spell_names, vec!["传送", "闪现"]);
+        assert_eq!(a.truth_position, Some(TeamPosition::Top));
+        assert_eq!(a.lcu_team_position, "");
+        assert_eq!(a.sgp_vision_score, Some(17));
+        assert_eq!(a.sgp_objective_damage, Some(15101));
+        assert_eq!(a.sgp_cc_seconds, Some(28));
+        assert_eq!(a.stats.total_damage_taken, 25662);
+        assert_eq!(a.stats.total_heal, 5217);
+        assert!(a.stats.win);
+        let b = &input.players[1];
+        assert_eq!(b.name, "甲#123");
+        assert_eq!(b.truth_position, None);
+        assert_eq!(b.sgp_vision_score, None);
+        assert_eq!(b.stats.neutral_minions_killed, 180);
+    }
+
+    #[test]
+    fn should_default_map_by_laned_queue() {
+        let ranked = from_sgp(&summary(&[]), None, &NameTable::default());
+        assert_eq!(ranked.map_id, 11);
+        let aram = from_sgp(
+            &summary(&[("queueId", 450.into())]),
+            None,
+            &NameTable::default(),
+        );
+        assert_eq!(aram.map_id, 12);
+        let explicit = from_sgp(
+            &summary(&[("queueId", 450.into()), ("mapId", 11.into())]),
+            None,
+            &NameTable::default(),
+        );
+        assert_eq!(explicit.map_id, 11);
+    }
+
+    #[test]
+    fn should_keep_sgp_timeline_ids_as_is() {
+        let tl = SlimTimeline {
+            game_id: 42,
+            frame_interval_ms: 60000,
+            participants: vec![SlimParticipant {
+                participant_id: 6,
+                puuid: "pb".to_string(),
+                team_position: String::new(),
+                vision_score: None,
+                damage_dealt_to_objectives: None,
+                time_c_cing_others: None,
+            }],
+            frames: vec![],
+            events: vec![],
+            items: BTreeMap::new(),
+        };
+        let input = from_sgp(&summary(&[]), Some(&tl), &NameTable::default());
+        assert_eq!(input.timeline, Some(tl));
+    }
+
+    #[test]
+    fn should_use_champion_names_from_table() {
+        let names = NameTable::new(HashMap::from([(164, "青钢影".to_string())]));
+        let input = from_sgp(&summary(&[]), None, &names);
+        assert_eq!(input.players[0].champion_name, "青钢影");
+        assert_eq!(input.players[1].champion_name, "英雄950");
     }
 }
