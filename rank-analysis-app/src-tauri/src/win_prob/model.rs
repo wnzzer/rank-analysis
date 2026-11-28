@@ -65,6 +65,11 @@ impl Model {
         {
             return Err("model.json 向量长度不符".to_string());
         }
+        let finite = |v: &[f64]| v.iter().all(|x| x.is_finite());
+        if !finite(&m.mu) || !finite(&m.weights) || m.sd.iter().any(|s| !s.is_finite() || *s <= 0.0)
+        {
+            return Err("model.json 含非有限值或 sd <= 0".to_string());
+        }
         Ok(m)
     }
 
@@ -233,6 +238,9 @@ mod tests {
         let mut short = m.clone();
         short.weights.pop();
         assert!(Model::from_json(&serde_json::to_string(&short).unwrap()).is_err());
+        let mut zero_sd = m.clone();
+        zero_sd.sd[3] = 0.0;
+        assert!(Model::from_json(&serde_json::to_string(&zero_sd).unwrap()).is_err());
     }
 
     #[test]

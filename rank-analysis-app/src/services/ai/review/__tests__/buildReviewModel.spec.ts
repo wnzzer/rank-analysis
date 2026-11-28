@@ -319,6 +319,12 @@ describe('GoldCurve 胜率透传', () => {
     expect(modelB().goldCurve!.winProb).toBeNull()
   })
 
+  it('快速匹配（490）：训练只用排位，不显示胜率但金币曲线仍在', () => {
+    const c = modelWithWp({ queueId: 490 }).goldCurve
+    expect(c).not.toBeNull()
+    expect(c!.winProb).toBeNull()
+  })
+
   it('无分路模式（大乱斗）：即使带了胜率也不显示', () => {
     const c = modelWithWp({ queueId: 450, gameMode: 'ARAM', mapId: 12 }).goldCurve
     expect(c?.winProb ?? null).toBeNull()

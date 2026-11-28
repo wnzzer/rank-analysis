@@ -71,6 +71,14 @@ pub fn analyze(tl: &SlimTimeline) -> Option<WinProbability> {
         );
         return None;
     }
+    if rows
+        .iter()
+        .enumerate()
+        .any(|(k, r)| r.minute != k as u32 + 1)
+    {
+        log::debug!("胜率：分钟不连续，跳过 {}", tl.game_id);
+        return None;
+    }
     let blue: Vec<f32> = rows
         .iter()
         .map(|r| model.predict(r.minute, &r.x) as f32)
@@ -131,5 +139,29 @@ mod tests {
         let mut broken = sample();
         broken.frames[3].players.pop();
         assert!(analyze(&broken).is_none());
+    }
+
+    #[test]
+    fn analyze_none_when_minutes_not_consecutive() {
+        let mut gap = sample();
+        gap.frames.remove(4); // 缺一帧 → 分钟点出现空洞
+        assert!(analyze(&gap).is_none());
+    }
+
+    #[test]
+    fn serialized_shape_is_camel_case_contract() {
+        let v = serde_json::to_value(analyze(&sample()).unwrap()).unwrap();
+        assert!(v.get("blue").is_some());
+        let tps = v.get("turningPoints").and_then(|t| t.as_array()).unwrap();
+        assert!(!tps.is_empty());
+        for t in tps {
+            for k in ["minute", "from", "to", "text"] {
+                assert!(t.get(k).is_some(), "缺字段 {k}");
+            }
+        }
+        let mut tl = sample();
+        tl.win_probability = analyze(&tl);
+        let v = serde_json::to_value(&tl).unwrap();
+        assert!(v.get("winProbability").is_some());
     }
 }

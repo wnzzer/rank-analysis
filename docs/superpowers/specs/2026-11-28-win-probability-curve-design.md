@@ -88,7 +88,7 @@ pub struct TurningPoint {
 3. **每次返回前**都调用 `win_prob::analyze` 重新计算并覆盖 `win_probability`（缓存里的旧值或缺失一律不用），模型重训后不会读到过期结果。缓存版本 `CACHE_VERSION` 不变。
 4. 前端只渲染。
 
-适用范围：Rust 侧拿不到队列（command 入参只有大区和 gameId），只要数据完整就计算；**是否显示**由前端按已有的 `modeContext.hasLanes` 决定，大乱斗 / 斗魂竞技场等不显示切换。
+适用范围：Rust 侧拿不到队列（command 入参只有大区和 gameId），只要数据完整就计算；**是否显示**由前端按已有的 `modeContext.hasLanes` 决定，大乱斗 / 斗魂竞技场等不显示切换。模型只用排位对局训练，快速匹配（队列 480 / 490）经济节奏快得多，前端也不显示（`WIN_PROB_EXCLUDED_QUEUES`）。
 
 ### 错误处理
 
@@ -98,15 +98,16 @@ pub struct TurningPoint {
 |---|---|
 | 任一帧玩家数 ≠ 10 | `None`，`log::debug!` |
 | 分钟帧数 < 5 | `None` |
+| 分钟点不连续（缺帧，`minute` 不是 1..N） | `None`，`log::debug!` |
 | `model.json` 解析失败或特征名不一致 | `None`，进程内只 `log::warn!` 一次；单元测试保证入库的模型可用 |
 | 前端拿到 `None` / 字段缺失 | 不显示切换，只有经济差曲线（与现状一致） |
 
 ## 前端（`GoldCurve.vue`）
 
 - 标题栏右侧加分段按钮「胜率 / 经济差」；有胜率数据时默认「胜率」；没有数据时不出现按钮。
-- 胜率模式：纵轴 0~100%，中线 50%（复用零线居中布局）；标题「胜率曲线（上 = 蓝方占优）」；图例加「你在红方 / 蓝方」（拿不到本人时不显示）；悬停显示「第 N 分钟 · 蓝方胜率 x%」。
+- 胜率模式：纵轴 0~100%，中线 50%（复用零线居中布局）；标题「胜率曲线（上 = 蓝方占优）」；图例加「你在红方 / 蓝方」（拿不到本人时不显示）；悬停读数「20:00 蓝方胜率 74%」。
 - 原有团战 / 资源 / 阵亡标记两种模式都显示，位置不变。
-- 转折点（仅胜率模式）：该分钟半透明竖向色带，对蓝方有利为蓝、对红方有利为红；顶部徽标写幅度（如「+25」）；点击或悬停徽标弹出「{text}。蓝方胜率 49% → 74%」。
+- 转折点（仅胜率模式）：该分钟半透明竖向色带，对蓝方有利为蓝、对红方有利为红；顶部徽标写幅度（如「+25」）；点击徽标（再点一次关闭，与原有标记弹出卡互斥）弹出「{text}。蓝方胜率 49% → 74%」。
 - TS 只给 `SlimTimeline` 类型加可选字段 `winProbability`；基准构建用的 TS 时间线裁剪移植不改。
 
 ## 训练程序 `src-tauri/examples/train_wp.rs`
@@ -114,7 +115,7 @@ pub struct TurningPoint {
 - 运行：`cargo run --release --example train_wp -- --corpus <DETAILS 目录> --out src/win_prob/model.json`，语料默认 `../scripts/baseline/raw/details`（`.json.gz`；新增 dev-dependency `flate2`，不进安装包）。
 - 流程：原始 DETAILS → `slim_from_raw` → `win_prob::features`（与 app 同一份代码）；标签取 `GAME_END.winningTeam`；不足 10 分钟帧的局跳过。
 - 训练：逻辑回归，全批量 Adam，L2 = 1e-4，`gameId % 5 == 0` 为留出集；不用随机数，同一语料结果可复现。
-- 产物 `model.json`：`features`、`mu`、`sd`、`weights`、`meta`（训练时间、局数、版本范围、5/10/15/20/25/30/35 分钟 AUC、最大校准误差）。
+- 产物 `model.json`：`features`、`mu`、`sd`、`weights`、`meta`（训练时间、局数、5/10/15/20/25/30/35 分钟 AUC、最大校准误差）。
 - 验收门槛（不达标非零退出、不写文件）：留出 15 分钟 AUC ≥ 0.84，十档校准最大误差 ≤ 0.05。
 - 一次性对拍（开发时，不进 CI）：与 Node 原型 `scratchpad/wp/train.mjs` 同口径下 AUC 差 ≤ 0.005。
 - 重训时机：大版本后随评分基准一起重采语料、重训。

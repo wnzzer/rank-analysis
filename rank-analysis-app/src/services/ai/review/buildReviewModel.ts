@@ -384,6 +384,12 @@ function countResponsibility(list: DeathView[]): Record<Responsibility, number> 
 const firstLegendaryMs = (items: ItemMark[] | undefined): number | undefined =>
   items?.find(i => i.kind === 'legendary')?.ms
 
+/**
+ * 不显示胜率的队列：快速匹配（480 / 490）。
+ * 胜率模型只用排位对局训练，快速匹配经济节奏快得多，套用会让曲线失真。
+ */
+const WIN_PROB_EXCLUDED_QUEUES = new Set([480, 490])
+
 function buildGoldCurve(
   tl: SlimTimeline,
   snapshot: MatchSnapshot,
@@ -418,7 +424,10 @@ function buildGoldCurve(
   const last = points[points.length - 1]
   const wp = tl.winProbability
   const winProb =
-    snapshot.modeContext.hasLanes && wp && wp.blue.length > 0
+    snapshot.modeContext.hasLanes &&
+    !WIN_PROB_EXCLUDED_QUEUES.has(snapshot.queueId) &&
+    wp &&
+    wp.blue.length > 0
       ? {
           points: wp.blue.map((p, i) => ({ minute: i + 1, p })),
           turns: wp.turningPoints.map(t => ({ ...t }))
