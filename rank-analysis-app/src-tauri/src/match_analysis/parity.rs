@@ -49,6 +49,11 @@ impl ExpectedDiff {
 
 /// 预期差异登记表：经用户批准的 TS 疑似问题修复（编号 `P1-Fn`，Task 12）。
 /// 表外的一切不一致都是移植错误。
+///
+/// P1-F2（isMe 按 puuid）**故意不登记**：对拍的 `me_puuid` 取输入里的战绩查询对象，与 TS 的
+/// `currentPlayerKey` 是同一人，A/B 与本人 50 局 isMe 零差异；只有改名 / 显示名撞车局会分歧，
+/// 那种局出现时应作为登记表外差异暴露、由人判断，而不是被路径放行吞掉。行为由单测
+/// `input::tests::should_mark_me_by_puuid_when_renamed` 覆盖。
 pub const EXPECTED_DIFFS: &[ExpectedDiff] = &[ExpectedDiff {
     id: "P1-F1",
     paths: &[
@@ -72,17 +77,6 @@ pub const EXPECTED_DIFFS: &[ExpectedDiff] = &[ExpectedDiff {
     test: "mode::tests::should_classify_400_as_ranked_with_lanes, \
            snapshot::tests::should_assign_slot_positions_for_normal_draft_400",
     affects_score: true,
-}, ExpectedDiff {
-    id: "P1-F2",
-    paths: &["snapshot.players[*].isMe", "snapshot.teams[*].players[*].isMe"],
-    queues: &[],
-    ts: "isMe = 显示名 === 顶层身份第一个的 gameName#tagLine；改名或显示名撞车时误判",
-    rust: "调用方传入 me_puuid 且玩家 puuid 非空时按 puuid 相等判定，否则退回 TS 的显示名比较",
-    reason: "puuid 是账号唯一标识，显示名会改、会撞。对拍时 me_puuid 取 TS 标 isMe 的玩家的 puuid，\
-             只有改名 / 撞车局才会出现差异。不进分数 / 标签，只影响 P3 点评名单里本人置顶（selectVerdicts）",
-    test: "input::tests::should_mark_me_by_puuid_when_renamed, \
-           input::tests::should_fall_back_to_display_name_when_player_puuid_missing",
-    affects_score: false,
 }, ExpectedDiff {
     id: "P1-F3",
     paths: &[
@@ -109,8 +103,9 @@ pub const EXPECTED_DIFFS: &[ExpectedDiff] = &[ExpectedDiff {
     ts: "`${gameName}#${tagLine}`：缺字段拼出 \"undefined#undefined\" / \"甲#undefined\"，缺 player 抛错",
     rust: "gameName#tagLine → gameName → summonerName → 未知玩家（空串视同缺失）；缺整条身份仍为 玩家<pid>；\
            本人键 currentPlayerKey 用同一规则",
-    reason: "显示名会进 AI 提示词与界面，不能出现 undefined。只有缺名局会出差异（真实国服数据极少）；\
-             本人键随之变化引起的 isMe 差异落在 P1-F2 的路径上",
+    reason: "显示名会进 AI 提示词与界面，不能出现 undefined。只有缺名局会出差异（真实国服数据极少）。\
+             isMe 不登记：有 puuid 时按 puuid 判定、与显示名无关；无 puuid 时本人键与显示名同规则，\
+             isMe 若因此变化会作为登记表外差异暴露",
     test: "input::tests::should_build_display_name_with_fallbacks, \
            input::tests::should_name_missing_player_and_missing_identity, \
            input::tests::should_mark_me_when_tag_line_missing",
@@ -296,29 +291,11 @@ fn parse_name_map(label: &str, v: &Value) -> Result<HashMap<i64, String>, String
         .collect()
 }
 
-/// 黄金里的「本人」puuid：取 TS 标了 `isMe` 的第一名玩家，按与 `from_lcu` 相同的身份匹配找其 puuid。
-///
-/// 黄金没有记录调用方会传的 `me_puuid`；app 里调用方传的是战绩查询对象的 puuid，而 TS 的
-/// `currentPlayerKey` 正是该对象（顶层身份第一个）的显示名，未改名时两者指向同一人。
-/// 按 TS 结果反推，让对拍只暴露 P1-F2 真正改变的场景（改名 / 显示名撞车），不因缺参数产生噪音。
-fn golden_me_puuid(expected_snapshot: &Value, game: &LcuGame, names: &NameTable) -> Option<String> {
-    let me_pid = expected_snapshot["players"]
-        .as_array()?
-        .iter()
-        .find(|p| p["isMe"] == Value::Bool(true))?["participantId"]
-        .as_i64()?;
-    from_lcu(game, None, names, None)
-        .players
-        .into_iter()
-        .find(|p| p.participant_id == me_pid)
-        .map(|p| p.puuid)
-        .filter(|s| !s.is_empty())
-}
-
 /// 对一份黄金跑 Rust 并比对：`from_lcu` → `build_snapshot` 对 `expected.snapshot`，
 /// `MatchInput.timeline`（Rust remap 结果）对 `expected.remappedTimeline`。
 /// 名称表完全取自黄金（`championNames` / `spellNames` / `spellFallback`），不用 Rust 内置表；
-/// `me_puuid` 由 [`golden_me_puuid`] 从 TS 结果反推。
+/// `me_puuid` 取输入里的战绩查询对象（[`LcuGame::queried_puuid`]，即 app 调用方将传入的值），
+/// 不看 TS 结果，所以 isMe 的任何分歧都会以登记表外差异暴露。
 ///
 /// # 错误
 /// 版本不符、kind 不是 `lcu`、输入解析失败
@@ -348,8 +325,7 @@ pub fn check_golden(golden: &Value) -> Result<GoldenReport, String> {
         fallback,
     );
 
-    let me_puuid = golden_me_puuid(&golden["expected"]["snapshot"], &game, &names);
-    let match_input = from_lcu(&game, slim.as_ref(), &names, me_puuid.as_deref());
+    let match_input = from_lcu(&game, slim.as_ref(), &names, game.queried_puuid());
     let snapshot = serde_json::to_value(build_snapshot(&match_input))
         .map_err(|e| format!("{name}: 快照序列化失败: {e}"))?;
     let remapped = serde_json::to_value(&match_input.timeline)
@@ -585,6 +561,32 @@ mod tests {
                 .pop();
         });
         assert_eq!(paths, vec!["remappedTimeline.events.length"]);
+    }
+
+    #[test]
+    fn should_flag_flipped_is_me_as_unregistered() {
+        for idx in [0usize, 3] {
+            let paths = mutated_paths(|e| {
+                let v = &mut e["snapshot"]["players"][idx]["isMe"];
+                *v = Value::Bool(!v.as_bool().unwrap());
+            });
+            assert_eq!(paths, vec![format!("snapshot.players[{idx}].isMe")]);
+        }
+    }
+
+    #[test]
+    fn should_derive_me_puuid_from_queried_player_not_ts_output() {
+        let golden: Value = serde_json::from_str(GOLDEN_A).unwrap();
+        let game: LcuGame = serde_json::from_value(golden["input"]["game"].clone()).unwrap();
+        let me = game.queried_puuid().expect("回归局 A 顶层身份有 puuid");
+        let input = from_lcu(&game, None, &NameTable::default(), Some(me));
+        let me_pids: Vec<i64> = input
+            .players
+            .iter()
+            .filter(|p| p.is_me)
+            .map(|p| p.participant_id)
+            .collect();
+        assert_eq!(me_pids, vec![4]);
     }
 
     #[test]

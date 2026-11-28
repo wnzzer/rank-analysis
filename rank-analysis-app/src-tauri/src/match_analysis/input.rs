@@ -400,6 +400,16 @@ impl LcuGame {
         }
     }
 
+    /// 战绩查询对象（**顶层**身份第一个，TS `getCurrentPlayerKey` 取的同一人）的 puuid；缺失或空串为 `None`。
+    /// 子项目 2 的 app 调用方传给 [`from_lcu`] 的 `me_puuid` 与此同口径。
+    pub fn queried_puuid(&self) -> Option<&str> {
+        self.participant_identities
+            .first()
+            .and_then(|i| i.player.as_ref())
+            .and_then(|p| p.puuid.as_deref())
+            .filter(|s| !s.is_empty())
+    }
+
     /// TS `getCurrentPlayerKey`：**顶层**身份第一个（战绩查询对象）的显示名，无则 `""`。
     /// 与玩家显示名同一套兜底规则（登记 P1-F4），否则缺 tagLine 的本人会对不上。
     pub fn current_player_key(&self) -> String {
