@@ -37,8 +37,9 @@ pub struct MultiKills {
 ///
 /// - 百分比字段（`damage_share` 等）与 `kda` / `dpm` 等按 TS `Number(x.toFixed(d))` 取整
 /// - `objective_damage` / `cc_seconds` / `ward_score`：SGP 值优先，其次 LCU，都无为 `None`
-/// - `control_wards_placed` 读 LCU `sightWardsBoughtInGame`、`vision_wards_bought` 读
-///   `visionWardsBoughtInGame`（照搬 TS，见计划「TS 疑似问题」）
+/// - `control_wards_placed` 与 `vision_wards_bought` 都读 LCU `visionWardsBoughtInGame`（真眼购买数）。
+///   TS 的 `control_wards_placed` 读 `sightWardsBoughtInGame`（已废弃，恒 0），登记 P1-F3；
+///   LCU 没有「真眼放置数」字段，字段名沿用 TS 以保持快照形状不变
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SnapshotPlayer {
@@ -226,7 +227,8 @@ fn base_player(
         objective_damage: p.sgp_objective_damage.or(s.damage_dealt_to_objectives),
         cc_seconds: p.sgp_cc_seconds.or(s.time_c_cing_others),
         ward_score: p.sgp_vision_score.or(s.vision_score),
-        control_wards_placed: s.sight_wards_bought_in_game,
+        // P1-F3：TS 读 sightWardsBoughtInGame（已废弃的黄眼购买数，恒 0）
+        control_wards_placed: s.vision_wards_bought_in_game,
         vision_wards_bought: s.vision_wards_bought_in_game,
         multi_kills: MultiKills {
             double: s.double_kills,
@@ -728,6 +730,27 @@ mod tests {
         });
         let pos = positions_b(Some(&swapped));
         assert_eq!((pos[7], pos[8]), (Bottom, Middle));
+    }
+
+    // P1-F3：TS 的 controlWardsPlaced 读已废弃的 sightWardsBoughtInGame（回归局里全是 0）；
+    // 真眼购买数在 visionWardsBoughtInGame（与时间线 ITEM_PURCHASED 2055 次数吻合）
+    #[test]
+    fn should_read_control_wards_from_vision_wards_bought() {
+        for which in ['a', 'b'] {
+            let (game, slim) = regression_fixture(which);
+            let snap = build_snapshot(&from_lcu(&game, Some(&slim), &NameTable::default(), None));
+            for (p, raw) in snap.players.iter().zip(game.snapshot_participants()) {
+                let bought = raw.stats.vision_wards_bought_in_game;
+                assert!(bought.is_some(), "fixture 里该字段有值");
+                assert_eq!(
+                    p.control_wards_placed, bought,
+                    "局 {which} pid {}",
+                    p.participant_id
+                );
+            }
+            let support = snap.players.iter().find(|p| p.participant_id == 5).unwrap();
+            assert!(support.control_wards_placed.unwrap_or(0) > 0);
+        }
     }
 
     // P1-F1：回归局 A 改成队列 400，不给时间线（无 SGP 真值），分路必须来自选秀槽位

@@ -83,6 +83,20 @@ pub const EXPECTED_DIFFS: &[ExpectedDiff] = &[ExpectedDiff {
     test: "input::tests::should_mark_me_by_puuid_when_renamed, \
            input::tests::should_fall_back_to_display_name_when_player_puuid_missing",
     affects_score: false,
+}, ExpectedDiff {
+    id: "P1-F3",
+    paths: &[
+        "snapshot.players[*].controlWardsPlaced",
+        "snapshot.teams[*].players[*].controlWardsPlaced",
+    ],
+    queues: &[],
+    ts: "controlWardsPlaced = stats.sightWardsBoughtInGame ?? null（已废弃字段，原始 LCU 战绩里恒为 0）",
+    rust: "controlWardsPlaced = stats.visionWardsBoughtInGame（真眼购买数）；app 的 Game 不带该字段时仍为 null",
+    reason: "回归局 A/B 共 20 人 sightWardsBoughtInGame 全为 0；visionWardsBoughtInGame 16 人非 0，\
+             20 人中 16 人与时间线 ITEM_PURCHASED itemId 2055（真眼）次数相等，不等的 4 人都是辅助位且 LCU 数更大。\
+             快照字段不进评分（评分的真眼指标取时间线 WARD_PLACED）",
+    test: "snapshot::tests::should_read_control_wards_from_vision_wards_bought",
+    affects_score: false,
 }];
 
 /// 一处差异；`registered` 为命中的登记编号
