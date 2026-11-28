@@ -33,3 +33,6 @@ src/services/ai/shared/scoring/__tests__/fixtures/*.json
 scripts/baseline/__tests__/fixtures/*.json
 scripts/baseline/raw
 src/services/ai/shared/timeline/__tests__/fixtures/*.json
+
+# Rust 对拍黄金文件（scripts/parity 生成，子项目 2 删除）
+src-tauri/tests/fixtures/parity/*.json
