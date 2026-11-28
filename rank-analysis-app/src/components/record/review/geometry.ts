@@ -33,9 +33,9 @@ export function curvePath(points: CurvePoint[], endMinute: number, maxAbs: numbe
     .join(' ')
 }
 
-/** 离某分钟最近的点；空数组为 null */
-export function nearestPoint(points: CurvePoint[], minute: number): CurvePoint | null {
-  let best: CurvePoint | null = null
+/** 离某分钟最近的点（经济差点 / 胜率点通用）；空数组为 null */
+export function nearestPoint<T extends { minute: number }>(points: T[], minute: number): T | null {
+  let best: T | null = null
   for (const p of points) {
     if (!best || Math.abs(p.minute - minute) < Math.abs(best.minute - minute)) best = p
   }

@@ -141,3 +141,63 @@ describe('GoldCurve 胜率模式', () => {
     expect(w.text()).toContain('经济差曲线')
   })
 })
+
+describe('GoldCurve 胜率模式：状态重置与互斥', () => {
+  const mk = (openId: string | null = null, c: GoldCurveModel = wpCurve) =>
+    mount(GoldCurve, { props: { curve: c, deaths: null, openId } })
+  const badge = (w: ReturnType<typeof mk>, i = 0) => w.findAll('[data-test="curve-turn-badge"]')[i]
+
+  it('换局：无胜率 → 有胜率回到胜率模式', async () => {
+    const w = mk(null, { ...curve, winProb: null, mySide: null })
+    expect(w.text()).toContain('经济差曲线')
+    await w.setProps({ curve: wpCurve })
+    expect(w.text()).toContain('胜率曲线')
+  })
+
+  it('换局：用户切到经济差后换局，重新默认胜率；转折弹出卡关闭', async () => {
+    const w = mk()
+    await badge(w).trigger('click')
+    expect(w.find('[data-test="curve-turn-popover"]').exists()).toBe(true)
+    await w.setProps({ curve: { ...wpCurve } })
+    expect(w.find('[data-test="curve-turn-popover"]').exists()).toBe(false)
+    await w.find('[data-test="curve-mode-gold"]').trigger('click')
+    await w.setProps({ curve: { ...wpCurve } })
+    expect(w.text()).toContain('胜率曲线')
+  })
+
+  it('同一徽标点两次：弹出卡关闭', async () => {
+    const w = mk()
+    await badge(w).trigger('click')
+    await badge(w).trigger('click')
+    expect(w.find('[data-test="curve-turn-popover"]').exists()).toBe(false)
+  })
+
+  it('开转折弹出卡时通知父组件清空 openId', async () => {
+    const w = mk('F1')
+    await badge(w).trigger('click')
+    expect(w.emitted('update:openId')?.at(-1)).toEqual([null])
+  })
+
+  it('openId 变为非空时关闭转折弹出卡', async () => {
+    const w = mk()
+    await badge(w).trigger('click')
+    await w.setProps({ openId: 'F1' })
+    expect(w.find('[data-test="curve-turn-popover"]').exists()).toBe(false)
+  })
+
+  it('无障碍：模式按钮 aria-pressed，徽标 aria-label', () => {
+    const w = mk()
+    expect(w.find('[data-test="curve-mode-wp"]').attributes('aria-pressed')).toBe('true')
+    expect(w.find('[data-test="curve-mode-gold"]').attributes('aria-pressed')).toBe('false')
+    expect(badge(w).attributes('aria-label')).toBe('第 20 分钟 蓝方胜率 49% → 74%')
+  })
+
+  it('胜率模式无胜率读数点时不回退经济差读数', async () => {
+    const w = mk(null, { ...wpCurve, winProb: { points: [], turns: [] } })
+    const plot = w.find('[data-test="curve-plot"]')
+    ;(plot.element as HTMLElement).getBoundingClientRect = () =>
+      ({ left: 0, width: 1000, top: 0, height: 140 }) as DOMRect
+    await plot.trigger('mousemove', { clientX: 0 })
+    expect(w.find('[data-test="curve-readout"]').exists()).toBe(false)
+  })
+})

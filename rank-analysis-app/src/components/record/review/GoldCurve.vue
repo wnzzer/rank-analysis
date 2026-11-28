@@ -18,6 +18,7 @@
         <button
           type="button"
           :class="{ 'is-active': mode === 'wp' }"
+          :aria-pressed="mode === 'wp'"
           data-test="curve-mode-wp"
           @click="mode = 'wp'"
         >
@@ -26,8 +27,9 @@
         <button
           type="button"
           :class="{ 'is-active': mode === 'gold' }"
+          :aria-pressed="mode === 'gold'"
           data-test="curve-mode-gold"
-          @click="((mode = 'gold'), (openTurn = null))"
+          @click="((mode = 'gold'), (openTurnMinute = null))"
         >
           经济差
         </button>
@@ -95,7 +97,8 @@
             class="gold-curve-turn-badge"
             :class="t.to > t.from ? 'is-blue' : 'is-red'"
             data-test="curve-turn-badge"
-            @click.stop="openTurn = openTurn === t ? null : t"
+            :aria-label="`第 ${t.minute} 分钟 蓝方胜率 ${pct(t.from)} → ${pct(t.to)}`"
+            @click.stop="toggleTurn(t)"
           >
             {{ turnDelta(t) }}
           </button>
@@ -116,7 +119,7 @@
             type="button"
             class="gold-curve-popover-close"
             aria-label="关闭"
-            @click="openTurn = null"
+            @click="openTurnMinute = null"
           >
             ×
           </button>
@@ -124,12 +127,12 @@
       </template>
 
       <div
-        v-if="hover"
+        v-if="isWp ? wpHover : hover"
         class="gold-curve-readout"
-        :style="{ left: `${x(hover.minute)}%` }"
+        :style="{ left: `${x((isWp ? wpHover! : hover!).minute)}%` }"
         data-test="curve-readout"
       >
-        {{ isWp && wpHover ? wpText(wpHover) : leadText(hover) }}
+        {{ isWp ? wpText(wpHover!) : leadText(hover!) }}
       </div>
 
       <div
@@ -171,7 +174,7 @@
  * @property openId - 当前展开的标记 id（F 卡编号 / O 序号）
  * @emits update:openId - 点击标记或关闭弹出卡
  */
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type {
   CurvePoint,
   DeathView,
@@ -198,7 +201,32 @@ const hover = ref<CurvePoint | null>(null)
 const mode = ref<'wp' | 'gold'>(props.curve.winProb ? 'wp' : 'gold')
 const isWp = computed(() => mode.value === 'wp' && !!props.curve.winProb)
 const wpHover = ref<WinProbPoint | null>(null)
-const openTurn = ref<WinTurn | null>(null)
+/** 展开的转折用分钟号记（转折对象经 props 代理，按引用比较不可靠） */
+const openTurnMinute = ref<number | null>(null)
+const openTurn = computed(
+  () => props.curve.winProb?.turns.find(t => t.minute === openTurnMinute.value) ?? null
+)
+
+/** 换局（curve 对象变了）：回到默认模式并关掉转折弹出卡 */
+watch(
+  () => props.curve,
+  c => {
+    mode.value = c.winProb ? 'wp' : 'gold'
+    openTurnMinute.value = null
+  }
+)
+/** 与标记弹出卡互斥：标记展开时关闭转折弹出卡 */
+watch(
+  () => props.openId,
+  id => {
+    if (id !== null) openTurnMinute.value = null
+  }
+)
+function toggleTurn(t: WinTurn): void {
+  const closing = openTurnMinute.value === t.minute
+  openTurnMinute.value = closing ? null : t.minute
+  if (!closing) emit('update:openId', null)
+}
 
 const wpLine = computed(() =>
   props.curve.winProb ? wpPath(props.curve.winProb.points, props.curve.endMinute) : ''
@@ -225,13 +253,7 @@ function onMove(e: MouseEvent): void {
   const minute = ((e.clientX - rect.left) / rect.width) * props.curve.endMinute
   hover.value = nearestPoint(props.curve.points, minute)
   const wp = props.curve.winProb
-  wpHover.value = wp
-    ? wp.points.reduce<WinProbPoint | null>(
-        (best, p) =>
-          !best || Math.abs(p.minute - minute) < Math.abs(best.minute - minute) ? p : best,
-        null
-      )
-    : null
+  wpHover.value = wp ? nearestPoint(wp.points, minute) : null
 }
 </script>
 

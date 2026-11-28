@@ -82,3 +82,13 @@ describe('胜率几何', () => {
     expect(wpText({ minute: 20, p: 0.736 })).toBe('20:00 蓝方胜率 74%')
   })
 })
+
+describe('nearestPoint 泛型', () => {
+  it('也适用于胜率点', () => {
+    const pts = [
+      { minute: 1, p: 0.5 },
+      { minute: 5, p: 0.7 }
+    ]
+    expect(nearestPoint(pts, 4)?.p).toBe(0.7)
+  })
+})
