@@ -550,6 +550,8 @@ pub fn remap_timeline(tl: &SlimTimeline, lcu_pid_by_puuid: &HashMap<String, i64>
             .collect(),
         events: tl.events.iter().map(|e| remap_event(e, &m)).collect(),
         items: tl.items.clone(),
+        // 与 TS remapTimeline 的 `...tl` 一致：胜率结果原样带过去（只依赖蓝/红方汇总，与 participantId 映射无关）
+        win_probability: tl.win_probability.clone(),
     }
 }
 
@@ -945,6 +947,7 @@ mod tests {
                 },
             ],
             items: BTreeMap::new(),
+            win_probability: None,
         }
     }
 
@@ -1498,6 +1501,7 @@ mod sgp_tests {
             frames: vec![],
             events: vec![],
             items: BTreeMap::new(),
+            win_probability: None,
         };
         let input = from_sgp(&summary(&[]), Some(&tl), &NameTable::default());
         assert_eq!(input.timeline, Some(tl));

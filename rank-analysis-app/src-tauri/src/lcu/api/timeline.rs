@@ -196,6 +196,9 @@ pub struct SlimTimeline {
     pub events: Vec<SlimEvent>,
     /// 仅本局被购买过的物品元数据（键为 itemId，JSON 中为字符串键）
     pub items: BTreeMap<i64, ItemMeta>,
+    /// 胜率曲线与关键转折（`win_prob::analyze` 计算，每次返回前重算；旧缓存缺省为 None）
+    #[serde(default)]
+    pub win_probability: Option<crate::win_prob::WinProbability>,
 }
 
 /// participantId ↔ puuid。
@@ -591,6 +594,7 @@ pub fn slim_from_raw(raw: RawDetailsJson, items: &HashMap<i64, ItemMeta>) -> Sli
         frames,
         events,
         items,
+        win_probability: None,
     }
 }
 
@@ -721,7 +725,9 @@ async fn item_meta() -> HashMap<i64, ItemMeta> {
 pub async fn fetch_game_timeline(platform_id: &str, game_id: i64) -> Result<SlimTimeline, String> {
     validate_platform_id(platform_id)?;
     let dir = cache_dir();
-    if let Some(hit) = read_cache_in(&dir, platform_id, game_id) {
+    if let Some(mut hit) = read_cache_in(&dir, platform_id, game_id) {
+        // 每次返回前重算：缓存里的旧值（或旧缓存缺字段）一律不用，模型重训后不会读到过期结果
+        hit.win_probability = crate::win_prob::analyze(&hit);
         return Ok(hit);
     }
     let host = constant::game::get_sgp_host(platform_id)
@@ -763,6 +769,7 @@ pub async fn fetch_game_timeline(platform_id: &str, game_id: i64) -> Result<Slim
     if !items.is_empty() && positions_ok {
         write_cache_in(&dir, platform_id, game_id, &slim);
     }
+    slim.win_probability = crate::win_prob::analyze(&slim);
     Ok(slim)
 }
 

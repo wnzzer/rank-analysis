@@ -120,6 +120,7 @@ pub(crate) fn make_scoring_timeline() -> SlimTimeline {
             damage_received: vec![],
         }],
         items: BTreeMap::new(),
+        win_probability: None,
     }
 }
 

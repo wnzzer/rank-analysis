@@ -4294,6 +4294,7 @@ version = "0.0.0"
 dependencies = [
  "base64 0.21.7",
  "env_logger",
+ "flate2",
  "futures",
  "futures-util",
  "libc",
