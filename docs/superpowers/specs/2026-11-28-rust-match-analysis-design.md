@@ -136,14 +136,14 @@ TS 现有相关单测（`scoring/__tests__`、`timeline` 卡片、`positionAssig
 | 编号 | 字段路径 | 队列 / 取值谓词 | TS 行为 | Rust 行为 | 影响评分 | 测试 |
 |---|---|---|---|---|---|---|
 | P1-F1 | `modeContext.{kind,description,hasLanes,championAssignment}`；`players[*]` 与 `teams[*].players[*]` 的 `teamPosition` / `vsLaneOpponent` | 仅 400 | 400 不在 `RANKED_QUEUE_IDS`，兜底成大乱斗：无分路、无对位差值 | 400 归入有分路的排位类，分路走选秀槽位 | 是，标注复测：P3 | `mode::should_classify_400_as_ranked_with_lanes`、`snapshot::should_assign_slot_positions_for_normal_draft_400`、`parity::should_match_ts_golden_regression_a_queue_400` |
-| P1-F3 | `players[*].controlWardsPlaced`、`teams[*].players[*].controlWardsPlaced` | 全部；TS 为 0 或 null 且 Rust 为数字 | 读已废弃的 `sightWardsBoughtInGame`（恒为 0） | 读 `visionWardsBoughtInGame`（真眼购买数） | 否（评分的真眼指标取自时间线） | `snapshot::should_read_control_wards_from_vision_wards_bought` |
-| P1-F4 | `players[*].name`、`teams[*].players[*].name` 及两处 `vsLaneOpponent.opponentName` | 全部；TS 值含 `undefined` | 拼 `gameName#tagLine`，缺字段时出现 `undefined`，缺 `player` 时抛错 | `gameName#tagLine` → `gameName` → `summonerName` → `未知玩家`；整条身份缺失时仍为 `玩家<pid>`；本人键用同一规则 | 否 | `input::should_build_display_name_with_fallbacks` 等 3 条、`parity::should_match_ts_golden_regression_a_missing_names` |
+| P1-F3 | `players[*].controlWardsPlaced`、`teams[*].players[*].controlWardsPlaced` | 全部；TS 为 0 或 null，Rust 为数字且等于同一玩家 Rust 的 `visionWardsBought` | 读已废弃的 `sightWardsBoughtInGame`（恒为 0） | 读 `visionWardsBoughtInGame`（真眼购买数） | 否（评分的真眼指标取自时间线） | `snapshot::should_read_control_wards_from_vision_wards_bought` |
+| P1-F4 | `players[*].name`、`teams[*].players[*].name` 及两处 `vsLaneOpponent.opponentName` | 全部；TS 为 `g#` / `g#undefined` 时 Rust 须恰为 g；TS 以 `#` / `undefined#` 开头时 Rust 不含 `#`、`undefined`（`undefined` 只按整段匹配） | 拼 `gameName#tagLine`：原始 LCU 缺字段时出现 `undefined`，app 路径空串时出现 `丙#` / `#9` / `#`；缺 `player` 时抛错 | `gameName#tagLine` → `gameName` → `summonerName` → `未知玩家`；整条身份缺失时仍为 `玩家<pid>`；本人键用同一规则 | 否 | `input::should_build_display_name_with_fallbacks` 等 3 条、`parity::should_match_ts_golden_regression_a_missing_names` |
 
 说明：
 
 - **P1-F2（isMe 按 puuid）是有意不登记的行为修复**：`MatchInput.me_puuid` 与玩家 puuid 都非空时按 puuid 判定，否则退回显示名比较。对拍的 `me_puuid` 取输入里的战绩查询对象（`LcuGame::queried_puuid`，即顶层身份第一个的 puuid，也是 app 调用方将传入的值），不看 TS 结果。A/B 与本人 50 局的 isMe 差异均为零。改名或显示名撞车的局如果出现，会作为登记表外差异暴露，交给人判断。行为由 `input::should_mark_me_by_puuid_when_renamed` 覆盖。
 - **P1-F3 依据**：回归局 A/B 共 20 人，`sightWardsBoughtInGame` 全为 0。`visionWardsBoughtInGame` 有 16 人非 0；20 人中 16 人与时间线 `ITEM_PURCHASED` itemId 2055（真眼）的次数相等，不相等的 4 人都是辅助位，且 LCU 的数更大。
-- **入库黄金**：除 A/B 外，还有两份由回归局 A 派生、经 TS 脚本实际生成的黄金。`regression-a-q400` 把 `game.queueId` 改为 400；`regression-a-missing-names` 修改了 gameDetail 身份：pid 3 删 `tagLine`，pid 7 删 `gameName`/`tagLine` 并加 `summonerName`，pid 8 的名字字段全删。`cargo test` 会钉住每份黄金的登记内差异计数（按登记编号）。
+- **入库黄金**：除 A/B 外，还有三份由回归局 A 派生、经 TS 脚本实际生成的黄金。`regression-a-q400` 把 `game.queueId` 改为 400；`regression-a-missing-names` 修改了 gameDetail 身份：pid 3 删 `tagLine`，pid 7 删 `gameName`/`tagLine` 并加 `summonerName`，pid 8 的名字字段全删；`regression-a-app-blank-names` 先经 app `Game` serde 往返（与本人语料同形），再把 pid 3 的 tagLine、pid 7 的 gameName/tagLine（另设 summonerName）、pid 8 的 gameName/summonerName 置为空串。`cargo test` 会钉住每份黄金的登记内差异计数（按登记编号）。
 
 ### 子项目 2 待办 / 待用户决定
 
