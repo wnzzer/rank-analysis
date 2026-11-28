@@ -290,7 +290,7 @@ fn build_teams(players: &[SnapshotPlayer]) -> Vec<SnapshotTeam> {
 /// use rank_analysis_lib::match_analysis::{build_snapshot, from_lcu, NameTable};
 /// use rank_analysis_lib::match_analysis::input::LcuGame;
 /// let game: LcuGame = serde_json::from_str(r#"{"gameId":1,"queueId":450,"gameMode":"ARAM"}"#).unwrap();
-/// let snap = build_snapshot(&from_lcu(&game, None, &NameTable::default()));
+/// let snap = build_snapshot(&from_lcu(&game, None, &NameTable::default(), None));
 /// assert!(snap.players.is_empty());
 /// assert!(!snap.mode_context.has_lanes);
 /// ```
@@ -408,7 +408,7 @@ mod tests {
 
     fn snapshot_with(game: Value, tl: Option<&SlimTimeline>) -> MatchSnapshot {
         let g: LcuGame = serde_json::from_value(game).expect("测试对局可解析");
-        build_snapshot(&from_lcu(&g, tl, &NameTable::default()))
+        build_snapshot(&from_lcu(&g, tl, &NameTable::default(), None))
     }
 
     fn snapshot(game: Value) -> MatchSnapshot {
@@ -680,7 +680,7 @@ mod tests {
 
     fn positions_b(tl: Option<&SlimTimeline>) -> Vec<TeamPosition> {
         let (game, _) = regression_fixture('b');
-        let snap = build_snapshot(&from_lcu(&game, tl, &NameTable::default()));
+        let snap = build_snapshot(&from_lcu(&game, tl, &NameTable::default(), None));
         let mut players = snap.players.clone();
         players.sort_by_key(|p| p.participant_id);
         players.iter().map(|p| p.team_position).collect()
@@ -735,7 +735,7 @@ mod tests {
     fn should_assign_slot_positions_for_normal_draft_400() {
         let (mut game, _) = regression_fixture('a');
         game.queue_id = 400;
-        let snap = build_snapshot(&from_lcu(&game, None, &NameTable::default()));
+        let snap = build_snapshot(&from_lcu(&game, None, &NameTable::default(), None));
         assert!(snap.mode_context.has_lanes);
         let mut players = snap.players.clone();
         players.sort_by_key(|p| p.participant_id);

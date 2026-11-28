@@ -24,6 +24,8 @@ use crate::lcu::api::timeline::{
 /// - `queue_name`: 队列中文名；原始 LCU JSON 无此字段时为 `None`（TS 快照里该键缺失）
 /// - `players`: 顺序即 TS `getParticipants` 的顺序（gameDetail 优先），快照玩家顺序沿用
 /// - `timeline`: 已 remap 到 LCU participantId 的裁剪时间线（P1 只用到 participants）
+/// - `me_puuid`: 「本人」的 puuid（战绩查询对象，LCU 路径由调用方传入；SGP 路径为 `None`），
+///   `players[].is_me` 据此判定（登记 P1-F2）
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct MatchInput {
@@ -35,12 +37,14 @@ pub struct MatchInput {
     pub duration_seconds: i64,
     pub players: Vec<PlayerInput>,
     pub timeline: Option<SlimTimeline>,
+    pub me_puuid: Option<String>,
 }
 
 /// 一名玩家的中立输入。
 ///
 /// - `name`: 显示名（TS `buildDisplayName`：`gameName#tagLine`，缺身份为 `玩家<pid>`）
-/// - `is_me`: 显示名等于当前玩家键（TS `displayName === currentPlayerKey`）
+/// - `is_me`: 本人判定。`me_puuid` 与本玩家 puuid 都非空时按 puuid 相等（登记 P1-F2，改名不误判），
+///   否则退回 TS 的显示名比较（`displayName === currentPlayerKey`）
 /// - `lcu_team_position`: LCU participant 的 `teamPosition` 原值，缺失为 `""`
 /// - `lane` / `role`: LCU `participant.timeline.lane/role`，缺失为 `""`
 /// - `truth_position`: SGP SUMMARY 真实分路（只收五个合法值）；是否采信由快照按 `hasLanes` 决定
@@ -537,12 +541,20 @@ pub fn remap_timeline(tl: &SlimTimeline, lcu_pid_by_puuid: &HashMap<String, i64>
 /// - `game`: LCU 对局视图（app 路径先 [`LcuGame::from_app_game`]）
 /// - `timeline`: Rust `get_match_timeline` 返回的**未 remap** 裁剪时间线（SGP participantId）
 /// - `names`: 调用方提供的名称表
+/// - `me_puuid`: 本人（战绩查询对象）的 puuid；`None` 或空串时本人判定完全按 TS 显示名比较
 ///
 /// # 行为
-/// - 玩家顺序、身份匹配（`identities[pid-1] ?? identities[index]`）、显示名与 isMe 与 TS 快照一致
+/// - 玩家顺序、身份匹配（`identities[pid-1] ?? identities[index]`）、显示名与 TS 快照一致
+/// - isMe：`me_puuid` 与玩家 puuid 都非空时按 puuid 相等，否则按显示名（登记 P1-F2）
 /// - 时间线按 [`build_puuid_map`] + [`remap_timeline`] 改写；remap 后 participants 里
 ///   pid > 0 且分路合法的写入 `truth_position`（同 pid 后者覆盖），终局指标按 pid 取最后一条
-pub fn from_lcu(game: &LcuGame, timeline: Option<&SlimTimeline>, names: &NameTable) -> MatchInput {
+pub fn from_lcu(
+    game: &LcuGame,
+    timeline: Option<&SlimTimeline>,
+    names: &NameTable,
+    me_puuid: Option<&str>,
+) -> MatchInput {
+    let me_puuid = me_puuid.filter(|s| !s.is_empty());
     let participants = game.snapshot_participants();
     let identities = game.snapshot_identities();
     let current_key = game.current_player_key();
@@ -571,11 +583,15 @@ pub fn from_lcu(game: &LcuGame, timeline: Option<&SlimTimeline>, names: &NameTab
                     .and_then(|i| identities.get(i))
                     .or_else(|| identities.get(index));
                 let name = display_name(identity, p.participant_id);
-                let is_me = name == current_key;
                 let puuid = identity
                     .and_then(|i| i.player.as_ref())
                     .and_then(|pl| pl.puuid.clone())
                     .unwrap_or_default();
+                // P1-F2：两边 puuid 都在时按 puuid 判本人（改名不误判），否则照 TS 比显示名
+                let is_me = match me_puuid {
+                    Some(me) if !puuid.is_empty() => puuid == me,
+                    _ => name == current_key,
+                };
                 let sgp_p = sgp.get(&p.participant_id).copied();
                 let spell_ids = [p.spell1_id, p.spell2_id];
                 PlayerInput {
@@ -618,6 +634,7 @@ pub fn from_lcu(game: &LcuGame, timeline: Option<&SlimTimeline>, names: &NameTab
         duration_seconds: game.game_duration,
         players,
         timeline: remapped,
+        me_puuid: me_puuid.map(str::to_string),
     }
 }
 
@@ -770,6 +787,7 @@ pub fn from_sgp(
         duration_seconds: summary.game_duration,
         players,
         timeline: timeline.cloned(),
+        me_puuid: None,
     }
 }
 
@@ -1027,7 +1045,7 @@ mod tests {
     #[test]
     fn should_use_game_detail_and_mark_current_player() {
         let (game, slim) = regression_fixture('a');
-        let input = from_lcu(&game, Some(&slim), &NameTable::default());
+        let input = from_lcu(&game, Some(&slim), &NameTable::default(), None);
         assert_eq!(input.players.len(), 10);
         let me: Vec<i64> = input
             .players
@@ -1060,7 +1078,7 @@ mod tests {
             ]
         }))
         .unwrap();
-        let input = from_lcu(&game, None, &NameTable::default());
+        let input = from_lcu(&game, None, &NameTable::default(), None);
         assert_eq!(input.players[0].name, "Test#1234");
         assert!(input.players[0].is_me);
         assert_eq!(input.players[0].puuid, "p1");
@@ -1068,6 +1086,69 @@ mod tests {
         assert!(!input.players[1].is_me);
         assert_eq!(input.players[1].puuid, "");
         assert!(input.timeline.is_none());
+    }
+
+    /// 改名场景：顶层身份（战绩列表）还是旧名，gameDetail 身份已是新名，puuid 相同
+    fn renamed_game() -> LcuGame {
+        serde_json::from_value(json!({
+            "participants": [
+                { "participantId": 1, "teamId": 100, "stats": {} },
+                { "participantId": 2, "teamId": 100, "stats": {} }
+            ],
+            "participantIdentities": [
+                { "player": { "gameName": "旧名", "tagLine": "1", "puuid": "me" } }
+            ],
+            "gameDetail": {
+                "participants": [
+                    { "participantId": 1, "teamId": 100, "stats": {} },
+                    { "participantId": 2, "teamId": 100, "stats": {} }
+                ],
+                "participantIdentities": [
+                    { "player": { "gameName": "路人", "tagLine": "2", "puuid": "other" } },
+                    { "player": { "gameName": "新名", "tagLine": "1", "puuid": "me" } }
+                ]
+            }
+        }))
+        .unwrap()
+    }
+
+    fn me_pids(input: &MatchInput) -> Vec<i64> {
+        input
+            .players
+            .iter()
+            .filter(|p| p.is_me)
+            .map(|p| p.participant_id)
+            .collect()
+    }
+
+    // P1-F2：TS 按显示名判本人，改名后谁都不是本人
+    #[test]
+    fn should_mark_me_by_puuid_when_renamed() {
+        let game = renamed_game();
+        let input = from_lcu(&game, None, &NameTable::default(), Some("me"));
+        assert_eq!(input.me_puuid.as_deref(), Some("me"));
+        assert_eq!(me_pids(&input), vec![2]);
+        // 不给 me_puuid（或空串）时与 TS 一致：显示名对不上，无人是本人
+        assert!(me_pids(&from_lcu(&game, None, &NameTable::default(), None)).is_empty());
+        assert!(me_pids(&from_lcu(&game, None, &NameTable::default(), Some(""))).is_empty());
+    }
+
+    // P1-F2：玩家 puuid 缺失时退回 TS 的显示名比较
+    #[test]
+    fn should_fall_back_to_display_name_when_player_puuid_missing() {
+        let game: LcuGame = serde_json::from_value(json!({
+            "participants": [
+                { "participantId": 1, "teamId": 100, "stats": {} },
+                { "participantId": 2, "teamId": 100, "stats": {} }
+            ],
+            "participantIdentities": [
+                { "player": { "gameName": "Test", "tagLine": "1234" } },
+                { "player": { "gameName": "别人", "tagLine": "9" } }
+            ]
+        }))
+        .unwrap();
+        let input = from_lcu(&game, None, &NameTable::default(), Some("me"));
+        assert_eq!(me_pids(&input), vec![1]);
     }
 
     #[test]
@@ -1098,7 +1179,7 @@ mod tests {
                 ..slim_participant(2, "puuid-1")
             },
         ];
-        let input = from_lcu(&game, Some(&tl), &NameTable::default());
+        let input = from_lcu(&game, Some(&tl), &NameTable::default(), None);
         assert_eq!(input.players[2].truth_position, Some(TeamPosition::Middle));
         assert_eq!(input.players[2].sgp_vision_score, Some(55));
         assert_eq!(input.players[0].truth_position, Some(TeamPosition::Top));
@@ -1136,7 +1217,7 @@ mod tests {
             ..Default::default()
         };
         let lcu = LcuGame::from_app_game(&game).expect("app Game 可转视图");
-        let input = from_lcu(&lcu, None, &NameTable::default());
+        let input = from_lcu(&lcu, None, &NameTable::default(), None);
         assert_eq!(input.queue_name.as_deref(), Some("单双排"));
         let p = &input.players[0];
         assert!(p.is_me);

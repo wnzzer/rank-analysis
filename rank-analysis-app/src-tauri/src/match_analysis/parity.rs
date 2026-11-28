@@ -72,6 +72,17 @@ pub const EXPECTED_DIFFS: &[ExpectedDiff] = &[ExpectedDiff {
     test: "mode::tests::should_classify_400_as_ranked_with_lanes, \
            snapshot::tests::should_assign_slot_positions_for_normal_draft_400",
     affects_score: true,
+}, ExpectedDiff {
+    id: "P1-F2",
+    paths: &["snapshot.players[*].isMe", "snapshot.teams[*].players[*].isMe"],
+    queues: &[],
+    ts: "isMe = 显示名 === 顶层身份第一个的 gameName#tagLine；改名或显示名撞车时误判",
+    rust: "调用方传入 me_puuid 且玩家 puuid 非空时按 puuid 相等判定，否则退回 TS 的显示名比较",
+    reason: "puuid 是账号唯一标识，显示名会改、会撞。对拍时 me_puuid 取 TS 标 isMe 的玩家的 puuid，\
+             只有改名 / 撞车局才会出现差异。不进分数 / 标签，只影响 P3 点评名单里本人置顶（selectVerdicts）",
+    test: "input::tests::should_mark_me_by_puuid_when_renamed, \
+           input::tests::should_fall_back_to_display_name_when_player_puuid_missing",
+    affects_score: false,
 }];
 
 /// 一处差异；`registered` 为命中的登记编号
@@ -253,9 +264,29 @@ fn parse_name_map(label: &str, v: &Value) -> Result<HashMap<i64, String>, String
         .collect()
 }
 
+/// 黄金里的「本人」puuid：取 TS 标了 `isMe` 的第一名玩家，按与 `from_lcu` 相同的身份匹配找其 puuid。
+///
+/// 黄金没有记录调用方会传的 `me_puuid`；app 里调用方传的是战绩查询对象的 puuid，而 TS 的
+/// `currentPlayerKey` 正是该对象（顶层身份第一个）的显示名，未改名时两者指向同一人。
+/// 按 TS 结果反推，让对拍只暴露 P1-F2 真正改变的场景（改名 / 显示名撞车），不因缺参数产生噪音。
+fn golden_me_puuid(expected_snapshot: &Value, game: &LcuGame, names: &NameTable) -> Option<String> {
+    let me_pid = expected_snapshot["players"]
+        .as_array()?
+        .iter()
+        .find(|p| p["isMe"] == Value::Bool(true))?["participantId"]
+        .as_i64()?;
+    from_lcu(game, None, names, None)
+        .players
+        .into_iter()
+        .find(|p| p.participant_id == me_pid)
+        .map(|p| p.puuid)
+        .filter(|s| !s.is_empty())
+}
+
 /// 对一份黄金跑 Rust 并比对：`from_lcu` → `build_snapshot` 对 `expected.snapshot`，
 /// `MatchInput.timeline`（Rust remap 结果）对 `expected.remappedTimeline`。
-/// 名称表完全取自黄金（`championNames` / `spellNames` / `spellFallback`），不用 Rust 内置表。
+/// 名称表完全取自黄金（`championNames` / `spellNames` / `spellFallback`），不用 Rust 内置表；
+/// `me_puuid` 由 [`golden_me_puuid`] 从 TS 结果反推。
 ///
 /// # 错误
 /// 版本不符、kind 不是 `lcu`、输入解析失败
@@ -285,7 +316,8 @@ pub fn check_golden(golden: &Value) -> Result<GoldenReport, String> {
         fallback,
     );
 
-    let match_input = from_lcu(&game, slim.as_ref(), &names);
+    let me_puuid = golden_me_puuid(&golden["expected"]["snapshot"], &game, &names);
+    let match_input = from_lcu(&game, slim.as_ref(), &names, me_puuid.as_deref());
     let snapshot = serde_json::to_value(build_snapshot(&match_input))
         .map_err(|e| format!("{name}: 快照序列化失败: {e}"))?;
     let remapped = serde_json::to_value(&match_input.timeline)
