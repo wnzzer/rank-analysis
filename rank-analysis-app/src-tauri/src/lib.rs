@@ -10,6 +10,7 @@ pub mod game_cache;
 pub mod game_state_monitor;
 pub mod hidden_mmr;
 pub mod lcu;
+pub mod match_analysis;
 pub mod migrate;
 pub mod observability;
 pub mod opgg;

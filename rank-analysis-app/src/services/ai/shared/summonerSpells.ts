@@ -3,7 +3,10 @@
  * 喂给 AI 之前转中文，让 prompt 含义直接可读。
  */
 
-const SPELL_NAMES: Record<number, string> = {
+/** 未收录 spellId 的兜底名 */
+export const SPELL_FALLBACK_NAME = '未知技能'
+
+export const SPELL_NAMES: Record<number, string> = {
   1: '净化',
   3: '虚弱',
   4: '闪现',
@@ -18,7 +21,7 @@ const SPELL_NAMES: Record<number, string> = {
 }
 
 export function spellIdToName(id: number): string {
-  return SPELL_NAMES[id] ?? '未知技能'
+  return SPELL_NAMES[id] ?? SPELL_FALLBACK_NAME
 }
 
 export function spellIdsToNames(ids: number[]): string[] {
