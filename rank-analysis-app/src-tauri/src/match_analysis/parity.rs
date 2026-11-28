@@ -387,6 +387,13 @@ mod tests {
 
     const GOLDEN_A: &str = include_str!("../../tests/fixtures/parity/regression-a.golden.json");
     const GOLDEN_B: &str = include_str!("../../tests/fixtures/parity/regression-b.golden.json");
+    /// 回归局 A 的变体（`game.queueId` 420 → 400），TS 实生成
+    const GOLDEN_A_Q400: &str =
+        include_str!("../../tests/fixtures/parity/regression-a-q400.golden.json");
+    /// 回归局 A 的变体（gameDetail 身份：pid 3 删 tagLine；pid 7 删 gameName/tagLine、
+    /// 加 summonerName；pid 8 名字全删），TS 实生成
+    const GOLDEN_A_NAMES: &str =
+        include_str!("../../tests/fixtures/parity/regression-a-missing-names.golden.json");
 
     fn diffs(expected: Value, actual: Value) -> Vec<Diff> {
         let mut out = Vec::new();
@@ -723,14 +730,39 @@ mod tests {
         );
     }
 
+    /// 登记表外为 0，且登记内差异按编号计数恰好等于 `pinned`（防止登记项悄悄多放行或修复失效）
+    fn assert_registered_exactly(text: &str, pinned: &[(&str, usize)]) {
+        assert_golden_clean(text);
+        let golden: Value = serde_json::from_str(text).unwrap();
+        let report = check_golden(&golden).unwrap();
+        let mut got: std::collections::BTreeMap<&str, usize> = Default::default();
+        for d in &report.diffs {
+            *got.entry(d.registered.unwrap()).or_default() += 1;
+        }
+        let want: std::collections::BTreeMap<&str, usize> = pinned.iter().copied().collect();
+        assert_eq!(got, want, "{} 的登记内差异与钉住的不符", report.name);
+    }
+
     #[test]
     fn should_match_ts_golden_regression_a() {
-        assert_golden_clean(GOLDEN_A);
+        assert_registered_exactly(GOLDEN_A, &[("P1-F3", 16)]);
     }
 
     #[test]
     fn should_match_ts_golden_regression_b() {
-        assert_golden_clean(GOLDEN_B);
+        assert_registered_exactly(GOLDEN_B, &[("P1-F3", 16)]);
+    }
+
+    /// 回归局 A 改 queueId=400 后由 TS 实生成的黄金：F1 全部生效
+    #[test]
+    fn should_match_ts_golden_regression_a_queue_400() {
+        assert_registered_exactly(GOLDEN_A_Q400, &[("P1-F1", 32), ("P1-F3", 16)]);
+    }
+
+    /// 回归局 A 删掉三名玩家的部分名字字段后由 TS 实生成的黄金：F4 全部生效
+    #[test]
+    fn should_match_ts_golden_regression_a_missing_names() {
+        assert_registered_exactly(GOLDEN_A_NAMES, &[("P1-F3", 16), ("P1-F4", 12)]);
     }
 
     #[test]
